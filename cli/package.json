@@ -1,15 +1,37 @@
 {
-  "name": "@sideseat/cli",
-  "version": "0.1.0",
-  "description": "AI development toolkit - proxy, observability, MCP/A2A debugging",
+  "name": "sideseat",
+  "version": "1.0.3",
+  "description": "Your unified workspace for building and debugging AI agents",
   "main": "index.js",
   "bin": {
     "sideseat": "./index.js"
   },
-  "files": ["index.js", "README.md", "bin/"],
-  "os": ["darwin", "linux", "win32"],
-  "cpu": ["x64", "arm64"],
-  "keywords": ["ai", "ai-proxy", "opentelemetry", "mcp", "agent-to-agent", "prompt-optimization"],
+  "files": [
+    "index.js",
+    "README.md",
+    "bin/"
+  ],
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "keywords": [
+    "ai",
+    "agent",
+    "llm",
+    "cli",
+    "debugging",
+    "development",
+    "strands",
+    "mcp",
+    "a2a",
+    "sideseat"
+  ],
   "author": "Sergey Pugachev",
   "license": "AGPL-3.0",
   "repository": {

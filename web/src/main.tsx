@@ -11,21 +11,26 @@ import McpDebuggerPage from "./pages/mcp-debugger";
 import A2aDebuggerPage from "./pages/a2a-debugger";
 import "./app.css";
 
-const router = createBrowserRouter([
+const router = createBrowserRouter(
+  [
+    {
+      path: "/",
+      element: <App />,
+      children: [
+        { index: true, element: <HomePage /> },
+        { path: "dashboard", element: <DashboardPage /> },
+        { path: "traces", element: <TracesPage /> },
+        { path: "prompts", element: <PromptsPage /> },
+        { path: "proxy", element: <ProxyPage /> },
+        { path: "mcp", element: <McpDebuggerPage /> },
+        { path: "a2a", element: <A2aDebuggerPage /> },
+      ],
+    },
+  ],
   {
-    path: "/",
-    element: <App />,
-    children: [
-      { index: true, element: <HomePage /> },
-      { path: "dashboard", element: <DashboardPage /> },
-      { path: "traces", element: <TracesPage /> },
-      { path: "prompts", element: <PromptsPage /> },
-      { path: "proxy", element: <ProxyPage /> },
-      { path: "mcp", element: <McpDebuggerPage /> },
-      { path: "a2a", element: <A2aDebuggerPage /> },
-    ],
+    basename: "/ui",
   },
-]);
+);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

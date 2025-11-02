@@ -18,8 +18,6 @@ tracing-subscriber = { workspace = true }
 clap = { workspace = true }
 rust-embed = { workspace = true }
 reqwest = { workspace = true }
-opentelemetry = { workspace = true }
-opentelemetry-otlp = { workspace = true }
 async-stream = { workspace = true }
 futures = { workspace = true }
 thiserror = { workspace = true }

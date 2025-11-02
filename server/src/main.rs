@@ -19,22 +19,25 @@ async fn main() {
     // Load environment variables from .env file
     dotenvy::dotenv().ok();
 
-    // Initialize tracing subscriber for logging
+    // Initialize tracing subscriber with compact, colorful formatting
     tracing_subscriber::fmt()
+        .with_target(false)
+        .with_thread_ids(false)
+        .with_level(true)
+        .with_ansi(true)
+        .compact()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,sideseat=debug".into()),
+                .unwrap_or_else(|_| "info,sideseat=info".into()),
         )
         .init();
-
-    tracing::info!("Starting SideSeat...");
 
     let cli = Cli::parse();
 
     match cli.command {
         Some(Commands::Start) | None => {
             if let Err(e) = sideseat::run().await {
-                tracing::error!("Application error: {}", e);
+                eprintln!("\n❌ Error: {}\n", e);
                 std::process::exit(1);
             }
         }

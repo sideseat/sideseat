@@ -1,17 +1,24 @@
 use crate::config::Settings;
-use crate::middleware;
+use crate::{embedded, middleware};
 use crate::{Error, Result};
-use axum::{Router, routing::get};
+use axum::{response::Redirect, routing::get, Router};
 use std::net::SocketAddr;
 use tower_http::trace::TraceLayer;
 
 pub async fn start() -> Result<()> {
     let settings = Settings::new()?;
 
+    // API routes under /api/v1
+    let api_routes = Router::new().route("/health", get(health_check));
+    // TODO: Add more API routes here
+
+    // UI routes under /ui - serve embedded frontend assets
+    let ui_routes = Router::new().fallback(embedded::serve_assets);
+
     let app = Router::new()
-        .route("/health", get(health_check))
-        // TODO: Add API routes
-        // TODO: Add frontend routes (embedded assets)
+        .route("/", get(|| async { Redirect::permanent("/ui") }))
+        .nest("/api/v1", api_routes)
+        .nest_service("/ui", ui_routes)
         .layer(TraceLayer::new_for_http())
         .layer(middleware::cors());
 
@@ -25,7 +32,18 @@ pub async fn start() -> Result<()> {
         settings.server.port,
     ));
 
-    tracing::info!("Server listening on {}", addr);
+    // Print beautiful startup banner similar to Vite/Next.js
+    println!();
+    println!("  \x1b[1m\x1b[36mSideSeat\x1b[0m \x1b[90mv{}\x1b[0m", env!("CARGO_PKG_VERSION"));
+    println!();
+    println!("  \x1b[32m➜\x1b[0m  \x1b[1mLocal:\x1b[0m    \x1b[36mhttp://{}:{}\x1b[0m", settings.server.host, settings.server.port);
+    println!("  \x1b[90m➜  Network:  use --host to expose\x1b[0m");
+    println!();
+    println!("  \x1b[1mEndpoints:\x1b[0m");
+    println!("  \x1b[90m├─\x1b[0m UI:      \x1b[36m/ui\x1b[0m");
+    println!("  \x1b[90m├─\x1b[0m API:     \x1b[36m/api/v1\x1b[0m");
+    println!("  \x1b[90m└─\x1b[0m Health:  \x1b[36m/api/v1/health\x1b[0m");
+    println!();
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await

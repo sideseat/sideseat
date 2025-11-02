@@ -30,23 +30,23 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build Rust
-        run: cargo build --verbose
+      - name: Cache Node modules
+        uses: actions/cache@v4
+        with:
+          path: web/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('web/package-lock.json') }}
 
-      - name: Test Rust
-        run: cargo test --verbose
+      - name: Setup (install dependencies)
+        run: make setup
 
-      - name: Lint Rust
-        run: cargo clippy -- -D warnings
+      - name: Format check
+        run: make fmt-check
 
-      - name: Check Rust formatting
-        run: cargo fmt --check
+      - name: Lint
+        run: make lint
 
-      - name: Install frontend deps
-        run: cd web && npm install
+      - name: Test
+        run: make test
 
-      - name: Lint frontend
-        run: cd web && npm run lint
-
-      - name: Build frontend
-        run: cd web && npm run build
+      - name: Build
+        run: make build
