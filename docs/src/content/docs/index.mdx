@@ -1,39 +1,83 @@
 ---
 title: SideSeat
 description: Unified workspace for building and debugging AI Agents
-template: splash # Remove or comment out this line to display the site sidebar on this page.
+template: splash
 hero:
-  tagline: Congrats on setting up a new Starlight project!
+  tagline: Your unified workspace for building and debugging AI agents
   image:
     file: ../../assets/houston.webp
   actions:
-    - text: Example Guide
+    - text: Get Started
       link: /guides/example/
       icon: right-arrow
-    - text: Read the Starlight docs
-      link: https://starlight.astro.build
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/spugachev/sideseat
       icon: external
       variant: minimal
 ---
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
-## Next steps
+## Quick Start
+
+Get up and running with SideSeat in minutes:
+
+```bash
+# Clone the repository
+git clone https://github.com/spugachev/sideseat.git
+cd sideseat
+
+# Install dependencies and setup
+make setup
+
+# Start development servers
+make dev
+```
+
+Open [http://localhost:5173](http://localhost:5173) to access the dashboard.
+
+## Features
 
 <CardGrid stagger>
-  <Card title="Update content" icon="pencil">
-    Edit `src/content/docs/index.mdx` to see this page change.
+  <Card title="Unified Dashboard" icon="laptop">
+    Single interface for monitoring and debugging all your AI agents in one place.
   </Card>
-  <Card title="Change page layout" icon="document">
-    Delete `template: splash` in `src/content/docs/index.mdx` to display a sidebar on this page.
+  <Card title="Real-time Monitoring" icon="magnifier">
+    Track agent performance, logs, and metrics in real-time with hot reload support.
   </Card>
-  <Card title="Add new content" icon="add-document">
-    Add Markdown or MDX files to `src/content/docs` to create new pages.
+  <Card title="Full-Stack Solution" icon="puzzle">
+    Built with Rust backend (Axum) and React 19 frontend, embedded in a single binary.
   </Card>
-  <Card title="Configure your site" icon="setting">
-    Edit your `sidebar` and other config in `astro.config.mjs`.
+  <Card title="Developer Friendly" icon="rocket">
+    Fast development workflow with hot reload, comprehensive testing, and CLI tools.
   </Card>
-  <Card title="Read the docs" icon="open-book">
-    Learn more in [the Starlight Docs](https://starlight.astro.build/).
+</CardGrid>
+
+## Tech Stack
+
+- **Backend**: Rust with Axum framework
+- **Frontend**: React 19 with Vite
+- **Database**: SQLite with migrations
+- **CLI**: Distributed as NPM package
+- **Docs**: Astro Starlight
+
+## Requirements
+
+- Rust 1.75 or higher
+- Node.js 20.19+ or 22.12+
+- Make
+
+## Next Steps
+
+<CardGrid>
+  <Card title="Getting Started Guide" icon="open-book">
+    Learn how to set up and configure SideSeat for your projects.
+  </Card>
+  <Card title="API Reference" icon="document">
+    Explore the complete API documentation and endpoints.
+  </Card>
+  <Card title="Contributing" icon="github">
+    Help improve SideSeat by contributing to the project.
   </Card>
 </CardGrid>
