@@ -1,8 +1,9 @@
-.PHONY: help setup setup-ci setup-cross setup-hooks dev dev-server dev-web build build-server build-web test fmt fmt-check lint clean build-cli build-cli-local publish-cli publish-cli-dry-run version version-patch version-minor version-major run start
+.PHONY: help setup setup-ci setup-cross setup-hooks dev dev-server dev-web dev-docs build build-server build-web build-docs test fmt fmt-check lint clean build-cli build-cli-local publish-cli publish-cli-dry-run version version-patch version-minor version-major run start
 
 # Variables
-DIRS := data server/migrations web/dist
+DIRS := data server/migrations web/dist docs/dist
 WEB_DIR := web
+DOCS_DIR := docs
 CARGO_FLAGS := --release
 MACOSX_DEPLOYMENT_TARGET := 14.0
 
@@ -19,9 +20,11 @@ help:
 	@echo "  make dev             - Start both servers with hot reload"
 	@echo "  make dev-server      - Start only Rust server"
 	@echo "  make dev-web         - Start only Vite dev server"
+	@echo "  make dev-docs        - Start Astro docs dev server"
 	@echo ""
 	@echo "Build & Test:"
 	@echo "  make build           - Production build (web + server)"
+	@echo "  make build-docs      - Build Astro documentation"
 	@echo "  make test            - Run all tests"
 	@echo "  make fmt             - Format all code"
 	@echo "  make fmt-check       - Check code formatting (CI)"
@@ -62,7 +65,8 @@ setup: check-prereqs
 	@echo "✓ Prerequisites OK"
 	@cargo install cargo-watch 2>/dev/null || echo "✓ cargo-watch already installed"
 	@cd $(WEB_DIR) && npm install
-	@mkdir -p $(DIRS) && touch web/dist/.gitkeep
+	@cd $(DOCS_DIR) && npm install
+	@mkdir -p $(DIRS) && touch web/dist/.gitkeep docs/dist/.gitkeep
 	@[ -f .env ] || (cp .env.example .env && echo "✓ Created .env file")
 	@echo "✓ Setup complete! Run 'make dev' to start."
 
@@ -162,6 +166,10 @@ dev-server:
 dev-web:
 	@cd $(WEB_DIR) && npm run dev
 
+dev-docs:
+	@echo "Starting Astro docs dev server..."
+	@cd $(DOCS_DIR) && npm run dev
+
 # Build targets
 build: build-web build-server
 
@@ -175,6 +183,12 @@ build-server: build-web
 	@echo "Building backend..."
 	@MACOSX_DEPLOYMENT_TARGET=$(MACOSX_DEPLOYMENT_TARGET) cargo build $(CARGO_FLAGS)
 	@echo "✓ Backend built to target/release/sideseat"
+
+build-docs:
+	@echo "Building Astro documentation..."
+	@rm -rf $(DOCS_DIR)/dist
+	@cd $(DOCS_DIR) && npx astro build
+	@echo "✓ Docs built to $(DOCS_DIR)/dist"
 
 # Testing & quality
 test:
@@ -196,8 +210,8 @@ lint:
 # Cleanup
 clean:
 	@cargo clean
-	@rm -rf $(WEB_DIR)/dist/* target cli/bin/sideseat-* data/*.db*
-	@mkdir -p $(WEB_DIR)/dist && touch $(WEB_DIR)/dist/.gitkeep
+	@rm -rf $(WEB_DIR)/dist/* $(DOCS_DIR)/dist/* target cli/bin/sideseat-* data/*.db*
+	@mkdir -p $(WEB_DIR)/dist $(DOCS_DIR)/dist && touch $(WEB_DIR)/dist/.gitkeep $(DOCS_DIR)/dist/.gitkeep
 	@echo "✓ Clean complete"
 
 # CLI build targets

@@ -1,13 +1,17 @@
 {
   "name": "@sideseat/docs",
-  "version": "0.1.0",
-  "private": true,
+  "type": "module",
+  "version": "0.0.1",
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build"
+    "dev": "npx astro dev",
+    "start": "npx astro dev",
+    "build": "npx astro build",
+    "preview": "npx astro preview",
+    "astro": "npx astro"
   },
   "dependencies": {
-    "@astrojs/starlight": "latest",
-    "astro": "latest"
+    "@astrojs/starlight": "^0.36.2",
+    "astro": "^5.6.1",
+    "sharp": "^0.34.2"
   }
 }
