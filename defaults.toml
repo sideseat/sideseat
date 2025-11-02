@@ -1,0 +1,21 @@
+[server]
+host = "127.0.0.1"
+port = 3000
+
+[database]
+url = "sqlite://data/sideseat.db"
+
+[proxy]
+enabled = false
+
+[opentelemetry]
+enabled = false
+
+[mcp]
+enabled = false
+
+[a2a]
+enabled = false
+
+[prompts]
+enabled = false
