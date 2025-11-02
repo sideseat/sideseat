@@ -523,7 +523,6 @@ $RECYCLE.BIN/
 web/dist/
 !web/dist/.gitkeep
 docs/dist/
-!docs/dist/.gitkeep
 cli/bin/sideseat-*
 !cli/bin/.gitkeep
 
