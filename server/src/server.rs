@@ -1,7 +1,7 @@
 use crate::config::Settings;
-use crate::{embedded, middleware};
 use crate::{Error, Result};
-use axum::{response::Redirect, routing::get, Router};
+use crate::{embedded, middleware};
+use axum::{Router, response::Redirect, routing::get};
 use std::net::SocketAddr;
 use tower_http::trace::TraceLayer;
 
@@ -36,7 +36,10 @@ pub async fn start() -> Result<()> {
     println!();
     println!("  \x1b[1m\x1b[36mSideSeat\x1b[0m \x1b[90mv{}\x1b[0m", env!("CARGO_PKG_VERSION"));
     println!();
-    println!("  \x1b[32m➜\x1b[0m  \x1b[1mLocal:\x1b[0m    \x1b[36mhttp://{}:{}\x1b[0m", settings.server.host, settings.server.port);
+    println!(
+        "  \x1b[32m➜\x1b[0m  \x1b[1mLocal:\x1b[0m    \x1b[36mhttp://{}:{}\x1b[0m",
+        settings.server.host, settings.server.port
+    );
     println!("  \x1b[90m➜  Network:  use --host to expose\x1b[0m");
     println!();
     println!("  \x1b[1mEndpoints:\x1b[0m");
