@@ -1,4 +1,4 @@
-.PHONY: help setup setup-ci setup-cross dev dev-server dev-web build build-server build-web test fmt fmt-check lint clean build-cli build-cli-local publish-cli publish-cli-dry-run version version-patch version-minor version-major run start
+.PHONY: help setup setup-ci setup-cross setup-hooks dev dev-server dev-web build build-server build-web test fmt fmt-check lint clean build-cli build-cli-local publish-cli publish-cli-dry-run version version-patch version-minor version-major run start
 
 # Variables
 DIRS := data server/migrations web/dist
@@ -15,6 +15,7 @@ help:
 	@echo ""
 	@echo "Setup & Development:"
 	@echo "  make setup           - First-time setup (install deps, create dirs)"
+	@echo "  make setup-hooks     - Install git hooks (pre-commit formatting)"
 	@echo "  make dev             - Start both servers with hot reload"
 	@echo "  make dev-server      - Start only Rust server"
 	@echo "  make dev-web         - Start only Vite dev server"
@@ -69,6 +70,10 @@ setup-ci:
 	@cd $(WEB_DIR) && npm install
 	@mkdir -p $(DIRS) && touch web/dist/.gitkeep
 	@echo "✓ CI setup complete"
+
+setup-hooks:
+	@echo "Installing git hooks..."
+	@./scripts/setup-hooks.sh
 
 # Cross-compilation setup
 RUST_TARGETS := x86_64-apple-darwin aarch64-apple-darwin x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu x86_64-pc-windows-gnu

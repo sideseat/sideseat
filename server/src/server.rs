@@ -10,7 +10,6 @@ pub async fn start() -> Result<()> {
 
     // API routes under /api/v1
     let api_routes = Router::new().route("/health", get(health_check));
-    // TODO: Add more API routes here
 
     // UI routes under /ui - serve embedded frontend assets
     let ui_routes = Router::new().fallback(embedded::serve_assets);
@@ -32,7 +31,6 @@ pub async fn start() -> Result<()> {
         settings.server.port,
     ));
 
-    // Print beautiful startup banner similar to Vite/Next.js
     println!();
     println!("  \x1b[1m\x1b[36mSideSeat\x1b[0m \x1b[90mv{}\x1b[0m", env!("CARGO_PKG_VERSION"));
     println!();

@@ -1,0 +1,19 @@
+#!/bin/sh
+# Pre-commit hook to run formatting
+
+echo "Running make fmt..."
+make fmt
+
+# Check if any files were modified by formatting
+if ! git diff --exit-code --quiet; then
+    echo ""
+    echo "✓ Code formatted successfully"
+    echo ""
+    echo "Formatted files have been staged automatically."
+    echo ""
+
+    # Stage all formatted files
+    git add -u
+fi
+
+exit 0

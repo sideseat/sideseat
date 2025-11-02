@@ -11,7 +11,6 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Start,
-    // TODO: Add proxy, otel, mcp, a2a, prompts subcommands
 }
 
 #[tokio::main]
