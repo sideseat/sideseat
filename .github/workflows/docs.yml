@@ -1,4 +1,4 @@
-name: Build Docs
+name: Build and Deploy Docs
 
 on:
   workflow_dispatch:
@@ -7,6 +7,15 @@ on:
     paths:
       - 'docs/**'
       - '.github/workflows/docs.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build-docs:
@@ -31,9 +40,18 @@ jobs:
       - name: Build documentation
         run: make build-docs
 
-      - name: Upload docs artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: docs
           path: docs/dist/
-          retention-days: 30
+
+  deploy:
+    needs: build-docs
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
