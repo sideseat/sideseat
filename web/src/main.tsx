@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider, createBrowserRouter } from "react-router";
+import { ThemeProvider } from "@/components/theme-provider";
 import App from "./app";
 import HomePage from "./pages/home";
 import DashboardPage from "./pages/dashboard";
@@ -24,6 +25,8 @@ const router = createBrowserRouter(
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <ThemeProvider defaultTheme="system" storageKey="theme">
+      <RouterProvider router={router} />
+    </ThemeProvider>
   </React.StrictMode>,
 );

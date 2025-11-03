@@ -58,6 +58,28 @@ export default function HomePage() {
           <li>Proxy - TODO</li>
           <li>MCP Debugger - TODO</li>
           <li>A2A Debugger - TODO</li>
+          <li>Prompts - TODO</li>
+          <li>Proxy - TODO</li>
+          <li>MCP Debugger - TODO</li>
+          <li>A2A Debugger - TODO</li> <li>Prompts - TODO</li>
+          <li>Proxy - TODO</li>
+          <li>MCP Debugger - TODO</li>
+          <li>A2A Debugger - TODO</li> <li>Prompts - TODO</li>
+          <li>Proxy - TODO</li>
+          <li>MCP Debugger - TODO</li>
+          <li>A2A Debugger - TODO</li> <li>Prompts - TODO</li>
+          <li>Proxy - TODO</li>
+          <li>MCP Debugger - TODO</li>
+          <li>A2A Debugger - TODO</li> <li>Prompts - TODO</li>
+          <li>Proxy - TODO</li>
+          <li>MCP Debugger - TODO</li>
+          <li>A2A Debugger - TODO</li> <li>Prompts - TODO</li>
+          <li>Proxy - TODO</li>
+          <li>MCP Debugger - TODO</li>
+          <li>A2A Debugger - TODO</li> <li>Prompts - TODO</li>
+          <li>Proxy - TODO</li>
+          <li>MCP Debugger - TODO</li>
+          <li>A2A Debugger - TODO</li>
         </ul>
       </div>
     </div>
