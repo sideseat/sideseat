@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import App from "./app";
 import HomePage from "./pages/home";
 import DashboardPage from "./pages/dashboard";
+import NotFoundPage from "./pages/not-found";
 import "./index.css";
 
 const router = createBrowserRouter(
@@ -16,6 +17,7 @@ const router = createBrowserRouter(
       children: [
         { index: true, element: <HomePage /> },
         { path: "dashboard", element: <DashboardPage /> },
+        { path: "*", element: <NotFoundPage /> },
       ],
     },
   ],
