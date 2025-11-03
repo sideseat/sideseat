@@ -1,5 +1,3 @@
-// API client for backend communication
-
 const API_BASE_URL = import.meta.env.PROD ? "/api/v1" : "http://localhost:5001/api/v1";
 
 export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
@@ -17,7 +15,3 @@ export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Prom
 
   return response.json();
 }
-
-// TODO: Add specific API methods
-// export async function getTraces() { ... }
-// export async function getPrompts() { ... }
