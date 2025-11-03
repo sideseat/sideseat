@@ -13,6 +13,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 export type NavigationItem = {
+  id?: string;
   title: string;
   url: string;
   icon?: LucideIcon;
@@ -40,6 +41,7 @@ export const mainNavigation: NavigationItem[] = [
     icon: LayoutDashboard,
   },
   {
+    id: "traces",
     title: "Traces",
     url: "/traces",
     icon: Activity,
@@ -55,6 +57,7 @@ export const mainNavigation: NavigationItem[] = [
     ],
   },
   {
+    id: "prompts",
     title: "Prompts",
     url: "/prompts",
     icon: FileText,
@@ -75,6 +78,7 @@ export const mainNavigation: NavigationItem[] = [
     icon: Network,
   },
   {
+    id: "debuggers",
     title: "Debuggers",
     url: "/debugger",
     icon: Bug,
