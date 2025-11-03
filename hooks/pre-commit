@@ -1,5 +1,5 @@
 #!/bin/sh
-# Pre-commit hook to run formatting
+# Pre-commit hook to run formatting and linting
 
 echo "Running make fmt..."
 make fmt
@@ -16,4 +16,13 @@ if ! git diff --exit-code --quiet; then
     git add -u
 fi
 
+echo "Running make lint..."
+if ! make lint; then
+    echo ""
+    echo "✗ Linting failed. Please fix the issues and try again."
+    exit 1
+fi
+
+echo ""
+echo "✓ All checks passed"
 exit 0
