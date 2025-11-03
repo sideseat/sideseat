@@ -23,7 +23,7 @@ export default function App() {
       <AppSidebar />
       <SidebarInset>
         <LayoutHeader navigationTrail={navigationTrail} />
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-24 sm:p-6 sm:pt-28">
+        <div className="flex flex-1 flex-col pt-header-offset sm:pt-header-offset-sm">
           <Outlet />
         </div>
       </SidebarInset>
@@ -42,8 +42,8 @@ function LayoutHeader({ navigationTrail }: { navigationTrail: NavigationItem[] }
 
   return (
     <header
-      style={{ left: sidebarOffset, right: 0 }}
-      className="fixed top-0 z-40 flex h-16 shrink-0 items-center gap-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 transition-[left,height] ease-linear"
+      style={{ left: sidebarOffset, right: 0, height: "var(--header-height)" }}
+      className="fixed top-0 z-40 flex shrink-0 items-center gap-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 transition-[left,height] ease-linear"
     >
       <div className="flex w-full items-center gap-3 px-4 sm:px-6">
         <SidebarTrigger className="-ml-1" />

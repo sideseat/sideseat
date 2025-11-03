@@ -8,6 +8,9 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --spacing-header-height: 4rem;
+  --spacing-header-offset: 4.5rem;
+  --spacing-header-offset-sm: 5rem;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -43,6 +46,9 @@
 
 :root {
   --radius: 0.625rem;
+  --header-height: 4rem;
+  --header-offset: 4.5rem;
+  --header-offset-sm: 5rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);

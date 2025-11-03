@@ -28,7 +28,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-8xl flex-col gap-10 px-2 sm:px-4">
+    <div className="mx-auto flex w-full max-w-8xl flex-col gap-10 px-4 pb-4 sm:px-6 sm:pb-6">
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>

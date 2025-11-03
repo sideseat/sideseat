@@ -151,7 +151,7 @@ export default function HomePage() {
   const { label, badgeClass, icon: StatusIcon, title, description } = statusConfig[healthStatus];
 
   return (
-    <div className="mx-auto flex w-full max-w-8xl flex-col gap-12 px-2 sm:px-4">
+    <div className="mx-auto flex w-full max-w-8xl flex-col gap-12 px-4 pb-4 sm:px-6 sm:pb-6">
       <section className="space-y-3">
         <Badge className="w-fit border border-dashed border-border bg-muted/40 text-xs text-muted-foreground">
           Early preview
