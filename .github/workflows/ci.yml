@@ -43,7 +43,7 @@ jobs:
           key: ${{ runner.os }}-node-${{ hashFiles('web/package-lock.json') }}
 
       - name: Setup (install dependencies)
-        run: make setup
+        run: make setup-ci
 
       - name: Format check
         run: make fmt-check

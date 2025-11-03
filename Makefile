@@ -71,7 +71,7 @@ setup: check-prereqs
 	@echo "✓ Setup complete! Run 'make dev' to start."
 
 setup-ci:
-	@cd $(WEB_DIR) && npm install
+	@cd $(WEB_DIR) && npm ci --include=optional
 	@mkdir -p $(DIRS) && touch web/dist/.gitkeep
 	@echo "✓ CI setup complete"
 
