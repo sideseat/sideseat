@@ -525,6 +525,7 @@ web/dist/
 docs/dist/
 cli/bin/sideseat-*
 !cli/bin/.gitkeep
+!web/src/lib
 
 # Database
 *.db

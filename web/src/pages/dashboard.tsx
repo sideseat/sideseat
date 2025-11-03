@@ -1,3 +1,9 @@
+import { Button } from "@/components/ui/button";
+
 export default function DashboardPage() {
-  return <h1>TODO: Dashboard Page</h1>;
+  return (
+    <div className="flex min-h-svh flex-col items-center justify-center">
+      <Button>Click me</Button>
+    </div>
+  );
 }
