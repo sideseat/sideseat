@@ -18,6 +18,7 @@ export type NavigationItem = {
   url: string;
   icon?: LucideIcon;
   external?: boolean;
+  exactMatch?: boolean; // If true, only exact URL match. If false, matches all sub-URLs. Defaults to true.
   items?: NavigationItem[];
 };
 
@@ -86,10 +87,12 @@ export const mainNavigation: NavigationItem[] = [
       {
         title: "MCP Debugger",
         url: "/debugger/mcp",
+        exactMatch: false, // Will match /debugger/mcp and all sub-paths
       },
       {
         title: "A2A Debugger",
         url: "/debugger/a2a",
+        exactMatch: false, // Will match /debugger/a2a and all sub-paths
       },
     ],
   },
