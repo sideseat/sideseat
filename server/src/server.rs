@@ -1,3 +1,4 @@
+use crate::api::routes;
 use crate::config::Settings;
 use crate::{Error, Result};
 use crate::{embedded, middleware};
@@ -9,7 +10,7 @@ pub async fn start() -> Result<()> {
     let settings = Settings::new()?;
 
     // API routes under /api/v1
-    let api_routes = Router::new().route("/health", get(health_check));
+    let api_routes = routes::create_routes();
 
     // UI routes under /ui - serve embedded frontend assets
     let ui_routes = Router::new().fallback(embedded::serve_assets);
@@ -55,8 +56,4 @@ pub async fn start() -> Result<()> {
         .map_err(|e| Error::Internal(format!("Server error: {}", e)))?;
 
     Ok(())
-}
-
-async fn health_check() -> &'static str {
-    "OK"
 }
