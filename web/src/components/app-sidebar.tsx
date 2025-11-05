@@ -23,8 +23,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link to="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <brand.icon className="size-4" />
+                <div className="flex aspect-square size-8 items-center justify-center">
+                  <img
+                    src="/ui/icons/android-chrome-192x192.png"
+                    alt={brand.name}
+                    className="size-8 rounded-lg"
+                  />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">{brand.name}</span>
