@@ -17,7 +17,8 @@ import { Link } from "react-router";
 import { brand, mainNavigation } from "@/lib/navigation";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { state } = useSidebar();
+  const { state, isMobile } = useSidebar();
+  const isCollapsed = state === "collapsed" && !isMobile;
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -33,7 +34,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     className="size-8 rounded-lg"
                   />
                 </div>
-                {state !== "collapsed" && (
+                {!isCollapsed && (
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold">{brand.name}</span>
                     <span className="truncate text-xs">{brand.description}</span>
@@ -53,7 +54,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuButton asChild>
               <a href={brand.docsUrl} target="_blank" rel="noopener noreferrer">
                 <brand.docsIcon className="size-4" />
-                {state !== "collapsed" && <span>Documentation</span>}
+                {!isCollapsed && <span>Documentation</span>}
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
