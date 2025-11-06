@@ -11,11 +11,14 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Link } from "react-router";
 import { brand, mainNavigation } from "@/lib/navigation";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { state } = useSidebar();
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -30,10 +33,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     className="size-8 rounded-lg"
                   />
                 </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{brand.name}</span>
-                  <span className="truncate text-xs">{brand.description}</span>
-                </div>
+                {state !== "collapsed" && (
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">{brand.name}</span>
+                    <span className="truncate text-xs">{brand.description}</span>
+                  </div>
+                )}
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -48,7 +53,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuButton asChild>
               <a href={brand.docsUrl} target="_blank" rel="noopener noreferrer">
                 <brand.docsIcon className="size-4" />
-                <span>Documentation</span>
+                {state !== "collapsed" && <span>Documentation</span>}
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>

@@ -7,7 +7,6 @@ import { Link, useLocation, useNavigate } from "react-router";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -38,7 +37,6 @@ export function NavMain({ items }: { items: NavigationItem[] }) {
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Platform</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => {
           const hasChildren = item.items && item.items.length > 0;
@@ -59,7 +57,7 @@ export function NavMain({ items }: { items: NavigationItem[] }) {
                 <SidebarMenuButton tooltip={item.title} isActive={itemActive} asChild>
                   <Link to={item.url}>
                     {item.icon && <item.icon />}
-                    <span>{item.title}</span>
+                    {state !== "collapsed" && <span>{item.title}</span>}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -93,8 +91,10 @@ export function NavMain({ items }: { items: NavigationItem[] }) {
                     className={state === "collapsed" ? "cursor-pointer" : ""}
                   >
                     {item.icon && <item.icon />}
-                    <span>{item.title}</span>
-                    <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                    {state !== "collapsed" && <span>{item.title}</span>}
+                    {state !== "collapsed" && (
+                      <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                    )}
                   </SidebarMenuButton>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
@@ -110,7 +110,7 @@ export function NavMain({ items }: { items: NavigationItem[] }) {
                         <SidebarMenuSubItem key={subItem.title}>
                           <SidebarMenuSubButton asChild isActive={isSubActive}>
                             <Link to={subItem.url}>
-                              <span>{subItem.title}</span>
+                              {state !== "collapsed" && <span>{subItem.title}</span>}
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
