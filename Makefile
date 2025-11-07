@@ -63,7 +63,11 @@ check-prereqs:
 # Setup targets
 setup: check-prereqs
 	@echo "✓ Prerequisites OK"
-	@cargo install cargo-watch 2>/dev/null || echo "✓ cargo-watch already installed"
+	@if [ "$$(uname)" = "Darwin" ]; then \
+		command -v watchexec >/dev/null 2>&1 || (echo "Installing watchexec..." && brew install watchexec); \
+	else \
+		cargo install cargo-watch 2>/dev/null || echo "✓ cargo-watch already installed"; \
+	fi
 	@cd $(WEB_DIR) && npm install
 	@cd $(DOCS_DIR) && npm install
 	@mkdir -p $(DIRS) && touch web/dist/.gitkeep docs/dist/.gitkeep
@@ -161,7 +165,15 @@ dev:
 	@trap 'kill 0' EXIT; $(MAKE) dev-server & sleep 2 && $(MAKE) dev-web & wait
 
 dev-server:
-	@command -v cargo-watch >/dev/null 2>&1 && cargo watch -x run || cargo run
+	@if command -v watchexec >/dev/null 2>&1; then \
+		cd server && watchexec -r -e rs,toml -- cargo run; \
+	elif command -v cargo-watch >/dev/null 2>&1; then \
+		cd server && cargo watch -x run; \
+	else \
+		echo "⚠️  No watch tool found. Install with: brew install watchexec"; \
+		echo "Running without hot reload..."; \
+		cd server && cargo run; \
+	fi
 
 dev-web:
 	@cd $(WEB_DIR) && npm run dev
