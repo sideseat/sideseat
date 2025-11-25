@@ -1,7 +1,8 @@
 //! Cross-platform secret storage manager
 //!
 //! Provides secure storage for credentials, API keys, and other secrets using
-//! OS-native credential stores:
+//! OS-native credential stores. All secrets are stored in a single keychain entry
+//! (vault) to minimize permission prompts.
 //!
 //! | Platform | Backend |
 //! |----------|---------|
@@ -12,9 +13,10 @@
 //! ## Usage
 //!
 //! ```rust,ignore
-//! use sideseat::core::{SecretManager, SecretKey};
+//! use sideseat::core::SecretManager;
 //!
-//! let secrets = SecretManager::init().await?;
+//! let storage = StorageManager::init().await?;
+//! let secrets = SecretManager::init(&storage).await?;
 //!
 //! // Store an API key
 //! secrets.set_api_key("OPENAI_API_KEY", "sk-xxx", Some("openai")).await?;
@@ -26,13 +28,24 @@
 //! ```
 
 use super::constants::{ENV_SECRET_BACKEND, SECRET_SERVICE_NAME};
+use super::storage::StorageManager;
 use crate::error::{Error, Result};
 use chrono::{DateTime, Utc};
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+/// Filename for file-based secret storage
+const FILE_SECRETS_FILENAME: &str = "secrets.json";
+
+/// Keychain entry name for the secret vault
+const VAULT_KEY: &str = "vault";
 
 /// Secret storage backend type
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SecretBackend {
     /// macOS Keychain
     AppleKeychain,
@@ -42,6 +55,8 @@ pub enum SecretBackend {
     LinuxSecretService,
     /// Linux keyutils (kernel keyring, session-scoped)
     LinuxKeyutils,
+    /// File-based storage (for development only - NOT SECURE)
+    File(PathBuf),
 }
 
 impl SecretBackend {
@@ -50,6 +65,7 @@ impl SecretBackend {
         match self {
             Self::AppleKeychain | Self::WindowsCredential | Self::LinuxSecretService => true,
             Self::LinuxKeyutils => false, // Session-scoped only
+            Self::File(_) => true,        // File persists, but NOT SECURE
         }
     }
 
@@ -60,7 +76,13 @@ impl SecretBackend {
             Self::WindowsCredential => "Windows Credential Manager",
             Self::LinuxSecretService => "Secret Service",
             Self::LinuxKeyutils => "Linux keyutils",
+            Self::File(_) => "File (INSECURE - dev only)",
         }
+    }
+
+    /// Returns true if this is the insecure file backend
+    pub fn is_file(&self) -> bool {
+        matches!(self, Self::File(_))
     }
 }
 
@@ -98,7 +120,7 @@ impl SecretMetadata {
 
     /// Check if the secret has expired
     pub fn is_expired(&self) -> bool {
-        self.expires_at.map(|exp| exp < Utc::now()).unwrap_or(false)
+        self.expires_at.is_some_and(|exp| exp < Utc::now())
     }
 }
 
@@ -171,47 +193,64 @@ impl<S: Into<String>> From<S> for SecretKey {
     }
 }
 
+/// Secret vault - stores all secrets in a single structure
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct SecretVault {
+    secrets: HashMap<String, Secret>,
+}
+
 /// Cross-platform secret storage manager
 ///
 /// Provides secure storage for credentials using OS-native credential stores.
-/// The manager automatically detects the best available backend for the current
-/// platform and provides a consistent async API across all platforms.
+/// All secrets are stored in a single keychain entry (vault) to minimize
+/// permission prompts - one "Always Allow" grants access to all secrets.
 #[derive(Debug, Clone)]
 pub struct SecretManager {
     backend: SecretBackend,
     service_name: String,
+    /// In-memory cache of the vault
+    vault: Arc<RwLock<SecretVault>>,
 }
 
 impl SecretManager {
     /// Initialize the secret manager
     ///
-    /// Detects the appropriate backend for the current platform. On Linux,
-    /// attempts to use Secret Service first, falling back to keyutils if
-    /// unavailable.
+    /// Detects the appropriate backend for the current platform and loads
+    /// the secret vault from storage. On macOS, the keychain will prompt
+    /// once - click "Always Allow" to grant permanent access to all secrets.
     ///
-    /// The backend can be overridden via the `SIDESEAT_SECRET_BACKEND` environment
-    /// variable (values: "keychain", "credential-manager", "secret-service", "keyutils").
-    pub async fn init() -> Result<Self> {
-        let backend = Self::detect_backend().await;
+    /// For development, set `SIDESEAT_SECRET_BACKEND=file` to use insecure
+    /// file-based storage and avoid keychain prompts. The file will be stored
+    /// in the data directory provided by StorageManager.
+    pub async fn init(storage: &StorageManager) -> Result<Self> {
+        let backend = Self::detect_backend(storage).await;
         let service_name = SECRET_SERVICE_NAME.to_string();
 
-        let manager = Self { backend, service_name };
+        // Load existing vault from appropriate backend
+        let vault = Self::load_vault(&backend, &service_name).await?;
 
-        if !backend.is_persistent() {
+        let manager =
+            Self { backend: backend.clone(), service_name, vault: Arc::new(RwLock::new(vault)) };
+
+        if manager.backend.is_file() {
+            tracing::warn!(
+                "⚠️  Using INSECURE file-based secret storage. DO NOT use in production!"
+            );
+        } else if !manager.backend.is_persistent() {
             tracing::warn!(
                 "Secret storage backend '{}' is session-scoped. Secrets will not persist across reboots.",
-                backend.name()
+                manager.backend.name()
             );
         } else {
-            tracing::info!("Secret storage initialized with backend: {}", backend.name());
+            tracing::debug!("Secret storage initialized with backend: {}", manager.backend.name());
         }
 
         Ok(manager)
     }
 
     /// Get the active backend type
-    pub fn backend(&self) -> SecretBackend {
-        self.backend
+    pub fn backend(&self) -> &SecretBackend {
+        &self.backend
     }
 
     /// Check if the backend provides persistent storage
@@ -221,16 +260,11 @@ impl SecretManager {
 
     /// Store a secret with metadata
     pub async fn set(&self, key: &SecretKey, secret: &Secret) -> Result<()> {
-        let entry = self.create_entry(key)?;
-        let json = serde_json::to_string(secret)
-            .map_err(|e| Error::Secret(format!("Serialization error: {}", e)))?;
-
-        // keyring operations are sync, wrap in spawn_blocking
-        tokio::task::spawn_blocking(move || entry.set_password(&json))
-            .await
-            .map_err(|e| Error::Secret(format!("Task join error: {}", e)))?
-            .map_err(|e| Error::Secret(format!("Failed to store secret: {}", e)))?;
-
+        {
+            let mut vault = self.vault.write().await;
+            vault.secrets.insert(key.name.clone(), secret.clone());
+        }
+        self.save_vault().await?;
         tracing::debug!("Stored secret: {}", key.name);
         Ok(())
     }
@@ -240,60 +274,36 @@ impl SecretManager {
     /// Returns `None` if the secret doesn't exist. Returns an error if the
     /// secret exists but is expired.
     pub async fn get(&self, key: &SecretKey) -> Result<Option<Secret>> {
-        let entry = self.create_entry(key)?;
-
-        let result = tokio::task::spawn_blocking(move || entry.get_password())
-            .await
-            .map_err(|e| Error::Secret(format!("Task join error: {}", e)))?;
-
-        match result {
-            Ok(json) => {
-                let secret: Secret = serde_json::from_str(&json)
-                    .map_err(|e| Error::Secret(format!("Deserialization error: {}", e)))?;
-
+        let vault = self.vault.read().await;
+        match vault.secrets.get(&key.name) {
+            Some(secret) => {
                 if secret.is_expired() {
                     tracing::warn!("Secret '{}' has expired", key.name);
                     return Err(Error::Secret(format!("Secret '{}' has expired", key.name)));
                 }
-
-                Ok(Some(secret))
+                Ok(Some(secret.clone()))
             }
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(Error::Secret(format!("Failed to retrieve secret: {}", e))),
+            None => Ok(None),
         }
     }
 
     /// Delete a secret
     pub async fn delete(&self, key: &SecretKey) -> Result<()> {
-        let entry = self.create_entry(key)?;
-
-        tokio::task::spawn_blocking(move || entry.delete_credential())
-            .await
-            .map_err(|e| Error::Secret(format!("Task join error: {}", e)))?
-            .map_err(|e| match e {
-                keyring::Error::NoEntry => {
-                    Error::Secret(format!("Secret '{}' not found", key.name))
-                }
-                e => Error::Secret(format!("Failed to delete secret: {}", e)),
-            })?;
-
+        {
+            let mut vault = self.vault.write().await;
+            if vault.secrets.remove(&key.name).is_none() {
+                return Err(Error::Secret(format!("Secret '{}' not found", key.name)));
+            }
+        }
+        self.save_vault().await?;
         tracing::debug!("Deleted secret: {}", key.name);
         Ok(())
     }
 
     /// Check if a secret exists
     pub async fn exists(&self, key: &SecretKey) -> Result<bool> {
-        let entry = self.create_entry(key)?;
-
-        let result = tokio::task::spawn_blocking(move || entry.get_password())
-            .await
-            .map_err(|e| Error::Secret(format!("Task join error: {}", e)))?;
-
-        match result {
-            Ok(_) => Ok(true),
-            Err(keyring::Error::NoEntry) => Ok(false),
-            Err(e) => Err(Error::Secret(format!("Failed to check secret: {}", e))),
-        }
+        let vault = self.vault.read().await;
+        Ok(vault.secrets.contains_key(&key.name))
     }
 
     // === Convenience Methods ===
@@ -325,32 +335,124 @@ impl SecretManager {
     pub async fn update_value(&self, name: &str, new_value: &str) -> Result<()> {
         let key = SecretKey::new(name);
 
-        match self.get(&key).await? {
-            Some(mut secret) => {
-                secret.value = new_value.to_string();
-                secret.metadata.updated_at = Utc::now();
-                self.set(&key, &secret).await
+        {
+            let mut vault = self.vault.write().await;
+            match vault.secrets.get_mut(&key.name) {
+                Some(secret) => {
+                    secret.value = new_value.to_string();
+                    secret.metadata.updated_at = Utc::now();
+                }
+                None => return Err(Error::Secret(format!("Secret '{}' not found", name))),
             }
-            None => Err(Error::Secret(format!("Secret '{}' not found", name))),
         }
+        self.save_vault().await
     }
 
     // === Internal Methods ===
 
-    /// Create a keyring entry for the given key
-    fn create_entry(&self, key: &SecretKey) -> Result<Entry> {
-        match &key.target {
-            Some(target) => Entry::new_with_target(target, &self.service_name, &key.name),
-            None => Entry::new(&self.service_name, &key.name),
+    /// Load the secret vault from the appropriate backend
+    async fn load_vault(backend: &SecretBackend, service_name: &str) -> Result<SecretVault> {
+        match backend {
+            SecretBackend::File(path) => Self::load_vault_from_file(path).await,
+            _ => Self::load_vault_from_keychain(service_name).await,
         }
-        .map_err(|e| Error::Secret(format!("Failed to create entry: {}", e)))
+    }
+
+    /// Load vault from file (for development)
+    async fn load_vault_from_file(path: &PathBuf) -> Result<SecretVault> {
+        match tokio::fs::read_to_string(path).await {
+            Ok(json) => {
+                let vault: SecretVault = serde_json::from_str(&json)
+                    .map_err(|e| Error::Secret(format!("Vault deserialization error: {}", e)))?;
+                tracing::debug!(
+                    "Loaded secret vault from file with {} entries",
+                    vault.secrets.len()
+                );
+                Ok(vault)
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                tracing::debug!("No existing secret vault file, creating new one");
+                Ok(SecretVault::default())
+            }
+            Err(e) => Err(Error::Secret(format!("Failed to load vault file: {}", e))),
+        }
+    }
+
+    /// Load vault from keychain
+    async fn load_vault_from_keychain(service_name: &str) -> Result<SecretVault> {
+        let entry = Entry::new(service_name, VAULT_KEY)
+            .map_err(|e| Error::Secret(format!("Failed to create entry: {}", e)))?;
+
+        let result = tokio::task::spawn_blocking(move || entry.get_password())
+            .await
+            .map_err(|e| Error::Secret(format!("Task join error: {}", e)))?;
+
+        match result {
+            Ok(json) => {
+                let vault: SecretVault = serde_json::from_str(&json)
+                    .map_err(|e| Error::Secret(format!("Vault deserialization error: {}", e)))?;
+                tracing::debug!("Loaded secret vault with {} entries", vault.secrets.len());
+                Ok(vault)
+            }
+            Err(keyring::Error::NoEntry) => {
+                tracing::debug!("No existing secret vault, creating new one");
+                Ok(SecretVault::default())
+            }
+            Err(e) => Err(Error::Secret(format!("Failed to load vault: {}", e))),
+        }
+    }
+
+    /// Save the secret vault to the appropriate backend
+    async fn save_vault(&self) -> Result<()> {
+        match &self.backend {
+            SecretBackend::File(path) => self.save_vault_to_file(path).await,
+            _ => self.save_vault_to_keychain().await,
+        }
+    }
+
+    /// Save vault to file (for development)
+    async fn save_vault_to_file(&self, path: &PathBuf) -> Result<()> {
+        let vault = self.vault.read().await;
+        let json = serde_json::to_string_pretty(&*vault)
+            .map_err(|e| Error::Secret(format!("Vault serialization error: {}", e)))?;
+
+        // Ensure parent directory exists
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|e| Error::Secret(format!("Failed to create secrets directory: {}", e)))?;
+        }
+
+        tokio::fs::write(path, json)
+            .await
+            .map_err(|e| Error::Secret(format!("Failed to save vault file: {}", e)))?;
+
+        Ok(())
+    }
+
+    /// Save vault to keychain
+    async fn save_vault_to_keychain(&self) -> Result<()> {
+        let vault = self.vault.read().await;
+        let json = serde_json::to_string(&*vault)
+            .map_err(|e| Error::Secret(format!("Vault serialization error: {}", e)))?;
+
+        let service_name = self.service_name.clone();
+        let entry = Entry::new(&service_name, VAULT_KEY)
+            .map_err(|e| Error::Secret(format!("Failed to create entry: {}", e)))?;
+
+        tokio::task::spawn_blocking(move || entry.set_password(&json))
+            .await
+            .map_err(|e| Error::Secret(format!("Task join error: {}", e)))?
+            .map_err(|e| Error::Secret(format!("Failed to save vault: {}", e)))?;
+
+        Ok(())
     }
 
     /// Detect the appropriate backend for the current platform
-    async fn detect_backend() -> SecretBackend {
+    async fn detect_backend(storage: &StorageManager) -> SecretBackend {
         // Check for environment variable override (with platform validation)
         if let Ok(override_backend) = std::env::var(ENV_SECRET_BACKEND)
-            && let Some(backend) = Self::parse_backend_override(&override_backend)
+            && let Some(backend) = Self::parse_backend_override(&override_backend, storage)
         {
             return backend;
         }
@@ -360,8 +462,14 @@ impl SecretManager {
 
     /// Parse and validate a backend override from environment variable
     /// Returns None if the override is invalid or not applicable for this platform
-    fn parse_backend_override(value: &str) -> Option<SecretBackend> {
+    fn parse_backend_override(value: &str, storage: &StorageManager) -> Option<SecretBackend> {
         match value.to_lowercase().as_str() {
+            // File backend available on all platforms (for development only)
+            "file" => {
+                let path = storage.data_dir().join(FILE_SECRETS_FILENAME);
+                Some(SecretBackend::File(path))
+            }
+
             #[cfg(target_os = "macos")]
             "keychain" => Some(SecretBackend::AppleKeychain),
 
@@ -391,19 +499,19 @@ impl SecretManager {
     fn valid_backend_options() -> &'static str {
         #[cfg(target_os = "macos")]
         {
-            "keychain"
+            "keychain, file"
         }
         #[cfg(target_os = "windows")]
         {
-            "credential-manager"
+            "credential-manager, file"
         }
         #[cfg(target_os = "linux")]
         {
-            "secret-service, keyutils"
+            "secret-service, keyutils, file"
         }
         #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
         {
-            "(none available)"
+            "file"
         }
     }
 
@@ -520,5 +628,19 @@ mod tests {
 
         #[cfg(target_os = "linux")]
         assert!(options.contains("secret-service"));
+    }
+
+    #[test]
+    fn test_vault_serialization() {
+        let mut vault = SecretVault::default();
+        vault.secrets.insert("key1".to_string(), Secret::new("value1"));
+        vault.secrets.insert("key2".to_string(), Secret::with_provider("value2", "provider2"));
+
+        let json = serde_json::to_string(&vault).unwrap();
+        let deserialized: SecretVault = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.secrets.len(), 2);
+        assert_eq!(deserialized.secrets.get("key1").unwrap().value, "value1");
+        assert_eq!(deserialized.secrets.get("key2").unwrap().value, "value2");
     }
 }

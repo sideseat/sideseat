@@ -195,13 +195,18 @@ let config = config_manager.config();
 
 #### SecretManager
 
-Cross-platform credential storage using OS-native backends.
+Cross-platform credential storage using OS-native backends (macOS Keychain, Windows Credential Manager, Linux Secret Service). All secrets are stored in a single keychain entry (vault) to minimize permission prompts.
 
 ```rust
 let secrets = SecretManager::init().await?;
 secrets.set_api_key("OPENAI_API_KEY", "sk-xxx", Some("openai")).await?;
 let value = secrets.get_value("OPENAI_API_KEY").await?;
 ```
+
+**Important:**
+- All secrets (including JWT signing keys) MUST be stored via SecretManager, never in plain files
+- On macOS, the keychain prompts once on first access - click "Always Allow" to grant permanent access to all secrets
+- The vault design ensures a single keychain entry for all secrets, so one permission grants access to everything
 
 ### Configuration
 
@@ -220,3 +225,20 @@ let value = secrets.get_value("OPENAI_API_KEY").await?;
   "logging": { "level": "info", "format": "compact" }
 }
 ```
+
+### Frontend (shadcn/ui)
+
+The frontend uses [shadcn/ui](https://ui.shadcn.com) components. Reference: https://ui.shadcn.com/llms.txt
+
+#### Form Fields
+
+**Always use the Field component for form inputs** (`@/components/ui/field`):
+
+**Field components:**
+
+- `Field` - Wrapper with `data-invalid` for error state
+- `FieldLabel` - Label with `htmlFor` attribute
+- `FieldDescription` - Helper text below input
+- `FieldError` - Error message (only render when error exists)
+- `FieldGroup` - Groups multiple fields
+- `FieldSet` / `FieldLegend` - Semantic fieldset grouping

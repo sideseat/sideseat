@@ -16,6 +16,10 @@ struct Cli {
     /// Server port [env: SIDESEAT_PORT] [default: 5001]
     #[arg(long, short = 'p', global = true)]
     port: Option<u16>,
+
+    /// Disable authentication (for development)
+    #[arg(long, global = true)]
+    no_auth: bool,
 }
 
 #[derive(Subcommand)]
@@ -51,7 +55,7 @@ async fn main() {
     let cli = Cli::parse();
 
     // Build CLI config from parsed arguments
-    let cli_config = CliConfig { host: cli.host, port: cli.port };
+    let cli_config = CliConfig { host: cli.host, port: cli.port, no_auth: cli.no_auth };
 
     match cli.command {
         Some(Commands::Start) | None => {

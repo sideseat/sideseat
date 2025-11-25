@@ -79,6 +79,15 @@ pub const ENV_CACHE_DIR: &str = "SIDESEAT_CACHE_DIR";
 pub const ENV_SECRET_BACKEND: &str = "SIDESEAT_SECRET_BACKEND";
 
 // =============================================================================
+// Environment Variables - Authentication
+// =============================================================================
+
+/// Environment variable to enable/disable authentication
+///
+/// Set to "false" or "0" to disable authentication (for development)
+pub const ENV_AUTH_ENABLED: &str = "SIDESEAT_AUTH_ENABLED";
+
+// =============================================================================
 // Default Values
 // =============================================================================
 
@@ -103,6 +112,16 @@ pub const ACCESS_CHECK_FILE: &str = ".sideseat_access_check";
 
 /// Service name for keyring entries (groups all secrets under this identifier)
 pub const SECRET_SERVICE_NAME: &str = "sideseat";
+
+// =============================================================================
+// Authentication Constants
+// =============================================================================
+
+/// Secret key name for JWT signing key in SecretManager
+pub const SECRET_KEY_JWT_SIGNING: &str = "jwt_signing_key";
+
+/// Default session token TTL in days
+pub const DEFAULT_SESSION_TTL_DAYS: u64 = 30;
 
 #[cfg(test)]
 mod tests {

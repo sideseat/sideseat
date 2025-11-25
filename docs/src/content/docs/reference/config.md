@@ -58,6 +58,7 @@ Located in the current working directory. Project-specific settings that overrid
 | `SIDESEAT_HOST` | Server host address | `127.0.0.1` |
 | `SIDESEAT_PORT` | Server port | `5001` |
 | `SIDESEAT_LOG` | Log level/filter | `info` |
+| `SIDESEAT_AUTH_ENABLED` | Enable/disable authentication | `true` |
 | `SIDESEAT_CONFIG_DIR` | Override config directory | Platform default |
 | `SIDESEAT_DATA_DIR` | Override data directory | Platform default |
 | `SIDESEAT_CACHE_DIR` | Override cache directory | Platform default |
@@ -76,6 +77,7 @@ SIDESEAT_PORT=8080 sideseat start
 ```bash
 sideseat start --host 0.0.0.0 --port 3000
 sideseat start -H 0.0.0.0 -p 3000  # Short form
+sideseat start --no-auth           # Disable authentication
 ```
 
 CLI arguments have the highest priority and always override other sources.
@@ -98,6 +100,9 @@ CLI arguments have the highest priority and always override other sources.
     "config_dir": "/custom/config/path",
     "data_dir": "/custom/data/path",
     "cache_dir": "/custom/cache/path"
+  },
+  "auth": {
+    "enabled": true
   }
 }
 ```
@@ -123,6 +128,17 @@ CLI arguments have the highest priority and always override other sources.
 | `config_dir` | string | null | Override config directory path |
 | `data_dir` | string | null | Override data directory path |
 | `cache_dir` | string | null | Override cache directory path |
+
+### Auth Config
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | `true` | Enable/disable authentication |
+
+Authentication can be disabled via:
+- Config file: `"auth": { "enabled": false }`
+- Environment variable: `SIDESEAT_AUTH_ENABLED=false`
+- CLI flag: `--no-auth`
 
 ## Deep Merge Behavior
 
@@ -172,6 +188,7 @@ Configuration objects are deep-merged, not replaced. This allows partial overrid
 pub struct CliConfig {
     pub host: Option<String>,
     pub port: Option<u16>,
+    pub no_auth: bool,
 }
 ```
 
@@ -182,6 +199,7 @@ pub struct Config {
     pub server: ServerConfig,
     pub logging: LoggingConfig,
     pub storage: StorageConfig,
+    pub auth: AuthConfig,
 }
 
 pub struct ServerConfig {
@@ -198,6 +216,10 @@ pub struct StorageConfig {
     pub config_dir: Option<String>,
     pub data_dir: Option<String>,
     pub cache_dir: Option<String>,
+}
+
+pub struct AuthConfig {
+    pub enabled: bool,
 }
 ```
 

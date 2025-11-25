@@ -28,3 +28,9 @@ chrono = { workspace = true }
 keyring = { workspace = true }
 local-ip-address = { workspace = true }
 supports-hyperlinks = { workspace = true }
+jsonwebtoken = { workspace = true }
+rand = { workspace = true }
+subtle = { workspace = true }
+axum-extra = { workspace = true }
+uuid = { workspace = true }
+time = { workspace = true }

@@ -1,7 +1,8 @@
 use crate::api::routes;
+use crate::auth::AuthManager;
 use crate::core::constants::APP_NAME;
 use crate::core::utils::terminal_link;
-use crate::core::{CliConfig, ConfigManager, StorageManager};
+use crate::core::{CliConfig, ConfigManager, SecretManager, StorageManager};
 use crate::{Error, Result};
 use crate::{embedded, middleware};
 use axum::body::to_bytes;
@@ -10,6 +11,7 @@ use axum::{
     routing::get,
 };
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tower_http::trace::TraceLayer;
 
 pub async fn start(cli_config: CliConfig) -> Result<()> {
@@ -33,8 +35,12 @@ pub async fn start(cli_config: CliConfig) -> Result<()> {
         }
     }
 
+    // Initialize secret manager and auth manager
+    let secrets = SecretManager::init(&storage).await?;
+    let auth_manager = Arc::new(AuthManager::init(&secrets, config.auth.enabled).await?);
+
     // API routes under /api/v1
-    let api_routes = routes::create_routes();
+    let api_routes = routes::create_routes(auth_manager.clone());
 
     // UI routes under /ui - serve embedded frontend assets
     let ui_routes = Router::new().fallback(embedded::serve_assets);
@@ -60,7 +66,18 @@ pub async fn start(cli_config: CliConfig) -> Result<()> {
     println!();
     println!("  \x1b[1m\x1b[36m{}\x1b[0m \x1b[90mv{}\x1b[0m", APP_NAME, env!("CARGO_PKG_VERSION"));
     println!();
-    let local_url = format!("http://{}:{}", config.server.host, config.server.port);
+
+    // Show local URL (with token if auth is enabled)
+    let local_url = if auth_manager.is_enabled() {
+        format!(
+            "http://{}:{}/ui?token={}",
+            config.server.host,
+            config.server.port,
+            auth_manager.bootstrap_token()
+        )
+    } else {
+        format!("http://{}:{}", config.server.host, config.server.port)
+    };
     println!("  \x1b[32m➜\x1b[0m  \x1b[1mLocal:\x1b[0m    {}", terminal_link(&local_url));
 
     // Show network info based on bind address

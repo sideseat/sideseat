@@ -44,6 +44,12 @@ keyring = { version = "3.6", default-features = false, features = [
 ] }
 local-ip-address = "0.6"
 supports-hyperlinks = "3"
+jsonwebtoken = "9"
+rand = "0.8"
+subtle = "2"
+axum-extra = { version = "0.10", features = ["cookie"] }
+uuid = { version = "1.11", features = ["v4"] }
+time = "0.3"
 
 [profile.release]
 opt-level = 3

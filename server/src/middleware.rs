@@ -1,22 +1,44 @@
-use axum::http::HeaderValue;
-use tower_http::cors::{AllowOrigin, Any, CorsLayer};
+use axum::http::{HeaderValue, Method, header};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
-/// Create CORS layer that only allows requests from the server's own origin
+/// Create CORS layer that allows requests from the server's own origin
 ///
-/// This restricts cross-origin requests to only come from the same host:port
-/// that the server is running on, which is the secure default for localhost.
+/// Allows:
+/// - Same host:port (server's own origin)
+/// - Same host:port+1 (for dev frontend on adjacent port)
+/// - Alternate localhost/127.0.0.1 forms
 pub fn cors(host: &str, port: u16) -> CorsLayer {
-    // Build the allowed origin URL
-    let origin = format!("http://{}:{}", host, port);
+    let mut origins: Vec<HeaderValue> = Vec::new();
+    let dev_port = port + 1;
+
+    // Add both port and port+1 for the primary host
+    origins.push(format!("http://{}:{}", host, port).parse().unwrap());
+    origins.push(format!("http://{}:{}", host, dev_port).parse().unwrap());
 
     // For localhost/127.0.0.1, also allow the alternate form
-    let origins: Vec<HeaderValue> = if host == "127.0.0.1" {
-        vec![origin.parse().unwrap(), format!("http://localhost:{}", port).parse().unwrap()]
+    if host == "127.0.0.1" {
+        origins.push(format!("http://localhost:{}", port).parse().unwrap());
+        origins.push(format!("http://localhost:{}", dev_port).parse().unwrap());
     } else if host == "localhost" {
-        vec![origin.parse().unwrap(), format!("http://127.0.0.1:{}", port).parse().unwrap()]
-    } else {
-        vec![origin.parse().unwrap()]
-    };
+        origins.push(format!("http://127.0.0.1:{}", port).parse().unwrap());
+        origins.push(format!("http://127.0.0.1:{}", dev_port).parse().unwrap());
+    }
 
-    CorsLayer::new().allow_origin(AllowOrigin::list(origins)).allow_methods(Any).allow_headers(Any)
+    CorsLayer::new()
+        .allow_origin(AllowOrigin::list(origins))
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::AUTHORIZATION,
+            header::ACCEPT,
+            header::ORIGIN,
+        ])
+        .allow_credentials(true)
 }

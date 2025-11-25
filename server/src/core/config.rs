@@ -23,7 +23,7 @@
 use super::StorageManager;
 use super::constants::{
     CONFIG_FILE_USER, CONFIG_FILE_WORKDIR, DEFAULT_HOST, DEFAULT_LOG_FORMAT, DEFAULT_LOG_LEVEL,
-    DEFAULT_PORT, ENV_HOST, ENV_PORT,
+    DEFAULT_PORT, ENV_AUTH_ENABLED, ENV_HOST, ENV_PORT,
 };
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
@@ -35,6 +35,7 @@ use std::path::{Path, PathBuf};
 pub struct CliConfig {
     pub host: Option<String>,
     pub port: Option<u16>,
+    pub no_auth: bool,
 }
 
 /// Information about a configuration source
@@ -71,6 +72,8 @@ pub struct Config {
     pub logging: LoggingConfig,
     #[serde(default)]
     pub storage: StorageConfig,
+    #[serde(default)]
+    pub auth: AuthConfig,
 }
 
 /// Server configuration
@@ -128,6 +131,24 @@ pub struct StorageConfig {
     pub data_dir: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cache_dir: Option<String>,
+}
+
+/// Authentication configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthConfig {
+    /// Whether authentication is enabled (default: true)
+    #[serde(default = "default_auth_enabled")]
+    pub enabled: bool,
+}
+
+fn default_auth_enabled() -> bool {
+    true
+}
+
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self { enabled: default_auth_enabled() }
+    }
 }
 
 /// Configuration manager that handles loading, merging, and providing access to configuration
@@ -293,6 +314,23 @@ impl ConfigManager {
             }
         }
 
+        // Auth enabled
+        if let Ok(auth_enabled) = std::env::var(ENV_AUTH_ENABLED)
+            && !auth_enabled.is_empty()
+        {
+            match auth_enabled.to_lowercase().as_str() {
+                "false" | "0" | "no" | "off" => config.auth.enabled = false,
+                "true" | "1" | "yes" | "on" => config.auth.enabled = true,
+                _ => {
+                    tracing::warn!(
+                        "Invalid {} value '{}': use true/false, ignoring",
+                        ENV_AUTH_ENABLED,
+                        auth_enabled
+                    );
+                }
+            }
+        }
+
         // Note: ENV_LOG, ENV_CONFIG_DIR, ENV_DATA_DIR, ENV_CACHE_DIR are handled by StorageManager
     }
 
@@ -303,6 +341,9 @@ impl ConfigManager {
         }
         if let Some(port) = cli_args.port {
             config.server.port = port;
+        }
+        if cli_args.no_auth {
+            config.auth.enabled = false;
         }
     }
 }

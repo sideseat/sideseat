@@ -24,6 +24,9 @@ pub enum Error {
 
     #[error("Secret storage error: {0}")]
     Secret(String),
+
+    #[error("Authentication error: {0}")]
+    Auth(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -39,6 +42,7 @@ impl IntoResponse for Error {
             Error::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             Error::Storage(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             Error::Secret(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
+            Error::Auth(msg) => (StatusCode::UNAUTHORIZED, msg),
         };
 
         tracing::error!("Error response: {} - {}", status, message);

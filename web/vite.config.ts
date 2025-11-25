@@ -19,7 +19,7 @@ export default defineConfig({
   },
   base: "/ui",
   server: {
-    port: 5173,
+    port: 5002,
     proxy: {
       "/api/v1": {
         target: "http://localhost:5001",

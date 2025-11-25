@@ -16,7 +16,8 @@ pub mod utils;
 
 // Config exports
 pub use config::{
-    CliConfig, Config, ConfigManager, ConfigSource, LoggingConfig, ServerConfig, StorageConfig,
+    AuthConfig, CliConfig, Config, ConfigManager, ConfigSource, LoggingConfig, ServerConfig,
+    StorageConfig,
 };
 
 // Storage exports

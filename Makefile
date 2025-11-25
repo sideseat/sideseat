@@ -160,19 +160,20 @@ setup-cross: check-prereqs
 # Development targets
 dev:
 	@echo "Starting SideSeat development servers..."
-	@echo "Frontend: http://localhost:5173"
+	@echo "Frontend: http://localhost:5002"
 	@echo "Backend: http://localhost:5001"
 	@trap 'kill 0' EXIT; $(MAKE) dev-server & sleep 2 && $(MAKE) dev-web & wait
 
+# Use file-based secrets in dev mode to avoid keychain prompts
 dev-server:
 	@if command -v watchexec >/dev/null 2>&1; then \
-		cd server && watchexec -r -e rs,toml -- cargo run; \
+		cd server && watchexec -r -e rs,toml -- "SIDESEAT_SECRET_BACKEND=file cargo run"; \
 	elif command -v cargo-watch >/dev/null 2>&1; then \
-		cd server && cargo watch -x run; \
+		cd server && cargo watch -s "SIDESEAT_SECRET_BACKEND=file cargo run"; \
 	else \
 		echo "⚠️  No watch tool found. Install with: brew install watchexec"; \
 		echo "Running without hot reload..."; \
-		cd server && cargo run; \
+		cd server && SIDESEAT_SECRET_BACKEND=file cargo run; \
 	fi
 
 dev-web:
