@@ -26,7 +26,7 @@ export const brand = {
   name: "SideSeat",
   description: "AI Development Toolkit",
   icon: Sparkles,
-  docsUrl: "https://sideseat.spugachev.com",
+  docsUrl: "https://sideseat.dev",
   docsIcon: Zap,
 };
 
