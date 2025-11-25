@@ -63,8 +63,13 @@ impl AuthManager {
     /// * `bootstrap_token` - The token from the terminal URL
     ///
     /// # Returns
-    /// A JWT session token if the bootstrap token is valid
+    /// A JWT session token if the bootstrap token is valid, or if auth is disabled
     pub fn exchange_token(&self, bootstrap_token: &str) -> Result<String> {
+        // If auth is disabled, accept any token
+        if !self.enabled {
+            return create_session_token(&self.signing_key, "disabled");
+        }
+
         if !self.bootstrap.validate(bootstrap_token) {
             return Err(Error::Auth("Invalid bootstrap token".to_string()));
         }
