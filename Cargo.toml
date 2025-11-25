@@ -33,6 +33,17 @@ thiserror = "2.0"
 anyhow = "1.0"
 mime_guess = "2.0"
 directories = "6.0.0"
+dirs = "6.0"
+chrono = { version = "0.4", features = ["serde"] }
+keyring = { version = "3.6", default-features = false, features = [
+  "apple-native",
+  "windows-native",
+  "linux-native",
+  "sync-secret-service",
+  "crypto-rust",
+] }
+local-ip-address = "0.6"
+supports-hyperlinks = "3"
 
 [profile.release]
 opt-level = 3

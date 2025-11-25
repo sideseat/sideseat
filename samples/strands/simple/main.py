@@ -7,6 +7,7 @@ bedrock_model = BedrockModel(
     model_id="us.anthropic.claude-sonnet-4-20250514-v1:0",
     boto_session=session,
     endpoint_url="http://localhost:5001/proxy/converse",
+    streaming=False,
 )
 
 agent = Agent(model=bedrock_model)

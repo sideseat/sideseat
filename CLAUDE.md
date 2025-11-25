@@ -39,8 +39,6 @@ When asked to backup Memory Bank System files, you will copy the core context fi
 
 When working on Claude Code features (hooks, skills, subagents, MCP servers, etc.), use the `claude-docs-consultant` skill to selectively fetch official documentation from docs.claude.com.
 
-## Project Overview
-
 ## ALWAYS START WITH THESE COMMANDS FOR COMMON TASKS
 
 **Task: "List/summarize all files and directories"**
@@ -139,4 +137,86 @@ User asks for "directory structure/tree"?
 
 Need just current directory?
   → USE: ls -la  (OK for single dir)
+```
+
+## Project Overview
+
+SideSeat is an AI Development Toolkit with a Rust backend server and embedded frontend.
+
+### Project Structure
+
+```
+server/
+├── src/
+│   ├── main.rs           # CLI entry point (clap)
+│   ├── lib.rs            # Library root, exports run()
+│   ├── server.rs         # Axum server setup and startup
+│   ├── error.rs          # Error types (thiserror)
+│   ├── middleware.rs     # CORS and other middleware
+│   ├── embedded.rs       # Embedded frontend assets (rust-embed)
+│   ├── api/              # API route handlers
+│   │   ├── mod.rs
+│   │   └── routes.rs
+│   └── core/             # Core managers and utilities
+│       ├── mod.rs
+│       ├── constants.rs  # App-wide constants, env var names
+│       ├── config.rs     # ConfigManager - multi-source config
+│       ├── storage.rs    # StorageManager - platform paths
+│       └── secrets.rs    # SecretManager - credential storage
+docs/                     # Astro documentation site
+ui/                       # Frontend (embedded into server)
+```
+
+### Core Managers
+
+The `server/src/core/` module contains three managers that work together:
+
+#### StorageManager
+
+Platform-aware storage directory management. Initialize first.
+
+```rust
+let storage = StorageManager::init().await?;
+// Paths: config_dir(), data_dir(), cache_dir(), logs_dir(), temp_dir()
+// User config: user_config_dir() -> ~/.sideseat/ (not auto-created)
+// Subdirs: data_subdir(DataSubdir::Database), data_subdir(DataSubdir::Uploads)
+```
+
+#### ConfigManager
+
+Multi-source configuration with priority: CLI > ENV > workdir > user_config.
+
+```rust
+let config_manager = ConfigManager::init(&storage, &cli_config)?;
+let config = config_manager.config();
+// config.server.host, config.server.port
+// config.logging.level, config.logging.format
+```
+
+#### SecretManager
+
+Cross-platform credential storage using OS-native backends.
+
+```rust
+let secrets = SecretManager::init().await?;
+secrets.set_api_key("OPENAI_API_KEY", "sk-xxx", Some("openai")).await?;
+let value = secrets.get_value("OPENAI_API_KEY").await?;
+```
+
+### Configuration
+
+**Priority (highest to lowest):**
+
+1. CLI args: `--host`, `--port` (or `-H`, `-p`)
+2. Environment: `SIDESEAT_HOST`, `SIDESEAT_PORT`, `SIDESEAT_LOG`
+3. Workdir config: `./sideseat.json`
+4. User config: `~/.sideseat/config.json`
+
+**Config file format:**
+
+```json
+{
+  "server": { "host": "127.0.0.1", "port": 5001 },
+  "logging": { "level": "info", "format": "compact" }
+}
 ```

@@ -1,5 +1,7 @@
 use crate::api::routes;
-use crate::config::Settings;
+use crate::core::constants::APP_NAME;
+use crate::core::utils::terminal_link;
+use crate::core::{CliConfig, ConfigManager, StorageManager};
 use crate::{Error, Result};
 use crate::{embedded, middleware};
 use axum::body::to_bytes;
@@ -10,8 +12,26 @@ use axum::{
 use std::net::SocketAddr;
 use tower_http::trace::TraceLayer;
 
-pub async fn start() -> Result<()> {
-    let settings = Settings::new()?;
+pub async fn start(cli_config: CliConfig) -> Result<()> {
+    // Initialize storage manager first (creates directories, verifies access)
+    let storage = StorageManager::init().await?;
+
+    if storage.using_fallback() {
+        tracing::warn!("Using fallback storage location: {:?}", storage.data_dir());
+    } else {
+        tracing::debug!("Storage initialized at: {:?}", storage.data_dir());
+    }
+
+    // Initialize config manager with storage paths and CLI arguments
+    let config_manager = ConfigManager::init(&storage, &cli_config)?;
+    let config = config_manager.config();
+
+    // Log loaded config sources
+    for source in config_manager.loaded_sources() {
+        if let Some(ref path) = source.path {
+            tracing::info!("Config loaded from {}: {}", source.name, path.display());
+        }
+    }
 
     // API routes under /api/v1
     let api_routes = routes::create_routes();
@@ -25,36 +45,46 @@ pub async fn start() -> Result<()> {
         .nest_service("/ui", ui_routes)
         .fallback(handle_404)
         .layer(TraceLayer::new_for_http())
-        .layer(middleware::cors());
+        .layer(middleware::cors(&config.server.host, config.server.port));
 
     let addr = SocketAddr::from((
-        settings
+        config
             .server
             .host
             .parse::<std::net::Ipv4Addr>()
-            .map_err(|e| Error::Config(format!("Invalid host: {}", e)))?
+            .map_err(|e| Error::Config(format!("Invalid host '{}': {}", config.server.host, e)))?
             .octets(),
-        settings.server.port,
+        config.server.port,
     ));
 
     println!();
-    println!("  \x1b[1m\x1b[36mSideSeat\x1b[0m \x1b[90mv{}\x1b[0m", env!("CARGO_PKG_VERSION"));
+    println!("  \x1b[1m\x1b[36m{}\x1b[0m \x1b[90mv{}\x1b[0m", APP_NAME, env!("CARGO_PKG_VERSION"));
     println!();
-    println!(
-        "  \x1b[32m➜\x1b[0m  \x1b[1mLocal:\x1b[0m    \x1b[36mhttp://{}:{}\x1b[0m",
-        settings.server.host, settings.server.port
-    );
-    println!("  \x1b[90m➜  Network:  use --host to expose\x1b[0m");
-    println!();
-    println!("  \x1b[1mEndpoints:\x1b[0m");
-    println!("  \x1b[90m├─\x1b[0m UI:      \x1b[36m/ui\x1b[0m");
-    println!("  \x1b[90m├─\x1b[0m API:     \x1b[36m/api/v1\x1b[0m");
-    println!("  \x1b[90m└─\x1b[0m Health:  \x1b[36m/api/v1/health\x1b[0m");
-    println!();
+    let local_url = format!("http://{}:{}", config.server.host, config.server.port);
+    println!("  \x1b[32m➜\x1b[0m  \x1b[1mLocal:\x1b[0m    {}", terminal_link(&local_url));
 
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .map_err(|e| Error::Internal(format!("Failed to bind: {}", e)))?;
+    // Show network info based on bind address
+    if config.server.host == "127.0.0.1" || config.server.host == "localhost" {
+        println!("  \x1b[90m➜  Network:  use --host 0.0.0.0 to expose\x1b[0m");
+    } else {
+        // Show actual network addresses when exposed
+        if let Ok(interfaces) = local_ip_address::list_afinet_netifas() {
+            for (_, ip) in interfaces.iter().filter(|(_, ip)| ip.is_ipv4() && !ip.is_loopback()) {
+                let network_url = format!("http://{}:{}", ip, config.server.port);
+                println!(
+                    "  \x1b[32m➜\x1b[0m  \x1b[1mNetwork:\x1b[0m  {}",
+                    terminal_link(&network_url)
+                );
+            }
+        }
+    }
+
+    let listener = tokio::net::TcpListener::bind(addr).await.map_err(|e| {
+        Error::Internal(format!(
+            "Failed to bind to {}:{}: {}",
+            config.server.host, config.server.port, e
+        ))
+    })?;
 
     axum::serve(listener, app)
         .await

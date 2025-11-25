@@ -1,6 +1,6 @@
 {
   "name": "sideseat",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Your unified workspace for building and debugging AI agents",
   "main": "index.js",
   "bin": {

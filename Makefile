@@ -368,23 +368,29 @@ publish-cli-dry-run: build-cli
 	@cd $(CLI_DIR) && npm pack && tar -tzf *.tgz && rm -f *.tgz
 
 # Version management
+# Helper to sync version to Cargo.toml
+sync-cargo-version = NEW_VERSION=$$(cd $(CLI_DIR) && node -p "require('./package.json').version") && \
+	sed -i '' "s/^version = \".*\"/version = \"$$NEW_VERSION\"/" server/Cargo.toml && \
+	echo "✓ Updated server/Cargo.toml to $$NEW_VERSION"
+
 version-patch:
 	@echo "Bumping patch version..."
 	@cd $(CLI_DIR) && npm version patch --no-git-tag-version
-	@echo "New version: $$(cd $(CLI_DIR) && node -p "require('./package.json').version")"
+	@$(sync-cargo-version)
 
 version-minor:
 	@echo "Bumping minor version..."
 	@cd $(CLI_DIR) && npm version minor --no-git-tag-version
-	@echo "New version: $$(cd $(CLI_DIR) && node -p "require('./package.json').version")"
+	@$(sync-cargo-version)
 
 version-major:
 	@echo "Bumping major version..."
 	@cd $(CLI_DIR) && npm version major --no-git-tag-version
-	@echo "New version: $$(cd $(CLI_DIR) && node -p "require('./package.json').version")"
+	@$(sync-cargo-version)
 
 version:
-	@echo "Current version: $$(cd $(CLI_DIR) && node -p "require('./package.json').version")"
+	@echo "CLI version:    $$(cd $(CLI_DIR) && node -p "require('./package.json').version")"
+	@echo "Server version: $$(grep '^version' server/Cargo.toml | head -1 | sed 's/.*\"\(.*\)\"/\1/')"
 
 # Aliases
 run: dev

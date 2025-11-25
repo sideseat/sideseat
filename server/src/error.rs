@@ -18,6 +18,12 @@ pub enum Error {
 
     #[error("Bad request: {0}")]
     BadRequest(String),
+
+    #[error("Storage error: {0}")]
+    Storage(String),
+
+    #[error("Secret storage error: {0}")]
+    Secret(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -31,18 +37,13 @@ impl IntoResponse for Error {
             Error::Database(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             Error::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
             Error::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
+            Error::Storage(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
+            Error::Secret(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
         };
 
         tracing::error!("Error response: {} - {}", status, message);
 
         (status, message).into_response()
-    }
-}
-
-// Convert config errors
-impl From<config::ConfigError> for Error {
-    fn from(err: config::ConfigError) -> Self {
-        Error::Config(err.to_string())
     }
 }
 
