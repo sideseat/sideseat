@@ -417,11 +417,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_manager_init() {
-        // This test verifies that StorageManager can be initialized
-        // It will use real directories but should succeed on any platform
-        let result = StorageManager::init().await;
-        assert!(result.is_ok());
+        // Use fallback init with a temp directory to avoid CI environment issues
+        let temp_dir = std::env::temp_dir().join(format!("sideseat_test_{}", std::process::id()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
 
+        // Change to temp dir for fallback behavior
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let result = StorageManager::init().await;
+
+        // Restore original directory
+        std::env::set_current_dir(&original_dir).unwrap();
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&temp_dir);
+
+        assert!(result.is_ok());
         let storage = result.unwrap();
 
         // All paths should be non-empty
@@ -436,7 +448,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_path() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("sideseat_test_path_{}", std::process::id()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
         let storage = StorageManager::init().await.unwrap();
+
+        std::env::set_current_dir(&original_dir).unwrap();
+        let _ = std::fs::remove_dir_all(&temp_dir);
 
         let config_path = storage.get_path(StorageType::Config, "test.json");
         assert!(config_path.ends_with("test.json"));
@@ -447,7 +469,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_data_subdir() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("sideseat_test_subdir_{}", std::process::id()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
         let storage = StorageManager::init().await.unwrap();
+
+        std::env::set_current_dir(&original_dir).unwrap();
+        let _ = std::fs::remove_dir_all(&temp_dir);
 
         let db_path = storage.data_subdir(DataSubdir::Database);
         assert!(db_path.ends_with("db"));
@@ -458,11 +490,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_is_writable() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("sideseat_test_write_{}", std::process::id()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
         let storage = StorageManager::init().await.unwrap();
 
         // Data directory should be writable after init
         assert!(storage.is_writable(StorageType::Data).await);
         assert!(storage.is_writable(StorageType::Cache).await);
         assert!(storage.is_writable(StorageType::Temp).await);
+
+        std::env::set_current_dir(&original_dir).unwrap();
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }

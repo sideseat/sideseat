@@ -205,8 +205,8 @@ build-docs:
 
 # Testing & quality
 test:
-	@cargo test
-	@cd $(WEB_DIR) && npm test || echo "No tests found"
+	@cargo test -- --test-threads=1
+	@cd $(WEB_DIR) && npm test
 
 fmt:
 	@cargo fmt --all
