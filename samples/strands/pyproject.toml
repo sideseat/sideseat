@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "StrandsSample"
+version = "0.1.0"
+description = "Strands Agents"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = ["opentelemetry-exporter-otlp>=1.38.0", "strands-agents>=1.18.0"]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[project.scripts]
+telemetry = "telemetry:main"
+proxy = "proxy:main"
