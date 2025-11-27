@@ -2,9 +2,9 @@
 
 import time
 
-from ..api import api_call, encode_param
-from ..logging import log_info, log_section, log_success, log_warn
-from .base import BaseTestSuite
+from ...api import api_call, encode_param
+from ...logging import log_info, log_section, log_success, log_warn
+from ..base import BaseTestSuite
 
 
 class IntegrityTests(BaseTestSuite):

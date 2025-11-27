@@ -2,9 +2,9 @@
 
 from typing import Any
 
-from ..api import api_call, encode_param
-from ..logging import log_info, log_section, log_success
-from .base import BaseTestSuite
+from ...api import api_call, encode_param
+from ...logging import log_info, log_section, log_success
+from ..base import BaseTestSuite
 
 
 class SpanTests(BaseTestSuite):

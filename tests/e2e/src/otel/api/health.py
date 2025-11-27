@@ -3,10 +3,10 @@
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from ..api import api_call
-from ..config import API_BASE, OTEL_BASE
-from ..logging import log_info, log_section
-from .base import BaseTestSuite
+from ...api import api_call
+from ...config import API_BASE, OTEL_BASE
+from ...logging import log_info, log_section
+from ..base import BaseTestSuite
 
 
 class HealthTests(BaseTestSuite):

@@ -211,8 +211,9 @@ test:
 	@cd $(WEB_DIR) && npm test
 
 test-e2e:
-	@echo "Running OTEL E2E Test Suite..."
-	@cd tests/e2e && uv run test
+	@echo "Running SideSeat E2E Test Suite..."
+	@command -v uv >/dev/null 2>&1 || (echo "Error: uv not found. Install from https://docs.astral.sh/uv/" && exit 1)
+	@cd tests/e2e && uv sync --quiet && uv run test
 
 coverage:
 	@cd server && cargo llvm-cov --lib

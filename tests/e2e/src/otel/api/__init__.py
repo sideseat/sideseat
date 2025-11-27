@@ -1,13 +1,11 @@
-"""Test modules for OTEL API validation."""
+"""API validation tests for OTEL endpoints."""
 
-from .base import BaseTestSuite
 from .health import HealthTests
 from .integrity import IntegrityTests
 from .spans import SpanTests
 from .traces import TraceTests
 
 __all__ = [
-    "BaseTestSuite",
     "HealthTests",
     "IntegrityTests",
     "SpanTests",
