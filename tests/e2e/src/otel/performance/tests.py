@@ -249,7 +249,8 @@ class PerformanceTests(BaseTestSuite):
                 failed_batches += 1
 
             # Small delay to prevent overwhelming the server
-            time.sleep(0.05)  # 50ms between batches
+            # Retry logic handles occasional 503s, so keep delay minimal
+            time.sleep(0.01)  # 10ms between batches
 
             # Progress update every 10MB
             if batch_count % 50 == 0:

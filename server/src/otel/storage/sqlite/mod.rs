@@ -44,6 +44,28 @@ impl SqliteStore {
             .await
             .map_err(|e| OtelError::StorageError(format!("Failed to open database: {}", e)))?;
 
+        // Enable WAL mode and optimize for write throughput
+        sqlx::query("PRAGMA journal_mode = WAL")
+            .execute(&pool)
+            .await
+            .map_err(|e| OtelError::StorageError(format!("Failed to set WAL mode: {}", e)))?;
+        sqlx::query("PRAGMA synchronous = NORMAL")
+            .execute(&pool)
+            .await
+            .map_err(|e| OtelError::StorageError(format!("Failed to set synchronous: {}", e)))?;
+        sqlx::query("PRAGMA cache_size = -64000") // 64MB cache
+            .execute(&pool)
+            .await
+            .map_err(|e| OtelError::StorageError(format!("Failed to set cache_size: {}", e)))?;
+        sqlx::query("PRAGMA temp_store = MEMORY")
+            .execute(&pool)
+            .await
+            .map_err(|e| OtelError::StorageError(format!("Failed to set temp_store: {}", e)))?;
+        // Auto-checkpoint when WAL reaches ~4MB (1000 pages * 4KB)
+        sqlx::query("PRAGMA wal_autocheckpoint = 1000").execute(&pool).await.map_err(|e| {
+            OtelError::StorageError(format!("Failed to set wal_autocheckpoint: {}", e))
+        })?;
+
         // Run migrations
         run_migrations(&pool).await?;
 
@@ -53,6 +75,18 @@ impl SqliteStore {
     /// Get the connection pool
     pub fn pool(&self) -> &SqlitePool {
         &self.pool
+    }
+
+    /// Run WAL checkpoint to merge WAL into main database
+    /// Called periodically and on shutdown for clean WAL rotation
+    pub async fn checkpoint(&self) -> Result<(), OtelError> {
+        // TRUNCATE mode: checkpoint and truncate WAL to zero bytes
+        sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
+            .execute(&self.pool)
+            .await
+            .map_err(|e| OtelError::StorageError(format!("Failed to checkpoint WAL: {}", e)))?;
+        tracing::debug!("WAL checkpoint completed");
+        Ok(())
     }
 
     /// Get storage statistics

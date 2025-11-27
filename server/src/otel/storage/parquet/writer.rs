@@ -187,8 +187,6 @@ impl DayWriter {
         let filename = format!("spans-{}-part{:04}.parquet", self.date, *counter);
         let path = dir.join(&filename);
 
-        debug!("Creating new parquet file: {:?}", path);
-
         let row_group_size = self.row_group_size;
         let path_clone = path.clone();
         let writer = tokio::task::spawn_blocking(move || {

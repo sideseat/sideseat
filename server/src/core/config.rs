@@ -251,19 +251,19 @@ fn default_grpc_port() -> u16 {
     4317
 }
 fn default_channel_capacity() -> usize {
-    1000
+    10000
 }
 fn default_buffer_max_spans() -> usize {
-    1000
+    5000
 }
 fn default_buffer_max_bytes() -> usize {
     10 * 1024 * 1024 // 10MB
 }
 fn default_flush_interval_ms() -> u64 {
-    1000 // 1 second
+    100 // 100ms - fast flush for low volume, batch size handles high volume
 }
 fn default_flush_batch_size() -> usize {
-    100
+    500
 }
 fn default_max_file_size_mb() -> u32 {
     64
@@ -712,11 +712,11 @@ mod tests {
         assert!(config.enabled);
         assert!(config.grpc_enabled);
         assert_eq!(config.grpc_port, 4317);
-        assert_eq!(config.channel_capacity, 1000);
-        assert_eq!(config.buffer_max_spans, 1000);
+        assert_eq!(config.channel_capacity, 10000);
+        assert_eq!(config.buffer_max_spans, 5000);
         assert_eq!(config.buffer_max_bytes, 10 * 1024 * 1024);
-        assert_eq!(config.flush_interval_ms, 1000);
-        assert_eq!(config.flush_batch_size, 100);
+        assert_eq!(config.flush_interval_ms, 100);
+        assert_eq!(config.flush_batch_size, 500);
         assert_eq!(config.max_file_size_mb, 64);
         assert_eq!(config.row_group_size, 10_000);
         assert!(config.retention_days.is_none());

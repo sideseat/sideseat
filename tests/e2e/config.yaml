@@ -24,6 +24,9 @@ tests:
     # Performance tests (~200MB data ingestion and query benchmarks)
     performance: true
 
+    # SSE (Server-Sent Events) real-time streaming tests
+    sse: true
+
     # Performance test settings
     performance_settings:
       # Target data size in MB

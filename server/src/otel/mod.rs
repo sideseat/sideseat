@@ -229,6 +229,27 @@ impl OtelManager {
         // SSE connection cleanup
         let sse = Arc::clone(&self.sse);
         sse.start_cleanup_task();
+
+        // Periodic WAL checkpoint (every 5 minutes)
+        let storage = Arc::clone(&self.storage);
+        let mut shutdown_rx = self.shutdown_tx.subscribe();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+            loop {
+                tokio::select! {
+                    _ = interval.tick() => {
+                        if let Err(e) = storage.sqlite().checkpoint().await {
+                            tracing::warn!("Periodic WAL checkpoint failed: {}", e);
+                        }
+                    }
+                    _ = shutdown_rx.changed() => {
+                        if *shutdown_rx.borrow() {
+                            break;
+                        }
+                    }
+                }
+            }
+        });
     }
 
     async fn flush_spans(
@@ -239,14 +260,12 @@ impl OtelManager {
             return Ok(());
         }
 
-        // Insert into SQLite first (uses references)
+        // Batch insert into SQLite (single transaction for better throughput)
         let pool = storage.sqlite().pool();
-        for span in &spans {
-            // Upsert trace first (spans have FK to traces)
-            storage::sqlite::traces::upsert_trace(pool, span).await?;
-            // Note: parquet_file will be updated after write completes
-            storage::sqlite::spans::insert_span(pool, span, None).await?;
-        }
+        // Upsert traces first (spans have FK to traces)
+        storage::sqlite::traces::upsert_traces_batch(pool, &spans).await?;
+        // Batch insert all spans
+        storage::sqlite::spans::insert_spans_batch(pool, &spans).await?;
 
         // Write to parquet (takes ownership to avoid cloning)
         let written_files = storage.parquet_pool().write_batch(spans).await?;
@@ -285,6 +304,11 @@ impl OtelManager {
         }
 
         let _ = self.storage.parquet_pool().flush_all().await;
+
+        // Checkpoint WAL to merge into main database and truncate WAL file
+        if let Err(e) = self.storage.sqlite().checkpoint().await {
+            tracing::warn!("Failed to checkpoint WAL on shutdown: {}", e);
+        }
 
         tracing::debug!("OtelManager shutdown complete");
         Ok(())

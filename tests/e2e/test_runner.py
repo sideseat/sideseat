@@ -29,7 +29,7 @@ from typing import Any
 import yaml
 
 # Available test suites
-AVAILABLE_TESTS = ["health", "synthetic", "strands", "traces", "spans", "integrity", "performance"]
+AVAILABLE_TESTS = ["health", "synthetic", "strands", "traces", "spans", "integrity", "performance", "sse"]
 
 from src import (
     DATA_DIR,
@@ -49,6 +49,7 @@ from src.otel import (
     IntegrityTests,
     PerformanceTests,
     SpanTests,
+    SSETests,
     StrandsTraceTests,
     SyntheticTraceTests,
     TraceTests,
@@ -66,6 +67,7 @@ DEFAULT_CONFIG = {
             "spans": True,
             "integrity": True,
             "performance": True,
+            "sse": True,
             "performance_settings": {
                 "target_size_mb": 200,
                 "batch_size": 100,
@@ -271,6 +273,12 @@ class TestRunner:
             perf.run_all()
             self._collect_results(perf)
 
+        # SSE tests
+        if self._is_enabled("otel", "sse"):
+            sse = SSETests()
+            sse.run_all()
+            self._collect_results(sse)
+
         return self.failed == 0
 
     def print_summary(self) -> None:
@@ -310,6 +318,7 @@ Available test suites:
   spans       - Span API tests (listing, filtering)
   integrity   - Data integrity tests (framework detection, token usage)
   performance - Performance tests (~200MB data ingestion and benchmarks)
+  sse         - SSE real-time event streaming tests (latency, filtering)
 """,
     )
     parser.add_argument(
@@ -364,6 +373,7 @@ def main() -> int:
         print("  spans       - Span API tests (listing, filtering)")
         print("  integrity   - Data integrity tests (framework detection, token usage)")
         print("  performance - Performance tests (~200MB data ingestion and benchmarks)")
+        print("  sse         - SSE real-time event streaming tests (latency, filtering)")
         return 0
 
     # Load configuration and apply CLI args
@@ -412,7 +422,7 @@ def main() -> int:
         if runner and exit_code == 0:
             # Only expect traces if tests that generate them were run
             otel_config = config.get("tests", {}).get("otel", {})
-            trace_tests = ["synthetic", "strands", "performance"]
+            trace_tests = ["synthetic", "strands", "performance", "sse"]
             expect_traces = any(otel_config.get(t, False) for t in trace_tests)
             storage_passed, storage_failed = verify_storage_files(expect_traces)
             runner.passed += storage_passed

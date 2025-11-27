@@ -3,6 +3,7 @@
 from .api import HealthTests, IntegrityTests, SpanTests, TraceTests
 from .base import BaseTestSuite
 from .performance import PerformanceTests
+from .sse import SSETests
 from .strands import StrandsTraceTests
 from .synthetic import SyntheticTraceTests
 
@@ -12,6 +13,7 @@ __all__ = [
     "IntegrityTests",
     "PerformanceTests",
     "SpanTests",
+    "SSETests",
     "StrandsTraceTests",
     "SyntheticTraceTests",
     "TraceTests",
