@@ -40,17 +40,17 @@ Open [http://localhost:5173](http://localhost:5173) to access the dashboard.
 ## Features
 
 <CardGrid stagger>
-  <Card title="Unified Dashboard" icon="laptop">
-    Single interface for monitoring and debugging all your AI agents in one place.
+  <Card title="OpenTelemetry Collector" icon="magnifier">
+    Built-in OTLP-compatible trace collector with automatic AI framework detection and GenAI field extraction.
   </Card>
-  <Card title="Real-time Monitoring" icon="magnifier">
-    Track agent performance, logs, and metrics in real-time with hot reload support.
+  <Card title="Real-time Streaming" icon="rocket">
+    SSE-based live trace updates for monitoring agent execution as it happens.
   </Card>
-  <Card title="Full-Stack Solution" icon="puzzle">
-    Built with Rust backend (Axum) and React 19 frontend, embedded in a single binary.
+  <Card title="Framework Detection" icon="puzzle">
+    Automatic detection of LangChain, LlamaIndex, Strands, and other AI frameworks with normalized field extraction.
   </Card>
-  <Card title="Developer Friendly" icon="rocket">
-    Fast development workflow with hot reload, comprehensive testing, and CLI tools.
+  <Card title="Efficient Storage" icon="laptop">
+    Parquet-based storage with FIFO retention, bounded memory buffers, and disk safety monitoring.
   </Card>
 </CardGrid>
 
@@ -58,6 +58,7 @@ Open [http://localhost:5173](http://localhost:5173) to access the dashboard.
 
 - **Backend**: Rust with Axum framework
 - **Frontend**: React 19 with Vite
+- **Telemetry**: OpenTelemetry (OTLP) with Parquet storage
 - **Database**: SQLite with migrations
 - **CLI**: Distributed as NPM package
 - **Docs**: Astro Starlight
@@ -74,8 +75,11 @@ Open [http://localhost:5173](http://localhost:5173) to access the dashboard.
   <Card title="Getting Started Guide" icon="open-book">
     Learn how to set up and configure SideSeat for your projects.
   </Card>
-  <Card title="API Reference" icon="document">
-    Explore the complete API documentation and endpoints.
+  <Card title="OpenTelemetry Collector" icon="magnifier">
+    [Set up trace collection](/reference/otel/) for your AI agents.
+  </Card>
+  <Card title="Configuration" icon="document">
+    [Configure](/reference/config/) server, storage, and OTel settings.
   </Card>
   <Card title="Contributing" icon="github">
     Help improve SideSeat by contributing to the project.

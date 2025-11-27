@@ -30,15 +30,12 @@ enum Commands {
 
 #[tokio::main]
 async fn main() {
-    // Load environment variables from .env file FIRST
-    // This allows .env to set SIDESEAT_* env vars before config initialization
+    // Load .env before config initialization so SIDESEAT_* vars are available
     dotenvy::dotenv().ok();
 
-    // Build default log filter using app name
     let default_filter = format!("info,{}=info", APP_NAME_LOWER);
 
-    // Initialize tracing subscriber with compact, colorful formatting
-    // Uses SIDESEAT_LOG env var, falls back to RUST_LOG, then default
+    // Log filter priority: SIDESEAT_LOG > RUST_LOG > default
     tracing_subscriber::fmt()
         .with_target(false)
         .with_thread_ids(false)
@@ -53,8 +50,6 @@ async fn main() {
         .init();
 
     let cli = Cli::parse();
-
-    // Build CLI config from parsed arguments
     let cli_config = CliConfig { host: cli.host, port: cli.port, no_auth: cli.no_auth };
 
     match cli.command {

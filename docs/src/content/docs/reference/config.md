@@ -103,6 +103,16 @@ CLI arguments have the highest priority and always override other sources.
   },
   "auth": {
     "enabled": true
+  },
+  "otel": {
+    "enabled": true,
+    "grpc_enabled": true,
+    "grpc_port": 4317,
+    "channel_capacity": 1000,
+    "buffer_max_spans": 1000,
+    "flush_interval_ms": 1000,
+    "retention_days": null,
+    "retention_max_gb": 20
   }
 }
 ```
@@ -139,6 +149,35 @@ Authentication can be disabled via:
 - Config file: `"auth": { "enabled": false }`
 - Environment variable: `SIDESEAT_AUTH_ENABLED=false`
 - CLI flag: `--no-auth`
+
+### OTel Config
+
+OpenTelemetry collector configuration for trace ingestion and storage.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | `true` | Enable/disable OTel collector |
+| `grpc_enabled` | boolean | `true` | Enable gRPC endpoint (port 4317) |
+| `grpc_port` | number | `4317` | gRPC listener port |
+| `channel_capacity` | number | `1000` | Bounded channel capacity for ingestion |
+| `buffer_max_spans` | number | `1000` | Maximum spans in buffer before flush |
+| `buffer_max_bytes` | number | `10485760` | Maximum bytes in buffer (10MB) |
+| `flush_interval_ms` | number | `1000` | Flush interval in milliseconds |
+| `flush_batch_size` | number | `100` | Batch size for flush operations |
+| `max_file_size_mb` | number | `64` | Maximum Parquet file size in MB |
+| `row_group_size` | number | `10000` | Rows per row group in Parquet files |
+| `retention_days` | number | `null` | Retention days (null = size-based only) |
+| `retention_max_gb` | number | `20` | Maximum storage size in GB (FIFO) |
+| `retention_check_interval_secs` | number | `300` | Retention check interval (5 min) |
+| `disk_warning_percent` | number | `80` | Disk usage warning threshold |
+| `disk_critical_percent` | number | `95` | Disk usage critical threshold |
+| `max_span_name_len` | number | `1000` | Maximum span name length |
+| `max_attribute_count` | number | `100` | Maximum attributes per span |
+| `max_attribute_value_len` | number | `10240` | Maximum attribute value length (10KB) |
+| `max_events_per_span` | number | `100` | Maximum events per span |
+| `sse_max_connections` | number | `100` | Maximum concurrent SSE connections |
+| `sse_timeout_secs` | number | `3600` | SSE connection timeout (1 hour) |
+| `sse_keepalive_secs` | number | `30` | SSE keepalive interval |
 
 ## Deep Merge Behavior
 

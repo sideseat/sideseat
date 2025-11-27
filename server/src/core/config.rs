@@ -74,6 +74,8 @@ pub struct Config {
     pub storage: StorageConfig,
     #[serde(default)]
     pub auth: AuthConfig,
+    #[serde(default)]
+    pub otel: OtelConfig,
 }
 
 /// Server configuration
@@ -148,6 +150,187 @@ fn default_auth_enabled() -> bool {
 impl Default for AuthConfig {
     fn default() -> Self {
         Self { enabled: default_auth_enabled() }
+    }
+}
+
+/// OpenTelemetry collector configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OtelConfig {
+    /// Whether OTel collector is enabled
+    #[serde(default = "default_otel_enabled")]
+    pub enabled: bool,
+
+    // gRPC settings
+    /// Whether gRPC endpoint is enabled
+    #[serde(default = "default_grpc_enabled")]
+    pub grpc_enabled: bool,
+    /// gRPC port (default: 4317)
+    #[serde(default = "default_grpc_port")]
+    pub grpc_port: u16,
+
+    // Ingestion channel
+    /// Bounded channel capacity for ingestion
+    #[serde(default = "default_channel_capacity")]
+    pub channel_capacity: usize,
+
+    // WriteBuffer settings (bounded memory)
+    /// Maximum spans in buffer before flush
+    #[serde(default = "default_buffer_max_spans")]
+    pub buffer_max_spans: usize,
+    /// Maximum bytes in buffer before flush
+    #[serde(default = "default_buffer_max_bytes")]
+    pub buffer_max_bytes: usize,
+    /// Flush interval in milliseconds
+    #[serde(default = "default_flush_interval_ms")]
+    pub flush_interval_ms: u64,
+    /// Flush when batch reaches this size
+    #[serde(default = "default_flush_batch_size")]
+    pub flush_batch_size: usize,
+
+    // Parquet settings
+    /// Maximum Parquet file size in MB
+    #[serde(default = "default_max_file_size_mb")]
+    pub max_file_size_mb: u32,
+    /// Rows per row group in Parquet files
+    #[serde(default = "default_row_group_size")]
+    pub row_group_size: usize,
+
+    // Retention settings
+    /// Retention days (None = disabled, uses size-based only)
+    #[serde(default)]
+    pub retention_days: Option<u32>,
+    /// Maximum storage size in GB (FIFO deletion when exceeded)
+    #[serde(default = "default_retention_max_gb")]
+    pub retention_max_gb: u32,
+    /// Retention check interval in seconds
+    #[serde(default = "default_retention_check_interval_secs")]
+    pub retention_check_interval_secs: u64,
+
+    // Disk monitoring
+    /// Disk usage percent to trigger warning
+    #[serde(default = "default_disk_warning_percent")]
+    pub disk_warning_percent: u8,
+    /// Disk usage percent to stop ingestion
+    #[serde(default = "default_disk_critical_percent")]
+    pub disk_critical_percent: u8,
+
+    // Input validation
+    /// Maximum span name length
+    #[serde(default = "default_max_span_name_len")]
+    pub max_span_name_len: usize,
+    /// Maximum attributes per span
+    #[serde(default = "default_max_attribute_count")]
+    pub max_attribute_count: usize,
+    /// Maximum attribute value length in bytes
+    #[serde(default = "default_max_attribute_value_len")]
+    pub max_attribute_value_len: usize,
+    /// Maximum events per span
+    #[serde(default = "default_max_events_per_span")]
+    pub max_events_per_span: usize,
+
+    // SSE settings
+    /// Maximum concurrent SSE connections
+    #[serde(default = "default_sse_max_connections")]
+    pub sse_max_connections: usize,
+    /// SSE connection timeout in seconds
+    #[serde(default = "default_sse_timeout_secs")]
+    pub sse_timeout_secs: u64,
+    /// SSE keepalive interval in seconds
+    #[serde(default = "default_sse_keepalive_secs")]
+    pub sse_keepalive_secs: u64,
+}
+
+// OTel defaults optimized for developer workloads
+fn default_otel_enabled() -> bool {
+    true
+}
+fn default_grpc_enabled() -> bool {
+    true
+}
+fn default_grpc_port() -> u16 {
+    4317
+}
+fn default_channel_capacity() -> usize {
+    1000
+}
+fn default_buffer_max_spans() -> usize {
+    1000
+}
+fn default_buffer_max_bytes() -> usize {
+    10 * 1024 * 1024 // 10MB
+}
+fn default_flush_interval_ms() -> u64 {
+    1000 // 1 second
+}
+fn default_flush_batch_size() -> usize {
+    100
+}
+fn default_max_file_size_mb() -> u32 {
+    64
+}
+fn default_row_group_size() -> usize {
+    10_000
+}
+fn default_retention_max_gb() -> u32 {
+    20 // 20GB FIFO
+}
+fn default_retention_check_interval_secs() -> u64 {
+    300 // 5 minutes
+}
+fn default_disk_warning_percent() -> u8 {
+    80
+}
+fn default_disk_critical_percent() -> u8 {
+    95
+}
+fn default_max_span_name_len() -> usize {
+    1000
+}
+fn default_max_attribute_count() -> usize {
+    100
+}
+fn default_max_attribute_value_len() -> usize {
+    10 * 1024 // 10KB
+}
+fn default_max_events_per_span() -> usize {
+    100
+}
+fn default_sse_max_connections() -> usize {
+    100
+}
+fn default_sse_timeout_secs() -> u64 {
+    3600 // 1 hour
+}
+fn default_sse_keepalive_secs() -> u64 {
+    30
+}
+
+impl Default for OtelConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_otel_enabled(),
+            grpc_enabled: default_grpc_enabled(),
+            grpc_port: default_grpc_port(),
+            channel_capacity: default_channel_capacity(),
+            buffer_max_spans: default_buffer_max_spans(),
+            buffer_max_bytes: default_buffer_max_bytes(),
+            flush_interval_ms: default_flush_interval_ms(),
+            flush_batch_size: default_flush_batch_size(),
+            max_file_size_mb: default_max_file_size_mb(),
+            row_group_size: default_row_group_size(),
+            retention_days: None,
+            retention_max_gb: default_retention_max_gb(),
+            retention_check_interval_secs: default_retention_check_interval_secs(),
+            disk_warning_percent: default_disk_warning_percent(),
+            disk_critical_percent: default_disk_critical_percent(),
+            max_span_name_len: default_max_span_name_len(),
+            max_attribute_count: default_max_attribute_count(),
+            max_attribute_value_len: default_max_attribute_value_len(),
+            max_events_per_span: default_max_events_per_span(),
+            sse_max_connections: default_sse_max_connections(),
+            sse_timeout_secs: default_sse_timeout_secs(),
+            sse_keepalive_secs: default_sse_keepalive_secs(),
+        }
     }
 }
 
@@ -426,5 +609,189 @@ mod tests {
         let cli = CliConfig::default();
         assert!(cli.host.is_none());
         assert!(cli.port.is_none());
+        assert!(!cli.no_auth);
+    }
+
+    #[test]
+    fn test_config_source_new() {
+        let source = ConfigSource::new("test", Some(PathBuf::from("/test/path")), true);
+        assert_eq!(source.name, "test");
+        assert_eq!(source.path, Some(PathBuf::from("/test/path")));
+        assert!(source.loaded);
+    }
+
+    #[test]
+    fn test_config_source_loaded() {
+        let source = ConfigSource::loaded("workdir", PathBuf::from("/work/config.json"));
+        assert_eq!(source.name, "workdir");
+        assert_eq!(source.path, Some(PathBuf::from("/work/config.json")));
+        assert!(source.loaded);
+    }
+
+    #[test]
+    fn test_config_source_skipped() {
+        let source = ConfigSource::skipped("user", PathBuf::from("/home/user/.config"));
+        assert_eq!(source.name, "user");
+        assert_eq!(source.path, Some(PathBuf::from("/home/user/.config")));
+        assert!(!source.loaded);
+    }
+
+    #[test]
+    fn test_apply_cli_args_host() {
+        let mut config = Config::default();
+        let cli = CliConfig { host: Some("0.0.0.0".to_string()), port: None, no_auth: false };
+
+        ConfigManager::apply_cli_args(&mut config, &cli);
+        assert_eq!(config.server.host, "0.0.0.0");
+        assert_eq!(config.server.port, DEFAULT_PORT); // unchanged
+    }
+
+    #[test]
+    fn test_apply_cli_args_port() {
+        let mut config = Config::default();
+        let cli = CliConfig { host: None, port: Some(8080), no_auth: false };
+
+        ConfigManager::apply_cli_args(&mut config, &cli);
+        assert_eq!(config.server.host, DEFAULT_HOST); // unchanged
+        assert_eq!(config.server.port, 8080);
+    }
+
+    #[test]
+    fn test_apply_cli_args_no_auth() {
+        let mut config = Config::default();
+        assert!(config.auth.enabled); // default is true
+
+        let cli = CliConfig { host: None, port: None, no_auth: true };
+        ConfigManager::apply_cli_args(&mut config, &cli);
+        assert!(!config.auth.enabled);
+    }
+
+    #[test]
+    fn test_apply_cli_args_all() {
+        let mut config = Config::default();
+        let cli =
+            CliConfig { host: Some("localhost".to_string()), port: Some(3000), no_auth: true };
+
+        ConfigManager::apply_cli_args(&mut config, &cli);
+        assert_eq!(config.server.host, "localhost");
+        assert_eq!(config.server.port, 3000);
+        assert!(!config.auth.enabled);
+    }
+
+    #[test]
+    fn test_server_config_default() {
+        let config = ServerConfig::default();
+        assert_eq!(config.host, DEFAULT_HOST);
+        assert_eq!(config.port, DEFAULT_PORT);
+    }
+
+    #[test]
+    fn test_logging_config_default() {
+        let config = LoggingConfig::default();
+        assert_eq!(config.level, DEFAULT_LOG_LEVEL);
+        assert_eq!(config.format, DEFAULT_LOG_FORMAT);
+    }
+
+    #[test]
+    fn test_auth_config_default() {
+        let config = AuthConfig::default();
+        assert!(config.enabled);
+    }
+
+    #[test]
+    fn test_storage_config_default() {
+        let config = StorageConfig::default();
+        assert!(config.config_dir.is_none());
+        assert!(config.data_dir.is_none());
+        assert!(config.cache_dir.is_none());
+    }
+
+    #[test]
+    fn test_otel_config_default() {
+        let config = OtelConfig::default();
+        assert!(config.enabled);
+        assert!(config.grpc_enabled);
+        assert_eq!(config.grpc_port, 4317);
+        assert_eq!(config.channel_capacity, 1000);
+        assert_eq!(config.buffer_max_spans, 1000);
+        assert_eq!(config.buffer_max_bytes, 10 * 1024 * 1024);
+        assert_eq!(config.flush_interval_ms, 1000);
+        assert_eq!(config.flush_batch_size, 100);
+        assert_eq!(config.max_file_size_mb, 64);
+        assert_eq!(config.row_group_size, 10_000);
+        assert!(config.retention_days.is_none());
+        assert_eq!(config.retention_max_gb, 20);
+        assert_eq!(config.retention_check_interval_secs, 300);
+        assert_eq!(config.disk_warning_percent, 80);
+        assert_eq!(config.disk_critical_percent, 95);
+        assert_eq!(config.max_span_name_len, 1000);
+        assert_eq!(config.max_attribute_count, 100);
+        assert_eq!(config.max_attribute_value_len, 10 * 1024);
+        assert_eq!(config.max_events_per_span, 100);
+        assert_eq!(config.sse_max_connections, 100);
+        assert_eq!(config.sse_timeout_secs, 3600);
+        assert_eq!(config.sse_keepalive_secs, 30);
+    }
+
+    #[test]
+    fn test_otel_config_serialization() {
+        let config = OtelConfig::default();
+        let json = serde_json::to_string(&config).unwrap();
+        let deserialized: OtelConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(config.grpc_port, deserialized.grpc_port);
+        assert_eq!(config.buffer_max_spans, deserialized.buffer_max_spans);
+    }
+
+    #[test]
+    fn test_deep_merge_nested_objects() {
+        let base = serde_json::json!({
+            "a": {
+                "b": {
+                    "c": 1,
+                    "d": 2
+                }
+            }
+        });
+
+        let overlay = serde_json::json!({
+            "a": {
+                "b": {
+                    "c": 10
+                }
+            }
+        });
+
+        let merged = ConfigManager::deep_merge_values(base, overlay);
+        assert_eq!(merged["a"]["b"]["c"], 10); // from overlay
+        assert_eq!(merged["a"]["b"]["d"], 2); // preserved from base
+    }
+
+    #[test]
+    fn test_deep_merge_array_replacement() {
+        let base = serde_json::json!({"arr": [1, 2, 3]});
+        let overlay = serde_json::json!({"arr": [4, 5]});
+
+        let merged = ConfigManager::deep_merge_values(base, overlay);
+        assert_eq!(merged["arr"], serde_json::json!([4, 5])); // arrays are replaced, not merged
+    }
+
+    #[test]
+    fn test_deep_merge_primitive_replacement() {
+        let base = serde_json::json!({"num": 42, "str": "hello"});
+        let overlay = serde_json::json!({"num": 100, "str": "world"});
+
+        let merged = ConfigManager::deep_merge_values(base, overlay);
+        assert_eq!(merged["num"], 100);
+        assert_eq!(merged["str"], "world");
+    }
+
+    #[test]
+    fn test_deep_merge_add_new_keys() {
+        let base = serde_json::json!({"existing": "value"});
+        let overlay = serde_json::json!({"new": "added"});
+
+        let merged = ConfigManager::deep_merge_values(base, overlay);
+        assert_eq!(merged["existing"], "value");
+        assert_eq!(merged["new"], "added");
     }
 }

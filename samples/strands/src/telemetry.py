@@ -5,7 +5,7 @@ from strands.telemetry import StrandsTelemetry
 
 
 MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-OTLP_ENDPOINT = "http://localhost:5001/proxy/converse"
+OTLP_ENDPOINT = "http://127.0.0.1:5001/otel"
 
 
 @tool(context=True)

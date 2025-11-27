@@ -3,6 +3,15 @@ name = "sideseat"
 version = "1.0.4"
 edition = "2024"
 
+[lints.rust]
+dead_code = "warn"
+unused_imports = "warn"
+unused_variables = "warn"
+unused_mut = "warn"
+
+[lints.clippy]
+all = "warn"
+
 [dependencies]
 axum = { workspace = true }
 tokio = { workspace = true }
@@ -34,3 +43,17 @@ subtle = { workspace = true }
 axum-extra = { workspace = true }
 uuid = { workspace = true }
 time = { workspace = true }
+
+# OpenTelemetry dependencies
+arrow = { workspace = true }
+parquet = { workspace = true }
+datafusion = { workspace = true }
+opentelemetry-proto = { workspace = true }
+prost = { workspace = true }
+tonic = { workspace = true }
+tokio-stream = { workspace = true }
+base64 = { workspace = true }
+hex = { workspace = true }
+regex = { workspace = true }
+fs2 = { workspace = true }
+sha2 = { workspace = true }

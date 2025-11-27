@@ -1,4 +1,4 @@
-.PHONY: help setup setup-ci setup-cross setup-hooks dev dev-server dev-web dev-docs build build-server build-web build-docs test fmt fmt-check lint clean build-cli build-cli-local publish-cli publish-cli-dry-run version version-patch version-minor version-major run start
+.PHONY: help setup setup-ci setup-cross setup-hooks dev dev-server dev-web dev-docs build build-server build-web build-docs test test-e2e coverage fmt fmt-check lint clean build-cli build-cli-local publish-cli publish-cli-dry-run version version-patch version-minor version-major run start
 
 # Variables
 DIRS := data server/migrations web/dist docs/dist
@@ -26,6 +26,8 @@ help:
 	@echo "  make build           - Production build (web + server)"
 	@echo "  make build-docs      - Build Astro documentation"
 	@echo "  make test            - Run all tests"
+	@echo "  make test-e2e        - Run OTEL end-to-end tests"
+	@echo "  make coverage        - Run test coverage (requires cargo-llvm-cov)"
 	@echo "  make fmt             - Format all code"
 	@echo "  make fmt-check       - Check code formatting (CI)"
 	@echo "  make lint            - Lint all code"
@@ -207,6 +209,13 @@ build-docs:
 test:
 	@cargo test -- --test-threads=1
 	@cd $(WEB_DIR) && npm test
+
+test-e2e:
+	@echo "Running OTEL E2E Test Suite..."
+	@cd tests/e2e && uv run test
+
+coverage:
+	@cd server && cargo llvm-cov --lib
 
 fmt:
 	@cargo fmt --all

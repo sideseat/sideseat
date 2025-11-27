@@ -1,23 +1,30 @@
 use crate::api;
 use crate::auth::AuthManager;
+use crate::otel::OtelManager;
 use axum::{Router, routing::get};
 use std::sync::Arc;
 
-pub fn create_routes(auth_manager: Arc<AuthManager>) -> Router {
+pub fn create_routes(
+    auth_manager: Arc<AuthManager>,
+    otel_manager: Option<Arc<OtelManager>>,
+) -> Router {
     // Public routes (no auth required)
     let public_routes = Router::new()
-        .route("/health", get(api::health::health_check))
+        .route("/health", get(api::health::health_check_with_otel))
+        .with_state(otel_manager.clone())
         .nest("/auth", api::auth::create_routes(auth_manager.clone()));
 
-    // Protected routes (auth required)
-    // To add protected endpoints, use:
-    //   use crate::auth::require_auth;
-    //   use axum::middleware;
-    //   let protected_routes = Router::new()
-    //       .route("/protected", get(some_handler))
-    //       .layer(middleware::from_fn_with_state(auth_manager, require_auth));
-    //   Router::new().merge(public_routes).merge(protected_routes)
-    let _ = auth_manager; // Will be used when protected routes are added
+    // OTel query routes at /traces, /spans, /traces/sse (no auth per user request)
+    let router = if let Some(otel) = otel_manager {
+        Router::new()
+            .merge(public_routes)
+            .nest("/traces", api::otel::create_query_routes(otel.clone()))
+            .nest("/spans", api::otel::create_spans_routes(otel))
+    } else {
+        Router::new().merge(public_routes)
+    };
 
-    Router::new().merge(public_routes)
+    let _ = auth_manager;
+
+    router
 }

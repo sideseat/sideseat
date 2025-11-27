@@ -1,0 +1,16 @@
+[project]
+name = "sideseat-e2e-tests"
+version = "0.1.0"
+description = "SideSeat OTEL End-to-End Test Suite"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+test = "test_otel_e2e:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src", "test_otel_e2e.py"]

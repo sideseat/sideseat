@@ -150,19 +150,41 @@ server/
 ├── src/
 │   ├── main.rs           # CLI entry point (clap)
 │   ├── lib.rs            # Library root, exports run()
-│   ├── server.rs         # Axum server setup and startup
 │   ├── error.rs          # Error types (thiserror)
-│   ├── middleware.rs     # CORS and other middleware
-│   ├── embedded.rs       # Embedded frontend assets (rust-embed)
 │   ├── api/              # API route handlers
 │   │   ├── mod.rs
-│   │   └── routes.rs
-│   └── core/             # Core managers and utilities
-│       ├── mod.rs
-│       ├── constants.rs  # App-wide constants, env var names
-│       ├── config.rs     # ConfigManager - multi-source config
-│       ├── storage.rs    # StorageManager - platform paths
-│       └── secrets.rs    # SecretManager - credential storage
+│   │   ├── routes.rs
+│   │   ├── auth.rs       # Auth endpoints
+│   │   ├── health.rs     # Health check endpoint
+│   │   └── otel/         # OTel query API endpoints
+│   ├── auth/             # Authentication module
+│   │   ├── mod.rs
+│   │   ├── manager.rs    # AuthManager - JWT + bootstrap tokens
+│   │   ├── jwt.rs        # JWT creation/validation
+│   │   └── middleware.rs # Auth middleware
+│   ├── core/             # Core managers and utilities
+│   │   ├── mod.rs
+│   │   ├── constants.rs  # App-wide constants, env var names
+│   │   ├── config.rs     # ConfigManager - multi-source config
+│   │   ├── storage.rs    # StorageManager - platform paths
+│   │   ├── secrets.rs    # SecretManager - credential storage
+│   │   └── utils.rs      # Terminal utilities
+│   ├── otel/             # OpenTelemetry collector
+│   │   ├── mod.rs        # OtelManager - central orchestrator
+│   │   ├── error.rs      # OTel-specific errors
+│   │   ├── health.rs     # Health status types
+│   │   ├── ingest/       # OTLP ingestion (HTTP + gRPC)
+│   │   ├── normalize/    # Framework detection, field extraction
+│   │   ├── storage/      # SQLite index + Parquet bulk storage
+│   │   ├── query/        # Query engine (SQLite + DataFusion)
+│   │   └── realtime/     # SSE subscriptions
+│   └── server/           # HTTP/gRPC server
+│       ├── mod.rs        # Server startup
+│       ├── banner.rs     # Startup banner
+│       ├── embedded.rs   # Frontend asset serving
+│       ├── grpc.rs       # gRPC OTLP server
+│       ├── handlers.rs   # 404 handler
+│       └── middleware.rs # CORS middleware
 docs/                     # Astro documentation site
 ui/                       # Frontend (embedded into server)
 ```
@@ -208,6 +230,25 @@ let value = secrets.get_value("OPENAI_API_KEY").await?;
 - On macOS, the keychain prompts once on first access - click "Always Allow" to grant permanent access to all secrets
 - The vault design ensures a single keychain entry for all secrets, so one permission grants access to everything
 
+#### OtelManager
+
+OpenTelemetry collector for AI agent observability. Handles OTLP ingestion, storage, and real-time streaming.
+
+```rust
+let otel = OtelManager::init(&storage, config.otel.clone()).await?;
+// Access components:
+// otel.sender() - Channel for ingesting spans
+// otel.query_engine - SQLite queries
+// otel.storage - Parquet + SQLite storage
+// otel.sse - Real-time SSE subscriptions
+```
+
+**Architecture:**
+- **Ingestion**: HTTP (`/otel/v1/traces`) and gRPC (port 4317) OTLP endpoints
+- **Storage**: SQLite for indexing + Parquet for bulk span data
+- **Query**: SQLite for indexed queries, DataFusion for analytics
+- **Real-time**: SSE subscriptions with filtered events
+
 ### Configuration
 
 **Priority (highest to lowest):**
@@ -222,9 +263,23 @@ let value = secrets.get_value("OPENAI_API_KEY").await?;
 ```json
 {
   "server": { "host": "127.0.0.1", "port": 5001 },
-  "logging": { "level": "info", "format": "compact" }
+  "logging": { "level": "info", "format": "compact" },
+  "auth": { "enabled": true },
+  "otel": {
+    "enabled": true,
+    "grpc_enabled": true,
+    "grpc_port": 4317,
+    "retention_max_gb": 20
+  }
 }
 ```
+
+**OTel Configuration Options:**
+- `otel.enabled` - Enable/disable OTel collector (default: true)
+- `otel.grpc_enabled` - Enable gRPC OTLP endpoint (default: true)
+- `otel.grpc_port` - gRPC port (default: 4317)
+- `otel.retention_days` - Optional max age for traces
+- `otel.retention_max_gb` - Max storage size in GB (default: 20)
 
 ### Frontend (shadcn/ui)
 
@@ -242,3 +297,33 @@ The frontend uses [shadcn/ui](https://ui.shadcn.com) components. Reference: http
 - `FieldError` - Error message (only render when error exists)
 - `FieldGroup` - Groups multiple fields
 - `FieldSet` / `FieldLegend` - Semantic fieldset grouping
+
+### API Endpoints
+
+**Public Endpoints (no auth):**
+- `GET /api/v1/health` - Health check with OTel status
+- `POST /api/v1/auth/login` - Exchange bootstrap token for JWT
+- `GET /api/v1/auth/status` - Check auth status
+- `POST /api/v1/auth/logout` - Clear session
+
+**OTel Query Endpoints (no auth):**
+- `GET /api/v1/traces` - List traces with filters
+- `GET /api/v1/traces/{trace_id}` - Get trace details
+- `GET /api/v1/traces/{trace_id}/spans` - Get spans for a trace
+- `GET /api/v1/traces/sse` - Real-time trace updates (SSE)
+- `GET /api/v1/spans` - Query spans with filters
+
+**OTel Collector Endpoints (no auth, OTLP standard):**
+- `POST /otel/v1/traces` - OTLP HTTP trace ingestion
+- `gRPC :4317` - OTLP gRPC trace ingestion
+
+### Development Commands
+
+```bash
+make dev        # Start dev server (hot reload)
+make build      # Production build
+make test       # Run all tests
+make coverage   # Run test coverage (requires cargo-llvm-cov)
+make lint       # Run linters
+make fmt        # Format code
+```

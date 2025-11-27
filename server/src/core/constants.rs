@@ -123,6 +123,37 @@ pub const SECRET_KEY_JWT_SIGNING: &str = "jwt_signing_key";
 /// Default session token TTL in days
 pub const DEFAULT_SESSION_TTL_DAYS: u64 = 30;
 
+// =============================================================================
+// Environment Variables - OpenTelemetry
+// =============================================================================
+
+/// Environment variable to enable/disable OTel collector
+///
+/// Set to "false" or "0" to disable OpenTelemetry collector
+pub const ENV_OTEL_ENABLED: &str = "SIDESEAT_OTEL_ENABLED";
+
+/// Environment variable to enable/disable OTel gRPC endpoint
+pub const ENV_OTEL_GRPC_ENABLED: &str = "SIDESEAT_OTEL_GRPC_ENABLED";
+
+/// Environment variable to override OTel gRPC port (default: 4317)
+pub const ENV_OTEL_GRPC_PORT: &str = "SIDESEAT_OTEL_GRPC_PORT";
+
+// =============================================================================
+// OpenTelemetry Constants
+// =============================================================================
+
+/// Default OTel gRPC port (standard OTLP port)
+pub const DEFAULT_OTEL_GRPC_PORT: u16 = 4317;
+
+/// Default maximum storage size in GB before FIFO cleanup
+pub const DEFAULT_OTEL_RETENTION_MAX_GB: u32 = 20;
+
+/// Default disk usage percent for warning (80%)
+pub const DEFAULT_OTEL_DISK_WARNING_PERCENT: u8 = 80;
+
+/// Default disk usage percent for stopping ingestion (95%)
+pub const DEFAULT_OTEL_DISK_CRITICAL_PERCENT: u8 = 95;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -147,6 +178,9 @@ mod tests {
             ENV_DATA_DIR,
             ENV_CACHE_DIR,
             ENV_SECRET_BACKEND,
+            ENV_OTEL_ENABLED,
+            ENV_OTEL_GRPC_ENABLED,
+            ENV_OTEL_GRPC_PORT,
         ];
 
         for var in env_vars {

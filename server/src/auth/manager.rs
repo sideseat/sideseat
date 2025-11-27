@@ -176,4 +176,67 @@ mod tests {
         let key = AuthManager::generate_signing_key();
         assert_eq!(key.len(), 32);
     }
+
+    #[test]
+    fn test_encode_hex_empty() {
+        let hex = AuthManager::encode_hex(&[]);
+        assert_eq!(hex, "");
+    }
+
+    #[test]
+    fn test_encode_hex_single_byte() {
+        assert_eq!(AuthManager::encode_hex(&[0x00]), "00");
+        assert_eq!(AuthManager::encode_hex(&[0xff]), "ff");
+        assert_eq!(AuthManager::encode_hex(&[0x0a]), "0a");
+        assert_eq!(AuthManager::encode_hex(&[0xa0]), "a0");
+    }
+
+    #[test]
+    fn test_decode_hex_empty() {
+        let decoded = AuthManager::decode_hex("").unwrap();
+        assert!(decoded.is_empty());
+    }
+
+    #[test]
+    fn test_decode_hex_valid() {
+        assert_eq!(AuthManager::decode_hex("00").unwrap(), vec![0x00]);
+        assert_eq!(AuthManager::decode_hex("ff").unwrap(), vec![0xff]);
+        assert_eq!(AuthManager::decode_hex("FF").unwrap(), vec![0xff]);
+        assert_eq!(AuthManager::decode_hex("0a").unwrap(), vec![0x0a]);
+        assert_eq!(AuthManager::decode_hex("deadbeef").unwrap(), vec![0xde, 0xad, 0xbe, 0xef]);
+    }
+
+    #[test]
+    fn test_decode_hex_odd_length() {
+        let result = AuthManager::decode_hex("abc");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_decode_hex_invalid_chars() {
+        let result = AuthManager::decode_hex("gg");
+        assert!(result.is_err());
+
+        let result = AuthManager::decode_hex("zz");
+        assert!(result.is_err());
+
+        let result = AuthManager::decode_hex("!@");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_signing_key_uniqueness() {
+        let key1 = AuthManager::generate_signing_key();
+        let key2 = AuthManager::generate_signing_key();
+        assert_ne!(key1, key2);
+    }
+
+    #[test]
+    fn test_signing_key_length() {
+        // Generate multiple keys and verify all are 256-bit (32 bytes)
+        for _ in 0..10 {
+            let key = AuthManager::generate_signing_key();
+            assert_eq!(key.len(), 32);
+        }
+    }
 }

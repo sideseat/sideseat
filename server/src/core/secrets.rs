@@ -643,4 +643,101 @@ mod tests {
         assert_eq!(deserialized.secrets.get("key1").unwrap().value, "value1");
         assert_eq!(deserialized.secrets.get("key2").unwrap().value, "value2");
     }
+
+    #[test]
+    fn test_backend_name() {
+        assert_eq!(SecretBackend::AppleKeychain.name(), "macOS Keychain");
+        assert_eq!(SecretBackend::WindowsCredential.name(), "Windows Credential Manager");
+        assert_eq!(SecretBackend::LinuxSecretService.name(), "Secret Service");
+        assert_eq!(SecretBackend::LinuxKeyutils.name(), "Linux keyutils");
+        assert_eq!(
+            SecretBackend::File(PathBuf::from("/tmp/secrets.json")).name(),
+            "File (INSECURE - dev only)"
+        );
+    }
+
+    #[test]
+    fn test_backend_is_file() {
+        assert!(!SecretBackend::AppleKeychain.is_file());
+        assert!(!SecretBackend::WindowsCredential.is_file());
+        assert!(!SecretBackend::LinuxSecretService.is_file());
+        assert!(!SecretBackend::LinuxKeyutils.is_file());
+        assert!(SecretBackend::File(PathBuf::from("/tmp/secrets.json")).is_file());
+    }
+
+    #[test]
+    fn test_secret_metadata_new() {
+        let meta = SecretMetadata::new();
+        assert!(meta.provider.is_none());
+        assert!(meta.scope.is_none());
+        assert!(meta.expires_at.is_none());
+        // created_at and updated_at should be set to now (within a reasonable margin)
+        let now = Utc::now();
+        assert!((now - meta.created_at).num_seconds().abs() < 2);
+        assert!((now - meta.updated_at).num_seconds().abs() < 2);
+    }
+
+    #[test]
+    fn test_secret_metadata_with_provider() {
+        let meta = SecretMetadata::with_provider("openai");
+        assert_eq!(meta.provider, Some("openai".to_string()));
+        assert!(meta.scope.is_none());
+    }
+
+    #[test]
+    fn test_secret_metadata_default() {
+        let meta = SecretMetadata::default();
+        assert!(meta.provider.is_none());
+        assert!(!meta.is_expired());
+    }
+
+    #[test]
+    fn test_secret_new() {
+        let secret = Secret::new("my-api-key");
+        assert_eq!(secret.value, "my-api-key");
+        assert!(secret.metadata.provider.is_none());
+        assert!(!secret.is_expired());
+    }
+
+    #[test]
+    fn test_secret_with_provider() {
+        let secret = Secret::with_provider("my-api-key", "anthropic");
+        assert_eq!(secret.value, "my-api-key");
+        assert_eq!(secret.metadata.provider, Some("anthropic".to_string()));
+    }
+
+    #[test]
+    fn test_secret_is_expired() {
+        let mut secret = Secret::new("test");
+        assert!(!secret.is_expired());
+
+        // Set expiry in the past
+        secret.metadata.expires_at = Some(Utc::now() - chrono::Duration::hours(1));
+        assert!(secret.is_expired());
+
+        // Set expiry in the future
+        secret.metadata.expires_at = Some(Utc::now() + chrono::Duration::hours(1));
+        assert!(!secret.is_expired());
+    }
+
+    #[test]
+    fn test_secret_key_new() {
+        let key = SecretKey::new("MY_SECRET");
+        assert_eq!(key.name, "MY_SECRET");
+        assert!(key.target.is_none());
+    }
+
+    #[test]
+    fn test_secret_key_with_target() {
+        let key = SecretKey::with_target("MY_SECRET", "production");
+        assert_eq!(key.name, "MY_SECRET");
+        assert_eq!(key.target, Some("production".to_string()));
+    }
+
+    #[test]
+    fn test_secret_key_from_str() {
+        let key: SecretKey = String::from("API_KEY").into();
+        assert_eq!(key.name, "API_KEY");
+        assert!(key.target.is_none());
+    }
 }

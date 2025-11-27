@@ -1,7 +1,7 @@
-// Frontend asset embedding for production builds
-//
-// In development: Frontend runs on Vite dev server (port 5173)
-// In production: Assets are embedded in the binary from web/dist
+//! Frontend asset embedding for production builds
+//!
+//! In development: Frontend runs on Vite dev server (port 5173)
+//! In production: Assets are embedded in the binary from web/dist
 
 use axum::{
     body::Body,

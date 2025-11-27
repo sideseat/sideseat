@@ -56,6 +56,8 @@ pub enum DataSubdir {
     Database,
     /// User uploads (data/uploads/)
     Uploads,
+    /// OpenTelemetry trace data (data/traces/)
+    Traces,
 }
 
 /// Storage manager with resolved paths
@@ -170,7 +172,7 @@ impl StorageManager {
         }
 
         // Create data subdirectories
-        for subdir in ["db", "uploads"] {
+        for subdir in ["db", "uploads", "traces"] {
             let path = self.data_dir.join(subdir);
             Self::create_and_verify_dir(&format!("data/{}", subdir), &path).await?;
         }
@@ -337,6 +339,7 @@ impl StorageManager {
         self.data_dir.join(match subdir {
             DataSubdir::Database => "db",
             DataSubdir::Uploads => "uploads",
+            DataSubdir::Traces => "traces",
         })
     }
 
@@ -373,6 +376,11 @@ impl StorageManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::sync::Mutex;
+
+    // Mutex to serialize tests that change the current directory
+    // (std::env::set_current_dir is a global operation that affects all threads)
+    static CWD_MUTEX: Mutex<()> = Mutex::const_new(());
 
     #[test]
     fn test_storage_type_variants() {
@@ -399,6 +407,8 @@ mod tests {
     #[test]
     fn test_data_subdir_variants() {
         assert_ne!(DataSubdir::Database, DataSubdir::Uploads);
+        assert_ne!(DataSubdir::Database, DataSubdir::Traces);
+        assert_ne!(DataSubdir::Uploads, DataSubdir::Traces);
     }
 
     #[test]
@@ -417,6 +427,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_manager_init() {
+        let _guard = CWD_MUTEX.lock().await;
+
         // Use fallback init with a temp directory to avoid CI environment issues
         let temp_dir = std::env::temp_dir().join(format!("sideseat_test_{}", std::process::id()));
         std::fs::create_dir_all(&temp_dir).unwrap();
@@ -448,6 +460,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_path() {
+        let _guard = CWD_MUTEX.lock().await;
+
         let temp_dir =
             std::env::temp_dir().join(format!("sideseat_test_path_{}", std::process::id()));
         std::fs::create_dir_all(&temp_dir).unwrap();
@@ -457,18 +471,22 @@ mod tests {
 
         let storage = StorageManager::init().await.unwrap();
 
-        std::env::set_current_dir(&original_dir).unwrap();
-        let _ = std::fs::remove_dir_all(&temp_dir);
-
+        // Test assertions before cleanup
         let config_path = storage.get_path(StorageType::Config, "test.json");
         assert!(config_path.ends_with("test.json"));
 
         let data_path = storage.get_path(StorageType::Data, "app.db");
         assert!(data_path.ends_with("app.db"));
+
+        // Cleanup after assertions
+        std::env::set_current_dir(&original_dir).unwrap();
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 
     #[tokio::test]
     async fn test_data_subdir() {
+        let _guard = CWD_MUTEX.lock().await;
+
         let temp_dir =
             std::env::temp_dir().join(format!("sideseat_test_subdir_{}", std::process::id()));
         std::fs::create_dir_all(&temp_dir).unwrap();
@@ -478,18 +496,25 @@ mod tests {
 
         let storage = StorageManager::init().await.unwrap();
 
-        std::env::set_current_dir(&original_dir).unwrap();
-        let _ = std::fs::remove_dir_all(&temp_dir);
-
+        // Test assertions before cleanup
         let db_path = storage.data_subdir(DataSubdir::Database);
         assert!(db_path.ends_with("db"));
 
         let uploads_path = storage.data_subdir(DataSubdir::Uploads);
         assert!(uploads_path.ends_with("uploads"));
+
+        let traces_path = storage.data_subdir(DataSubdir::Traces);
+        assert!(traces_path.ends_with("traces"));
+
+        // Cleanup after assertions
+        std::env::set_current_dir(&original_dir).unwrap();
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 
     #[tokio::test]
     async fn test_is_writable() {
+        let _guard = CWD_MUTEX.lock().await;
+
         let temp_dir =
             std::env::temp_dir().join(format!("sideseat_test_write_{}", std::process::id()));
         std::fs::create_dir_all(&temp_dir).unwrap();
@@ -499,11 +524,12 @@ mod tests {
 
         let storage = StorageManager::init().await.unwrap();
 
-        // Data directory should be writable after init
+        // Data directory should be writable after init - test before cleanup
         assert!(storage.is_writable(StorageType::Data).await);
         assert!(storage.is_writable(StorageType::Cache).await);
         assert!(storage.is_writable(StorageType::Temp).await);
 
+        // Cleanup after assertions
         std::env::set_current_dir(&original_dir).unwrap();
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

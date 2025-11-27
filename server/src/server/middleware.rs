@@ -1,3 +1,5 @@
+//! HTTP middleware (CORS, etc.)
+
 use axum::http::{HeaderValue, Method, header};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
