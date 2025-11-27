@@ -7,9 +7,9 @@ Your unified workspace for building and debugging AI agents.
 ```bash
 make setup
 make dev
-```
 
-Open http://localhost:5173 for the dashboard
+SIDESEAT_DATA_DIR=".sideseat" make dev-server
+```
 
 ## Requirements
 

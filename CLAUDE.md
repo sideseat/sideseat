@@ -15,6 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - NEVER proactively create documentation files (\*.md) or README files. Only create documentation files if explicitly requested by the User.
 - When you update or modify core context files, also update markdown documentation and memory bank
 - When asked to commit changes, exclude CLAUDE.md and CLAUDE-\*.md referenced memory bank system files from any commits. Never delete these files.
+- **NEVER run e2e tests (`make test-e2e`) unless explicitly asked by the user.** E2E tests are slow and resource-intensive. Only run unit tests (`cargo test`) for verification unless instructed otherwise.
 
 ## Memory Bank System
 

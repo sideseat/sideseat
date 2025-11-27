@@ -1,4 +1,4 @@
-//! Parquet file reader utilities
+//! Async parquet file reading with blocking I/O offloaded to thread pool
 
 use arrow::array::RecordBatch;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
@@ -11,7 +11,6 @@ use crate::otel::error::OtelError;
 pub async fn read_parquet_file(path: &Path) -> Result<Vec<RecordBatch>, OtelError> {
     let path = path.to_path_buf();
 
-    // Read file in blocking task
     tokio::task::spawn_blocking(move || {
         let file = std::fs::File::open(&path)
             .map_err(|e| OtelError::StorageError(format!("Failed to open file: {}", e)))?;

@@ -205,6 +205,27 @@ impl OtelManager {
             retention.run(shutdown_rx).await;
         });
 
+        // Parquet writer pool cleanup (remove old day writers from memory)
+        let parquet_pool = Arc::clone(self.storage.parquet_pool());
+        let mut shutdown_rx = self.shutdown_tx.subscribe();
+        tokio::spawn(async move {
+            // Cleanup every hour, keep writers for last 7 days
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+            loop {
+                tokio::select! {
+                    _ = interval.tick() => {
+                        parquet_pool.cleanup_old_writers(7).await;
+                        tracing::debug!("Cleaned up old parquet writers");
+                    }
+                    _ = shutdown_rx.changed() => {
+                        if *shutdown_rx.borrow() {
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+
         // SSE connection cleanup
         let sse = Arc::clone(&self.sse);
         sse.start_cleanup_task();
@@ -218,20 +239,19 @@ impl OtelManager {
             return Ok(());
         }
 
-        let written_files = storage.parquet_pool().write_batch(&spans).await?;
-
+        // Insert into SQLite first (uses references)
         let pool = storage.sqlite().pool();
         for span in &spans {
             // Upsert trace first (spans have FK to traces)
             storage::sqlite::traces::upsert_trace(pool, span).await?;
-            storage::sqlite::spans::insert_span(
-                pool,
-                span,
-                written_files.first().map(|f| f.path.to_str().unwrap_or("")),
-            )
-            .await?;
+            // Note: parquet_file will be updated after write completes
+            storage::sqlite::spans::insert_span(pool, span, None).await?;
         }
 
+        // Write to parquet (takes ownership to avoid cloning)
+        let written_files = storage.parquet_pool().write_batch(spans).await?;
+
+        // Register written files
         for file in written_files {
             storage::sqlite::files::register_file(
                 pool,
@@ -245,7 +265,6 @@ impl OtelManager {
             .await?;
         }
 
-        tracing::debug!("Flushed {} spans", spans.len());
         Ok(())
     }
 
@@ -256,7 +275,7 @@ impl OtelManager {
 
     /// Graceful shutdown - flushes pending data and stops background tasks
     pub async fn shutdown(&self) -> OtelResult<()> {
-        tracing::info!("Shutting down OtelManager...");
+        tracing::debug!("Shutting down OtelManager...");
 
         let _ = self.shutdown_tx.send(true);
 
@@ -267,7 +286,7 @@ impl OtelManager {
 
         let _ = self.storage.parquet_pool().flush_all().await;
 
-        tracing::info!("OtelManager shutdown complete");
+        tracing::debug!("OtelManager shutdown complete");
         Ok(())
     }
 

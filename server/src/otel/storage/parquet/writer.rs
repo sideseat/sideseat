@@ -5,7 +5,7 @@ use parquet::basic::{Compression, ZstdLevel};
 use parquet::file::properties::WriterProperties;
 use std::path::PathBuf;
 use tokio::sync::Mutex;
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::otel::error::OtelError;
 use crate::otel::normalize::NormalizedSpan;
@@ -48,7 +48,7 @@ impl DayWriter {
         }
     }
 
-    /// Write a batch of spans
+    /// Write spans to the current parquet file, rotating if size limit exceeded
     pub async fn write_batch(
         &self,
         spans: &[NormalizedSpan],
@@ -58,26 +58,18 @@ impl DayWriter {
         }
 
         let record_batch = to_record_batch(spans)?;
+        let batch_memory_size = record_batch.get_array_memory_size() as u64;
 
-        let mut file = self.current_file.lock().await;
+        let mut file_guard = self.current_file.lock().await;
 
-        // Initialize file if needed
-        if file.is_none() {
-            *file = Some(self.create_new_file().await?);
+        if file_guard.is_none() {
+            *file_guard = Some(self.create_new_file().await?);
         }
 
-        // Safe: we just ensured the file is Some above
-        let Some(active) = file.as_mut() else {
-            return Err(OtelError::StorageError("File initialization failed".to_string()));
-        };
+        let mut active = file_guard
+            .take()
+            .ok_or_else(|| OtelError::StorageError("File initialization failed".to_string()))?;
 
-        // Write batch
-        active
-            .writer
-            .write(&record_batch)
-            .map_err(|e| OtelError::StorageError(format!("Failed to write batch: {}", e)))?;
-
-        // Update stats
         active.span_count += spans.len() as u32;
         for span in spans {
             active.min_start_time = active.min_start_time.min(span.start_time_unix_nano);
@@ -85,31 +77,42 @@ impl DayWriter {
                 active.max_end_time = active.max_end_time.max(end);
             }
         }
+        active.current_size += batch_memory_size;
 
-        // Check if we need to rotate
-        // Estimate current size (actual size is only known after close)
-        active.current_size += record_batch.get_array_memory_size() as u64;
+        let result =
+            tokio::task::spawn_blocking(move || {
+                active.writer.write(&record_batch).map_err(|e| {
+                    OtelError::StorageError(format!("Failed to write batch: {}", e))
+                })?;
 
-        if active.current_size >= self.max_file_size {
-            let completed = self.close_current_file(&mut file).await?;
-            return Ok(completed);
+                active.writer.flush().map_err(|e| {
+                    OtelError::StorageError(format!("Failed to flush batch: {}", e))
+                })?;
+
+                Ok::<_, OtelError>(active)
+            })
+            .await
+            .map_err(|e| OtelError::StorageError(format!("Task join error: {}", e)))??;
+
+        let should_rotate = result.current_size >= self.max_file_size;
+        *file_guard = Some(result);
+
+        if should_rotate {
+            return self.close_current_file(&mut file_guard).await;
         }
 
         Ok(None)
     }
 
-    /// Force close the current file (for flush)
+    /// Close and flush the current file to disk
     pub async fn flush(&self) -> Result<Option<WrittenFile>, OtelError> {
         let mut file = self.current_file.lock().await;
         if file.is_some() { self.close_current_file(&mut file).await } else { Ok(None) }
     }
 
-    /// Validate date format and return parsed components
-    /// Returns generic error message to avoid leaking validation logic
+    /// Validate date format (YYYY-MM-DD) and return (year, month, day)
     fn validate_date(&self) -> Result<(&str, &str, &str), OtelError> {
         let parts: Vec<&str> = self.date.split('-').collect();
-
-        // Generic error for all validation failures
         let invalid_date = || OtelError::StorageError("Invalid date partition".to_string());
 
         if parts.len() != 3 {
@@ -165,11 +168,9 @@ impl DayWriter {
         Ok((year, month, day))
     }
 
-    /// Create a new parquet file
+    /// Create a new parquet file in the Hive-partitioned directory structure
     async fn create_new_file(&self) -> Result<ActiveFile, OtelError> {
-        // Validate and parse date format (YYYY-MM-DD) to prevent path traversal
-        let date = self.validate_date()?;
-        let (year, month, day) = date;
+        let (year, month, day) = self.validate_date()?;
 
         let dir = self
             .traces_dir
@@ -181,7 +182,6 @@ impl DayWriter {
             .await
             .map_err(|e| OtelError::StorageError(format!("Failed to create dir: {}", e)))?;
 
-        // Generate filename
         let mut counter = self.part_counter.lock().await;
         *counter += 1;
         let filename = format!("spans-{}-part{:04}.parquet", self.date, *counter);
@@ -189,7 +189,6 @@ impl DayWriter {
 
         debug!("Creating new parquet file: {:?}", path);
 
-        // Create writer with compression - use spawn_blocking for file I/O
         let row_group_size = self.row_group_size;
         let path_clone = path.clone();
         let writer = tokio::task::spawn_blocking(move || {
@@ -218,36 +217,50 @@ impl DayWriter {
         })
     }
 
-    /// Close the current file and return its info
+    /// Close the current file, sync to disk, and return file metadata
     async fn close_current_file(
         &self,
         file: &mut Option<ActiveFile>,
     ) -> Result<Option<WrittenFile>, OtelError> {
         if let Some(active) = file.take() {
-            active
-                .writer
-                .close()
-                .map_err(|e| OtelError::StorageError(format!("Failed to close file: {}", e)))?;
+            let path = active.path.clone();
+            let span_count = active.span_count;
+            let min_start_time = active.min_start_time;
+            let max_end_time = active.max_end_time;
+            let date_partition = self.date.clone();
 
-            // Get actual file size
-            let metadata = tokio::fs::metadata(&active.path)
-                .await
-                .map_err(|e| OtelError::StorageError(format!("Failed to get metadata: {}", e)))?;
+            let file_size = tokio::task::spawn_blocking(move || {
+                // Write parquet footer and close
+                active
+                    .writer
+                    .close()
+                    .map_err(|e| OtelError::StorageError(format!("Failed to close file: {}", e)))?;
 
-            info!(
-                "Closed parquet file: {:?} ({} spans, {} bytes)",
-                active.path,
-                active.span_count,
-                metadata.len()
-            );
+                // Ensure durability on process termination
+                if let Ok(file) = std::fs::File::open(&path) {
+                    let _ = file.sync_all();
+                }
+
+                let metadata = std::fs::metadata(&path).map_err(|e| {
+                    OtelError::StorageError(format!("Failed to get metadata: {}", e))
+                })?;
+
+                Ok::<_, OtelError>((path, metadata.len()))
+            })
+            .await
+            .map_err(|e| OtelError::StorageError(format!("Task join error: {}", e)))??;
+
+            let (path, size) = file_size;
+
+            debug!("Closed parquet file: {:?} ({} spans, {} bytes)", path, span_count, size);
 
             return Ok(Some(WrittenFile {
-                path: active.path,
-                date_partition: self.date.clone(),
-                span_count: active.span_count,
-                file_size: metadata.len(),
-                min_start_time: active.min_start_time,
-                max_end_time: active.max_end_time,
+                path,
+                date_partition,
+                span_count,
+                file_size: size,
+                min_start_time,
+                max_end_time,
             }));
         }
         Ok(None)

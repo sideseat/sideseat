@@ -25,3 +25,6 @@ pub use storage::{DataSubdir, StorageManager, StorageType};
 
 // Secret exports
 pub use secrets::{Secret, SecretBackend, SecretKey, SecretManager, SecretMetadata};
+
+// Utils exports
+pub use utils::expand_path;

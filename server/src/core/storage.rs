@@ -34,6 +34,7 @@ use super::constants::{
     ACCESS_CHECK_FILE, APP_DOT_FOLDER, APP_NAME, APP_NAME_LOWER, ENV_CACHE_DIR, ENV_CONFIG_DIR,
     ENV_DATA_DIR,
 };
+use super::utils::expand_path;
 use crate::error::{Error, Result};
 use directories::ProjectDirs;
 use std::path::{Path, PathBuf};
@@ -52,12 +53,22 @@ pub enum StorageType {
 /// Subdirectories within the data storage location
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DataSubdir {
-    /// Database files (data/db/)
-    Database,
-    /// User uploads (data/uploads/)
-    Uploads,
     /// OpenTelemetry trace data (data/traces/)
     Traces,
+}
+
+impl DataSubdir {
+    /// Returns the directory name for this subdirectory
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            DataSubdir::Traces => "traces",
+        }
+    }
+
+    /// Returns all data subdirectories
+    pub const fn all() -> &'static [DataSubdir] {
+        &[DataSubdir::Traces]
+    }
 }
 
 /// Storage manager with resolved paths
@@ -112,11 +123,15 @@ impl StorageManager {
     }
 
     /// Check environment variable override, otherwise use default
+    ///
+    /// Handles path expansion via [`expand_path`]:
+    /// - Tilde expansion: `~/.sideseat` -> `/Users/name/.sideseat`
+    /// - Relative paths: `./.sideseat`, `..`, `mydir` -> absolute path
     fn resolve_dir<F>(env_var: &str, default: F) -> PathBuf
     where
         F: FnOnce() -> PathBuf,
     {
-        std::env::var(env_var).map(PathBuf::from).unwrap_or_else(|_| default())
+        std::env::var(env_var).map(|s| expand_path(&s)).unwrap_or_else(|_| default())
     }
 
     async fn init_fallback() -> Result<Self> {
@@ -172,9 +187,10 @@ impl StorageManager {
         }
 
         // Create data subdirectories
-        for subdir in ["db", "uploads", "traces"] {
-            let path = self.data_dir.join(subdir);
-            Self::create_and_verify_dir(&format!("data/{}", subdir), &path).await?;
+        for subdir in DataSubdir::all() {
+            let name = subdir.as_str();
+            let path = self.data_dir.join(name);
+            Self::create_and_verify_dir(&format!("data/{}", name), &path).await?;
         }
 
         tracing::debug!("All storage directories initialized and verified");
@@ -336,11 +352,7 @@ impl StorageManager {
 
     /// Get path to a data subdirectory
     pub fn data_subdir(&self, subdir: DataSubdir) -> PathBuf {
-        self.data_dir.join(match subdir {
-            DataSubdir::Database => "db",
-            DataSubdir::Uploads => "uploads",
-            DataSubdir::Traces => "traces",
-        })
+        self.data_dir.join(subdir.as_str())
     }
 
     // === General Path Utilities ===
@@ -405,13 +417,6 @@ mod tests {
     }
 
     #[test]
-    fn test_data_subdir_variants() {
-        assert_ne!(DataSubdir::Database, DataSubdir::Uploads);
-        assert_ne!(DataSubdir::Database, DataSubdir::Traces);
-        assert_ne!(DataSubdir::Uploads, DataSubdir::Traces);
-    }
-
-    #[test]
     fn test_user_config_dir_not_empty() {
         let user_config = StorageManager::get_user_config_dir();
         assert!(!user_config.as_os_str().is_empty());
@@ -424,6 +429,8 @@ mod tests {
             StorageManager::resolve_dir("NONEXISTENT_VAR_12345", || PathBuf::from("/default"));
         assert_eq!(result, PathBuf::from("/default"));
     }
+
+    // Note: expand_path tests are in utils.rs
 
     #[tokio::test]
     async fn test_storage_manager_init() {
@@ -495,13 +502,6 @@ mod tests {
         std::env::set_current_dir(&temp_dir).unwrap();
 
         let storage = StorageManager::init().await.unwrap();
-
-        // Test assertions before cleanup
-        let db_path = storage.data_subdir(DataSubdir::Database);
-        assert!(db_path.ends_with("db"));
-
-        let uploads_path = storage.data_subdir(DataSubdir::Uploads);
-        assert!(uploads_path.ends_with("uploads"));
 
         let traces_path = storage.data_subdir(DataSubdir::Traces);
         assert!(traces_path.ends_with("traces"));
