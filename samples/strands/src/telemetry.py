@@ -1,12 +1,9 @@
 import uuid
 
 import boto3
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
 from strands import Agent, tool, ToolContext
 from strands.models import BedrockModel
 from strands.telemetry import StrandsTelemetry
-from strands.telemetry.config import get_otel_resource
 
 
 MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
@@ -36,31 +33,20 @@ def main():
     session = boto3.Session(region_name="us-east-1")
     bedrock_model = BedrockModel(model_id=MODEL_ID, boto_session=session)
 
-    # Generate session ID for this run
-    session_id = f"strands-demo-{uuid.uuid4().hex[:16]}"
-    user_id = "demo-user"
-    print(f"Session ID: {session_id}")
-
-    # Create custom resource with session.id and user.id
-    base_resource = get_otel_resource()
-    custom_resource = base_resource.merge(
-        Resource.create({
-            "session.id": session_id,
-            "user.id": user_id,
-        })
-    )
-
-    # Create tracer provider with custom resource
-    tracer_provider = TracerProvider(resource=custom_resource)
-
-    # Setup telemetry with custom tracer provider
-    telemetry = StrandsTelemetry(tracer_provider=tracer_provider)
+    telemetry = StrandsTelemetry()
     telemetry.setup_otlp_exporter(
         endpoint=OTLP_ENDPOINT,
         headers={"key1": "value1", "key2": "value2"},
     )
 
-    agent = Agent(model=bedrock_model, tools=[weather_forecast])
+    agent = Agent(
+        model=bedrock_model,
+        tools=[weather_forecast],
+        trace_attributes={
+            "session.id": f"strands-demo-{uuid.uuid4().hex[:16]}",
+            "user.id": "demo-user",
+        },
+    )
 
     agent(
         "Provide a 3-day weather forecast for New York City and greet the user.",

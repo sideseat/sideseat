@@ -621,27 +621,7 @@ def main() -> None:
     session = boto3.Session(region_name="us-east-1")
     model = BedrockModel(model_id=MODEL_ID, boto_session=session)
 
-    # Generate session ID for this test run
-    session_id = f"strands-e2e-{uuid.uuid4().hex[:16]}"
-    user_id = "e2e-test-user"
-    print(f"Session ID: {session_id}")
-
-    # Create custom resource with session.id and user.id
-    base_resource = get_otel_resource()
-    custom_resource = base_resource.merge(
-        Resource.create(
-            {
-                "session.id": session_id,
-                "user.id": user_id,
-            }
-        )
-    )
-
-    # Create tracer provider with custom resource
-    tracer_provider = TracerProvider(resource=custom_resource)
-
-    # Setup telemetry with custom tracer provider
-    telemetry = StrandsTelemetry(tracer_provider=tracer_provider)
+    telemetry = StrandsTelemetry()
     telemetry.setup_otlp_exporter(
         endpoint=OTLP_ENDPOINT,
         headers={"test-suite": "e2e", "version": "1.0"},
@@ -680,6 +660,10 @@ def main() -> None:
 - For data analysis: use analysis_assistant
 Always select the most appropriate specialist for each query.""",
         tools=agent_tools,
+        trace_attributes={
+            "session.id": f"strands-demo-{uuid.uuid4().hex[:16]}",
+            "user.id": "demo-user",
+        },
     )
 
     # Create swarm
@@ -690,7 +674,7 @@ Always select the most appropriate specialist for each query.""",
         max_handoffs=10,
         max_iterations=15,
         execution_timeout=300.0,
-        node_timeout=60.0,
+        node_timeout=120.0,
     )
 
     # Run tests
