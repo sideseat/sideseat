@@ -4,6 +4,8 @@ use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 
+use crate::sqlite::SqliteError;
+
 /// OTel-specific error type
 #[derive(Debug, thiserror::Error)]
 pub enum OtelError {
@@ -28,20 +30,23 @@ pub enum OtelError {
     #[error("Trace not found")]
     TraceNotFound(String),
 
+    #[error("Session not found")]
+    SessionNotFound(String),
+
     #[error("Too many connections")]
     TooManyConnections,
 
     #[error("Connection timeout")]
     ConnectionTimeout,
 
-    #[error("Database migration failed")]
-    MigrationFailed { version: i32, name: String, error: String },
-
     #[error("Schema validation failed")]
     SchemaValidationFailed(String),
 
     #[error("Database error")]
     Database(#[from] sqlx::Error),
+
+    #[error("SQLite error: {0}")]
+    Sqlite(#[from] SqliteError),
 
     #[error("Storage error: {0}")]
     StorageError(String),
@@ -100,15 +105,15 @@ impl IntoResponse for OtelError {
                 tracing::debug!("Trace not found: {}", id);
                 (StatusCode::NOT_FOUND, "Trace not found".to_string())
             }
+            Self::SessionNotFound(id) => {
+                tracing::debug!("Session not found: {}", id);
+                (StatusCode::NOT_FOUND, "Session not found".to_string())
+            }
             Self::TooManyConnections => {
                 (StatusCode::TOO_MANY_REQUESTS, "Too many connections".to_string())
             }
             Self::ConnectionTimeout => {
                 (StatusCode::REQUEST_TIMEOUT, "Connection timeout".to_string())
-            }
-            Self::MigrationFailed { version, name, error } => {
-                tracing::error!("Migration {} ({}) failed: {}", version, name, error);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
             }
             Self::SchemaValidationFailed(msg) => {
                 tracing::error!("Schema validation failed: {}", msg);
@@ -116,6 +121,10 @@ impl IntoResponse for OtelError {
             }
             Self::Database(e) => {
                 tracing::error!("Database error: {}", e);
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+            }
+            Self::Sqlite(e) => {
+                tracing::error!("SQLite error: {}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
             }
             Self::StorageError(msg) => {
@@ -197,16 +206,6 @@ mod tests {
     fn test_otel_error_display_connection_timeout() {
         let err = OtelError::ConnectionTimeout;
         assert_eq!(err.to_string(), "Connection timeout");
-    }
-
-    #[test]
-    fn test_otel_error_display_migration_failed() {
-        let err = OtelError::MigrationFailed {
-            version: 1,
-            name: "initial".to_string(),
-            error: "syntax error".to_string(),
-        };
-        assert_eq!(err.to_string(), "Database migration failed");
     }
 
     #[test]

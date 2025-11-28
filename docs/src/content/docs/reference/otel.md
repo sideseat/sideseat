@@ -7,20 +7,44 @@ SideSeat includes a built-in OpenTelemetry collector optimized for AI agent deve
 
 ## Architecture
 
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   AI Agents     │────▶│   OTel Ingest   │────▶│  Write Buffer   │
-│  (OTLP traces)  │     │  HTTP/gRPC/SSE  │     │  (bounded mem)  │
-└─────────────────┘     └─────────────────┘     └────────┬────────┘
-                                                         │
-                        ┌─────────────────┐              │
-                        │   SSE Clients   │◀─────────────┤
-                        │  (real-time)    │              │
-                        └─────────────────┘              ▼
-                                                ┌─────────────────┐
-                                                │  Parquet Files  │
-                                                │  (FIFO storage) │
-                                                └─────────────────┘
+```mermaid
+flowchart LR
+    subgraph Agents["AI Agents"]
+        A1[LangChain]
+        A2[LlamaIndex]
+        A3[Strands]
+    end
+
+    subgraph Ingest["Ingestion Layer"]
+        HTTP["/otel/v1/traces<br/>(HTTP)"]
+        GRPC["gRPC :4317"]
+    end
+
+    subgraph Processing["Processing"]
+        Buffer["Write Buffer<br/>(bounded memory)"]
+        Normalize["Framework Detection<br/>& Normalization"]
+    end
+
+    subgraph Storage["Storage Layer"]
+        SQLite[(SQLite Index)]
+        Parquet[(Parquet Files)]
+    end
+
+    subgraph Query["Query Layer"]
+        API["/api/v1/traces"]
+        SSE["/api/v1/traces/sse"]
+    end
+
+    Agents -->|OTLP| HTTP
+    Agents -->|OTLP| GRPC
+    HTTP --> Buffer
+    GRPC --> Buffer
+    Buffer --> Normalize
+    Normalize --> SQLite
+    Normalize --> Parquet
+    SQLite --> API
+    Parquet --> API
+    Buffer -.->|Real-time| SSE
 ```
 
 ## Features
@@ -39,24 +63,26 @@ SideSeat includes a built-in OpenTelemetry collector optimized for AI agent deve
 
 | Endpoint | Method | Content-Type | Description |
 |----------|--------|--------------|-------------|
-| `/v1/traces` | POST | `application/json` | OTLP JSON traces |
-| `/v1/traces` | POST | `application/x-protobuf` | OTLP Protobuf traces |
-| `0.0.0.0:4317` | gRPC | Protobuf | OTLP gRPC endpoint |
+| `/otel/v1/traces` | POST | `application/json` | OTLP JSON traces |
+| `/otel/v1/traces` | POST | `application/x-protobuf` | OTLP Protobuf traces |
+| `localhost:4317` | gRPC | Protobuf | OTLP gRPC endpoint |
 
 ### Query API
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/traces` | GET | List traces with filtering |
-| `/api/traces/:trace_id` | GET | Get single trace with spans |
-| `/api/traces/:trace_id/spans` | GET | Get spans for a trace |
-| `/api/spans/:span_id` | GET | Get single span details |
+| `/api/v1/traces` | GET | List traces with filtering |
+| `/api/v1/traces/filters` | GET | Get available filter options |
+| `/api/v1/traces/{trace_id}` | GET | Get single trace details |
+| `/api/v1/traces/{trace_id}` | DELETE | Soft-delete a trace |
+| `/api/v1/traces/{trace_id}/spans` | GET | Get spans for a trace |
+| `/api/v1/spans` | GET | Query spans directly |
 
 ### Real-time Streaming
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/traces/stream` | GET | SSE stream of new traces |
+| `/api/v1/traces/sse` | GET | SSE stream of trace events |
 
 ## Configuration
 
@@ -66,9 +92,13 @@ All OTel settings are under the `otel` key in your config file:
 {
   "otel": {
     "enabled": true,
-    "grpc_enabled": true,
-    "grpc_port": 4317,
-    "retention_max_gb": 20
+    "grpc": {
+      "enabled": true,
+      "port": 4317
+    },
+    "retention": {
+      "max_mb": 20480
+    }
   }
 }
 ```
@@ -86,7 +116,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
 # Configure exporter to send to SideSeat
-exporter = OTLPSpanExporter(endpoint="http://localhost:5001/v1/traces")
+exporter = OTLPSpanExporter(endpoint="http://localhost:5001/otel/v1/traces")
 provider = TracerProvider()
 provider.add_span_processor(BatchSpanProcessor(exporter))
 trace.set_tracer_provider(provider)
@@ -105,7 +135,7 @@ from strands import Agent
 from strands.telemetry import OTLPExporter
 
 # Configure Strands to export to SideSeat
-exporter = OTLPExporter(endpoint="http://localhost:5001/v1/traces")
+exporter = OTLPExporter(endpoint="http://localhost:5001/otel/v1/traces")
 
 agent = Agent(
     model="anthropic/claude-sonnet-4-20250514",
@@ -121,7 +151,7 @@ const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http')
 const { BatchSpanProcessor } = require('@opentelemetry/sdk-trace-base');
 
 const exporter = new OTLPTraceExporter({
-  url: 'http://localhost:5001/v1/traces',
+  url: 'http://localhost:5001/otel/v1/traces',
 });
 
 const provider = new NodeTracerProvider();
@@ -180,7 +210,7 @@ data/traces/
 
 Storage is managed with FIFO (First-In-First-Out) deletion:
 
-- **Size-based**: When `retention_max_gb` is exceeded, oldest files are deleted
+- **Size-based**: When `retention.max_mb` is exceeded, oldest files are deleted
 - **Time-based**: Optional `retention_days` deletes files older than N days
 - **Automatic**: Retention runs every `retention_check_interval_secs` (default: 5 min)
 
@@ -193,14 +223,15 @@ The collector monitors disk usage and protects against filling the disk:
 
 ## Real-time Streaming
 
-Subscribe to new traces via Server-Sent Events:
+Subscribe to trace events via Server-Sent Events:
 
 ```javascript
-const eventSource = new EventSource('http://localhost:5001/api/traces/stream');
+const eventSource = new EventSource('http://localhost:5001/api/v1/traces/sse');
 
 eventSource.onmessage = (event) => {
-  const trace = JSON.parse(event.data);
-  console.log('New trace:', trace.trace_id);
+  const payload = JSON.parse(event.data);
+  // Event types: NewSpan, SpanUpdated, TraceCompleted, HealthUpdate
+  console.log('Event:', payload.event.type, payload.event.data);
 };
 ```
 
@@ -210,24 +241,120 @@ eventSource.onmessage = (event) => {
 - Connection timeout: 1 hour (configurable)
 - Keepalive interval: 30 seconds (configurable)
 
+## Attribute Filtering
+
+SideSeat uses an Entity-Attribute-Value (EAV) storage pattern for flexible attribute filtering. This enables querying traces by any indexed attribute without schema changes.
+
+### Configuring Indexed Attributes
+
+Configure which attributes to extract and index:
+
+```json
+{
+  "otel": {
+    "attributes": {
+      "trace_attributes": [
+        "environment",
+        "deployment.environment",
+        "service.version",
+        "user.id",
+        "session.id"
+      ],
+      "span_attributes": [
+        "gen_ai.system",
+        "gen_ai.operation.name",
+        "gen_ai.request.model",
+        "level"
+      ],
+      "auto_index_genai": true
+    }
+  }
+}
+```
+
+- **trace_attributes**: Attributes extracted from resource/span attributes and indexed at trace level
+- **span_attributes**: Attributes indexed per span
+- **auto_index_genai**: Automatically index all `gen_ai.*` attributes (default: true)
+
+### Filter Operators
+
+The attribute filter API supports these operators:
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `eq` | Equals | `{"key":"env","op":"eq","value":"prod"}` |
+| `ne` | Not equals | `{"key":"env","op":"ne","value":"dev"}` |
+| `contains` | Contains substring | `{"key":"user_id","op":"contains","value":"admin"}` |
+| `starts_with` | Starts with | `{"key":"session_id","op":"starts_with","value":"sess_"}` |
+| `in` | In list | `{"key":"env","op":"in","value":["prod","staging"]}` |
+| `gt`, `lt`, `gte`, `lte` | Numeric comparison | `{"key":"latency","op":"gt","value":1000}` |
+| `is_null` | Attribute not present | `{"key":"error","op":"is_null","value":null}` |
+| `is_not_null` | Attribute present | `{"key":"user_id","op":"is_not_null","value":null}` |
+
 ## Query Examples
 
 ### List Recent Traces
 
 ```bash
-curl http://localhost:5001/api/traces
+curl http://localhost:5001/api/v1/traces
 ```
 
 ### Filter by Service
 
 ```bash
-curl "http://localhost:5001/api/traces?service=my-agent"
+curl "http://localhost:5001/api/v1/traces?service=my-agent"
+```
+
+### Filter by Framework
+
+```bash
+curl "http://localhost:5001/api/v1/traces?framework=langchain"
+```
+
+### Filter by Attributes
+
+```bash
+# Filter traces where environment=production
+curl "http://localhost:5001/api/v1/traces?attributes=%5B%7B%22key%22%3A%22environment%22%2C%22op%22%3A%22eq%22%2C%22value%22%3A%22production%22%7D%5D"
+
+# Decoded: attributes=[{"key":"environment","op":"eq","value":"production"}]
+```
+
+### Multiple Attribute Filters
+
+```bash
+# Filter by environment AND user_id
+curl "http://localhost:5001/api/v1/traces?attributes=%5B%7B%22key%22%3A%22environment%22%2C%22op%22%3A%22eq%22%2C%22value%22%3A%22production%22%7D%2C%7B%22key%22%3A%22user_id%22%2C%22op%22%3A%22eq%22%2C%22value%22%3A%22user-123%22%7D%5D"
 ```
 
 ### Get Trace Details
 
 ```bash
-curl http://localhost:5001/api/traces/abc123def456
+curl http://localhost:5001/api/v1/traces/abc123def456
+```
+
+### Get Filter Options
+
+Discover available filter values for building UI dropdowns:
+
+```bash
+curl http://localhost:5001/api/v1/traces/filters
+```
+
+Response:
+```json
+{
+  "services": ["my-agent", "my-service"],
+  "frameworks": ["langchain", "openai"],
+  "attributes": [
+    {
+      "key": "environment",
+      "key_type": "string",
+      "entity_type": "trace",
+      "sample_values": ["production", "staging", "development"]
+    }
+  ]
+}
 ```
 
 ## Troubleshooting
@@ -245,15 +372,17 @@ Reduce buffer sizes in config:
 ```json
 {
   "otel": {
-    "channel_capacity": 500,
-    "buffer_max_spans": 500,
-    "buffer_max_bytes": 5242880
+    "ingestion": {
+      "channel_capacity": 500,
+      "buffer_max_spans": 500,
+      "buffer_max_bytes": 5242880
+    }
   }
 }
 ```
 
 ### Disk Full
 
-1. Reduce `retention_max_gb`
-2. Enable `retention_days` for time-based cleanup
+1. Reduce `retention.max_mb`
+2. Enable `retention.days` for time-based cleanup
 3. Manually delete old files in `data/traces/`

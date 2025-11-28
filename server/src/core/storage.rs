@@ -430,8 +430,6 @@ mod tests {
         assert_eq!(result, PathBuf::from("/default"));
     }
 
-    // Note: expand_path tests are in utils.rs
-
     #[tokio::test]
     async fn test_storage_manager_init() {
         let _guard = CWD_MUTEX.lock().await;

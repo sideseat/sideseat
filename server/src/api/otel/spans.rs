@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::otel::OtelManager;
-use crate::otel::query::SpanFilter;
+use crate::otel::query::{Cursor, SpanFilter};
 use crate::otel::storage::sqlite::SpanIndex;
 
 /// Create span routes
@@ -28,6 +28,7 @@ pub struct SpanQueryParams {
     pub agent: Option<String>,
     pub tool: Option<String>,
     pub model: Option<String>,
+    pub cursor: Option<String>,
     pub limit: Option<usize>,
 }
 
@@ -75,11 +76,21 @@ impl From<SpanIndex> for SpanDto {
     }
 }
 
+/// Span list response
+#[derive(Debug, Serialize)]
+pub struct SpanListResponse {
+    pub spans: Vec<SpanDto>,
+    pub next_cursor: Option<String>,
+    pub has_more: bool,
+}
+
 /// GET /otel/spans - List spans with filters
 pub async fn get_spans(
     State(otel): State<Arc<OtelManager>>,
     Query(params): Query<SpanQueryParams>,
 ) -> impl IntoResponse {
+    let cursor = params.cursor.as_ref().and_then(|c| Cursor::decode(c));
+
     let filter = SpanFilter {
         trace_id: params.trace_id,
         service_name: params.service,
@@ -88,15 +99,32 @@ pub async fn get_spans(
         agent_name: params.agent,
         tool_name: params.tool,
         model: params.model,
+        cursor_timestamp: cursor.as_ref().map(|c| c.timestamp),
+        cursor_id: cursor.as_ref().map(|c| c.id.clone()),
         ..Default::default()
     };
 
     let limit = params.limit.unwrap_or(100).min(1000);
 
-    match otel.query_engine.query_spans(&filter, limit).await {
+    match otel.query_engine.query_spans(&filter, limit + 1).await {
         Ok(spans) => {
-            let dtos: Vec<SpanDto> = spans.into_iter().map(|s| s.into()).collect();
-            Json(dtos).into_response()
+            let has_more = spans.len() > limit;
+            let spans: Vec<SpanIndex> = spans.into_iter().take(limit).collect();
+
+            let next_cursor = if has_more {
+                spans
+                    .last()
+                    .map(|s| Cursor { timestamp: s.start_time_ns, id: s.span_id.clone() }.encode())
+            } else {
+                None
+            };
+
+            let response = SpanListResponse {
+                spans: spans.into_iter().map(|s| s.into()).collect(),
+                next_cursor,
+                has_more,
+            };
+            Json(response).into_response()
         }
         Err(e) => e.into_response(),
     }

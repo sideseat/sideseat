@@ -4,9 +4,8 @@ use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::Span as OtlpSpan;
 
-use crate::otel::normalize::genai::get_string_attr;
 use crate::otel::normalize::{
-    DetectedFramework, FrameworkDetector, NormalizedSpan, SpanCategory, extract_common_genai_fields,
+    DetectedFramework, FrameworkDetector, NormalizedSpan, SpanCategory, get_string_attr,
 };
 
 /// Google ADK / Vertex AI framework detector
@@ -35,9 +34,8 @@ impl FrameworkDetector for GoogleAdkDetector {
             || get_string_attr(span, "gen_ai.system").as_deref() == Some("gcp.vertex_ai")
     }
 
-    fn extract(&self, span: &OtlpSpan, normalized: &mut NormalizedSpan) {
-        // Google ADK uses standard GenAI conventions
-        extract_common_genai_fields(span, normalized);
+    fn extract(&self, _span: &OtlpSpan, _normalized: &mut NormalizedSpan) {
+        // No framework-specific fields to extract
     }
 
     fn categorize(&self, span: &OtlpSpan) -> SpanCategory {

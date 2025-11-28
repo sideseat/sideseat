@@ -4,9 +4,9 @@ use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::Span as OtlpSpan;
 
-use crate::otel::normalize::genai::{get_string_array_attr, get_string_attr, has_attribute};
 use crate::otel::normalize::{
-    DetectedFramework, FrameworkDetector, NormalizedSpan, SpanCategory, extract_common_genai_fields,
+    DetectedFramework, FrameworkDetector, NormalizedSpan, SpanCategory, get_string_array_attr,
+    get_string_attr, has_attribute,
 };
 
 /// LangChain/LangSmith framework detector
@@ -39,14 +39,11 @@ impl FrameworkDetector for LangChainDetector {
     }
 
     fn extract(&self, span: &OtlpSpan, normalized: &mut NormalizedSpan) {
-        // LangSmith-specific fields
         normalized.langsmith_trace_name = get_string_attr(span, "langsmith.trace.name");
         normalized.langsmith_span_kind = get_string_attr(span, "langsmith.span.kind");
         normalized.langsmith_session_id = get_string_attr(span, "langsmith.trace.session_id");
         normalized.langsmith_session_name = get_string_attr(span, "langsmith.trace.session_name");
         normalized.langsmith_tags = get_string_array_attr(span, "langsmith.trace.tags");
-
-        extract_common_genai_fields(span, normalized);
     }
 
     fn categorize(&self, span: &OtlpSpan) -> SpanCategory {

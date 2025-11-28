@@ -26,7 +26,13 @@ def api_call(
         body = json.dumps(data).encode() if data else None
         req = Request(url, data=body, headers=headers, method=method)
         with urlopen(req, timeout=timeout) as response:
-            return json.loads(response.read().decode())
+            # Handle 204 No Content (e.g., DELETE success)
+            if response.status == 204:
+                return {"success": True, "status": 204}
+            content = response.read().decode()
+            if not content:
+                return {"success": True, "status": response.status}
+            return json.loads(content)
     except HTTPError as e:
         if expect_error:
             return {"error": str(e), "code": e.code}

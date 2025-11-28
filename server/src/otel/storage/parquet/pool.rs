@@ -50,22 +50,26 @@ impl ParquetWriterPool {
     }
 
     /// Route spans to appropriate day writers and write to parquet files
+    /// Takes a reference to avoid cloning when possible
     pub async fn write_batch(
         &self,
-        spans: Vec<NormalizedSpan>,
+        spans: &[NormalizedSpan],
     ) -> Result<Vec<WrittenFile>, OtelError> {
         if spans.is_empty() {
             return Ok(vec![]);
         }
 
-        let mut by_date: HashMap<String, Vec<NormalizedSpan>> = HashMap::new();
-        for span in spans {
+        // Group span indices by date to avoid moving/cloning spans
+        let mut by_date: HashMap<String, Vec<usize>> = HashMap::new();
+        for (idx, span) in spans.iter().enumerate() {
             let date = timestamp_to_date(span.start_time_unix_nano);
-            by_date.entry(date).or_default().push(span);
+            by_date.entry(date).or_default().push(idx);
         }
 
         let mut written_files = Vec::new();
-        for (date, date_spans) in by_date {
+        for (date, indices) in by_date {
+            // Collect spans for this date partition
+            let date_spans: Vec<&NormalizedSpan> = indices.iter().map(|&i| &spans[i]).collect();
             let writer = self.get_or_create(&date).await;
             if let Some(file) = writer.write_batch(&date_spans).await? {
                 written_files.push(file);
@@ -200,7 +204,7 @@ mod tests {
     #[tokio::test]
     async fn test_parquet_writer_pool_write_batch_empty() {
         let pool = ParquetWriterPool::new(PathBuf::from("/tmp/traces"), 64, 10000);
-        let result = pool.write_batch(vec![]).await;
+        let result = pool.write_batch(&[]).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
     }

@@ -16,4 +16,4 @@ package-dir = { "" = "src" }
 [project.scripts]
 telemetry = "telemetry:main"
 proxy = "proxy:main"
-e2e = "e2e:main"
+complex = "complex:main"

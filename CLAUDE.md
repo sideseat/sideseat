@@ -17,6 +17,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - When asked to commit changes, exclude CLAUDE.md and CLAUDE-\*.md referenced memory bank system files from any commits. Never delete these files.
 - **NEVER run e2e tests (`make test-e2e`) unless explicitly asked by the user.** E2E tests are slow and resource-intensive. Only run unit tests (`cargo test`) for verification unless instructed otherwise.
 
+## Documentation Standards
+
+- **Mermaid for diagrams** - All diagrams in Markdown documentation MUST use Mermaid syntax. Never use ASCII art, images, or other diagram formats.
+
+## Code Comments
+
+Follow these rules for comments:
+
+- **Minimal comments** - Code should be self-documenting. Only add comments when the code cannot explain itself.
+- **No process comments** - Never describe changes, migrations, or history (e.g., "moved from X", "was previously Y", "now handled by Z"). Comments describe the current state, not how we got here.
+- **Why, not what** - Explain *why* something is done if not obvious, never *what* the code does (the code shows that).
+- **No redundant comments** - Don't repeat what the code says: `// Increment counter` before `counter += 1`
+- **Doc comments for public API** - Use `///` for public functions, structs, and modules to describe purpose and usage.
+- **Keep comments current** - Outdated comments are worse than no comments. Delete rather than leave stale.
+
+**Good:**
+```rust
+// Foreign keys must be enabled per-connection in SQLite
+.foreign_keys(true)
+
+/// Initialize the database with schema migrations.
+pub async fn init(path: &Path) -> Result<Self>
+```
+
+**Bad:**
+```rust
+// Now handled by DatabaseManager (previously in OtelManager)
+// TODO: Refactor this later
+// This function increments the counter
+counter += 1;
+```
+
 ## Memory Bank System
 
 This project uses a structured memory bank system with specialized context files. Always check these files for relevant information before starting work:
@@ -310,13 +342,44 @@ The frontend uses [shadcn/ui](https://ui.shadcn.com) components. Reference: http
 **OTel Query Endpoints (no auth):**
 - `GET /api/v1/traces` - List traces with filters
 - `GET /api/v1/traces/{trace_id}` - Get trace details
-- `GET /api/v1/traces/{trace_id}/spans` - Get spans for a trace
+- `DELETE /api/v1/traces/{trace_id}` - Soft delete trace
+- `GET /api/v1/traces/filters` - Get available filter options
 - `GET /api/v1/traces/sse` - Real-time trace updates (SSE)
 - `GET /api/v1/spans` - Query spans with filters
+- `GET /api/v1/sessions` - List sessions with filters
+- `GET /api/v1/sessions/{session_id}` - Get session details
+- `DELETE /api/v1/sessions/{session_id}` - Soft delete session
+- `GET /api/v1/sessions/{session_id}/traces` - Get traces for a session
 
 **OTel Collector Endpoints (no auth, OTLP standard):**
 - `POST /otel/v1/traces` - OTLP HTTP trace ingestion
 - `gRPC :4317` - OTLP gRPC trace ingestion
+
+#### Pagination
+
+All list endpoints use **cursor-based pagination** with consistent response format:
+
+**Request params:**
+- `cursor` - Opaque cursor string from previous response
+- `limit` - Max items per page (default: 50, max: 100)
+
+**Response format:**
+```json
+{
+  "traces": [...],
+  "next_cursor": "eyJ0aW1lc3RhbXAiOjE3MzI...",
+  "has_more": true
+}
+```
+
+**Example:**
+```bash
+# First page
+curl "/api/v1/traces?limit=20"
+
+# Next page (use next_cursor from previous response)
+curl "/api/v1/traces?limit=20&cursor=eyJ0aW1lc3RhbXAiOjE3MzI..."
+```
 
 ### Development Commands
 

@@ -3,7 +3,11 @@ name = "sideseat-e2e-tests"
 version = "0.1.0"
 description = "SideSeat OTEL End-to-End Test Suite"
 requires-python = ">=3.11"
-dependencies = ["pyyaml>=6.0"]
+dependencies = [
+    "pyyaml>=6.0",
+    "grpcio>=1.60.0",
+    "opentelemetry-proto>=1.25.0",
+]
 
 [project.scripts]
 test = "test_runner:main"

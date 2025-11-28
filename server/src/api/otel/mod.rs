@@ -1,6 +1,7 @@
 //! OpenTelemetry API routes
 
 mod collector;
+mod sessions;
 mod spans;
 mod sse;
 mod traces;
@@ -39,6 +40,11 @@ pub fn create_query_routes(otel: Arc<OtelManager>) -> Router {
 /// Create spans routes (mounted at /api/v1/spans)
 pub fn create_spans_routes(otel: Arc<OtelManager>) -> Router {
     spans::create_routes(otel)
+}
+
+/// Create sessions routes (mounted at /api/v1/sessions)
+pub fn create_sessions_routes(otel: Arc<OtelManager>) -> Router {
+    sessions::create_routes(otel)
 }
 
 /// Stub handler for metrics - accepts and discards

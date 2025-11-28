@@ -10,10 +10,12 @@ use crate::api::routes;
 use crate::auth::AuthManager;
 use crate::core::{CliConfig, ConfigManager, SecretManager, StorageManager};
 use crate::otel::OtelManager;
+use crate::sqlite::DatabaseManager;
 use crate::{Error, Result};
 use axum::{Router, response::Redirect, routing::get};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::sync::watch;
 use tower_http::trace::TraceLayer;
 
 pub async fn start(cli_config: CliConfig) -> Result<()> {
@@ -38,8 +40,21 @@ pub async fn start(cli_config: CliConfig) -> Result<()> {
     let secrets = SecretManager::init(&storage).await?;
     let auth_manager = Arc::new(AuthManager::init(&secrets, config.auth.enabled).await?);
 
+    // Create shutdown channel for background tasks
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+
+    // Initialize global database manager (before OTel)
+    let db = Arc::new(
+        DatabaseManager::init(storage.data_dir())
+            .await
+            .map_err(|e| Error::Internal(format!("Failed to initialize database: {}", e)))?,
+    );
+
+    // Start periodic WAL checkpoint task
+    db.start_checkpoint_task(shutdown_rx.clone());
+
     let otel_manager = if config.otel.enabled {
-        match OtelManager::init(&storage, config.otel.clone()).await {
+        match OtelManager::init(&storage, config.otel.clone(), db.pool().clone()).await {
             Ok(otel) => {
                 tracing::debug!("OTel collector enabled");
                 Some(Arc::new(otel))
@@ -86,8 +101,8 @@ pub async fn start(cli_config: CliConfig) -> Result<()> {
     ));
 
     let grpc_handle = if let Some(ref otel) = otel_manager {
-        if config.otel.grpc_enabled {
-            let grpc_addr = format!("{}:{}", config.server.host, config.otel.grpc_port);
+        if config.otel.grpc.enabled {
+            let grpc_addr = format!("{}:{}", config.server.host, config.otel.grpc.port);
             match grpc::start_grpc_server(otel.clone(), &grpc_addr).await {
                 Ok(handle) => Some(handle),
                 Err(e) => {
@@ -105,7 +120,7 @@ pub async fn start(cli_config: CliConfig) -> Result<()> {
     banner::print_banner(
         &config.server.host,
         config.server.port,
-        config.otel.grpc_port,
+        config.otel.grpc.port,
         auth_manager.is_enabled(),
         auth_manager.bootstrap_token(),
         otel_manager.is_some(),
@@ -153,11 +168,20 @@ pub async fn start(cli_config: CliConfig) -> Result<()> {
         _ = shutdown_signal => {}
     }
 
-    // Graceful shutdown - flush all pending data
+    // Graceful shutdown sequence:
+    // 1. Signal background tasks to stop
+    let _ = shutdown_tx.send(true);
+
+    // 2. Flush OTel data
     if let Some(otel) = otel_for_shutdown
         && let Err(e) = otel.shutdown().await
     {
         tracing::error!("OTel shutdown error: {}", e);
+    }
+
+    // 3. Final WAL checkpoint
+    if let Err(e) = db.checkpoint().await {
+        tracing::warn!("Failed to checkpoint WAL on shutdown: {}", e);
     }
 
     if let Some(handle) = grpc_handle {

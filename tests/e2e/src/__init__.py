@@ -1,4 +1,4 @@
-"""SideSeat OTEL E2E Test Suite."""
+"""SideSeat OTLP E2E Test Suite."""
 
 from .config import (
     API_BASE,
@@ -8,7 +8,6 @@ from .config import (
     SERVER_DIR,
     SERVER_HOST,
     SERVER_PORT,
-    STRANDS_DIR,
 )
 from .logging import (
     Colors,
@@ -30,7 +29,6 @@ __all__ = [
     "SERVER_DIR",
     "SERVER_HOST",
     "SERVER_PORT",
-    "STRANDS_DIR",
     "log",
     "log_error",
     "log_header",

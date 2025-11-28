@@ -1,6 +1,7 @@
 """Server management for e2e tests."""
 
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -15,6 +16,14 @@ from .config import (
 )
 from .logging import log_error, log_header, log_info, log_success, log_warn
 
+# Global to store bootstrap token when auth is enabled
+_bootstrap_token: str | None = None
+
+
+def get_bootstrap_token() -> str | None:
+    """Get the bootstrap token captured during server startup."""
+    return _bootstrap_token
+
 
 def clean_data_dir() -> None:
     """Remove the data directory if it exists."""
@@ -26,19 +35,34 @@ def clean_data_dir() -> None:
         log_info("No existing data directory found")
 
 
-def start_server() -> subprocess.Popen | None:
-    """Start the SideSeat server."""
+def start_server(no_auth: bool = False) -> subprocess.Popen | None:
+    """Start the SideSeat server.
+
+    Args:
+        no_auth: If True, start server with authentication disabled (--no-auth).
+    """
+    global _bootstrap_token
+    _bootstrap_token = None
+
     log_header("Starting SideSeat Server")
 
     env = os.environ.copy()
     env["SIDESEAT_DATA_DIR"] = str(DATA_DIR)
     env["SIDESEAT_SECRET_BACKEND"] = "file"
-    env["SIDESEAT_AUTH_ENABLED"] = "false"
     env["RUST_LOG"] = "info,sideseat=debug"
+
+    if no_auth:
+        env["SIDESEAT_AUTH_ENABLED"] = "false"
+        cmd = ["cargo", "run", "--", "start", "--no-auth"]
+        log_info("Starting with authentication DISABLED (--no-auth)")
+    else:
+        env["SIDESEAT_AUTH_ENABLED"] = "true"
+        cmd = ["cargo", "run", "--", "start"]
+        log_info("Starting with authentication ENABLED")
 
     try:
         proc = subprocess.Popen(
-            ["cargo", "run", "--", "start", "--no-auth"],
+            cmd,
             cwd=SERVER_DIR,
             env=env,
             stdout=subprocess.PIPE,
@@ -52,13 +76,55 @@ def start_server() -> subprocess.Popen | None:
         return None
 
 
-def wait_for_server(timeout: int = SERVER_STARTUP_TIMEOUT) -> bool:
-    """Wait for the server to be ready."""
+def wait_for_server(
+    timeout: int = SERVER_STARTUP_TIMEOUT,
+    server_proc: subprocess.Popen | None = None,
+) -> bool:
+    """Wait for the server to be ready.
+
+    Args:
+        timeout: Maximum time to wait for server.
+        server_proc: Server process to read output from (for capturing bootstrap token).
+    """
+    global _bootstrap_token
     log_info(f"Waiting for server at {SERVER_HOST}:{SERVER_PORT}...")
     start = time.time()
     last_log_time = 0
 
     while time.time() - start < timeout:
+        # Try to read server output for bootstrap token
+        if server_proc and server_proc.stdout and not _bootstrap_token:
+            try:
+                import select
+
+                if hasattr(select, "select"):
+                    # Non-blocking read on Unix
+                    import fcntl
+
+                    fd = server_proc.stdout.fileno()
+                    fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+                    fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+                    try:
+                        # Read all available lines to find the token
+                        while True:
+                            line = server_proc.stdout.readline()
+                            if not line:
+                                break
+                            # Look for bootstrap token in URL: /ui?token=TOKEN
+                            token_match = re.search(r"\?token=([a-fA-F0-9]+)", line)
+                            if token_match:
+                                _bootstrap_token = token_match.group(1)
+                                log_success(
+                                    f"Captured bootstrap token: {_bootstrap_token[:8]}..."
+                                )
+                                break
+                    except (IOError, BlockingIOError):
+                        pass
+                    finally:
+                        fcntl.fcntl(fd, fcntl.F_SETFL, fl)
+            except Exception:
+                pass
+
         try:
             req = Request(f"http://{SERVER_HOST}:{SERVER_PORT}/api/v1/health")
             with urlopen(req, timeout=2) as response:

@@ -4,9 +4,8 @@ use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::Span as OtlpSpan;
 
-use crate::otel::normalize::genai::get_string_attr;
 use crate::otel::normalize::{
-    DetectedFramework, FrameworkDetector, NormalizedSpan, SpanCategory, extract_common_genai_fields,
+    DetectedFramework, FrameworkDetector, NormalizedSpan, SpanCategory, get_string_attr,
 };
 
 /// Azure AI Foundry framework detector
@@ -36,10 +35,8 @@ impl FrameworkDetector for AzureFoundryDetector {
     }
 
     fn extract(&self, span: &OtlpSpan, normalized: &mut NormalizedSpan) {
-        // Azure AI Foundry uses standard GenAI conventions
-        normalized.gen_ai_request_instructions =
-            get_string_attr(span, "gen_ai.request.instructions");
-        extract_common_genai_fields(span, normalized);
+        // OTel standard: gen_ai.system_instructions
+        normalized.gen_ai_system_instructions = get_string_attr(span, "gen_ai.system_instructions");
     }
 
     fn categorize(&self, span: &OtlpSpan) -> SpanCategory {

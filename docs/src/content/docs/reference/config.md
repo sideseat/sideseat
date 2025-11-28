@@ -106,13 +106,41 @@ CLI arguments have the highest priority and always override other sources.
   },
   "otel": {
     "enabled": true,
-    "grpc_enabled": true,
-    "grpc_port": 4317,
-    "channel_capacity": 1000,
-    "buffer_max_spans": 1000,
-    "flush_interval_ms": 1000,
-    "retention_days": null,
-    "retention_max_gb": 20
+    "grpc": {
+      "enabled": true,
+      "port": 4317
+    },
+    "ingestion": {
+      "channel_capacity": 10000,
+      "buffer_max_spans": 5000,
+      "buffer_max_bytes": 10485760,
+      "flush_interval_ms": 100,
+      "flush_batch_size": 500
+    },
+    "storage": {
+      "max_file_size_mb": 64,
+      "row_group_size": 10000
+    },
+    "retention": {
+      "days": null,
+      "max_mb": 20480,
+      "check_interval_secs": 300
+    },
+    "disk": {
+      "warning_percent": 80,
+      "critical_percent": 95
+    },
+    "limits": {
+      "max_span_name_len": 1000,
+      "max_attribute_count": 100,
+      "max_attribute_value_len": 10240,
+      "max_events_per_span": 100
+    },
+    "sse": {
+      "max_connections": 100,
+      "timeout_secs": 3600,
+      "keepalive_secs": 30
+    }
   }
 }
 ```
@@ -152,32 +180,114 @@ Authentication can be disabled via:
 
 ### OTel Config
 
-OpenTelemetry collector configuration for trace ingestion and storage.
+OpenTelemetry collector configuration for trace ingestion and storage. Settings are organized into logical sub-groups.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `enabled` | boolean | `true` | Enable/disable OTel collector |
-| `grpc_enabled` | boolean | `true` | Enable gRPC endpoint (port 4317) |
-| `grpc_port` | number | `4317` | gRPC listener port |
-| `channel_capacity` | number | `1000` | Bounded channel capacity for ingestion |
-| `buffer_max_spans` | number | `1000` | Maximum spans in buffer before flush |
+
+#### OTel gRPC Config (`otel.grpc`)
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | `true` | Enable gRPC endpoint |
+| `port` | number | `4317` | gRPC listener port (OTLP standard) |
+
+#### OTel Ingestion Config (`otel.ingestion`)
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `channel_capacity` | number | `10000` | Bounded channel capacity for ingestion |
+| `buffer_max_spans` | number | `5000` | Maximum spans in buffer before flush |
 | `buffer_max_bytes` | number | `10485760` | Maximum bytes in buffer (10MB) |
-| `flush_interval_ms` | number | `1000` | Flush interval in milliseconds |
-| `flush_batch_size` | number | `100` | Batch size for flush operations |
+| `flush_interval_ms` | number | `100` | Flush interval in milliseconds |
+| `flush_batch_size` | number | `500` | Batch size for flush operations |
+
+#### OTel Storage Config (`otel.storage`)
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
 | `max_file_size_mb` | number | `64` | Maximum Parquet file size in MB |
 | `row_group_size` | number | `10000` | Rows per row group in Parquet files |
-| `retention_days` | number | `null` | Retention days (null = size-based only) |
-| `retention_max_gb` | number | `20` | Maximum storage size in GB (FIFO) |
-| `retention_check_interval_secs` | number | `300` | Retention check interval (5 min) |
-| `disk_warning_percent` | number | `80` | Disk usage warning threshold |
-| `disk_critical_percent` | number | `95` | Disk usage critical threshold |
+
+#### OTel Retention Config (`otel.retention`)
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `days` | number | `null` | Retention days (null = size-based only) |
+| `max_mb` | number | `20480` | Maximum storage size in MB (FIFO) |
+| `check_interval_secs` | number | `300` | Retention check interval (5 min) |
+
+#### OTel Disk Config (`otel.disk`)
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `warning_percent` | number | `80` | Disk usage warning threshold |
+| `critical_percent` | number | `95` | Disk usage critical threshold |
+
+#### OTel Limits Config (`otel.limits`)
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
 | `max_span_name_len` | number | `1000` | Maximum span name length |
 | `max_attribute_count` | number | `100` | Maximum attributes per span |
 | `max_attribute_value_len` | number | `10240` | Maximum attribute value length (10KB) |
 | `max_events_per_span` | number | `100` | Maximum events per span |
-| `sse_max_connections` | number | `100` | Maximum concurrent SSE connections |
-| `sse_timeout_secs` | number | `3600` | SSE connection timeout (1 hour) |
-| `sse_keepalive_secs` | number | `30` | SSE keepalive interval |
+
+#### OTel SSE Config (`otel.sse`)
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `max_connections` | number | `100` | Maximum concurrent SSE connections |
+| `timeout_secs` | number | `3600` | SSE connection timeout (1 hour) |
+| `keepalive_secs` | number | `30` | SSE keepalive interval |
+
+#### OTel Attributes Config (`otel.attributes`)
+
+Configure which attributes to extract and index for flexible filtering using the EAV storage pattern.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `trace_attributes` | string[] | See below | Attributes to index at trace level |
+| `span_attributes` | string[] | See below | Attributes to index at span level |
+| `auto_index_genai` | boolean | `true` | Auto-index all `gen_ai.*` attributes |
+
+**Default `trace_attributes`:**
+- `environment`
+- `deployment.environment`
+- `service.version`
+- `user.id`
+- `session.id`
+
+**Default `span_attributes`:**
+- `gen_ai.system`
+- `gen_ai.operation.name`
+- `gen_ai.request.model`
+- `level`
+
+Example configuration:
+
+```json
+{
+  "otel": {
+    "attributes": {
+      "trace_attributes": [
+        "environment",
+        "user.id",
+        "tenant.id",
+        "custom.field"
+      ],
+      "span_attributes": [
+        "gen_ai.system",
+        "level"
+      ],
+      "auto_index_genai": true
+    }
+  }
+}
+```
+
+See [OpenTelemetry Collector - Attribute Filtering](/reference/otel/#attribute-filtering) for usage details.
 
 ## Deep Merge Behavior
 

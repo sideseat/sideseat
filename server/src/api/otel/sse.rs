@@ -13,7 +13,7 @@ use serde::Deserialize;
 use std::convert::Infallible;
 use std::sync::Arc;
 
-use crate::otel::query::TraceFilter;
+use crate::otel::query::{AttributeFilter, TraceFilter};
 use crate::otel::{OtelError, OtelManager};
 
 /// Create SSE routes
@@ -28,6 +28,11 @@ pub struct SseQueryParams {
     pub framework: Option<String>,
     pub agent: Option<String>,
     pub errors_only: Option<bool>,
+    /// Text search in span/service names
+    pub search: Option<String>,
+    /// Attribute filters as JSON string (same format as trace list API).
+    /// Only filters on attributes present in SpanEvent (not full span data).
+    pub attributes: Option<String>,
 }
 
 /// Guard to ensure SSE cleanup on drop (including panic)
@@ -68,11 +73,20 @@ pub async fn handle_sse(
     State(otel): State<Arc<OtelManager>>,
     Query(params): Query<SseQueryParams>,
 ) -> impl IntoResponse {
+    // Parse attribute filters from JSON string
+    let attributes = params
+        .attributes
+        .as_ref()
+        .and_then(|s| serde_json::from_str::<Vec<AttributeFilter>>(s).ok())
+        .unwrap_or_default();
+
     let filter = TraceFilter {
         service_name: params.service,
         framework: params.framework,
         agent_name: params.agent,
         has_errors: params.errors_only,
+        search: params.search,
+        attributes,
         ..Default::default()
     };
 

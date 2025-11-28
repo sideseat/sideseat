@@ -45,10 +45,30 @@ pub async fn handle_traces(
         Err(e) => return (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     };
 
-    // Send to ingestion channel
+    // Check channel capacity before sending to avoid partial sends
+    let span_count = spans.len();
+    let available_capacity = state.sender.capacity();
+    if span_count > available_capacity {
+        tracing::warn!(
+            "Channel capacity {} insufficient for {} spans, applying backpressure",
+            available_capacity,
+            span_count
+        );
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            format!(
+                "Ingestion channel at capacity ({} available, {} needed)",
+                available_capacity, span_count
+            ),
+        )
+            .into_response();
+    }
+
+    // Send all spans - channel has sufficient capacity
     for span in spans {
         if state.sender.send(span).await.is_err() {
-            return (StatusCode::SERVICE_UNAVAILABLE, "Ingestion channel full").into_response();
+            // Channel closed (shutdown scenario)
+            return (StatusCode::SERVICE_UNAVAILABLE, "Ingestion channel closed").into_response();
         }
     }
 

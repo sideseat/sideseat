@@ -31,6 +31,69 @@ pub struct TraceFilter {
 
     /// Text search in trace/span names
     pub search: Option<String>,
+
+    /// EAV attribute filters
+    #[serde(default)]
+    pub attributes: Vec<AttributeFilter>,
+}
+
+/// Attribute filter for EAV-based filtering
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttributeFilter {
+    /// Attribute key name
+    pub key: String,
+    /// Filter operator
+    pub op: FilterOperator,
+    /// Filter value
+    pub value: serde_json::Value,
+}
+
+/// Filter operators for attribute queries
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum FilterOperator {
+    /// Equality (=)
+    #[default]
+    Eq,
+    /// Not equal (!=)
+    Ne,
+    /// Greater than (>)
+    Gt,
+    /// Less than (<)
+    Lt,
+    /// Greater than or equal (>=)
+    Gte,
+    /// Less than or equal (<=)
+    Lte,
+    /// Contains substring (LIKE %value%)
+    Contains,
+    /// Starts with (LIKE value%)
+    StartsWith,
+    /// In list (IN (...))
+    In,
+    /// Is null
+    IsNull,
+    /// Is not null
+    IsNotNull,
+}
+
+impl FilterOperator {
+    /// Convert to SQL operator for string values
+    pub fn to_sql_str(&self) -> &'static str {
+        match self {
+            FilterOperator::Eq => "=",
+            FilterOperator::Ne => "!=",
+            FilterOperator::Gt => ">",
+            FilterOperator::Lt => "<",
+            FilterOperator::Gte => ">=",
+            FilterOperator::Lte => "<=",
+            FilterOperator::Contains => "LIKE",
+            FilterOperator::StartsWith => "LIKE",
+            FilterOperator::In => "IN",
+            FilterOperator::IsNull => "IS NULL",
+            FilterOperator::IsNotNull => "IS NOT NULL",
+        }
+    }
 }
 
 /// Filter for span queries
@@ -68,6 +131,14 @@ pub struct SpanFilter {
 
     /// Filter by status code
     pub status_code: Option<i32>,
+
+    /// Cursor timestamp for pagination
+    #[serde(skip)]
+    pub cursor_timestamp: Option<i64>,
+
+    /// Cursor ID for pagination
+    #[serde(skip)]
+    pub cursor_id: Option<String>,
 }
 
 #[cfg(test)]
@@ -180,5 +251,114 @@ mod tests {
         let cloned = filter.clone();
         assert_eq!(cloned.service_name, filter.service_name);
         assert_eq!(cloned.has_errors, filter.has_errors);
+    }
+
+    #[test]
+    fn test_filter_operator_to_sql_str() {
+        assert_eq!(FilterOperator::Eq.to_sql_str(), "=");
+        assert_eq!(FilterOperator::Ne.to_sql_str(), "!=");
+        assert_eq!(FilterOperator::Gt.to_sql_str(), ">");
+        assert_eq!(FilterOperator::Lt.to_sql_str(), "<");
+        assert_eq!(FilterOperator::Gte.to_sql_str(), ">=");
+        assert_eq!(FilterOperator::Lte.to_sql_str(), "<=");
+        assert_eq!(FilterOperator::Contains.to_sql_str(), "LIKE");
+        assert_eq!(FilterOperator::StartsWith.to_sql_str(), "LIKE");
+        assert_eq!(FilterOperator::In.to_sql_str(), "IN");
+        assert_eq!(FilterOperator::IsNull.to_sql_str(), "IS NULL");
+        assert_eq!(FilterOperator::IsNotNull.to_sql_str(), "IS NOT NULL");
+    }
+
+    #[test]
+    fn test_filter_operator_default() {
+        let op = FilterOperator::default();
+        assert!(matches!(op, FilterOperator::Eq));
+    }
+
+    #[test]
+    fn test_attribute_filter_serialization() {
+        let filter = AttributeFilter {
+            key: "user.id".to_string(),
+            op: FilterOperator::Eq,
+            value: serde_json::json!("user123"),
+        };
+
+        let json = serde_json::to_string(&filter).unwrap();
+        let deserialized: AttributeFilter = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.key, "user.id");
+        assert!(matches!(deserialized.op, FilterOperator::Eq));
+        assert_eq!(deserialized.value, serde_json::json!("user123"));
+    }
+
+    #[test]
+    fn test_attribute_filter_with_numeric_value() {
+        let filter = AttributeFilter {
+            key: "request.count".to_string(),
+            op: FilterOperator::Gte,
+            value: serde_json::json!(100),
+        };
+
+        let json = serde_json::to_string(&filter).unwrap();
+        let deserialized: AttributeFilter = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.key, "request.count");
+        assert!(matches!(deserialized.op, FilterOperator::Gte));
+        assert_eq!(deserialized.value, serde_json::json!(100));
+    }
+
+    #[test]
+    fn test_attribute_filter_with_array_value() {
+        let filter = AttributeFilter {
+            key: "status".to_string(),
+            op: FilterOperator::In,
+            value: serde_json::json!(["active", "pending"]),
+        };
+
+        let json = serde_json::to_string(&filter).unwrap();
+        let deserialized: AttributeFilter = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.key, "status");
+        assert!(matches!(deserialized.op, FilterOperator::In));
+    }
+
+    #[test]
+    fn test_trace_filter_with_attributes() {
+        let filter = TraceFilter {
+            service_name: Some("my-service".to_string()),
+            attributes: vec![AttributeFilter {
+                key: "env".to_string(),
+                op: FilterOperator::Eq,
+                value: serde_json::json!("production"),
+            }],
+            ..Default::default()
+        };
+
+        let json = serde_json::to_string(&filter).unwrap();
+        let deserialized: TraceFilter = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.attributes.len(), 1);
+        assert_eq!(deserialized.attributes[0].key, "env");
+    }
+
+    #[test]
+    fn test_filter_operator_serialization_snake_case() {
+        let ops = vec![
+            (FilterOperator::Eq, "\"eq\""),
+            (FilterOperator::Ne, "\"ne\""),
+            (FilterOperator::Gt, "\"gt\""),
+            (FilterOperator::Lt, "\"lt\""),
+            (FilterOperator::Gte, "\"gte\""),
+            (FilterOperator::Lte, "\"lte\""),
+            (FilterOperator::Contains, "\"contains\""),
+            (FilterOperator::StartsWith, "\"starts_with\""),
+            (FilterOperator::In, "\"in\""),
+            (FilterOperator::IsNull, "\"is_null\""),
+            (FilterOperator::IsNotNull, "\"is_not_null\""),
+        ];
+
+        for (op, expected_json) in ops {
+            let json = serde_json::to_string(&op).unwrap();
+            assert_eq!(json, expected_json, "Failed for {:?}", op);
+        }
     }
 }

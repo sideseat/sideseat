@@ -4,6 +4,7 @@ pub mod core;
 pub mod error;
 pub mod otel;
 pub mod server;
+pub mod sqlite;
 
 pub use auth::AuthManager;
 pub use core::CliConfig;

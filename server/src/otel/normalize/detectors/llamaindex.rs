@@ -4,9 +4,9 @@ use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::Span as OtlpSpan;
 
-use crate::otel::normalize::genai::{get_string_attr, has_attribute};
 use crate::otel::normalize::{
-    DetectedFramework, FrameworkDetector, NormalizedSpan, SpanCategory, extract_common_genai_fields,
+    DetectedFramework, FrameworkDetector, NormalizedSpan, SpanCategory, get_string_attr,
+    has_attribute,
 };
 
 /// LlamaIndex / OpenInference framework detector
@@ -38,16 +38,12 @@ impl FrameworkDetector for LlamaIndexDetector {
     }
 
     fn extract(&self, span: &OtlpSpan, normalized: &mut NormalizedSpan) {
-        // OpenInference fields
         normalized.session_id = get_string_attr(span, "session.id");
         normalized.user_id = get_string_attr(span, "user.id");
 
-        // Map OpenInference to GenAI conventions
         if normalized.gen_ai_request_model.is_none() {
             normalized.gen_ai_request_model = get_string_attr(span, "llm.model_name");
         }
-
-        extract_common_genai_fields(span, normalized);
     }
 
     fn categorize(&self, span: &OtlpSpan) -> SpanCategory {

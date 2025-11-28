@@ -4,9 +4,9 @@ use opentelemetry_proto::tonic::common::v1::InstrumentationScope;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::Span as OtlpSpan;
 
-use crate::otel::normalize::genai::{get_string_attr, has_attribute};
 use crate::otel::normalize::{
-    DetectedFramework, FrameworkDetector, NormalizedSpan, SpanCategory, extract_common_genai_fields,
+    DetectedFramework, FrameworkDetector, NormalizedSpan, SpanCategory, get_string_attr,
+    has_attribute,
 };
 
 /// Microsoft AutoGen framework detector
@@ -36,11 +36,9 @@ impl FrameworkDetector for AutoGenDetector {
     }
 
     fn extract(&self, span: &OtlpSpan, normalized: &mut NormalizedSpan) {
-        // Map AutoGen fields to GenAI conventions
         if normalized.gen_ai_agent_name.is_none() {
             normalized.gen_ai_agent_name = get_string_attr(span, "autogen.agent.name");
         }
-        extract_common_genai_fields(span, normalized);
     }
 
     fn categorize(&self, span: &OtlpSpan) -> SpanCategory {

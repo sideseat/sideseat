@@ -28,14 +28,14 @@ Get up and running with SideSeat in minutes:
 git clone https://github.com/spugachev/sideseat.git
 cd sideseat
 
-# Install dependencies and setup
+# Install dependencies and build
 make setup
 
-# Start development servers
+# Start development server
 make dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) to access the dashboard.
+Click the URL shown in the terminal (e.g., `http://localhost:5001/ui?token=...`) to access the dashboard.
 
 ## Features
 
@@ -72,16 +72,16 @@ Open [http://localhost:5173](http://localhost:5173) to access the dashboard.
 ## Next Steps
 
 <CardGrid>
-  <Card title="Getting Started Guide" icon="open-book">
-    Learn how to set up and configure SideSeat for your projects.
+  <Card title="Getting Started" icon="open-book">
+    [Set up SideSeat](/guides/example/) and collect your first traces.
   </Card>
   <Card title="OpenTelemetry Collector" icon="magnifier">
-    [Set up trace collection](/reference/otel/) for your AI agents.
+    [Configure trace collection](/reference/otel/) for your AI agents.
   </Card>
   <Card title="Configuration" icon="document">
-    [Configure](/reference/config/) server, storage, and OTel settings.
+    [Configure](/reference/config/) server, storage, and retention settings.
   </Card>
-  <Card title="Contributing" icon="github">
-    Help improve SideSeat by contributing to the project.
+  <Card title="Authentication" icon="seti:lock">
+    [Secure your instance](/reference/auth/) with token-based authentication.
   </Card>
 </CardGrid>

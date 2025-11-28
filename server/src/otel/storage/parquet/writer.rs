@@ -9,7 +9,7 @@ use tracing::debug;
 
 use crate::otel::error::OtelError;
 use crate::otel::normalize::NormalizedSpan;
-use crate::otel::schema::span::{SpanSchema, to_record_batch};
+use crate::otel::schema::span::{SpanSchema, to_record_batch_refs};
 
 /// Writer for a single day's parquet files
 pub struct DayWriter {
@@ -49,15 +49,16 @@ impl DayWriter {
     }
 
     /// Write spans to the current parquet file, rotating if size limit exceeded
+    /// Accepts references to avoid unnecessary cloning
     pub async fn write_batch(
         &self,
-        spans: &[NormalizedSpan],
+        spans: &[&NormalizedSpan],
     ) -> Result<Option<WrittenFile>, OtelError> {
         if spans.is_empty() {
             return Ok(None);
         }
 
-        let record_batch = to_record_batch(spans)?;
+        let record_batch = to_record_batch_refs(spans)?;
         let batch_memory_size = record_batch.get_array_memory_size() as u64;
 
         let mut file_guard = self.current_file.lock().await;

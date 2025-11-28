@@ -14,12 +14,13 @@ pub fn create_routes(
         .with_state(otel_manager.clone())
         .nest("/auth", api::auth::create_routes(auth_manager.clone()));
 
-    // OTel query routes at /traces, /spans, /traces/sse (no auth per user request)
+    // OTel query routes at /traces, /spans, /sessions, /traces/sse (no auth per user request)
     let router = if let Some(otel) = otel_manager {
         Router::new()
             .merge(public_routes)
             .nest("/traces", api::otel::create_query_routes(otel.clone()))
-            .nest("/spans", api::otel::create_spans_routes(otel))
+            .nest("/spans", api::otel::create_spans_routes(otel.clone()))
+            .nest("/sessions", api::otel::create_sessions_routes(otel))
     } else {
         Router::new().merge(public_routes)
     };

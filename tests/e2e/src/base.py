@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from ..logging import log_error, log_success, log_warn
+from .logging import log_error, log_success, log_warn
 
 
 class BaseTestSuite:
@@ -15,6 +15,18 @@ class BaseTestSuite:
         self.traces: list[dict[str, Any]] = []
         self.spans: list[dict[str, Any]] = []
         self.all_spans: list[dict[str, Any]] = []
+
+    def setup(self) -> None:
+        """Run before each test suite. Override in subclasses."""
+        pass
+
+    def teardown(self) -> None:
+        """Run after each test suite, even on failure. Override in subclasses."""
+        pass
+
+    def run_all(self) -> None:
+        """Run all tests in the suite. Override in subclasses."""
+        raise NotImplementedError("Subclasses must implement run_all()")
 
     def assert_true(self, condition: bool, msg: str) -> bool:
         """Assert a condition is true."""
@@ -49,6 +61,28 @@ class BaseTestSuite:
             self.failed += 1
             return False
 
+    def assert_greater_equal(self, actual: int, minimum: int, msg: str) -> bool:
+        """Assert a value is greater than or equal to minimum."""
+        if actual >= minimum:
+            log_success(f"{msg}: {actual} >= {minimum}")
+            self.passed += 1
+            return True
+        else:
+            log_error(f"{msg}: {actual} not >= {minimum}")
+            self.failed += 1
+            return False
+
+    def assert_less(self, actual: int, maximum: int, msg: str) -> bool:
+        """Assert a value is less than maximum."""
+        if actual < maximum:
+            log_success(f"{msg}: {actual} < {maximum}")
+            self.passed += 1
+            return True
+        else:
+            log_error(f"{msg}: {actual} not < {maximum}")
+            self.failed += 1
+            return False
+
     def assert_not_none(self, value: Any, msg: str) -> bool:
         """Assert a value is not None."""
         if value is not None:
@@ -68,6 +102,17 @@ class BaseTestSuite:
             return True
         else:
             log_error(f"{msg}: '{needle}' not found in '{haystack}'")
+            self.failed += 1
+            return False
+
+    def assert_status_code(self, actual: int, expected: int, msg: str) -> bool:
+        """Assert HTTP status code matches expected."""
+        if actual == expected:
+            log_success(f"{msg}: {actual}")
+            self.passed += 1
+            return True
+        else:
+            log_error(f"{msg}: expected {expected}, got {actual}")
             self.failed += 1
             return False
 

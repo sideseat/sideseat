@@ -51,6 +51,21 @@ impl WriteBuffer {
         drained
     }
 
+    /// Atomically check if buffer is non-empty and drain if so
+    /// This prevents race conditions between periodic flush and ingestion flush
+    pub async fn drain_if_not_empty(&self) -> Option<Vec<NormalizedSpan>> {
+        let mut spans = self.spans.lock().await;
+        if spans.is_empty() {
+            return None;
+        }
+        let drained = std::mem::take(&mut *spans);
+
+        self.current_count.store(0, Ordering::Relaxed);
+        self.current_bytes.store(0, Ordering::Relaxed);
+
+        Some(drained)
+    }
+
     /// Get current span count
     pub fn count(&self) -> usize {
         self.current_count.load(Ordering::Relaxed)

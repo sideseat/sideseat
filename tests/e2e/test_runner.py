@@ -2,21 +2,20 @@
 """
 SideSeat E2E Test Suite
 
-Configurable test runner that supports:
-- Health and infrastructure tests
-- Synthetic trace ingestion
-- Strands SDK trace generation
-- API validation tests
-- Performance benchmarks
+Configurable test runner with namespace-based organization:
+- otlp/smoke: Quick validation tests (~30 seconds)
+- otlp/functional: Comprehensive feature tests (~5 minutes)
+- otlp/performance: Load and query benchmarks (~10 minutes)
 
 Configure tests in config.yaml or via CLI arguments.
 
 Usage:
-  uv run test                    # Run all tests (from config.yaml)
-  uv run test health             # Run only health tests
-  uv run test health synthetic   # Run health and synthetic tests
-  uv run test --list             # List available tests
-  uv run test --all              # Run all tests (ignore config.yaml)
+  uv run test                       # Run all tests (from config.yaml)
+  uv run test otlp.smoke            # Run only smoke tests
+  uv run test otlp.functional       # Run only functional tests
+  uv run test otlp.performance      # Run only performance tests
+  uv run test --list                # List available test phases
+  uv run test --all                 # Run all tests (ignore config.yaml)
 """
 
 import argparse
@@ -28,8 +27,8 @@ from typing import Any
 
 import yaml
 
-# Available test suites
-AVAILABLE_TESTS = ["health", "synthetic", "strands", "traces", "spans", "integrity", "performance", "sse"]
+# Available test phases
+AVAILABLE_PHASES = ["otlp.smoke", "otlp.functional", "otlp.performance"]
 
 from src import (
     DATA_DIR,
@@ -41,47 +40,31 @@ from src import (
     log_error,
     log_header,
     log_info,
+    log_section,
     log_warn,
 )
-from src.otel import (
-    BaseTestSuite,
-    HealthTests,
-    IntegrityTests,
-    PerformanceTests,
-    SpanTests,
-    SSETests,
-    StrandsTraceTests,
-    SyntheticTraceTests,
-    TraceTests,
+from src.base import BaseTestSuite
+from src.server import (
+    clean_data_dir,
+    cleanup_server,
+    get_bootstrap_token,
+    start_server,
+    wait_for_server,
 )
-from src.server import clean_data_dir, cleanup_server, start_server, wait_for_server
 
 # Default configuration
 DEFAULT_CONFIG = {
     "tests": {
-        "otel": {
-            "health": True,
-            "synthetic": True,
-            "strands": True,
-            "traces": True,
-            "spans": True,
-            "integrity": True,
+        "otlp": {
+            "smoke": True,
+            "functional": True,
             "performance": True,
-            "sse": True,
-            "performance_settings": {
-                "target_size_mb": 200,
-                "batch_size": 100,
-                "spans_per_trace": 20,
-            },
-            "thresholds": {
-                "trace_list": 1.0,
-                "trace_single": 0.5,
-                "span_list": 1.0,
-                "span_filter": 1.5,
-                "pagination_per_page": 0.5,
-            },
-            "trace_persist_wait": 10,
         },
+    },
+    "settings": {
+        "trace_persist_wait": 3,
+        "api_timeout": 30,
+        "sse_timeout": 10,
     },
 }
 
@@ -96,15 +79,16 @@ def load_config() -> dict[str, Any]:
                 user_config = yaml.safe_load(f) or {}
 
             # Merge with defaults
-            config = {"tests": {"otel": DEFAULT_CONFIG["tests"]["otel"].copy()}}
+            config = {
+                "tests": {"otlp": DEFAULT_CONFIG["tests"]["otlp"].copy()},
+                "settings": DEFAULT_CONFIG["settings"].copy(),
+            }
 
-            if "tests" in user_config and "otel" in user_config["tests"]:
-                otel_config = user_config["tests"]["otel"]
-                for key, value in otel_config.items():
-                    if isinstance(value, dict) and key in config["tests"]["otel"]:
-                        config["tests"]["otel"][key].update(value)
-                    else:
-                        config["tests"]["otel"][key] = value
+            if "tests" in user_config and "otlp" in user_config["tests"]:
+                config["tests"]["otlp"].update(user_config["tests"]["otlp"])
+
+            if "settings" in user_config:
+                config["settings"].update(user_config["settings"])
 
             return config
         except Exception as e:
@@ -114,18 +98,13 @@ def load_config() -> dict[str, Any]:
 
 
 def verify_storage_files(expect_traces: bool = True) -> tuple[int, int]:
-    """Verify storage files exist and have data after server shutdown.
-
-    Args:
-        expect_traces: If True, verify parquet files exist (traces were ingested).
-                      If False, only verify SQLite database exists.
-    """
+    """Verify storage files exist and have data after server shutdown."""
     log_header("Storage Verification (Post-Shutdown)")
     passed = 0
     failed = 0
 
     # Check SQLite database
-    db_path = DATA_DIR / "traces" / "traces.db"
+    db_path = DATA_DIR / "sideseat.db"
     if db_path.exists() and db_path.stat().st_size > 0:
         size_bytes = db_path.stat().st_size
         if size_bytes > 1024 * 1024:
@@ -150,31 +129,32 @@ def verify_storage_files(expect_traces: bool = True) -> tuple[int, int]:
                 size_str = f"{total_size} bytes"
             non_empty = [f for f in parquet_files if f.stat().st_size > 0]
             if non_empty:
-                log(f"  {Colors.GREEN}✓ Parquet files: {len(non_empty)} files, {size_str}{Colors.RESET}")
+                log(
+                    f"  {Colors.GREEN}✓ Parquet files: {len(non_empty)} files, {size_str}{Colors.RESET}"
+                )
                 passed += 1
             else:
-                log(f"  {Colors.RED}✗ Parquet files exist but are empty (0 bytes){Colors.RESET}")
+                log(f"  {Colors.RED}✗ Parquet files exist but are empty{Colors.RESET}")
                 failed += 1
         else:
             log(f"  {Colors.RED}✗ No parquet files found{Colors.RESET}")
             failed += 1
     else:
-        log(f"  {Colors.YELLOW}⚠ Skipping parquet check (no trace tests ran){Colors.RESET}")
+        log(
+            f"  {Colors.YELLOW}⚠ Skipping parquet check (no trace tests ran){Colors.RESET}"
+        )
 
     return passed, failed
 
 
 class TestRunner:
-    """Configurable test runner."""
+    """Configurable test runner for namespace-based test organization."""
 
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
         self.passed = 0
         self.failed = 0
         self.skipped = 0
-        self.traces: list[dict[str, Any]] = []
-        self.spans: list[dict[str, Any]] = []
-        self.all_spans: list[dict[str, Any]] = []
 
     def _collect_results(self, suite: BaseTestSuite) -> None:
         """Collect results from a test suite."""
@@ -182,102 +162,90 @@ class TestRunner:
         self.failed += suite.failed
         self.skipped += suite.skipped
 
-    def _is_enabled(self, category: str, test_name: str) -> bool:
-        """Check if a test is enabled."""
-        return self.config.get("tests", {}).get(category, {}).get(test_name, False)
+    def _is_enabled(self, namespace: str, phase: str) -> bool:
+        """Check if a test phase is enabled."""
+        return self.config.get("tests", {}).get(namespace, {}).get(phase, False)
+
+    def run_smoke_tests(self) -> None:
+        """Run OTLP smoke tests."""
+        log_section("OTLP Smoke Tests")
+        from src.otlp.smoke import SmokeTests
+
+        suite = SmokeTests()
+        suite.run_all()
+        self._collect_results(suite)
+
+    def run_functional_tests(self) -> None:
+        """Run OTLP functional tests."""
+        log_section("OTLP Functional Tests")
+        from src.otlp.functional import (
+            APITests,
+            AuthTests,
+            ErrorTests,
+            IngestionTests,
+            IntegrityTests,
+            LimitsTests,
+            RetentionTests,
+            SessionTests,
+            ShutdownTests,
+            SSETests,
+        )
+
+        # Run in logical order
+        test_suites = [
+            IngestionTests(),
+            APITests(),
+            SessionTests(),
+            SSETests(),
+            IntegrityTests(),
+            ErrorTests(),
+            LimitsTests(),
+            AuthTests(),
+            RetentionTests(),
+            ShutdownTests(),
+        ]
+
+        for suite in test_suites:
+            suite.run_all()
+            self._collect_results(suite)
+
+    def run_performance_tests(self) -> None:
+        """Run OTLP performance tests."""
+        log_section("OTLP Performance Tests")
+        from src.otlp.performance import LoadTests, QueryTests
+
+        load_tests = LoadTests()
+        load_tests.run_all()
+        self._collect_results(load_tests)
+
+        query_tests = QueryTests()
+        query_tests.run_all()
+        self._collect_results(query_tests)
 
     def run_all_tests(self) -> bool:
         """Run all enabled tests."""
         log_header("Running E2E Tests")
-        otel_config = self.config.get("tests", {}).get("otel", {})
-        enabled = [k for k, v in otel_config.items() if v is True]
-        log_info(f"Enabled OTEL tests: {', '.join(enabled)}")
 
-        # Wait for traces to be persisted
-        wait_time = otel_config.get("trace_persist_wait", 10)
-        log_info(f"Waiting {wait_time}s for traces to persist...")
+        otlp_config = self.config.get("tests", {}).get("otlp", {})
+        enabled = [k for k, v in otlp_config.items() if v is True]
+        log_info(f"Enabled OTLP phases: {', '.join(enabled)}")
+
+        # Wait for server initialization
+        wait_time = self.config.get("settings", {}).get("trace_persist_wait", 3)
+        log_info(f"Waiting {wait_time}s for server initialization...")
         time.sleep(wait_time)
 
-        # Health tests
-        if self._is_enabled("otel", "health"):
-            health = HealthTests()
-            health.run_all()
-            self._collect_results(health)
+        # Run smoke tests first
+        if self._is_enabled("otlp", "smoke"):
+            self.run_smoke_tests()
 
-        # Synthetic trace tests
-        if self._is_enabled("otel", "synthetic"):
-            synthetic = SyntheticTraceTests()
-            synthetic.run_all()
-            self._collect_results(synthetic)
+        # Run functional tests
+        if self._is_enabled("otlp", "functional"):
+            self.run_functional_tests()
 
-        # Strands SDK tests
-        if self._is_enabled("otel", "strands"):
-            strands = StrandsTraceTests()
-            strands.run_all()
-            self._collect_results(strands)
-
-        # Trace tests
-        traces_suite = None
-        if self._is_enabled("otel", "traces"):
-            traces_suite = TraceTests()
-            traces_suite.run_all()
-            self._collect_results(traces_suite)
-            self.traces = traces_suite.traces
-
-        # Span tests
-        spans_suite = None
-        if self._is_enabled("otel", "spans"):
-            spans_suite = SpanTests()
-            if traces_suite:
-                spans_suite.traces = traces_suite.traces
-            spans_suite.run_all()
-            self._collect_results(spans_suite)
-            self.spans = spans_suite.spans
-            self.all_spans = spans_suite.all_spans
-
-        # Integrity tests
-        if self._is_enabled("otel", "integrity"):
-            integrity = IntegrityTests()
-            if traces_suite:
-                integrity.traces = traces_suite.traces
-            if spans_suite:
-                integrity.spans = spans_suite.spans
-                integrity.all_spans = spans_suite.all_spans
-            integrity.run_all()
-            self._collect_results(integrity)
-
-        # Performance tests
-        if self._is_enabled("otel", "performance"):
-            perf = PerformanceTests()
-            # Apply performance settings from nested otel config
-            perf_settings = otel_config.get("performance_settings", {})
-            from src.otel.performance import tests as perf_module
-            if "target_size_mb" in perf_settings:
-                perf_module.TARGET_SIZE_MB = perf_settings["target_size_mb"]
-            if "batch_size" in perf_settings:
-                perf_module.BATCH_SIZE = perf_settings["batch_size"]
-            if "spans_per_trace" in perf_settings:
-                perf_module.SPANS_PER_TRACE = perf_settings["spans_per_trace"]
-
-            # Apply thresholds from nested otel config
-            thresholds = otel_config.get("thresholds", {})
-            if "trace_list" in thresholds:
-                perf_module.QUERY_THRESHOLD_TRACE_LIST = thresholds["trace_list"]
-            if "trace_single" in thresholds:
-                perf_module.QUERY_THRESHOLD_TRACE_SINGLE = thresholds["trace_single"]
-            if "span_list" in thresholds:
-                perf_module.QUERY_THRESHOLD_SPAN_LIST = thresholds["span_list"]
-            if "span_filter" in thresholds:
-                perf_module.QUERY_THRESHOLD_SPAN_FILTER = thresholds["span_filter"]
-
-            perf.run_all()
-            self._collect_results(perf)
-
-        # SSE tests
-        if self._is_enabled("otel", "sse"):
-            sse = SSETests()
-            sse.run_all()
-            self._collect_results(sse)
+        # Run performance tests last
+        if self._is_enabled("otlp", "performance"):
+            self.run_performance_tests()
 
         return self.failed == 0
 
@@ -304,29 +272,29 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  uv run test                    Run tests as configured in config.yaml
-  uv run test health             Run only health tests
-  uv run test health synthetic   Run health and synthetic tests
-  uv run test --all              Run all tests (ignore config.yaml)
-  uv run test --list             List available test suites
+  uv run test                       Run tests as configured in config.yaml
+  uv run test otlp.smoke            Run only smoke tests
+  uv run test otlp.functional       Run only functional tests
+  uv run test otlp.performance      Run only performance tests
+  uv run test --all                 Run all tests (ignore config.yaml)
+  uv run test --list                List available test phases
 
-Available test suites:
-  health      - Health and infrastructure tests
-  synthetic   - Synthetic trace ingestion and verification
-  strands     - Strands SDK trace generation and verification
-  traces      - Trace API tests (listing, filtering, pagination)
-  spans       - Span API tests (listing, filtering)
-  integrity   - Data integrity tests (framework detection, token usage)
-  performance - Performance tests (~200MB data ingestion and benchmarks)
-  sse         - SSE real-time event streaming tests (latency, filtering)
+Test Phases:
+  otlp.smoke        - Quick validation (~30 seconds)
+                      Health, basic ingestion, endpoint availability
+  otlp.functional   - Comprehensive feature tests (~5 minutes)
+                      Ingestion, API, SSE, retention, auth, integrity,
+                      errors, limits, shutdown
+  otlp.performance  - Load and query benchmarks (~10 minutes)
+                      Throughput, concurrency, latency measurements
 """,
     )
     parser.add_argument(
-        "tests",
+        "phases",
         nargs="*",
-        choices=AVAILABLE_TESTS,
-        metavar="TEST",
-        help=f"Test suites to run. Available: {', '.join(AVAILABLE_TESTS)}",
+        choices=AVAILABLE_PHASES,
+        metavar="PHASE",
+        help=f"Test phases to run. Available: {', '.join(AVAILABLE_PHASES)}",
     )
     parser.add_argument(
         "--all",
@@ -336,7 +304,12 @@ Available test suites:
     parser.add_argument(
         "--list",
         action="store_true",
-        help="List available test suites and exit",
+        help="List available test phases and exit",
+    )
+    parser.add_argument(
+        "--no-auth",
+        action="store_true",
+        help="Start server with authentication disabled",
     )
     return parser.parse_args()
 
@@ -344,39 +317,44 @@ Available test suites:
 def apply_cli_args(config: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
     """Apply CLI arguments to config."""
     if args.list:
-        return config  # Will be handled in main
+        return config
 
-    # If specific tests are provided via CLI, disable all others
-    if args.tests:
-        for test in AVAILABLE_TESTS:
-            config["tests"]["otel"][test] = test in args.tests
+    # Map phase names to config keys
+    phase_map = {
+        "otlp.smoke": ("otlp", "smoke"),
+        "otlp.functional": ("otlp", "functional"),
+        "otlp.performance": ("otlp", "performance"),
+    }
+
+    if args.phases:
+        # Disable all, then enable selected
+        for phase in phase_map.values():
+            config["tests"][phase[0]][phase[1]] = False
+        for phase in args.phases:
+            ns, name = phase_map[phase]
+            config["tests"][ns][name] = True
     elif args.all:
-        # Enable all tests
-        for test in AVAILABLE_TESTS:
-            config["tests"]["otel"][test] = True
+        for ns, name in phase_map.values():
+            config["tests"][ns][name] = True
 
     return config
 
 
 def main() -> int:
     """Main test runner."""
-    # Parse CLI arguments
     args = parse_args()
 
-    # Handle --list
     if args.list:
-        print("Available test suites:")
-        print("  health      - Health and infrastructure tests")
-        print("  synthetic   - Synthetic trace ingestion and verification")
-        print("  strands     - Strands SDK trace generation and verification")
-        print("  traces      - Trace API tests (listing, filtering, pagination)")
-        print("  spans       - Span API tests (listing, filtering)")
-        print("  integrity   - Data integrity tests (framework detection, token usage)")
-        print("  performance - Performance tests (~200MB data ingestion and benchmarks)")
-        print("  sse         - SSE real-time event streaming tests (latency, filtering)")
+        print("Available test phases:")
+        print("  otlp.smoke        - Quick validation (~30 seconds)")
+        print("                      Health, basic ingestion, endpoint availability")
+        print("  otlp.functional   - Comprehensive feature tests (~5 minutes)")
+        print("                      Ingestion, API, SSE, retention, auth, integrity,")
+        print("                      errors, limits, shutdown")
+        print("  otlp.performance  - Load and query benchmarks (~10 minutes)")
+        print("                      Throughput, concurrency, latency measurements")
         return 0
 
-    # Load configuration and apply CLI args
     config = load_config()
     config = apply_cli_args(config, args)
 
@@ -394,13 +372,21 @@ def main() -> int:
         clean_data_dir()
 
         # Step 2: Start server
-        server_proc = start_server()
+        server_proc = start_server(no_auth=args.no_auth)
         if not server_proc:
             return 1
 
-        # Step 3: Wait for server
-        if not wait_for_server():
+        # Step 3: Wait for server (pass proc to capture bootstrap token)
+        if not wait_for_server(server_proc=server_proc):
             return 1
+
+        # Log auth mode
+        if not args.no_auth:
+            token = get_bootstrap_token()
+            if token:
+                log_info(f"Auth enabled with bootstrap token: {token[:8]}...")
+            else:
+                log_warn("Auth enabled but no bootstrap token captured")
 
         # Step 4: Run tests
         runner = TestRunner(config)
@@ -420,10 +406,11 @@ def main() -> int:
 
         # Verify storage files after server shutdown
         if runner and exit_code == 0:
-            # Only expect traces if tests that generate them were run
-            otel_config = config.get("tests", {}).get("otel", {})
-            trace_tests = ["synthetic", "strands", "performance", "sse"]
-            expect_traces = any(otel_config.get(t, False) for t in trace_tests)
+            otlp_config = config.get("tests", {}).get("otlp", {})
+            # Expect traces if functional or performance tests ran
+            expect_traces = otlp_config.get("functional", False) or otlp_config.get(
+                "performance", False
+            )
             storage_passed, storage_failed = verify_storage_files(expect_traces)
             runner.passed += storage_passed
             runner.failed += storage_failed

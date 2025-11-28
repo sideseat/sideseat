@@ -13,13 +13,17 @@ This module tests various Strands SDK features to validate OTel trace collection
 
 import asyncio
 import logging
+import uuid
 from typing import Any
 
 import boto3
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
 from strands import Agent, tool, ToolContext
 from strands.models import BedrockModel
 from strands.multiagent import Swarm
 from strands.telemetry import StrandsTelemetry
+from strands.telemetry.config import get_otel_resource
 
 # Configuration
 MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
@@ -610,15 +614,34 @@ async def test_swarm_streaming(swarm: Swarm) -> None:
 def main() -> None:
     """Run all E2E tests."""
     print("=" * 60)
-    print("STRANDS E2E TEST SUITE")
+    print("STRANDS COMPLEX E2E TEST SUITE")
     print("=" * 60)
 
     # Initialize model
     session = boto3.Session(region_name="us-east-1")
     model = BedrockModel(model_id=MODEL_ID, boto_session=session)
 
-    # Setup telemetry with shorter batch settings for faster export
-    telemetry = StrandsTelemetry()
+    # Generate session ID for this test run
+    session_id = f"strands-e2e-{uuid.uuid4().hex[:16]}"
+    user_id = "e2e-test-user"
+    print(f"Session ID: {session_id}")
+
+    # Create custom resource with session.id and user.id
+    base_resource = get_otel_resource()
+    custom_resource = base_resource.merge(
+        Resource.create(
+            {
+                "session.id": session_id,
+                "user.id": user_id,
+            }
+        )
+    )
+
+    # Create tracer provider with custom resource
+    tracer_provider = TracerProvider(resource=custom_resource)
+
+    # Setup telemetry with custom tracer provider
+    telemetry = StrandsTelemetry(tracer_provider=tracer_provider)
     telemetry.setup_otlp_exporter(
         endpoint=OTLP_ENDPOINT,
         headers={"test-suite": "e2e", "version": "1.0"},

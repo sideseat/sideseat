@@ -45,3 +45,73 @@ impl Clone for EventBroadcaster {
         Self { sender: self.sender.clone() }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::otel::realtime::events::{HealthEvent, TraceEvent};
+
+    #[test]
+    fn test_broadcaster_new() {
+        let broadcaster = EventBroadcaster::new(100);
+        assert_eq!(broadcaster.subscriber_count(), 0);
+    }
+
+    #[test]
+    fn test_broadcaster_default() {
+        let broadcaster = EventBroadcaster::default();
+        assert_eq!(broadcaster.subscriber_count(), 0);
+    }
+
+    #[test]
+    fn test_broadcaster_subscribe() {
+        let broadcaster = EventBroadcaster::new(100);
+        let _rx1 = broadcaster.subscribe();
+        assert_eq!(broadcaster.subscriber_count(), 1);
+
+        let _rx2 = broadcaster.subscribe();
+        assert_eq!(broadcaster.subscriber_count(), 2);
+    }
+
+    #[test]
+    fn test_broadcaster_clone() {
+        let broadcaster = EventBroadcaster::new(100);
+        let _rx = broadcaster.subscribe();
+
+        let cloned = broadcaster.clone();
+        assert_eq!(cloned.subscriber_count(), 1);
+    }
+
+    #[test]
+    fn test_broadcaster_broadcast_no_subscribers() {
+        let broadcaster = EventBroadcaster::new(100);
+        let event = TraceEvent::HealthUpdate(HealthEvent {
+            status: "healthy".to_string(),
+            disk_usage_percent: 50,
+            pending_spans: 0,
+            total_traces: 100,
+        });
+        let payload = EventPayload::new(event);
+        let count = broadcaster.broadcast(payload);
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_broadcaster_broadcast_with_subscriber() {
+        let broadcaster = EventBroadcaster::new(100);
+        let mut rx = broadcaster.subscribe();
+
+        let event = TraceEvent::HealthUpdate(HealthEvent {
+            status: "healthy".to_string(),
+            disk_usage_percent: 50,
+            pending_spans: 0,
+            total_traces: 100,
+        });
+        let payload = EventPayload::new(event);
+        let count = broadcaster.broadcast(payload);
+        assert_eq!(count, 1);
+
+        let received = rx.recv().await.unwrap();
+        assert!(matches!(received.event, TraceEvent::HealthUpdate(_)));
+    }
+}

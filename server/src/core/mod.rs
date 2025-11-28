@@ -16,8 +16,9 @@ pub mod utils;
 
 // Config exports
 pub use config::{
-    AuthConfig, CliConfig, Config, ConfigManager, ConfigSource, LoggingConfig, ServerConfig,
-    StorageConfig,
+    AuthConfig, CliConfig, Config, ConfigManager, ConfigSource, LoggingConfig, OtelConfig,
+    OtelDiskConfig, OtelGrpcConfig, OtelIngestionConfig, OtelLimitsConfig, OtelRetentionConfig,
+    OtelSseConfig, OtelStorageConfig, ServerConfig, StorageConfig,
 };
 
 // Storage exports

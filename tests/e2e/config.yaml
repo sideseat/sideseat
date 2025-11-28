@@ -1,50 +1,43 @@
 # SideSeat E2E Test Configuration
-# Enable/disable test suites by setting them to true/false
+# Enable/disable test phases by setting them to true/false
 
 tests:
-  otel:
-    # Health and infrastructure tests
-    health: true
+  otlp:
+    # Smoke tests - quick validation (~30 seconds)
+    smoke: true
 
-    # Synthetic trace ingestion and verification
-    synthetic: true
+    # Functional tests - comprehensive feature verification (~5 minutes)
+    functional: true
 
-    # Strands SDK trace generation and verification
-    strands: true
-
-    # Trace API tests (listing, filtering, pagination)
-    traces: true
-
-    # Span API tests (listing, filtering)
-    spans: true
-
-    # Data integrity tests (framework detection, token usage, etc.)
-    integrity: true
-
-    # Performance tests (~200MB data ingestion and query benchmarks)
+    # Performance tests - load and query benchmarks (~10 minutes)
     performance: true
 
-    # SSE (Server-Sent Events) real-time streaming tests
-    sse: true
+# Global test settings
+settings:
+  # Wait time for traces to persist (seconds)
+  trace_persist_wait: 3
 
-    # Performance test settings
-    performance_settings:
-      # Target data size in MB
-      target_size_mb: 200
+  # Default timeout for API calls (seconds)
+  api_timeout: 30
 
-      # Batch size (spans per OTLP request)
-      batch_size: 100
+  # Default timeout for SSE connections (seconds)
+  sse_timeout: 10
 
-      # Average spans per trace
-      spans_per_trace: 20
+  # Performance test settings
+  performance:
+    # Number of traces for throughput tests
+    throughput_trace_count: 100
 
-    # Query performance thresholds in seconds
-    thresholds:
-      trace_list: 1.0
-      trace_single: 0.5
-      span_list: 1.0
-      span_filter: 1.5
-      pagination_per_page: 0.5
+    # Duration for sustained load test (seconds)
+    sustained_load_duration: 30
 
-    # Wait time for traces to persist (seconds)
-    trace_persist_wait: 10
+    # Concurrent workers for load tests
+    concurrent_workers: 10
+
+  # Query performance thresholds (milliseconds)
+  thresholds:
+    trace_list_avg_ms: 500
+    trace_detail_avg_ms: 200
+    span_list_avg_ms: 300
+    filtered_query_avg_ms: 500
+    large_result_max_ms: 2000

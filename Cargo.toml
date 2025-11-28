@@ -73,6 +73,7 @@ hex = "0.4"
 regex = "1.11"
 fs2 = "0.4"
 sha2 = "0.10"
+dashmap = "6.1"
 
 [profile.release]
 opt-level = 3

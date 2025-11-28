@@ -1,7 +1,7 @@
 //! Event filter matching for SSE subscriptions
 
 use super::events::{SpanEvent, TraceEvent};
-use crate::otel::query::TraceFilter;
+use crate::otel::query::{FilterOperator, TraceFilter};
 
 /// Matches events against subscription filters
 pub struct EventMatcher {
@@ -102,7 +102,56 @@ impl EventMatcher {
             }
         }
 
+        // Attribute filters (limited to fields available in SpanEvent)
+        for attr_filter in &self.filter.attributes {
+            if !self.matches_span_attribute(span, attr_filter) {
+                return false;
+            }
+        }
+
         true
+    }
+
+    /// Check if a span's attribute matches an attribute filter
+    /// Only supports filtering on attributes that are directly available in SpanEvent
+    fn matches_span_attribute(
+        &self,
+        span: &SpanEvent,
+        attr_filter: &crate::otel::query::AttributeFilter,
+    ) -> bool {
+        // Map known attribute keys to SpanEvent fields
+        let span_value: Option<&str> = match attr_filter.key.as_str() {
+            "gen_ai.agent_name" | "gen_ai_agent_name" => span.gen_ai_agent_name.as_deref(),
+            "gen_ai.tool_name" | "gen_ai_tool_name" => span.gen_ai_tool_name.as_deref(),
+            "gen_ai.request.model" | "gen_ai_request_model" => span.gen_ai_request_model.as_deref(),
+            "service_name" | "service.name" => Some(&span.service_name),
+            "detected_framework" => Some(&span.detected_framework),
+            "detected_category" => span.detected_category.as_deref(),
+            "span_name" => Some(&span.span_name),
+            // Unknown attributes - skip filter (allow through)
+            _ => return true,
+        };
+
+        let filter_value = attr_filter.value.as_str().unwrap_or("");
+
+        match attr_filter.op {
+            FilterOperator::Eq => span_value == Some(filter_value),
+            FilterOperator::Ne => span_value != Some(filter_value),
+            FilterOperator::Contains => span_value.is_some_and(|v| v.contains(filter_value)),
+            FilterOperator::StartsWith => span_value.is_some_and(|v| v.starts_with(filter_value)),
+            FilterOperator::In => {
+                let values: Vec<&str> = attr_filter
+                    .value
+                    .as_array()
+                    .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect())
+                    .unwrap_or_default();
+                span_value.is_some_and(|v| values.contains(&v))
+            }
+            FilterOperator::IsNull => span_value.is_none(),
+            FilterOperator::IsNotNull => span_value.is_some(),
+            // Numeric operators don't apply to string fields in SpanEvent
+            _ => true,
+        }
     }
 
     /// Create a matcher that matches everything
@@ -120,7 +169,7 @@ mod tests {
         service_name: &str,
         framework: &str,
         agent_name: Option<&str>,
-        status_code: i8,
+        status_code: i32,
     ) -> SpanEvent {
         SpanEvent {
             trace_id: "trace123".to_string(),
@@ -242,21 +291,33 @@ mod tests {
 
         let matching = TraceEvent::TraceCompleted(TraceCompletedEvent {
             trace_id: "trace123".to_string(),
+            root_span_id: Some("span123".to_string()),
+            root_span_name: Some("root-span".to_string()),
             service_name: "my-service".to_string(),
+            detected_framework: "langchain".to_string(),
             span_count: 5,
-            total_duration_ns: Some(1000000),
+            start_time_ns: 1000000000,
+            end_time_ns: Some(2000000000),
+            duration_ns: Some(1000000000),
             total_input_tokens: Some(100),
             total_output_tokens: Some(50),
+            total_tokens: Some(150),
             has_errors: true,
         });
 
         let wrong_service = TraceEvent::TraceCompleted(TraceCompletedEvent {
             trace_id: "trace123".to_string(),
+            root_span_id: Some("span123".to_string()),
+            root_span_name: Some("root-span".to_string()),
             service_name: "other-service".to_string(),
+            detected_framework: "langchain".to_string(),
             span_count: 5,
-            total_duration_ns: Some(1000000),
+            start_time_ns: 1000000000,
+            end_time_ns: Some(2000000000),
+            duration_ns: Some(1000000000),
             total_input_tokens: Some(100),
             total_output_tokens: Some(50),
+            total_tokens: Some(150),
             has_errors: true,
         });
 

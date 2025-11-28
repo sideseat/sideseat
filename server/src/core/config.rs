@@ -160,20 +160,62 @@ pub struct OtelConfig {
     #[serde(default = "default_otel_enabled")]
     pub enabled: bool,
 
-    // gRPC settings
+    /// gRPC endpoint settings
+    #[serde(default)]
+    pub grpc: OtelGrpcConfig,
+
+    /// Ingestion pipeline settings
+    #[serde(default)]
+    pub ingestion: OtelIngestionConfig,
+
+    /// Parquet storage settings
+    #[serde(default)]
+    pub storage: OtelStorageConfig,
+
+    /// Data retention settings
+    #[serde(default)]
+    pub retention: OtelRetentionConfig,
+
+    /// Disk monitoring settings
+    #[serde(default)]
+    pub disk: OtelDiskConfig,
+
+    /// Input validation limits
+    #[serde(default)]
+    pub limits: OtelLimitsConfig,
+
+    /// SSE (Server-Sent Events) settings
+    #[serde(default)]
+    pub sse: OtelSseConfig,
+
+    /// Attribute extraction settings for EAV storage
+    #[serde(default)]
+    pub attributes: OtelAttributeConfig,
+}
+
+/// gRPC endpoint configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OtelGrpcConfig {
     /// Whether gRPC endpoint is enabled
     #[serde(default = "default_grpc_enabled")]
-    pub grpc_enabled: bool,
+    pub enabled: bool,
     /// gRPC port (default: 4317)
     #[serde(default = "default_grpc_port")]
-    pub grpc_port: u16,
+    pub port: u16,
+}
 
-    // Ingestion channel
+impl Default for OtelGrpcConfig {
+    fn default() -> Self {
+        Self { enabled: default_grpc_enabled(), port: default_grpc_port() }
+    }
+}
+
+/// Ingestion pipeline configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OtelIngestionConfig {
     /// Bounded channel capacity for ingestion
     #[serde(default = "default_channel_capacity")]
     pub channel_capacity: usize,
-
-    // WriteBuffer settings (bounded memory)
     /// Maximum spans in buffer before flush
     #[serde(default = "default_buffer_max_spans")]
     pub buffer_max_spans: usize,
@@ -186,35 +228,87 @@ pub struct OtelConfig {
     /// Flush when batch reaches this size
     #[serde(default = "default_flush_batch_size")]
     pub flush_batch_size: usize,
+}
 
-    // Parquet settings
+impl Default for OtelIngestionConfig {
+    fn default() -> Self {
+        Self {
+            channel_capacity: default_channel_capacity(),
+            buffer_max_spans: default_buffer_max_spans(),
+            buffer_max_bytes: default_buffer_max_bytes(),
+            flush_interval_ms: default_flush_interval_ms(),
+            flush_batch_size: default_flush_batch_size(),
+        }
+    }
+}
+
+/// Parquet storage configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OtelStorageConfig {
     /// Maximum Parquet file size in MB
     #[serde(default = "default_max_file_size_mb")]
     pub max_file_size_mb: u32,
     /// Rows per row group in Parquet files
     #[serde(default = "default_row_group_size")]
     pub row_group_size: usize,
+}
 
-    // Retention settings
+impl Default for OtelStorageConfig {
+    fn default() -> Self {
+        Self {
+            max_file_size_mb: default_max_file_size_mb(),
+            row_group_size: default_row_group_size(),
+        }
+    }
+}
+
+/// Data retention configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OtelRetentionConfig {
     /// Retention days (None = disabled, uses size-based only)
     #[serde(default)]
-    pub retention_days: Option<u32>,
-    /// Maximum storage size in GB (FIFO deletion when exceeded)
-    #[serde(default = "default_retention_max_gb")]
-    pub retention_max_gb: u32,
+    pub days: Option<u32>,
+    /// Maximum storage size in MB (FIFO deletion when exceeded)
+    #[serde(default = "default_retention_max_mb")]
+    pub max_mb: u32,
     /// Retention check interval in seconds
     #[serde(default = "default_retention_check_interval_secs")]
-    pub retention_check_interval_secs: u64,
+    pub check_interval_secs: u64,
+}
 
-    // Disk monitoring
+impl Default for OtelRetentionConfig {
+    fn default() -> Self {
+        Self {
+            days: None,
+            max_mb: default_retention_max_mb(),
+            check_interval_secs: default_retention_check_interval_secs(),
+        }
+    }
+}
+
+/// Disk monitoring configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OtelDiskConfig {
     /// Disk usage percent to trigger warning
     #[serde(default = "default_disk_warning_percent")]
-    pub disk_warning_percent: u8,
+    pub warning_percent: u8,
     /// Disk usage percent to stop ingestion
     #[serde(default = "default_disk_critical_percent")]
-    pub disk_critical_percent: u8,
+    pub critical_percent: u8,
+}
 
-    // Input validation
+impl Default for OtelDiskConfig {
+    fn default() -> Self {
+        Self {
+            warning_percent: default_disk_warning_percent(),
+            critical_percent: default_disk_critical_percent(),
+        }
+    }
+}
+
+/// Input validation limits
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OtelLimitsConfig {
     /// Maximum span name length
     #[serde(default = "default_max_span_name_len")]
     pub max_span_name_len: usize,
@@ -227,17 +321,88 @@ pub struct OtelConfig {
     /// Maximum events per span
     #[serde(default = "default_max_events_per_span")]
     pub max_events_per_span: usize,
+}
 
-    // SSE settings
+impl Default for OtelLimitsConfig {
+    fn default() -> Self {
+        Self {
+            max_span_name_len: default_max_span_name_len(),
+            max_attribute_count: default_max_attribute_count(),
+            max_attribute_value_len: default_max_attribute_value_len(),
+            max_events_per_span: default_max_events_per_span(),
+        }
+    }
+}
+
+/// SSE (Server-Sent Events) configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OtelSseConfig {
     /// Maximum concurrent SSE connections
     #[serde(default = "default_sse_max_connections")]
-    pub sse_max_connections: usize,
+    pub max_connections: usize,
     /// SSE connection timeout in seconds
     #[serde(default = "default_sse_timeout_secs")]
-    pub sse_timeout_secs: u64,
+    pub timeout_secs: u64,
     /// SSE keepalive interval in seconds
     #[serde(default = "default_sse_keepalive_secs")]
-    pub sse_keepalive_secs: u64,
+    pub keepalive_secs: u64,
+}
+
+impl Default for OtelSseConfig {
+    fn default() -> Self {
+        Self {
+            max_connections: default_sse_max_connections(),
+            timeout_secs: default_sse_timeout_secs(),
+            keepalive_secs: default_sse_keepalive_secs(),
+        }
+    }
+}
+
+/// Attribute extraction configuration for EAV storage
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OtelAttributeConfig {
+    /// Trace-level attributes to extract and index (from resource or span attributes)
+    #[serde(default = "default_trace_attributes")]
+    pub trace_attributes: Vec<String>,
+    /// Span-level attributes to extract and index
+    #[serde(default = "default_span_attributes")]
+    pub span_attributes: Vec<String>,
+    /// Auto-index all gen_ai.* attributes
+    #[serde(default = "default_auto_index_genai")]
+    pub auto_index_genai: bool,
+}
+
+impl Default for OtelAttributeConfig {
+    fn default() -> Self {
+        Self {
+            trace_attributes: default_trace_attributes(),
+            span_attributes: default_span_attributes(),
+            auto_index_genai: default_auto_index_genai(),
+        }
+    }
+}
+
+fn default_trace_attributes() -> Vec<String> {
+    vec![
+        "environment".to_string(),
+        "deployment.environment".to_string(),
+        "service.version".to_string(),
+        "user.id".to_string(),
+        "session.id".to_string(),
+    ]
+}
+
+fn default_span_attributes() -> Vec<String> {
+    vec![
+        "gen_ai.system".to_string(),
+        "gen_ai.operation.name".to_string(),
+        "gen_ai.request.model".to_string(),
+        "level".to_string(),
+    ]
+}
+
+fn default_auto_index_genai() -> bool {
+    true
 }
 
 // OTel defaults optimized for developer workloads
@@ -271,8 +436,8 @@ fn default_max_file_size_mb() -> u32 {
 fn default_row_group_size() -> usize {
     10_000
 }
-fn default_retention_max_gb() -> u32 {
-    20 // 20GB FIFO
+fn default_retention_max_mb() -> u32 {
+    20 * 1024 // 20GB FIFO (in MB)
 }
 fn default_retention_check_interval_secs() -> u64 {
     300 // 5 minutes
@@ -309,27 +474,14 @@ impl Default for OtelConfig {
     fn default() -> Self {
         Self {
             enabled: default_otel_enabled(),
-            grpc_enabled: default_grpc_enabled(),
-            grpc_port: default_grpc_port(),
-            channel_capacity: default_channel_capacity(),
-            buffer_max_spans: default_buffer_max_spans(),
-            buffer_max_bytes: default_buffer_max_bytes(),
-            flush_interval_ms: default_flush_interval_ms(),
-            flush_batch_size: default_flush_batch_size(),
-            max_file_size_mb: default_max_file_size_mb(),
-            row_group_size: default_row_group_size(),
-            retention_days: None,
-            retention_max_gb: default_retention_max_gb(),
-            retention_check_interval_secs: default_retention_check_interval_secs(),
-            disk_warning_percent: default_disk_warning_percent(),
-            disk_critical_percent: default_disk_critical_percent(),
-            max_span_name_len: default_max_span_name_len(),
-            max_attribute_count: default_max_attribute_count(),
-            max_attribute_value_len: default_max_attribute_value_len(),
-            max_events_per_span: default_max_events_per_span(),
-            sse_max_connections: default_sse_max_connections(),
-            sse_timeout_secs: default_sse_timeout_secs(),
-            sse_keepalive_secs: default_sse_keepalive_secs(),
+            grpc: OtelGrpcConfig::default(),
+            ingestion: OtelIngestionConfig::default(),
+            storage: OtelStorageConfig::default(),
+            retention: OtelRetentionConfig::default(),
+            disk: OtelDiskConfig::default(),
+            limits: OtelLimitsConfig::default(),
+            sse: OtelSseConfig::default(),
+            attributes: OtelAttributeConfig::default(),
         }
     }
 }
@@ -514,7 +666,7 @@ impl ConfigManager {
             }
         }
 
-        // Note: ENV_LOG, ENV_CONFIG_DIR, ENV_DATA_DIR, ENV_CACHE_DIR are handled by StorageManager
+        // Storage-related env vars (ENV_LOG, ENV_CONFIG_DIR, etc.) are read by StorageManager
     }
 
     /// Apply CLI arguments to config (highest priority)
@@ -710,27 +862,34 @@ mod tests {
     fn test_otel_config_default() {
         let config = OtelConfig::default();
         assert!(config.enabled);
-        assert!(config.grpc_enabled);
-        assert_eq!(config.grpc_port, 4317);
-        assert_eq!(config.channel_capacity, 10000);
-        assert_eq!(config.buffer_max_spans, 5000);
-        assert_eq!(config.buffer_max_bytes, 10 * 1024 * 1024);
-        assert_eq!(config.flush_interval_ms, 100);
-        assert_eq!(config.flush_batch_size, 500);
-        assert_eq!(config.max_file_size_mb, 64);
-        assert_eq!(config.row_group_size, 10_000);
-        assert!(config.retention_days.is_none());
-        assert_eq!(config.retention_max_gb, 20);
-        assert_eq!(config.retention_check_interval_secs, 300);
-        assert_eq!(config.disk_warning_percent, 80);
-        assert_eq!(config.disk_critical_percent, 95);
-        assert_eq!(config.max_span_name_len, 1000);
-        assert_eq!(config.max_attribute_count, 100);
-        assert_eq!(config.max_attribute_value_len, 10 * 1024);
-        assert_eq!(config.max_events_per_span, 100);
-        assert_eq!(config.sse_max_connections, 100);
-        assert_eq!(config.sse_timeout_secs, 3600);
-        assert_eq!(config.sse_keepalive_secs, 30);
+        // gRPC sub-config
+        assert!(config.grpc.enabled);
+        assert_eq!(config.grpc.port, 4317);
+        // Ingestion sub-config
+        assert_eq!(config.ingestion.channel_capacity, 10000);
+        assert_eq!(config.ingestion.buffer_max_spans, 5000);
+        assert_eq!(config.ingestion.buffer_max_bytes, 10 * 1024 * 1024);
+        assert_eq!(config.ingestion.flush_interval_ms, 100);
+        assert_eq!(config.ingestion.flush_batch_size, 500);
+        // Storage sub-config
+        assert_eq!(config.storage.max_file_size_mb, 64);
+        assert_eq!(config.storage.row_group_size, 10_000);
+        // Retention sub-config
+        assert!(config.retention.days.is_none());
+        assert_eq!(config.retention.max_mb, 20 * 1024);
+        assert_eq!(config.retention.check_interval_secs, 300);
+        // Disk sub-config
+        assert_eq!(config.disk.warning_percent, 80);
+        assert_eq!(config.disk.critical_percent, 95);
+        // Limits sub-config
+        assert_eq!(config.limits.max_span_name_len, 1000);
+        assert_eq!(config.limits.max_attribute_count, 100);
+        assert_eq!(config.limits.max_attribute_value_len, 10 * 1024);
+        assert_eq!(config.limits.max_events_per_span, 100);
+        // SSE sub-config
+        assert_eq!(config.sse.max_connections, 100);
+        assert_eq!(config.sse.timeout_secs, 3600);
+        assert_eq!(config.sse.keepalive_secs, 30);
     }
 
     #[test]
@@ -738,8 +897,8 @@ mod tests {
         let config = OtelConfig::default();
         let json = serde_json::to_string(&config).unwrap();
         let deserialized: OtelConfig = serde_json::from_str(&json).unwrap();
-        assert_eq!(config.grpc_port, deserialized.grpc_port);
-        assert_eq!(config.buffer_max_spans, deserialized.buffer_max_spans);
+        assert_eq!(config.grpc.port, deserialized.grpc.port);
+        assert_eq!(config.ingestion.buffer_max_spans, deserialized.ingestion.buffer_max_spans);
     }
 
     #[test]

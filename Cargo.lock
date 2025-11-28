@@ -4210,6 +4210,7 @@ dependencies = [
  "base64",
  "chrono",
  "clap",
+ "dashmap",
  "datafusion",
  "directories",
  "dirs",

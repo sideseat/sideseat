@@ -14,10 +14,10 @@ pub async fn list_traces(
     offset: i64,
 ) -> Result<Vec<TraceSummary>, OtelError> {
     let mut sql = String::from(
-        "SELECT trace_id, root_span_id, service_name, detected_framework, \
+        "SELECT trace_id, session_id, root_span_id, root_span_name, service_name, detected_framework, \
          span_count, start_time_ns, end_time_ns, duration_ns, \
          total_input_tokens, total_output_tokens, total_tokens, has_errors \
-         FROM traces WHERE 1=1",
+         FROM traces WHERE deleted_at IS NULL",
     );
 
     if service_name.is_some() {
@@ -33,6 +33,8 @@ pub async fn list_traces(
         _,
         (
             String,
+            Option<String>,
+            Option<String>,
             Option<String>,
             String,
             String,
@@ -64,17 +66,19 @@ pub async fn list_traces(
         .into_iter()
         .map(|r| TraceSummary {
             trace_id: r.0,
-            root_span_id: r.1,
-            service_name: r.2,
-            detected_framework: r.3,
-            span_count: r.4,
-            start_time_ns: r.5,
-            end_time_ns: r.6,
-            duration_ns: r.7,
-            total_input_tokens: r.8,
-            total_output_tokens: r.9,
-            total_tokens: r.10,
-            has_errors: r.11,
+            session_id: r.1,
+            root_span_id: r.2,
+            root_span_name: r.3,
+            service_name: r.4,
+            detected_framework: r.5,
+            span_count: r.6,
+            start_time_ns: r.7,
+            end_time_ns: r.8,
+            duration_ns: r.9,
+            total_input_tokens: r.10,
+            total_output_tokens: r.11,
+            total_tokens: r.12,
+            has_errors: r.13,
         })
         .collect())
 }

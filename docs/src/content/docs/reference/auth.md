@@ -51,25 +51,37 @@ Or in configuration file:
 
 ### Bootstrap Token Exchange
 
-```
-Terminal URL: http://localhost:5001/ui?token=<bootstrap_token>
-                                              ↓
-Frontend: POST /api/v1/auth/exchange { token: "<bootstrap_token>" }
-                                              ↓
-Server: Validates token, returns JWT in Set-Cookie header
-                                              ↓
-Browser: Stores HttpOnly cookie, redirects to app
+```mermaid
+sequenceDiagram
+    participant T as Terminal
+    participant B as Browser
+    participant S as Server
+
+    T->>B: Click URL with token
+    Note over B: http://localhost:5001/ui?token=xxx
+    B->>S: POST /api/v1/auth/exchange
+    Note over S: Validates bootstrap token
+    S->>B: 200 OK + Set-Cookie: sideseat_session=<jwt>
+    B->>B: Store HttpOnly cookie
+    B->>S: GET /ui (with cookie)
+    S->>B: Serve application
 ```
 
 ### Session Validation
 
-```
-Browser: GET /api/v1/protected
-         Cookie: sideseat_session=<jwt>
-                        ↓
-Server: Validates JWT signature and expiration
-                        ↓
-Response: 200 OK (valid) or 401 Unauthorized (invalid/expired)
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant S as Server
+
+    B->>S: GET /api/v1/protected
+    Note over B,S: Cookie: sideseat_session=<jwt>
+    S->>S: Validate JWT signature & expiration
+    alt Valid Token
+        S->>B: 200 OK + Response data
+    else Invalid/Expired
+        S->>B: 401 Unauthorized
+    end
 ```
 
 ## API Endpoints

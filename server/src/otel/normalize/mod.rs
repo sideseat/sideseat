@@ -1,13 +1,16 @@
 //! Framework detection and span normalization
 
+mod common;
 mod detector;
 pub mod detectors;
-mod genai;
 
+pub use common::{
+    extract_common_fields, get_f64_attr, get_i64_attr, get_string_array_attr, get_string_attr,
+    has_attribute,
+};
 pub use detector::{
     DetectedFramework, DetectionResult, DetectorRegistry, FrameworkDetector, SpanCategory,
 };
-pub use genai::extract_common_genai_fields;
 
 use std::sync::Arc;
 
@@ -53,7 +56,7 @@ pub struct NormalizedSpan {
     pub gen_ai_response_id: Option<String>,
     pub gen_ai_agent_id: Option<String>,
     pub gen_ai_agent_name: Option<String>,
-    pub gen_ai_request_instructions: Option<String>,
+    pub gen_ai_system_instructions: Option<String>,
     pub gen_ai_response_finish_reasons: Option<String>,
 
     // Token usage
@@ -97,9 +100,11 @@ pub struct NormalizedSpan {
     pub langgraph_state_version: Option<String>,
     pub langgraph_state_changes_count: Option<i64>,
 
-    // Framework-specific fields (OpenInference/LlamaIndex)
+    // Common cross-framework fields (normalized from various sources)
     pub session_id: Option<String>,
     pub user_id: Option<String>,
+    pub tags: Option<String>,
+    pub environment: Option<String>,
 
     // Generic storage
     pub attributes_json: String,
@@ -142,7 +147,7 @@ impl Default for NormalizedSpan {
             gen_ai_response_id: None,
             gen_ai_agent_id: None,
             gen_ai_agent_name: None,
-            gen_ai_request_instructions: None,
+            gen_ai_system_instructions: None,
             gen_ai_response_finish_reasons: None,
             usage_input_tokens: None,
             usage_output_tokens: None,
@@ -175,6 +180,8 @@ impl Default for NormalizedSpan {
             langgraph_state_changes_count: None,
             session_id: None,
             user_id: None,
+            tags: None,
+            environment: None,
             attributes_json: "{}".to_string(),
             resource_attributes_json: None,
             unknown_fields_json: None,

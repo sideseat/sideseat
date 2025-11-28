@@ -7,7 +7,9 @@ use opentelemetry_proto::tonic::trace::v1::Span as OtlpSpan;
 
 use super::validator::truncate_string;
 use crate::otel::error::OtelError;
-use crate::otel::normalize::{DetectorRegistry, NormalizedSpan, SpanCategory};
+use crate::otel::normalize::{
+    DetectorRegistry, NormalizedSpan, SpanCategory, extract_common_fields,
+};
 
 // Maximum lengths for string fields to prevent memory exhaustion
 const MAX_SPAN_NAME_LEN: usize = 1024;
@@ -61,6 +63,9 @@ pub fn convert_otlp_spans(
                 if let Some(extractor) = detection.extractor {
                     extractor.extract(&otlp_span, &mut normalized);
                 }
+
+                // Apply common cross-framework normalization
+                extract_common_fields(&otlp_span, &resource, &mut normalized);
 
                 spans.push(normalized);
             }

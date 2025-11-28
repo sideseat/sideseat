@@ -1,9 +1,13 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import rehypeMermaid from 'rehype-mermaid';
 
 // https://astro.build/config
 export default defineConfig({
+  markdown: {
+    rehypePlugins: [[rehypeMermaid, { strategy: 'img-svg' }]],
+  },
   integrations: [
     starlight({
       title: 'SideSeat Docs',
@@ -11,10 +15,7 @@ export default defineConfig({
       sidebar: [
         {
           label: 'Guides',
-          items: [
-            // Each item here is one entry in the navigation menu.
-            { label: 'Example Guide', slug: 'guides/example' },
-          ],
+          items: [{ label: 'Getting Started', slug: 'guides/example' }],
         },
         {
           label: 'Reference',
