@@ -11,16 +11,14 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::otel::query::Cursor;
-use crate::otel::storage::sqlite::{
-    SessionSummary, get_session, list_sessions, soft_delete_session,
-};
+use crate::otel::storage::sqlite::{SessionSummary, delete_session, get_session, list_sessions};
 use crate::otel::{OtelError, OtelManager};
 
 /// Create session routes
 pub fn create_routes(otel: Arc<OtelManager>) -> Router {
     Router::new()
         .route("/", get(get_sessions))
-        .route("/{session_id}", get(get_session_detail).delete(delete_session))
+        .route("/{session_id}", get(get_session_detail).delete(handle_delete_session))
         .route("/{session_id}/traces", get(get_session_traces))
         .with_state(otel)
 }
@@ -87,7 +85,7 @@ pub async fn get_sessions(
     let cursor = params.cursor.as_ref().and_then(|c| Cursor::decode(c));
 
     match list_sessions(
-        otel.storage.pool(),
+        &otel.pool,
         params.user_id.as_deref(),
         params.service.as_deref(),
         cursor.as_ref().map(|c| c.timestamp),
@@ -124,7 +122,7 @@ pub async fn get_session_detail(
     State(otel): State<Arc<OtelManager>>,
     Path(session_id): Path<String>,
 ) -> impl IntoResponse {
-    match get_session(otel.storage.pool(), &session_id).await {
+    match get_session(&otel.pool, &session_id).await {
         Ok(Some(session)) => {
             let dto: SessionDto = session.into();
             Json(dto).into_response()
@@ -134,12 +132,12 @@ pub async fn get_session_detail(
     }
 }
 
-/// DELETE /sessions/{session_id} - Soft delete a session
-pub async fn delete_session(
+/// DELETE /sessions/{session_id} - Delete a session and all associated data
+pub async fn handle_delete_session(
     State(otel): State<Arc<OtelManager>>,
     Path(session_id): Path<String>,
 ) -> impl IntoResponse {
-    match soft_delete_session(otel.storage.pool(), &session_id).await {
+    match delete_session(&otel.pool, &session_id).await {
         Ok(true) => StatusCode::NO_CONTENT.into_response(),
         Ok(false) => OtelError::SessionNotFound(session_id).into_response(),
         Err(e) => e.into_response(),
@@ -178,7 +176,7 @@ pub async fn get_session_traces(
     Path(session_id): Path<String>,
     Query(params): Query<SessionTracesQueryParams>,
 ) -> impl IntoResponse {
-    let pool = otel.storage.pool();
+    let pool = &otel.pool;
     let limit = params.limit.unwrap_or(50).min(100);
     let cursor = params.cursor.as_ref().and_then(|c| Cursor::decode(c));
 
@@ -187,7 +185,7 @@ pub async fn get_session_traces(
         r#"
         SELECT trace_id, root_span_name, span_count, start_time_ns, duration_ns, has_errors
         FROM traces
-        WHERE session_id = ? AND deleted_at IS NULL
+        WHERE session_id = ?
         "#,
     );
 

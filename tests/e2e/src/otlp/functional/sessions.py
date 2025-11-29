@@ -409,7 +409,7 @@ class SessionTests(BaseTestSuite):
         return True
 
     def test_session_delete(self) -> bool:
-        """Test DELETE /api/v1/sessions/{session_id}."""
+        """Test DELETE /api/v1/sessions/{session_id} - hard delete session and all traces."""
         log_info("Testing session deletion...")
 
         # Create a session specifically for deletion

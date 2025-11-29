@@ -25,77 +25,6 @@ pub struct TraceSummary {
     pub has_errors: bool,
 }
 
-/// Insert or update a trace summary
-pub async fn upsert_trace(pool: &SqlitePool, span: &NormalizedSpan) -> Result<(), OtelError> {
-    let now = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
-    // OTLP StatusCode: 0=UNSET, 1=OK, 2=ERROR
-    let has_error = span.status_code == 2;
-
-    sqlx::query(
-        r#"
-        INSERT INTO traces (
-            trace_id, root_span_id, root_span_name, service_name, detected_framework,
-            span_count, start_time_ns, end_time_ns, duration_ns,
-            total_input_tokens, total_output_tokens, total_tokens,
-            has_errors, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(trace_id) DO UPDATE SET
-            span_count = span_count + 1,
-            root_span_id = COALESCE(root_span_id, excluded.root_span_id),
-            root_span_name = COALESCE(root_span_name, excluded.root_span_name),
-            end_time_ns = MAX(COALESCE(end_time_ns, 0), COALESCE(excluded.end_time_ns, 0)),
-            duration_ns = MAX(COALESCE(end_time_ns, 0), COALESCE(excluded.end_time_ns, 0)) - start_time_ns,
-            total_input_tokens = COALESCE(total_input_tokens, 0) + COALESCE(excluded.total_input_tokens, 0),
-            total_output_tokens = COALESCE(total_output_tokens, 0) + COALESCE(excluded.total_output_tokens, 0),
-            total_tokens = COALESCE(total_tokens, 0) + COALESCE(excluded.total_tokens, 0),
-            has_errors = has_errors OR excluded.has_errors,
-            updated_at = excluded.updated_at
-        "#
-    )
-    .bind(&span.trace_id)
-    .bind(if span.parent_span_id.is_none() { Some(&span.span_id) } else { None::<&String> })
-    .bind(if span.parent_span_id.is_none() { Some(&span.span_name) } else { None::<&String> })
-    .bind(&span.service_name)
-    .bind(&span.detected_framework)
-    .bind(span.start_time_unix_nano)
-    .bind(span.end_time_unix_nano)
-    .bind(span.duration_ns)
-    .bind(span.usage_input_tokens)
-    .bind(span.usage_output_tokens)
-    .bind(span.usage_total_tokens)
-    .bind(has_error)
-    .bind(now)
-    .bind(now)
-    .execute(pool)
-    .await
-    .map_err(|e| OtelError::StorageError(format!("Failed to upsert trace: {}", e)))?;
-
-    Ok(())
-}
-
-/// Batch upsert multiple trace summaries in a single transaction
-pub async fn upsert_traces_batch(
-    pool: &SqlitePool,
-    spans: &[NormalizedSpan],
-) -> Result<(), OtelError> {
-    if spans.is_empty() {
-        return Ok(());
-    }
-
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|e| OtelError::StorageError(format!("Failed to begin transaction: {}", e)))?;
-
-    upsert_traces_batch_with_tx(&mut tx, spans).await?;
-
-    tx.commit()
-        .await
-        .map_err(|e| OtelError::StorageError(format!("Failed to commit transaction: {}", e)))?;
-
-    Ok(())
-}
-
 /// Batch upsert traces using an existing transaction (for atomic operations)
 pub async fn upsert_traces_batch_with_tx(
     tx: &mut Transaction<'_, Sqlite>,
@@ -187,62 +116,66 @@ pub async fn upsert_traces_batch_with_tx(
     Ok(())
 }
 
-/// Soft delete a trace by setting deleted_at timestamp
-/// Also deletes associated EAV attributes (since soft delete doesn't trigger CASCADE)
-pub async fn soft_delete_trace(pool: &SqlitePool, trace_id: &str) -> Result<bool, OtelError> {
-    let now = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
-
+/// Hard delete a trace and all associated data
+/// Deletes: trace_attributes, span_attributes, span_events, spans, trace
+pub async fn delete_trace(pool: &SqlitePool, trace_id: &str) -> Result<bool, OtelError> {
     // Start transaction for atomic delete
     let mut tx = pool
         .begin()
         .await
         .map_err(|e| OtelError::StorageError(format!("Failed to begin transaction: {}", e)))?;
 
-    // Soft delete the trace
-    let result = sqlx::query(
-        r#"
-        UPDATE traces SET deleted_at = ?, updated_at = ?
-        WHERE trace_id = ? AND deleted_at IS NULL
-        "#,
+    // Check if trace exists first
+    let exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM traces WHERE trace_id = ?")
+        .bind(trace_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| OtelError::StorageError(format!("Failed to check trace: {}", e)))?;
+
+    if exists.is_none() {
+        return Ok(false);
+    }
+
+    // Delete trace attributes (CASCADE would handle this, but be explicit)
+    sqlx::query("DELETE FROM trace_attributes WHERE trace_id = ?")
+        .bind(trace_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            OtelError::StorageError(format!("Failed to delete trace attributes: {}", e))
+        })?;
+
+    // Delete span attributes for all spans in this trace
+    sqlx::query(
+        "DELETE FROM span_attributes WHERE span_id IN (SELECT span_id FROM spans WHERE trace_id = ?)",
     )
-    .bind(now)
-    .bind(now)
     .bind(trace_id)
     .execute(&mut *tx)
     .await
-    .map_err(|e| OtelError::StorageError(format!("Failed to delete trace: {}", e)))?;
+    .map_err(|e| {
+        OtelError::StorageError(format!("Failed to delete span attributes: {}", e))
+    })?;
 
-    if result.rows_affected() > 0 {
-        // Delete associated trace attributes (EAV cleanup)
-        sqlx::query("DELETE FROM trace_attributes WHERE trace_id = ?")
-            .bind(trace_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| {
-                OtelError::StorageError(format!("Failed to delete trace attributes: {}", e))
-            })?;
+    // Delete span events for this trace
+    sqlx::query("DELETE FROM span_events WHERE trace_id = ?")
+        .bind(trace_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| OtelError::StorageError(format!("Failed to delete span events: {}", e)))?;
 
-        // Get all span_ids for this trace to delete their attributes
-        let span_ids: Vec<String> =
-            sqlx::query_scalar("SELECT span_id FROM spans WHERE trace_id = ?")
-                .bind(trace_id)
-                .fetch_all(&mut *tx)
-                .await
-                .map_err(|e| OtelError::StorageError(format!("Failed to get span ids: {}", e)))?;
+    // Delete spans for this trace
+    sqlx::query("DELETE FROM spans WHERE trace_id = ?")
+        .bind(trace_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| OtelError::StorageError(format!("Failed to delete spans: {}", e)))?;
 
-        // Delete span attributes for all spans in this trace
-        if !span_ids.is_empty() {
-            let placeholders = vec!["?"; span_ids.len()].join(",");
-            let sql = format!("DELETE FROM span_attributes WHERE span_id IN ({})", placeholders);
-            let mut query = sqlx::query(&sql);
-            for span_id in &span_ids {
-                query = query.bind(span_id);
-            }
-            query.execute(&mut *tx).await.map_err(|e| {
-                OtelError::StorageError(format!("Failed to delete span attributes: {}", e))
-            })?;
-        }
-    }
+    // Delete the trace
+    let result = sqlx::query("DELETE FROM traces WHERE trace_id = ?")
+        .bind(trace_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| OtelError::StorageError(format!("Failed to delete trace: {}", e)))?;
 
     tx.commit()
         .await
@@ -251,7 +184,7 @@ pub async fn soft_delete_trace(pool: &SqlitePool, trace_id: &str) -> Result<bool
     Ok(result.rows_affected() > 0)
 }
 
-/// Get a trace summary by ID (excludes deleted traces)
+/// Get a trace summary by ID
 pub async fn get_trace(
     pool: &SqlitePool,
     trace_id: &str,
@@ -279,7 +212,7 @@ pub async fn get_trace(
         SELECT trace_id, session_id, root_span_id, root_span_name, service_name, detected_framework,
                span_count, start_time_ns, end_time_ns, duration_ns,
                total_input_tokens, total_output_tokens, total_tokens, has_errors
-        FROM traces WHERE trace_id = ? AND deleted_at IS NULL
+        FROM traces WHERE trace_id = ?
         "#,
     )
     .bind(trace_id)
@@ -313,11 +246,6 @@ mod tests {
     async fn setup_test_db() -> SqlitePool {
         let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
         sqlx::raw_sql(SCHEMA).execute(&pool).await.unwrap();
-        // Initialize storage_stats
-        sqlx::query("INSERT INTO storage_stats (id, total_traces, total_spans, total_parquet_bytes, total_parquet_files, last_updated) VALUES (1, 0, 0, 0, 0, 0)")
-            .execute(&pool)
-            .await
-            .unwrap();
         pool
     }
 
@@ -348,7 +276,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_soft_delete_trace_success() {
+    async fn test_delete_trace_success() {
         let pool = setup_test_db().await;
         insert_test_trace(&pool, "trace-1").await;
 
@@ -356,40 +284,40 @@ mod tests {
         let trace = get_trace(&pool, "trace-1").await.unwrap();
         assert!(trace.is_some());
 
-        // Soft delete
-        let deleted = soft_delete_trace(&pool, "trace-1").await.unwrap();
+        // Delete
+        let deleted = delete_trace(&pool, "trace-1").await.unwrap();
         assert!(deleted);
 
-        // Verify trace is no longer visible
+        // Verify trace is gone
         let trace = get_trace(&pool, "trace-1").await.unwrap();
         assert!(trace.is_none());
     }
 
     #[tokio::test]
-    async fn test_soft_delete_trace_not_found() {
+    async fn test_delete_trace_not_found() {
         let pool = setup_test_db().await;
 
         // Try to delete non-existent trace
-        let deleted = soft_delete_trace(&pool, "non-existent").await.unwrap();
+        let deleted = delete_trace(&pool, "non-existent").await.unwrap();
         assert!(!deleted);
     }
 
     #[tokio::test]
-    async fn test_soft_delete_trace_already_deleted() {
+    async fn test_delete_trace_already_deleted() {
         let pool = setup_test_db().await;
         insert_test_trace(&pool, "trace-1").await;
 
         // First delete should succeed
-        let deleted = soft_delete_trace(&pool, "trace-1").await.unwrap();
+        let deleted = delete_trace(&pool, "trace-1").await.unwrap();
         assert!(deleted);
 
         // Second delete should return false (already deleted)
-        let deleted = soft_delete_trace(&pool, "trace-1").await.unwrap();
+        let deleted = delete_trace(&pool, "trace-1").await.unwrap();
         assert!(!deleted);
     }
 
     #[tokio::test]
-    async fn test_get_trace_excludes_deleted() {
+    async fn test_delete_trace_removes_from_queries() {
         let pool = setup_test_db().await;
         insert_test_trace(&pool, "trace-1").await;
         insert_test_trace(&pool, "trace-2").await;
@@ -399,11 +327,11 @@ mod tests {
         assert!(get_trace(&pool, "trace-2").await.unwrap().is_some());
 
         // Delete one trace
-        soft_delete_trace(&pool, "trace-1").await.unwrap();
+        delete_trace(&pool, "trace-1").await.unwrap();
 
-        // Deleted trace is not visible
+        // Deleted trace is gone
         assert!(get_trace(&pool, "trace-1").await.unwrap().is_none());
-        // Other trace still visible
+        // Other trace still exists
         assert!(get_trace(&pool, "trace-2").await.unwrap().is_some());
     }
 

@@ -10,7 +10,7 @@ pub fn create_routes(
 ) -> Router {
     // Public routes (no auth required)
     let public_routes = Router::new()
-        .route("/health", get(api::health::health_check_with_otel))
+        .route("/health", get(api::health::health_check))
         .with_state(otel_manager.clone())
         .nest("/auth", api::auth::create_routes(auth_manager.clone()));
 

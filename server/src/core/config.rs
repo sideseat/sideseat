@@ -168,17 +168,9 @@ pub struct OtelConfig {
     #[serde(default)]
     pub ingestion: OtelIngestionConfig,
 
-    /// Parquet storage settings
-    #[serde(default)]
-    pub storage: OtelStorageConfig,
-
     /// Data retention settings
     #[serde(default)]
     pub retention: OtelRetentionConfig,
-
-    /// Disk monitoring settings
-    #[serde(default)]
-    pub disk: OtelDiskConfig,
 
     /// Input validation limits
     #[serde(default)]
@@ -242,35 +234,12 @@ impl Default for OtelIngestionConfig {
     }
 }
 
-/// Parquet storage configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OtelStorageConfig {
-    /// Maximum Parquet file size in MB
-    #[serde(default = "default_max_file_size_mb")]
-    pub max_file_size_mb: u32,
-    /// Rows per row group in Parquet files
-    #[serde(default = "default_row_group_size")]
-    pub row_group_size: usize,
-}
-
-impl Default for OtelStorageConfig {
-    fn default() -> Self {
-        Self {
-            max_file_size_mb: default_max_file_size_mb(),
-            row_group_size: default_row_group_size(),
-        }
-    }
-}
-
 /// Data retention configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OtelRetentionConfig {
-    /// Retention days (None = disabled, uses size-based only)
+    /// Retention period in days (None = no limit, keep forever)
     #[serde(default)]
     pub days: Option<u32>,
-    /// Maximum storage size in MB (FIFO deletion when exceeded)
-    #[serde(default = "default_retention_max_mb")]
-    pub max_mb: u32,
     /// Retention check interval in seconds
     #[serde(default = "default_retention_check_interval_secs")]
     pub check_interval_secs: u64,
@@ -278,31 +247,7 @@ pub struct OtelRetentionConfig {
 
 impl Default for OtelRetentionConfig {
     fn default() -> Self {
-        Self {
-            days: None,
-            max_mb: default_retention_max_mb(),
-            check_interval_secs: default_retention_check_interval_secs(),
-        }
-    }
-}
-
-/// Disk monitoring configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OtelDiskConfig {
-    /// Disk usage percent to trigger warning
-    #[serde(default = "default_disk_warning_percent")]
-    pub warning_percent: u8,
-    /// Disk usage percent to stop ingestion
-    #[serde(default = "default_disk_critical_percent")]
-    pub critical_percent: u8,
-}
-
-impl Default for OtelDiskConfig {
-    fn default() -> Self {
-        Self {
-            warning_percent: default_disk_warning_percent(),
-            critical_percent: default_disk_critical_percent(),
-        }
+        Self { days: None, check_interval_secs: default_retention_check_interval_secs() }
     }
 }
 
@@ -430,23 +375,8 @@ fn default_flush_interval_ms() -> u64 {
 fn default_flush_batch_size() -> usize {
     500
 }
-fn default_max_file_size_mb() -> u32 {
-    64
-}
-fn default_row_group_size() -> usize {
-    10_000
-}
-fn default_retention_max_mb() -> u32 {
-    20 * 1024 // 20GB FIFO (in MB)
-}
 fn default_retention_check_interval_secs() -> u64 {
     300 // 5 minutes
-}
-fn default_disk_warning_percent() -> u8 {
-    80
-}
-fn default_disk_critical_percent() -> u8 {
-    95
 }
 fn default_max_span_name_len() -> usize {
     1000
@@ -476,9 +406,7 @@ impl Default for OtelConfig {
             enabled: default_otel_enabled(),
             grpc: OtelGrpcConfig::default(),
             ingestion: OtelIngestionConfig::default(),
-            storage: OtelStorageConfig::default(),
             retention: OtelRetentionConfig::default(),
-            disk: OtelDiskConfig::default(),
             limits: OtelLimitsConfig::default(),
             sse: OtelSseConfig::default(),
             attributes: OtelAttributeConfig::default(),
@@ -871,16 +799,9 @@ mod tests {
         assert_eq!(config.ingestion.buffer_max_bytes, 10 * 1024 * 1024);
         assert_eq!(config.ingestion.flush_interval_ms, 100);
         assert_eq!(config.ingestion.flush_batch_size, 500);
-        // Storage sub-config
-        assert_eq!(config.storage.max_file_size_mb, 64);
-        assert_eq!(config.storage.row_group_size, 10_000);
         // Retention sub-config
         assert!(config.retention.days.is_none());
-        assert_eq!(config.retention.max_mb, 20 * 1024);
         assert_eq!(config.retention.check_interval_secs, 300);
-        // Disk sub-config
-        assert_eq!(config.disk.warning_percent, 80);
-        assert_eq!(config.disk.critical_percent, 95);
         // Limits sub-config
         assert_eq!(config.limits.max_span_name_len, 1000);
         assert_eq!(config.limits.max_attribute_count, 100);

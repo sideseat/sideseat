@@ -3,7 +3,7 @@ title: OpenTelemetry Collector
 description: Built-in OTLP-compatible trace collector for AI agent observability.
 ---
 
-SideSeat includes a built-in OpenTelemetry collector optimized for AI agent development workflows. It receives OTLP traces via HTTP and gRPC, stores them in Parquet files for efficient querying, and provides real-time streaming via SSE.
+SideSeat includes a built-in OpenTelemetry collector optimized for AI agent development workflows. It receives OTLP traces via HTTP and gRPC, stores them in SQLite for efficient querying, and provides real-time streaming via SSE.
 
 ## Architecture
 
@@ -21,13 +21,12 @@ flowchart LR
     end
 
     subgraph Processing["Processing"]
-        Buffer["Write Buffer<br/>(bounded memory)"]
         Normalize["Framework Detection<br/>& Normalization"]
+        Buffer["Write Buffer<br/>(bounded memory)"]
     end
 
     subgraph Storage["Storage Layer"]
-        SQLite[(SQLite Index)]
-        Parquet[(Parquet Files)]
+        SQLite[(SQLite Database)]
     end
 
     subgraph Query["Query Layer"]
@@ -37,14 +36,12 @@ flowchart LR
 
     Agents -->|OTLP| HTTP
     Agents -->|OTLP| GRPC
-    HTTP --> Buffer
-    GRPC --> Buffer
-    Buffer --> Normalize
-    Normalize --> SQLite
-    Normalize --> Parquet
+    HTTP --> Normalize
+    GRPC --> Normalize
+    Normalize -.->|Real-time| SSE
+    Normalize --> Buffer
+    Buffer --> SQLite
     SQLite --> API
-    Parquet --> API
-    Buffer -.->|Real-time| SSE
 ```
 
 ## Features
@@ -55,7 +52,7 @@ flowchart LR
 - **Bounded memory**: Configurable buffer limits prevent memory exhaustion
 - **FIFO storage**: Automatic cleanup when storage limits are reached
 - **Real-time streaming**: SSE endpoint for live trace updates
-- **Efficient storage**: Parquet columnar format for fast queries
+- **Efficient storage**: SQLite with indexed columns for fast queries
 
 ## Endpoints
 
@@ -74,9 +71,15 @@ flowchart LR
 | `/api/v1/traces` | GET | List traces with filtering |
 | `/api/v1/traces/filters` | GET | Get available filter options |
 | `/api/v1/traces/{trace_id}` | GET | Get single trace details |
-| `/api/v1/traces/{trace_id}` | DELETE | Soft-delete a trace |
+| `/api/v1/traces/{trace_id}` | DELETE | Delete a trace and all associated data |
 | `/api/v1/traces/{trace_id}/spans` | GET | Get spans for a trace |
-| `/api/v1/spans` | GET | Query spans directly |
+| `/api/v1/spans` | GET | Query spans with Gen AI fields |
+| `/api/v1/spans/{span_id}` | GET | Get span detail with events |
+| `/api/v1/spans/{span_id}/events` | GET | Get events for a span |
+| `/api/v1/sessions` | GET | List sessions with filtering |
+| `/api/v1/sessions/{session_id}` | GET | Get single session details |
+| `/api/v1/sessions/{session_id}` | DELETE | Delete a session and all associated data |
+| `/api/v1/sessions/{session_id}/traces` | GET | Get traces for a session |
 
 ### Real-time Streaming
 
@@ -97,7 +100,7 @@ All OTel settings are under the `otel` key in your config file:
       "port": 4317
     },
     "retention": {
-      "max_mb": 20480
+      "days": 30  // Optional: set to enable time-based cleanup
     }
   }
 }
@@ -132,15 +135,26 @@ with tracer.start_as_current_span("my-agent-operation"):
 
 ```python
 from strands import Agent
-from strands.telemetry import OTLPExporter
+from strands.models import BedrockModel
+from strands.telemetry import StrandsTelemetry
 
-# Configure Strands to export to SideSeat
-exporter = OTLPExporter(endpoint="http://localhost:5001/otel/v1/traces")
+# Configure telemetry to export to SideSeat
+telemetry = StrandsTelemetry()
+telemetry.setup_otlp_exporter(endpoint="http://localhost:5001/otel/v1/traces")
 
+# Create agent with optional trace attributes
+model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
 agent = Agent(
-    model="anthropic/claude-sonnet-4-20250514",
-    telemetry_exporter=exporter
+    name="my-agent",
+    model=model,
+    trace_attributes={
+        "session.id": "my-session-123",
+        "user.id": "user-456",
+    },
 )
+
+# Don't forget to flush telemetry before exit
+# telemetry.tracer_provider.force_flush()
 ```
 
 ### Node.js with OpenTelemetry SDK
@@ -191,35 +205,44 @@ The collector extracts and normalizes GenAI-specific fields:
 | `gen_ai_system` | AI provider (openai, anthropic, etc.) |
 | `gen_ai_request_model` | Requested model name |
 | `gen_ai_response_model` | Actual model used |
+| `gen_ai_operation_name` | Operation type (chat, completion) |
+| `gen_ai_agent_name` | Agent name (for agent frameworks) |
+| `gen_ai_tool_name` | Tool name (for tool calls) |
 | `usage_input_tokens` | Input/prompt tokens |
 | `usage_output_tokens` | Output/completion tokens |
-| `gen_ai_operation_name` | Operation type (chat, completion) |
+| `usage_total_tokens` | Total tokens (computed if not provided) |
+| `usage_cache_read_tokens` | Cache read tokens (Anthropic) |
+| `usage_cache_write_tokens` | Cache write tokens (Anthropic) |
+| `time_to_first_token_ms` | Time to first token (TTFT) |
+| `request_duration_ms` | Total request duration |
+| `session_id` | Session/conversation ID |
+
+## Span Events
+
+Span events (messages, tool calls, choices) are automatically categorized:
+
+| Event Type | Role | Description |
+|------------|------|-------------|
+| `user_message` | user | User input messages |
+| `assistant_message` | assistant | Model responses |
+| `system_message` | system | System prompts |
+| `tool_call` | assistant | Tool/function calls |
+| `tool_result` | tool | Tool execution results |
+| `choice` | assistant | Completion choices with finish_reason |
+
+Events include `content_preview` (first 500 chars) and tool correlation fields (`tool_name`, `tool_call_id`).
 
 ## Storage
 
-Traces are stored in Parquet files under `data/traces/`:
-
-```
-data/traces/
-├── spans_20241127_143022_abc123.parquet
-├── spans_20241127_144533_def456.parquet
-└── ...
-```
+All trace data is stored in a single SQLite database (`data/sideseat.db`) with indexed columns for efficient querying. Full span data is stored as JSON for complete access to all fields.
 
 ### Retention
 
-Storage is managed with FIFO (First-In-First-Out) deletion:
+Storage is managed with optional time-based retention:
 
-- **Size-based**: When `retention.max_mb` is exceeded, oldest files are deleted
-- **Time-based**: Optional `retention_days` deletes files older than N days
-- **Automatic**: Retention runs every `retention_check_interval_secs` (default: 5 min)
-
-### Disk Safety
-
-The collector monitors disk usage and protects against filling the disk:
-
-- **Warning** (80%): Logs warning, continues operation
-- **Critical** (95%): Stops accepting new traces until space is freed
+- **Time-based**: If `retention.days` is set, data older than that is automatically deleted
+- **Default**: No retention limit (data kept forever)
+- **Automatic**: When enabled, retention check runs every `check_interval_secs` (default: 5 min)
 
 ## Real-time Streaming
 
@@ -383,6 +406,5 @@ Reduce buffer sizes in config:
 
 ### Disk Full
 
-1. Reduce `retention.max_mb`
-2. Enable `retention.days` for time-based cleanup
-3. Manually delete old files in `data/traces/`
+1. Reduce `retention.days` for shorter retention period
+2. The SQLite database will be cleaned up automatically based on retention settings

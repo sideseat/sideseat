@@ -79,14 +79,6 @@ async fn apply_initial_schema(pool: &SqlitePool) -> Result<(), SqliteError> {
     .execute(&mut *tx)
     .await?;
 
-    // Initialize storage stats
-    sqlx::query(
-        "INSERT OR IGNORE INTO storage_stats (id, total_traces, total_spans, total_parquet_bytes, total_parquet_files, last_updated) VALUES (1, 0, 0, 0, 0, ?)",
-    )
-    .bind(now)
-    .execute(&mut *tx)
-    .await?;
-
     tx.commit().await?;
 
     debug!("Applied initial schema in {}ms", elapsed_ms);

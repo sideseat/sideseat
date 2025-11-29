@@ -6,7 +6,7 @@
 /// Current schema version
 pub const SCHEMA_VERSION: i32 = 1;
 
-/// Complete schema SQL (version 1)
+/// Complete schema SQL
 pub const SCHEMA: &str = r#"
 -- Infrastructure: Schema version tracking
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -39,7 +39,6 @@ CREATE TABLE IF NOT EXISTS sessions (
     has_errors INTEGER NOT NULL DEFAULT 0,
     first_seen_ns INTEGER NOT NULL,
     last_seen_ns INTEGER NOT NULL,
-    deleted_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );
@@ -65,7 +64,6 @@ CREATE TABLE IF NOT EXISTS traces (
     total_output_tokens INTEGER,
     total_tokens INTEGER,
     has_errors INTEGER NOT NULL DEFAULT 0,
-    deleted_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     FOREIGN KEY (session_id) REFERENCES sessions(session_id)
@@ -78,7 +76,7 @@ CREATE INDEX IF NOT EXISTS idx_traces_start ON traces(start_time_ns DESC);
 CREATE INDEX IF NOT EXISTS idx_traces_created ON traces(created_at);
 CREATE INDEX IF NOT EXISTS idx_traces_time_errors ON traces(start_time_ns DESC, has_errors);
 
--- OTEL: Span index table (for fast queries)
+-- OTEL: Span table (index fields + full data JSON)
 CREATE TABLE IF NOT EXISTS spans (
     span_id TEXT PRIMARY KEY,
     trace_id TEXT NOT NULL,
@@ -88,16 +86,30 @@ CREATE TABLE IF NOT EXISTS spans (
     service_name TEXT NOT NULL,
     detected_framework TEXT NOT NULL,
     detected_category TEXT,
+    -- Gen AI core fields (indexed for filtering)
+    gen_ai_system TEXT,
+    gen_ai_operation_name TEXT,
     gen_ai_agent_name TEXT,
     gen_ai_tool_name TEXT,
     gen_ai_request_model TEXT,
+    gen_ai_response_model TEXT,
+    -- Timing
     start_time_ns INTEGER NOT NULL,
     end_time_ns INTEGER,
     duration_ns INTEGER,
+    -- Performance metrics (Gen AI specific)
+    time_to_first_token_ms INTEGER,
+    request_duration_ms INTEGER,
+    -- Status
     status_code INTEGER NOT NULL DEFAULT 0,
+    -- Token usage (all variants for cross-framework compatibility)
     usage_input_tokens INTEGER,
     usage_output_tokens INTEGER,
-    parquet_file TEXT,
+    usage_total_tokens INTEGER,
+    usage_cache_read_tokens INTEGER,
+    usage_cache_write_tokens INTEGER,
+    -- Full span data as JSON
+    data_json TEXT,
     FOREIGN KEY (trace_id) REFERENCES traces(trace_id),
     FOREIGN KEY (session_id) REFERENCES sessions(session_id)
 );
@@ -108,49 +120,42 @@ CREATE INDEX IF NOT EXISTS idx_spans_parent ON spans(parent_span_id);
 CREATE INDEX IF NOT EXISTS idx_spans_service ON spans(service_name);
 CREATE INDEX IF NOT EXISTS idx_spans_framework ON spans(detected_framework);
 CREATE INDEX IF NOT EXISTS idx_spans_category ON spans(detected_category);
+CREATE INDEX IF NOT EXISTS idx_spans_system ON spans(gen_ai_system);
+CREATE INDEX IF NOT EXISTS idx_spans_operation ON spans(gen_ai_operation_name);
 CREATE INDEX IF NOT EXISTS idx_spans_agent ON spans(gen_ai_agent_name);
 CREATE INDEX IF NOT EXISTS idx_spans_tool ON spans(gen_ai_tool_name);
 CREATE INDEX IF NOT EXISTS idx_spans_model ON spans(gen_ai_request_model);
 CREATE INDEX IF NOT EXISTS idx_spans_start ON spans(start_time_ns);
-CREATE INDEX IF NOT EXISTS idx_spans_parquet ON spans(parquet_file);
+-- Composite index for common query: framework + category + time
+CREATE INDEX IF NOT EXISTS idx_spans_framework_category_time ON spans(detected_framework, detected_category, start_time_ns DESC);
 
--- OTEL: Span events index
+-- OTEL: Span events (Gen AI messages, tool calls, choices)
 CREATE TABLE IF NOT EXISTS span_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     span_id TEXT NOT NULL,
     trace_id TEXT NOT NULL,
     event_name TEXT NOT NULL,
     event_time_ns INTEGER NOT NULL,
+    -- Gen AI event categorization
+    event_type TEXT,  -- user_message, assistant_message, tool_call, tool_result, choice, system_message
+    role TEXT,        -- user, assistant, tool, system (for message events)
+    finish_reason TEXT, -- end_turn, tool_use, max_tokens, stop_sequence (for choice events)
+    -- Content summary (extracted from attributes for quick access)
+    content_preview TEXT, -- First 500 chars of content for display
+    tool_name TEXT,       -- For tool_call/tool_result events
+    tool_call_id TEXT,    -- Tool use ID for correlating calls with results
+    -- Full attributes as JSON
+    attributes_json TEXT,
     FOREIGN KEY (span_id) REFERENCES spans(span_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_events_span ON span_events(span_id);
 CREATE INDEX IF NOT EXISTS idx_events_trace ON span_events(trace_id);
 CREATE INDEX IF NOT EXISTS idx_events_name ON span_events(event_name);
-
--- OTEL: Parquet file tracking
-CREATE TABLE IF NOT EXISTS parquet_files (
-    file_path TEXT PRIMARY KEY,
-    date_partition TEXT NOT NULL,
-    span_count INTEGER NOT NULL,
-    file_size_bytes INTEGER NOT NULL,
-    min_start_time_ns INTEGER NOT NULL,
-    max_end_time_ns INTEGER NOT NULL,
-    created_at INTEGER NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_files_date ON parquet_files(date_partition);
-CREATE INDEX IF NOT EXISTS idx_files_created ON parquet_files(created_at);
-
--- OTEL: Storage statistics
-CREATE TABLE IF NOT EXISTS storage_stats (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    total_traces INTEGER NOT NULL DEFAULT 0,
-    total_spans INTEGER NOT NULL DEFAULT 0,
-    total_parquet_bytes INTEGER NOT NULL DEFAULT 0,
-    total_parquet_files INTEGER NOT NULL DEFAULT 0,
-    last_updated INTEGER NOT NULL
-);
+CREATE INDEX IF NOT EXISTS idx_events_type ON span_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_events_role ON span_events(role);
+-- Composite index for reconstructing conversations
+CREATE INDEX IF NOT EXISTS idx_events_trace_time ON span_events(trace_id, event_time_ns);
 
 -- OTEL EAV: Registered attribute keys (for discovery and validation)
 CREATE TABLE IF NOT EXISTS attribute_keys (
@@ -224,8 +229,6 @@ mod tests {
             "traces",
             "spans",
             "span_events",
-            "parquet_files",
-            "storage_stats",
             "attribute_keys",
             "trace_attributes",
             "span_attributes",
@@ -242,13 +245,8 @@ mod tests {
 
     #[test]
     fn test_schema_contains_required_indexes() {
-        let required_indexes = [
-            "idx_traces_service",
-            "idx_traces_start",
-            "idx_spans_trace",
-            "idx_spans_parent",
-            "idx_files_date",
-        ];
+        let required_indexes =
+            ["idx_traces_service", "idx_traces_start", "idx_spans_trace", "idx_spans_parent"];
 
         for index in required_indexes {
             assert!(SCHEMA.contains(index), "Schema missing index: {}", index);

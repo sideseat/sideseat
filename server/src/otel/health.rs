@@ -24,7 +24,6 @@ pub struct OtelComponentStatus {
     pub http_collector: ComponentHealth,
     pub grpc_collector: ComponentHealth,
     pub sqlite: ComponentHealth,
-    pub parquet_writer: ComponentHealth,
     pub sse_manager: ComponentHealth,
     pub retention_manager: ComponentHealth,
 }
@@ -42,9 +41,6 @@ pub struct ComponentHealth {
 pub struct OtelStats {
     pub total_traces: u64,
     pub total_spans: u64,
-    pub storage_bytes: u64,
-    pub storage_files: u64,
-    pub disk_usage_percent: u8,
     pub buffer_size: usize,
     pub buffer_capacity: usize,
     pub sse_connections: u64,
@@ -90,9 +86,6 @@ mod tests {
         let stats = OtelStats {
             total_traces: 100,
             total_spans: 500,
-            storage_bytes: 1024 * 1024,
-            storage_files: 10,
-            disk_usage_percent: 45,
             buffer_size: 50,
             buffer_capacity: 1000,
             sse_connections: 5,
@@ -101,7 +94,7 @@ mod tests {
         let json = serde_json::to_string(&stats).unwrap();
         assert!(json.contains("\"total_traces\":100"));
         assert!(json.contains("\"total_spans\":500"));
-        assert!(json.contains("\"disk_usage_percent\":45"));
+        assert!(json.contains("\"buffer_size\":50"));
     }
 
     #[test]
@@ -118,11 +111,6 @@ mod tests {
                 last_activity: None,
             },
             sqlite: ComponentHealth {
-                status: HealthState::Healthy,
-                message: None,
-                last_activity: None,
-            },
-            parquet_writer: ComponentHealth {
                 status: HealthState::Healthy,
                 message: None,
                 last_activity: None,
@@ -165,11 +153,6 @@ mod tests {
                     message: None,
                     last_activity: None,
                 },
-                parquet_writer: ComponentHealth {
-                    status: HealthState::Healthy,
-                    message: None,
-                    last_activity: None,
-                },
                 sse_manager: ComponentHealth {
                     status: HealthState::Healthy,
                     message: None,
@@ -184,9 +167,6 @@ mod tests {
             stats: OtelStats {
                 total_traces: 0,
                 total_spans: 0,
-                storage_bytes: 0,
-                storage_files: 0,
-                disk_usage_percent: 0,
                 buffer_size: 0,
                 buffer_capacity: 1000,
                 sse_connections: 0,

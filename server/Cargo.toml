@@ -4,10 +4,10 @@ version = "1.0.4"
 edition = "2024"
 
 [lints.rust]
-dead_code = "warn"
-unused_imports = "warn"
-unused_variables = "warn"
-unused_mut = "warn"
+dead_code = "deny"
+unused_imports = "deny"
+unused_variables = "deny"
+unused_mut = "deny"
 
 [lints.clippy]
 all = "warn"
@@ -45,9 +45,6 @@ uuid = { workspace = true }
 time = { workspace = true }
 
 # OpenTelemetry dependencies
-arrow = { workspace = true }
-parquet = { workspace = true }
-datafusion = { workspace = true }
 opentelemetry-proto = { workspace = true }
 prost = { workspace = true }
 tonic = { workspace = true }

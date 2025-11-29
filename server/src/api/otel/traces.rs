@@ -50,6 +50,7 @@ pub struct TraceListResponse {
 #[derive(Debug, Serialize)]
 pub struct TraceSummaryDto {
     pub trace_id: String,
+    pub session_id: Option<String>,
     pub root_span_id: Option<String>,
     pub root_span_name: Option<String>,
     pub service_name: String,
@@ -68,6 +69,7 @@ impl From<TraceSummary> for TraceSummaryDto {
     fn from(t: TraceSummary) -> Self {
         Self {
             trace_id: t.trace_id,
+            session_id: t.session_id,
             root_span_id: t.root_span_id,
             root_span_name: t.root_span_name,
             service_name: t.service_name,
@@ -110,7 +112,7 @@ pub async fn get_traces(
     let limit = params.limit.unwrap_or(50).min(100);
 
     // Get attribute cache for EAV filtering
-    let attr_cache = otel.storage.attribute_cache();
+    let attr_cache = otel.attribute_cache();
 
     match otel
         .query_engine
@@ -145,7 +147,7 @@ pub async fn get_trace(
     State(otel): State<Arc<OtelManager>>,
     Path(trace_id): Path<String>,
 ) -> impl IntoResponse {
-    let pool = otel.storage.pool();
+    let pool = &otel.pool;
 
     // Get trace summary
     let trace = match crate::otel::storage::sqlite::traces::get_trace(pool, &trace_id).await {
@@ -167,14 +169,12 @@ pub async fn get_trace(
     Json(response).into_response()
 }
 
-/// DELETE /otel/traces/{trace_id} - Soft delete a trace
+/// DELETE /otel/traces/{trace_id} - Delete a trace and all associated data
 pub async fn delete_trace(
     State(otel): State<Arc<OtelManager>>,
     Path(trace_id): Path<String>,
 ) -> impl IntoResponse {
-    match crate::otel::storage::sqlite::traces::soft_delete_trace(otel.storage.pool(), &trace_id)
-        .await
-    {
+    match crate::otel::storage::sqlite::traces::delete_trace(&otel.pool, &trace_id).await {
         Ok(true) => StatusCode::NO_CONTENT.into_response(),
         Ok(false) => OtelError::TraceNotFound(trace_id).into_response(),
         Err(e) => e.into_response(),
@@ -209,11 +209,11 @@ pub struct AttributeKeyInfo {
 pub async fn get_filter_options(State(otel): State<Arc<OtelManager>>) -> impl IntoResponse {
     use crate::otel::storage::sqlite::{get_all_attribute_keys, get_attribute_distinct_values};
 
-    let pool = otel.storage.pool();
+    let pool = &otel.pool;
 
     // Get distinct services
     let services = sqlx::query_scalar::<_, String>(
-        "SELECT DISTINCT service_name FROM traces WHERE deleted_at IS NULL ORDER BY service_name LIMIT 100",
+        "SELECT DISTINCT service_name FROM traces ORDER BY service_name LIMIT 100",
     )
     .fetch_all(pool)
     .await
@@ -221,7 +221,7 @@ pub async fn get_filter_options(State(otel): State<Arc<OtelManager>>) -> impl In
 
     // Get distinct frameworks
     let frameworks = sqlx::query_scalar::<_, String>(
-        "SELECT DISTINCT detected_framework FROM traces WHERE deleted_at IS NULL ORDER BY detected_framework LIMIT 100",
+        "SELECT DISTINCT detected_framework FROM traces ORDER BY detected_framework LIMIT 100",
     )
     .fetch_all(pool)
     .await

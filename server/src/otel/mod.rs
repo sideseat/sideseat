@@ -1,6 +1,6 @@
 //! OpenTelemetry collector for AI agent observability
 //!
-//! This module provides OTLP ingestion (HTTP + gRPC), SQLite index + Parquet storage,
+//! This module provides OTLP ingestion (HTTP + gRPC), SQLite storage,
 //! GenAI semantic conventions with extensible framework detection, and real-time SSE updates.
 //!
 //! ## Architecture
@@ -8,8 +8,8 @@
 //! - **OtelManager** - Central orchestrator for all OTel components
 //! - **Ingestion** - HTTP and gRPC OTLP endpoints with validation
 //! - **Normalize** - Framework detection and field extraction
-//! - **Storage** - SQLite index + Parquet bulk storage
-//! - **Query** - SQLite indexed queries + DataFusion analytics
+//! - **Storage** - SQLite for all span data
+//! - **Query** - SQLite queries and aggregations
 //! - **Realtime** - SSE subscriptions with filtered events
 
 pub mod error;
@@ -19,10 +19,7 @@ pub mod ingest;
 pub mod normalize;
 pub mod query;
 pub mod realtime;
-pub mod schema;
 pub mod storage;
-
-mod disk;
 
 pub use error::{OtelError, OtelResult};
 pub use health::{OtelHealthStatus, OtelStats};
@@ -31,30 +28,28 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{mpsc, watch};
 
+use crate::core::config::OtelConfig;
 use sqlx::SqlitePool;
 
-use crate::core::config::OtelConfig;
-use crate::core::{DataSubdir, StorageManager};
-
-use self::disk::DiskMonitor;
 use self::normalize::{NormalizedSpan, Normalizer};
 use self::query::QueryEngine;
 use self::realtime::{
     EventBroadcaster, EventPayload, SpanEvent as RtSpanEvent, SseManager, TraceEvent,
 };
-use self::storage::{RetentionManager, TraceStorageManager, WriteBuffer};
+use self::storage::sqlite::AttributeKeyCache;
+use self::storage::{RetentionManager, WriteBuffer};
 
 /// Central orchestrator for all OTel components
 pub struct OtelManager {
     pub config: OtelConfig,
-    pub storage: Arc<TraceStorageManager>,
+    pub pool: SqlitePool,
+    attribute_cache: Arc<AttributeKeyCache>,
     pub buffer: Arc<WriteBuffer>,
     pub normalizer: Arc<Normalizer>,
     pub sender: mpsc::Sender<NormalizedSpan>,
     pub query_engine: Arc<QueryEngine>,
     pub sse: Arc<SseManager>,
     pub broadcaster: Arc<EventBroadcaster>,
-    pub disk_monitor: Arc<DiskMonitor>,
     pub start_time: Instant,
     shutdown_tx: watch::Sender<bool>,
 }
@@ -63,25 +58,20 @@ impl OtelManager {
     /// Initialize OtelManager with all components
     ///
     /// # Arguments
-    /// * `storage_manager` - Storage manager for directory paths
     /// * `config` - OTel configuration
     /// * `pool` - SQLite connection pool from DatabaseManager
-    pub async fn init(
-        storage_manager: &StorageManager,
-        config: OtelConfig,
-        pool: SqlitePool,
-    ) -> OtelResult<Self> {
-        let data_dir = storage_manager.data_subdir(DataSubdir::Traces);
-        tokio::fs::create_dir_all(&data_dir).await?;
+    pub async fn init(config: OtelConfig, pool: SqlitePool) -> OtelResult<Self> {
+        // Initialize and load attribute key cache
+        let attribute_cache = Arc::new(AttributeKeyCache::new());
+        attribute_cache.load_from_db(&pool).await?;
+        tracing::debug!("Loaded attribute key cache from database");
 
-        let trace_storage =
-            Arc::new(TraceStorageManager::init(data_dir.clone(), &config, pool.clone()).await?);
         let normalizer = Arc::new(Normalizer::new());
         let buffer = Arc::new(WriteBuffer::new(
             config.ingestion.buffer_max_spans,
             config.ingestion.buffer_max_bytes,
         ));
-        let query_engine = Arc::new(QueryEngine::new(pool));
+        let query_engine = Arc::new(QueryEngine::new(pool.clone()));
 
         let broadcaster = EventBroadcaster::new(1024);
         let sse = Arc::new(SseManager::new(
@@ -92,26 +82,20 @@ impl OtelManager {
         ));
         let broadcaster = Arc::new(broadcaster);
 
-        let disk_monitor = Arc::new(DiskMonitor::new(
-            data_dir.clone(),
-            config.disk.warning_percent,
-            config.disk.critical_percent,
-        ));
-
         let (tx, rx) = mpsc::channel(config.ingestion.channel_capacity);
 
         let (shutdown_tx, _shutdown_rx) = watch::channel(false);
 
         let manager = Self {
             config,
-            storage: trace_storage,
+            pool,
+            attribute_cache,
             buffer,
             normalizer,
             sender: tx,
             query_engine,
             sse,
             broadcaster,
-            disk_monitor,
             start_time: Instant::now(),
             shutdown_tx,
         };
@@ -124,7 +108,8 @@ impl OtelManager {
 
     fn spawn_background_tasks(&self, mut rx: mpsc::Receiver<NormalizedSpan>) {
         let buffer = Arc::clone(&self.buffer);
-        let storage = Arc::clone(&self.storage);
+        let pool = self.pool.clone();
+        let attr_cache = Arc::clone(&self.attribute_cache);
         let broadcaster = Arc::clone(&self.broadcaster);
         let flush_batch_size = self.config.ingestion.flush_batch_size;
         let attribute_config = self.config.attributes.clone();
@@ -159,7 +144,7 @@ impl OtelManager {
                         if should_flush || buffer.count() >= flush_batch_size {
                             let spans = buffer.drain().await;
                             if !spans.is_empty() {
-                                Self::flush_with_retry(&storage, spans, &attribute_config).await;
+                                Self::flush_with_retry(&pool, &attr_cache, spans, &attribute_config).await;
                             }
                         }
                     }
@@ -174,7 +159,8 @@ impl OtelManager {
 
         // Periodic flush task - ensures data is persisted even during low traffic
         let buffer = Arc::clone(&self.buffer);
-        let storage = Arc::clone(&self.storage);
+        let pool = self.pool.clone();
+        let attr_cache = Arc::clone(&self.attribute_cache);
         let flush_interval =
             std::time::Duration::from_millis(self.config.ingestion.flush_interval_ms);
         let attribute_config = self.config.attributes.clone();
@@ -186,7 +172,7 @@ impl OtelManager {
                     _ = interval.tick() => {
                         // Use atomic drain_if_not_empty to prevent race with ingestion consumer
                         if let Some(spans) = buffer.drain_if_not_empty().await {
-                            Self::flush_with_retry(&storage, spans, &attribute_config).await;
+                            Self::flush_with_retry(&pool, &attr_cache, spans, &attribute_config).await;
                         }
                     }
                     _ = shutdown_rx.changed() => {
@@ -198,46 +184,18 @@ impl OtelManager {
             }
         });
 
-        // Disk usage monitoring
-        let disk_monitor = Arc::clone(&self.disk_monitor);
-        let shutdown_rx = self.shutdown_tx.subscribe();
-        tokio::spawn(async move { disk_monitor.run(shutdown_rx).await });
-
-        // Storage retention (FIFO cleanup when disk limits exceeded)
+        // Storage retention (time-based cleanup)
         let retention_days = self.config.retention.days;
-        let max_mb = self.config.retention.max_mb;
         let retention_check_interval = self.config.retention.check_interval_secs;
-        let retention_pool = self.storage.pool().clone();
+        let retention_pool = self.pool.clone();
         let shutdown_rx = self.shutdown_tx.subscribe();
         tokio::spawn(async move {
             let retention = Arc::new(RetentionManager::new(
-                max_mb,
+                retention_pool,
                 retention_days,
                 retention_check_interval,
-                retention_pool,
             ));
             retention.run(shutdown_rx).await;
-        });
-
-        // Parquet writer pool cleanup (remove old day writers from memory)
-        let parquet_pool = Arc::clone(self.storage.parquet_pool());
-        let mut shutdown_rx = self.shutdown_tx.subscribe();
-        tokio::spawn(async move {
-            // Cleanup every hour, keep writers for last 7 days
-            let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
-            loop {
-                tokio::select! {
-                    _ = interval.tick() => {
-                        parquet_pool.cleanup_old_writers(7).await;
-                        tracing::debug!("Cleaned up old parquet writers");
-                    }
-                    _ = shutdown_rx.changed() => {
-                        if *shutdown_rx.borrow() {
-                            break;
-                        }
-                    }
-                }
-            }
         });
 
         // SSE connection cleanup
@@ -250,7 +208,8 @@ impl OtelManager {
     /// Flush spans with exponential backoff retry on failure
     /// Retries up to 3 times with delays of 100ms, 500ms, 2s
     async fn flush_with_retry(
-        storage: &TraceStorageManager,
+        pool: &SqlitePool,
+        attr_cache: &Arc<AttributeKeyCache>,
         spans: Vec<NormalizedSpan>,
         attribute_config: &crate::core::config::OtelAttributeConfig,
     ) {
@@ -261,7 +220,7 @@ impl OtelManager {
         let mut last_error = None;
 
         for attempt in 0..MAX_RETRIES {
-            match Self::flush_spans(storage, spans.clone(), attribute_config).await {
+            match Self::flush_spans(pool, attr_cache, spans.clone(), attribute_config).await {
                 Ok(()) => return,
                 Err(e) => {
                     last_error = Some(e);
@@ -291,11 +250,10 @@ impl OtelManager {
         }
     }
 
-    /// Flush spans to SQLite and Parquet atomically.
-    /// Write order: Parquet first, then SQLite. If SQLite fails, delete parquet files.
-    /// This ensures no orphan parquet files exist.
+    /// Flush spans to SQLite
     async fn flush_spans(
-        storage: &TraceStorageManager,
+        pool: &SqlitePool,
+        attr_cache: &Arc<AttributeKeyCache>,
         spans: Vec<NormalizedSpan>,
         attribute_config: &crate::core::config::OtelAttributeConfig,
     ) -> OtelResult<()> {
@@ -303,81 +261,33 @@ impl OtelManager {
             return Ok(());
         }
 
-        let pool = storage.pool();
-        let attr_cache = storage.attribute_cache();
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|e| OtelError::StorageError(format!("Failed to begin transaction: {}", e)))?;
 
-        // Step 1: Write to parquet first (before SQLite transaction)
-        let written_files = storage.parquet_pool().write_batch(&spans).await?;
+        // Upsert sessions first (if spans have session_id)
+        storage::sqlite::sessions::upsert_sessions_batch_with_tx(&mut tx, &spans).await?;
 
-        // Step 2: Single SQLite transaction for all operations
-        // If this fails, we clean up parquet files
-        let sqlite_result = async {
-            let mut tx = pool.begin().await.map_err(|e| {
-                OtelError::StorageError(format!("Failed to begin transaction: {}", e))
-            })?;
+        // Upsert traces (spans have FK to traces)
+        storage::sqlite::traces::upsert_traces_batch_with_tx(&mut tx, &spans).await?;
 
-            // Upsert sessions first (if spans have session_id)
-            storage::sqlite::sessions::upsert_sessions_batch_with_tx(&mut tx, &spans).await?;
+        // Batch insert all spans
+        storage::sqlite::spans::insert_spans_batch_with_tx(&mut tx, &spans).await?;
 
-            // Upsert traces (spans have FK to traces)
-            storage::sqlite::traces::upsert_traces_batch_with_tx(&mut tx, &spans).await?;
+        // Batch insert span events
+        let all_events: Vec<_> = spans.iter().flat_map(|s| s.events.iter().cloned()).collect();
+        if !all_events.is_empty() {
+            storage::sqlite::insert_events_batch_with_tx(&mut tx, &all_events).await?;
+        }
 
-            // Batch insert all spans
-            storage::sqlite::spans::insert_spans_batch_with_tx(&mut tx, &spans).await?;
-
-            // Register parquet files and link spans (inside same transaction)
-            for file in &written_files {
-                let file_path_str = file.path.to_str().unwrap_or("");
-
-                // Register parquet file metadata
-                storage::sqlite::files::register_file_with_tx(
-                    &mut tx,
-                    file_path_str,
-                    &file.date_partition,
-                    file.span_count as i32,
-                    file.file_size as i64,
-                    file.min_start_time,
-                    file.max_end_time,
-                )
-                .await?;
-
-                // Update spans with their parquet file reference
-                storage::sqlite::spans::update_spans_parquet_file_with_tx(
-                    &mut tx,
-                    file_path_str,
-                    file.min_start_time,
-                    file.max_end_time,
-                )
-                .await?;
-            }
-
-            // Extract and store EAV attributes (inside same transaction)
-            Self::extract_and_store_attributes_with_tx(
-                &mut tx,
-                attr_cache,
-                &spans,
-                attribute_config,
-            )
+        // Extract and store EAV attributes (inside same transaction)
+        Self::extract_and_store_attributes_with_tx(&mut tx, attr_cache, &spans, attribute_config)
             .await?;
 
-            tx.commit().await.map_err(|e| {
-                OtelError::StorageError(format!("Failed to commit transaction: {}", e))
-            })?;
-
-            Ok::<(), OtelError>(())
-        }
-        .await;
-
-        // Step 3: If SQLite failed, delete the parquet files we just wrote
-        if let Err(e) = sqlite_result {
-            tracing::error!("SQLite transaction failed, cleaning up parquet files: {}", e);
-            for file in &written_files {
-                if let Err(del_err) = tokio::fs::remove_file(&file.path).await {
-                    tracing::warn!("Failed to cleanup parquet file {:?}: {}", file.path, del_err);
-                }
-            }
-            return Err(e);
-        }
+        tx.commit()
+            .await
+            .map_err(|e| OtelError::StorageError(format!("Failed to commit transaction: {}", e)))?;
 
         Ok(())
     }
@@ -507,6 +417,11 @@ impl OtelManager {
         self.sender.clone()
     }
 
+    /// Get the attribute key cache
+    pub fn attribute_cache(&self) -> &Arc<AttributeKeyCache> {
+        &self.attribute_cache
+    }
+
     /// Graceful shutdown - flushes pending data and stops background tasks
     pub async fn shutdown(&self) -> OtelResult<()> {
         tracing::debug!("Shutting down OtelManager...");
@@ -515,10 +430,9 @@ impl OtelManager {
 
         let spans = self.buffer.drain().await;
         if !spans.is_empty() {
-            Self::flush_spans(&self.storage, spans, &self.config.attributes).await?;
+            Self::flush_spans(&self.pool, &self.attribute_cache, spans, &self.config.attributes)
+                .await?;
         }
-
-        let _ = self.storage.parquet_pool().flush_all().await;
 
         // WAL checkpoint on shutdown is handled by DatabaseManager
 
@@ -528,19 +442,9 @@ impl OtelManager {
 
     /// Get health status for the OTel subsystem
     pub async fn health_status(&self) -> health::OtelHealthStatus {
-        let disk_usage = self.disk_monitor.get_usage_percent().unwrap_or(0);
-
-        let status = if self.disk_monitor.should_pause_ingestion() {
-            health::HealthState::Unhealthy
-        } else if disk_usage >= self.config.disk.warning_percent {
-            health::HealthState::Degraded
-        } else {
-            health::HealthState::Healthy
-        };
-
         health::OtelHealthStatus {
             enabled: self.config.enabled,
-            status,
+            status: health::HealthState::Healthy,
             components: health::OtelComponentStatus {
                 http_collector: health::ComponentHealth {
                     status: health::HealthState::Healthy,
@@ -565,11 +469,6 @@ impl OtelManager {
                     message: None,
                     last_activity: None,
                 },
-                parquet_writer: health::ComponentHealth {
-                    status: health::HealthState::Healthy,
-                    message: None,
-                    last_activity: None,
-                },
                 sse_manager: health::ComponentHealth {
                     status: health::HealthState::Healthy,
                     message: None,
@@ -583,15 +482,11 @@ impl OtelManager {
             },
             stats: {
                 // Query storage stats from SQLite
-                let storage_stats = storage::sqlite::get_storage_stats(self.storage.pool())
-                    .await
-                    .unwrap_or_default();
+                let storage_stats =
+                    storage::sqlite::get_storage_stats(&self.pool).await.unwrap_or_default();
                 health::OtelStats {
                     total_traces: storage_stats.total_traces,
                     total_spans: storage_stats.total_spans,
-                    storage_bytes: storage_stats.total_parquet_bytes,
-                    storage_files: storage_stats.total_parquet_files,
-                    disk_usage_percent: disk_usage,
                     buffer_size: self.buffer.count(),
                     buffer_capacity: self.config.ingestion.buffer_max_spans,
                     sse_connections: self.sse.subscription_count().await as u64,

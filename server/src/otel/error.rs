@@ -21,9 +21,6 @@ pub enum OtelError {
     #[error("Server temporarily unavailable")]
     BufferFull,
 
-    #[error("Server temporarily unavailable")]
-    DiskSpaceCritical(u8),
-
     #[error("Invalid request: {0}")]
     ValidationError(String),
 
@@ -32,6 +29,9 @@ pub enum OtelError {
 
     #[error("Session not found")]
     SessionNotFound(String),
+
+    #[error("Span not found")]
+    SpanNotFound(String),
 
     #[error("Too many connections")]
     TooManyConnections,
@@ -54,17 +54,8 @@ pub enum OtelError {
     #[error("Parse error: {0}")]
     ParseError(String),
 
-    #[error("Parquet error: {0}")]
-    Parquet(#[from] parquet::errors::ParquetError),
-
-    #[error("Arrow error: {0}")]
-    Arrow(#[from] arrow::error::ArrowError),
-
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-
-    #[error("Query error")]
-    Query(#[from] datafusion::error::DataFusionError),
 
     #[error("Server error")]
     ChannelSend,
@@ -93,10 +84,6 @@ impl IntoResponse for OtelError {
                 tracing::warn!("Server overloaded: {:?}", self);
                 (StatusCode::SERVICE_UNAVAILABLE, "Server temporarily unavailable".to_string())
             }
-            Self::DiskSpaceCritical(pct) => {
-                tracing::error!("Disk space critical: {}%", pct);
-                (StatusCode::SERVICE_UNAVAILABLE, "Server temporarily unavailable".to_string())
-            }
             Self::ValidationError(msg) => {
                 // Validation errors are safe to return (user input issues)
                 (StatusCode::BAD_REQUEST, format!("Invalid request: {}", msg))
@@ -108,6 +95,10 @@ impl IntoResponse for OtelError {
             Self::SessionNotFound(id) => {
                 tracing::debug!("Session not found: {}", id);
                 (StatusCode::NOT_FOUND, "Session not found".to_string())
+            }
+            Self::SpanNotFound(id) => {
+                tracing::debug!("Span not found: {}", id);
+                (StatusCode::NOT_FOUND, "Span not found".to_string())
             }
             Self::TooManyConnections => {
                 (StatusCode::TOO_MANY_REQUESTS, "Too many connections".to_string())
@@ -135,20 +126,8 @@ impl IntoResponse for OtelError {
                 tracing::error!("Parse error: {}", msg);
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
             }
-            Self::Parquet(e) => {
-                tracing::error!("Parquet error: {}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
-            }
-            Self::Arrow(e) => {
-                tracing::error!("Arrow error: {}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
-            }
             Self::Io(e) => {
                 tracing::error!("IO error: {}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
-            }
-            Self::Query(e) => {
-                tracing::error!("Query error: {}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
             }
         };
@@ -175,12 +154,6 @@ mod tests {
     #[test]
     fn test_otel_error_display_buffer_full() {
         let err = OtelError::BufferFull;
-        assert_eq!(err.to_string(), "Server temporarily unavailable");
-    }
-
-    #[test]
-    fn test_otel_error_display_disk_space_critical() {
-        let err = OtelError::DiskSpaceCritical(95);
         assert_eq!(err.to_string(), "Server temporarily unavailable");
     }
 

@@ -27,12 +27,13 @@ Follow these rules for comments:
 
 - **Minimal comments** - Code should be self-documenting. Only add comments when the code cannot explain itself.
 - **No process comments** - Never describe changes, migrations, or history (e.g., "moved from X", "was previously Y", "now handled by Z"). Comments describe the current state, not how we got here.
-- **Why, not what** - Explain *why* something is done if not obvious, never *what* the code does (the code shows that).
+- **Why, not what** - Explain _why_ something is done if not obvious, never _what_ the code does (the code shows that).
 - **No redundant comments** - Don't repeat what the code says: `// Increment counter` before `counter += 1`
 - **Doc comments for public API** - Use `///` for public functions, structs, and modules to describe purpose and usage.
 - **Keep comments current** - Outdated comments are worse than no comments. Delete rather than leave stale.
 
 **Good:**
+
 ```rust
 // Foreign keys must be enabled per-connection in SQLite
 .foreign_keys(true)
@@ -42,8 +43,8 @@ pub async fn init(path: &Path) -> Result<Self>
 ```
 
 **Bad:**
+
 ```rust
-// Now handled by DatabaseManager (previously in OtelManager)
 // TODO: Refactor this later
 // This function increments the counter
 counter += 1;
@@ -208,8 +209,8 @@ server/
 │   │   ├── health.rs     # Health status types
 │   │   ├── ingest/       # OTLP ingestion (HTTP + gRPC)
 │   │   ├── normalize/    # Framework detection, field extraction
-│   │   ├── storage/      # SQLite index + Parquet bulk storage
-│   │   ├── query/        # Query engine (SQLite + DataFusion)
+│   │   ├── storage/      # SQLite storage (spans, events, traces)
+│   │   ├── query/        # Query engine (SQLite)
 │   │   └── realtime/     # SSE subscriptions
 │   └── server/           # HTTP/gRPC server
 │       ├── mod.rs        # Server startup
@@ -234,7 +235,7 @@ Platform-aware storage directory management. Initialize first.
 let storage = StorageManager::init().await?;
 // Paths: config_dir(), data_dir(), cache_dir(), logs_dir(), temp_dir()
 // User config: user_config_dir() -> ~/.sideseat/ (not auto-created)
-// Subdirs: data_subdir(DataSubdir::Database), data_subdir(DataSubdir::Uploads)
+// Subdirs: data_subdir(DataSubdir::Uploads)
 ```
 
 #### ConfigManager
@@ -259,6 +260,7 @@ let value = secrets.get_value("OPENAI_API_KEY").await?;
 ```
 
 **Important:**
+
 - All secrets (including JWT signing keys) MUST be stored via SecretManager, never in plain files
 - On macOS, the keychain prompts once on first access - click "Always Allow" to grant permanent access to all secrets
 - The vault design ensures a single keychain entry for all secrets, so one permission grants access to everything
@@ -268,18 +270,20 @@ let value = secrets.get_value("OPENAI_API_KEY").await?;
 OpenTelemetry collector for AI agent observability. Handles OTLP ingestion, storage, and real-time streaming.
 
 ```rust
-let otel = OtelManager::init(&storage, config.otel.clone()).await?;
+let otel = OtelManager::init(config.otel.clone(), pool).await?;
 // Access components:
 // otel.sender() - Channel for ingesting spans
 // otel.query_engine - SQLite queries
-// otel.storage - Parquet + SQLite storage
+// otel.pool - SQLite connection pool
+// otel.attribute_cache() - Attribute key cache for EAV filtering
 // otel.sse - Real-time SSE subscriptions
 ```
 
 **Architecture:**
+
 - **Ingestion**: HTTP (`/otel/v1/traces`) and gRPC (port 4317) OTLP endpoints
-- **Storage**: SQLite for indexing + Parquet for bulk span data
-- **Query**: SQLite for indexed queries, DataFusion for analytics
+- **Storage**: SQLite for span indexing and full span data (JSON)
+- **Query**: SQLite for all queries with indexed columns
 - **Real-time**: SSE subscriptions with filtered events
 
 ### Configuration
@@ -300,19 +304,18 @@ let otel = OtelManager::init(&storage, config.otel.clone()).await?;
   "auth": { "enabled": true },
   "otel": {
     "enabled": true,
-    "grpc_enabled": true,
-    "grpc_port": 4317,
-    "retention_max_gb": 20
+    "grpc": { "enabled": true, "port": 4317 },
+    "retention": { "days": 30 }
   }
 }
 ```
 
 **OTel Configuration Options:**
+
 - `otel.enabled` - Enable/disable OTel collector (default: true)
-- `otel.grpc_enabled` - Enable gRPC OTLP endpoint (default: true)
-- `otel.grpc_port` - gRPC port (default: 4317)
-- `otel.retention_days` - Optional max age for traces
-- `otel.retention_max_gb` - Max storage size in GB (default: 20)
+- `otel.grpc.enabled` - Enable gRPC OTLP endpoint (default: true)
+- `otel.grpc.port` - gRPC port (default: 4317)
+- `otel.retention.days` - Retention period in days (default: null, no limit)
 
 ### Frontend (shadcn/ui)
 
@@ -334,24 +337,29 @@ The frontend uses [shadcn/ui](https://ui.shadcn.com) components. Reference: http
 ### API Endpoints
 
 **Public Endpoints (no auth):**
+
 - `GET /api/v1/health` - Health check with OTel status
 - `POST /api/v1/auth/login` - Exchange bootstrap token for JWT
 - `GET /api/v1/auth/status` - Check auth status
 - `POST /api/v1/auth/logout` - Clear session
 
 **OTel Query Endpoints (no auth):**
-- `GET /api/v1/traces` - List traces with filters
-- `GET /api/v1/traces/{trace_id}` - Get trace details
+
+- `GET /api/v1/traces` - List traces with filters (includes session_id)
+- `GET /api/v1/traces/{trace_id}` - Get trace details with attributes
 - `DELETE /api/v1/traces/{trace_id}` - Soft delete trace
 - `GET /api/v1/traces/filters` - Get available filter options
 - `GET /api/v1/traces/sse` - Real-time trace updates (SSE)
-- `GET /api/v1/spans` - Query spans with filters
+- `GET /api/v1/spans` - Query spans with Gen AI fields
+- `GET /api/v1/spans/{span_id}` - Get span detail with events
+- `GET /api/v1/spans/{span_id}/events` - Get events for a span
 - `GET /api/v1/sessions` - List sessions with filters
 - `GET /api/v1/sessions/{session_id}` - Get session details
 - `DELETE /api/v1/sessions/{session_id}` - Soft delete session
 - `GET /api/v1/sessions/{session_id}/traces` - Get traces for a session
 
 **OTel Collector Endpoints (no auth, OTLP standard):**
+
 - `POST /otel/v1/traces` - OTLP HTTP trace ingestion
 - `gRPC :4317` - OTLP gRPC trace ingestion
 
@@ -360,10 +368,12 @@ The frontend uses [shadcn/ui](https://ui.shadcn.com) components. Reference: http
 All list endpoints use **cursor-based pagination** with consistent response format:
 
 **Request params:**
+
 - `cursor` - Opaque cursor string from previous response
 - `limit` - Max items per page (default: 50, max: 100)
 
 **Response format:**
+
 ```json
 {
   "traces": [...],
@@ -373,6 +383,7 @@ All list endpoints use **cursor-based pagination** with consistent response form
 ```
 
 **Example:**
+
 ```bash
 # First page
 curl "/api/v1/traces?limit=20"

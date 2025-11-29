@@ -30,7 +30,7 @@ impl QueryEngine {
             "SELECT t.trace_id, t.session_id, t.root_span_id, t.root_span_name, t.service_name, t.detected_framework, \
              t.span_count, t.start_time_ns, t.end_time_ns, t.duration_ns, \
              t.total_input_tokens, t.total_output_tokens, t.total_tokens, t.has_errors \
-             FROM traces t WHERE t.deleted_at IS NULL",
+             FROM traces t WHERE 1=1",
         );
 
         let mut args: Vec<String> = Vec::new();
@@ -220,10 +220,11 @@ impl QueryEngine {
     ) -> Result<Vec<SpanIndex>, OtelError> {
         let mut sql = String::from(
             "SELECT span_id, trace_id, session_id, parent_span_id, span_name, service_name, \
-             detected_framework, detected_category, gen_ai_agent_name, \
-             gen_ai_tool_name, gen_ai_request_model, start_time_ns, \
-             end_time_ns, duration_ns, status_code, usage_input_tokens, \
-             usage_output_tokens, parquet_file \
+             detected_framework, detected_category, gen_ai_system, gen_ai_operation_name, \
+             gen_ai_agent_name, gen_ai_tool_name, gen_ai_request_model, gen_ai_response_model, \
+             start_time_ns, end_time_ns, duration_ns, time_to_first_token_ms, request_duration_ms, \
+             status_code, usage_input_tokens, usage_output_tokens, usage_total_tokens, \
+             usage_cache_read_tokens, usage_cache_write_tokens, data_json \
              FROM spans WHERE 1=1",
         );
 
@@ -380,7 +381,181 @@ fn escape_like_pattern(search: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sqlite::schema::SCHEMA;
 
+    async fn setup_test_db() -> SqlitePool {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::raw_sql(SCHEMA).execute(&pool).await.unwrap();
+        pool
+    }
+
+    async fn insert_test_trace(pool: &SqlitePool, trace_id: &str, service_name: &str) {
+        let now = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
+        sqlx::query(
+            "INSERT INTO traces (trace_id, service_name, detected_framework, span_count, start_time_ns, has_errors, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(trace_id)
+        .bind(service_name)
+        .bind("unknown")
+        .bind(1)
+        .bind(now)
+        .bind(false)
+        .bind(now)
+        .bind(now)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    async fn insert_test_span(pool: &SqlitePool, trace_id: &str, span_id: &str) {
+        let now = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
+        sqlx::query(
+            "INSERT INTO spans (span_id, trace_id, span_name, service_name, detected_framework, start_time_ns, status_code) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(span_id)
+        .bind(trace_id)
+        .bind("test-span")
+        .bind("test-service")
+        .bind("unknown")
+        .bind(now)
+        .bind(0)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_query_engine_new() {
+        let pool = setup_test_db().await;
+        let _engine = QueryEngine::new(pool);
+    }
+
+    #[tokio::test]
+    async fn test_query_traces_empty() {
+        let pool = setup_test_db().await;
+        let engine = QueryEngine::new(pool);
+        let filter = TraceFilter::default();
+
+        let result = engine.query_traces(&filter, None, 100, None).await.unwrap();
+        assert!(result.items.is_empty());
+        assert!(!result.has_more);
+        assert!(result.next_cursor.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_query_traces_with_data() {
+        let pool = setup_test_db().await;
+        insert_test_trace(&pool, "trace-1", "test-service").await;
+        insert_test_trace(&pool, "trace-2", "test-service").await;
+
+        let engine = QueryEngine::new(pool);
+        let filter = TraceFilter::default();
+
+        let result = engine.query_traces(&filter, None, 100, None).await.unwrap();
+        assert_eq!(result.items.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_query_traces_filter_by_service() {
+        let pool = setup_test_db().await;
+        insert_test_trace(&pool, "trace-1", "service-a").await;
+        insert_test_trace(&pool, "trace-2", "service-b").await;
+
+        let engine = QueryEngine::new(pool);
+        let filter =
+            TraceFilter { service_name: Some("service-a".to_string()), ..Default::default() };
+
+        let result = engine.query_traces(&filter, None, 100, None).await.unwrap();
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].service_name, "service-a");
+    }
+
+    #[tokio::test]
+    async fn test_query_traces_with_limit() {
+        let pool = setup_test_db().await;
+        insert_test_trace(&pool, "trace-1", "test-service").await;
+        insert_test_trace(&pool, "trace-2", "test-service").await;
+        insert_test_trace(&pool, "trace-3", "test-service").await;
+
+        let engine = QueryEngine::new(pool);
+        let filter = TraceFilter::default();
+
+        let result = engine.query_traces(&filter, None, 2, None).await.unwrap();
+        assert_eq!(result.items.len(), 2);
+        assert!(result.has_more);
+        assert!(result.next_cursor.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_query_traces_with_search() {
+        let pool = setup_test_db().await;
+        insert_test_trace(&pool, "abc123", "test-service").await;
+        insert_test_trace(&pool, "xyz789", "test-service").await;
+
+        let engine = QueryEngine::new(pool);
+        let filter = TraceFilter { search: Some("abc".to_string()), ..Default::default() };
+
+        let result = engine.query_traces(&filter, None, 100, None).await.unwrap();
+        assert_eq!(result.items.len(), 1);
+        assert!(result.items[0].trace_id.contains("abc"));
+    }
+
+    #[tokio::test]
+    async fn test_query_spans_empty() {
+        let pool = setup_test_db().await;
+        let engine = QueryEngine::new(pool);
+        let filter = SpanFilter::default();
+
+        let result = engine.query_spans(&filter, 100).await.unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_query_spans_with_data() {
+        let pool = setup_test_db().await;
+        insert_test_trace(&pool, "trace-1", "test-service").await;
+        insert_test_span(&pool, "trace-1", "span-1").await;
+        insert_test_span(&pool, "trace-1", "span-2").await;
+
+        let engine = QueryEngine::new(pool);
+        let filter = SpanFilter::default();
+
+        let result = engine.query_spans(&filter, 100).await.unwrap();
+        assert_eq!(result.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_query_spans_filter_by_trace_id() {
+        let pool = setup_test_db().await;
+        insert_test_trace(&pool, "trace-1", "test-service").await;
+        insert_test_trace(&pool, "trace-2", "test-service").await;
+        insert_test_span(&pool, "trace-1", "span-1").await;
+        insert_test_span(&pool, "trace-2", "span-2").await;
+
+        let engine = QueryEngine::new(pool);
+        let filter = SpanFilter { trace_id: Some("trace-1".to_string()), ..Default::default() };
+
+        let result = engine.query_spans(&filter, 100).await.unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].span_id, "span-1");
+    }
+
+    #[tokio::test]
+    async fn test_query_spans_with_limit() {
+        let pool = setup_test_db().await;
+        insert_test_trace(&pool, "trace-1", "test-service").await;
+        insert_test_span(&pool, "trace-1", "span-1").await;
+        insert_test_span(&pool, "trace-1", "span-2").await;
+        insert_test_span(&pool, "trace-1", "span-3").await;
+
+        let engine = QueryEngine::new(pool);
+        let filter = SpanFilter::default();
+
+        let result = engine.query_spans(&filter, 2).await.unwrap();
+        assert_eq!(result.len(), 2);
+    }
+
+    // escape_like_pattern tests
     #[test]
     fn test_escape_like_pattern_no_special_chars() {
         assert_eq!(escape_like_pattern("hello"), "%hello%");

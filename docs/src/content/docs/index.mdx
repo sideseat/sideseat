@@ -50,7 +50,7 @@ Click the URL shown in the terminal (e.g., `http://localhost:5001/ui?token=...`)
     Automatic detection of LangChain, LlamaIndex, Strands, and other AI frameworks with normalized field extraction.
   </Card>
   <Card title="Efficient Storage" icon="laptop">
-    Parquet-based storage with FIFO retention, bounded memory buffers, and disk safety monitoring.
+    SQLite-based storage with FIFO retention, bounded memory buffers, and disk safety monitoring.
   </Card>
 </CardGrid>
 
@@ -58,7 +58,7 @@ Click the URL shown in the terminal (e.g., `http://localhost:5001/ui?token=...`)
 
 - **Backend**: Rust with Axum framework
 - **Frontend**: React 19 with Vite
-- **Telemetry**: OpenTelemetry (OTLP) with Parquet storage
+- **Telemetry**: OpenTelemetry (OTLP) with SQLite storage
 - **Database**: SQLite with migrations
 - **CLI**: Distributed as NPM package
 - **Docs**: Astro Starlight
@@ -78,10 +78,24 @@ Click the URL shown in the terminal (e.g., `http://localhost:5001/ui?token=...`)
   <Card title="OpenTelemetry Collector" icon="magnifier">
     [Configure trace collection](/reference/otel/) for your AI agents.
   </Card>
-  <Card title="Configuration" icon="document">
+  <Card title="REST API Reference" icon="document">
+    [Query traces, spans, and sessions](/reference/api/) programmatically.
+  </Card>
+  <Card title="Configuration" icon="setting">
     [Configure](/reference/config/) server, storage, and retention settings.
   </Card>
+</CardGrid>
+
+## Reference Documentation
+
+<CardGrid>
   <Card title="Authentication" icon="seti:lock">
     [Secure your instance](/reference/auth/) with token-based authentication.
+  </Card>
+  <Card title="Storage Manager" icon="laptop">
+    [Platform paths](/reference/storage/) for data, config, cache, and logs.
+  </Card>
+  <Card title="Secret Manager" icon="seti:key">
+    [Credential storage](/reference/secrets/) using OS-native secure backends.
   </Card>
 </CardGrid>

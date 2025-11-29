@@ -6,7 +6,6 @@ from .errors import ErrorTests
 from .ingestion import IngestionTests
 from .integrity import IntegrityTests
 from .limits import LimitsTests
-from .retention import RetentionTests
 from .sessions import SessionTests
 from .shutdown import ShutdownTests
 from .sse import SSETests
@@ -16,7 +15,6 @@ __all__ = [
     "APITests",
     "SessionTests",
     "SSETests",
-    "RetentionTests",
     "AuthTests",
     "IntegrityTests",
     "ErrorTests",

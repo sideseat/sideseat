@@ -117,18 +117,9 @@ CLI arguments have the highest priority and always override other sources.
       "flush_interval_ms": 100,
       "flush_batch_size": 500
     },
-    "storage": {
-      "max_file_size_mb": 64,
-      "row_group_size": 10000
-    },
     "retention": {
       "days": null,
-      "max_mb": 20480,
       "check_interval_secs": 300
-    },
-    "disk": {
-      "warning_percent": 80,
-      "critical_percent": 95
     },
     "limits": {
       "max_span_name_len": 1000,
@@ -203,27 +194,12 @@ OpenTelemetry collector configuration for trace ingestion and storage. Settings 
 | `flush_interval_ms` | number | `100` | Flush interval in milliseconds |
 | `flush_batch_size` | number | `500` | Batch size for flush operations |
 
-#### OTel Storage Config (`otel.storage`)
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `max_file_size_mb` | number | `64` | Maximum Parquet file size in MB |
-| `row_group_size` | number | `10000` | Rows per row group in Parquet files |
-
 #### OTel Retention Config (`otel.retention`)
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `days` | number | `null` | Retention days (null = size-based only) |
-| `max_mb` | number | `20480` | Maximum storage size in MB (FIFO) |
+| `days` | number | `null` | Retention period in days (null = no limit) |
 | `check_interval_secs` | number | `300` | Retention check interval (5 min) |
-
-#### OTel Disk Config (`otel.disk`)
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `warning_percent` | number | `80` | Disk usage warning threshold |
-| `critical_percent` | number | `95` | Disk usage critical threshold |
 
 #### OTel Limits Config (`otel.limits`)
 

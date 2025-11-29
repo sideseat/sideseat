@@ -54,20 +54,20 @@ pub enum StorageType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DataSubdir {
     /// OpenTelemetry trace data (data/traces/)
-    Traces,
+    Uploads,
 }
 
 impl DataSubdir {
     /// Returns the directory name for this subdirectory
     pub const fn as_str(&self) -> &'static str {
         match self {
-            DataSubdir::Traces => "traces",
+            DataSubdir::Uploads => "uploads",
         }
     }
 
     /// Returns all data subdirectories
     pub const fn all() -> &'static [DataSubdir] {
-        &[DataSubdir::Traces]
+        &[DataSubdir::Uploads]
     }
 }
 
@@ -501,8 +501,8 @@ mod tests {
 
         let storage = StorageManager::init().await.unwrap();
 
-        let traces_path = storage.data_subdir(DataSubdir::Traces);
-        assert!(traces_path.ends_with("traces"));
+        let uploads_path = storage.data_subdir(DataSubdir::Uploads);
+        assert!(uploads_path.ends_with("uploads"));
 
         // Cleanup after assertions
         std::env::set_current_dir(&original_dir).unwrap();

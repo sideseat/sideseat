@@ -34,6 +34,7 @@ def main():
     bedrock_model = BedrockModel(model_id=MODEL_ID, boto_session=session)
 
     telemetry = StrandsTelemetry()
+    telemetry.setup_console_exporter()
     telemetry.setup_otlp_exporter(
         endpoint=OTLP_ENDPOINT,
         headers={"key1": "value1", "key2": "value2"},

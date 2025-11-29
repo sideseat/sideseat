@@ -111,7 +111,7 @@ class APITests(BaseTestSuite):
         return False
 
     def test_trace_delete(self) -> bool:
-        """Test DELETE /api/v1/traces/{id}."""
+        """Test DELETE /api/v1/traces/{id} - hard delete trace and all associated data."""
         log_info("Testing trace deletion...")
 
         # Create a trace specifically for deletion
@@ -187,6 +187,84 @@ class APITests(BaseTestSuite):
 
         return False
 
+    def test_span_detail(self) -> bool:
+        """Test GET /api/v1/spans/{span_id} returns span with events."""
+        log_info("Testing span detail with events...")
+
+        if not self.test_trace_id:
+            self.skip("No test trace available")
+            return True
+
+        # First get a span from the trace
+        result = api_call(
+            f"/spans?trace_id={encode_param(self.test_trace_id)}&limit=1"
+        )
+        if not result or not isinstance(result, dict):
+            self.skip("No spans available for detail test")
+            return True
+
+        spans = result.get("spans", [])
+        if not spans:
+            self.skip("No spans found for trace")
+            return True
+
+        span_id = spans[0].get("span_id")
+        if not span_id:
+            self.skip("Span missing span_id")
+            return True
+
+        # Get span detail
+        detail = api_call(f"/spans/{span_id}")
+        if not self.assert_not_none(detail, f"Span detail for {span_id[:16]}..."):
+            return False
+
+        if isinstance(detail, dict):
+            # Verify span fields are present
+            self.assert_true("span_id" in detail, "Detail has span_id")
+            self.assert_true("trace_id" in detail, "Detail has trace_id")
+            # Verify events array is present (may be empty)
+            self.assert_true("events" in detail, "Detail includes events array")
+            return True
+
+        return False
+
+    def test_span_events(self) -> bool:
+        """Test GET /api/v1/spans/{span_id}/events."""
+        log_info("Testing span events endpoint...")
+
+        if not self.test_trace_id:
+            self.skip("No test trace available")
+            return True
+
+        # First get a span from the trace
+        result = api_call(
+            f"/spans?trace_id={encode_param(self.test_trace_id)}&limit=1"
+        )
+        if not result or not isinstance(result, dict):
+            self.skip("No spans available for events test")
+            return True
+
+        spans = result.get("spans", [])
+        if not spans:
+            self.skip("No spans found for trace")
+            return True
+
+        span_id = spans[0].get("span_id")
+        if not span_id:
+            self.skip("Span missing span_id")
+            return True
+
+        # Get span events
+        events_result = api_call(f"/spans/{span_id}/events")
+        if not self.assert_not_none(events_result, f"Events for span {span_id[:16]}..."):
+            return False
+
+        if isinstance(events_result, dict):
+            # Verify events array is present
+            return self.assert_true("events" in events_result, "Response has events array")
+
+        return False
+
     def test_pagination(self) -> bool:
         """Test cursor-based pagination."""
         log_info("Testing pagination...")
@@ -258,6 +336,8 @@ class APITests(BaseTestSuite):
         self.test_trace_detail()
         self.test_span_list()
         self.test_span_filters()
+        self.test_span_detail()
+        self.test_span_events()
         self.test_pagination()
         self.test_filter_options()
         self.test_trace_delete()

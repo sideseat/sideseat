@@ -235,65 +235,66 @@ class LoadTests(BaseTestSuite):
             f"Burst load handled: {success_count}/{burst_size}",
         )
 
-    def test_storage_growth(self) -> bool:
-        """Test that parquet files are created correctly during ingestion."""
-        log_info("Testing storage growth...")
+    def test_storage_persistence(self) -> bool:
+        """Test that traces are persisted correctly to SQLite storage.
 
-        from pathlib import Path
+        Note: SQLite uses WAL mode with page recycling, so file size may not
+        grow after initial allocation. We verify data persistence by checking
+        trace count rather than file size.
+        """
+        log_info("Testing storage persistence...")
+
+        from ...api import api_call
         from ...config import DATA_DIR
 
-        traces_dir = DATA_DIR / "traces"
+        db_path = DATA_DIR / "sideseat.db"
 
-        # Get initial parquet file count and size
-        initial_files = (
-            list(traces_dir.rglob("*.parquet")) if traces_dir.exists() else []
+        # Ingest a batch of traces with unique service name
+        test_service = f"storage-test-{int(time.time())}"
+        traces = create_batch_traces(
+            count=20, spans_per_trace=10, service_name=test_service
         )
-        initial_size = (
-            sum(f.stat().st_size for f in initial_files) if initial_files else 0
-        )
-
-        # Ingest a batch of traces
-        traces = create_batch_traces(count=20, spans_per_trace=10)
         success_count = 0
+        trace_ids = []
 
         for trace_id, payload in traces:
             success, _ = send_otlp_traces_http(payload)
             if success:
                 success_count += 1
+                trace_ids.append(trace_id)
 
-        # Wait for data to be written to parquet
-        time.sleep(5)
+        # Wait for data to be written
+        time.sleep(2)
 
-        # Check parquet files after ingestion
-        final_files = list(traces_dir.rglob("*.parquet")) if traces_dir.exists() else []
-        final_size = sum(f.stat().st_size for f in final_files) if final_files else 0
+        # Verify traces were persisted by querying for them
+        persisted_count = 0
+        result = api_call(f"/traces?service={test_service}&limit=100")
+        if result and isinstance(result, dict):
+            persisted_count = len(result.get("traces", []))
 
-        size_growth = final_size - initial_size
-        file_count = len(final_files)
+        # Check database file exists
+        db_size = db_path.stat().st_size if db_path.exists() else 0
 
-        self.results["storage_growth"] = {
+        self.results["storage_persistence"] = {
             "traces_ingested": success_count,
-            "parquet_files": file_count,
-            "size_bytes": final_size,
-            "size_growth_bytes": size_growth,
+            "traces_persisted": persisted_count,
+            "db_size_bytes": db_size,
         }
 
-        log_info(f"Storage: {file_count} parquet files, {final_size} bytes total")
+        log_info(
+            f"Storage: {persisted_count}/{success_count} traces persisted, "
+            f"DB size: {db_size} bytes"
+        )
 
-        # Verify parquet files exist and have grown
-        if file_count > 0:
+        # Verify database exists and traces were persisted
+        if db_path.exists() and db_size > 0:
             return self.assert_greater(
-                int(final_size),
-                0,
-                f"Parquet storage: {file_count} files, {final_size} bytes",
+                persisted_count,
+                int(success_count * 0.9),  # Allow 10% loss due to timing
+                f"Traces persisted: {persisted_count}/{success_count}",
             )
 
-        # If no parquet files, data might be in SQLite only
-        db_path = DATA_DIR / "sideseat.db"
-        if db_path.exists() and db_path.stat().st_size > 0:
-            return self.assert_true(True, "Data stored in SQLite (no parquet files)")
-
-        return self.assert_true(False, "No storage files found")
+        return self.assert_true(False, "SQLite database not found or empty")
 
     def get_results(self) -> dict[str, Any]:
         """Get performance test results."""
@@ -306,7 +307,7 @@ class LoadTests(BaseTestSuite):
         self.test_large_batch()
         self.test_sustained_load()
         self.test_burst_load()
-        self.test_storage_growth()
+        self.test_storage_persistence()
 
         log_info("Performance results summary:")
         for test_name, result in self.results.items():

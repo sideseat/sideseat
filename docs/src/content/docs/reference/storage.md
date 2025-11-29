@@ -9,14 +9,14 @@ The Storage Manager provides a unified API for managing application storage acro
 
 SideSeat stores data in platform-appropriate locations following OS conventions:
 
-| Type | Windows | macOS | Linux |
-|------|---------|-------|-------|
-| **User Config** | `%USERPROFILE%\SideSeat\` | `~/.sideseat/` | `~/.sideseat/` |
-| **Config** | `%APPDATA%\SideSeat\config\` | `~/Library/Application Support/SideSeat/` | `$XDG_CONFIG_HOME/sideseat/` |
-| **Data** | `%APPDATA%\SideSeat\data\` | `~/Library/Application Support/SideSeat/` | `$XDG_DATA_HOME/sideseat/` |
-| **Cache** | `%LOCALAPPDATA%\SideSeat\cache\` | `~/Library/Caches/SideSeat/` | `$XDG_CACHE_HOME/sideseat/` |
-| **Logs** | `%LOCALAPPDATA%\SideSeat\logs\` | `~/Library/Logs/SideSeat/` | `$XDG_STATE_HOME/sideseat/` |
-| **Temp** | `%TEMP%\sideseat\` | `$TMPDIR/sideseat/` | `/tmp/sideseat/` |
+| Type            | Windows                          | macOS                                     | Linux                        |
+| --------------- | -------------------------------- | ----------------------------------------- | ---------------------------- |
+| **User Config** | `%USERPROFILE%\SideSeat\`        | `~/.sideseat/`                            | `~/.sideseat/`               |
+| **Config**      | `%APPDATA%\SideSeat\config\`     | `~/Library/Application Support/SideSeat/` | `$XDG_CONFIG_HOME/sideseat/` |
+| **Data**        | `%APPDATA%\SideSeat\data\`       | `~/Library/Application Support/SideSeat/` | `$XDG_DATA_HOME/sideseat/`   |
+| **Cache**       | `%LOCALAPPDATA%\SideSeat\cache\` | `~/Library/Caches/SideSeat/`              | `$XDG_CACHE_HOME/sideseat/`  |
+| **Logs**        | `%LOCALAPPDATA%\SideSeat\logs\`  | `~/Library/Logs/SideSeat/`                | `$XDG_STATE_HOME/sideseat/`  |
+| **Temp**        | `%TEMP%\sideseat\`               | `$TMPDIR/sideseat/`                       | `/tmp/sideseat/`             |
 
 ### Linux XDG Defaults
 
@@ -44,11 +44,11 @@ temp/             # Temporary processing files
 
 You can override storage locations using environment variables:
 
-| Variable | Description |
-|----------|-------------|
+| Variable              | Description               |
+| --------------------- | ------------------------- |
 | `SIDESEAT_CONFIG_DIR` | Override config directory |
-| `SIDESEAT_DATA_DIR` | Override data directory |
-| `SIDESEAT_CACHE_DIR` | Override cache directory |
+| `SIDESEAT_DATA_DIR`   | Override data directory   |
+| `SIDESEAT_CACHE_DIR`  | Override cache directory  |
 
 ```bash
 # Example: Use custom data directory
@@ -62,6 +62,7 @@ The user config directory (`~/.sideseat` on Unix, `%USERPROFILE%\SideSeat` on Wi
 To use custom configuration:
 
 1. Create the directory manually:
+
    ```bash
    # Unix/macOS
    mkdir -p ~/.sideseat
@@ -114,32 +115,31 @@ pub enum StorageType {
 
 ```rust
 pub enum DataSubdir {
-    Database,    // data/db/
     Uploads,     // data/uploads/
 }
 ```
 
 ### StorageManager Methods
 
-| Method | Description |
-|--------|-------------|
-| `init()` | Initialize storage manager and create directories |
-| `work_dir()` | Get current working directory (where app was started) |
-| `user_config_dir()` | Get user config directory path |
-| `config_dir()` | Get config directory path |
-| `data_dir()` | Get data directory path |
-| `cache_dir()` | Get cache directory path |
-| `logs_dir()` | Get logs directory path |
-| `temp_dir()` | Get temp directory path |
-| `using_fallback()` | Check if using fallback storage |
-| `data_subdir(subdir)` | Get path to a data subdirectory |
-| `get_path(type, filename)` | Get full path for a file |
-| `exists(path)` | Check if a path exists |
-| `is_writable(type)` | Check if a storage location is writable |
-| `user_config_exists()` | Check if user config directory exists |
-| `user_config_path(filename)` | Get path to a user config file |
-| `read_user_config(filename)` | Read a user config file |
-| `list_user_config_files()` | List files in user config directory |
+| Method                       | Description                                           |
+| ---------------------------- | ----------------------------------------------------- |
+| `init()`                     | Initialize storage manager and create directories     |
+| `work_dir()`                 | Get current working directory (where app was started) |
+| `user_config_dir()`          | Get user config directory path                        |
+| `config_dir()`               | Get config directory path                             |
+| `data_dir()`                 | Get data directory path                               |
+| `cache_dir()`                | Get cache directory path                              |
+| `logs_dir()`                 | Get logs directory path                               |
+| `temp_dir()`                 | Get temp directory path                               |
+| `using_fallback()`           | Check if using fallback storage                       |
+| `data_subdir(subdir)`        | Get path to a data subdirectory                       |
+| `get_path(type, filename)`   | Get full path for a file                              |
+| `exists(path)`               | Check if a path exists                                |
+| `is_writable(type)`          | Check if a storage location is writable               |
+| `user_config_exists()`       | Check if user config directory exists                 |
+| `user_config_path(filename)` | Get path to a user config file                        |
+| `read_user_config(filename)` | Read a user config file                               |
+| `list_user_config_files()`   | List files in user config directory                   |
 
 ## Usage Examples
 

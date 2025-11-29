@@ -54,7 +54,7 @@ pub async fn start(cli_config: CliConfig) -> Result<()> {
     db.start_checkpoint_task(shutdown_rx.clone());
 
     let otel_manager = if config.otel.enabled {
-        match OtelManager::init(&storage, config.otel.clone(), db.pool().clone()).await {
+        match OtelManager::init(config.otel.clone(), db.pool().clone()).await {
             Ok(otel) => {
                 tracing::debug!("OTel collector enabled");
                 Some(Arc::new(otel))

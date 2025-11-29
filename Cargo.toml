@@ -50,14 +50,6 @@ uuid = { version = "1.11", features = ["v4"] }
 time = "0.3"
 
 # OpenTelemetry dependencies
-arrow = { version = "54", default-features = false, features = ["ipc"] }
-parquet = { version = "54", default-features = false, features = [
-  "arrow",
-  "async",
-  "snap",
-  "zstd",
-] }
-datafusion = "44"
 opentelemetry-proto = { version = "0.28", features = [
   "trace",
   "metrics",

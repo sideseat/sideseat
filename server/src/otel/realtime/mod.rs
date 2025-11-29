@@ -7,5 +7,4 @@ mod sse;
 
 pub use broadcast::EventBroadcaster;
 pub use events::{EventPayload, SpanEvent, TraceEvent};
-pub use matcher::EventMatcher;
-pub use sse::{SseManager, SseSubscription};
+pub use sse::SseManager;

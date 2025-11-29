@@ -136,7 +136,7 @@ pub async fn get_session(
                trace_count, span_count,
                total_input_tokens, total_output_tokens, total_tokens,
                has_errors, first_seen_ns, last_seen_ns
-        FROM sessions WHERE session_id = ? AND deleted_at IS NULL
+        FROM sessions WHERE session_id = ?
         "#,
     )
     .bind(session_id)
@@ -175,7 +175,7 @@ pub async fn list_sessions(
                total_input_tokens, total_output_tokens, total_tokens,
                has_errors, first_seen_ns, last_seen_ns
         FROM sessions
-        WHERE deleted_at IS NULL
+        WHERE 1=1
         "#,
     );
 
@@ -245,19 +245,50 @@ pub async fn list_sessions(
         .collect())
 }
 
-/// Soft delete a session
-pub async fn soft_delete_session(pool: &SqlitePool, session_id: &str) -> Result<bool, OtelError> {
-    let now = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
+/// Hard delete a session and all associated traces
+pub async fn delete_session(pool: &SqlitePool, session_id: &str) -> Result<bool, OtelError> {
+    use super::traces::delete_trace;
 
-    let result = sqlx::query(
-        "UPDATE sessions SET deleted_at = ?, updated_at = ? WHERE session_id = ? AND deleted_at IS NULL",
-    )
-    .bind(now)
-    .bind(now)
-    .bind(session_id)
-    .execute(pool)
-    .await
-    .map_err(|e| OtelError::StorageError(format!("Failed to delete session: {}", e)))?;
+    // Start transaction for atomic delete
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| OtelError::StorageError(format!("Failed to begin transaction: {}", e)))?;
+
+    // Check if session exists first
+    let exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM sessions WHERE session_id = ?")
+        .bind(session_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| OtelError::StorageError(format!("Failed to check session: {}", e)))?;
+
+    if exists.is_none() {
+        return Ok(false);
+    }
+
+    // Get all trace_ids for this session
+    let trace_ids: Vec<String> =
+        sqlx::query_scalar("SELECT trace_id FROM traces WHERE session_id = ?")
+            .bind(session_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|e| OtelError::StorageError(format!("Failed to get trace ids: {}", e)))?;
+
+    tx.commit()
+        .await
+        .map_err(|e| OtelError::StorageError(format!("Failed to commit transaction: {}", e)))?;
+
+    // Delete all traces for this session (this handles all cascading deletes)
+    for trace_id in &trace_ids {
+        delete_trace(pool, trace_id).await?;
+    }
+
+    // Delete the session
+    let result = sqlx::query("DELETE FROM sessions WHERE session_id = ?")
+        .bind(session_id)
+        .execute(pool)
+        .await
+        .map_err(|e| OtelError::StorageError(format!("Failed to delete session: {}", e)))?;
 
     Ok(result.rows_affected() > 0)
 }
@@ -265,6 +296,27 @@ pub async fn soft_delete_session(pool: &SqlitePool, session_id: &str) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sqlite::schema::SCHEMA;
+
+    async fn setup_test_db() -> SqlitePool {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::raw_sql(SCHEMA).execute(&pool).await.unwrap();
+        pool
+    }
+
+    fn create_test_span(trace_id: &str, span_id: &str, session_id: Option<&str>) -> NormalizedSpan {
+        NormalizedSpan {
+            trace_id: trace_id.to_string(),
+            span_id: span_id.to_string(),
+            session_id: session_id.map(String::from),
+            start_time_unix_nano: 1000000000,
+            end_time_unix_nano: Some(2000000000),
+            service_name: "test-service".to_string(),
+            span_name: "test-span".to_string(),
+            status_code: 0,
+            ..Default::default()
+        }
+    }
 
     #[test]
     fn test_session_summary_fields() {
@@ -287,5 +339,212 @@ mod tests {
         assert_eq!(session.trace_count, 5);
         assert_eq!(session.span_count, 25);
         assert!(!session.has_errors);
+    }
+
+    #[test]
+    fn test_session_summary_clone() {
+        let session = SessionSummary {
+            session_id: "test".to_string(),
+            user_id: None,
+            service_name: None,
+            trace_count: 1,
+            span_count: 1,
+            total_input_tokens: None,
+            total_output_tokens: None,
+            total_tokens: None,
+            has_errors: false,
+            first_seen_ns: 1000,
+            last_seen_ns: 2000,
+        };
+        let cloned = session.clone();
+        assert_eq!(cloned.session_id, session.session_id);
+    }
+
+    #[tokio::test]
+    async fn test_upsert_sessions_batch_empty() {
+        let pool = setup_test_db().await;
+        let mut tx = pool.begin().await.unwrap();
+
+        let result = upsert_sessions_batch_with_tx(&mut tx, &[]).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_upsert_sessions_batch_no_session_id() {
+        let pool = setup_test_db().await;
+        let spans = vec![create_test_span("trace-1", "span-1", None)];
+
+        let mut tx = pool.begin().await.unwrap();
+        upsert_sessions_batch_with_tx(&mut tx, &spans).await.unwrap();
+        tx.commit().await.unwrap();
+
+        // No sessions should be created
+        let sessions = list_sessions(&pool, None, None, None, None, 100).await.unwrap();
+        assert!(sessions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_upsert_sessions_batch_single() {
+        let pool = setup_test_db().await;
+        let spans = vec![create_test_span("trace-1", "span-1", Some("session-1"))];
+
+        let mut tx = pool.begin().await.unwrap();
+        upsert_sessions_batch_with_tx(&mut tx, &spans).await.unwrap();
+        tx.commit().await.unwrap();
+
+        let session = get_session(&pool, "session-1").await.unwrap();
+        assert!(session.is_some());
+        let s = session.unwrap();
+        assert_eq!(s.session_id, "session-1");
+        assert_eq!(s.trace_count, 1);
+        assert_eq!(s.span_count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_upsert_sessions_batch_aggregates_spans() {
+        let pool = setup_test_db().await;
+        let spans = vec![
+            create_test_span("trace-1", "span-1", Some("session-1")),
+            create_test_span("trace-1", "span-2", Some("session-1")),
+            create_test_span("trace-2", "span-3", Some("session-1")),
+        ];
+
+        let mut tx = pool.begin().await.unwrap();
+        upsert_sessions_batch_with_tx(&mut tx, &spans).await.unwrap();
+        tx.commit().await.unwrap();
+
+        let session = get_session(&pool, "session-1").await.unwrap().unwrap();
+        assert_eq!(session.span_count, 3);
+        assert_eq!(session.trace_count, 2); // 2 unique traces
+    }
+
+    #[tokio::test]
+    async fn test_upsert_sessions_batch_with_tokens() {
+        let pool = setup_test_db().await;
+        let mut span1 = create_test_span("trace-1", "span-1", Some("session-1"));
+        span1.usage_input_tokens = Some(100);
+        span1.usage_output_tokens = Some(50);
+        span1.usage_total_tokens = Some(150);
+
+        let mut span2 = create_test_span("trace-1", "span-2", Some("session-1"));
+        span2.usage_input_tokens = Some(200);
+        span2.usage_output_tokens = Some(100);
+        span2.usage_total_tokens = Some(300);
+
+        let mut tx = pool.begin().await.unwrap();
+        upsert_sessions_batch_with_tx(&mut tx, &[span1, span2]).await.unwrap();
+        tx.commit().await.unwrap();
+
+        let session = get_session(&pool, "session-1").await.unwrap().unwrap();
+        assert_eq!(session.total_input_tokens, Some(300));
+        assert_eq!(session.total_output_tokens, Some(150));
+        assert_eq!(session.total_tokens, Some(450));
+    }
+
+    #[tokio::test]
+    async fn test_upsert_sessions_batch_with_error() {
+        let pool = setup_test_db().await;
+        let mut span = create_test_span("trace-1", "span-1", Some("session-1"));
+        span.status_code = 2; // ERROR
+
+        let mut tx = pool.begin().await.unwrap();
+        upsert_sessions_batch_with_tx(&mut tx, &[span]).await.unwrap();
+        tx.commit().await.unwrap();
+
+        let session = get_session(&pool, "session-1").await.unwrap().unwrap();
+        assert!(session.has_errors);
+    }
+
+    #[tokio::test]
+    async fn test_get_session_not_found() {
+        let pool = setup_test_db().await;
+        let session = get_session(&pool, "nonexistent").await.unwrap();
+        assert!(session.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_list_sessions_empty() {
+        let pool = setup_test_db().await;
+        let sessions = list_sessions(&pool, None, None, None, None, 100).await.unwrap();
+        assert!(sessions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_list_sessions_with_data() {
+        let pool = setup_test_db().await;
+        let spans = vec![
+            create_test_span("trace-1", "span-1", Some("session-1")),
+            create_test_span("trace-2", "span-2", Some("session-2")),
+        ];
+
+        let mut tx = pool.begin().await.unwrap();
+        upsert_sessions_batch_with_tx(&mut tx, &spans).await.unwrap();
+        tx.commit().await.unwrap();
+
+        let sessions = list_sessions(&pool, None, None, None, None, 100).await.unwrap();
+        assert_eq!(sessions.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_list_sessions_filter_by_service() {
+        let pool = setup_test_db().await;
+        let mut span1 = create_test_span("trace-1", "span-1", Some("session-1"));
+        span1.service_name = "service-a".to_string();
+
+        let mut span2 = create_test_span("trace-2", "span-2", Some("session-2"));
+        span2.service_name = "service-b".to_string();
+
+        let mut tx = pool.begin().await.unwrap();
+        upsert_sessions_batch_with_tx(&mut tx, &[span1, span2]).await.unwrap();
+        tx.commit().await.unwrap();
+
+        let sessions =
+            list_sessions(&pool, None, Some("service-a"), None, None, 100).await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].session_id, "session-1");
+    }
+
+    #[tokio::test]
+    async fn test_list_sessions_with_limit() {
+        let pool = setup_test_db().await;
+        let spans = vec![
+            create_test_span("trace-1", "span-1", Some("session-1")),
+            create_test_span("trace-2", "span-2", Some("session-2")),
+            create_test_span("trace-3", "span-3", Some("session-3")),
+        ];
+
+        let mut tx = pool.begin().await.unwrap();
+        upsert_sessions_batch_with_tx(&mut tx, &spans).await.unwrap();
+        tx.commit().await.unwrap();
+
+        let sessions = list_sessions(&pool, None, None, None, None, 2).await.unwrap();
+        assert_eq!(sessions.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_delete_session_not_found() {
+        let pool = setup_test_db().await;
+        let result = delete_session(&pool, "nonexistent").await.unwrap();
+        assert!(!result);
+    }
+
+    #[tokio::test]
+    async fn test_delete_session_success() {
+        let pool = setup_test_db().await;
+        let spans = vec![create_test_span("trace-1", "span-1", Some("session-1"))];
+
+        let mut tx = pool.begin().await.unwrap();
+        upsert_sessions_batch_with_tx(&mut tx, &spans).await.unwrap();
+        tx.commit().await.unwrap();
+
+        // Verify session exists
+        assert!(get_session(&pool, "session-1").await.unwrap().is_some());
+
+        // Delete session
+        let result = delete_session(&pool, "session-1").await.unwrap();
+        assert!(result);
+
+        // Verify session is gone
+        assert!(get_session(&pool, "session-1").await.unwrap().is_none());
     }
 }

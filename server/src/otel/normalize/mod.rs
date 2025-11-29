@@ -12,10 +12,11 @@ pub use detector::{
     DetectedFramework, DetectionResult, DetectorRegistry, FrameworkDetector, SpanCategory,
 };
 
+use serde::Serialize;
 use std::sync::Arc;
 
 /// Normalized span after framework detection and field extraction
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct NormalizedSpan {
     // Core identification
     pub trace_id: String,
@@ -26,6 +27,10 @@ pub struct NormalizedSpan {
     pub start_time_unix_nano: i64,
     pub end_time_unix_nano: Option<i64>,
     pub duration_ns: Option<i64>,
+
+    // Performance metrics (Gen AI specific)
+    pub time_to_first_token_ms: Option<i64>,
+    pub request_duration_ms: Option<i64>,
 
     // Resource info
     pub service_name: String,
@@ -114,6 +119,9 @@ pub struct NormalizedSpan {
     // Instrumentation scope
     pub scope_name: Option<String>,
     pub scope_version: Option<String>,
+
+    // Span events
+    pub events: Vec<SpanEvent>,
 }
 
 impl Default for NormalizedSpan {
@@ -125,6 +133,8 @@ impl Default for NormalizedSpan {
             start_time_unix_nano: 0,
             end_time_unix_nano: None,
             duration_ns: None,
+            time_to_first_token_ms: None,
+            request_duration_ms: None,
             service_name: "unknown".to_string(),
             service_version: None,
             sdk_name: None,
@@ -187,17 +197,26 @@ impl Default for NormalizedSpan {
             unknown_fields_json: None,
             scope_name: None,
             scope_version: None,
+            events: Vec::new(),
         }
     }
 }
 
 /// Span event (logs attached to spans)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SpanEvent {
     pub span_id: String,
     pub trace_id: String,
     pub event_time_ns: i64,
     pub event_name: String,
+    // Gen AI event categorization
+    pub event_type: Option<String>, // user_message, assistant_message, tool_call, tool_result, choice
+    pub role: Option<String>,       // user, assistant, tool, system
+    pub finish_reason: Option<String>, // end_turn, tool_use, max_tokens, stop_sequence
+    pub content_preview: Option<String>, // First 500 chars of content
+    pub tool_name: Option<String>,  // For tool_call/tool_result events
+    pub tool_call_id: Option<String>, // Tool use ID for correlation
+    // Full attributes
     pub attributes_json: String,
 }
 
@@ -300,6 +319,12 @@ mod tests {
             trace_id: "trace-456".to_string(),
             event_time_ns: 1234567890,
             event_name: "test-event".to_string(),
+            event_type: Some("user_message".to_string()),
+            role: Some("user".to_string()),
+            finish_reason: None,
+            content_preview: Some("Hello world".to_string()),
+            tool_name: None,
+            tool_call_id: None,
             attributes_json: r#"{"key": "value"}"#.to_string(),
         };
 
@@ -307,6 +332,8 @@ mod tests {
         assert_eq!(event.trace_id, "trace-456");
         assert_eq!(event.event_time_ns, 1234567890);
         assert_eq!(event.event_name, "test-event");
+        assert_eq!(event.event_type, Some("user_message".to_string()));
+        assert_eq!(event.role, Some("user".to_string()));
         assert_eq!(event.attributes_json, r#"{"key": "value"}"#);
     }
 
@@ -317,6 +344,12 @@ mod tests {
             trace_id: "trace-456".to_string(),
             event_time_ns: 1234567890,
             event_name: "test-event".to_string(),
+            event_type: None,
+            role: None,
+            finish_reason: None,
+            content_preview: None,
+            tool_name: None,
+            tool_call_id: None,
             attributes_json: "{}".to_string(),
         };
 

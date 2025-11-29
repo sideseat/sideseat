@@ -117,32 +117,7 @@ def verify_storage_files(expect_traces: bool = True) -> tuple[int, int]:
         log(f"  {Colors.RED}✗ SQLite database missing or empty{Colors.RESET}")
         failed += 1
 
-    # Check parquet files only if traces were expected
-    if expect_traces:
-        traces_dir = DATA_DIR / "traces"
-        parquet_files = list(traces_dir.rglob("*.parquet"))
-        if parquet_files:
-            total_size = sum(f.stat().st_size for f in parquet_files)
-            if total_size > 1024 * 1024:
-                size_str = f"{total_size / (1024 * 1024):.1f}MB"
-            else:
-                size_str = f"{total_size} bytes"
-            non_empty = [f for f in parquet_files if f.stat().st_size > 0]
-            if non_empty:
-                log(
-                    f"  {Colors.GREEN}✓ Parquet files: {len(non_empty)} files, {size_str}{Colors.RESET}"
-                )
-                passed += 1
-            else:
-                log(f"  {Colors.RED}✗ Parquet files exist but are empty{Colors.RESET}")
-                failed += 1
-        else:
-            log(f"  {Colors.RED}✗ No parquet files found{Colors.RESET}")
-            failed += 1
-    else:
-        log(
-            f"  {Colors.YELLOW}⚠ Skipping parquet check (no trace tests ran){Colors.RESET}"
-        )
+    # Storage verification complete (SQLite-only)
 
     return passed, failed
 
@@ -185,7 +160,6 @@ class TestRunner:
             IngestionTests,
             IntegrityTests,
             LimitsTests,
-            RetentionTests,
             SessionTests,
             ShutdownTests,
             SSETests,
@@ -201,7 +175,6 @@ class TestRunner:
             ErrorTests(),
             LimitsTests(),
             AuthTests(),
-            RetentionTests(),
             ShutdownTests(),
         ]
 
@@ -283,7 +256,7 @@ Test Phases:
   otlp.smoke        - Quick validation (~30 seconds)
                       Health, basic ingestion, endpoint availability
   otlp.functional   - Comprehensive feature tests (~5 minutes)
-                      Ingestion, API, SSE, retention, auth, integrity,
+                      Ingestion, API, SSE, auth, integrity,
                       errors, limits, shutdown
   otlp.performance  - Load and query benchmarks (~10 minutes)
                       Throughput, concurrency, latency measurements
@@ -349,7 +322,7 @@ def main() -> int:
         print("  otlp.smoke        - Quick validation (~30 seconds)")
         print("                      Health, basic ingestion, endpoint availability")
         print("  otlp.functional   - Comprehensive feature tests (~5 minutes)")
-        print("                      Ingestion, API, SSE, retention, auth, integrity,")
+        print("                      Ingestion, API, SSE, auth, integrity,")
         print("                      errors, limits, shutdown")
         print("  otlp.performance  - Load and query benchmarks (~10 minutes)")
         print("                      Throughput, concurrency, latency measurements")

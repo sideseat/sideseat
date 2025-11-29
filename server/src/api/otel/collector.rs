@@ -24,11 +24,6 @@ pub async fn handle_traces(
     headers: HeaderMap,
     body: Bytes,
 ) -> impl IntoResponse {
-    // Check disk space
-    if otel.disk_monitor.should_pause_ingestion() {
-        return OtelError::DiskSpaceCritical(95).into_response();
-    }
-
     // Validate request size
     let max_size = 10 * 1024 * 1024; // 10MB max
     if body.len() > max_size {

@@ -135,6 +135,29 @@ pub fn extract_common_fields(
     normalize_genai_response(span, normalized);
     normalize_token_usage(span, normalized);
     normalize_tool_fields(span, normalized);
+    normalize_performance_metrics(span, normalized);
+}
+
+/// Normalize GenAI performance metrics (TTFT, request duration)
+fn normalize_performance_metrics(span: &OtlpSpan, normalized: &mut NormalizedSpan) {
+    // Time to First Token (milliseconds)
+    if normalized.time_to_first_token_ms.is_none() {
+        normalized.time_to_first_token_ms = None
+            .or_else(|| get_i64_attr(span, "gen_ai.server.time_to_first_token"))
+            .or_else(|| get_i64_attr(span, "llm.time_to_first_token"))
+            .or_else(|| get_i64_attr(span, "time_to_first_token_ms"))
+            .or_else(|| get_i64_attr(span, "ttft_ms"));
+    }
+
+    // Request Duration (milliseconds)
+    if normalized.request_duration_ms.is_none() {
+        normalized.request_duration_ms = None
+            .or_else(|| get_i64_attr(span, "gen_ai.server.request.duration"))
+            .or_else(|| get_i64_attr(span, "llm.request.duration"))
+            .or_else(|| get_i64_attr(span, "request_duration_ms"))
+            // AWS Bedrock
+            .or_else(|| get_i64_attr(span, "aws.bedrock.invocation.latency"));
+    }
 }
 
 /// Normalize session ID from various sources
