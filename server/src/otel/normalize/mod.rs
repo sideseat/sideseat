@@ -209,14 +209,7 @@ pub struct SpanEvent {
     pub trace_id: String,
     pub event_time_ns: i64,
     pub event_name: String,
-    // Gen AI event categorization
-    pub event_type: Option<String>, // user_message, assistant_message, tool_call, tool_result, choice
-    pub role: Option<String>,       // user, assistant, tool, system
-    pub finish_reason: Option<String>, // end_turn, tool_use, max_tokens, stop_sequence
-    pub content_preview: Option<String>, // First 500 chars of content
-    pub tool_name: Option<String>,  // For tool_call/tool_result events
-    pub tool_call_id: Option<String>, // Tool use ID for correlation
-    // Full attributes
+    pub content_preview: Option<String>,
     pub attributes_json: String,
 }
 
@@ -319,12 +312,7 @@ mod tests {
             trace_id: "trace-456".to_string(),
             event_time_ns: 1234567890,
             event_name: "test-event".to_string(),
-            event_type: Some("user_message".to_string()),
-            role: Some("user".to_string()),
-            finish_reason: None,
             content_preview: Some("Hello world".to_string()),
-            tool_name: None,
-            tool_call_id: None,
             attributes_json: r#"{"key": "value"}"#.to_string(),
         };
 
@@ -332,8 +320,6 @@ mod tests {
         assert_eq!(event.trace_id, "trace-456");
         assert_eq!(event.event_time_ns, 1234567890);
         assert_eq!(event.event_name, "test-event");
-        assert_eq!(event.event_type, Some("user_message".to_string()));
-        assert_eq!(event.role, Some("user".to_string()));
         assert_eq!(event.attributes_json, r#"{"key": "value"}"#);
     }
 
@@ -344,12 +330,7 @@ mod tests {
             trace_id: "trace-456".to_string(),
             event_time_ns: 1234567890,
             event_name: "test-event".to_string(),
-            event_type: None,
-            role: None,
-            finish_reason: None,
             content_preview: None,
-            tool_name: None,
-            tool_call_id: None,
             attributes_json: "{}".to_string(),
         };
 

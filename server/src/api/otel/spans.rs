@@ -29,6 +29,7 @@ pub struct SpanQueryParams {
     pub service: Option<String>,
     pub framework: Option<String>,
     pub category: Option<String>,
+    pub kind: Option<i32>,
     pub agent: Option<String>,
     pub tool: Option<String>,
     pub model: Option<String>,
@@ -44,6 +45,7 @@ pub struct SpanDto {
     pub session_id: Option<String>,
     pub parent_span_id: Option<String>,
     pub span_name: String,
+    pub span_kind: i32,
     pub service_name: String,
     pub detected_framework: String,
     pub detected_category: Option<String>,
@@ -85,6 +87,7 @@ impl From<SpanIndex> for SpanDto {
             session_id: s.session_id,
             parent_span_id: s.parent_span_id,
             span_name: s.span_name,
+            span_kind: s.span_kind,
             service_name: s.service_name,
             detected_framework: s.detected_framework,
             detected_category: s.detected_category,
@@ -139,6 +142,7 @@ pub async fn get_spans(
         service_name: params.service,
         framework: params.framework,
         category: params.category,
+        span_kind: params.kind,
         agent_name: params.agent,
         tool_name: params.tool,
         model: params.model,
@@ -209,14 +213,7 @@ pub struct EventDto {
     pub trace_id: String,
     pub event_name: String,
     pub event_time_ns: i64,
-    // Gen AI event categorization
-    pub event_type: Option<String>,
-    pub role: Option<String>,
-    pub finish_reason: Option<String>,
     pub content_preview: Option<String>,
-    pub tool_name: Option<String>,
-    pub tool_call_id: Option<String>,
-    // Full attributes
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attributes: Option<serde_json::Value>,
 }
@@ -230,12 +227,7 @@ impl From<EventIndex> for EventDto {
             trace_id: e.trace_id,
             event_name: e.event_name,
             event_time_ns: e.event_time_ns,
-            event_type: e.event_type,
-            role: e.role,
-            finish_reason: e.finish_reason,
             content_preview: e.content_preview,
-            tool_name: e.tool_name,
-            tool_call_id: e.tool_call_id,
             attributes,
         }
     }

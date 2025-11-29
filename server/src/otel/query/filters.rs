@@ -114,6 +114,9 @@ pub struct SpanFilter {
     /// Filter by span category
     pub category: Option<String>,
 
+    /// Filter by span kind (0=UNSPECIFIED, 1=INTERNAL, 2=SERVER, 3=CLIENT, 4=PRODUCER, 5=CONSUMER)
+    pub span_kind: Option<i32>,
+
     /// Filter by agent name
     pub agent_name: Option<String>,
 

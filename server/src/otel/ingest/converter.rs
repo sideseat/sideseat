@@ -187,44 +187,22 @@ fn convert_single_span(
                 .collect();
             let event_attrs_json =
                 serde_json::to_string(&event_attrs).unwrap_or_else(|_| "{}".to_string());
+            let event_attrs_json = truncate_string(&event_attrs_json, MAX_ATTRIBUTES_JSON_LEN);
 
-            // Categorize event based on name (Gen AI semantic conventions)
-            let event_name = truncate_string(&e.name, MAX_SPAN_NAME_LEN);
-            let (event_type, role) = categorize_event(&event_name);
-
-            // Extract content preview from attributes
-            let content_preview = extract_content_preview(&event_attrs);
-
-            // Extract finish_reason for choice events
-            let finish_reason = if event_type.as_deref() == Some("choice") {
-                event_attrs
-                    .get("finish_reason")
-                    .and_then(|v| v.as_str())
-                    .map(|s| truncate_string(s, 64))
+            // Content preview is first 200 chars of attributes_json
+            let content_preview = if event_attrs_json.len() > 2 {
+                Some(truncate_string(&event_attrs_json, 200))
             } else {
                 None
             };
-
-            // Extract tool info for tool events
-            let (tool_name, tool_call_id) =
-                if matches!(event_type.as_deref(), Some("tool_call") | Some("tool_result")) {
-                    extract_tool_info(&event_attrs)
-                } else {
-                    (None, None)
-                };
 
             SpanEvent {
                 span_id: normalized.span_id.clone(),
                 trace_id: normalized.trace_id.clone(),
                 event_time_ns: e.time_unix_nano as i64,
-                event_name,
-                event_type,
-                role,
-                finish_reason,
+                event_name: truncate_string(&e.name, MAX_SPAN_NAME_LEN),
                 content_preview,
-                tool_name,
-                tool_call_id,
-                attributes_json: truncate_string(&event_attrs_json, MAX_ATTRIBUTES_JSON_LEN),
+                attributes_json: event_attrs_json,
             }
         })
         .collect();
@@ -308,116 +286,6 @@ fn any_value_to_json_limited(
         }
         None => serde_json::Value::Null,
     }
-}
-
-/// Categorize event based on Gen AI semantic conventions
-/// Returns (event_type, role)
-fn categorize_event(event_name: &str) -> (Option<String>, Option<String>) {
-    match event_name {
-        // User messages
-        "gen_ai.user.message" => (Some("user_message".to_string()), Some("user".to_string())),
-        // Assistant messages
-        "gen_ai.assistant.message" => {
-            (Some("assistant_message".to_string()), Some("assistant".to_string()))
-        }
-        // Tool messages (results)
-        "gen_ai.tool.message" => (Some("tool_result".to_string()), Some("tool".to_string())),
-        // System messages
-        "gen_ai.system.message" => (Some("system_message".to_string()), Some("system".to_string())),
-        // Choice/completion events
-        "gen_ai.choice" => (Some("choice".to_string()), Some("assistant".to_string())),
-        // Tool calls (from assistant)
-        name if name.contains("tool") && name.contains("call") => {
-            (Some("tool_call".to_string()), Some("assistant".to_string()))
-        }
-        // Generic message events - try to infer role from name
-        name if name.contains("user") => {
-            (Some("user_message".to_string()), Some("user".to_string()))
-        }
-        name if name.contains("assistant") => {
-            (Some("assistant_message".to_string()), Some("assistant".to_string()))
-        }
-        name if name.contains("system") => {
-            (Some("system_message".to_string()), Some("system".to_string()))
-        }
-        // Unknown
-        _ => (None, None),
-    }
-}
-
-/// Extract content preview from event attributes (first 500 chars)
-fn extract_content_preview(attrs: &serde_json::Map<String, serde_json::Value>) -> Option<String> {
-    // Try common content field names
-    let content = attrs
-        .get("content")
-        .or_else(|| attrs.get("message"))
-        .or_else(|| attrs.get("text"))
-        .and_then(|v| {
-            match v {
-                serde_json::Value::String(s) => Some(s.clone()),
-                serde_json::Value::Array(arr) => {
-                    // Handle array of content blocks (Anthropic format)
-                    let text_parts: Vec<String> = arr
-                        .iter()
-                        .filter_map(|item| {
-                            if let serde_json::Value::Object(obj) = item {
-                                obj.get("text").and_then(|t| t.as_str()).map(String::from)
-                            } else {
-                                item.as_str().map(String::from)
-                            }
-                        })
-                        .collect();
-                    if text_parts.is_empty() { None } else { Some(text_parts.join(" ")) }
-                }
-                _ => None,
-            }
-        });
-
-    content.map(|c| truncate_string(&c, 500))
-}
-
-/// Extract tool info from event attributes
-fn extract_tool_info(
-    attrs: &serde_json::Map<String, serde_json::Value>,
-) -> (Option<String>, Option<String>) {
-    let content = attrs.get("content");
-
-    // Try to extract from content array (Strands format: toolUse/toolResult)
-    if let Some(serde_json::Value::Array(arr)) = content {
-        for item in arr {
-            if let serde_json::Value::Object(obj) = item {
-                // Handle toolUse
-                if let Some(serde_json::Value::Object(tool_use)) = obj.get("toolUse") {
-                    let name = tool_use.get("name").and_then(|v| v.as_str()).map(String::from);
-                    let id = tool_use.get("toolUseId").and_then(|v| v.as_str()).map(String::from);
-                    if name.is_some() || id.is_some() {
-                        return (name, id);
-                    }
-                }
-                // Handle toolResult
-                if let Some(serde_json::Value::Object(tool_result)) = obj.get("toolResult") {
-                    let id =
-                        tool_result.get("toolUseId").and_then(|v| v.as_str()).map(String::from);
-                    return (None, id);
-                }
-            }
-        }
-    }
-
-    // Try direct attributes
-    let tool_name = attrs
-        .get("tool.name")
-        .or_else(|| attrs.get("name"))
-        .and_then(|v| v.as_str())
-        .map(String::from);
-    let tool_call_id = attrs
-        .get("tool.call.id")
-        .or_else(|| attrs.get("toolUseId"))
-        .or_else(|| attrs.get("id"))
-        .and_then(|v| v.as_str())
-        .map(String::from);
-
-    (tool_name, tool_call_id)
 }
 
 /// Convert SpanCategory to string

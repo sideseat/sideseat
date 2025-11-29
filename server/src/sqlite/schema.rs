@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS spans (
     session_id TEXT,
     parent_span_id TEXT,
     span_name TEXT NOT NULL,
+    span_kind INTEGER NOT NULL DEFAULT 0,
     service_name TEXT NOT NULL,
     detected_framework TEXT NOT NULL,
     detected_category TEXT,
@@ -126,25 +127,18 @@ CREATE INDEX IF NOT EXISTS idx_spans_agent ON spans(gen_ai_agent_name);
 CREATE INDEX IF NOT EXISTS idx_spans_tool ON spans(gen_ai_tool_name);
 CREATE INDEX IF NOT EXISTS idx_spans_model ON spans(gen_ai_request_model);
 CREATE INDEX IF NOT EXISTS idx_spans_start ON spans(start_time_ns);
+CREATE INDEX IF NOT EXISTS idx_spans_kind ON spans(span_kind);
 -- Composite index for common query: framework + category + time
 CREATE INDEX IF NOT EXISTS idx_spans_framework_category_time ON spans(detected_framework, detected_category, start_time_ns DESC);
 
--- OTEL: Span events (Gen AI messages, tool calls, choices)
+-- OTEL: Span events
 CREATE TABLE IF NOT EXISTS span_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     span_id TEXT NOT NULL,
     trace_id TEXT NOT NULL,
     event_name TEXT NOT NULL,
     event_time_ns INTEGER NOT NULL,
-    -- Gen AI event categorization
-    event_type TEXT,  -- user_message, assistant_message, tool_call, tool_result, choice, system_message
-    role TEXT,        -- user, assistant, tool, system (for message events)
-    finish_reason TEXT, -- end_turn, tool_use, max_tokens, stop_sequence (for choice events)
-    -- Content summary (extracted from attributes for quick access)
-    content_preview TEXT, -- First 500 chars of content for display
-    tool_name TEXT,       -- For tool_call/tool_result events
-    tool_call_id TEXT,    -- Tool use ID for correlating calls with results
-    -- Full attributes as JSON
+    content_preview TEXT,
     attributes_json TEXT,
     FOREIGN KEY (span_id) REFERENCES spans(span_id)
 );
@@ -152,9 +146,6 @@ CREATE TABLE IF NOT EXISTS span_events (
 CREATE INDEX IF NOT EXISTS idx_events_span ON span_events(span_id);
 CREATE INDEX IF NOT EXISTS idx_events_trace ON span_events(trace_id);
 CREATE INDEX IF NOT EXISTS idx_events_name ON span_events(event_name);
-CREATE INDEX IF NOT EXISTS idx_events_type ON span_events(event_type);
-CREATE INDEX IF NOT EXISTS idx_events_role ON span_events(role);
--- Composite index for reconstructing conversations
 CREATE INDEX IF NOT EXISTS idx_events_trace_time ON span_events(trace_id, event_time_ns);
 
 -- OTEL EAV: Registered attribute keys (for discovery and validation)

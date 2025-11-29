@@ -219,7 +219,7 @@ impl QueryEngine {
         limit: usize,
     ) -> Result<Vec<SpanIndex>, OtelError> {
         let mut sql = String::from(
-            "SELECT span_id, trace_id, session_id, parent_span_id, span_name, service_name, \
+            "SELECT span_id, trace_id, session_id, parent_span_id, span_name, span_kind, service_name, \
              detected_framework, detected_category, gen_ai_system, gen_ai_operation_name, \
              gen_ai_agent_name, gen_ai_tool_name, gen_ai_request_model, gen_ai_response_model, \
              start_time_ns, end_time_ns, duration_ns, time_to_first_token_ms, request_duration_ms, \
@@ -242,6 +242,9 @@ impl QueryEngine {
         }
         if filter.category.is_some() {
             sql.push_str(" AND detected_category = ?");
+        }
+        if filter.span_kind.is_some() {
+            sql.push_str(" AND span_kind = ?");
         }
         if filter.agent_name.is_some() {
             sql.push_str(" AND gen_ai_agent_name = ?");
@@ -285,6 +288,9 @@ impl QueryEngine {
         }
         if let Some(category) = &filter.category {
             query = query.bind(category);
+        }
+        if let Some(kind) = filter.span_kind {
+            query = query.bind(kind);
         }
         if let Some(agent) = &filter.agent_name {
             query = query.bind(agent);

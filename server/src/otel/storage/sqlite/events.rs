@@ -16,19 +16,18 @@ pub async fn insert_events_batch_with_tx(
     }
 
     // SQLite has a limit of 999 variables per query
-    // With 11 columns per event, we can insert ~90 events per query
+    // With 6 columns per event, we can insert ~160 events per query
     // Use 50 for consistency with spans
     const CHUNK_SIZE: usize = 50;
 
     for chunk in events.chunks(CHUNK_SIZE) {
         let placeholders: Vec<String> =
-            chunk.iter().map(|_| "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string()).collect();
+            chunk.iter().map(|_| "(?, ?, ?, ?, ?, ?)".to_string()).collect();
 
         let sql = format!(
             r#"INSERT INTO span_events (
                 span_id, trace_id, event_name, event_time_ns,
-                event_type, role, finish_reason, content_preview,
-                tool_name, tool_call_id, attributes_json
+                content_preview, attributes_json
             ) VALUES {}"#,
             placeholders.join(", ")
         );
@@ -40,12 +39,7 @@ pub async fn insert_events_batch_with_tx(
                 .bind(&event.trace_id)
                 .bind(&event.event_name)
                 .bind(event.event_time_ns)
-                .bind(&event.event_type)
-                .bind(&event.role)
-                .bind(&event.finish_reason)
                 .bind(&event.content_preview)
-                .bind(&event.tool_name)
-                .bind(&event.tool_call_id)
                 .bind(&event.attributes_json);
         }
 
@@ -65,8 +59,7 @@ pub async fn get_events_by_span(
     let rows = sqlx::query_as::<_, EventIndex>(
         r#"
         SELECT id, span_id, trace_id, event_name, event_time_ns,
-               event_type, role, finish_reason, content_preview,
-               tool_name, tool_call_id, attributes_json
+               content_preview, attributes_json
         FROM span_events WHERE span_id = ?
         ORDER BY event_time_ns
         "#,
@@ -87,14 +80,7 @@ pub struct EventIndex {
     pub trace_id: String,
     pub event_name: String,
     pub event_time_ns: i64,
-    // Gen AI event categorization
-    pub event_type: Option<String>,
-    pub role: Option<String>,
-    pub finish_reason: Option<String>,
     pub content_preview: Option<String>,
-    pub tool_name: Option<String>,
-    pub tool_call_id: Option<String>,
-    // Full attributes
     pub attributes_json: Option<String>,
 }
 
@@ -115,12 +101,7 @@ mod tests {
             trace_id: trace_id.to_string(),
             event_time_ns: 1000000000,
             event_name: event_name.to_string(),
-            event_type: Some("user_message".to_string()),
-            role: Some("user".to_string()),
-            finish_reason: None,
-            content_preview: Some("Hello world".to_string()),
-            tool_name: None,
-            tool_call_id: None,
+            content_preview: Some(r#"{"key": "value"}"#.to_string()),
             attributes_json: r#"{"key": "value"}"#.to_string(),
         }
     }
@@ -165,12 +146,7 @@ mod tests {
             trace_id: "trace-1".to_string(),
             event_name: "gen_ai.user.message".to_string(),
             event_time_ns: 1000000000,
-            event_type: Some("user_message".to_string()),
-            role: Some("user".to_string()),
-            finish_reason: None,
             content_preview: Some("Hello".to_string()),
-            tool_name: None,
-            tool_call_id: None,
             attributes_json: Some("{}".to_string()),
         };
         assert_eq!(event.id, 1);
@@ -178,8 +154,6 @@ mod tests {
         assert_eq!(event.trace_id, "trace-1");
         assert_eq!(event.event_name, "gen_ai.user.message");
         assert_eq!(event.event_time_ns, 1000000000);
-        assert_eq!(event.event_type, Some("user_message".to_string()));
-        assert_eq!(event.role, Some("user".to_string()));
     }
 
     #[test]
@@ -190,12 +164,7 @@ mod tests {
             trace_id: "trace-1".to_string(),
             event_name: "test".to_string(),
             event_time_ns: 1000,
-            event_type: None,
-            role: None,
-            finish_reason: None,
             content_preview: None,
-            tool_name: None,
-            tool_call_id: None,
             attributes_json: None,
         };
         let cloned = event.clone();
@@ -226,7 +195,6 @@ mod tests {
         let result = get_events_by_span(&pool, "span-1").await.unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].event_name, "event-1");
-        assert_eq!(result[0].event_type, Some("user_message".to_string()));
     }
 
     #[tokio::test]
@@ -282,36 +250,6 @@ mod tests {
         assert_eq!(result[0].event_name, "first");
         assert_eq!(result[1].event_name, "third");
         assert_eq!(result[2].event_name, "second");
-    }
-
-    #[tokio::test]
-    async fn test_event_with_tool_fields() {
-        let pool = setup_test_db().await;
-        insert_test_trace_and_span(&pool, "trace-1", "span-1").await;
-
-        let event = SpanEvent {
-            span_id: "span-1".to_string(),
-            trace_id: "trace-1".to_string(),
-            event_time_ns: 1000,
-            event_name: "tool_call".to_string(),
-            event_type: Some("tool_call".to_string()),
-            role: Some("assistant".to_string()),
-            finish_reason: Some("tool_use".to_string()),
-            content_preview: None,
-            tool_name: Some("search".to_string()),
-            tool_call_id: Some("call_123".to_string()),
-            attributes_json: "{}".to_string(),
-        };
-
-        let mut tx = pool.begin().await.unwrap();
-        insert_events_batch_with_tx(&mut tx, &[event]).await.unwrap();
-        tx.commit().await.unwrap();
-
-        let result = get_events_by_span(&pool, "span-1").await.unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].tool_name, Some("search".to_string()));
-        assert_eq!(result[0].tool_call_id, Some("call_123".to_string()));
-        assert_eq!(result[0].finish_reason, Some("tool_use".to_string()));
     }
 
     #[tokio::test]

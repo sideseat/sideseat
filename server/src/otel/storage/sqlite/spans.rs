@@ -24,7 +24,7 @@ pub async fn insert_spans_batch_with_tx(
         let placeholders: Vec<String> = chunk
             .iter()
             .map(|_| {
-                "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                     .to_string()
             })
             .collect();
@@ -32,7 +32,7 @@ pub async fn insert_spans_batch_with_tx(
         let sql = format!(
             r#"
             INSERT OR REPLACE INTO spans (
-                span_id, trace_id, session_id, parent_span_id, span_name, service_name,
+                span_id, trace_id, session_id, parent_span_id, span_name, span_kind, service_name,
                 detected_framework, detected_category, gen_ai_system, gen_ai_operation_name,
                 gen_ai_agent_name, gen_ai_tool_name, gen_ai_request_model, gen_ai_response_model,
                 start_time_ns, end_time_ns, duration_ns, time_to_first_token_ms, request_duration_ms,
@@ -53,6 +53,7 @@ pub async fn insert_spans_batch_with_tx(
                 .bind(&span.session_id)
                 .bind(&span.parent_span_id)
                 .bind(&span.span_name)
+                .bind(span.span_kind as i32)
                 .bind(&span.service_name)
                 .bind(&span.detected_framework)
                 .bind(&span.detected_category)
@@ -92,7 +93,7 @@ pub async fn get_span_by_id(
 ) -> Result<Option<SpanIndex>, OtelError> {
     let row = sqlx::query_as::<_, SpanIndex>(
         r#"
-        SELECT span_id, trace_id, session_id, parent_span_id, span_name, service_name,
+        SELECT span_id, trace_id, session_id, parent_span_id, span_name, span_kind, service_name,
                detected_framework, detected_category, gen_ai_system, gen_ai_operation_name,
                gen_ai_agent_name, gen_ai_tool_name, gen_ai_request_model, gen_ai_response_model,
                start_time_ns, end_time_ns, duration_ns, time_to_first_token_ms, request_duration_ms,
@@ -117,6 +118,7 @@ pub struct SpanIndex {
     pub session_id: Option<String>,
     pub parent_span_id: Option<String>,
     pub span_name: String,
+    pub span_kind: i32,
     pub service_name: String,
     pub detected_framework: String,
     pub detected_category: Option<String>,
@@ -202,6 +204,7 @@ mod tests {
             session_id: None,
             parent_span_id: None,
             span_name: "test-span".to_string(),
+            span_kind: 1,
             service_name: "test-service".to_string(),
             detected_framework: "strands".to_string(),
             detected_category: Some("llm".to_string()),
@@ -240,6 +243,7 @@ mod tests {
             session_id: None,
             parent_span_id: None,
             span_name: "test".to_string(),
+            span_kind: 0,
             service_name: "svc".to_string(),
             detected_framework: "unknown".to_string(),
             detected_category: None,
