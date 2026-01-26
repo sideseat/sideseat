@@ -1,0 +1,209 @@
+---
+title: JavaScript SDK Configuration
+description: Configuration options for the SideSeat JavaScript SDK.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This page covers all configuration options for the SideSeat JavaScript SDK.
+
+## Configuration Object
+
+```typescript
+interface SideSeatConfig {
+  endpoint?: string;
+  projectId?: string;
+  apiKey?: string;
+  serviceName?: string;
+  debug?: boolean;
+}
+```
+
+All properties are optional. The SDK uses sensible defaults and environment variables.
+
+## Configuration Priority
+
+For each option, the SDK checks in order:
+
+1. **Config parameter** (highest priority)
+2. **Environment variable**
+3. **Auto-detection**
+4. **Default value** (lowest priority)
+
+## Options
+
+### `endpoint`
+
+The SideSeat server URL.
+
+| Source | Value |
+|--------|-------|
+| Config | `config.endpoint` |
+| Environment | `SIDESEAT_ENDPOINT` |
+| Default | `http://127.0.0.1:5388` |
+
+```typescript
+// Via config
+sideseat_init({ endpoint: 'http://custom:5388' });
+
+// Via environment
+// SIDESEAT_ENDPOINT=http://custom:5388 node app.js
+```
+
+<Aside type="note">
+The SDK appends `/otel/{projectId}/v1/traces` to form the full OTLP endpoint.
+</Aside>
+
+### `projectId`
+
+The project ID for organizing traces.
+
+| Source | Value |
+|--------|-------|
+| Config | `config.projectId` |
+| Environment | `SIDESEAT_PROJECT_ID` |
+| Default | `"default"` |
+
+```typescript
+sideseat_init({ projectId: 'my-project' });
+```
+
+### `apiKey`
+
+Optional API key for authenticated endpoints.
+
+| Source | Value |
+|--------|-------|
+| Config | `config.apiKey` |
+| Environment | `SIDESEAT_API_KEY` |
+| Default | (none) |
+
+```typescript
+sideseat_init({ apiKey: 'sk-xxx' });
+```
+
+When set, adds an `Authorization: Bearer {apiKey}` header to OTLP requests.
+
+### `serviceName`
+
+The service name for resource attributes.
+
+| Source | Value |
+|--------|-------|
+| Config | `config.serviceName` |
+| Environment | `npm_package_name` |
+| Default | `"unknown-service"` |
+
+```typescript
+sideseat_init({ serviceName: 'my-ai-agent' });
+```
+
+<Aside type="tip">
+If you don't set `serviceName`, the SDK uses `npm_package_name` from your package.json (automatically set by npm when running scripts).
+</Aside>
+
+### `debug`
+
+Enable verbose logging.
+
+| Source | Value |
+|--------|-------|
+| Config | `config.debug` |
+| Default | `false` |
+
+```typescript
+sideseat_init({ debug: true });
+```
+
+Output example:
+```
+[SideSeat] Initializing with endpoint: http://127.0.0.1:5388
+[SideSeat] Project ID: default
+[SideSeat] Service name: my-app
+[SideSeat] Already initialized, skipping
+```
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SIDESEAT_ENDPOINT` | Server URL | `http://127.0.0.1:5388` |
+| `SIDESEAT_PROJECT_ID` | Project ID | `default` |
+| `SIDESEAT_API_KEY` | API key (optional) | (none) |
+| `npm_package_name` | Service name | (from package.json) |
+
+<Aside type="tip">
+The standard OpenTelemetry variable `OTEL_EXPORTER_OTLP_ENDPOINT` is also supported. If set, it takes precedence over `SIDESEAT_ENDPOINT`.
+</Aside>
+
+### Example: Environment-only Configuration
+
+```bash
+export SIDESEAT_ENDPOINT=http://sideseat.internal:5388
+export SIDESEAT_PROJECT_ID=production
+export SIDESEAT_API_KEY=sk-prod-xxx
+
+node app.js
+```
+
+```typescript
+// app.js - no config needed
+import { sideseat_init } from '@sideseat/sdk';
+sideseat_init();  // Uses environment variables
+```
+
+## HTTP Headers
+
+The SDK sends these headers with OTLP requests:
+
+| Header | Value |
+|--------|-------|
+| `User-Agent` | `sideseat-sdk-node/{version}` |
+| `Authorization` | `Bearer {apiKey}` (if apiKey set) |
+| `Content-Type` | `application/x-protobuf` |
+
+## Complete Examples
+
+### Development
+
+```typescript
+import { sideseat_init } from '@sideseat/sdk';
+
+sideseat_init({
+  debug: true  // See what's happening
+});
+```
+
+### Production
+
+```typescript
+import { sideseat_init } from '@sideseat/sdk';
+
+sideseat_init({
+  endpoint: process.env.SIDESEAT_ENDPOINT,
+  projectId: process.env.SIDESEAT_PROJECT_ID,
+  apiKey: process.env.SIDESEAT_API_KEY,
+  serviceName: 'my-production-agent'
+});
+```
+
+### Multi-Environment
+
+```typescript
+import { sideseat_init } from '@sideseat/sdk';
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+sideseat_init({
+  endpoint: isProduction
+    ? 'http://sideseat.internal:5388'
+    : 'http://localhost:5388',
+  projectId: isProduction ? 'production' : 'development',
+  debug: !isProduction
+});
+```
+
+## Next Steps
+
+- [sideseat_init()](/docs/sdks/javascript/init/) — API reference
+- [Integrations](/docs/integrations/) — framework-specific guides

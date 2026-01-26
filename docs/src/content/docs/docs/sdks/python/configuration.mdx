@@ -1,0 +1,210 @@
+---
+title: Python SDK Configuration
+description: Configuration options for the SideSeat Python SDK.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This page covers all configuration options for the SideSeat Python SDK.
+
+## Constructor Parameters
+
+```python
+SideSeatTelemetry(
+    tracer_provider: SDKTracerProvider | None = None,
+    service_name: str | None = None,
+    service_version: str | None = None,
+    encode_binary_as_base64: bool = True,
+)
+```
+
+### `tracer_provider`
+
+Optional pre-configured OpenTelemetry `TracerProvider`. If not provided, the SDK creates one.
+
+Use this when you need:
+- Custom sampling configuration
+- Multiple processor chains
+- Integration with existing telemetry setup
+
+```python
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
+
+# Custom provider with 10% sampling
+provider = TracerProvider(sampler=TraceIdRatioBased(0.1))
+telemetry = SideSeatTelemetry(tracer_provider=provider)
+telemetry.setup_otlp_exporter()
+```
+
+### `service_name`
+
+Override the auto-detected service name.
+
+```python
+# Auto-detect (default)
+telemetry = SideSeatTelemetry()
+
+# Explicit name
+telemetry = SideSeatTelemetry(service_name="my-agent")
+```
+
+Auto-detection checks these packages in order:
+1. `strands-agents`
+2. `langchain`
+3. `crewai`
+4. `autogen-agentchat`
+
+If none are found, uses `"unknown_service"`.
+
+### `service_version`
+
+Set the service version for resource attributes.
+
+```python
+telemetry = SideSeatTelemetry(
+    service_name="my-agent",
+    service_version="1.2.3"
+)
+```
+
+If not provided, the SDK tries to detect the version from the service package's `__version__`.
+
+### `encode_binary_as_base64`
+
+Control binary data encoding in spans.
+
+```python
+# Encode bytes/bytearray as base64 (default)
+telemetry = SideSeatTelemetry(encode_binary_as_base64=True)
+
+# Leave binary data as-is (may cause export errors)
+telemetry = SideSeatTelemetry(encode_binary_as_base64=False)
+```
+
+<Aside type="tip">
+Keep this enabled unless you're sure your spans don't contain binary data. Base64 encoding ensures compatibility with JSON-based exporters.
+</Aside>
+
+## OTLP Exporter Options
+
+The `setup_otlp_exporter()` method accepts all parameters from the OpenTelemetry OTLP HTTP exporter:
+
+```python
+telemetry.setup_otlp_exporter(
+    endpoint="http://localhost:5388/otel/default/v1/traces",
+    headers={"Authorization": "Bearer sk-xxx"},
+    timeout=30,
+    compression=OTLPCompression.Gzip,
+)
+```
+
+### Common Options
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `endpoint` | `str` | `None` | OTLP endpoint URL |
+| `headers` | `dict` | `None` | HTTP headers |
+| `timeout` | `int` | `10` | Request timeout in seconds |
+| `compression` | `Compression` | `None` | Gzip or deflate |
+
+By default (no parameters), the exporter uses environment variables:
+
+| Environment Variable | Default |
+|---------------------|---------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` |
+| `OTEL_EXPORTER_OTLP_HEADERS` | (none) |
+| `OTEL_EXPORTER_OTLP_TIMEOUT` | `10` |
+
+## File Exporter Options
+
+```python
+telemetry.setup_file_exporter(
+    path="traces.jsonl",  # Output file path
+    mode="a"              # "a" (append) or "w" (overwrite)
+)
+```
+
+### Output Format
+
+The file exporter writes one JSON object per line (JSONL format):
+
+```json
+{"name": "llm.completion", "trace_id": "abc123...", "attributes": {...}}
+{"name": "tool.call", "trace_id": "abc123...", "attributes": {...}}
+```
+
+Binary data is automatically base64-encoded when `encode_binary_as_base64=True`.
+
+## Console Exporter Options
+
+```python
+telemetry.setup_console_exporter(
+    # All OTel ConsoleSpanExporter options supported
+)
+```
+
+Useful for debugging - prints spans to stdout.
+
+## Metrics Configuration
+
+Enable metrics collection alongside traces:
+
+```python
+telemetry.setup_meter(
+    enable_console_exporter=False,  # Print metrics to console
+    enable_otlp_exporter=False       # Send metrics to OTLP endpoint
+)
+```
+
+<Aside type="note">
+Metrics are optional. Most agent debugging workflows only need traces.
+</Aside>
+
+## Complete Example
+
+```python
+from sideseat import SideSeatTelemetry
+
+# Full configuration
+telemetry = SideSeatTelemetry(
+    service_name="my-agent",
+    service_version="1.0.0",
+    encode_binary_as_base64=True,
+)
+
+# Multiple exporters
+telemetry.setup_otlp_exporter(
+    endpoint="http://localhost:5388/otel/default/v1/traces",
+    headers={"X-Custom-Header": "value"},
+)
+telemetry.setup_file_exporter("traces.jsonl", mode="a")
+
+# Optional: console for debugging
+# telemetry.setup_console_exporter()
+
+# Optional: metrics
+# telemetry.setup_meter(enable_otlp_exporter=True)
+
+# Your agent code here...
+
+# Explicit shutdown (or let atexit handle it)
+telemetry.shutdown()
+```
+
+## Environment Variables
+
+The SDK respects standard OpenTelemetry environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `OTEL_SERVICE_NAME` | Override service name |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Default OTLP endpoint |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Default headers (comma-separated) |
+| `OTEL_EXPORTER_OTLP_TIMEOUT` | Request timeout |
+| `OTEL_TRACES_SAMPLER` | Sampling strategy |
+
+## Next Steps
+
+- [SideSeatTelemetry](/docs/sdks/python/telemetry/) — API reference
+- [Exporters](/docs/sdks/python/exporters/) — exporter details

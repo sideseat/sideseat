@@ -1,0 +1,232 @@
+---
+title: SideSeatTelemetry Class
+description: API reference for the SideSeatTelemetry class.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `SideSeatTelemetry` class is the main entry point for the Python SDK. It manages OpenTelemetry setup, exporters, and binary data handling.
+
+## Class Definition
+
+```python
+class SideSeatTelemetry:
+    def __init__(
+        self,
+        tracer_provider: SDKTracerProvider | None = None,
+        service_name: str | None = None,
+        service_version: str | None = None,
+        encode_binary_as_base64: bool = True,
+    ) -> None: ...
+```
+
+## Instance Attributes
+
+### `tracer_provider`
+
+The OpenTelemetry `TracerProvider` instance managing trace collection.
+
+```python
+telemetry = SideSeatTelemetry()
+provider = telemetry.tracer_provider
+
+# Force flush all pending spans
+provider.force_flush()
+```
+
+### `meter_provider`
+
+The OpenTelemetry `MeterProvider` instance (if metrics are enabled).
+
+```python
+telemetry = SideSeatTelemetry()
+telemetry.setup_meter(enable_otlp_exporter=True)
+meter_provider = telemetry.meter_provider
+```
+
+## Methods
+
+### `setup_otlp_exporter(**kwargs)`
+
+Configure OTLP HTTP exporter for sending traces to an OTLP endpoint.
+
+**Parameters**: All parameters from `OTLPSpanExporter`
+
+**Returns**: `self` (for chaining)
+
+```python
+telemetry.setup_otlp_exporter()
+
+# With options
+telemetry.setup_otlp_exporter(
+    endpoint="http://custom-endpoint:4318/v1/traces",
+    headers={"Authorization": "Bearer token"},
+    timeout=30,
+)
+```
+
+<Aside type="note">
+The exporter is wrapped in a `BatchSpanProcessor` for efficient batching.
+</Aside>
+
+### `setup_console_exporter(**kwargs)`
+
+Configure console exporter for debugging. Prints spans to stdout.
+
+**Parameters**: All parameters from `ConsoleSpanExporter`
+
+**Returns**: `self` (for chaining)
+
+```python
+telemetry.setup_console_exporter()
+```
+
+### `setup_file_exporter(path, mode)`
+
+Configure JSONL file exporter.
+
+**Parameters**:
+- `path` (str): Output file path. Default: `"traces.jsonl"`
+- `mode` (str): File mode. `"a"` (append) or `"w"` (overwrite). Default: `"a"`
+
+**Returns**: `self` (for chaining)
+
+```python
+# Append to file (default)
+telemetry.setup_file_exporter("traces.jsonl")
+
+# Overwrite on each run
+telemetry.setup_file_exporter("traces.jsonl", mode="w")
+
+# Custom path
+telemetry.setup_file_exporter("/var/log/myapp/traces.jsonl")
+```
+
+### `setup_meter(enable_console_exporter, enable_otlp_exporter)`
+
+Initialize metrics collection.
+
+**Parameters**:
+- `enable_console_exporter` (bool): Print metrics to console. Default: `False`
+- `enable_otlp_exporter` (bool): Send metrics to OTLP endpoint. Default: `False`
+
+**Returns**: `self` (for chaining)
+
+```python
+# Enable metrics with OTLP export
+telemetry.setup_meter(enable_otlp_exporter=True)
+
+# Console output for debugging
+telemetry.setup_meter(enable_console_exporter=True)
+
+# Both
+telemetry.setup_meter(
+    enable_console_exporter=True,
+    enable_otlp_exporter=True
+)
+```
+
+### `shutdown()`
+
+Gracefully shutdown all exporters, flushing pending spans.
+
+**Returns**: `None`
+
+```python
+telemetry.shutdown()
+```
+
+<Aside type="tip">
+`shutdown()` is:
+- **Idempotent**: Safe to call multiple times
+- **Thread-safe**: Can be called from any thread
+- **Automatic**: Registered with `atexit`, so you don't have to call it
+</Aside>
+
+## Usage Patterns
+
+### Basic Usage
+
+```python
+from sideseat import SideSeatTelemetry
+
+telemetry = SideSeatTelemetry()
+telemetry.setup_otlp_exporter()
+
+# Your code runs with tracing enabled
+# ...
+
+# Optional: explicit shutdown
+telemetry.shutdown()
+```
+
+### Method Chaining
+
+```python
+telemetry = (SideSeatTelemetry()
+    .setup_otlp_exporter()
+    .setup_file_exporter("backup.jsonl"))
+```
+
+### Multiple Exporters
+
+```python
+telemetry = SideSeatTelemetry()
+telemetry.setup_otlp_exporter()  # Primary: SideSeat
+telemetry.setup_file_exporter("traces.jsonl")  # Backup: local file
+telemetry.setup_console_exporter()  # Debug: stdout
+```
+
+### Custom Provider
+
+```python
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
+
+# 10% sampling for high-volume production
+provider = TracerProvider(sampler=TraceIdRatioBased(0.1))
+
+telemetry = SideSeatTelemetry(tracer_provider=provider)
+telemetry.setup_otlp_exporter()
+```
+
+### With Metrics
+
+```python
+telemetry = (SideSeatTelemetry()
+    .setup_otlp_exporter()
+    .setup_meter(enable_otlp_exporter=True))
+```
+
+## Thread Safety
+
+The `SideSeatTelemetry` class is thread-safe:
+- Multiple threads can create spans concurrently
+- `shutdown()` can be called from any thread
+- Exporters use internal locking
+
+```python
+import threading
+
+telemetry = SideSeatTelemetry().setup_otlp_exporter()
+
+def worker():
+    from opentelemetry import trace
+    tracer = trace.get_tracer(__name__)
+    with tracer.start_as_current_span("worker"):
+        # ... work ...
+        pass
+
+threads = [threading.Thread(target=worker) for _ in range(10)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+
+telemetry.shutdown()
+```
+
+## Next Steps
+
+- [Exporters](/docs/sdks/python/exporters/) — detailed exporter documentation
+- [Configuration](/docs/sdks/python/configuration/) — all configuration options

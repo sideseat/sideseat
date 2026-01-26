@@ -1,0 +1,124 @@
+---
+title: Spans API
+description: API reference for span (step) endpoints.
+---
+
+## List Spans
+
+```
+GET /api/v1/project/{project_id}/otel/spans
+```
+
+Query spans with pagination and filters.
+
+### Query Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `page` | number | Page number (default: 1) |
+| `limit` | number | Items per page (default: 100) |
+| `order_by` | string | Sort field (e.g., `timestamp_start:desc`) |
+| `trace_id` | string | Filter by trace ID |
+| `session_id` | string | Filter by session ID |
+| `user_id` | string | Filter by user ID |
+| `environment` | string or array | Filter by environment |
+| `span_category` | string | Filter by span category |
+| `observation_type` | string | Filter by observation type |
+| `framework` | string | Filter by framework |
+| `gen_ai_request_model` | string | Filter by model |
+| `status_code` | string | Filter by status code |
+| `from_timestamp` | string | Filter from timestamp (ISO 8601) |
+| `to_timestamp` | string | Filter to timestamp (ISO 8601) |
+| `filters` | JSON | Advanced filters (see below) |
+| `include_raw_span` | boolean | Include raw OTLP span JSON |
+| `is_observation` | boolean | Only spans with observation fields |
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "trace_id": "abc123def456",
+      "span_id": "span-001",
+      "span_name": "agent.invoke",
+      "span_category": "agent",
+      "framework": "strands",
+      "timestamp_start": "2025-01-26T10:12:34Z",
+      "duration_ms": 420,
+      "gen_ai_system": "bedrock",
+      "model": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+      "input_tokens": 150,
+      "output_tokens": 200
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 100,
+    "total_items": 240,
+    "total_pages": 3
+  }
+}
+```
+
+### Examples
+
+```bash
+# Spans for a trace
+curl "http://localhost:5388/api/v1/project/default/otel/spans?trace_id=abc123"
+
+# Filter by model
+curl "http://localhost:5388/api/v1/project/default/otel/spans?gen_ai_request_model=anthropic.claude-sonnet-4-5-20250929-v1:0"
+
+# Filter LLM spans only
+curl "http://localhost:5388/api/v1/project/default/otel/spans?span_category=llm"
+```
+
+## List Spans for a Trace
+
+```
+GET /api/v1/project/{project_id}/otel/traces/{trace_id}/spans
+```
+
+## Get Span
+
+```
+GET /api/v1/project/{project_id}/otel/traces/{trace_id}/spans/{span_id}
+```
+
+Optional query params:
+- `include_raw_span=true` to include the raw OTLP span JSON
+
+## Get Span Messages
+
+```
+GET /api/v1/project/{project_id}/otel/traces/{trace_id}/spans/{span_id}/messages
+```
+
+Get normalized messages (SideML format) for a span.
+
+## Span Categories
+
+| Category | Description |
+|----------|-------------|
+| `llm` | Language model calls |
+| `tool` | Tool/function executions |
+| `agent` | Agent orchestration |
+| `chain` | Chain/workflow steps |
+| `db` | Database operations |
+| `http` | HTTP requests |
+| `other` | Uncategorized |
+
+## Advanced Filters
+
+Pass a JSON array in the `filters` query param:
+
+```json
+[{"key": "status_code", "op": "eq", "value": "ERROR"}]
+```
+
+## Next Steps
+
+- [Traces API](/docs/reference/api/traces/) — query runs
+- [Sessions API](/docs/reference/api/sessions/) — group related runs
+- [SSE Streaming](/docs/reference/api/sse/) — real-time updates

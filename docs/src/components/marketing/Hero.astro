@@ -1,0 +1,85 @@
+---
+---
+<section class="hero">
+  <div class="container hero-stack">
+    <div class="hero-copy stack-lg">
+      <div class="stack">
+        <p class="eyebrow animate-fade-up delay-1">Local AI development workbench</p>
+        <h1 class="headline animate-fade-up delay-2">Build, debug, and ship AI agents locally.</h1>
+        <p class="subhead animate-fade-up delay-3">
+          SideSeat runs next to your code and captures prompts, tool calls, and model responses in a single run timeline.
+        </p>
+      </div>
+
+      <div class="hero-actions animate-fade-up delay-4">
+        <a href="/docs/quickstart/" class="btn btn-primary">Run locally</a>
+        <a href="/docs/" class="btn btn-secondary">Read docs</a>
+      </div>
+
+      <div class="command-card animate-fade-up delay-5">
+        <div class="command-header">
+          <span class="command-label">Run locally</span>
+        </div>
+        <div class="terminal compact">
+          <div class="terminal-body terminal-row">
+            <code><span class="terminal-prompt">$</span> npx sideseat</code>
+            <button id="hero-copy-btn" class="copy-button compact" onclick="copyHeroCommand()">Copy</button>
+          </div>
+        </div>
+        <p class="command-note">Launches the workbench at <span class="text-accent">localhost:5388</span>.</p>
+      </div>
+
+      <div class="hero-badges animate-fade-up delay-6">
+        <span class="pill">Local-first</span>
+        <span class="pill">Agent-aware</span>
+        <span class="pill">Tool-aware</span>
+        <span class="pill">OpenTelemetry-native</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="hero-media animate-fade-up delay-4">
+    <div class="media-wide">
+      <div class="media-frame">
+        <img
+          src="/images/screenshots/screenshot_1.png"
+          alt="SideSeat trace view with timeline, tool calls, and cost breakdowns"
+          loading="eager"
+        />
+      </div>
+    </div>
+  </div>
+
+  <div class="container hero-after">
+    <div class="hero-strip">
+      <div class="hero-strip-item">
+        <span class="dot"></span>
+        <span>Live run timeline</span>
+      </div>
+      <div class="hero-strip-item">
+        <span class="dot cool"></span>
+        <span>Tool I/O in context</span>
+      </div>
+      <div class="hero-strip-item">
+        <span class="dot"></span>
+        <span>Token + latency breakdowns</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+  function copyHeroCommand() {
+    navigator.clipboard.writeText('npx sideseat').then(() => {
+      const btn = document.getElementById('hero-copy-btn');
+      if (!btn) return;
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  }
+</script>

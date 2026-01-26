@@ -1,0 +1,142 @@
+---
+title: LangGraph
+description: Integrate SideSeat with LangGraph for stateful agent run visibility.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+[LangGraph](https://langchain-ai.github.io/langgraph/) is a library for building stateful, multi-actor applications with LLMs. It extends LangChain with graph-based workflow control. SideSeat captures runs from graph steps so you can debug state transitions.
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- Python 3.9+
+- Provider credentials configured
+
+## Quick Start
+
+<Steps>
+1. **Install dependencies**
+
+   ```bash
+   pip install langgraph langchain-openai sideseat
+   ```
+
+2. **Add telemetry**
+
+   ```python
+   from sideseat import SideSeatTelemetry
+   SideSeatTelemetry().setup_otlp_exporter()
+
+   from typing import TypedDict
+   from langgraph.graph import StateGraph, END
+   from langchain_openai import ChatOpenAI
+
+   # Define state
+   class State(TypedDict):
+       messages: list
+
+   # Create graph
+   graph = StateGraph(State)
+   # ... add nodes and edges ...
+
+   app = graph.compile()
+   result = app.invoke({"messages": ["Hello!"]})
+   ```
+</Steps>
+
+## LangSmith Tracing
+
+LangGraph supports LangSmith tracing which SideSeat can capture:
+
+```python
+import os
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+os.environ["LANGCHAIN_ENDPOINT"] = "http://localhost:5388/langsmith"
+```
+
+<Aside type="note">
+SideSeat has experimental LangSmith protocol support. For best results, use OpenTelemetry-based tracing.
+</Aside>
+
+## OpenTelemetry with LangChain
+
+LangGraph inherits LangChain's OpenTelemetry integration:
+
+```python
+from sideseat import SideSeatTelemetry
+from langchain_core.tracers.opentelemetry import OpenTelemetryTracer
+from opentelemetry import trace
+
+# Initialize SideSeat telemetry
+SideSeatTelemetry().setup_otlp_exporter()
+
+# Get tracer
+tracer = trace.get_tracer(__name__)
+
+# Use with LangGraph
+with tracer.start_as_current_span("langgraph_workflow"):
+    result = app.invoke({"messages": ["Hello!"]})
+```
+
+## Extracted Attributes
+
+SideSeat extracts these attributes from LangGraph traces:
+
+| Attribute | Description |
+|-----------|-------------|
+| `langgraph.graph.name` | Graph name |
+| `langgraph.node.name` | Current node |
+| `langgraph.checkpoint.id` | State checkpoint ID |
+| `langchain.run.type` | Run type (chain, llm, tool) |
+
+## Complete Example
+
+```python
+from sideseat import SideSeatTelemetry
+
+# Initialize telemetry
+telemetry = SideSeatTelemetry()
+telemetry.setup_otlp_exporter()
+
+from typing import TypedDict, Annotated
+from langgraph.graph import StateGraph, END
+from langgraph.graph.message import add_messages
+from langchain_openai import ChatOpenAI
+
+# Define state
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+
+# Create LLM
+llm = ChatOpenAI(model="gpt-4")
+
+# Define node
+def chatbot(state: State):
+    return {"messages": [llm.invoke(state["messages"])]}
+
+# Build graph
+graph = StateGraph(State)
+graph.add_node("chatbot", chatbot)
+graph.set_entry_point("chatbot")
+graph.add_edge("chatbot", END)
+
+app = graph.compile()
+
+# Run
+result = app.invoke({"messages": [("user", "What is 2+2?")]})
+print(result["messages"][-1].content)
+
+# Shutdown
+telemetry.shutdown()
+```
+
+SideSeat shows:
+- Parent span for the graph execution
+- Child spans for each node invocation
+- LLM call spans with token counts
+
+## Next Steps
+
+- [LangChain](/docs/integrations/frameworks/langchain/) — chain-specific features
+- [Python SDK](/docs/sdks/python/) — SDK reference

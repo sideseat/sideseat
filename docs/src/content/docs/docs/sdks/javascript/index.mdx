@@ -1,0 +1,173 @@
+---
+title: JavaScript SDK
+description: Instrument Node.js AI apps for the SideSeat local workbench.
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+The SideSeat JavaScript SDK (`@sideseat/sdk`) provides OpenTelemetry instrumentation for Node.js applications with automatic configuration and OTLP export. Stream runs into the local AI development workbench while you iterate locally.
+
+**What you'll learn:**
+- Install and configure the JavaScript SDK
+- Use environment variables for configuration
+- Enable debug mode and custom endpoints
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- Node.js 18+
+
+## Installation
+
+```bash
+npm install @sideseat/sdk
+```
+
+Or with your package manager:
+
+<Tabs>
+  <TabItem label="npm">
+    ```bash
+    npm install @sideseat/sdk
+    ```
+  </TabItem>
+  <TabItem label="yarn">
+    ```bash
+    yarn add @sideseat/sdk
+    ```
+  </TabItem>
+  <TabItem label="pnpm">
+    ```bash
+    pnpm add @sideseat/sdk
+    ```
+  </TabItem>
+</Tabs>
+
+## Quick Start
+
+Add one line at the top of your entry point:
+
+```typescript
+import { sideseat_init } from '@sideseat/sdk';
+sideseat_init();
+
+// Your existing code
+import { Agent } from '@strands/agent';
+const agent = new Agent({ model: 'anthropic.claude-sonnet-4-5-20250929-v1:0' });
+const response = await agent.run('Hello!');
+```
+
+That's it. Runs flow to SideSeat at `http://localhost:5388`.
+
+## Features
+
+### Zero Configuration
+
+The SDK works out of the box with sensible defaults:
+- Sends to `http://127.0.0.1:5388`
+- Uses `default` project
+- Auto-detects service name from `package.json`
+
+### Idempotent Initialization
+
+Safe to call multiple times:
+
+```typescript
+sideseat_init();  // Initializes
+sideseat_init();  // No-op (already initialized)
+```
+
+### Environment Variable Support
+
+Configure via environment variables without code changes:
+
+```bash
+SIDESEAT_ENDPOINT=http://custom:5388 \
+SIDESEAT_PROJECT_ID=my-project \
+SIDESEAT_API_KEY=sk-xxx \
+node app.js
+```
+
+### Debug Mode
+
+Enable verbose logging:
+
+```typescript
+sideseat_init({ debug: true });
+```
+
+Output:
+```
+[SideSeat] Initializing with endpoint: http://127.0.0.1:5388
+[SideSeat] Project ID: default
+[SideSeat] Service name: my-app
+```
+
+## Resource Attributes
+
+The SDK automatically sets these OpenTelemetry resource attributes:
+
+| Attribute | Value |
+|-----------|-------|
+| `service.name` | From config, `package.json`, or `"unknown-service"` |
+| `sideseat.sdk.version` | SDK version |
+| `sideseat.sdk.language` | `"node"` |
+
+## OTLP Export
+
+The SDK uses HTTP/1.1 OTLP export with:
+- **Batching**: Spans are batched for efficient export
+- **Retry**: Automatic retry on transient failures
+- **Compression**: Optional gzip compression
+
+The endpoint URL is constructed as:
+```
+{endpoint}/otel/{projectId}/v1/traces
+```
+
+## Example
+
+```typescript
+import { sideseat_init } from '@sideseat/sdk';
+
+// Initialize with all options
+sideseat_init({
+  endpoint: 'http://localhost:5388',
+  projectId: 'my-project',
+  apiKey: 'sk-xxx',  // Optional
+  serviceName: 'my-ai-agent',
+  debug: true
+});
+
+// Your AI application code
+import { Agent } from '@strands/agent';
+
+const agent = new Agent({
+  model: 'anthropic.claude-sonnet-4-5-20250929-v1:0'
+});
+
+const response = await agent.run('Hello!');
+console.log(response);
+```
+
+## TypeScript Support
+
+The SDK is written in TypeScript and includes type definitions:
+
+```typescript
+import { sideseat_init } from '@sideseat/sdk';
+import type { SideSeatConfig } from '@sideseat/sdk';
+
+const config: SideSeatConfig = {
+  endpoint: 'http://localhost:5388',
+  projectId: 'my-project',
+  debug: true
+};
+
+sideseat_init(config);
+```
+
+## Next Steps
+
+- [Configuration](/docs/sdks/javascript/configuration/) — detailed configuration options
+- [sideseat_init()](/docs/sdks/javascript/init/) — API reference

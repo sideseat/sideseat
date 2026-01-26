@@ -1,0 +1,169 @@
+---
+title: Python SDK
+description: Instrument Python AI apps for the SideSeat local workbench.
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+The SideSeat Python SDK (`sideseat`) provides OpenTelemetry instrumentation with automatic binary data handling, framework detection, and multiple export options. Stream runs into the local AI development workbench while keeping your stack intact.
+
+**What you'll learn:**
+- Install and configure the Python SDK
+- Set up OTLP, console, and file exporters
+- Handle binary data and framework detection
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- Python 3.9+
+
+## Installation
+
+```bash
+pip install sideseat
+```
+
+Or with your package manager:
+
+<Tabs>
+  <TabItem label="pip">
+    ```bash
+    pip install sideseat
+    ```
+  </TabItem>
+  <TabItem label="uv">
+    ```bash
+    uv add sideseat
+    ```
+  </TabItem>
+  <TabItem label="poetry">
+    ```bash
+    poetry add sideseat
+    ```
+  </TabItem>
+</Tabs>
+
+## Quick Start
+
+Add two lines at the top of your entry point:
+
+```python
+from sideseat import SideSeatTelemetry
+SideSeatTelemetry().setup_otlp_exporter()
+
+# Your existing code
+from strands import Agent
+from strands.models import BedrockModel
+
+model = BedrockModel(model_id="anthropic.claude-sonnet-4-5-20250929-v1:0")
+agent = Agent(model=model)
+response = agent("Hello!")
+```
+
+That's it. Runs flow to SideSeat at `http://localhost:5388`.
+
+## Features
+
+### Automatic Framework Detection
+
+The SDK auto-detects your AI framework and sets the service name:
+
+| Priority | Package | Service Name |
+|----------|---------|--------------|
+| 1 | `strands-agents` | `strands-agents` |
+| 2 | `langchain` | `langchain` |
+| 3 | `crewai` | `crewai` |
+| 4 | `autogen-agentchat` | `autogen` |
+
+Override with:
+
+```python
+SideSeatTelemetry(service_name="my-custom-service")
+```
+
+### Binary Data Handling
+
+AI frameworks often use binary data (images, audio). The SDK automatically encodes binary data as base64:
+
+```python
+# Default: encode binary as base64
+telemetry = SideSeatTelemetry(encode_binary_as_base64=True)
+
+# Disable if not needed (saves bandwidth)
+telemetry = SideSeatTelemetry(encode_binary_as_base64=False)
+```
+
+### Multiple Exporters
+
+Configure one or more exporters:
+
+```python
+telemetry = SideSeatTelemetry()
+
+# OTLP (to SideSeat or any OTLP endpoint)
+telemetry.setup_otlp_exporter()
+
+# Console (for debugging)
+telemetry.setup_console_exporter()
+
+# File (JSONL format)
+telemetry.setup_file_exporter("traces.jsonl")
+```
+
+### Method Chaining
+
+All setup methods return `self` for chaining:
+
+```python
+telemetry = (SideSeatTelemetry()
+    .setup_otlp_exporter()
+    .setup_console_exporter()
+    .setup_file_exporter("traces.jsonl"))
+```
+
+## Resource Attributes
+
+The SDK automatically sets these OpenTelemetry resource attributes:
+
+| Attribute | Value |
+|-----------|-------|
+| `service.name` | Auto-detected or user-provided |
+| `service.version` | Package version (if detected) |
+| `telemetry.sdk.name` | `sideseat` |
+| `telemetry.sdk.version` | SDK version |
+| `telemetry.sdk.language` | `python` |
+
+## Graceful Shutdown
+
+The SDK registers an `atexit` handler for automatic shutdown. You can also call it explicitly:
+
+```python
+telemetry = SideSeatTelemetry().setup_otlp_exporter()
+
+# ... your code ...
+
+# Flush all pending spans before exit
+telemetry.shutdown()
+```
+
+<Aside type="note">
+`shutdown()` is idempotent and thread-safe. Calling it multiple times has no effect.
+</Aside>
+
+## Strands Encoder Patch
+
+If you're using Strands Agents, the SDK can patch its JSON encoder to handle binary data:
+
+```python
+from sideseat import patch_strands_encoder
+
+# Returns True if successful
+if patch_strands_encoder():
+    print("Strands encoder patched for base64 binary encoding")
+```
+
+## Next Steps
+
+- [Configuration](/docs/sdks/python/configuration/) — detailed configuration options
+- [SideSeatTelemetry](/docs/sdks/python/telemetry/) — API reference
+- [Exporters](/docs/sdks/python/exporters/) — OTLP, console, and file exporters

@@ -1,0 +1,114 @@
+---
+title: First Run
+description: Run SideSeat locally and see your first agent run in minutes.
+---
+
+import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
+
+Get from zero to your first run in the local AI development workbench.
+
+**What you'll learn:**
+- Install and run SideSeat locally
+- Add SDK instrumentation to your AI app
+- View runs, steps, and messages in the workbench
+
+## Prerequisites
+
+- Node.js 18+ (to run SideSeat)
+- Python 3.9+ or Node.js 18+ (for your AI app)
+- Model credentials for your provider (if required)
+
+## Start SideSeat
+
+<Steps>
+1. **Run SideSeat locally**
+
+   ```bash
+   npm install -g sideseat
+   sideseat
+   ```
+
+   You'll see output like:
+
+   ```
+   SideSeat v1.x
+     Local: http://127.0.0.1:5388
+     OTLP:  http://127.0.0.1:5388/otel/default/v1/traces
+   ```
+
+2. **Open the workbench**
+
+   Navigate to [http://localhost:5388](http://localhost:5388) in your browser.
+</Steps>
+
+## Install the SDK
+
+<Tabs>
+  <TabItem label="Python">
+    ```bash
+    pip install sideseat
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```bash
+    npm install @sideseat/sdk
+    ```
+  </TabItem>
+</Tabs>
+
+## Instrument Your App
+
+Add two lines at the top of your entry point:
+
+<Tabs>
+  <TabItem label="Python (Strands + Amazon Bedrock)">
+    ```python
+    from sideseat import SideSeatTelemetry
+    SideSeatTelemetry().setup_otlp_exporter()
+
+    # Your existing code
+    from strands import Agent
+    from strands.models import BedrockModel
+
+    model = BedrockModel(model_id="anthropic.claude-sonnet-4-5-20250929-v1:0")
+    agent = Agent(model=model)
+    response = agent("What is the capital of France?")
+    print(response)
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```typescript
+    import { sideseat_init } from '@sideseat/sdk';
+    sideseat_init();
+
+    // Your existing code
+    import { Agent } from '@strands/agent';
+    const agent = new Agent({ model: 'anthropic.claude-sonnet-4-5-20250929-v1:0' });
+    const response = await agent.run('What is the capital of France?');
+    console.log(response);
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+The SDK auto-detects your framework (Strands, LangChain, CrewAI, and more) and configures telemetry accordingly.
+</Aside>
+
+<Aside type="note">
+Replace the model ID with what’s available in your provider account. The example uses Claude Sonnet 4.5.
+</Aside>
+
+## See It in the UI
+
+Run your app. A new run appears in the workbench.
+
+You should see:
+- A live run timeline with each step
+- Prompt and response messages grouped by step
+- Token, latency, and cost summaries
+
+## Next Steps
+
+- [Core Concepts](/docs/concepts/) — understand runs, steps, and messages
+- [Integrations](/docs/integrations/) — connect your framework or provider
+- [Troubleshooting](/docs/troubleshooting/) — fix common issues

@@ -19,8 +19,8 @@ SideSeat uses a token-based authentication system that secures the web UI while 
 sideseat start
 
 # Output:
-#   SideSeat v1.0.4
-#   ➜  Local: http://127.0.0.1:5001/ui?token=abc123...
+#   SideSeat v1.x
+#   ➜  Local: http://127.0.0.1:5388/ui?token=abc123...
 ```
 
 Click the URL with the token to authenticate automatically.
@@ -58,7 +58,7 @@ sequenceDiagram
     participant S as Server
 
     T->>B: Click URL with token
-    Note over B: http://localhost:5001/ui?token=xxx
+    Note over B: http://localhost:5388/ui?token=xxx
     B->>S: POST /api/v1/auth/exchange
     Note over S: Validates bootstrap token
     S->>B: 200 OK + Set-Cookie: sideseat_session=<jwt>

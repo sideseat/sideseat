@@ -1,0 +1,183 @@
+---
+title: LangChain
+description: Integrate SideSeat with LangChain for chain and agent run visibility.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+[LangChain](https://python.langchain.com/) is a framework for building applications with LLMs. SideSeat captures runs (traces) from LangChain chains, agents, and tools.
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- Python 3.9+
+- Provider credentials configured
+
+## Quick Start
+
+<Steps>
+1. **Install dependencies**
+
+   ```bash
+   pip install langchain langchain-openai sideseat
+   ```
+
+2. **Add telemetry**
+
+   ```python
+   from sideseat import SideSeatTelemetry
+   SideSeatTelemetry().setup_otlp_exporter()
+
+   from langchain_openai import ChatOpenAI
+   from langchain_core.prompts import ChatPromptTemplate
+
+   llm = ChatOpenAI(model="gpt-4")
+   prompt = ChatPromptTemplate.from_messages([
+       ("system", "You are a helpful assistant."),
+       ("user", "{input}")
+   ])
+
+   chain = prompt | llm
+   response = chain.invoke({"input": "Hello!"})
+   print(response.content)
+   ```
+</Steps>
+
+## Tracing Options
+
+LangChain offers multiple tracing approaches:
+
+### Option 1: SideSeat SDK (Recommended)
+
+```python
+from sideseat import SideSeatTelemetry
+SideSeatTelemetry().setup_otlp_exporter()
+
+# Your LangChain code
+```
+
+### Option 2: LangChain Callbacks
+
+```python
+from langchain_core.tracers import ConsoleCallbackHandler
+from langchain_core.tracers.opentelemetry import OpenTelemetryTracer
+
+# With console output
+chain.invoke({"input": "Hello"}, config={"callbacks": [ConsoleCallbackHandler()]})
+
+# With OpenTelemetry
+tracer = OpenTelemetryTracer()
+chain.invoke({"input": "Hello"}, config={"callbacks": [tracer]})
+```
+
+### Option 3: LangSmith (via environment)
+
+```bash
+export LANGCHAIN_TRACING_V2=true
+export LANGCHAIN_API_KEY=your-key
+```
+
+## Chains
+
+LangChain chains are automatically traced:
+
+```python
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
+llm = ChatOpenAI(model="gpt-4")
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "Translate to French:"),
+    ("user", "{text}")
+])
+
+chain = prompt | llm | StrOutputParser()
+result = chain.invoke({"text": "Hello world"})
+```
+
+SideSeat shows:
+- Chain span with total duration
+- Prompt formatting span
+- LLM call span with model/tokens
+- Output parsing span
+
+## Agents
+
+Agent loops are captured with tool calls:
+
+```python
+from langchain_openai import ChatOpenAI
+from langchain.agents import create_openai_tools_agent, AgentExecutor
+from langchain_core.tools import tool
+from langchain import hub
+
+@tool
+def search(query: str) -> str:
+    """Search the web."""
+    return f"Results for: {query}"
+
+llm = ChatOpenAI(model="gpt-4")
+prompt = hub.pull("hwchase17/openai-tools-agent")
+agent = create_openai_tools_agent(llm, [search], prompt)
+executor = AgentExecutor(agent=agent, tools=[search])
+
+result = executor.invoke({"input": "What's the weather today?"})
+```
+
+## Extracted Attributes
+
+| Attribute | Description |
+|-----------|-------------|
+| `langchain.run.type` | chain, llm, tool, retriever |
+| `langchain.chain.name` | Chain class name |
+| `langchain.llm.model` | Model name |
+| `langchain.tool.name` | Tool being invoked |
+
+## Streaming
+
+Streaming responses are captured as spans:
+
+```python
+for chunk in chain.stream({"input": "Tell me a story"}):
+    print(chunk.content, end="", flush=True)
+```
+
+<Aside type="note">
+Streaming spans show incremental token counts as they arrive.
+</Aside>
+
+## RAG Pipelines
+
+Retrieval-augmented generation pipelines are traced end-to-end:
+
+```python
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_core.runnables import RunnablePassthrough
+
+# Create retriever
+embeddings = OpenAIEmbeddings()
+vectorstore = FAISS.from_texts(["..."], embeddings)
+retriever = vectorstore.as_retriever()
+
+# RAG chain
+rag_chain = (
+    {"context": retriever, "question": RunnablePassthrough()}
+    | prompt
+    | llm
+    | StrOutputParser()
+)
+
+result = rag_chain.invoke("What is RAG?")
+```
+
+SideSeat shows:
+- Retriever span with document count
+- Embedding span with model
+- LLM span with full prompt
+
+## Next Steps
+
+- [LangGraph](/docs/integrations/frameworks/langgraph/) — stateful workflows
+- [Python SDK](/docs/sdks/python/) — SDK reference

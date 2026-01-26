@@ -1,0 +1,221 @@
+---
+title: sideseat_init() Function
+description: API reference for the sideseat_init() function.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `sideseat_init()` function is the sole entry point for the JavaScript SDK. It initializes OpenTelemetry tracing and configures OTLP export.
+
+## Function Signature
+
+```typescript
+function sideseat_init(config?: SideSeatConfig): void;
+```
+
+### Parameters
+
+#### `config` (optional)
+
+Configuration object with the following properties:
+
+```typescript
+interface SideSeatConfig {
+  endpoint?: string;        // SideSeat server URL
+  projectId?: string;       // Project ID for traces
+  apiKey?: string;          // Bearer token for auth
+  serviceName?: string;     // Service name for resource
+  debug?: boolean;          // Enable debug logging
+}
+```
+
+### Returns
+
+`void` - The function has no return value.
+
+## Behavior
+
+### Initialization
+
+When called, `sideseat_init()`:
+
+1. Creates a `NodeTracerProvider` with resource attributes
+2. Configures a `BatchSpanProcessor` with OTLP HTTP exporter
+3. Registers the provider globally via `provider.register()`
+
+### Idempotency
+
+The function is idempotent. Multiple calls are safe:
+
+```typescript
+sideseat_init();  // Initializes OpenTelemetry
+sideseat_init();  // No-op, logs if debug=true
+sideseat_init();  // No-op
+```
+
+<Aside type="note">
+Once initialized, the configuration cannot be changed. If you need different settings, restart your application.
+</Aside>
+
+### Global Registration
+
+After initialization, any code using `@opentelemetry/api` will use the configured provider:
+
+```typescript
+import { sideseat_init } from '@sideseat/sdk';
+import { trace } from '@opentelemetry/api';
+
+sideseat_init();
+
+// This tracer uses the SideSeat-configured provider
+const tracer = trace.getTracer('my-module');
+```
+
+## Usage Examples
+
+### Minimal
+
+```typescript
+import { sideseat_init } from '@sideseat/sdk';
+
+sideseat_init();
+// Traces go to http://127.0.0.1:5388/otel/default/v1/traces
+```
+
+### With Options
+
+```typescript
+import { sideseat_init } from '@sideseat/sdk';
+
+sideseat_init({
+  endpoint: 'http://sideseat.example.com:5388',
+  projectId: 'my-project',
+  apiKey: 'sk-xxx',
+  serviceName: 'my-ai-agent',
+  debug: true
+});
+```
+
+### Environment-Based
+
+```typescript
+import { sideseat_init } from '@sideseat/sdk';
+
+// Uses SIDESEAT_ENDPOINT, SIDESEAT_PROJECT_ID, SIDESEAT_API_KEY
+sideseat_init({ debug: process.env.NODE_ENV !== 'production' });
+```
+
+### With AI Framework
+
+```typescript
+import { sideseat_init } from '@sideseat/sdk';
+import Anthropic from '@anthropic-ai/sdk';
+
+// Initialize telemetry first
+sideseat_init();
+
+// Use your AI framework normally
+const client = new Anthropic();
+
+async function main() {
+  const message = await client.messages.create({
+    model: 'claude-sonnet-4-5-20250929', // replace with your model ID
+    max_tokens: 1024,
+    messages: [{ role: 'user', content: 'Hello!' }]
+  });
+
+  console.log(message.content);
+}
+
+main();
+```
+
+### With Express
+
+```typescript
+import { sideseat_init } from '@sideseat/sdk';
+import express from 'express';
+
+// Initialize before creating the app
+sideseat_init();
+
+const app = express();
+
+app.get('/chat', async (req, res) => {
+  // Traces from this handler are captured
+  const response = await callAIModel(req.query.message);
+  res.json({ response });
+});
+
+app.listen(3000);
+```
+
+## Internal Details
+
+### Provider Configuration
+
+The SDK creates a `NodeTracerProvider` with:
+
+```typescript
+new NodeTracerProvider({
+  resource: new Resource({
+    'service.name': serviceName,
+    'sideseat.sdk.version': VERSION,
+    'sideseat.sdk.language': 'node'
+  })
+});
+```
+
+### Exporter Configuration
+
+The OTLP exporter is configured with:
+
+```typescript
+new OTLPTraceExporter({
+  url: `${endpoint}/otel/${projectId}/v1/traces`,
+  headers: {
+    'User-Agent': `sideseat-sdk-node/${VERSION}`,
+    ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {})
+  }
+});
+```
+
+### Processor Configuration
+
+Uses `BatchSpanProcessor` for efficient batching:
+
+```typescript
+new BatchSpanProcessor(exporter);
+```
+
+## Error Handling
+
+The function does not throw errors. Issues are logged when `debug: true`:
+
+```typescript
+sideseat_init({ debug: true });
+// [SideSeat] Initializing with endpoint: http://127.0.0.1:5388
+// [SideSeat] Project ID: default
+// [SideSeat] Service name: unknown-service
+```
+
+## Shutdown
+
+The SDK automatically handles shutdown via Node.js process events. You don't need to explicitly flush or shutdown.
+
+For explicit control, access the underlying provider:
+
+```typescript
+import { trace } from '@opentelemetry/api';
+
+// Force flush pending spans
+const provider = trace.getTracerProvider();
+if ('forceFlush' in provider) {
+  await provider.forceFlush();
+}
+```
+
+## Next Steps
+
+- [Configuration](/docs/sdks/javascript/configuration/) — all configuration options
+- [Integrations](/docs/integrations/) — framework-specific guides

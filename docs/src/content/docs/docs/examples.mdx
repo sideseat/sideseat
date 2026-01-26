@@ -1,0 +1,165 @@
+---
+title: Examples
+description: Copy-paste examples for common SideSeat setups.
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+Golden-path examples to get started quickly with the local AI development workbench.
+
+## Strands Agents + Amazon Bedrock
+
+The fastest path for AWS users. Strands has native OpenTelemetry support.
+
+```python
+from sideseat import SideSeatTelemetry
+SideSeatTelemetry().setup_otlp_exporter()
+
+from strands import Agent, tool
+from strands.models import BedrockModel
+
+@tool
+def get_weather(city: str) -> str:
+    """Get weather for a city."""
+    return f"Sunny in {city}"
+
+model = BedrockModel(model_id="anthropic.claude-sonnet-4-5-20250929-v1:0")
+agent = Agent(model=model, tools=[get_weather])
+
+print(agent("What is the weather in Paris?"))
+```
+
+<Aside type="note">
+Replace the model ID with what's enabled in your Amazon Bedrock account.
+</Aside>
+
+## LangChain + OpenAI
+
+Popular choice for chain-based workflows.
+
+```python
+from sideseat import SideSeatTelemetry
+SideSeatTelemetry().setup_otlp_exporter()
+
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+
+llm = ChatOpenAI(model="gpt-4")
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful assistant."),
+    ("user", "{input}")
+])
+
+chain = prompt | llm
+response = chain.invoke({"input": "What is the capital of France?"})
+print(response.content)
+```
+
+## Multi-Turn Sessions
+
+Group related runs into sessions for conversation tracking.
+
+```python
+from sideseat import SideSeatTelemetry
+SideSeatTelemetry().setup_otlp_exporter()
+
+from strands import Agent, Session
+from strands.models import BedrockModel
+
+session = Session()
+model = BedrockModel(model_id="anthropic.claude-sonnet-4-5-20250929-v1:0")
+
+agent = Agent(
+    model=model,
+    session=session,
+    trace_attributes={
+        "session.id": session.id,
+        "user.id": "user-123"
+    }
+)
+
+# First turn
+agent("I'm planning a trip to Tokyo")
+
+# Second turn — context maintained
+agent("What should I pack?")
+```
+
+All turns appear under the same session in the workbench.
+
+## JavaScript + Strands
+
+Node.js setup with the JavaScript SDK.
+
+```typescript
+import { sideseat_init } from '@sideseat/sdk';
+sideseat_init();
+
+import { Agent } from '@strands/agent';
+
+const agent = new Agent({
+  model: 'anthropic.claude-sonnet-4-5-20250929-v1:0'
+});
+
+const response = await agent.run('What is the capital of France?');
+console.log(response);
+```
+
+## Generic OpenTelemetry
+
+Use standard OpenTelemetry when your framework isn't listed.
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+provider = TracerProvider()
+provider.add_span_processor(
+    BatchSpanProcessor(
+        OTLPSpanExporter(endpoint="http://localhost:5388/otel/default/v1/traces")
+    )
+)
+trace.set_tracer_provider(provider)
+
+tracer = trace.get_tracer(__name__)
+with tracer.start_as_current_span("llm.completion") as span:
+    span.set_attribute("gen_ai.system", "bedrock")
+    span.set_attribute("gen_ai.request.model", "anthropic.claude-sonnet-4-5-20250929-v1:0")
+    span.set_attribute("gen_ai.usage.input_tokens", 100)
+    span.set_attribute("gen_ai.usage.output_tokens", 50)
+    # Your LLM call here
+```
+
+## Environment-Based Configuration
+
+Configure via environment variables for CI/CD.
+
+<Tabs>
+  <TabItem label="Python">
+    ```bash
+    export SIDESEAT_ENDPOINT=http://localhost:5388
+    export SIDESEAT_PROJECT_ID=my-project
+    python my_agent.py
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```bash
+    SIDESEAT_ENDPOINT=http://localhost:5388 \
+    SIDESEAT_PROJECT_ID=my-project \
+    node my_agent.js
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+The standard OpenTelemetry variable `OTEL_EXPORTER_OTLP_ENDPOINT` is also supported. If set, it takes precedence over `SIDESEAT_ENDPOINT`.
+</Aside>
+
+## Next Steps
+
+- [Instrumentation Options](/docs/instrumentation/) — choose the right integration path
+- [Integrations](/docs/integrations/) — framework and provider guides
+- [Core Concepts](/docs/concepts/) — understand runs, steps, and sessions
+- [API Reference](/docs/reference/api/) — query runs programmatically

@@ -1,0 +1,70 @@
+---
+title: Docs
+description: Start here to run SideSeat locally, instrument your agent, and debug runs in the workbench.
+---
+
+import { Card, CardGrid, Steps, Aside } from '@astrojs/starlight/components';
+
+SideSeat is a local AI development workbench. Run it next to your code, instrument once, and inspect every prompt, tool call, and model response in a live run timeline.
+
+## Start Here
+
+<Steps>
+1. **Run locally**
+
+   ```bash
+   npx sideseat
+   ```
+
+2. **Instrument your agent**
+
+   Add the SideSeat SDK or OpenTelemetry exporter to your app.
+
+3. **Inspect the run**
+
+   Open [http://localhost:5388](http://localhost:5388) to see the timeline.
+</Steps>
+
+## Choose Your Path
+
+<CardGrid>
+  <Card title="First Run" icon="rocket">
+    [Get your first run](/docs/quickstart/) in the workbench.
+  </Card>
+  <Card title="Instrumentation" icon="puzzle">
+    [Choose the integration path](/docs/instrumentation/) that fits your stack.
+  </Card>
+  <Card title="Examples" icon="document">
+    [Copy-paste golden paths](/docs/examples/) for Strands, LangChain, and generic OTLP.
+  </Card>
+  <Card title="Integrations" icon="seti:config">
+    [Connect your framework](/docs/integrations/) or provider.
+  </Card>
+  <Card title="Concepts" icon="open-book">
+    [Understand runs, steps, and messages](/docs/concepts/).
+  </Card>
+  <Card title="Troubleshooting" icon="seti:info">
+    [Fix common issues](/docs/troubleshooting/) fast.
+  </Card>
+</CardGrid>
+
+## Why Local?
+
+SideSeat runs locally by default. Your data stays on your machine.
+
+| Benefit | What It Means |
+|---------|---------------|
+| **No signup** | Run `npx sideseat` and start debugging immediately |
+| **No data egress** | Traces stay on your machine — no cloud uploads |
+| **No latency** | Real-time streaming without network roundtrips |
+| **No vendor lock-in** | Standard OpenTelemetry traces work with any backend |
+
+You control where data lives with `SIDESEAT_DATA_DIR` and set retention via config. See [Configuration](/docs/reference/config/) for details.
+
+<Aside type="note">
+If you use cloud LLMs, those requests still go to your provider. SideSeat only stores what your app sends via OpenTelemetry.
+</Aside>
+
+## Coming from Other Tools?
+
+If you've used LangSmith, Langfuse, or Braintrust, SideSeat offers a different tradeoff: local-first development without cloud dependencies. You can still export to cloud services later — SideSeat uses standard OpenTelemetry, so traces are portable.

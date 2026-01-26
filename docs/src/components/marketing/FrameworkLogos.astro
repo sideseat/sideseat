@@ -1,0 +1,53 @@
+---
+const frameworks = [
+  { name: 'Strands Agents', primary: true },
+  { name: 'LangChain' },
+  { name: 'LangGraph' },
+  { name: 'CrewAI' },
+  { name: 'AutoGen' },
+  { name: 'LlamaIndex' },
+  { name: 'PydanticAI' },
+];
+
+const providers = [
+  { name: 'Amazon Bedrock', primary: true },
+  { name: 'Anthropic' },
+  { name: 'OpenAI' },
+  { name: 'Azure OpenAI' },
+  { name: 'Google Vertex AI' },
+];
+---
+
+<section class="section-tight">
+  <div class="container">
+    <div class="section-header center">
+      <p class="eyebrow">Compatible by default</p>
+      <h2 class="section-title">Works with the stack you already ship</h2>
+      <p class="section-lead">Bring your stack. Ingest OpenTelemetry traces from popular frameworks and providers.</p>
+    </div>
+
+    <div class="integrations-grid">
+      <div class="integration-card">
+        <div class="card-title">Frameworks</div>
+        <p class="text-muted">Strands, LangGraph, LangChain, and more for production orchestration.</p>
+        <div class="pill-grid" aria-label="Supported frameworks">
+          {frameworks.map((fw) => (
+            <span class={fw.primary ? 'pill accent' : 'pill'}>
+              {fw.name}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div class="integration-card">
+        <div class="card-title">Providers</div>
+        <p class="text-muted">Amazon Bedrock, Anthropic, OpenAI, and more. Every run stays traceable.</p>
+        <div class="pill-grid" aria-label="Supported providers">
+          {providers.map((provider) => (
+            <span class={provider.primary ? 'pill accent' : 'pill'}>{provider.name}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,69 @@
+---
+title: Instrumentation Options
+description: Choose the fastest way to send runs into SideSeat.
+---
+
+import { Card, CardGrid, Aside } from '@astrojs/starlight/components';
+
+Pick the integration path that fits your stack and timeline.
+
+<CardGrid>
+  <Card title="SideSeat SDK" icon="rocket">
+    Fastest setup. Add `SideSeatTelemetry()` (Python) or `sideseat_init()` (JS) and keep your framework intact.
+  </Card>
+  <Card title="Framework Native OTLP" icon="puzzle">
+    Use your framework’s OpenTelemetry support (Strands, LangChain, LangGraph) and point it at SideSeat.
+  </Card>
+  <Card title="Generic OpenTelemetry" icon="document">
+    Use raw OpenTelemetry SDKs when your framework isn’t listed or you want full control.
+  </Card>
+</CardGrid>
+
+## Option 1: SideSeat SDK (Recommended)
+
+### Python
+
+```python
+from sideseat import SideSeatTelemetry
+SideSeatTelemetry().setup_otlp_exporter()
+```
+
+### JavaScript
+
+```typescript
+import { sideseat_init } from '@sideseat/sdk';
+sideseat_init();
+```
+
+## Option 2: Framework Native OTLP
+
+Many frameworks emit OpenTelemetry out of the box. Point them to SideSeat:
+
+```text
+http://localhost:5388/otel/default/v1/traces
+```
+
+Start with Strands or LangGraph: [Integrations](/docs/integrations/).
+
+## Option 3: Generic OpenTelemetry
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+provider = TracerProvider()
+provider.add_span_processor(
+    BatchSpanProcessor(
+        OTLPSpanExporter(endpoint="http://localhost:5388/otel/default/v1/traces")
+    )
+)
+trace.set_tracer_provider(provider)
+```
+
+## Next Steps
+
+- [Examples](/docs/examples/) — copy-paste golden paths
+- [Python SDK](/docs/sdks/python/) — Python SDK reference
+- [JavaScript SDK](/docs/sdks/javascript/) — JavaScript SDK reference

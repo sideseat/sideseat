@@ -1,0 +1,113 @@
+---
+title: LlamaIndex
+description: Integrate SideSeat with LlamaIndex for RAG and data pipeline run visibility.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+[LlamaIndex](https://www.llamaindex.ai/) is a data framework for building LLM applications with custom data. SideSeat captures runs (traces) from indexing, retrieval, and querying.
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- Python 3.9+
+- Provider credentials configured
+
+## Quick Start
+
+<Steps>
+1. **Install dependencies**
+
+   ```bash
+   pip install llama-index sideseat
+   ```
+
+2. **Add telemetry**
+
+   ```python
+   from sideseat import SideSeatTelemetry
+   SideSeatTelemetry().setup_otlp_exporter()
+
+   from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
+
+   documents = SimpleDirectoryReader("data").load_data()
+   index = VectorStoreIndex.from_documents(documents)
+   query_engine = index.as_query_engine()
+
+   response = query_engine.query("What is this about?")
+   print(response)
+   ```
+</Steps>
+
+## Indexing
+
+Document indexing is traced:
+
+```python
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
+
+# Load documents
+documents = SimpleDirectoryReader("./data").load_data()
+
+# Create index (traced)
+index = VectorStoreIndex.from_documents(documents)
+```
+
+SideSeat shows:
+- Document loading span
+- Embedding generation spans
+- Index creation span
+
+## Querying
+
+Query operations are fully traced:
+
+```python
+query_engine = index.as_query_engine()
+response = query_engine.query("What is the main topic?")
+```
+
+SideSeat shows:
+- Query parsing span
+- Retrieval span with node count
+- LLM synthesis span
+- Response generation span
+
+## Chat Engines
+
+Chat-based interactions are captured:
+
+```python
+chat_engine = index.as_chat_engine()
+
+response = chat_engine.chat("Hello!")
+response = chat_engine.chat("Tell me more about that")
+```
+
+## Extracted Attributes
+
+| Attribute | Description |
+|-----------|-------------|
+| `llama_index.query.text` | Query string |
+| `llama_index.retriever.top_k` | Number of nodes retrieved |
+| `llama_index.node.count` | Retrieved node count |
+| `llama_index.embedding.model` | Embedding model used |
+
+## Custom Embeddings
+
+Custom embedding models are traced:
+
+```python
+from llama_index.embeddings.openai import OpenAIEmbedding
+
+embed_model = OpenAIEmbedding(model="text-embedding-3-small")
+index = VectorStoreIndex.from_documents(
+    documents,
+    embed_model=embed_model
+)
+```
+
+## Next Steps
+
+- [Python SDK](/docs/sdks/python/) — SDK reference
+- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages

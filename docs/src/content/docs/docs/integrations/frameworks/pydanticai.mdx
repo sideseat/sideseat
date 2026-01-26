@@ -1,0 +1,126 @@
+---
+title: PydanticAI
+description: Integrate SideSeat with PydanticAI for type-safe agent run visibility.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+[PydanticAI](https://ai.pydantic.dev/) is a Python agent framework from the creators of Pydantic. It provides type-safe, Pythonic agent development with built-in telemetry hooks.
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- Python 3.9+
+- Provider credentials configured
+
+## Quick Start
+
+<Steps>
+1. **Install dependencies**
+
+   ```bash
+   pip install pydantic-ai sideseat
+   ```
+
+2. **Add telemetry**
+
+   ```python
+   from sideseat import SideSeatTelemetry
+   SideSeatTelemetry().setup_otlp_exporter()
+
+   from pydantic_ai import Agent
+
+   agent = Agent('openai:gpt-4')
+   result = agent.run_sync('What is the capital of France?')
+   print(result.data)
+   ```
+</Steps>
+
+## Type-Safe Agents
+
+PydanticAI's type safety is preserved in traces:
+
+```python
+from pydantic import BaseModel
+from pydantic_ai import Agent
+
+class CityInfo(BaseModel):
+    name: str
+    country: str
+    population: int
+
+agent = Agent('openai:gpt-4', result_type=CityInfo)
+result = agent.run_sync('Tell me about Paris')
+print(result.data)  # CityInfo(name='Paris', country='France', population=2161000)
+```
+
+## Tools
+
+Tool definitions are traced:
+
+```python
+from pydantic_ai import Agent, RunContext
+
+agent = Agent('openai:gpt-4')
+
+@agent.tool
+async def get_weather(ctx: RunContext, location: str) -> str:
+    """Get the current weather for a location."""
+    return f"Sunny, 72°F in {location}"
+
+result = await agent.run('What is the weather in Tokyo?')
+```
+
+SideSeat shows:
+- Parent span for the agent run
+- Child spans for each LLM call
+- Child spans for each tool execution
+
+## Extracted Attributes
+
+| Attribute | Description |
+|-----------|-------------|
+| `pydantic_ai.agent.model` | Model being used |
+| `pydantic_ai.tool.name` | Tool being called |
+| `pydantic_ai.result.type` | Result type name |
+
+## System Prompts
+
+System prompts are captured in traces:
+
+```python
+agent = Agent(
+    'openai:gpt-4',
+    system_prompt='You are a helpful travel assistant.'
+)
+```
+
+## Dependencies
+
+Agent dependencies are traced:
+
+```python
+from dataclasses import dataclass
+from pydantic_ai import Agent, RunContext
+
+@dataclass
+class Deps:
+    user_id: str
+    api_key: str
+
+agent = Agent('openai:gpt-4', deps_type=Deps)
+
+@agent.tool
+async def get_user_data(ctx: RunContext[Deps]) -> str:
+    return f"Data for user {ctx.deps.user_id}"
+
+result = await agent.run(
+    'Get my data',
+    deps=Deps(user_id='123', api_key='xxx')
+)
+```
+
+## Next Steps
+
+- [Python SDK](/docs/sdks/python/) — SDK reference
+- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages

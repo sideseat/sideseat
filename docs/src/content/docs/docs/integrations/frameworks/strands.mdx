@@ -1,0 +1,247 @@
+---
+title: Strands Agents
+description: Integrate SideSeat with Strands Agents for live run visibility and debugging.
+---
+
+import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
+
+[Strands Agents](https://strandsagents.com) is an AI agent framework developed by AWS. It has native OpenTelemetry support, making SideSeat integration seamless.
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- Python 3.9+
+- Amazon Bedrock credentials configured
+
+## Quick Start
+
+<Steps>
+1. **Install dependencies**
+
+   ```bash
+   pip install strands-agents sideseat
+   ```
+
+2. **Add telemetry**
+
+   ```python
+   from sideseat import SideSeatTelemetry
+   SideSeatTelemetry().setup_otlp_exporter()
+
+   from strands import Agent
+   from strands.models import BedrockModel
+
+   model = BedrockModel(model_id="anthropic.claude-sonnet-4-5-20250929-v1:0")
+   agent = Agent(model=model)
+
+   response = agent("What is the capital of France?")
+   print(response)
+   ```
+
+3. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
+</Steps>
+
+## Strands Telemetry (Alternative)
+
+Strands has its own telemetry class that's compatible with SideSeat:
+
+```python
+from strands.telemetry import StrandsTelemetry
+
+telemetry = StrandsTelemetry()
+telemetry.setup_otlp_exporter(
+    endpoint="http://localhost:5388/otel/default/v1/traces"
+)
+```
+
+<Aside type="tip">
+You can also set `OTEL_EXPORTER_OTLP_ENDPOINT` instead of passing the endpoint directly.
+</Aside>
+
+<Aside type="note">
+The SideSeat SDK (`SideSeatTelemetry`) includes additional features like binary data handling. Use it unless you need Strands-specific telemetry features.
+</Aside>
+
+## Session Tracking
+
+Group related traces using trace attributes:
+
+```python
+agent = Agent(
+    model=model,
+    trace_attributes={
+        "session.id": "conversation-123",
+        "user.id": "user-456",
+        "environment": "development"
+    }
+)
+```
+
+These attributes appear in SideSeat and enable filtering.
+
+## Tool Instrumentation
+
+Strands automatically traces tool calls. Define tools normally:
+
+```python
+from strands import tool
+
+@tool
+def get_weather(location: str) -> str:
+    """Get weather for a location."""
+    return f"Weather in {location}: Sunny, 72°F"
+
+agent = Agent(
+    model=model,
+    tools=[get_weather]
+)
+
+response = agent("What's the weather in Paris?")
+```
+
+SideSeat shows:
+- Parent span for the agent run
+- Child spans for each LLM call
+- Child spans for each tool execution
+
+## Multi-Turn Conversations
+
+Maintain conversation state with sessions:
+
+```python
+from strands import Agent, Session
+
+session = Session()
+
+agent = Agent(
+    model=model,
+    session=session,
+    trace_attributes={"session.id": session.id}
+)
+
+# First turn
+agent("Hello, I'm planning a trip to Paris")
+
+# Second turn - context maintained
+agent("What should I pack?")
+```
+
+All turns appear under the same session in SideSeat.
+
+## Amazon Bedrock Models
+
+Using Amazon Bedrock with Strands:
+
+```python
+from strands.models import BedrockModel
+
+# Claude Sonnet 4.5
+model = BedrockModel(model_id="anthropic.claude-sonnet-4-5-20250929-v1:0")
+
+# Claude 3 Haiku (faster, cheaper)
+model = BedrockModel(model_id="us.anthropic.claude-3-haiku-20240307-v1:0")
+
+# Titan
+model = BedrockModel(model_id="amazon.titan-text-premier-v1:0")
+```
+
+SideSeat extracts the model name and calculates costs automatically.
+
+## Extracted Attributes
+
+SideSeat extracts these attributes from Strands traces:
+
+| Attribute | Description |
+|-----------|-------------|
+| `strands.agent.name` | Agent name |
+| `strands.session.id` | Session identifier |
+| `strands.tool.name` | Tool being called |
+| `gen_ai.system` | `bedrock`, `openai`, etc. |
+| `gen_ai.request.model` | Model ID |
+| `gen_ai.usage.input_tokens` | Prompt tokens |
+| `gen_ai.usage.output_tokens` | Completion tokens |
+
+## Complete Example
+
+```python
+from sideseat import SideSeatTelemetry
+
+# Initialize telemetry
+telemetry = SideSeatTelemetry()
+telemetry.setup_otlp_exporter()
+
+from strands import Agent, tool
+from strands.models import BedrockModel
+
+# Define tools
+@tool
+def calculate(expression: str) -> str:
+    """Evaluate a mathematical expression."""
+    return str(eval(expression))
+
+@tool
+def get_weather(location: str) -> str:
+    """Get current weather for a location."""
+    return f"Sunny, 72°F in {location}"
+
+# Create model
+model = BedrockModel(model_id="anthropic.claude-sonnet-4-5-20250929-v1:0")
+
+# Create agent with tools and session tracking
+agent = Agent(
+    name="assistant",
+    model=model,
+    tools=[calculate, get_weather],
+    trace_attributes={
+        "session.id": "demo-session",
+        "user.id": "demo-user"
+    }
+)
+
+# Run conversation
+response = agent("What's 15 * 7? Also, what's the weather in Tokyo?")
+print(response)
+
+# Graceful shutdown
+telemetry.shutdown()
+```
+
+## Troubleshooting
+
+### Traces Not Appearing
+
+1. Ensure `telemetry.shutdown()` is called before exit
+2. Check the OTLP endpoint is correct
+3. Verify SideSeat is running on port 5388
+
+<Aside type="tip">
+You can set `SIDESEAT_ENDPOINT` or the standard `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable to configure the endpoint. The OpenTelemetry variable takes precedence if both are set.
+</Aside>
+
+### Binary Data Issues
+
+If you see encoding errors, ensure binary encoding is enabled:
+
+```python
+telemetry = SideSeatTelemetry(encode_binary_as_base64=True)
+```
+
+### AWS Credentials
+
+Strands uses standard AWS credential chain. Ensure credentials are configured:
+
+```bash
+export AWS_REGION=us-east-1
+export AWS_ACCESS_KEY_ID=xxx
+export AWS_SECRET_ACCESS_KEY=xxx
+```
+
+Or use AWS profiles, IAM roles, etc.
+
+## Next Steps
+
+- [Python SDK](/docs/sdks/python/) — SDK reference
+- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages
+- [Amazon Bedrock](/docs/integrations/providers/bedrock/) — provider-specific details
