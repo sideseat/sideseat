@@ -48,8 +48,8 @@ Or with your package manager:
 Add two lines at the top of your entry point:
 
 ```python
-from sideseat import SideSeatTelemetry
-SideSeatTelemetry().setup_otlp_exporter()
+from sideseat import SideSeat
+SideSeat()
 
 # Your existing code
 from strands import Agent
@@ -78,7 +78,7 @@ The SDK auto-detects your AI framework and sets the service name:
 Override with:
 
 ```python
-SideSeatTelemetry(service_name="my-custom-service")
+SideSeat(service_name="my-custom-service")
 ```
 
 ### Binary Data Handling
@@ -87,38 +87,24 @@ AI frameworks often use binary data (images, audio). The SDK automatically encod
 
 ```python
 # Default: encode binary as base64
-telemetry = SideSeatTelemetry(encode_binary_as_base64=True)
+client = SideSeat(encode_binary=True)
 
 # Disable if not needed (saves bandwidth)
-telemetry = SideSeatTelemetry(encode_binary_as_base64=False)
+client = SideSeat(encode_binary=False)
 ```
 
-### Multiple Exporters
+### Debug Exporters
 
-Configure one or more exporters:
+Configure additional exporters for debugging:
 
 ```python
-telemetry = SideSeatTelemetry()
-
-# OTLP (to SideSeat or any OTLP endpoint)
-telemetry.setup_otlp_exporter()
+client = SideSeat()
 
 # Console (for debugging)
-telemetry.setup_console_exporter()
+client.telemetry.setup_console_exporter()
 
 # File (JSONL format)
-telemetry.setup_file_exporter("traces.jsonl")
-```
-
-### Method Chaining
-
-All setup methods return `self` for chaining:
-
-```python
-telemetry = (SideSeatTelemetry()
-    .setup_otlp_exporter()
-    .setup_console_exporter()
-    .setup_file_exporter("traces.jsonl"))
+client.telemetry.setup_file_exporter("traces.jsonl")
 ```
 
 ## Resource Attributes
@@ -133,37 +119,35 @@ The SDK automatically sets these OpenTelemetry resource attributes:
 | `telemetry.sdk.version` | SDK version |
 | `telemetry.sdk.language` | `python` |
 
+## Context Manager
+
+Use the context manager for automatic shutdown:
+
+```python
+with SideSeat() as client:
+    # Your code here
+# Traces flushed and connection closed automatically
+```
+
 ## Graceful Shutdown
 
 The SDK registers an `atexit` handler for automatic shutdown. You can also call it explicitly:
 
 ```python
-telemetry = SideSeatTelemetry().setup_otlp_exporter()
+client = SideSeat()
 
 # ... your code ...
 
 # Flush all pending spans before exit
-telemetry.shutdown()
+client.shutdown()
 ```
 
 <Aside type="note">
 `shutdown()` is idempotent and thread-safe. Calling it multiple times has no effect.
 </Aside>
 
-## Strands Encoder Patch
-
-If you're using Strands Agents, the SDK can patch its JSON encoder to handle binary data:
-
-```python
-from sideseat import patch_strands_encoder
-
-# Returns True if successful
-if patch_strands_encoder():
-    print("Strands encoder patched for base64 binary encoding")
-```
-
 ## Next Steps
 
 - [Configuration](/docs/sdks/python/configuration/) — detailed configuration options
-- [SideSeatTelemetry](/docs/sdks/python/telemetry/) — API reference
-- [Exporters](/docs/sdks/python/exporters/) — OTLP, console, and file exporters
+- [API Reference](/docs/sdks/python/telemetry/) — SideSeat class reference
+- [Exporters](/docs/sdks/python/exporters/) — console and file exporters for debugging

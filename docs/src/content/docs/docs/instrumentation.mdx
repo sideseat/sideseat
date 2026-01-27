@@ -9,13 +9,13 @@ Pick the integration path that fits your stack and timeline.
 
 <CardGrid>
   <Card title="SideSeat SDK" icon="rocket">
-    Fastest setup. Add `SideSeatTelemetry()` (Python) or `sideseat_init()` (JS) and keep your framework intact.
+    Fastest setup. Add `SideSeat()` (Python) or `sideseat_init()` (JS) and keep your framework intact.
   </Card>
   <Card title="Framework Native OTLP" icon="puzzle">
-    Use your framework’s OpenTelemetry support (Strands, LangChain, LangGraph) and point it at SideSeat.
+    Use your framework's OpenTelemetry support (Strands, LangChain, LangGraph) and point it at SideSeat.
   </Card>
   <Card title="Generic OpenTelemetry" icon="document">
-    Use raw OpenTelemetry SDKs when your framework isn’t listed or you want full control.
+    Use raw OpenTelemetry SDKs when your framework isn't listed or you want full control.
   </Card>
 </CardGrid>
 
@@ -24,8 +24,8 @@ Pick the integration path that fits your stack and timeline.
 ### Python
 
 ```python
-from sideseat import SideSeatTelemetry
-SideSeatTelemetry().setup_otlp_exporter()
+from sideseat import SideSeat
+SideSeat()
 ```
 
 ### JavaScript

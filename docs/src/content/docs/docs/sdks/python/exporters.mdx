@@ -1,73 +1,31 @@
 ---
 title: Python SDK Exporters
-description: OTLP, console, and file exporters for the SideSeat Python SDK.
+description: Debug exporters for the SideSeat Python SDK.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-The SideSeat Python SDK supports three exporter types. You can use multiple exporters simultaneously.
+The SideSeat Python SDK automatically exports traces to the SideSeat server via OTLP. For debugging, you can add console or file exporters.
 
-## OTLP Exporter
+## Default Behavior
 
-The primary exporter for sending traces to SideSeat or any OTLP-compatible endpoint.
-
-### Basic Usage
+By default, `SideSeat()` exports traces to the OTLP endpoint:
 
 ```python
-from sideseat import SideSeatTelemetry
+from sideseat import SideSeat
 
-telemetry = SideSeatTelemetry()
-telemetry.setup_otlp_exporter()
+client = SideSeat()  # Exports to http://127.0.0.1:5388 by default
 ```
 
-By default, sends to `http://localhost:4318/v1/traces` (OpenTelemetry default).
+## Debug Exporters
 
-### Custom Endpoint
+Access debug exporters via the `telemetry` property:
 
 ```python
-telemetry.setup_otlp_exporter(
-    endpoint="http://localhost:5388/otel/default/v1/traces"
-)
+client = SideSeat()
+client.telemetry.setup_console_exporter()  # Print to stdout
+client.telemetry.setup_file_exporter("traces.jsonl")  # Write to file
 ```
-
-### With Authentication
-
-```python
-telemetry.setup_otlp_exporter(
-    endpoint="http://localhost:5388/otel/default/v1/traces",
-    headers={"Authorization": "Bearer sk-your-api-key"}
-)
-```
-
-### With Compression
-
-```python
-from opentelemetry.exporter.otlp.proto.http import Compression
-
-telemetry.setup_otlp_exporter(
-    compression=Compression.Gzip
-)
-```
-
-### Custom Timeout
-
-```python
-telemetry.setup_otlp_exporter(
-    timeout=30  # seconds
-)
-```
-
-### Environment Variables
-
-The OTLP exporter respects these environment variables:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base endpoint URL | `http://localhost:4318` |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Traces-specific endpoint | (base)/v1/traces |
-| `OTEL_EXPORTER_OTLP_HEADERS` | Headers (key=value,key2=value2) | (none) |
-| `OTEL_EXPORTER_OTLP_TIMEOUT` | Timeout in milliseconds | `10000` |
-| `OTEL_EXPORTER_OTLP_COMPRESSION` | Compression algorithm | (none) |
 
 ## Console Exporter
 
@@ -76,8 +34,8 @@ Prints spans to stdout. Useful for debugging during development.
 ### Basic Usage
 
 ```python
-telemetry = SideSeatTelemetry()
-telemetry.setup_console_exporter()
+client = SideSeat()
+client.telemetry.setup_console_exporter()
 ```
 
 ### Output Example
@@ -93,7 +51,7 @@ telemetry.setup_console_exporter()
     "end_time": "2024-01-15T10:30:01.500000Z",
     "attributes": {
         "gen_ai.system": "openai",
-        "gen_ai.request.model": "gpt-4",
+        "gen_ai.request.model": "gpt-5-mini",
         "gen_ai.usage.input_tokens": 150,
         "gen_ai.usage.output_tokens": 200
     }
@@ -101,11 +59,7 @@ telemetry.setup_console_exporter()
 ```
 
 <Aside type="tip">
-Combine with OTLP for development:
-```python
-telemetry.setup_otlp_exporter()
-telemetry.setup_console_exporter()  # See spans in terminal too
-```
+Use console exporter during development to see spans in your terminal while also sending to SideSeat.
 </Aside>
 
 ## File Exporter
@@ -115,15 +69,15 @@ Writes spans to a JSONL (JSON Lines) file. Each line is a complete JSON object.
 ### Basic Usage
 
 ```python
-telemetry = SideSeatTelemetry()
-telemetry.setup_file_exporter("traces.jsonl")
+client = SideSeat()
+client.telemetry.setup_file_exporter("traces.jsonl")
 ```
 
 ### Append Mode (Default)
 
 ```python
 # Append to existing file
-telemetry.setup_file_exporter("traces.jsonl", mode="a")
+client.telemetry.setup_file_exporter("traces.jsonl", mode="a")
 ```
 
 Each run adds new spans to the file.
@@ -132,7 +86,7 @@ Each run adds new spans to the file.
 
 ```python
 # Overwrite on each run
-telemetry.setup_file_exporter("traces.jsonl", mode="w")
+client.telemetry.setup_file_exporter("traces.jsonl", mode="w")
 ```
 
 Clears the file at startup.
@@ -144,16 +98,16 @@ import os
 from pathlib import Path
 
 # Absolute path
-telemetry.setup_file_exporter("/var/log/myapp/traces.jsonl")
+client.telemetry.setup_file_exporter("/var/log/myapp/traces.jsonl")
 
 # Relative to home
 home = Path.home()
-telemetry.setup_file_exporter(str(home / ".myapp" / "traces.jsonl"))
+client.telemetry.setup_file_exporter(str(home / ".myapp" / "traces.jsonl"))
 
 # Date-based
 from datetime import datetime
 filename = f"traces-{datetime.now().strftime('%Y-%m-%d')}.jsonl"
-telemetry.setup_file_exporter(filename)
+client.telemetry.setup_file_exporter(filename)
 ```
 
 ### Output Format
@@ -163,87 +117,66 @@ telemetry.setup_file_exporter(filename)
 {"name":"tool.call","trace_id":"abc123...","span_id":"ghi789...","parent_span_id":"def456...","start_time":"2024-01-15T10:30:01.000000Z","end_time":"2024-01-15T10:30:01.200000Z","attributes":{"tool.name":"calculator"}}
 ```
 
-### Binary Data Handling
-
-When `encode_binary_as_base64=True` (default), binary data in attributes is base64-encoded:
-
-```python
-# Binary attribute
-span.set_attribute("image.data", b"\x89PNG\r\n...")
-
-# In file
-{"attributes": {"image.data": "iVBORw0KGgo..."}}
-```
-
 ## Multiple Exporters
 
-Use multiple exporters for redundancy or different use cases:
+Use multiple exporters for different use cases:
 
 ```python
-telemetry = SideSeatTelemetry()
+import os
+from sideseat import SideSeat
 
-# Primary: SideSeat server
-telemetry.setup_otlp_exporter(
-    endpoint="http://localhost:5388/otel/default/v1/traces"
-)
+client = SideSeat()
 
 # Backup: Local file
-telemetry.setup_file_exporter("traces-backup.jsonl")
+client.telemetry.setup_file_exporter("traces-backup.jsonl")
 
 # Debug: Console output (development only)
 if os.getenv("DEBUG"):
-    telemetry.setup_console_exporter()
+    client.telemetry.setup_console_exporter()
 ```
 
-## Custom Exporters
+## Custom OTLP Configuration
 
-You can use any OpenTelemetry-compatible exporter by providing your own `TracerProvider`:
+For custom OTLP configuration, use environment variables:
 
-```python
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from my_custom_exporter import CustomExporter
-
-# Create provider with custom exporter
-provider = TracerProvider()
-provider.add_span_processor(BatchSpanProcessor(CustomExporter()))
-
-# Pass to SideSeatTelemetry
-telemetry = SideSeatTelemetry(tracer_provider=provider)
-
-# Can still add more exporters
-telemetry.setup_file_exporter("traces.jsonl")
-```
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base endpoint URL | (from SIDESEAT_ENDPOINT) |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Headers (key=value,key2=value2) | (none) |
+| `OTEL_EXPORTER_OTLP_TIMEOUT` | Timeout in milliseconds | `10000` |
+| `OTEL_EXPORTER_OTLP_COMPRESSION` | Compression algorithm | (none) |
 
 ## Exporter Comparison
 
 | Exporter | Use Case | Persistence | Latency |
 |----------|----------|-------------|---------|
-| OTLP | Production, real-time monitoring | Remote server | Low |
+| OTLP (default) | Production, real-time monitoring | Remote server | Low |
 | Console | Development, debugging | None | Instant |
 | File | Backup, offline analysis | Local file | Low |
 
 ## Best Practices
 
-1. **Production**: Use OTLP exporter only (minimal overhead)
-2. **Development**: OTLP + Console for visibility
-3. **CI/CD**: File exporter for artifact collection
-4. **High-volume**: Consider sampling when using multiple exporters
+1. **Production**: Default OTLP only (minimal overhead)
+2. **Development**: Add console for visibility
+3. **CI/CD**: Add file exporter for artifact collection
 
 ```python
+import os
+from sideseat import SideSeat
+
 # Production setup
-telemetry = SideSeatTelemetry().setup_otlp_exporter()
+client = SideSeat()
 
 # Development setup
-telemetry = (SideSeatTelemetry()
-    .setup_otlp_exporter()
-    .setup_console_exporter())
+if os.getenv("DEBUG"):
+    client.telemetry.setup_console_exporter()
 
 # CI/CD setup
-telemetry = SideSeatTelemetry().setup_file_exporter("traces.jsonl")
+if os.getenv("CI"):
+    client.telemetry.setup_file_exporter("traces.jsonl")
 ```
 
 ## Next Steps
 
 - [Configuration](/docs/sdks/python/configuration/) — all configuration options
-- [SideSeatTelemetry](/docs/sdks/python/telemetry/) — API reference
+- [SideSeat Class](/docs/sdks/python/telemetry/) — API reference

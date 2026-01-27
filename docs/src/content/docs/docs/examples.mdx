@@ -12,8 +12,8 @@ Golden-path examples to get started quickly with the local AI development workbe
 The fastest path for AWS users. Strands has native OpenTelemetry support.
 
 ```python
-from sideseat import SideSeatTelemetry
-SideSeatTelemetry().setup_otlp_exporter()
+from sideseat import SideSeat
+SideSeat()
 
 from strands import Agent, tool
 from strands.models import BedrockModel
@@ -38,13 +38,13 @@ Replace the model ID with what's enabled in your Amazon Bedrock account.
 Popular choice for chain-based workflows.
 
 ```python
-from sideseat import SideSeatTelemetry
-SideSeatTelemetry().setup_otlp_exporter()
+from sideseat import SideSeat, Frameworks
+SideSeat(framework=Frameworks.LangChain)
 
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
-llm = ChatOpenAI(model="gpt-4")
+llm = ChatOpenAI(model="gpt-5-mini")
 prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a helpful assistant."),
     ("user", "{input}")
@@ -60,8 +60,8 @@ print(response.content)
 Group related runs into sessions for conversation tracking.
 
 ```python
-from sideseat import SideSeatTelemetry
-SideSeatTelemetry().setup_otlp_exporter()
+from sideseat import SideSeat
+SideSeat()
 
 from strands import Agent, Session
 from strands.models import BedrockModel
@@ -95,7 +95,7 @@ Node.js setup with the JavaScript SDK.
 import { sideseat_init } from '@sideseat/sdk';
 sideseat_init();
 
-import { Agent } from '@strands/agent';
+import { Agent } from '@strands-agents/sdk';
 
 const agent = new Agent({
   model: 'anthropic.claude-sonnet-4-5-20250929-v1:0'

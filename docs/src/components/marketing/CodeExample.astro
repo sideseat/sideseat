@@ -30,8 +30,8 @@
           <span class="terminal-title">your_agent.py</span>
         </div>
         <div class="terminal-body">
-          <pre><code><span class="text-accent">from sideseat import SideSeatTelemetry</span>
-<span class="text-accent">SideSeatTelemetry().setup_otlp_exporter()</span>   <span class="text-muted"># add this</span>
+          <pre><code><span class="text-accent">from sideseat import SideSeat</span>
+<span class="text-accent">SideSeat()</span>   <span class="text-muted"># add this</span>
 
 from strands import Agent
 from strands.models import BedrockModel
@@ -55,7 +55,7 @@ agent.run("Analyze this dataset...")</code></pre>
           <pre><code><span class="text-accent">import &#123; sideseat_init &#125; from "@sideseat/sdk";</span>
 <span class="text-accent">sideseat_init();</span>   <span class="text-muted">// add this</span>
 
-import &#123; Agent &#125; from "@strands/agent";
+import &#123; Agent &#125; from "@strands-agents/sdk";
 const agent = new Agent(&#123; model: "anthropic.claude-sonnet-4-5-20250929-v1:0" &#125;); <span class="text-muted">// Claude Sonnet 4.5 via Amazon Bedrock</span>
 await agent.run("Analyze this dataset...");</code></pre>
         </div>

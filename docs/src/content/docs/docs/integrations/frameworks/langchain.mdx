@@ -25,13 +25,13 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 2. **Add telemetry**
 
    ```python
-   from sideseat import SideSeatTelemetry
-   SideSeatTelemetry().setup_otlp_exporter()
+   from sideseat import SideSeat, Frameworks
+   SideSeat(framework=Frameworks.LangChain)
 
    from langchain_openai import ChatOpenAI
    from langchain_core.prompts import ChatPromptTemplate
 
-   llm = ChatOpenAI(model="gpt-4")
+   llm = ChatOpenAI(model="gpt-5-mini")
    prompt = ChatPromptTemplate.from_messages([
        ("system", "You are a helpful assistant."),
        ("user", "{input}")
@@ -50,8 +50,8 @@ LangChain offers multiple tracing approaches:
 ### Option 1: SideSeat SDK (Recommended)
 
 ```python
-from sideseat import SideSeatTelemetry
-SideSeatTelemetry().setup_otlp_exporter()
+from sideseat import SideSeat, Frameworks
+SideSeat(framework=Frameworks.LangChain)
 
 # Your LangChain code
 ```

@@ -18,8 +18,8 @@ SideSeat automatically extracts model information, token usage, and costs from A
 <Tabs>
   <TabItem label="Python">
     ```python
-    from sideseat import SideSeatTelemetry
-    SideSeatTelemetry().setup_otlp_exporter()
+    from sideseat import SideSeat
+    SideSeat()
 
     from openai import AzureOpenAI
 
@@ -30,7 +30,7 @@ SideSeat automatically extracts model information, token usage, and costs from A
     )
 
     response = client.chat.completions.create(
-        model="gpt-4o",  # Your deployment name
+        model="gpt-5-mini",  # Your deployment name
         messages=[{"role": "user", "content": "Hello!"}]
     )
     print(response.choices[0].message.content)

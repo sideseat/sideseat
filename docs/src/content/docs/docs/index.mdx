@@ -3,48 +3,128 @@ title: Docs
 description: Start here to run SideSeat locally, instrument your agent, and debug runs in the workbench.
 ---
 
-import { Card, CardGrid, Steps, Aside } from '@astrojs/starlight/components';
+import { Card, CardGrid, Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
 SideSeat is a local AI development workbench. Run it next to your code, instrument once, and inspect every prompt, tool call, and model response in a live run timeline.
 
-## Start Here
+## Quick Start
 
 <Steps>
-1. **Run locally**
+1. **Start the server**
 
    ```bash
    npx sideseat
    ```
 
-2. **Instrument your agent**
+2. **Install the SDK**
 
-   Add the SideSeat SDK or OpenTelemetry exporter to your app.
+   <Tabs>
+     <TabItem label="Python">
+       ```bash
+       pip install sideseat
+       ```
+     </TabItem>
+     <TabItem label="TypeScript">
+       ```bash
+       npm install @sideseat/sdk
+       ```
+     </TabItem>
+   </Tabs>
 
-3. **Inspect the run**
+3. **Initialize in your code**
 
-   Open [http://localhost:5388](http://localhost:5388) to see the timeline.
+   <Tabs>
+     <TabItem label="Python">
+       ```python
+       from sideseat import SideSeat
+
+       SideSeat()
+
+       # Your agent code here — traces are captured automatically
+       ```
+     </TabItem>
+     <TabItem label="TypeScript">
+       ```typescript
+       import { sideseat_init } from '@sideseat/sdk';
+
+       sideseat_init();
+
+       // Your agent code here — traces are captured automatically
+       ```
+     </TabItem>
+   </Tabs>
+
+4. **View traces**
+
+   Open [http://localhost:5389](http://localhost:5389) to see the timeline.
 </Steps>
+
+## Framework Examples
+
+<Tabs>
+  <TabItem label="Strands">
+    ```python
+    from sideseat import SideSeat
+    from strands import Agent
+
+    SideSeat()
+
+    agent = Agent(model="anthropic.claude-sonnet-4-5-20250929-v1:0")
+    response = agent("What is 2+2?")
+    ```
+  </TabItem>
+  <TabItem label="LangChain">
+    ```python
+    from sideseat import SideSeat, Frameworks
+    from langchain_openai import ChatOpenAI
+
+    SideSeat(framework=Frameworks.LangChain)
+
+    llm = ChatOpenAI(model="gpt-5-mini")
+    response = llm.invoke("Hello!")
+    ```
+  </TabItem>
+  <TabItem label="CrewAI">
+    ```python
+    from sideseat import SideSeat, Frameworks
+    from crewai import Agent, Task, Crew
+
+    SideSeat(framework=Frameworks.CrewAI)
+
+    researcher = Agent(role="Researcher", goal="Find info")
+    task = Task(description="Research AI", agent=researcher)
+    Crew(agents=[researcher], tasks=[task]).kickoff()
+    ```
+  </TabItem>
+  <TabItem label="PydanticAI">
+    ```python
+    from sideseat import SideSeat, Frameworks
+    from pydantic_ai import Agent
+
+    SideSeat(framework=Frameworks.PydanticAI)
+
+    agent = Agent("openai:gpt-5-mini")
+    result = agent.run_sync("What is Python?")
+    ```
+  </TabItem>
+</Tabs>
+
+See [all supported frameworks](/docs/integrations/).
 
 ## Choose Your Path
 
 <CardGrid>
-  <Card title="First Run" icon="rocket">
-    [Get your first run](/docs/quickstart/) in the workbench.
+  <Card title="Python SDK" icon="seti:python">
+    [Full Python SDK reference](/docs/sdks/python/) with configuration and examples.
   </Card>
-  <Card title="Instrumentation" icon="puzzle">
-    [Choose the integration path](/docs/instrumentation/) that fits your stack.
+  <Card title="TypeScript SDK" icon="seti:typescript">
+    [Full TypeScript SDK reference](/docs/sdks/javascript/) for Node.js apps.
   </Card>
-  <Card title="Examples" icon="document">
-    [Copy-paste golden paths](/docs/examples/) for Strands, LangChain, and generic OTLP.
-  </Card>
-  <Card title="Integrations" icon="seti:config">
-    [Connect your framework](/docs/integrations/) or provider.
+  <Card title="Integrations" icon="puzzle">
+    [Connect your framework](/docs/integrations/) — Strands, LangChain, CrewAI, and more.
   </Card>
   <Card title="Concepts" icon="open-book">
     [Understand runs, steps, and messages](/docs/concepts/).
-  </Card>
-  <Card title="Troubleshooting" icon="seti:info">
-    [Fix common issues](/docs/troubleshooting/) fast.
   </Card>
 </CardGrid>
 
@@ -59,12 +139,6 @@ SideSeat runs locally by default. Your data stays on your machine.
 | **No latency** | Real-time streaming without network roundtrips |
 | **No vendor lock-in** | Standard OpenTelemetry traces work with any backend |
 
-You control where data lives with `SIDESEAT_DATA_DIR` and set retention via config. See [Configuration](/docs/reference/config/) for details.
-
 <Aside type="note">
 If you use cloud LLMs, those requests still go to your provider. SideSeat only stores what your app sends via OpenTelemetry.
 </Aside>
-
-## Coming from Other Tools?
-
-If you've used LangSmith, Langfuse, or Braintrust, SideSeat offers a different tradeoff: local-first development without cloud dependencies. You can still export to cloud services later — SideSeat uses standard OpenTelemetry, so traces are portable.

@@ -65,7 +65,7 @@ export default defineConfig({
               items: [
                 { label: 'Overview', link: '/docs/sdks/python/' },
                 { label: 'Configuration', slug: 'docs/sdks/python/configuration' },
-                { label: 'SideSeatTelemetry', slug: 'docs/sdks/python/telemetry' },
+                { label: 'SideSeat Class', slug: 'docs/sdks/python/telemetry' },
                 { label: 'Exporters', slug: 'docs/sdks/python/exporters' },
               ],
             },

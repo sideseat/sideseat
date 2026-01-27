@@ -63,8 +63,8 @@ Add two lines at the top of your entry point:
 <Tabs>
   <TabItem label="Python (Strands + Amazon Bedrock)">
     ```python
-    from sideseat import SideSeatTelemetry
-    SideSeatTelemetry().setup_otlp_exporter()
+    from sideseat import SideSeat
+    SideSeat()
 
     # Your existing code
     from strands import Agent
@@ -82,7 +82,7 @@ Add two lines at the top of your entry point:
     sideseat_init();
 
     // Your existing code
-    import { Agent } from '@strands/agent';
+    import { Agent } from '@strands-agents/sdk';
     const agent = new Agent({ model: 'anthropic.claude-sonnet-4-5-20250929-v1:0' });
     const response = await agent.run('What is the capital of France?');
     console.log(response);

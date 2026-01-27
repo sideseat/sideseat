@@ -25,8 +25,8 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 2. **Add telemetry**
 
    ```python
-   from sideseat import SideSeatTelemetry
-   SideSeatTelemetry().setup_otlp_exporter()
+   from sideseat import SideSeat, Frameworks
+   SideSeat(framework=Frameworks.CrewAI)
 
    from crewai import Agent, Task, Crew
 
