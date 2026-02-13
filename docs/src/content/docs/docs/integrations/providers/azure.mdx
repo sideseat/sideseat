@@ -1,0 +1,110 @@
+---
+title: Azure OpenAI
+description: SideSeat extracts model and token information from Azure OpenAI API calls.
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+SideSeat automatically extracts model information, token usage, and costs from Azure OpenAI API calls.
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- SDK installed (`pip install sideseat` / `uv add sideseat` or `npm install @sideseat/sdk`)
+- Azure OpenAI credentials configured
+
+## Usage with OpenAI SDK
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    from sideseat import SideSeat
+    SideSeat()
+
+    from openai import AzureOpenAI
+
+    client = AzureOpenAI(
+        api_key="your-api-key",
+        api_version="2024-02-01",
+        azure_endpoint="https://your-resource.openai.azure.com"
+    )
+
+    response = client.chat.completions.create(
+        model="gpt-5-mini",  # Your deployment name
+        messages=[{"role": "user", "content": "Hello!"}]
+    )
+    print(response.choices[0].message.content)
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```typescript
+    import { init } from '@sideseat/sdk';
+    init();
+
+    import { AzureOpenAI } from 'openai';
+
+    const client = new AzureOpenAI({
+      apiKey: 'your-api-key',
+      apiVersion: '2024-02-01',
+      endpoint: 'https://your-resource.openai.azure.com'
+    });
+
+    const response = await client.chat.completions.create({
+      model: 'gpt-5-mini',  // Your deployment name
+      messages: [{ role: 'user', content: 'Hello!' }]
+    });
+    console.log(response.choices[0].message.content);
+    ```
+  </TabItem>
+</Tabs>
+
+## Extracted Attributes
+
+| Attribute | Source |
+|-----------|--------|
+| `gen_ai.system` | `azure_openai` |
+| `gen_ai.request.model` | Deployment name |
+| `gen_ai.response.model` | Response model field |
+| `gen_ai.usage.input_tokens` | `usage.prompt_tokens` |
+| `gen_ai.usage.output_tokens` | `usage.completion_tokens` |
+| `cloud.provider` | `azure` |
+
+## Environment Variables
+
+Configure via environment:
+
+```bash
+export AZURE_OPENAI_API_KEY=your-api-key
+export AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+export OPENAI_API_VERSION=2024-02-01
+```
+
+```python
+from openai import AzureOpenAI
+
+# Uses environment variables
+client = AzureOpenAI()
+```
+
+## Managed Identity
+
+Azure Managed Identity is supported:
+
+```python
+from azure.identity import DefaultAzureCredential
+from openai import AzureOpenAI
+
+credential = DefaultAzureCredential()
+token = credential.get_token("https://cognitiveservices.azure.com/.default")
+
+client = AzureOpenAI(
+    azure_ad_token=token.token,
+    api_version="2024-02-01",
+    azure_endpoint="https://your-resource.openai.azure.com"
+)
+```
+
+## Next Steps
+
+- [OpenAI](/docs/integrations/providers/openai/) — standard OpenAI usage
+- [Python SDK](/docs/sdks/python/) — SDK reference

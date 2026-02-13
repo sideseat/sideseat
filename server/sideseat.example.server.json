@@ -1,0 +1,69 @@
+{
+  "$schema": "./sideseat.schema.json",
+  "server": {
+    "host": "0.0.0.0",
+    "port": 5388
+  },
+  "auth": {
+    "enabled": true
+  },
+  "otel": {
+    "grpc": {
+      "enabled": true,
+      "port": 4317
+    },
+    "retention": {
+      "max_age_minutes": 10080,
+      "max_spans": 25000000
+    }
+  },
+  "pricing": {
+    "sync_hours": 4
+  },
+  "files": {
+    "enabled": true,
+    "storage": "s3",
+    "quota_bytes": 10737418240,
+    "s3": {
+      "bucket": "my-sideseat-bucket",
+      "prefix": "sideseat/files",
+      "region": "us-east-1"
+    }
+  },
+  "rate_limit": {
+    "enabled": true,
+    "api_rpm": 1000,
+    "ingestion_rpm": 10000,
+    "auth_rpm": 30,
+    "files_rpm": 100
+  },
+  "database": {
+    "transactional": "postgres",
+    "analytics": "clickhouse",
+    "cache": "redis",
+    "postgres": {
+      "url": "postgres://sideseat:password@postgres.internal:5432/sideseat",
+      "max_connections": 20,
+      "acquire_timeout_secs": 30
+    },
+    "clickhouse": {
+      "url": "https://clickhouse.internal:8443",
+      "database": "sideseat",
+      "user": "sideseat",
+      "password": "password",
+      "timeout_secs": 30,
+      "compression": true,
+      "async_insert": true,
+      "wait_for_async_insert": false,
+      "cluster": "sideseat_cluster",
+      "distributed": true
+    },
+    "redis": {
+      "url": "redis://redis.internal:6379/0"
+    }
+  },
+  "update": {
+    "enabled": true
+  },
+  "debug": false
+}

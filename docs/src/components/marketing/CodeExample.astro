@@ -1,0 +1,94 @@
+---
+---
+<section class="section section-contrast">
+  <div class="container">
+    <div class="section-header center">
+      <p class="eyebrow">Instrument once</p>
+      <h2 class="section-title">Add two lines. Capture every agent run.</h2>
+      <p class="section-lead">Drop in the OpenTelemetry exporter and SideSeat renders traces instantly in the workbench.</p>
+    </div>
+
+    <div class="steps">
+      <div class="step">1. Install the SDK</div>
+      <div class="step">2. Initialize SideSeat</div>
+      <div class="step">3. Run your agent locally</div>
+    </div>
+
+    <div class="section-header center" style="margin-bottom: 20px;">
+      <div class="code-tabs" role="tablist" aria-label="SDK selector">
+        <button class="code-tab is-active" data-tab="python" role="tab" aria-selected="true">Python</button>
+        <button class="code-tab" data-tab="javascript" role="tab" aria-selected="false">JavaScript</button>
+      </div>
+    </div>
+
+    <div class="code-panel" data-panel="python">
+      <div class="terminal">
+        <div class="terminal-header">
+          <div class="terminal-dot red"></div>
+          <div class="terminal-dot yellow"></div>
+          <div class="terminal-dot green"></div>
+          <span class="terminal-title">your_agent.py</span>
+        </div>
+        <div class="terminal-body">
+          <pre><code>from strands import Agent
+<span class="text-accent">from sideseat import SideSeat, Frameworks</span>
+
+<span class="text-accent">SideSeat(framework=Frameworks.Strands)</span>   <span class="text-muted"># add this</span>
+
+agent = Agent()  <span class="text-muted"># uses Amazon Bedrock by default</span>
+agent("Analyze this dataset...")</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="code-panel hidden" data-panel="javascript">
+      <div class="terminal">
+        <div class="terminal-header">
+          <div class="terminal-dot red"></div>
+          <div class="terminal-dot yellow"></div>
+          <div class="terminal-dot green"></div>
+          <span class="terminal-title">your_agent.js</span>
+        </div>
+        <div class="terminal-body">
+          <pre><code>import &#123; generateText &#125; from "ai";
+import &#123; openai &#125; from "@ai-sdk/openai";
+<span class="text-accent">import &#123; init &#125; from "@sideseat/sdk";</span>
+
+<span class="text-accent">init();</span>   <span class="text-muted">// add this</span>
+
+const &#123; text &#125; = await generateText(&#123;
+  model: openai("gpt-5-mini"),
+  prompt: "Analyze this dataset...",
+  experimental_telemetry: &#123; isEnabled: true &#125;,
+&#125;);</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <p class="code-note">Open <span class="text-accent">localhost:5388</span> to inspect the run in the workbench.</p>
+  </div>
+</section>
+
+<script is:inline>
+  document.addEventListener('DOMContentLoaded', () => {
+    const tabs = document.querySelectorAll('.code-tab');
+    const panels = document.querySelectorAll('.code-panel');
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const target = tab.getAttribute('data-tab');
+
+        tabs.forEach((t) => {
+          const isActive = t === tab;
+          t.classList.toggle('is-active', isActive);
+          t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+
+        panels.forEach((panel) => {
+          const matches = panel.getAttribute('data-panel') === target;
+          panel.classList.toggle('hidden', !matches);
+        });
+      });
+    });
+  });
+</script>

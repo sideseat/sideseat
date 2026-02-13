@@ -1,0 +1,97 @@
+[package]
+name = "sideseat-server"
+version = "1.0.6"
+edition = "2024"
+
+[[bin]]
+name = "sideseat"
+path = "src/main.rs"
+
+[lints.rust]
+dead_code = "deny"
+unused_imports = "deny"
+unused_variables = "deny"
+unused_mut = "deny"
+
+[lints.clippy]
+all = "warn"
+
+[dependencies]
+axum = { workspace = true }
+tokio = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+dotenvy = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+clap = { workspace = true }
+rust-embed = { workspace = true }
+reqwest = { workspace = true }
+async-stream = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+mime_guess = { workspace = true }
+directories = { workspace = true }
+dirs = { workspace = true }
+chrono = { workspace = true }
+chrono-tz = { workspace = true }
+keyring = { workspace = true }
+local-ip-address = { workspace = true }
+supports-hyperlinks = { workspace = true }
+jsonwebtoken = { workspace = true }
+rand = { workspace = true }
+subtle = { workspace = true }
+axum-extra = { workspace = true }
+uuid = { workspace = true }
+time = { workspace = true }
+
+# OpenTelemetry dependencies
+opentelemetry-proto = { workspace = true }
+prost = { workspace = true }
+tonic = { workspace = true }
+tokio-stream = { workspace = true }
+base64 = { workspace = true }
+hex = { workspace = true }
+regex = { workspace = true }
+fs2 = { workspace = true }
+sha2 = { workspace = true }
+hmac = { workspace = true }
+dashmap = { workspace = true }
+duckdb = { workspace = true }
+parking_lot = { workspace = true }
+rustc-hash = { workspace = true }
+validator = { workspace = true }
+cuid2 = { workspace = true }
+utoipa = { workspace = true }
+semver = { workspace = true }
+
+# S3 storage
+aws-sdk-s3 = { workspace = true }
+aws-config = { workspace = true }
+
+# Cache
+moka = { workspace = true }
+rmp-serde = { workspace = true }
+md5 = { workspace = true }
+
+# Redis cache
+deadpool-redis = { workspace = true }
+
+# ClickHouse client
+clickhouse = { workspace = true }
+
+# MCP server
+rmcp = { workspace = true }
+schemars = { workspace = true }
+tokio-util = { workspace = true }
+
+[features]
+default = []
+
+[dev-dependencies]
+tempfile = "3"

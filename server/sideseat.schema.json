@@ -1,0 +1,472 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sideseat.ai/schemas/sideseat.schema.json",
+  "title": "SideSeat Configuration",
+  "description": "Configuration schema for SideSeat AI observability server",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference for IDE support"
+    },
+    "server": {
+      "type": "object",
+      "description": "HTTP server configuration",
+      "properties": {
+        "host": {
+          "type": "string",
+          "description": "Server bind address",
+          "default": "127.0.0.1",
+          "examples": ["127.0.0.1", "0.0.0.0", "localhost"]
+        },
+        "port": {
+          "type": "integer",
+          "description": "Server port",
+          "default": 5388,
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "mcp": {
+          "type": "object",
+          "description": "MCP (Model Context Protocol) server configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable the MCP server endpoint for AI agent access"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "auth": {
+      "type": "object",
+      "description": "Authentication configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable authentication",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "otel": {
+      "type": "object",
+      "description": "OpenTelemetry configuration",
+      "properties": {
+        "grpc": {
+          "type": "object",
+          "description": "gRPC endpoint configuration for OTLP ingestion",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable gRPC OTLP endpoint",
+              "default": true
+            },
+            "port": {
+              "type": "integer",
+              "description": "gRPC port (standard OTLP port)",
+              "default": 4317,
+              "minimum": 1,
+              "maximum": 65535
+            }
+          },
+          "additionalProperties": false
+        },
+        "retention": {
+          "type": "object",
+          "description": "Data retention configuration",
+          "properties": {
+            "max_age_minutes": {
+              "type": ["integer", "null"],
+              "description": "Maximum age of traces in minutes. Traces older than this are deleted. Null means no time-based limit.",
+              "minimum": 0,
+              "examples": [1440, 10080, 43200]
+            },
+            "max_spans": {
+              "type": ["integer", "null"],
+              "description": "Maximum number of spans to retain. Oldest spans are deleted when limit is exceeded.",
+              "default": 5000000,
+              "minimum": 0,
+              "examples": [1000000, 5000000, 25000000]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "pricing": {
+      "type": "object",
+      "description": "LLM pricing data configuration",
+      "properties": {
+        "sync_hours": {
+          "type": "integer",
+          "description": "Hours between pricing data sync from GitHub. Set to 0 to disable sync.",
+          "default": 4,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "files": {
+      "type": "object",
+      "description": "File storage configuration for extracted binary content",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable file storage extraction",
+          "default": true
+        },
+        "storage": {
+          "type": "string",
+          "description": "Storage backend type",
+          "enum": ["filesystem", "s3"],
+          "default": "filesystem"
+        },
+        "quota_bytes": {
+          "type": "integer",
+          "description": "Per-project storage quota in bytes",
+          "default": 1073741824,
+          "minimum": 0,
+          "examples": [1073741824, 5368709120, 10737418240]
+        },
+        "filesystem": {
+          "type": "object",
+          "description": "Filesystem storage configuration (used when storage is 'filesystem')",
+          "properties": {
+            "path": {
+              "type": ["string", "null"],
+              "description": "Custom path for file storage. Null uses default (~/.sideseat/files).",
+              "examples": ["/var/lib/sideseat/files", "~/.sideseat/files"]
+            }
+          },
+          "additionalProperties": false
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3 storage configuration (used when storage is 's3')",
+          "properties": {
+            "bucket": {
+              "type": ["string", "null"],
+              "description": "S3 bucket name. Required when storage is 's3'."
+            },
+            "prefix": {
+              "type": "string",
+              "description": "Key prefix for all files",
+              "default": "sideseat/files"
+            },
+            "region": {
+              "type": ["string", "null"],
+              "description": "AWS region. Uses AWS SDK default resolution if not specified.",
+              "examples": ["us-east-1", "eu-west-1", "ap-southeast-1"]
+            },
+            "endpoint": {
+              "type": ["string", "null"],
+              "description": "Custom S3 endpoint URL for S3-compatible services (MinIO, LocalStack, etc.)",
+              "examples": ["http://localhost:9000", "https://minio.example.com"]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "storage": { "const": "s3" }
+            },
+            "required": ["storage"]
+          },
+          "then": {
+            "required": ["s3"],
+            "properties": {
+              "s3": {
+                "required": ["bucket"],
+                "properties": {
+                  "bucket": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "update": {
+      "type": "object",
+      "description": "Update check configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Check for updates on startup",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "rate_limit": {
+      "type": "object",
+      "description": "Rate limiting configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable rate limiting (per-project by default)",
+          "default": true
+        },
+        "per_ip": {
+          "type": "boolean",
+          "description": "Enable per-IP rate limiting for API and auth endpoints. Disabled by default.",
+          "default": false
+        },
+        "api_rpm": {
+          "type": "integer",
+          "description": "API rate limit (requests per minute)",
+          "default": 1000,
+          "minimum": 0
+        },
+        "ingestion_rpm": {
+          "type": "integer",
+          "description": "OTEL ingestion rate limit (requests per minute)",
+          "default": 10000,
+          "minimum": 0
+        },
+        "auth_rpm": {
+          "type": "integer",
+          "description": "Auth endpoint rate limit (requests per minute)",
+          "default": 30,
+          "minimum": 0
+        },
+        "files_rpm": {
+          "type": "integer",
+          "description": "Files endpoint rate limit (requests per minute)",
+          "default": 100,
+          "minimum": 0
+        },
+        "bypass_header": {
+          "type": ["string", "null"],
+          "description": "Secret for X-RateLimit-Bypass header to bypass rate limiting"
+        }
+      },
+      "additionalProperties": false
+    },
+    "database": {
+      "type": "object",
+      "description": "Database backend configuration",
+      "properties": {
+        "transactional": {
+          "type": "string",
+          "description": "Transactional database backend for metadata storage",
+          "enum": ["sqlite", "postgres"],
+          "default": "sqlite"
+        },
+        "analytics": {
+          "type": "string",
+          "description": "Analytics database backend for OTEL data (high-throughput writes)",
+          "enum": ["duckdb", "clickhouse"],
+          "default": "duckdb"
+        },
+        "postgres": {
+          "type": "object",
+          "description": "PostgreSQL configuration (used when transactional is 'postgres')",
+          "properties": {
+            "url": {
+              "type": ["string", "null"],
+              "description": "PostgreSQL connection URL. Can also be set via SIDESEAT_POSTGRES_URL env var.",
+              "examples": [
+                "postgres://user:pass@localhost:5432/sideseat",
+                "postgres://user:pass@db.example.com:5432/sideseat?sslmode=require"
+              ]
+            },
+            "max_connections": {
+              "type": "integer",
+              "description": "Maximum number of connections in the pool",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "acquire_timeout_secs": {
+              "type": "integer",
+              "description": "Connection acquire timeout in seconds",
+              "default": 30,
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "clickhouse": {
+          "type": "object",
+          "description": "ClickHouse configuration (used when analytics is 'clickhouse'). Optimized for high-volume SaaS workloads.",
+          "properties": {
+            "url": {
+              "type": ["string", "null"],
+              "description": "ClickHouse connection URL. Can also be set via SIDESEAT_CLICKHOUSE_URL env var.",
+              "examples": [
+                "http://localhost:8123",
+                "https://clickhouse.example.com:8443"
+              ]
+            },
+            "database": {
+              "type": "string",
+              "description": "Database name",
+              "default": "sideseat"
+            },
+            "user": {
+              "type": ["string", "null"],
+              "description": "Username for authentication"
+            },
+            "password": {
+              "type": ["string", "null"],
+              "description": "Password for authentication"
+            },
+            "timeout_secs": {
+              "type": "integer",
+              "description": "Query timeout in seconds",
+              "default": 30,
+              "minimum": 1
+            },
+            "compression": {
+              "type": "boolean",
+              "description": "Enable LZ4 compression for efficient network transfer",
+              "default": true
+            },
+            "async_insert": {
+              "type": "boolean",
+              "description": "Enable async inserts for high-throughput ingestion. Enables server-side batching.",
+              "default": true
+            },
+            "wait_for_async_insert": {
+              "type": "boolean",
+              "description": "Wait for async insert to complete. Set to false for max throughput (fire-and-forget).",
+              "default": false
+            },
+            "cluster": {
+              "type": ["string", "null"],
+              "description": "ClickHouse cluster name for distributed deployments. Enables sharded tables across multiple nodes.",
+              "examples": ["sideseat_cluster", "default"]
+            },
+            "distributed": {
+              "type": "boolean",
+              "description": "Enable distributed/sharded tables. Requires 'cluster' to be set. Uses ReplicatedReplacingMergeTree with Distributed query routing.",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "cache": {
+          "type": "string",
+          "description": "Cache backend type. Use 'redis' for Redis, Redis Sentinel, Valkey, or Dragonfly.",
+          "enum": ["memory", "redis"],
+          "default": "memory"
+        },
+        "redis": {
+          "type": "object",
+          "description": "Redis cache configuration (used when cache is 'redis'). Supports Redis, Redis Sentinel, Valkey, and Dragonfly.",
+          "properties": {
+            "url": {
+              "type": ["string", "null"],
+              "description": "Connection URL for Redis-compatible backends. Supports: Redis (redis://), Redis with TLS (rediss://), Redis Sentinel (redis+sentinel://), Valkey (redis://), and Dragonfly (redis://). For Sentinel, the URL format is: redis+sentinel://[user:pass@]sentinel1:port,sentinel2:port/master_name[/db]",
+              "examples": [
+                "redis://localhost:6379/0",
+                "rediss://user:pass@redis.example.com:6380/0",
+                "redis+sentinel://sentinel1:26379,sentinel2:26379/mymaster/0",
+                "redis+sentinel://user:pass@s1:26379,s2:26379,s3:26379/mymaster/1",
+                "redis://valkey.example.com:6379/0",
+                "redis://dragonfly.example.com:6379/0"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "memory_cache": {
+          "type": "object",
+          "description": "Memory cache configuration (used when cache is 'memory')",
+          "properties": {
+            "max_entries": {
+              "type": "integer",
+              "description": "Maximum number of cache entries",
+              "default": 100000,
+              "minimum": 0
+            },
+            "eviction_policy": {
+              "type": "string",
+              "description": "Cache eviction policy",
+              "enum": ["tinylfu", "lru"],
+              "default": "tinylfu"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "transactional": { "const": "postgres" }
+            },
+            "required": ["transactional"]
+          },
+          "then": {
+            "required": ["postgres"],
+            "properties": {
+              "postgres": {
+                "required": ["url"],
+                "properties": {
+                  "url": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "analytics": { "const": "clickhouse" }
+            },
+            "required": ["analytics"]
+          },
+          "then": {
+            "required": ["clickhouse"],
+            "properties": {
+              "clickhouse": {
+                "required": ["url"],
+                "properties": {
+                  "url": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cache": { "const": "redis" }
+            },
+            "required": ["cache"]
+          },
+          "then": {
+            "required": ["redis"],
+            "properties": {
+              "redis": {
+                "required": ["url"],
+                "properties": {
+                  "url": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "debug": {
+      "type": "boolean",
+      "description": "Enable debug mode (writes incoming OTLP data to debug folder)",
+      "default": false
+    }
+  },
+  "additionalProperties": true
+}

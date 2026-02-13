@@ -1,0 +1,173 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@import "./theme-professional.css";
+@import "./theme-fancy.css";
+@import "./theme-ocean.css";
+@import "./theme-ember.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --spacing-header-height: var(--header-height);
+  --spacing-header-offset: var(--header-offset);
+  --spacing-header-offset-sm: var(--header-offset-sm);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Container queries for responsive thread layout */
+.thread-container {
+  container-type: inline-size;
+}
+
+@container (max-width: 500px) {
+  .message-metadata-pills {
+    display: none;
+  }
+  .message-role {
+    font-size: 0.75rem;
+  }
+}
+
+@container (min-width: 500px) and (max-width: 700px) {
+  .message-model-pill {
+    display: none;
+  }
+}
+
+/* Minimal prose styles for markdown content */
+.prose {
+  @apply text-sm leading-relaxed;
+}
+.prose p {
+  @apply mb-3 last:mb-0;
+}
+.prose h1,
+.prose h2,
+.prose h3 {
+  @apply font-semibold mt-4 mb-2;
+}
+.prose h1 {
+  @apply text-xl;
+}
+.prose h2 {
+  @apply text-lg;
+}
+.prose h3 {
+  @apply text-base;
+}
+.prose ul,
+.prose ol {
+  @apply ml-4 mb-3;
+}
+.prose li {
+  @apply mb-1;
+}
+.prose ul {
+  list-style-type: disc;
+}
+.prose ol {
+  list-style-type: decimal;
+}
+.prose code {
+  @apply rounded bg-muted px-1 py-0.5 font-mono text-xs;
+}
+.prose pre {
+  @apply rounded-md bg-muted/50 p-3 overflow-auto my-3;
+}
+.prose pre code {
+  @apply bg-transparent p-0;
+}
+.prose a {
+  @apply text-primary underline;
+}
+.prose blockquote {
+  @apply border-l-2 border-muted-foreground/30 pl-4 italic;
+}
+.dark .prose {
+  @apply text-foreground;
+}
+
+/* JSON viewer collapse disable styles */
+.json-no-collapse .w-rjv-line > span:first-child {
+  pointer-events: none;
+}
+.json-no-collapse .w-rjv-line > span:first-child * {
+  pointer-events: auto;
+  cursor: text;
+}
+.json-no-collapse .w-rjv-arrow,
+.json-no-collapse .w-rjv-ellipsis {
+  display: none;
+}
+
+/* React Flow controls - theme-aware styling */
+.react-flow__controls {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+}
+.react-flow__controls-button {
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+  fill: var(--foreground);
+  color: var(--foreground);
+}
+.react-flow__controls-button:hover {
+  background: var(--muted);
+}
+.react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+.react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+/* AG-Grid error row styling */
+.ag-row-error .ag-cell {
+  color: var(--destructive);
+}

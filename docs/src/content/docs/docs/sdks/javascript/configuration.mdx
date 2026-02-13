@@ -1,0 +1,272 @@
+---
+title: JavaScript SDK Configuration
+description: Configuration options for the SideSeat JavaScript SDK.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This page covers all configuration options for the SideSeat JavaScript SDK.
+
+## Configuration Object
+
+```typescript
+interface SideSeatOptions {
+  disabled?: boolean;
+  endpoint?: string;
+  apiKey?: string;
+  projectId?: string;
+  serviceName?: string;
+  serviceVersion?: string;
+  framework?: Framework | string;
+  enableTraces?: boolean;
+  logLevel?: LogLevel;
+  debug?: boolean;
+}
+```
+
+All properties are optional. The SDK uses sensible defaults and environment variables.
+
+<Aside type="note">
+The type was previously named `SideSeatConfig`. That name is deprecated — use `SideSeatOptions` instead.
+</Aside>
+
+## Configuration Priority
+
+For each option, the SDK checks in order:
+
+1. **Config parameter** (highest priority)
+2. **Environment variable**
+3. **Auto-detection**
+4. **Default value** (lowest priority)
+
+## Options
+
+### `disabled`
+
+Disable all telemetry.
+
+| Source | Value |
+|--------|-------|
+| Config | `config.disabled` |
+| Environment | `SIDESEAT_DISABLED` |
+| Default | `false` |
+
+```typescript
+init({ disabled: true });
+```
+
+### `endpoint`
+
+The SideSeat server URL.
+
+| Source | Value |
+|--------|-------|
+| Config | `config.endpoint` |
+| Environment | `SIDESEAT_ENDPOINT` |
+| Default | `http://127.0.0.1:5388` |
+
+```typescript
+// Via config
+init({ endpoint: 'http://custom:5388' });
+
+// Via environment
+// SIDESEAT_ENDPOINT=http://custom:5388 node app.js
+```
+
+<Aside type="note">
+The SDK appends `/otel/{projectId}/v1/traces` to form the full OTLP endpoint.
+</Aside>
+
+### `projectId`
+
+The project ID for organizing traces.
+
+| Source | Value |
+|--------|-------|
+| Config | `config.projectId` |
+| Environment | `SIDESEAT_PROJECT_ID` |
+| Default | `"default"` |
+
+```typescript
+init({ projectId: 'my-project' });
+```
+
+### `apiKey`
+
+Optional API key for authenticated endpoints.
+
+| Source | Value |
+|--------|-------|
+| Config | `config.apiKey` |
+| Environment | `SIDESEAT_API_KEY` |
+| Default | (none) |
+
+```typescript
+init({ apiKey: 'sk-xxx' });
+```
+
+When set, adds an `Authorization: Bearer {apiKey}` header to OTLP requests.
+
+### `serviceName`
+
+The service name for resource attributes.
+
+| Source | Value |
+|--------|-------|
+| Config | `config.serviceName` |
+| Environment | `npm_package_name` then `OTEL_SERVICE_NAME` |
+| Default | `"unknown-service"` |
+
+```typescript
+init({ serviceName: 'my-ai-agent' });
+```
+
+<Aside type="tip">
+If you don't set `serviceName`, the SDK uses `npm_package_name` from your package.json (automatically set by npm when running scripts), then falls back to `OTEL_SERVICE_NAME`.
+</Aside>
+
+### `serviceVersion`
+
+The service version for resource attributes.
+
+| Source | Value |
+|--------|-------|
+| Config | `config.serviceVersion` |
+| Environment | `npm_package_version` |
+| Default | `"0.0.0"` |
+
+```typescript
+init({ serviceVersion: '1.2.3' });
+```
+
+### `framework`
+
+Explicitly select a framework for instrumentation.
+
+| Source | Value |
+|--------|-------|
+| Config | `config.framework` |
+| Default | `"sideseat"` |
+
+```typescript
+import { init, Frameworks } from '@sideseat/sdk';
+
+init({ framework: Frameworks.VercelAI });
+```
+
+Available constants: `Frameworks.Strands`, `Frameworks.VercelAI`, `Frameworks.LangChain`, `Frameworks.CrewAI`, `Frameworks.AutoGen`, `Frameworks.OpenAIAgents`, `Frameworks.GoogleADK`, `Frameworks.PydanticAI`.
+
+You can also pass any string for custom frameworks.
+
+### `enableTraces`
+
+Enable trace span export.
+
+| Source | Value |
+|--------|-------|
+| Config | `config.enableTraces` |
+| Default | `true` |
+
+```typescript
+init({ enableTraces: false }); // Disable tracing
+```
+
+### `logLevel`
+
+Control SDK log verbosity.
+
+| Source | Value |
+|--------|-------|
+| Config | `config.logLevel` |
+| Environment | `SIDESEAT_LOG_LEVEL` |
+| Default | `"debug"` if `debug=true`, else `"none"` |
+
+Valid levels: `"none"`, `"error"`, `"warn"`, `"info"`, `"debug"`, `"verbose"`.
+
+```typescript
+init({ logLevel: 'info' });
+```
+
+### `debug`
+
+Enable verbose logging (shortcut for `logLevel: "debug"`).
+
+| Source | Value |
+|--------|-------|
+| Config | `config.debug` |
+| Environment | `SIDESEAT_DEBUG` |
+| Default | `false` |
+
+```typescript
+init({ debug: true });
+```
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SIDESEAT_DISABLED` | Disable all telemetry | `false` |
+| `SIDESEAT_ENDPOINT` | Server URL | `http://127.0.0.1:5388` |
+| `SIDESEAT_PROJECT_ID` | Project ID | `default` |
+| `SIDESEAT_API_KEY` | API key (optional) | (none) |
+| `SIDESEAT_DEBUG` | Enable debug logging | `false` |
+| `SIDESEAT_LOG_LEVEL` | Log verbosity | (none) |
+| `npm_package_name` | Service name (set by npm) | (from package.json) |
+| `npm_package_version` | Service version (set by npm) | (from package.json) |
+| `OTEL_SERVICE_NAME` | Service name fallback | (none) |
+
+## HTTP Headers
+
+The SDK sends these headers with OTLP requests:
+
+| Header | Value |
+|--------|-------|
+| `User-Agent` | `sideseat-sdk-node/{version}` |
+| `Authorization` | `Bearer {apiKey}` (if apiKey set) |
+| `Content-Type` | `application/x-protobuf` |
+
+## Complete Examples
+
+### Development
+
+```typescript
+import { init } from '@sideseat/sdk';
+
+init({
+  debug: true  // See what's happening
+});
+```
+
+### Production
+
+```typescript
+import { init } from '@sideseat/sdk';
+
+init({
+  endpoint: process.env.SIDESEAT_ENDPOINT,
+  projectId: process.env.SIDESEAT_PROJECT_ID,
+  apiKey: process.env.SIDESEAT_API_KEY,
+  serviceName: 'my-production-agent'
+});
+```
+
+### Multi-Environment
+
+```typescript
+import { init } from '@sideseat/sdk';
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+init({
+  endpoint: isProduction
+    ? 'http://sideseat.internal:5388'
+    : 'http://localhost:5388',
+  projectId: isProduction ? 'production' : 'development',
+  debug: !isProduction
+});
+```
+
+## Next Steps
+
+- [init() / createClient()](/docs/sdks/javascript/init/) — API reference
+- [Integrations](/docs/integrations/) — framework-specific guides

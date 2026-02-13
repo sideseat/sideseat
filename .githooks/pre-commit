@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# Check staged files with error handling
+if ! RUST_FILES=$(git diff --cached --name-only -- 'server/'); then
+    echo "Error: git diff failed"
+    exit 1
+fi
+# Note: || : (no-op) ensures exit 0 without adding output (grep exits 1 when count=0)
+RUST_STAGED=$(echo "$RUST_FILES" | grep -c . || :)
+
+if ! WEB_FILES=$(git diff --cached --name-only -- 'web/src/'); then
+    echo "Error: git diff failed"
+    exit 1
+fi
+WEB_STAGED=$(echo "$WEB_FILES" | grep -c . || :)
+
+if ! JS_SDK_FILES=$(git diff --cached --name-only -- 'sdk/js/'); then
+    echo "Error: git diff failed"
+    exit 1
+fi
+JS_SDK_STAGED=$(echo "$JS_SDK_FILES" | grep -c . || :)
+
+if ! PY_SDK_FILES=$(git diff --cached --name-only -- 'sdk/python/'); then
+    echo "Error: git diff failed"
+    exit 1
+fi
+PY_SDK_STAGED=$(echo "$PY_SDK_FILES" | grep -c . || :)
+
+if [ "$RUST_STAGED" -gt 0 ]; then
+    echo "[pre-commit] Checking Rust ($RUST_STAGED files)..."
+    cd "$REPO_ROOT/server"
+    cargo fmt --check || { echo "Run 'make fmt' to fix"; exit 1; }
+    cargo clippy --all-targets -- -D warnings
+    cargo test --quiet
+fi
+
+if [ "$WEB_STAGED" -gt 0 ]; then
+    echo "[pre-commit] Checking TypeScript ($WEB_STAGED files)..."
+    cd "$REPO_ROOT/web"
+
+    # Check dependencies
+    if [ ! -d "node_modules" ]; then
+        echo "Error: node_modules missing. Run 'make setup' first."
+        exit 1
+    fi
+
+    npx prettier --check "src/**/*.{ts,tsx,css,json}" || { echo "Run 'make fmt' to fix"; exit 1; }
+    npm run lint
+    npm test -- --run
+fi
+
+if [ "$JS_SDK_STAGED" -gt 0 ]; then
+    echo "[pre-commit] Checking JS SDK ($JS_SDK_STAGED files)..."
+    cd "$REPO_ROOT/sdk/js"
+
+    if [ ! -d "node_modules" ]; then
+        echo "Error: sdk/js/node_modules missing. Run 'make setup' first."
+        exit 1
+    fi
+
+    npx prettier --check "src/**/*.ts" || { echo "Run 'cd sdk/js && npm run fmt' to fix"; exit 1; }
+    npm run lint
+    npm test
+fi
+
+if [ "$PY_SDK_STAGED" -gt 0 ]; then
+    echo "[pre-commit] Checking Python SDK ($PY_SDK_STAGED files)..."
+    cd "$REPO_ROOT/sdk/python"
+
+    if ! command -v uv &> /dev/null; then
+        echo "Error: uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"
+        exit 1
+    fi
+
+    uv sync --extra dev
+    uv run ruff format --check .
+    uv run ruff check .
+    uv run mypy src
+    uv run pytest
+fi
+
+echo "[pre-commit] All checks passed"

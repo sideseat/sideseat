@@ -1,0 +1,300 @@
+---
+title: Python SDK Configuration
+description: Configuration options for the SideSeat Python SDK.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This page covers all configuration options for the SideSeat Python SDK.
+
+## Constructor Parameters
+
+```python
+SideSeat(
+    # Connection
+    endpoint: str | None = None,
+    project_id: str | None = None,
+    api_key: str | None = None,
+
+    # Framework
+    framework: str | None = None,
+    auto_instrument: bool = True,
+
+    # Service identity
+    service_name: str | None = None,
+    service_version: str | None = None,
+
+    # Telemetry signals
+    enable_traces: bool = True,
+    enable_metrics: bool = True,
+    enable_logs: bool = False,
+
+    # Content capture
+    capture_content: bool = True,
+    encode_binary: bool = True,
+
+    # Control
+    disabled: bool = False,
+    debug: bool = False,
+)
+```
+
+## Connection Parameters
+
+### `endpoint`
+
+SideSeat server URL.
+
+```python
+# Default
+client = SideSeat()  # Uses http://127.0.0.1:5388
+
+# Custom endpoint
+client = SideSeat(endpoint="http://sideseat.example.com:5388")
+```
+
+### `project_id`
+
+Project identifier for organizing traces.
+
+```python
+client = SideSeat(project_id="my-project")
+```
+
+### `api_key`
+
+Authentication key for the SideSeat server.
+
+```python
+client = SideSeat(api_key="pk-your-api-key")
+```
+
+## Framework Parameters
+
+### `framework`
+
+Explicitly select a framework to instrument.
+
+```python
+from sideseat import SideSeat, Frameworks
+
+client = SideSeat(framework=Frameworks.LangGraph)
+```
+
+Available frameworks:
+- `Frameworks.Strands`
+- `Frameworks.LangGraph`
+- `Frameworks.LangChain`
+- `Frameworks.CrewAI`
+- `Frameworks.AutoGen`
+- `Frameworks.OpenAIAgents`
+- `Frameworks.GoogleADK`
+- `Frameworks.PydanticAI`
+
+If not specified, the SDK auto-detects in this order:
+1. Strands (`strands-agents`)
+2. LangChain / LangGraph (`langchain-core`)
+3. CrewAI (`crewai`)
+4. AutoGen (`autogen-agentchat`)
+5. OpenAI Agents (`agents`)
+6. Google ADK (`google-adk`)
+7. PydanticAI (`pydantic-ai`)
+
+<Aside type="note">
+LangGraph is detected via `langchain-core` (its dependency). Use `framework=Frameworks.LangGraph` to explicitly select LangGraph instrumentation.
+</Aside>
+
+### `auto_instrument`
+
+Enable automatic framework instrumentation.
+
+```python
+# Auto-instrument (default)
+client = SideSeat(auto_instrument=True)
+
+# Skip instrumentation
+client = SideSeat(auto_instrument=False)
+```
+
+<Aside type="tip">
+Set `auto_instrument=False` if your framework isn't supported or you want to use native instrumentation.
+</Aside>
+
+## Service Identity
+
+### `service_name`
+
+Override the auto-detected service name.
+
+```python
+# Auto-detect (default)
+client = SideSeat()
+
+# Explicit name
+client = SideSeat(service_name="my-agent")
+```
+
+### `service_version`
+
+Set the service version for resource attributes.
+
+```python
+client = SideSeat(
+    service_name="my-agent",
+    service_version="1.2.3"
+)
+```
+
+## Telemetry Signals
+
+### `enable_traces`
+
+Enable trace span export.
+
+```python
+client = SideSeat(enable_traces=True)  # Default
+```
+
+### `enable_metrics`
+
+Enable metrics export.
+
+```python
+client = SideSeat(enable_metrics=True)  # Default
+```
+
+### `enable_logs`
+
+Enable log export.
+
+```python
+client = SideSeat(enable_logs=False)  # Default
+```
+
+## Content Capture
+
+### `capture_content`
+
+Capture LLM prompts and responses.
+
+```python
+# Capture content (default)
+client = SideSeat(capture_content=True)
+
+# Disable for privacy
+client = SideSeat(capture_content=False)
+```
+
+### `encode_binary`
+
+Base64 encode binary data in spans.
+
+```python
+# Encode binary (default)
+client = SideSeat(encode_binary=True)
+
+# Leave as-is (may cause export errors)
+client = SideSeat(encode_binary=False)
+```
+
+<Aside type="tip">
+Keep `encode_binary=True` unless you're sure your spans don't contain binary data. Base64 encoding ensures compatibility with JSON-based exporters.
+</Aside>
+
+## Control Parameters
+
+### `disabled`
+
+Disable all telemetry.
+
+```python
+# Disabled mode
+client = SideSeat(disabled=True)
+```
+
+Useful for testing or CI environments.
+
+### `debug`
+
+Enable verbose logging.
+
+```python
+client = SideSeat(debug=True)
+```
+
+## Environment Variables
+
+The SDK respects these environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SIDESEAT_ENDPOINT` | `http://127.0.0.1:5388` | Server URL |
+| `SIDESEAT_PROJECT` | `default` | Project identifier |
+| `SIDESEAT_API_KEY` | — | Authentication key |
+| `SIDESEAT_DISABLED` | `false` | Disable all telemetry |
+| `SIDESEAT_DEBUG` | `false` | Enable verbose logging |
+
+Standard OpenTelemetry variables are also supported:
+
+| Variable | Description |
+|----------|-------------|
+| `OTEL_SERVICE_NAME` | Override service name |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Default OTLP endpoint |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Default headers (comma-separated) |
+| `OTEL_EXPORTER_OTLP_TIMEOUT` | Request timeout |
+
+## Configuration Priority
+
+Settings are resolved in this order (highest to lowest):
+1. Constructor parameters
+2. `SIDESEAT_*` environment variables
+3. `OTEL_*` environment variables
+4. Defaults
+
+## Complete Example
+
+```python
+from sideseat import SideSeat, Frameworks
+
+# Full configuration
+client = SideSeat(
+    # Connection
+    endpoint="http://localhost:5388",
+    project_id="my-project",
+    api_key="pk-xxx",
+
+    # Framework
+    framework=Frameworks.LangGraph,
+    auto_instrument=True,
+
+    # Service identity
+    service_name="my-agent",
+    service_version="1.0.0",
+
+    # Telemetry signals
+    enable_traces=True,
+    enable_metrics=True,
+    enable_logs=False,
+
+    # Content capture
+    capture_content=True,
+    encode_binary=True,
+
+    # Control
+    disabled=False,
+    debug=False,
+)
+
+# Add debug exporters
+client.telemetry.setup_file_exporter("traces.jsonl")
+
+# Your agent code here...
+
+# Explicit shutdown (or let atexit handle it)
+client.shutdown()
+```
+
+## Next Steps
+
+- [SideSeat Class](/docs/sdks/python/telemetry/) — API reference
+- [Exporters](/docs/sdks/python/exporters/) — debug exporters

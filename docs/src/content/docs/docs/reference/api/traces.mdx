@@ -1,0 +1,132 @@
+---
+title: Traces API
+description: API reference for run (trace) endpoints.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## List Traces
+
+```
+GET /api/v1/project/{project_id}/otel/traces
+```
+
+Query traces with pagination and filters.
+
+### Query Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `page` | number | Page number (default: 1) |
+| `limit` | number | Items per page (default: 50) |
+| `order_by` | string | Sort field (e.g., `start_time:desc`) |
+| `session_id` | string | Filter by session ID |
+| `user_id` | string | Filter by user ID |
+| `environment` | string or array | Filter by environment |
+| `from_timestamp` | string | Filter from timestamp (ISO 8601) |
+| `to_timestamp` | string | Filter to timestamp (ISO 8601) |
+| `filters` | JSON | Advanced filters (see below) |
+| `include_nongenai` | boolean | Include non‑GenAI traces (default: false) |
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "trace_id": "abc123def456",
+      "trace_name": "agent.run",
+      "start_time": "2025-01-26T10:12:34Z",
+      "end_time": "2025-01-26T10:12:36Z",
+      "duration_ms": 1890,
+      "session_id": "session-789",
+      "user_id": "user-123",
+      "environment": "development",
+      "span_count": 5,
+      "total_tokens": 350,
+      "total_cost": 0.018
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 50,
+    "total_items": 127,
+    "total_pages": 3
+  }
+}
+```
+
+### Examples
+
+```bash
+# List recent traces
+curl "http://localhost:5388/api/v1/project/default/otel/traces?page=1&limit=20"
+
+# Filter by session
+curl "http://localhost:5388/api/v1/project/default/otel/traces?session_id=session-789"
+
+# Filter by environment
+curl "http://localhost:5388/api/v1/project/default/otel/traces?environment=development"
+```
+
+## Get Trace
+
+```
+GET /api/v1/project/{project_id}/otel/traces/{trace_id}
+```
+
+Get a single trace with nested spans.
+
+Optional query params:
+- `include_raw_span=true` to include the raw OTLP span JSON
+
+## Get Trace Messages
+
+```
+GET /api/v1/project/{project_id}/otel/traces/{trace_id}/messages
+```
+
+Get normalized messages (SideML format) for a trace.
+
+## Delete Trace
+
+```
+DELETE /api/v1/project/{project_id}/otel/traces/{trace_id}
+```
+
+Delete a trace and all associated data.
+
+## Get Filter Options
+
+```
+GET /api/v1/project/{project_id}/otel/traces/filter-options
+```
+
+Get available filter values for building UI dropdowns.
+
+## Advanced Filters
+
+Pass a JSON array in the `filters` query param:
+
+```json
+[{"key": "environment", "op": "eq", "value": "production"}]
+```
+
+### Operators
+
+| Operator | Description | Value Type |
+|----------|-------------|------------|
+| `eq` | Equals | string/number |
+| `ne` | Not equals | string/number |
+| `contains` | Contains substring | string |
+| `starts_with` | Starts with | string |
+| `in` | In list | array |
+| `gt`, `lt`, `gte`, `lte` | Numeric comparison | number |
+| `is_null` | Attribute not present | null |
+| `is_not_null` | Attribute present | null |
+
+## Next Steps
+
+- [Spans API](/docs/reference/api/spans/) — query individual steps
+- [Sessions API](/docs/reference/api/sessions/) — group related runs
+- [SSE Streaming](/docs/reference/api/sse/) — real-time updates

@@ -1,0 +1,138 @@
+---
+title: OpenAI
+description: SideSeat automatically extracts model and token information from OpenAI API calls.
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+SideSeat automatically extracts model information, token usage, and costs from OpenAI API calls.
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- SDK installed (`pip install sideseat` / `uv add sideseat` or `npm install @sideseat/sdk`)
+- OpenAI API credentials configured
+
+## Usage with OpenAI SDK
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    from sideseat import SideSeat
+    SideSeat()
+
+    from openai import OpenAI
+
+    client = OpenAI()
+    response = client.chat.completions.create(
+        model="gpt-5-mini",
+        messages=[{"role": "user", "content": "Hello!"}]
+    )
+    print(response.choices[0].message.content)
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```typescript
+    import { init } from '@sideseat/sdk';
+    init();
+
+    import OpenAI from 'openai';
+
+    const client = new OpenAI();
+    const response = await client.chat.completions.create({
+      model: 'gpt-5-mini',
+      messages: [{ role: 'user', content: 'Hello!' }]
+    });
+    console.log(response.choices[0].message.content);
+    ```
+  </TabItem>
+</Tabs>
+
+## Extracted Attributes
+
+SideSeat extracts these attributes from OpenAI traces:
+
+| Attribute | Source |
+|-----------|--------|
+| `gen_ai.system` | `openai` |
+| `gen_ai.request.model` | Request model parameter |
+| `gen_ai.response.model` | Response model field |
+| `gen_ai.usage.input_tokens` | `usage.prompt_tokens` |
+| `gen_ai.usage.output_tokens` | `usage.completion_tokens` |
+| `gen_ai.request.temperature` | Temperature parameter |
+| `gen_ai.request.max_tokens` | Max tokens parameter |
+
+## Streaming
+
+Streaming responses are fully captured:
+
+```python
+stream = client.chat.completions.create(
+    model="gpt-5-mini",
+    messages=[{"role": "user", "content": "Tell me a story"}],
+    stream=True
+)
+
+for chunk in stream:
+    print(chunk.choices[0].delta.content or "", end="")
+```
+
+Token counts are aggregated from stream chunks.
+
+## Function Calling
+
+Tool calls are traced with full details:
+
+```python
+tools = [{
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "Get weather for a location",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {"type": "string"}
+            }
+        }
+    }
+}]
+
+response = client.chat.completions.create(
+    model="gpt-5-mini",
+    messages=[{"role": "user", "content": "What's the weather in Paris?"}],
+    tools=tools
+)
+```
+
+## Vision
+
+Image inputs are captured (image data base64-encoded):
+
+```python
+response = client.chat.completions.create(
+    model="gpt-5-mini",
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "What's in this image?"},
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}
+        ]
+    }]
+)
+```
+
+## Cost Calculation
+
+SideSeat automatically calculates costs based on:
+
+- Model pricing (updated regularly)
+- Input token count
+- Output token count
+
+Costs appear in the trace detail view.
+
+## Next Steps
+
+- [First Run](/docs/quickstart/) — get started with SideSeat
+- [Python SDK](/docs/sdks/python/) — SDK reference

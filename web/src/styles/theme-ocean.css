@@ -1,0 +1,324 @@
+/* Ocean color scheme - Teal/Cyan theme */
+
+/* Light mode */
+.ocean {
+  /* Subtle teal-tinted background */
+  --background: oklch(0.985 0.008 195);
+  --foreground: oklch(0.145 0 0);
+  /* White cards for contrast */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  /* Vibrant teal primary */
+  --primary: oklch(0.52 0.18 195);
+  --primary-foreground: oklch(0.99 0 0);
+  /* Light teal secondary */
+  --secondary: oklch(0.94 0.05 195);
+  --secondary-foreground: oklch(0.3 0.12 195);
+  /* Teal-tinted muted */
+  --muted: oklch(0.96 0.012 195);
+  --muted-foreground: oklch(0.5 0.035 195);
+  /* Soft teal accent */
+  --accent: oklch(0.94 0.05 195);
+  --accent-foreground: oklch(0.3 0.12 195);
+  --destructive: oklch(0.55 0.25 25);
+  /* Teal-tinted borders */
+  --border: oklch(0.9 0.018 195);
+  --input: oklch(0.92 0.012 195);
+  --ring: oklch(0.52 0.18 195);
+  /* Ocean-inspired chart palette - analogous harmony */
+  --chart-1: oklch(0.52 0.18 195);
+  --chart-2: oklch(0.52 0.14 220);
+  --chart-3: oklch(0.58 0.16 170);
+  --chart-4: oklch(0.5 0.12 245);
+  --chart-5: oklch(0.55 0.14 145);
+  --chart-6: oklch(0.48 0.16 205);
+  --chart-7: oklch(0.6 0.14 185);
+  --chart-8: oklch(0.54 0.12 235);
+  --chart-9: oklch(0.56 0.16 160);
+  --chart-10: oklch(0.46 0.1 255);
+  /* Teal-tinted sidebar */
+  --sidebar: oklch(0.98 0.01 195);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.52 0.18 195);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.94 0.05 195);
+  --sidebar-accent-foreground: oklch(0.3 0.12 195);
+  --sidebar-border: oklch(0.9 0.018 195);
+  --sidebar-ring: oklch(0.52 0.18 195);
+}
+
+/* Dark mode */
+.ocean.dark {
+  /* Teal-tinted dark background */
+  --background: oklch(0.145 0.012 195);
+  --foreground: oklch(0.985 0 0);
+  /* Elevated surfaces with teal tint */
+  --card: oklch(0.19 0.018 195);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.19 0.018 195);
+  --popover-foreground: oklch(0.985 0 0);
+  /* Bright cyan primary */
+  --primary: oklch(0.72 0.16 195);
+  --primary-foreground: oklch(0.13 0 0);
+  /* Dark teal secondary */
+  --secondary: oklch(0.26 0.06 195);
+  --secondary-foreground: oklch(0.88 0.05 195);
+  /* Teal-tinted muted */
+  --muted: oklch(0.23 0.025 195);
+  --muted-foreground: oklch(0.65 0.035 195);
+  /* Teal accent */
+  --accent: oklch(0.26 0.06 195);
+  --accent-foreground: oklch(0.88 0.05 195);
+  --destructive: oklch(0.62 0.22 25);
+  /* Teal-tinted borders */
+  --border: oklch(0.28 0.035 195);
+  --input: oklch(0.26 0.025 195);
+  --ring: oklch(0.72 0.16 195);
+  /* Ocean-inspired chart palette - analogous harmony */
+  --chart-1: oklch(0.72 0.16 195);
+  --chart-2: oklch(0.68 0.14 220);
+  --chart-3: oklch(0.7 0.15 170);
+  --chart-4: oklch(0.66 0.12 245);
+  --chart-5: oklch(0.68 0.14 145);
+  --chart-6: oklch(0.64 0.14 205);
+  --chart-7: oklch(0.74 0.12 185);
+  --chart-8: oklch(0.7 0.1 235);
+  --chart-9: oklch(0.72 0.14 160);
+  --chart-10: oklch(0.62 0.08 255);
+  /* Teal-tinted sidebar */
+  --sidebar: oklch(0.17 0.015 195);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.72 0.16 195);
+  --sidebar-primary-foreground: oklch(0.13 0 0);
+  --sidebar-accent: oklch(0.26 0.06 195);
+  --sidebar-accent-foreground: oklch(0.88 0.05 195);
+  --sidebar-border: oklch(0.28 0.035 195);
+  --sidebar-ring: oklch(0.72 0.16 195);
+}
+
+/* AG Grid styling - Light mode */
+.ocean {
+  --ag-background-color: oklch(0.985 0.008 195);
+  --ag-header-background-color: oklch(0.97 0.012 195);
+  --ag-odd-row-background-color: oklch(0.98 0.006 195);
+  --ag-foreground-color: oklch(0.145 0 0);
+  --ag-header-foreground-color: oklch(0.145 0 0);
+  --ag-border-color: oklch(0.9 0.018 195);
+  --ag-active-color: oklch(0.52 0.18 195);
+  --ag-selected-row-background-color: oklch(0.52 0.18 195 / 0.08);
+  --ag-row-hover-color: oklch(0.52 0.18 195 / 0.05);
+  --ag-range-selection-border-color: oklch(0.52 0.18 195);
+  --ag-range-selection-background-color: oklch(0.52 0.18 195 / 0.12);
+  --ag-checkbox-checked-color: oklch(0.52 0.18 195);
+  --ag-input-focus-border-color: oklch(0.52 0.18 195);
+  --ag-accent-color: oklch(0.52 0.18 195);
+}
+
+/* AG Grid styling - Dark mode */
+.ocean.dark {
+  --ag-background-color: oklch(0.145 0.012 195);
+  --ag-header-background-color: oklch(0.17 0.015 195);
+  --ag-odd-row-background-color: oklch(0.16 0.014 195);
+  --ag-foreground-color: oklch(0.985 0 0);
+  --ag-header-foreground-color: oklch(0.985 0 0);
+  --ag-border-color: oklch(0.28 0.035 195);
+  --ag-active-color: oklch(0.72 0.16 195);
+  --ag-selected-row-background-color: oklch(0.72 0.16 195 / 0.15);
+  --ag-row-hover-color: oklch(0.72 0.16 195 / 0.08);
+  --ag-range-selection-border-color: oklch(0.72 0.16 195);
+  --ag-range-selection-background-color: oklch(0.72 0.16 195 / 0.18);
+  --ag-checkbox-checked-color: oklch(0.72 0.16 195);
+  --ag-input-focus-border-color: oklch(0.72 0.16 195);
+  --ag-accent-color: oklch(0.72 0.16 195);
+}
+
+/* Component enhancements - Light mode */
+.ocean {
+  /* Smooth transitions - exclude sidebar to preserve collapse animation */
+  & *:not([data-sidebar]):not([data-slot="sidebar"]):not(.sidebar):not([class*="sidebar"]) {
+    transition-property: background-color, border-color, box-shadow;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
+
+  /* Page header (navbar) styling */
+  & .page-header {
+    border-bottom-color: oklch(0.52 0.18 195 / 0.15);
+  }
+
+  /* Main nav tab bar styling */
+  & .main-nav {
+    background: oklch(0.52 0.18 195 / 0.06);
+    border: 1px solid oklch(0.52 0.18 195 / 0.08);
+  }
+
+  & .main-nav-item[data-active="true"] {
+    background: oklch(0.52 0.18 195 / 0.18);
+    color: oklch(0.42 0.15 195);
+  }
+
+  & .main-nav-item:not([data-active="true"]):hover {
+    background: oklch(0.52 0.18 195 / 0.08);
+  }
+
+  /* Enhanced card shadows with teal tint */
+  & [data-slot="card"],
+  & .card {
+    box-shadow:
+      0 1px 3px oklch(0.52 0.18 195 / 0.08),
+      0 4px 12px oklch(0.52 0.18 195 / 0.05);
+  }
+
+  /* Pagination styling - matches AG Grid background */
+  & [data-slot="pagination"] {
+    background-color: oklch(0.985 0.008 195);
+    box-shadow: 0 1px 3px oklch(0.52 0.18 195 / 0.06);
+  }
+
+  /* Primary button teal glow on hover */
+  & button[data-variant="default"]:hover,
+  & .btn-primary:hover {
+    box-shadow: 0 0 20px oklch(0.52 0.18 195 / 0.35);
+  }
+
+  /* Input focus teal glow */
+  & input:focus,
+  & textarea:focus,
+  & select:focus {
+    box-shadow: 0 0 0 3px oklch(0.52 0.18 195 / 0.18);
+  }
+
+  /* Sidebar hover with teal tint */
+  & [data-sidebar="menu-button"]:hover {
+    background: oklch(0.52 0.18 195 / 0.1);
+  }
+
+  /* Badge/pill styling */
+  & [data-slot="badge"] {
+    background: oklch(0.52 0.18 195 / 0.12);
+    color: oklch(0.52 0.18 195);
+  }
+
+  /* Config nav styling */
+  & .config-nav-item[data-active="true"] {
+    background: oklch(0.52 0.18 195 / 0.15);
+    color: oklch(0.45 0.14 195);
+    border-left: 3px solid oklch(0.52 0.18 195);
+    padding-left: 9px;
+  }
+
+  & .config-nav-item:not([data-active="true"]):hover {
+    background: oklch(0.52 0.18 195 / 0.08);
+  }
+
+  /* Config sidebar styling */
+  @media (min-width: 768px) {
+    & .config-sidebar {
+      border-right: 1px solid oklch(0.52 0.18 195 / 0.1);
+      padding-right: 1rem;
+    }
+  }
+
+  /* Config content area styling */
+  & .config-content {
+    border-color: oklch(0.52 0.18 195 / 0.12);
+  }
+}
+
+/* Component enhancements - Dark mode */
+.ocean.dark {
+  /* Page header (navbar) styling */
+  & .page-header {
+    border-bottom-color: oklch(0.72 0.16 195 / 0.2);
+  }
+
+  /* Main nav tab bar styling */
+  & .main-nav {
+    background: oklch(0.72 0.16 195 / 0.08);
+    border: 1px solid oklch(0.72 0.16 195 / 0.12);
+  }
+
+  & .main-nav-item[data-active="true"] {
+    background: oklch(0.72 0.16 195 / 0.25);
+    color: oklch(0.78 0.13 195);
+  }
+
+  & .main-nav-item:not([data-active="true"]):hover {
+    background: oklch(0.72 0.16 195 / 0.12);
+  }
+
+  /* Card shadows with teal glow */
+  & [data-slot="card"],
+  & .card {
+    box-shadow:
+      0 1px 3px oklch(0 0 0 / 0.4),
+      0 4px 16px oklch(0 0 0 / 0.3),
+      0 0 1px oklch(0.72 0.16 195 / 0.2);
+  }
+
+  /* Pagination styling - matches AG Grid background */
+  & [data-slot="pagination"] {
+    background-color: oklch(0.145 0.012 195);
+    box-shadow:
+      0 1px 3px oklch(0 0 0 / 0.2),
+      0 0 1px oklch(0.72 0.16 195 / 0.15);
+  }
+
+  /* Glowing teal button */
+  & button[data-variant="default"]:hover,
+  & .btn-primary:hover {
+    box-shadow: 0 0 24px oklch(0.72 0.16 195 / 0.45);
+  }
+
+  /* Input focus glow */
+  & input:focus,
+  & textarea:focus,
+  & select:focus {
+    box-shadow: 0 0 0 3px oklch(0.72 0.16 195 / 0.28);
+  }
+
+  /* Sidebar active with teal glow */
+  & [data-sidebar="menu-button"][data-active="true"] {
+    background: oklch(0.72 0.16 195 / 0.18);
+  }
+
+  /* Popover with subtle teal edge */
+  & [data-radix-popper-content-wrapper] > div {
+    box-shadow:
+      0 4px 24px oklch(0 0 0 / 0.5),
+      0 0 1px oklch(0.72 0.16 195 / 0.3);
+  }
+
+  /* Badge/pill styling */
+  & [data-slot="badge"] {
+    background: oklch(0.72 0.16 195 / 0.18);
+    color: oklch(0.72 0.16 195);
+  }
+
+  /* Config nav styling */
+  & .config-nav-item[data-active="true"] {
+    background: oklch(0.72 0.16 195 / 0.2);
+    color: oklch(0.8 0.12 195);
+    border-left: 3px solid oklch(0.72 0.16 195);
+    padding-left: 9px;
+  }
+
+  & .config-nav-item:not([data-active="true"]):hover {
+    background: oklch(0.72 0.16 195 / 0.12);
+  }
+
+  /* Config sidebar styling */
+  @media (min-width: 768px) {
+    & .config-sidebar {
+      border-right: 1px solid oklch(0.72 0.16 195 / 0.15);
+      padding-right: 1rem;
+    }
+  }
+
+  /* Config content area styling */
+  & .config-content {
+    border-color: oklch(0.72 0.16 195 / 0.18);
+  }
+}

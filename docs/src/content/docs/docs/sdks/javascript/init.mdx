@@ -1,0 +1,233 @@
+---
+title: init() / createClient()
+description: API reference for the SideSeat JavaScript SDK initialization functions.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The JavaScript SDK provides two initialization functions: `init()` for synchronous setup and `createClient()` for async setup with connection validation.
+
+## init()
+
+```typescript
+function init(options?: SideSeatOptions): SideSeat;
+```
+
+Synchronous initialization. Returns a `SideSeat` instance.
+
+### Parameters
+
+#### `options` (optional)
+
+```typescript
+interface SideSeatOptions {
+  disabled?: boolean;
+  endpoint?: string;
+  apiKey?: string;
+  projectId?: string;
+  serviceName?: string;
+  serviceVersion?: string;
+  framework?: Framework | string;
+  enableTraces?: boolean;
+  logLevel?: LogLevel;
+  debug?: boolean;
+}
+```
+
+See [Configuration](/docs/sdks/javascript/configuration/) for details on each option.
+
+### Returns
+
+`SideSeat` — the initialized client instance.
+
+### Behavior
+
+When called, `init()`:
+
+1. Creates a `NodeTracerProvider` with resource attributes
+2. Configures a `BatchSpanProcessor` with OTLP HTTP exporter
+3. Registers the provider globally via `provider.register()`
+
+The function is idempotent. Multiple calls return the existing instance:
+
+```typescript
+const a = init();   // Initializes OpenTelemetry
+const b = init();   // Returns same instance, logs warning
+console.log(a === b); // true
+```
+
+<Aside type="note">
+Once initialized, the configuration cannot be changed. If you need different settings, restart your application.
+</Aside>
+
+### Examples
+
+```typescript
+import { init } from '@sideseat/sdk';
+
+// Minimal
+init();
+
+// With options
+const client = init({
+  endpoint: 'http://sideseat.example.com:5388',
+  projectId: 'my-project',
+  serviceName: 'my-ai-agent',
+  debug: true
+});
+
+// Environment-based
+init({ debug: process.env.NODE_ENV !== 'production' });
+```
+
+## createClient()
+
+```typescript
+function createClient(options?: SideSeatOptions): Promise<SideSeat>;
+```
+
+Async initialization with connection validation. Preferred for production use.
+
+### Returns
+
+`Promise<SideSeat>` — resolves to the initialized client instance.
+
+### Behavior
+
+Same as `init()` but additionally validates the endpoint is reachable before returning. Safe against concurrent calls — returns the same promise if called while initialization is in progress.
+
+### Examples
+
+```typescript
+import { createClient } from '@sideseat/sdk';
+
+const client = await createClient({
+  endpoint: 'http://sideseat.internal:5388',
+  projectId: 'production'
+});
+```
+
+## getClient()
+
+```typescript
+function getClient(): SideSeat;
+```
+
+Get the global SideSeat instance. Throws `SideSeatError` if not initialized.
+
+```typescript
+import { init, getClient } from '@sideseat/sdk';
+
+init();
+
+// Later, in another module
+const client = getClient();
+```
+
+## shutdown()
+
+```typescript
+function shutdown(): Promise<void>;
+```
+
+Shutdown the global instance, flushing pending spans and releasing resources.
+
+```typescript
+import { shutdown } from '@sideseat/sdk';
+
+await shutdown();
+```
+
+## isInitialized()
+
+```typescript
+function isInitialized(): boolean;
+```
+
+Check whether SideSeat has been initialized.
+
+## Global Registration
+
+After initialization, any code using `@opentelemetry/api` will use the configured provider:
+
+```typescript
+import { init } from '@sideseat/sdk';
+import { trace } from '@opentelemetry/api';
+
+init();
+
+// This tracer uses the SideSeat-configured provider
+const tracer = trace.getTracer('my-module');
+```
+
+## Usage with Frameworks
+
+### Vercel AI SDK
+
+```typescript
+import { init } from '@sideseat/sdk';
+import { generateText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+
+init();
+
+const { text } = await generateText({
+  model: openai('gpt-5-mini'),
+  prompt: 'Hello!',
+  experimental_telemetry: { isEnabled: true },
+});
+```
+
+### Anthropic SDK
+
+```typescript
+import { init } from '@sideseat/sdk';
+import Anthropic from '@anthropic-ai/sdk';
+
+init();
+
+const client = new Anthropic();
+
+const message = await client.messages.create({
+  model: 'claude-sonnet-4-5-20250929',
+  max_tokens: 1024,
+  messages: [{ role: 'user', content: 'Hello!' }]
+});
+```
+
+### Express
+
+```typescript
+import { init } from '@sideseat/sdk';
+import express from 'express';
+
+// Initialize before creating the app
+init();
+
+const app = express();
+
+app.get('/chat', async (req, res) => {
+  const response = await callAIModel(req.query.message);
+  res.json({ response });
+});
+
+app.listen(3000);
+```
+
+## Automatic Shutdown
+
+The SDK automatically handles shutdown via Node.js process events. For explicit control:
+
+```typescript
+import { trace } from '@opentelemetry/api';
+
+const provider = trace.getTracerProvider();
+if ('forceFlush' in provider) {
+  await provider.forceFlush();
+}
+```
+
+## Next Steps
+
+- [Configuration](/docs/sdks/javascript/configuration/) — all configuration options
+- [Integrations](/docs/integrations/) — framework-specific guides

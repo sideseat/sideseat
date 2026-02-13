@@ -1,0 +1,74 @@
+# Multi-arch Docker image for SideSeat
+# Builds for linux/amd64 and linux/arm64
+#
+# Build:
+#   VERSION=$(node -p "require('./cli/package.json').version") && \
+#   docker buildx build --platform linux/amd64,linux/arm64 \
+#     -t sideseat/core:latest -t sideseat/core:$VERSION \
+#     -f misc/docker/Dockerfile.core .
+#
+# Publish:
+#   docker push sideseat/core:latest && \
+#   docker push sideseat/core:$VERSION
+#
+# Build (single arch, local):
+#   docker build -t sideseat/core -f misc/docker/Dockerfile.core .
+#
+# Run:
+#   docker run -p 5388:5388 -v sideseat-data:/data sideseat/core
+
+# ---------- Stage 1: Build web frontend ----------
+FROM node:24-bookworm-slim AS web-builder
+
+WORKDIR /build/web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
+# ---------- Stage 2: Build Rust server ----------
+FROM rust:1.91-bookworm AS server-builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+COPY Cargo.toml Cargo.lock ./
+COPY server/ server/
+COPY sdk/rust/ sdk/rust/
+COPY --from=web-builder /build/web/dist/ web/dist/
+
+RUN cargo build --release -p sideseat-server
+
+# ---------- Stage 3: Runtime ----------
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r sideseat && useradd -r -g sideseat -m sideseat
+
+COPY --from=server-builder /build/target/release/sideseat /usr/local/bin/sideseat
+
+RUN mkdir -p /data && chown sideseat:sideseat /data
+
+USER sideseat
+
+ENV SIDESEAT_HOST=0.0.0.0
+ENV SIDESEAT_PORT=5388
+ENV SIDESEAT_DATA_DIR=/data
+ENV SIDESEAT_SECRET_BACKEND=file
+
+EXPOSE 5388
+EXPOSE 4317
+
+VOLUME /data
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:5388/api/v1/health || exit 1
+
+ENTRYPOINT ["sideseat"]
+CMD ["--no-auth"]

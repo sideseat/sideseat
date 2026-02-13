@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-server:
+    name: Server (fmt, lint, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          workspaces: server
+
+      - name: Create web dist stub
+        run: mkdir -p web/dist && echo '<!DOCTYPE html><html></html>' > web/dist/index.html
+
+      - name: Format check
+        run: cd server && cargo fmt --check
+
+      - name: Lint
+        run: cd server && cargo clippy --all-targets -- -D warnings
+
+      - name: Test
+        run: cd server && cargo test
+
+  check-web:
+    name: Web (fmt, lint, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: cd web && npm ci
+
+      - name: Format check
+        run: cd web && npx prettier --check "src/**/*.{ts,tsx,css,json}"
+
+      - name: Lint
+        run: cd web && npm run lint
+
+      - name: Test
+        run: cd web && npm test -- --run
+
+  check-sdk-js:
+    name: JS SDK (fmt, lint, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: sdk/js/package-lock.json
+
+      - name: Install dependencies
+        run: cd sdk/js && npm ci
+
+      - name: Format check
+        run: cd sdk/js && npx prettier --check "src/**/*.ts"
+
+      - name: Lint
+        run: cd sdk/js && npm run lint
+
+      - name: Test
+        run: cd sdk/js && npm test
+
+  check-sdk-python:
+    name: Python SDK (fmt, lint, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: sdk/python/uv.lock
+
+      - name: Install dependencies
+        run: cd sdk/python && uv sync --extra dev
+
+      - name: Format check
+        run: cd sdk/python && uv run ruff format --check .
+
+      - name: Lint
+        run: cd sdk/python && uv run ruff check .
+
+      - name: Type check
+        run: cd sdk/python && uv run mypy src
+
+      - name: Test
+        run: cd sdk/python && uv run pytest
+
+  check-versions:
+    name: Version Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24'
+
+      - name: Verify all package versions match
+        run: make version-check
+
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24'
+
+      - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
+        with:
+          toolchain: stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run cargo audit
+        run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2024-0370 --ignore RUSTSEC-2026-0002
+
+      - name: Run npm audit (web)
+        run: cd web && npm audit --audit-level=high
+
+      - name: Run npm audit (sdk/js)
+        run: cd sdk/js && npm audit --audit-level=high

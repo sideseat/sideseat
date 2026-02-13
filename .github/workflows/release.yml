@@ -1,0 +1,321 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  # Platform list (single source of truth for this workflow)
+  # Must match Makefile PLATFORMS and build matrix below
+  CLI_PLATFORMS: darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64
+
+jobs:
+  preflight:
+    name: Preflight Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24'
+
+      - name: Verify all package versions match
+        run: make version-check
+
+  build-web:
+    name: Build Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build web
+        run: cd web && npm ci && npm run build
+
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: web-dist
+          path: web/dist
+          retention-days: 1
+
+  build:
+    name: Build ${{ matrix.artifact }}
+    needs: build-web
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            artifact: sideseat-darwin-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: sideseat-darwin-arm64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: sideseat-linux-x64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            artifact: sideseat-linux-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: sideseat-win32-x64.exe
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          workspaces: server
+          key: ${{ matrix.target }}
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: web-dist
+          path: web/dist
+
+      - name: Build binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Prepare artifact (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p artifacts
+          cp target/${{ matrix.target }}/release/sideseat artifacts/${{ matrix.artifact }}
+
+      - name: Prepare artifact (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mkdir artifacts
+          copy target\${{ matrix.target }}\release\sideseat.exe artifacts\${{ matrix.artifact }}
+
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ matrix.artifact }}
+          path: artifacts/${{ matrix.artifact }}
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: [preflight, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          path: artifacts
+          pattern: sideseat-*
+          merge-multiple: true
+
+      - run: ls -la artifacts/
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          sha256sum sideseat-* > checksums-sha256.txt
+          cat checksums-sha256.txt
+
+      - uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        with:
+          files: |
+            artifacts/*
+          generate_release_notes: true
+
+  publish-cli:
+    name: Publish CLI to npm
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          path: artifacts
+          pattern: sideseat-*
+          merge-multiple: true
+
+      - name: Prepare platform packages
+        run: |
+          chmod +x artifacts/sideseat-* 2>/dev/null || true
+          for pkg in $CLI_PLATFORMS; do
+            if [ "$pkg" = "win32-x64" ]; then
+              cp artifacts/sideseat-${pkg}.exe cli/platforms/platform-${pkg}/sideseat.exe
+            else
+              cp artifacts/sideseat-${pkg} cli/platforms/platform-${pkg}/sideseat
+            fi
+          done
+
+      - name: Publish platform packages
+        run: |
+          publish_with_retry() {
+            local pkg=$1
+            local max_attempts=3
+            local attempt=1
+            while [ $attempt -le $max_attempts ]; do
+              echo "Publishing @sideseat/platform-$pkg (attempt $attempt/$max_attempts)"
+              if npm publish --provenance --access public; then
+                echo "Successfully published @sideseat/platform-$pkg"
+                return 0
+              fi
+              echo "Attempt $attempt failed, waiting 10s before retry..."
+              sleep 10
+              attempt=$((attempt + 1))
+            done
+            echo "Failed to publish @sideseat/platform-$pkg after $max_attempts attempts"
+            return 1
+          }
+
+          for pkg in $CLI_PLATFORMS; do
+            cd cli/platforms/platform-$pkg
+            publish_with_retry $pkg || exit 1
+            cd ../../..
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish main package
+        run: |
+          cd cli
+          max_attempts=3
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            echo "Publishing sideseat (attempt $attempt/$max_attempts)"
+            if npm publish --provenance --access public; then
+              echo "Successfully published sideseat"
+              exit 0
+            fi
+            echo "Attempt $attempt failed, waiting 10s before retry..."
+            sleep 10
+            attempt=$((attempt + 1))
+          done
+          echo "Failed to publish sideseat after $max_attempts attempts"
+          exit 1
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify npm publish
+        run: |
+          VERSION=$(node -p "require('./cli/package.json').version")
+          echo "Verifying sideseat@$VERSION on npm registry..."
+          sleep 10
+          max_attempts=5
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            if npm view sideseat@$VERSION version 2>/dev/null; then
+              echo "Verified: sideseat@$VERSION is available on npm"
+              exit 0
+            fi
+            echo "Attempt $attempt: Package not yet available, waiting 15s..."
+            sleep 15
+            attempt=$((attempt + 1))
+          done
+          echo "Warning: Could not verify package on registry (may still be propagating)"
+
+      - name: Smoke test
+        run: |
+          VERSION=$(node -p "require('./cli/package.json').version")
+          echo "Installing sideseat@$VERSION globally..."
+          npm install -g sideseat@$VERSION
+          echo "Running smoke test..."
+          sideseat --version
+          echo "Smoke test passed"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-sdk-js:
+    name: Publish JS SDK to npm
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Build and publish @sideseat/sdk
+        run: |
+          cd sdk/js
+          npm ci
+          npm run build
+          max_attempts=3
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            echo "Publishing @sideseat/sdk (attempt $attempt/$max_attempts)"
+            if npm publish --provenance --access public; then
+              echo "Successfully published @sideseat/sdk"
+              exit 0
+            fi
+            echo "Attempt $attempt failed, waiting 10s before retry..."
+            sleep 10
+            attempt=$((attempt + 1))
+          done
+          echo "Failed to publish @sideseat/sdk after $max_attempts attempts"
+          exit 1
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-sdk-python:
+    name: Publish Python SDK to PyPI
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+
+      - name: Build and publish sideseat
+        run: |
+          cd sdk/python
+          uv build
+          max_attempts=3
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            echo "Publishing sideseat to PyPI (attempt $attempt/$max_attempts)"
+            if uv publish --token $PYPI_TOKEN; then
+              echo "Successfully published sideseat to PyPI"
+              exit 0
+            fi
+            echo "Attempt $attempt failed, waiting 10s before retry..."
+            sleep 10
+            attempt=$((attempt + 1))
+          done
+          echo "Failed to publish sideseat after $max_attempts attempts"
+          exit 1
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}

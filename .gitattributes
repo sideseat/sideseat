@@ -1,0 +1,4 @@
+# Force LF for shell scripts (critical for Windows)
+.githooks/* text eol=lf
+Makefile text eol=lf
+*.sh text eol=lf

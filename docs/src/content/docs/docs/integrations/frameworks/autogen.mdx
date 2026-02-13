@@ -1,0 +1,123 @@
+---
+title: AutoGen
+description: Integrate SideSeat with Microsoft AutoGen for multi-agent run visibility.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+[AutoGen](https://microsoft.github.io/autogen/) is Microsoft's framework for building multi-agent conversational systems. SideSeat captures runs (traces) from agent interactions.
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- Python 3.9+
+- Model/provider credentials configured
+
+## Quick Start
+
+<Steps>
+1. **Install dependencies**
+
+   ```bash
+   pip install autogen-agentchat "sideseat[autogen]"
+   # or
+   uv add autogen-agentchat "sideseat[autogen]"
+   ```
+
+2. **Add telemetry**
+
+   ```python
+   from sideseat import SideSeat, Frameworks
+   SideSeat(framework=Frameworks.AutoGen)
+
+   from autogen import AssistantAgent, UserProxyAgent
+
+   llm_config = {"config_list": [{"model": "gpt-5-mini", "api_key": "sk-xxx"}]}
+   assistant = AssistantAgent("assistant", llm_config=llm_config)
+   user = UserProxyAgent("user", human_input_mode="NEVER")
+
+   user.initiate_chat(assistant, message="Hello!")
+   ```
+</Steps>
+
+## Agent Configuration
+
+Configure AutoGen agents with LLM settings:
+
+```python
+from autogen import AssistantAgent, UserProxyAgent
+
+config_list = [
+    {"model": "gpt-5-mini", "api_key": "sk-xxx"}
+]
+
+assistant = AssistantAgent(
+    name="assistant",
+    llm_config={"config_list": config_list}
+)
+
+user = UserProxyAgent(
+    name="user",
+    human_input_mode="NEVER",
+    code_execution_config={"work_dir": "coding"}
+)
+
+user.initiate_chat(assistant, message="Write a Python hello world")
+```
+
+## Multi-Agent Conversations
+
+Multi-agent chats are traced end-to-end:
+
+```python
+from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager
+
+# Create agents
+coder = AssistantAgent("coder", llm_config={"config_list": config_list})
+reviewer = AssistantAgent("reviewer", llm_config={"config_list": config_list})
+user = UserProxyAgent("user", human_input_mode="NEVER")
+
+# Create group chat
+groupchat = GroupChat(
+    agents=[user, coder, reviewer],
+    messages=[],
+    max_round=10
+)
+manager = GroupChatManager(groupchat=groupchat)
+
+# Start conversation
+user.initiate_chat(manager, message="Write and review a sorting function")
+```
+
+## Extracted Attributes
+
+| Attribute | Description |
+|-----------|-------------|
+| `autogen.agent.name` | Agent name |
+| `autogen.chat.round` | Conversation round |
+| `autogen.message.sender` | Message sender |
+| `autogen.code.execution` | Code execution status |
+
+## Code Execution
+
+AutoGen's code execution is traced:
+
+```python
+user = UserProxyAgent(
+    name="user",
+    code_execution_config={
+        "work_dir": "coding",
+        "use_docker": False
+    }
+)
+```
+
+SideSeat shows:
+- Code generation spans
+- Execution spans with output
+- Error spans if execution fails
+
+## Next Steps
+
+- [Python SDK](/docs/sdks/python/) — SDK reference
+- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages

@@ -1,0 +1,258 @@
+---
+title: SideSeat Class
+description: API reference for the SideSeat class.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `SideSeat` class is the main entry point for the Python SDK. It manages OpenTelemetry setup, framework instrumentation, and exporters.
+
+## Class Definition
+
+```python
+class SideSeat:
+    def __init__(
+        self,
+        endpoint: str | None = None,
+        project_id: str | None = None,
+        api_key: str | None = None,
+        framework: str | None = None,
+        auto_instrument: bool = True,
+        service_name: str | None = None,
+        service_version: str | None = None,
+        enable_traces: bool = True,
+        enable_metrics: bool = True,
+        enable_logs: bool = False,
+        capture_content: bool = True,
+        encode_binary: bool = True,
+        disabled: bool = False,
+        debug: bool = False,
+    ) -> None: ...
+```
+
+## Properties
+
+### `config`
+
+Immutable configuration object.
+
+```python
+client = SideSeat()
+print(client.config.endpoint)
+print(client.config.project_id)
+```
+
+### `telemetry`
+
+Access to the underlying telemetry client for debug exporters.
+
+```python
+client = SideSeat()
+client.telemetry.setup_console_exporter()
+client.telemetry.setup_file_exporter("traces.jsonl")
+```
+
+### `tracer_provider`
+
+The OpenTelemetry `TracerProvider` instance managing trace collection.
+
+```python
+client = SideSeat()
+provider = client.tracer_provider
+
+# Force flush all pending spans
+provider.force_flush()
+```
+
+### `is_disabled`
+
+Whether telemetry is disabled.
+
+```python
+client = SideSeat()
+if client.is_disabled:
+    print("Telemetry is disabled")
+```
+
+## Methods
+
+### `span(name)`
+
+Create a custom span for tracing.
+
+**Parameters**:
+- `name` (str): Span name
+
+**Returns**: `ContextManager[Span]`
+
+```python
+client = SideSeat()
+
+with client.span("my-operation") as span:
+    span.set_attribute("user_id", "123")
+    result = process_request()
+# Errors are automatically recorded with stack trace
+```
+
+### `get_tracer(name)`
+
+Get an OpenTelemetry tracer.
+
+**Parameters**:
+- `name` (str): Tracer name
+
+**Returns**: `Tracer`
+
+```python
+client = SideSeat()
+tracer = client.get_tracer("my-module")
+
+with tracer.start_as_current_span("operation"):
+    # ... work ...
+    pass
+```
+
+### `force_flush(timeout_millis)`
+
+Export pending spans immediately.
+
+**Parameters**:
+- `timeout_millis` (int): Timeout in milliseconds. Default: `30000`
+
+**Returns**: `bool`
+
+```python
+client = SideSeat()
+# ... do work ...
+success = client.force_flush(timeout_millis=5000)
+```
+
+### `validate_connection(timeout)`
+
+Test server connectivity.
+
+**Parameters**:
+- `timeout` (float): Timeout in seconds. Default: `5.0`
+
+**Returns**: `bool`
+
+```python
+client = SideSeat()
+if client.validate_connection():
+    print("Server is reachable")
+```
+
+### `shutdown(timeout_millis)`
+
+Gracefully shutdown all exporters, flushing pending spans.
+
+**Parameters**:
+- `timeout_millis` (int): Timeout in milliseconds. Default: `30000`
+
+**Returns**: `None`
+
+```python
+client = SideSeat()
+# ... do work ...
+client.shutdown()
+```
+
+<Aside type="tip">
+`shutdown()` is:
+- **Idempotent**: Safe to call multiple times
+- **Thread-safe**: Can be called from any thread
+- **Automatic**: Registered with `atexit`, so you don't have to call it
+</Aside>
+
+## Context Manager
+
+Use the context manager for automatic shutdown:
+
+```python
+with SideSeat() as client:
+    # Your code runs with tracing enabled
+    run_my_agent()
+# Traces flushed and shutdown automatically
+```
+
+## Usage Patterns
+
+### Basic Usage
+
+```python
+from sideseat import SideSeat
+
+client = SideSeat()
+
+# Your code runs with tracing enabled
+# ...
+
+# Optional: explicit shutdown
+client.shutdown()
+```
+
+### With Framework Selection
+
+```python
+from sideseat import SideSeat, Frameworks
+
+client = SideSeat(framework=Frameworks.Strands)
+```
+
+### With Custom Configuration
+
+```python
+client = SideSeat(
+    endpoint="http://localhost:5388",
+    project_id="my-project",
+    service_name="my-agent",
+    service_version="1.0.0",
+)
+```
+
+### With Debug Exporters
+
+```python
+client = SideSeat()
+client.telemetry.setup_console_exporter()  # Print spans
+client.telemetry.setup_file_exporter("traces.jsonl")  # Write to file
+```
+
+### Disabled Mode
+
+```python
+# For testing/CI
+client = SideSeat(disabled=True)
+# Or: SIDESEAT_DISABLED=true
+```
+
+## Thread Safety
+
+The `SideSeat` class is thread-safe:
+- Multiple threads can create spans concurrently
+- `shutdown()` can be called from any thread
+- Exporters use internal locking
+
+```python
+import threading
+
+client = SideSeat()
+
+def worker():
+    with client.span("worker"):
+        # ... work ...
+        pass
+
+threads = [threading.Thread(target=worker) for _ in range(10)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+
+client.shutdown()
+```
+
+## Next Steps
+
+- [Configuration](/docs/sdks/python/configuration/) — all configuration options
+- [Exporters](/docs/sdks/python/exporters/) — debug exporters for development

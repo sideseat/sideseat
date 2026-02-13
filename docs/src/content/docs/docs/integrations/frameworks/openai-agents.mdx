@@ -1,0 +1,151 @@
+---
+title: OpenAI Agents SDK
+description: Integrate SideSeat with OpenAI Agents SDK using Logfire instrumentation.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+[OpenAI Agents SDK](https://github.com/openai/openai-agents-python) is OpenAI's framework for building AI agents. SideSeat captures traces via Logfire's OpenTelemetry instrumentation.
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- Python 3.9+
+- OpenAI API credentials configured
+
+## Quick Start
+
+<Steps>
+1. **Install dependencies**
+
+   ```bash
+   pip install openai-agents "sideseat[openai-agents]"
+   # or
+   uv add openai-agents "sideseat[openai-agents]"
+   ```
+
+2. **Add telemetry**
+
+   ```python
+   from sideseat import SideSeat, Frameworks
+   SideSeat(framework=Frameworks.OpenAIAgents)
+
+   from agents import Agent, Runner
+
+   agent = Agent(
+       name="Assistant",
+       instructions="You are a helpful assistant."
+   )
+
+   result = Runner.run_sync(agent, "Hello!")
+   print(result.final_output)
+   ```
+</Steps>
+
+## Without SideSeat SDK
+
+Use Logfire's instrumentation with a manual OTLP exporter:
+
+```python
+import logfire
+from opentelemetry import trace
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+logfire.configure(
+    service_name="my-agent",
+    send_to_logfire=False,
+    console=False
+)
+
+logfire.instrument_openai_agents()
+
+provider = trace.get_tracer_provider()
+if hasattr(provider, "add_span_processor"):
+    provider.add_span_processor(
+        BatchSpanProcessor(
+            OTLPSpanExporter(endpoint="http://localhost:5388/otel/default/v1/traces")
+        )
+    )
+```
+
+## Tools
+
+Define tools using the `@function_tool` decorator:
+
+```python
+from agents import Agent, Runner, function_tool
+
+@function_tool
+def get_weather(city: str) -> str:
+    """Get weather for a city."""
+    return f"Sunny in {city}"
+
+agent = Agent(
+    name="WeatherAssistant",
+    instructions="Use get_weather to provide forecasts.",
+    tools=[get_weather]
+)
+
+result = Runner.run_sync(agent, "What's the weather in Paris?")
+```
+
+SideSeat shows:
+- Parent span for the agent run
+- Child spans for each OpenAI call
+- Child spans for each tool execution
+
+## Session Tracking
+
+Add session context with manual spans:
+
+```python
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
+
+with tracer.start_as_current_span(
+    "openai_agents.session",
+    attributes={
+        "session.id": "session-123",
+        "user.id": "user-456"
+    }
+):
+    result = Runner.run_sync(agent, "Hello!")
+```
+
+## Extracted Attributes
+
+| Attribute | Description |
+|-----------|-------------|
+| `gen_ai.system` | `openai` |
+| `gen_ai.request.model` | OpenAI model ID |
+| `gen_ai.usage.input_tokens` | Input token count |
+| `gen_ai.usage.output_tokens` | Output token count |
+| `logfire.span_type` | Span type from Logfire |
+
+## Async Usage
+
+The SDK supports async execution:
+
+```python
+import asyncio
+from agents import Agent, Runner
+
+agent = Agent(
+    name="Assistant",
+    instructions="You are a helpful assistant."
+)
+
+async def main():
+    result = await Runner.run(agent, "Hello!")
+    print(result.final_output)
+
+asyncio.run(main())
+```
+
+## Next Steps
+
+- [OpenAI](/docs/integrations/providers/openai/) — provider details
+- [Python SDK](/docs/sdks/python/) — SDK reference
+- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages

@@ -1,0 +1,153 @@
+---
+title: CrewAI
+description: Integrate SideSeat with CrewAI for multi-agent run visibility.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+[CrewAI](https://www.crewai.com/) is a framework for orchestrating role-playing AI agents. SideSeat captures runs (traces) from crews, agents, and tasks.
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- Python 3.9+
+- Model/provider credentials configured
+
+## Quick Start
+
+<Steps>
+1. **Install dependencies**
+
+   ```bash
+   pip install crewai "sideseat[crewai]"
+   # or
+   uv add crewai "sideseat[crewai]"
+   ```
+
+2. **Add telemetry**
+
+   ```python
+   from sideseat import SideSeat, Frameworks
+   SideSeat(framework=Frameworks.CrewAI)
+
+   from crewai import Agent, Task, Crew
+
+   researcher = Agent(
+       role='Researcher',
+       goal='Find information',
+       backstory='Expert researcher'
+   )
+
+   task = Task(
+       description='Research AI trends',
+       expected_output='Summary of trends',
+       agent=researcher
+   )
+
+   crew = Crew(agents=[researcher], tasks=[task])
+   result = crew.kickoff()
+   ```
+</Steps>
+
+## Multi-Agent Crews
+
+CrewAI's multi-agent workflows are fully traced:
+
+```python
+from crewai import Agent, Task, Crew, Process
+
+# Define agents
+researcher = Agent(
+    role='Senior Researcher',
+    goal='Uncover groundbreaking technologies',
+    backstory='Expert at finding new tech trends'
+)
+
+writer = Agent(
+    role='Tech Writer',
+    goal='Create engaging content',
+    backstory='Skilled at explaining complex topics'
+)
+
+# Define tasks
+research_task = Task(
+    description='Research the latest AI developments',
+    expected_output='Detailed research report',
+    agent=researcher
+)
+
+write_task = Task(
+    description='Write a blog post about the research',
+    expected_output='Engaging blog post',
+    agent=writer
+)
+
+# Create crew
+crew = Crew(
+    agents=[researcher, writer],
+    tasks=[research_task, write_task],
+    process=Process.sequential
+)
+
+result = crew.kickoff()
+```
+
+SideSeat shows:
+- Parent span for the crew execution
+- Child spans for each agent's work
+- Child spans for each task execution
+
+## Extracted Attributes
+
+| Attribute | Description |
+|-----------|-------------|
+| `crewai.crew.name` | Crew identifier |
+| `crewai.agent.role` | Agent role |
+| `crewai.task.description` | Task being executed |
+| `crewai.process.type` | sequential or hierarchical |
+
+## Tools
+
+Agent tools are automatically traced:
+
+```python
+from crewai.tools import tool
+
+@tool
+def search_web(query: str) -> str:
+    """Search the web for information."""
+    return f"Results for {query}"
+
+agent = Agent(
+    role='Researcher',
+    goal='Find information',
+    backstory='Expert researcher',
+    tools=[search_web]
+)
+```
+
+## Process Types
+
+Both sequential and hierarchical processes are captured:
+
+```python
+# Sequential (default)
+crew = Crew(
+    agents=[agent1, agent2],
+    tasks=[task1, task2],
+    process=Process.sequential
+)
+
+# Hierarchical
+crew = Crew(
+    agents=[manager, worker1, worker2],
+    tasks=[task1, task2],
+    process=Process.hierarchical,
+    manager_llm=ChatOpenAI(model="gpt-5-mini")
+)
+```
+
+## Next Steps
+
+- [Python SDK](/docs/sdks/python/) — SDK reference
+- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages

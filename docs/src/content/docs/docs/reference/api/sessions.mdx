@@ -1,0 +1,98 @@
+---
+title: Sessions API
+description: API reference for session endpoints.
+---
+
+## List Sessions
+
+```
+GET /api/v1/project/{project_id}/otel/sessions
+```
+
+Query sessions with pagination and filters.
+
+### Query Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `page` | number | Page number (default: 1) |
+| `limit` | number | Items per page (default: 50) |
+| `order_by` | string | Sort field (e.g., `start_time:desc`) |
+| `user_id` | string | Filter by user ID |
+| `environment` | string or array | Filter by environment |
+| `from_timestamp` | string | Filter from timestamp (ISO 8601) |
+| `to_timestamp` | string | Filter to timestamp (ISO 8601) |
+| `filters` | JSON | Advanced filters (see below) |
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "session_id": "session-789",
+      "user_id": "user-123",
+      "environment": "development",
+      "start_time": "2025-01-26T10:12:34Z",
+      "end_time": "2025-01-26T10:15:02Z",
+      "trace_count": 3,
+      "total_tokens": 980,
+      "total_cost": 0.048
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 50,
+    "total_items": 42,
+    "total_pages": 1
+  }
+}
+```
+
+## Get Session
+
+```
+GET /api/v1/project/{project_id}/otel/sessions/{session_id}
+```
+
+Returns the session summary plus a list of traces in the session.
+
+## Get Session Messages
+
+```
+GET /api/v1/project/{project_id}/otel/sessions/{session_id}/messages
+```
+
+Get normalized messages (SideML format) across the session.
+
+## Delete Sessions
+
+```
+DELETE /api/v1/project/{project_id}/otel/sessions
+```
+
+Request body:
+
+```json
+{ "session_ids": ["session-123", "session-456"] }
+```
+
+## Get Filter Options
+
+```
+GET /api/v1/project/{project_id}/otel/sessions/filter-options
+```
+
+## Advanced Filters
+
+Pass a JSON array in the `filters` query param:
+
+```json
+[{"key": "user_id", "op": "eq", "value": "user-123"}]
+```
+
+## Next Steps
+
+- [Traces API](/docs/reference/api/traces/) — query runs
+- [Spans API](/docs/reference/api/spans/) — query individual steps
+- [SSE Streaming](/docs/reference/api/sse/) — real-time updates

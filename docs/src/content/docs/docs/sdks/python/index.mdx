@@ -1,0 +1,156 @@
+---
+title: Python SDK
+description: Instrument Python AI apps for the SideSeat local workbench.
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+The SideSeat Python SDK (`sideseat`) provides OpenTelemetry instrumentation with automatic binary data handling, framework detection, and multiple export options. Stream runs into the local AI development workbench while keeping your stack intact.
+
+**What you'll learn:**
+- Install and configure the Python SDK
+- Set up OTLP, console, and file exporters
+- Handle binary data and framework detection
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- Python 3.9+
+
+## Installation
+
+```bash
+pip install sideseat
+# or
+uv add sideseat
+```
+
+Or with your package manager:
+
+<Tabs>
+  <TabItem label="pip">
+    ```bash
+    pip install sideseat
+    ```
+  </TabItem>
+  <TabItem label="uv">
+    ```bash
+    uv add sideseat
+    ```
+  </TabItem>
+  <TabItem label="poetry">
+    ```bash
+    poetry add sideseat
+    ```
+  </TabItem>
+</Tabs>
+
+## Quick Start
+
+Add two lines at the top of your entry point:
+
+```python
+from sideseat import SideSeat, Frameworks
+SideSeat(framework=Frameworks.Strands)
+
+# Your existing code
+from strands import Agent
+
+agent = Agent()
+response = agent("Hello!")
+```
+
+That's it. Runs flow to SideSeat at `http://localhost:5388`.
+
+## Features
+
+### Automatic Framework Detection
+
+The SDK auto-detects your AI framework and sets the service name:
+
+| Priority | Package | Service Name |
+|----------|---------|--------------|
+| 1 | `strands-agents` | `strands-agents` |
+| 2 | `langchain-core` | `langchain-core` |
+| 3 | `crewai` | `crewai` |
+| 4 | `autogen-agentchat` | `autogen-agentchat` |
+| 5 | `agents` | `agents` |
+| 6 | `google-adk` | `google-adk` |
+| 7 | `pydantic-ai` | `pydantic-ai` |
+
+Override with:
+
+```python
+SideSeat(service_name="my-custom-service")
+```
+
+### Binary Data Handling
+
+AI frameworks often use binary data (images, audio). The SDK automatically encodes binary data as base64:
+
+```python
+# Default: encode binary as base64
+client = SideSeat(encode_binary=True)
+
+# Disable if not needed (saves bandwidth)
+client = SideSeat(encode_binary=False)
+```
+
+### Debug Exporters
+
+Configure additional exporters for debugging:
+
+```python
+client = SideSeat()
+
+# Console (for debugging)
+client.telemetry.setup_console_exporter()
+
+# File (JSONL format)
+client.telemetry.setup_file_exporter("traces.jsonl")
+```
+
+## Resource Attributes
+
+The SDK automatically sets these OpenTelemetry resource attributes:
+
+| Attribute | Value |
+|-----------|-------|
+| `service.name` | Auto-detected or user-provided |
+| `service.version` | Package version (if detected) |
+| `telemetry.sdk.name` | `sideseat` |
+| `telemetry.sdk.version` | SDK version |
+| `telemetry.sdk.language` | `python` |
+
+## Context Manager
+
+Use the context manager for automatic shutdown:
+
+```python
+with SideSeat() as client:
+    # Your code here
+# Traces flushed and connection closed automatically
+```
+
+## Graceful Shutdown
+
+The SDK registers an `atexit` handler for automatic shutdown. You can also call it explicitly:
+
+```python
+client = SideSeat()
+
+# ... your code ...
+
+# Flush all pending spans before exit
+client.shutdown()
+```
+
+<Aside type="note">
+`shutdown()` is idempotent and thread-safe. Calling it multiple times has no effect.
+</Aside>
+
+## Next Steps
+
+- [Configuration](/docs/sdks/python/configuration/) — detailed configuration options
+- [API Reference](/docs/sdks/python/telemetry/) — SideSeat class reference
+- [Exporters](/docs/sdks/python/exporters/) — console and file exporters for debugging

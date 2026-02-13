@@ -1,0 +1,195 @@
+---
+title: MCP Server
+description: Connect AI coding agents to your observability data for prompt optimization, debugging, and cost analysis.
+---
+
+import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
+
+SideSeat includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that gives AI coding agents direct access to your agent's execution history — prompts sent, responses received, tool calls made, costs incurred, and errors encountered. Instead of copy-pasting traces into your coding assistant, the agent reads them directly.
+
+Your coding agent can then:
+
+- **Optimize prompts** — compare what produces good results vs. poor ones
+- **Debug failures** — inspect the full execution trace when something breaks
+- **Reduce costs** — identify expensive model calls and find cheaper alternatives
+- **Refine tool definitions** — see how models interact with your tools and where they struggle
+
+## Setup
+
+MCP is enabled by default. Pick your tool and connect:
+
+<Tabs>
+  <TabItem label="Kiro / Kiro CLI">
+    **CLI:**
+
+    ```bash
+    kiro-cli mcp add --name sideseat --url http://localhost:5388/api/v1/projects/default/mcp
+    ```
+
+    **Or config file** — add to `.kiro/settings/mcp.json`:
+
+    ```json
+    {
+      "mcpServers": {
+        "sideseat": {
+          "url": "http://localhost:5388/api/v1/projects/default/mcp"
+        }
+      }
+    }
+    ```
+
+    See [Kiro MCP docs](https://kiro.dev/docs/mcp/configuration/) for more options.
+  </TabItem>
+  <TabItem label="Claude Code">
+    **CLI:**
+
+    ```bash
+    claude mcp add --transport http sideseat http://localhost:5388/api/v1/projects/default/mcp
+    ```
+
+    **Or config file** — add to `.mcp.json` in your project root:
+
+    ```json
+    {
+      "mcpServers": {
+        "sideseat": {
+          "type": "streamable-http",
+          "url": "http://localhost:5388/api/v1/projects/default/mcp"
+        }
+      }
+    }
+    ```
+  </TabItem>
+  <TabItem label="OpenAI Codex">
+    **CLI:**
+
+    ```bash
+    codex mcp add --transport http sideseat http://localhost:5388/api/v1/projects/default/mcp
+    ```
+
+    **Or config file** — add to `~/.codex/config.toml`:
+
+    ```toml
+    [mcp_servers.sideseat]
+    url = "http://localhost:5388/api/v1/projects/default/mcp"
+    ```
+  </TabItem>
+  <TabItem label="Cursor">
+    Add to `.cursor/mcp.json` in your project root:
+
+    ```json
+    {
+      "mcpServers": {
+        "sideseat": {
+          "type": "streamable-http",
+          "url": "http://localhost:5388/api/v1/projects/default/mcp"
+        }
+      }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="tip">
+Replace `default` in the URL with your project name if you use multiple projects.
+</Aside>
+
+For any other MCP-compatible client, point it at the Streamable HTTP endpoint:
+
+```
+http://localhost:5388/api/v1/projects/{project_id}/mcp
+```
+
+<Aside type="note">
+No authentication is required. SideSeat binds to `127.0.0.1` by default, so only local tools can connect.
+</Aside>
+
+## Available Tools
+
+7 tools covering the full observability workflow:
+
+| Tool | Description |
+|------|-------------|
+| `list_traces` | List recent runs with summaries, tokens, costs, and error status |
+| `list_sessions` | List multi-turn sessions grouping related runs |
+| `list_spans` | Search operations by type (LLM call, tool exec, agent step), model, framework, or status |
+| `get_trace` | Get a run's execution structure: span tree with timing, models, and tool invocations |
+| `get_messages` | Get the normalized conversation with roles, content blocks, token counts, and costs |
+| `get_raw_span` | Get raw OTLP span data with all attributes and events |
+| `get_stats` | Cost and token analytics by model, framework, and time period |
+
+## Workflows
+
+### Prompt Optimization
+
+<Steps>
+1. **Find recent runs** — `list_traces` to see recent activity
+
+2. **Read the conversation** — `get_messages` with a trace ID to see exact prompts and responses
+
+3. **Compare runs** — look at successful vs. failed runs to identify what works
+
+4. **Check costs** — `get_stats` to see cost breakdown by model
+</Steps>
+
+Example prompt to your coding agent:
+
+> Look at my last 5 agent runs in SideSeat. Find any that errored or had high token usage. Show me the system prompts and suggest improvements.
+
+### Debugging Failures
+
+<Steps>
+1. **Find errors** — `list_spans` with `status_code: "ERROR"`
+
+2. **Get the trace** — `get_trace` to see the execution tree and where it broke
+
+3. **Read messages** — `get_messages` to see what the model was asked before failing
+
+4. **Check raw data** — `get_raw_span` for framework-specific attributes
+</Steps>
+
+### Cost Analysis
+
+> Use SideSeat to compare my costs over the last week. Break down by model and show which runs are most expensive.
+
+## Configuration
+
+MCP is enabled by default. To disable it:
+
+<Tabs>
+  <TabItem label="Config File">
+    ```json
+    {
+      "server": {
+        "mcp": {
+          "enabled": false
+        }
+      }
+    }
+    ```
+  </TabItem>
+  <TabItem label="CLI">
+    ```bash
+    sideseat --mcp false
+    ```
+  </TabItem>
+  <TabItem label="Environment">
+    ```bash
+    SIDESEAT_MCP_ENABLED=false sideseat
+    ```
+  </TabItem>
+</Tabs>
+
+## Verifying the Connection
+
+```bash
+npx @modelcontextprotocol/inspector http://localhost:5388/api/v1/projects/default/mcp
+```
+
+This opens a web UI where you can list tools, call them interactively, and verify responses.
+
+## Next Steps
+
+- [Core Concepts](/docs/concepts/) — understand runs, steps, sessions, and messages
+- [API Reference](/docs/reference/api/) — the REST API that MCP tools call under the hood
+- [Configuration Schema](/docs/reference/config/) — all configuration options

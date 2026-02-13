@@ -1,0 +1,101 @@
+[project]
+name = "telemetry-samples"
+version = "0.1.0"
+description = "SideSeat telemetry samples for various AI/LLM frameworks"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "tqdm>=4.66.0",
+    "requests>=2.31.0",
+    "fastmcp>=2.14.0",
+    "boto3>=1.42.22",
+    "python-dotenv>=1.2.0",
+    # SideSeat SDK (local path dependency)
+    "sideseat",
+    # Common (pinned to 1.37.0 for google-adk compatibility)
+    "opentelemetry-api>=1.37.0",
+    "opentelemetry-sdk>=1.37.0",
+    "opentelemetry-exporter-otlp>=1.37.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.37.0",
+    # Strands (latest: 1.21.0)
+    "strands-agents>=1.21.0",
+    "strands-agents-tools>=0.2.19",
+    "opentelemetry-instrumentation-botocore>=0.58b0",
+    "bedrock-agentcore>=1.1.2",
+    # Anthropic direct API (for anthropic-* models)
+    "anthropic>=0.52.0",
+    # Google ADK (latest: 1.21.0, pins opentelemetry-sdk==1.37.0)
+    "google-adk>=1.21.0",
+    "litellm>=1.60.0",
+    # LangGraph (latest: 1.0.7)
+    "langgraph>=1.0.7",
+    "langchain-aws>=1.1.0",
+    "langchain-anthropic>=0.3.0",
+    "langchain-openai>=0.3.0",
+    "langchain-google-genai>=2.0.0",
+    "langchain-mcp-adapters>=0.2.1",
+    "openinference-instrumentation-langchain>=0.1.56",
+    # CrewAI (uses Bedrock via native integration, MCP support)
+    "crewai[bedrock]>=0.120.0",
+    "crewai-tools[mcp]>=0.36.0",
+    "openinference-instrumentation-crewai>=0.1.0",
+    # PDF rendering (transitive via crewai-tools, explicit for autogen files sample)
+    "pymupdf>=1.25.0",
+    # AutoGen (uses OpenAI, Anthropic, MCP)
+    "autogen-agentchat>=0.5.0",
+    "autogen-ext[openai,anthropic,mcp]>=0.5.0",
+    "openinference-instrumentation-autogen-agentchat>=0.1.0",
+    # OpenAI Agents SDK (uses Logfire for instrumentation)
+    "openai-agents>=0.0.16",
+    "logfire>=3.14.0",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.11.0"]
+
+[project.scripts]
+# Strands (unified entry point)
+strands = "strands_sample.cli:main"
+# Google ADK (unified entry point)
+adk = "adk_sample.cli:main"
+telemetry-adk = "adk_sample.cli:main"
+# LangGraph (unified entry point)
+langgraph = "langgraph_sample.cli:main"
+telemetry-langgraph = "langgraph_sample.cli:main"
+# CrewAI (unified entry point)
+crewai = "crewai_sample.cli:main"
+telemetry-crewai = "crewai_sample.cli:main"
+# AutoGen (unified entry point)
+autogen = "autogen_sample.cli:main"
+telemetry-autogen = "autogen_sample.cli:main"
+# OpenAI Agents SDK (unified entry point)
+openai-agents = "openai_agents_sample.cli:main"
+telemetry-openai-agents = "openai_agents_sample.cli:main"
+# Load testing
+loadtest = "loadtest_sample.generator:main"
+# Run all samples
+telemetry-all = "run_all_sample.telemetry:main"
+
+[tool.uv.sources]
+sideseat = { path = "../../../sdk/python", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/common", "src/strands_sample", "src/adk_sample", "src/langgraph_sample", "src/crewai_sample", "src/autogen_sample", "src/openai_agents_sample", "src/loadtest_sample", "src/run_all_sample"]
+sources = ["src"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"../../../sdk/python/src/sideseat" = "sideseat"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = [
+    "E501",  # Line length - many long strings in samples
+    "E402",  # Module import not at top - intentional for load_dotenv before config imports
+]

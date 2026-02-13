@@ -1,0 +1,48 @@
+---
+---
+<section class="cta">
+  <div class="container">
+    <div class="cta-card">
+      <div class="cta-grid">
+        <div class="stack">
+          <p class="eyebrow">Ready to ship reliable agents?</p>
+          <h2 class="section-title">Run SideSeat locally. Debug every run end-to-end.</h2>
+          <p class="section-lead">SideSeat is the local AI development workbench that connects prompts, tool calls, and model responses in one timeline.</p>
+          <div class="cta-actions">
+            <a href="/docs/quickstart/" class="btn btn-primary">Run locally</a>
+            <a href="/docs/integrations/" class="btn btn-secondary">See supported stacks</a>
+          </div>
+        </div>
+
+        <div class="cta-panel">
+          <div class="terminal">
+            <div class="terminal-header">
+              <div class="terminal-dot red"></div>
+              <div class="terminal-dot yellow"></div>
+              <div class="terminal-dot green"></div>
+            </div>
+            <div class="terminal-body" style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+              <code><span class="terminal-prompt">$</span> npx sideseat</code>
+              <button id="copy-btn" class="copy-button" onclick="copyCommand()">Copy</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+  function copyCommand() {
+    navigator.clipboard.writeText('npx sideseat').then(() => {
+      const btn = document.getElementById('copy-btn');
+      if (!btn) return;
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  }
+</script>

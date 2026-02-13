@@ -1,0 +1,98 @@
+---
+const features = [
+  {
+    title: 'Live Run Timeline',
+    description: 'Watch model and tool steps stream in real time. Skip batch logs.',
+    icon: 'stream',
+    featured: true,
+  },
+  {
+    title: 'Threaded Run View',
+    description: 'See prompts, tool calls, and model responses in one ordered thread.',
+    icon: 'thread',
+  },
+  {
+    title: 'Tool Call Drilldown',
+    description: 'Inspect inputs, outputs, retries, and errors with full context.',
+    icon: 'tool',
+  },
+  {
+    title: 'Latency & Cost Profiling',
+    description: 'Track tokens, latency, and spend per step with model attribution.',
+    icon: 'cost',
+  },
+  {
+    title: 'Searchable Sessions',
+    description: 'Filter runs by session, model, latency, and errors to find answers fast.',
+    icon: 'search',
+  },
+  {
+    title: 'Local Workbench',
+    description: 'One command. No signup. Runs next to your code on your machine.',
+    icon: 'local',
+  },
+];
+---
+
+<section class="section section-surface">
+  <div class="container">
+    <div class="section-header center">
+      <p class="eyebrow">Capabilities</p>
+      <h2 class="section-title">Everything you need to ship reliable agents</h2>
+      <p class="section-lead">A local workbench for the entire agent loop, designed for modern stacks.</p>
+    </div>
+
+    <div class="feature-grid">
+      {features.map((feature, index) => (
+        <div class={`feature-card ${feature.featured ? 'featured' : ''} animate-fade-up delay-${index + 1}`}>
+          <div class="feature-top">
+            <div class="feature-icon">
+            {feature.icon === 'stream' && (
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            )}
+            {feature.icon === 'thread' && (
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                <path d="M13 8h4" />
+                <path d="M7 12h10" />
+              </svg>
+            )}
+            {feature.icon === 'tool' && (
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6.8 6.8a2 2 0 0 0 2.8 2.8l6.8-6.8a4 4 0 0 0 5.4-5.4l-3 3-2-2 3-3Z" />
+              </svg>
+            )}
+            {feature.icon === 'cost' && (
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23" />
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+            )}
+            {feature.icon === 'search' && (
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="7" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            )}
+            {feature.icon === 'local' && (
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="14" rx="2" />
+                <path d="M8 20h8" />
+                <path d="M12 16v4" />
+              </svg>
+            )}
+            </div>
+            {feature.featured && <span class="feature-pill">Core workflow</span>}
+          </div>
+          <div>
+            <h3>{feature.title}</h3>
+            <p class="text-muted">{feature.description}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

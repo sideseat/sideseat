@@ -1,0 +1,102 @@
+---
+title: Strands Agents
+description: Integrate SideSeat with Strands Agents for live run visibility and debugging.
+---
+
+import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
+
+[Strands Agents](https://strandsagents.com) is an AI agent framework developed by AWS. It has native OpenTelemetry support, making SideSeat integration seamless.
+
+## Quick Start
+
+<Steps>
+1. **Install dependencies**
+
+   ```bash
+   pip install strands-agents sideseat
+   # or
+   uv add strands-agents sideseat
+   ```
+
+2. **Add telemetry**
+
+   ```python
+   from sideseat import SideSeat, Frameworks
+   SideSeat(framework=Frameworks.Strands)
+
+   from strands import Agent
+
+   agent = Agent()
+   response = agent("What is the capital of France?")
+   print(response)
+   ```
+
+3. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
+</Steps>
+
+## Without SideSeat SDK
+
+Strands has its own telemetry class that's compatible with SideSeat:
+
+```python
+from strands.telemetry import StrandsTelemetry
+
+telemetry = StrandsTelemetry()
+telemetry.setup_otlp_exporter(
+    endpoint="http://localhost:5388/otel/default/v1/traces"
+)
+```
+
+<Aside type="note">
+The SideSeat SDK includes additional features like binary data handling and framework auto-detection. Use it unless you need Strands-specific telemetry configuration.
+</Aside>
+
+## TypeScript
+
+The Strands TypeScript SDK doesn't include native OpenTelemetry yet. Use the [SideSeat JavaScript SDK](/docs/sdks/javascript/) for tracing.
+
+## What You'll See
+
+SideSeat shows a trace timeline with:
+- A parent span for the agent run
+- Child spans for each LLM call with model, tokens, and cost
+- Child spans for each tool execution with inputs and outputs
+
+## Tools
+
+Strands automatically traces tool calls. Define tools normally:
+
+```python
+from strands import Agent, tool
+
+@tool
+def get_weather(location: str) -> str:
+    """Get weather for a location."""
+    return f"Weather in {location}: Sunny, 72F"
+
+agent = Agent(tools=[get_weather])
+response = agent("What's the weather in Paris?")
+```
+
+## Sessions
+
+Group related traces using trace attributes:
+
+```python
+agent = Agent(
+    trace_attributes={
+        "session.id": "conversation-123",
+        "user.id": "user-456",
+    }
+)
+```
+
+These attributes appear in SideSeat and enable filtering. All turns with the same `session.id` are grouped under one session.
+
+## Next Steps
+
+- [Python SDK](/docs/sdks/python/) — SDK reference
+- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages
+- [Amazon Bedrock](/docs/integrations/providers/bedrock/) — provider-specific details

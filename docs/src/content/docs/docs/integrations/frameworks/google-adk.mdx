@@ -1,0 +1,141 @@
+---
+title: Google ADK
+description: Integrate SideSeat with Google Agent Development Kit for Gemini-powered agent visibility.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+[Google ADK](https://google.github.io/adk-docs/) (Agent Development Kit) is Google's framework for building AI agents powered by Gemini models. It provides native OpenTelemetry support for tracing agent runs.
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- Python 3.9+
+- Google Cloud credentials configured
+
+## Quick Start
+
+<Steps>
+1. **Install dependencies**
+
+   ```bash
+   pip install google-adk sideseat
+   # or
+   uv add google-adk sideseat
+   ```
+
+2. **Add telemetry**
+
+   ```python
+   from sideseat import SideSeat, Frameworks
+   SideSeat(framework=Frameworks.GoogleADK)
+
+   from google.adk.agents import Agent
+   from google.adk.runners import Runner
+
+   agent = Agent(
+       model="gemini-2.5-flash",
+       name="assistant",
+       instruction="You are a helpful assistant."
+   )
+   ```
+</Steps>
+
+## Without SideSeat SDK
+
+Use the OpenTelemetry SDK directly:
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+provider = TracerProvider()
+provider.add_span_processor(
+    BatchSpanProcessor(
+        OTLPSpanExporter(endpoint="http://localhost:5388/otel/default/v1/traces")
+    )
+)
+trace.set_tracer_provider(provider)
+```
+
+## Tools
+
+Define tools for your agent:
+
+```python
+from google.adk.agents import Agent
+
+def get_weather(city: str) -> dict:
+    """Get weather for a city."""
+    return {"city": city, "forecast": "sunny"}
+
+agent = Agent(
+    model="gemini-2.5-flash",
+    name="weather_assistant",
+    instruction="Use the get_weather tool to provide forecasts.",
+    tools=[get_weather]
+)
+```
+
+SideSeat shows:
+- Parent span for the agent run
+- Child spans for each Gemini call
+- Child spans for each tool execution
+
+## Sessions
+
+ADK supports session management:
+
+```python
+import asyncio
+from google.adk.apps import App
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
+
+app = App(name="my_app", root_agent=agent)
+session_service = InMemorySessionService()
+
+async def run():
+    session = await session_service.create_session(
+        app_name="my_app",
+        user_id="user-123",
+        session_id="session-456"
+    )
+
+    runner = Runner(app=app, session_service=session_service)
+
+    message = types.Content(
+        role="user",
+        parts=[types.Part(text="Hello!")]
+    )
+
+    async for event in runner.run_async(
+        session_id=session.id,
+        user_id="user-123",
+        new_message=message
+    ):
+        if event.content and event.content.parts:
+            for part in event.content.parts:
+                if hasattr(part, "text") and part.text:
+                    print(part.text)
+
+asyncio.run(run())
+```
+
+## Extracted Attributes
+
+| Attribute | Description |
+|-----------|-------------|
+| `gen_ai.system` | `google_adk` |
+| `gen_ai.request.model` | Gemini model ID |
+| `gen_ai.usage.input_tokens` | Input token count |
+| `gen_ai.usage.output_tokens` | Output token count |
+
+## Next Steps
+
+- [Google Vertex AI](/docs/integrations/providers/vertex/) — provider details
+- [Python SDK](/docs/sdks/python/) — SDK reference
+- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages

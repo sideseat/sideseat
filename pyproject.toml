@@ -1,0 +1,12 @@
+[project]
+name = "sideseat-workspace"
+version = "0.0.0"
+description = "SideSeat workspace - dev tools only"
+requires-python = ">=3.12"
+
+[dependency-groups]
+dev = ["ruff>=0.11.0"]
+
+[tool.ruff.lint.per-file-ignores]
+# Samples use load_dotenv() before imports (intentional)
+"misc/samples/python/**" = ["E402", "F401", "F541"]
