@@ -1,0 +1,324 @@
+/* Fancy color scheme - Purple AI theme */
+
+/* Light mode */
+.fancy {
+  /* Subtle purple-tinted background */
+  --background: oklch(0.985 0.008 285);
+  --foreground: oklch(0.145 0 0);
+  /* White cards for contrast */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  /* Vibrant purple primary */
+  --primary: oklch(0.52 0.26 285);
+  --primary-foreground: oklch(0.99 0 0);
+  /* Light purple secondary */
+  --secondary: oklch(0.94 0.06 285);
+  --secondary-foreground: oklch(0.32 0.14 285);
+  /* Purple-tinted muted */
+  --muted: oklch(0.96 0.015 285);
+  --muted-foreground: oklch(0.5 0.04 285);
+  /* Soft purple accent */
+  --accent: oklch(0.94 0.06 285);
+  --accent-foreground: oklch(0.32 0.14 285);
+  --destructive: oklch(0.55 0.25 25);
+  /* Purple-tinted borders */
+  --border: oklch(0.9 0.02 285);
+  --input: oklch(0.92 0.015 285);
+  --ring: oklch(0.52 0.26 285);
+  /* Purple-focused chart palette - analogous harmony */
+  --chart-1: oklch(0.52 0.26 285);
+  --chart-2: oklch(0.55 0.22 310);
+  --chart-3: oklch(0.5 0.2 255);
+  --chart-4: oklch(0.58 0.2 335);
+  --chart-5: oklch(0.48 0.16 225);
+  --chart-6: oklch(0.54 0.24 295);
+  --chart-7: oklch(0.46 0.18 270);
+  --chart-8: oklch(0.6 0.18 320);
+  --chart-9: oklch(0.52 0.14 240);
+  --chart-10: oklch(0.56 0.22 345);
+  /* Purple-tinted sidebar */
+  --sidebar: oklch(0.98 0.012 285);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.52 0.26 285);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.94 0.06 285);
+  --sidebar-accent-foreground: oklch(0.32 0.14 285);
+  --sidebar-border: oklch(0.9 0.02 285);
+  --sidebar-ring: oklch(0.52 0.26 285);
+}
+
+/* Dark mode */
+.fancy.dark {
+  /* Purple-tinted dark background */
+  --background: oklch(0.145 0.015 285);
+  --foreground: oklch(0.985 0 0);
+  /* Elevated surfaces with purple tint */
+  --card: oklch(0.19 0.02 285);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.19 0.02 285);
+  --popover-foreground: oklch(0.985 0 0);
+  /* Bright purple primary */
+  --primary: oklch(0.7 0.22 285);
+  --primary-foreground: oklch(0.13 0 0);
+  /* Dark purple secondary */
+  --secondary: oklch(0.28 0.08 285);
+  --secondary-foreground: oklch(0.88 0.06 285);
+  /* Purple-tinted muted */
+  --muted: oklch(0.24 0.03 285);
+  --muted-foreground: oklch(0.65 0.04 285);
+  /* Purple accent */
+  --accent: oklch(0.28 0.08 285);
+  --accent-foreground: oklch(0.88 0.06 285);
+  --destructive: oklch(0.62 0.22 25);
+  /* Purple-tinted borders */
+  --border: oklch(0.3 0.04 285);
+  --input: oklch(0.28 0.03 285);
+  --ring: oklch(0.7 0.22 285);
+  /* Purple-focused chart palette - analogous harmony */
+  --chart-1: oklch(0.7 0.22 285);
+  --chart-2: oklch(0.72 0.2 310);
+  --chart-3: oklch(0.68 0.18 255);
+  --chart-4: oklch(0.74 0.18 335);
+  --chart-5: oklch(0.65 0.14 225);
+  --chart-6: oklch(0.72 0.2 295);
+  --chart-7: oklch(0.64 0.16 270);
+  --chart-8: oklch(0.76 0.16 320);
+  --chart-9: oklch(0.7 0.12 240);
+  --chart-10: oklch(0.74 0.2 345);
+  /* Purple-tinted sidebar */
+  --sidebar: oklch(0.17 0.02 285);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.7 0.22 285);
+  --sidebar-primary-foreground: oklch(0.13 0 0);
+  --sidebar-accent: oklch(0.28 0.08 285);
+  --sidebar-accent-foreground: oklch(0.88 0.06 285);
+  --sidebar-border: oklch(0.3 0.04 285);
+  --sidebar-ring: oklch(0.7 0.22 285);
+}
+
+/* AG Grid styling - Light mode */
+.fancy {
+  --ag-background-color: oklch(0.985 0.008 285);
+  --ag-header-background-color: oklch(0.97 0.012 285);
+  --ag-odd-row-background-color: oklch(0.98 0.006 285);
+  --ag-foreground-color: oklch(0.145 0 0);
+  --ag-header-foreground-color: oklch(0.145 0 0);
+  --ag-border-color: oklch(0.9 0.02 285);
+  --ag-active-color: oklch(0.52 0.26 285);
+  --ag-selected-row-background-color: oklch(0.52 0.26 285 / 0.08);
+  --ag-row-hover-color: oklch(0.52 0.26 285 / 0.05);
+  --ag-range-selection-border-color: oklch(0.52 0.26 285);
+  --ag-range-selection-background-color: oklch(0.52 0.26 285 / 0.12);
+  --ag-checkbox-checked-color: oklch(0.52 0.26 285);
+  --ag-input-focus-border-color: oklch(0.52 0.26 285);
+  --ag-accent-color: oklch(0.52 0.26 285);
+}
+
+/* AG Grid styling - Dark mode */
+.fancy.dark {
+  --ag-background-color: oklch(0.145 0.015 285);
+  --ag-header-background-color: oklch(0.17 0.02 285);
+  --ag-odd-row-background-color: oklch(0.16 0.018 285);
+  --ag-foreground-color: oklch(0.985 0 0);
+  --ag-header-foreground-color: oklch(0.985 0 0);
+  --ag-border-color: oklch(0.3 0.04 285);
+  --ag-active-color: oklch(0.7 0.22 285);
+  --ag-selected-row-background-color: oklch(0.7 0.22 285 / 0.15);
+  --ag-row-hover-color: oklch(0.7 0.22 285 / 0.08);
+  --ag-range-selection-border-color: oklch(0.7 0.22 285);
+  --ag-range-selection-background-color: oklch(0.7 0.22 285 / 0.18);
+  --ag-checkbox-checked-color: oklch(0.7 0.22 285);
+  --ag-input-focus-border-color: oklch(0.7 0.22 285);
+  --ag-accent-color: oklch(0.7 0.22 285);
+}
+
+/* Component enhancements - Light mode */
+.fancy {
+  /* Smooth transitions - exclude sidebar to preserve collapse animation */
+  & *:not([data-sidebar]):not([data-slot="sidebar"]):not(.sidebar):not([class*="sidebar"]) {
+    transition-property: background-color, border-color, box-shadow;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
+
+  /* Page header (navbar) styling */
+  & .page-header {
+    border-bottom-color: oklch(0.52 0.26 285 / 0.15);
+  }
+
+  /* Main nav tab bar styling */
+  & .main-nav {
+    background: oklch(0.52 0.26 285 / 0.06);
+    border: 1px solid oklch(0.52 0.26 285 / 0.08);
+  }
+
+  & .main-nav-item[data-active="true"] {
+    background: oklch(0.52 0.26 285 / 0.18);
+    color: oklch(0.4 0.24 285);
+  }
+
+  & .main-nav-item:not([data-active="true"]):hover {
+    background: oklch(0.52 0.26 285 / 0.08);
+  }
+
+  /* Enhanced card shadows with purple tint */
+  & [data-slot="card"],
+  & .card {
+    box-shadow:
+      0 1px 3px oklch(0.52 0.26 285 / 0.08),
+      0 4px 12px oklch(0.52 0.26 285 / 0.05);
+  }
+
+  /* Pagination styling - matches AG Grid background */
+  & [data-slot="pagination"] {
+    background-color: oklch(0.985 0.008 285);
+    box-shadow: 0 1px 3px oklch(0.52 0.26 285 / 0.06);
+  }
+
+  /* Primary button purple glow on hover */
+  & button[data-variant="default"]:hover,
+  & .btn-primary:hover {
+    box-shadow: 0 0 20px oklch(0.52 0.26 285 / 0.35);
+  }
+
+  /* Input focus purple glow */
+  & input:focus,
+  & textarea:focus,
+  & select:focus {
+    box-shadow: 0 0 0 3px oklch(0.52 0.26 285 / 0.18);
+  }
+
+  /* Sidebar hover with purple tint */
+  & [data-sidebar="menu-button"]:hover {
+    background: oklch(0.52 0.26 285 / 0.1);
+  }
+
+  /* Badge/pill styling */
+  & [data-slot="badge"] {
+    background: oklch(0.52 0.26 285 / 0.12);
+    color: oklch(0.52 0.26 285);
+  }
+
+  /* Config nav styling */
+  & .config-nav-item[data-active="true"] {
+    background: oklch(0.52 0.26 285 / 0.15);
+    color: oklch(0.42 0.22 285);
+    border-left: 3px solid oklch(0.52 0.26 285);
+    padding-left: 9px;
+  }
+
+  & .config-nav-item:not([data-active="true"]):hover {
+    background: oklch(0.52 0.26 285 / 0.08);
+  }
+
+  /* Config sidebar styling */
+  @media (min-width: 768px) {
+    & .config-sidebar {
+      border-right: 1px solid oklch(0.52 0.26 285 / 0.1);
+      padding-right: 1rem;
+    }
+  }
+
+  /* Config content area styling */
+  & .config-content {
+    border-color: oklch(0.52 0.26 285 / 0.12);
+  }
+}
+
+/* Component enhancements - Dark mode */
+.fancy.dark {
+  /* Page header (navbar) styling */
+  & .page-header {
+    border-bottom-color: oklch(0.7 0.22 285 / 0.2);
+  }
+
+  /* Main nav tab bar styling */
+  & .main-nav {
+    background: oklch(0.7 0.22 285 / 0.08);
+    border: 1px solid oklch(0.7 0.22 285 / 0.12);
+  }
+
+  & .main-nav-item[data-active="true"] {
+    background: oklch(0.7 0.22 285 / 0.25);
+    color: oklch(0.78 0.2 285);
+  }
+
+  & .main-nav-item:not([data-active="true"]):hover {
+    background: oklch(0.7 0.22 285 / 0.12);
+  }
+
+  /* Card shadows with purple glow */
+  & [data-slot="card"],
+  & .card {
+    box-shadow:
+      0 1px 3px oklch(0 0 0 / 0.4),
+      0 4px 16px oklch(0 0 0 / 0.3),
+      0 0 1px oklch(0.7 0.22 285 / 0.2);
+  }
+
+  /* Pagination styling - matches AG Grid background */
+  & [data-slot="pagination"] {
+    background-color: oklch(0.145 0.015 285);
+    box-shadow:
+      0 1px 3px oklch(0 0 0 / 0.2),
+      0 0 1px oklch(0.7 0.22 285 / 0.15);
+  }
+
+  /* Glowing purple button */
+  & button[data-variant="default"]:hover,
+  & .btn-primary:hover {
+    box-shadow: 0 0 24px oklch(0.7 0.22 285 / 0.45);
+  }
+
+  /* Input focus glow */
+  & input:focus,
+  & textarea:focus,
+  & select:focus {
+    box-shadow: 0 0 0 3px oklch(0.7 0.22 285 / 0.28);
+  }
+
+  /* Sidebar active with purple glow */
+  & [data-sidebar="menu-button"][data-active="true"] {
+    background: oklch(0.7 0.22 285 / 0.18);
+  }
+
+  /* Popover with subtle purple edge */
+  & [data-radix-popper-content-wrapper] > div {
+    box-shadow:
+      0 4px 24px oklch(0 0 0 / 0.5),
+      0 0 1px oklch(0.7 0.22 285 / 0.3);
+  }
+
+  /* Badge/pill styling */
+  & [data-slot="badge"] {
+    background: oklch(0.7 0.22 285 / 0.18);
+    color: oklch(0.7 0.22 285);
+  }
+
+  /* Config nav styling */
+  & .config-nav-item[data-active="true"] {
+    background: oklch(0.7 0.22 285 / 0.2);
+    color: oklch(0.8 0.18 285);
+    border-left: 3px solid oklch(0.7 0.22 285);
+    padding-left: 9px;
+  }
+
+  & .config-nav-item:not([data-active="true"]):hover {
+    background: oklch(0.7 0.22 285 / 0.12);
+  }
+
+  /* Config sidebar styling */
+  @media (min-width: 768px) {
+    & .config-sidebar {
+      border-right: 1px solid oklch(0.7 0.22 285 / 0.15);
+      padding-right: 1rem;
+    }
+  }
+
+  /* Config content area styling */
+  & .config-content {
+    border-color: oklch(0.7 0.22 285 / 0.18);
+  }
+}

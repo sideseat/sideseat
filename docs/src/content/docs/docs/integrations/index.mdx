@@ -1,0 +1,82 @@
+---
+title: Integrations
+description: Connect SideSeat to popular AI frameworks and LLM providers through OpenTelemetry.
+---
+
+import { Card, CardGrid, Aside } from '@astrojs/starlight/components';
+
+SideSeat collects runs from any application emitting OpenTelemetry data. Most AI frameworks have built-in OpenTelemetry support or can be instrumented with the SideSeat SDKs.
+
+## How Integration Works
+
+1. **Install SDK**: Add the SideSeat Python or JavaScript SDK
+2. **Initialize**: Call `SideSeat()` (Python) or `init()` (JavaScript)
+3. **Run**: Your framework's telemetry flows to the local workbench automatically
+
+SideSeat then:
+- Auto-detects the framework
+- Extracts model, token, and cost information
+- Normalizes messages into a unified run timeline
+
+## Frameworks
+
+AI agent frameworks with OpenTelemetry support:
+
+<CardGrid>
+  <Card title="Strands Agents" icon="rocket">
+    [AWS-backed framework](/docs/integrations/frameworks/strands/) with native OTLP support.
+  </Card>
+  <Card title="Vercel AI SDK" icon="seti:typescript">
+    [TypeScript AI toolkit](/docs/integrations/frameworks/vercel-ai/) for generateText/streamText.
+  </Card>
+  <Card title="LangGraph" icon="puzzle">
+    [LangChain's agent framework](/docs/integrations/frameworks/langgraph/) for stateful workflows.
+  </Card>
+  <Card title="CrewAI" icon="seti:folder">
+    [Multi-agent framework](/docs/integrations/frameworks/crewai/) for collaborative AI.
+  </Card>
+</CardGrid>
+
+<CardGrid>
+  <Card title="AutoGen" icon="laptop">
+    [Microsoft's framework](/docs/integrations/frameworks/autogen/) for multi-agent conversations.
+  </Card>
+  <Card title="Google ADK" icon="external">
+    [Google's Agent Development Kit](/docs/integrations/frameworks/google-adk/) for Gemini-powered agents.
+  </Card>
+  <Card title="OpenAI Agents SDK" icon="external">
+    [OpenAI's agent framework](/docs/integrations/frameworks/openai-agents/) with Logfire instrumentation.
+  </Card>
+  <Card title="Other Frameworks" icon="seti:config">
+    [LangChain, PydanticAI, LlamaIndex](/docs/integrations/frameworks/other/) and generic OpenTelemetry.
+  </Card>
+</CardGrid>
+
+## Providers
+
+LLM providers from which SideSeat extracts model information:
+
+<CardGrid>
+  <Card title="Amazon Bedrock" icon="external">
+    [Multi-model platform](/docs/integrations/providers/bedrock/) on AWS.
+  </Card>
+  <Card title="Anthropic" icon="external">
+    [Claude models](/docs/integrations/providers/anthropic/) via API.
+  </Card>
+  <Card title="OpenAI" icon="external">
+    [GPT models](/docs/integrations/providers/openai/) via API.
+  </Card>
+</CardGrid>
+
+<CardGrid>
+  <Card title="Azure OpenAI" icon="external">
+    [OpenAI on Azure](/docs/integrations/providers/azure/).
+  </Card>
+  <Card title="Google Vertex AI" icon="external">
+    [Gemini models](/docs/integrations/providers/vertex/) on Google Cloud.
+  </Card>
+</CardGrid>
+
+<Aside type="note">
+For generic OpenTelemetry instrumentation or framework detection details, see the [OpenTelemetry Reference](/docs/reference/otel/).
+</Aside>

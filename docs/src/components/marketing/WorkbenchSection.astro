@@ -1,0 +1,88 @@
+---
+---
+<section class="section section-surface">
+  <div class="container">
+    <div class="section-header center">
+      <p class="eyebrow">Workbench loop</p>
+      <h2 class="section-title">Instrument once. Iterate faster.</h2>
+      <p class="section-lead">
+        SideSeat is your local workbench for agent development. Run a session, inspect each step, refine prompts or tools,
+        and rerun with full context.
+      </p>
+    </div>
+
+    <div class="workbench-grid">
+      <div class="step-card">
+        <div class="step-index">01</div>
+        <h3>Instrument</h3>
+        <p>Add the exporter once. Keep your stack intact.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-index">02</div>
+        <h3>Run</h3>
+        <p>Run locally and watch each step stream in real time.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-index">03</div>
+        <h3>Inspect</h3>
+        <p>Inspect prompts, tool calls, and model metadata side by side.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-index">04</div>
+        <h3>Tune</h3>
+        <p>Compare runs, spot regressions, and tighten the loop.</p>
+      </div>
+    </div>
+
+    <div class="workbench-board">
+      <div class="card card-accent">
+        <div class="card-title">Run timeline</div>
+        <div class="timeline">
+          <div class="timeline-row">
+            <span class="timeline-dot"></span>
+            <div>
+              <p class="timeline-title">Plan and route</p>
+              <p class="timeline-meta">Model call | 612 ms | 1,120 tokens</p>
+            </div>
+          </div>
+          <div class="timeline-row">
+            <span class="timeline-dot cool"></span>
+            <div>
+              <p class="timeline-title">Tool: retrieve context</p>
+              <p class="timeline-meta">Tool call | 218 ms | 3 docs</p>
+            </div>
+          </div>
+          <div class="timeline-row">
+            <span class="timeline-dot"></span>
+            <div>
+              <p class="timeline-title">Draft response</p>
+              <p class="timeline-meta">Model call | 204 ms | 812 tokens</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-muted">
+        <div class="card-title">Run summary</div>
+        <div class="metric-grid">
+          <div>
+            <p class="metric-label">Total latency</p>
+            <p class="metric-value">1.03s</p>
+          </div>
+          <div>
+            <p class="metric-label">Tokens</p>
+            <p class="metric-value">2,134</p>
+          </div>
+          <div>
+            <p class="metric-label">Tool calls</p>
+            <p class="metric-value">3</p>
+          </div>
+          <div>
+            <p class="metric-label">Cost</p>
+            <p class="metric-value">$0.018</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

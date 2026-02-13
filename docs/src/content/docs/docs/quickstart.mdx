@@ -1,0 +1,122 @@
+---
+title: First Run
+description: Run SideSeat locally and see your first agent run in minutes.
+---
+
+import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
+
+Get from zero to your first run in the local AI development workbench.
+
+## Prerequisites
+
+- Node.js 18+ (to run SideSeat)
+- Python 3.9+ or Node.js 18+ (for your AI app)
+- Model credentials for your provider (if required)
+
+## Start SideSeat
+
+<Steps>
+1. **Run SideSeat locally**
+
+   ```bash
+   npx sideseat
+   ```
+
+   You'll see output like:
+
+   ```
+   SideSeat v1.x
+     Local: http://127.0.0.1:5388
+     OTLP:  http://127.0.0.1:5388/otel/default/v1/traces
+   ```
+
+2. **Open the workbench**
+
+   Navigate to [http://localhost:5388](http://localhost:5388) in your browser.
+</Steps>
+
+## Install the SDK
+
+<Tabs>
+  <TabItem label="Python">
+    ```bash
+    pip install sideseat
+    # or
+    uv add sideseat
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```bash
+    npm install @sideseat/sdk
+    ```
+  </TabItem>
+</Tabs>
+
+## Instrument Your App
+
+Add two lines at the top of your entry point:
+
+<Tabs>
+  <TabItem label="Python (Strands)">
+    ```python
+    from sideseat import SideSeat, Frameworks
+    SideSeat(framework=Frameworks.Strands)
+
+    # Your existing code
+    from strands import Agent
+
+    agent = Agent()
+    response = agent("What is the capital of France?")
+    print(response)
+    ```
+  </TabItem>
+  <TabItem label="JavaScript (Vercel AI)">
+    ```typescript
+    import { init } from '@sideseat/sdk';
+    init();
+
+    // Your existing code
+    import { generateText } from 'ai';
+    import { openai } from '@ai-sdk/openai';
+
+    const { text } = await generateText({
+      model: openai('gpt-5-mini'),
+      prompt: 'What is the capital of France?',
+      experimental_telemetry: { isEnabled: true },
+    });
+    console.log(text);
+    ```
+  </TabItem>
+</Tabs>
+
+The SDK auto-detects your framework and configures telemetry accordingly.
+
+## What You'll See
+
+Run your app. A new run appears in the workbench showing a timeline of each LLM call, tool execution, and response. Token counts and costs are calculated automatically.
+
+You should see:
+- A live run timeline with each step
+- Prompt and response messages grouped by step
+- Token, latency, and cost summaries
+
+## Why Local?
+
+SideSeat runs locally by default. Your data stays on your machine.
+
+| Benefit | What It Means |
+|---------|---------------|
+| **No signup** | Run `npx sideseat` and start debugging immediately |
+| **No data egress** | Traces stay on your machine — no cloud uploads |
+| **No latency** | Real-time streaming without network roundtrips |
+| **No vendor lock-in** | Standard OpenTelemetry traces work with any backend |
+
+<Aside type="note">
+If you use cloud LLMs, those requests still go to your provider. SideSeat only stores what your app sends via OpenTelemetry.
+</Aside>
+
+## Next Steps
+
+- [Core Concepts](/docs/concepts/) — understand runs, steps, and messages
+- [Integrations](/docs/integrations/) — connect your framework or provider
+- [Troubleshooting](/docs/troubleshooting/) — fix common issues

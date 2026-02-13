@@ -1,0 +1,42 @@
+{
+  "$schema": "./sideseat.schema.json",
+  "server": {
+    "host": "127.0.0.1",
+    "port": 5388
+  },
+  "auth": {
+    "enabled": true
+  },
+  "otel": {
+    "grpc": {
+      "enabled": true,
+      "port": 4317
+    },
+    "retention": {
+      "max_age_minutes": 1440,
+      "max_spans": 5000000
+    }
+  },
+  "pricing": {
+    "sync_hours": 4
+  },
+  "files": {
+    "enabled": true,
+    "storage": "filesystem",
+    "quota_bytes": 1073741824
+  },
+  "rate_limit": {
+    "enabled": false
+  },
+  "database": {
+    "cache": "memory",
+    "memory_cache": {
+      "max_entries": 100000,
+      "eviction_policy": "tinylfu"
+    }
+  },
+  "update": {
+    "enabled": true
+  },
+  "debug": false
+}

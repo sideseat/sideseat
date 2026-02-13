@@ -1,0 +1,182 @@
+---
+title: Python SDK Exporters
+description: Debug exporters for the SideSeat Python SDK.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The SideSeat Python SDK automatically exports traces to the SideSeat server via OTLP. For debugging, you can add console or file exporters.
+
+## Default Behavior
+
+By default, `SideSeat()` exports traces to the OTLP endpoint:
+
+```python
+from sideseat import SideSeat
+
+client = SideSeat()  # Exports to http://127.0.0.1:5388 by default
+```
+
+## Debug Exporters
+
+Access debug exporters via the `telemetry` property:
+
+```python
+client = SideSeat()
+client.telemetry.setup_console_exporter()  # Print to stdout
+client.telemetry.setup_file_exporter("traces.jsonl")  # Write to file
+```
+
+## Console Exporter
+
+Prints spans to stdout. Useful for debugging during development.
+
+### Basic Usage
+
+```python
+client = SideSeat()
+client.telemetry.setup_console_exporter()
+```
+
+### Output Example
+
+```
+{
+    "name": "llm.completion",
+    "context": {
+        "trace_id": "0x1234567890abcdef...",
+        "span_id": "0xabcdef1234567890"
+    },
+    "start_time": "2024-01-15T10:30:00.000000Z",
+    "end_time": "2024-01-15T10:30:01.500000Z",
+    "attributes": {
+        "gen_ai.system": "openai",
+        "gen_ai.request.model": "gpt-5-mini",
+        "gen_ai.usage.input_tokens": 150,
+        "gen_ai.usage.output_tokens": 200
+    }
+}
+```
+
+<Aside type="tip">
+Use console exporter during development to see spans in your terminal while also sending to SideSeat.
+</Aside>
+
+## File Exporter
+
+Writes spans to a JSONL (JSON Lines) file. Each line is a complete JSON object.
+
+### Basic Usage
+
+```python
+client = SideSeat()
+client.telemetry.setup_file_exporter("traces.jsonl")
+```
+
+### Append Mode (Default)
+
+```python
+# Append to existing file
+client.telemetry.setup_file_exporter("traces.jsonl", mode="a")
+```
+
+Each run adds new spans to the file.
+
+### Overwrite Mode
+
+```python
+# Overwrite on each run
+client.telemetry.setup_file_exporter("traces.jsonl", mode="w")
+```
+
+Clears the file at startup.
+
+### Custom Path
+
+```python
+import os
+from pathlib import Path
+
+# Absolute path
+client.telemetry.setup_file_exporter("/var/log/myapp/traces.jsonl")
+
+# Relative to home
+home = Path.home()
+client.telemetry.setup_file_exporter(str(home / ".myapp" / "traces.jsonl"))
+
+# Date-based
+from datetime import datetime
+filename = f"traces-{datetime.now().strftime('%Y-%m-%d')}.jsonl"
+client.telemetry.setup_file_exporter(filename)
+```
+
+### Output Format
+
+```json
+{"name":"llm.completion","trace_id":"abc123...","span_id":"def456...","parent_span_id":null,"start_time":"2024-01-15T10:30:00.000000Z","end_time":"2024-01-15T10:30:01.500000Z","attributes":{"gen_ai.system":"openai"}}
+{"name":"tool.call","trace_id":"abc123...","span_id":"ghi789...","parent_span_id":"def456...","start_time":"2024-01-15T10:30:01.000000Z","end_time":"2024-01-15T10:30:01.200000Z","attributes":{"tool.name":"calculator"}}
+```
+
+## Multiple Exporters
+
+Use multiple exporters for different use cases:
+
+```python
+import os
+from sideseat import SideSeat
+
+client = SideSeat()
+
+# Backup: Local file
+client.telemetry.setup_file_exporter("traces-backup.jsonl")
+
+# Debug: Console output (development only)
+if os.getenv("DEBUG"):
+    client.telemetry.setup_console_exporter()
+```
+
+## Custom OTLP Configuration
+
+For custom OTLP configuration, use environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base endpoint URL | (from SIDESEAT_ENDPOINT) |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Headers (key=value,key2=value2) | (none) |
+| `OTEL_EXPORTER_OTLP_TIMEOUT` | Timeout in milliseconds | `10000` |
+| `OTEL_EXPORTER_OTLP_COMPRESSION` | Compression algorithm | (none) |
+
+## Exporter Comparison
+
+| Exporter | Use Case | Persistence | Latency |
+|----------|----------|-------------|---------|
+| OTLP (default) | Production, real-time monitoring | Remote server | Low |
+| Console | Development, debugging | None | Instant |
+| File | Backup, offline analysis | Local file | Low |
+
+## Best Practices
+
+1. **Production**: Default OTLP only (minimal overhead)
+2. **Development**: Add console for visibility
+3. **CI/CD**: Add file exporter for artifact collection
+
+```python
+import os
+from sideseat import SideSeat
+
+# Production setup
+client = SideSeat()
+
+# Development setup
+if os.getenv("DEBUG"):
+    client.telemetry.setup_console_exporter()
+
+# CI/CD setup
+if os.getenv("CI"):
+    client.telemetry.setup_file_exporter("traces.jsonl")
+```
+
+## Next Steps
+
+- [Configuration](/docs/sdks/python/configuration/) — all configuration options
+- [SideSeat Class](/docs/sdks/python/telemetry/) — API reference

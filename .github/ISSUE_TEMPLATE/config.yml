@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://sideseat.dev
+    about: Check the documentation before opening an issue
+  - name: Discussions
+    url: https://github.com/sideseat/sideseat/discussions
+    about: Ask questions and discuss ideas in GitHub Discussions

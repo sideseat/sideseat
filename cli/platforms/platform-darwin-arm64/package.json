@@ -1,0 +1,26 @@
+{
+  "name": "@sideseat/platform-darwin-arm64",
+  "version": "1.0.6",
+  "description": "SideSeat binary for macOS Apple Silicon",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "sideseat"
+  ],
+  "license": "AGPL-3.0",
+  "homepage": "https://sideseat.ai",
+  "bugs": {
+    "url": "https://github.com/sideseat/sideseat/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sideseat/sideseat"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

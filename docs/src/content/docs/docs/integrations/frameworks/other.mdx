@@ -1,0 +1,98 @@
+---
+title: Other Frameworks
+description: Use SideSeat with LangChain, PydanticAI, LlamaIndex, or any OpenTelemetry-compatible framework.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+SideSeat works with any framework that emits OpenTelemetry traces. This page covers frameworks without dedicated integration pages.
+
+## LangChain
+
+```bash
+pip install langchain langchain-openai sideseat
+# or
+uv add langchain langchain-openai sideseat
+```
+
+```python
+from sideseat import SideSeat, Frameworks
+SideSeat(framework=Frameworks.LangChain)
+
+from langchain_openai import ChatOpenAI
+
+llm = ChatOpenAI(model="gpt-5-mini")
+response = llm.invoke("Hello!")
+print(response.content)
+```
+
+<Aside type="tip">
+For stateful agent workflows, use [LangGraph](/docs/integrations/frameworks/langgraph/) instead.
+</Aside>
+
+## PydanticAI
+
+```bash
+pip install pydantic-ai sideseat
+# or
+uv add pydantic-ai sideseat
+```
+
+```python
+from sideseat import SideSeat, Frameworks
+SideSeat(framework=Frameworks.PydanticAI)
+
+from pydantic_ai import Agent
+
+agent = Agent('openai:gpt-5-mini')
+result = agent.run_sync('What is the capital of France?')
+print(result.data)
+```
+
+## LlamaIndex
+
+```bash
+pip install llama-index sideseat
+# or
+uv add llama-index sideseat
+```
+
+```python
+from sideseat import SideSeat
+SideSeat()
+
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
+
+documents = SimpleDirectoryReader("data").load_data()
+index = VectorStoreIndex.from_documents(documents)
+query_engine = index.as_query_engine()
+
+response = query_engine.query("What is this about?")
+print(response)
+```
+
+## Generic OpenTelemetry
+
+For frameworks not listed above, send traces directly via the OpenTelemetry SDK:
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+provider = TracerProvider()
+provider.add_span_processor(
+    BatchSpanProcessor(
+        OTLPSpanExporter(endpoint="http://localhost:5388/otel/default/v1/traces")
+    )
+)
+trace.set_tracer_provider(provider)
+```
+
+SideSeat auto-detects framework spans and normalizes them into the workbench timeline.
+
+## Next Steps
+
+- [Python SDK](/docs/sdks/python/) — SDK reference
+- [OpenTelemetry Reference](/docs/reference/otel/) — attribute extraction details

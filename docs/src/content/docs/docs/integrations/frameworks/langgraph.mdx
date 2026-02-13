@@ -1,0 +1,113 @@
+---
+title: LangGraph
+description: Integrate SideSeat with LangGraph for stateful agent run visibility.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+[LangGraph](https://langchain-ai.github.io/langgraph/) is a library for building stateful, multi-actor applications with LLMs. SideSeat captures runs from graph steps so you can debug state transitions.
+
+## Quick Start
+
+<Steps>
+1. **Install dependencies**
+
+   ```bash
+   pip install langgraph langchain-openai "sideseat[langgraph]"
+   # or
+   uv add langgraph langchain-openai "sideseat[langgraph]"
+   ```
+
+2. **Add telemetry**
+
+   ```python
+   from sideseat import SideSeat, Frameworks
+   SideSeat(framework=Frameworks.LangGraph)
+
+   from langgraph.prebuilt import create_react_agent
+   from langchain_openai import ChatOpenAI
+
+   llm = ChatOpenAI(model="gpt-5-mini")
+   agent = create_react_agent(llm, tools=[])
+   result = agent.invoke({"messages": [("user", "Hello!")]})
+   print(result["messages"][-1].content)
+   ```
+</Steps>
+
+## Without SideSeat SDK
+
+Use LangChain's OpenTelemetry integration directly:
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+provider = TracerProvider()
+provider.add_span_processor(
+    BatchSpanProcessor(
+        OTLPSpanExporter(endpoint="http://localhost:5388/otel/default/v1/traces")
+    )
+)
+trace.set_tracer_provider(provider)
+```
+
+## What You'll See
+
+SideSeat shows:
+- Parent span for the graph execution
+- Child spans for each node invocation
+- LLM call spans with token counts and costs
+
+## Tools
+
+Add tools to your agent:
+
+```python
+from langchain_core.tools import tool
+
+@tool
+def get_weather(location: str) -> str:
+    """Get weather for a location."""
+    return f"Sunny in {location}"
+
+llm = ChatOpenAI(model="gpt-5-mini")
+agent = create_react_agent(llm, tools=[get_weather])
+result = agent.invoke({"messages": [("user", "What's the weather in Paris?")]})
+```
+
+## Complete Example
+
+```python
+from sideseat import SideSeat, Frameworks
+
+SideSeat(framework=Frameworks.LangGraph)
+
+from typing import TypedDict, Annotated
+from langgraph.graph import StateGraph, END
+from langgraph.graph.message import add_messages
+from langchain_openai import ChatOpenAI
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+
+llm = ChatOpenAI(model="gpt-5-mini")
+
+def chatbot(state: State):
+    return {"messages": [llm.invoke(state["messages"])]}
+
+graph = StateGraph(State)
+graph.add_node("chatbot", chatbot)
+graph.set_entry_point("chatbot")
+graph.add_edge("chatbot", END)
+
+app = graph.compile()
+result = app.invoke({"messages": [("user", "What is 2+2?")]})
+print(result["messages"][-1].content)
+```
+
+## Next Steps
+
+- [Python SDK](/docs/sdks/python/) — SDK reference
+- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages

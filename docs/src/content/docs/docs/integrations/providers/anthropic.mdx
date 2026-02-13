@@ -1,0 +1,160 @@
+---
+title: Anthropic
+description: SideSeat automatically extracts model and token information from Anthropic Claude API calls.
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+SideSeat automatically extracts model information, token usage, and costs from Anthropic Claude API calls.
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- SDK installed (`pip install sideseat` / `uv add sideseat` or `npm install @sideseat/sdk`)
+- Anthropic API credentials configured
+
+## Usage with Anthropic SDK
+
+<Aside type="note">
+Examples use Claude Sonnet 4.5. Replace the `model` value with the exact model ID available in your Anthropic account.
+</Aside>
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    from sideseat import SideSeat
+    SideSeat()
+
+    import anthropic
+
+    client = anthropic.Anthropic()
+    message = client.messages.create(
+        model="claude-sonnet-4-5-20250929",
+        max_tokens=1024,
+        messages=[{"role": "user", "content": "Hello!"}]
+    )
+    print(message.content[0].text)
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```typescript
+    import { init } from '@sideseat/sdk';
+    init();
+
+    import Anthropic from '@anthropic-ai/sdk';
+
+    const client = new Anthropic();
+    const message = await client.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: 'Hello!' }]
+    });
+    console.log(message.content[0].text);
+    ```
+  </TabItem>
+</Tabs>
+
+## Extracted Attributes
+
+| Attribute | Source |
+|-----------|--------|
+| `gen_ai.system` | `anthropic` |
+| `gen_ai.request.model` | Request model parameter |
+| `gen_ai.response.model` | Response model field |
+| `gen_ai.usage.input_tokens` | `usage.input_tokens` |
+| `gen_ai.usage.output_tokens` | `usage.output_tokens` |
+| `gen_ai.request.max_tokens` | Max tokens parameter |
+
+## Streaming
+
+Streaming responses are captured:
+
+```python
+with client.messages.stream(
+    model="claude-sonnet-4-5-20250929",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Tell me a story"}]
+) as stream:
+    for text in stream.text_stream:
+        print(text, end="", flush=True)
+```
+
+## Tool Use
+
+Claude tool use is fully traced:
+
+```python
+tools = [{
+    "name": "get_weather",
+    "description": "Get weather for a location",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "location": {"type": "string", "description": "City name"}
+        },
+        "required": ["location"]
+    }
+}]
+
+message = client.messages.create(
+    model="claude-sonnet-4-5-20250929",
+    max_tokens=1024,
+    tools=tools,
+    messages=[{"role": "user", "content": "What's the weather in Paris?"}]
+)
+```
+
+SideSeat captures:
+- Tool definitions
+- Tool use requests
+- Tool results
+
+## Vision
+
+Image inputs are captured:
+
+```python
+import base64
+
+with open("image.png", "rb") as f:
+    image_data = base64.b64encode(f.read()).decode()
+
+message = client.messages.create(
+    model="claude-sonnet-4-5-20250929",
+    max_tokens=1024,
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "What's in this image?"},
+            {"type": "image", "source": {
+                "type": "base64",
+                "media_type": "image/png",
+                "data": image_data
+            }}
+        ]
+    }]
+)
+```
+
+## Extended Thinking
+
+Claude's extended thinking feature is captured:
+
+```python
+message = client.messages.create(
+    model="claude-sonnet-4-5-20250929",
+    max_tokens=16000,
+    thinking={
+        "type": "enabled",
+        "budget_tokens": 10000
+    },
+    messages=[{"role": "user", "content": "Solve this complex problem..."}]
+)
+```
+
+Thinking blocks appear in the message thread.
+
+## Next Steps
+
+- [First Run](/docs/quickstart/) — get started with SideSeat
+- [Python SDK](/docs/sdks/python/) — SDK reference

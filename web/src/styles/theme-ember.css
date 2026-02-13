@@ -1,0 +1,324 @@
+/* Ember color scheme - Orange/Amber warm theme */
+
+/* Light mode */
+.ember {
+  /* Subtle amber-tinted background */
+  --background: oklch(0.985 0.008 55);
+  --foreground: oklch(0.145 0 0);
+  /* White cards for contrast */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  /* Vibrant amber primary */
+  --primary: oklch(0.55 0.18 55);
+  --primary-foreground: oklch(0.99 0 0);
+  /* Light amber secondary */
+  --secondary: oklch(0.94 0.05 55);
+  --secondary-foreground: oklch(0.35 0.12 55);
+  /* Amber-tinted muted */
+  --muted: oklch(0.96 0.012 55);
+  --muted-foreground: oklch(0.5 0.035 55);
+  /* Soft amber accent */
+  --accent: oklch(0.94 0.05 55);
+  --accent-foreground: oklch(0.35 0.12 55);
+  --destructive: oklch(0.55 0.25 25);
+  /* Amber-tinted borders */
+  --border: oklch(0.9 0.018 55);
+  --input: oklch(0.92 0.012 55);
+  --ring: oklch(0.55 0.18 55);
+  /* Ember-inspired chart palette - analogous harmony */
+  --chart-1: oklch(0.55 0.18 55);
+  --chart-2: oklch(0.52 0.16 35);
+  --chart-3: oklch(0.58 0.14 75);
+  --chart-4: oklch(0.5 0.2 20);
+  --chart-5: oklch(0.6 0.12 90);
+  --chart-6: oklch(0.48 0.15 45);
+  --chart-7: oklch(0.62 0.16 65);
+  --chart-8: oklch(0.54 0.18 30);
+  --chart-9: oklch(0.56 0.1 85);
+  --chart-10: oklch(0.46 0.2 15);
+  /* Amber-tinted sidebar */
+  --sidebar: oklch(0.98 0.01 55);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.55 0.18 55);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.94 0.05 55);
+  --sidebar-accent-foreground: oklch(0.35 0.12 55);
+  --sidebar-border: oklch(0.9 0.018 55);
+  --sidebar-ring: oklch(0.55 0.18 55);
+}
+
+/* Dark mode */
+.ember.dark {
+  /* Amber-tinted dark background */
+  --background: oklch(0.145 0.012 55);
+  --foreground: oklch(0.985 0 0);
+  /* Elevated surfaces with amber tint */
+  --card: oklch(0.19 0.018 55);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.19 0.018 55);
+  --popover-foreground: oklch(0.985 0 0);
+  /* Bright amber primary */
+  --primary: oklch(0.75 0.16 55);
+  --primary-foreground: oklch(0.13 0 0);
+  /* Dark amber secondary */
+  --secondary: oklch(0.26 0.06 55);
+  --secondary-foreground: oklch(0.88 0.05 55);
+  /* Amber-tinted muted */
+  --muted: oklch(0.23 0.025 55);
+  --muted-foreground: oklch(0.65 0.035 55);
+  /* Amber accent */
+  --accent: oklch(0.26 0.06 55);
+  --accent-foreground: oklch(0.88 0.05 55);
+  --destructive: oklch(0.62 0.22 25);
+  /* Amber-tinted borders */
+  --border: oklch(0.28 0.035 55);
+  --input: oklch(0.26 0.025 55);
+  --ring: oklch(0.75 0.16 55);
+  /* Ember-inspired chart palette - analogous harmony */
+  --chart-1: oklch(0.75 0.16 55);
+  --chart-2: oklch(0.7 0.14 35);
+  --chart-3: oklch(0.72 0.12 75);
+  --chart-4: oklch(0.68 0.18 20);
+  --chart-5: oklch(0.74 0.1 90);
+  --chart-6: oklch(0.66 0.14 45);
+  --chart-7: oklch(0.78 0.14 65);
+  --chart-8: oklch(0.72 0.16 30);
+  --chart-9: oklch(0.7 0.08 85);
+  --chart-10: oklch(0.64 0.18 15);
+  /* Amber-tinted sidebar */
+  --sidebar: oklch(0.17 0.015 55);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.75 0.16 55);
+  --sidebar-primary-foreground: oklch(0.13 0 0);
+  --sidebar-accent: oklch(0.26 0.06 55);
+  --sidebar-accent-foreground: oklch(0.88 0.05 55);
+  --sidebar-border: oklch(0.28 0.035 55);
+  --sidebar-ring: oklch(0.75 0.16 55);
+}
+
+/* AG Grid styling - Light mode */
+.ember {
+  --ag-background-color: oklch(0.985 0.008 55);
+  --ag-header-background-color: oklch(0.97 0.012 55);
+  --ag-odd-row-background-color: oklch(0.98 0.006 55);
+  --ag-foreground-color: oklch(0.145 0 0);
+  --ag-header-foreground-color: oklch(0.145 0 0);
+  --ag-border-color: oklch(0.9 0.018 55);
+  --ag-active-color: oklch(0.55 0.18 55);
+  --ag-selected-row-background-color: oklch(0.55 0.18 55 / 0.08);
+  --ag-row-hover-color: oklch(0.55 0.18 55 / 0.05);
+  --ag-range-selection-border-color: oklch(0.55 0.18 55);
+  --ag-range-selection-background-color: oklch(0.55 0.18 55 / 0.12);
+  --ag-checkbox-checked-color: oklch(0.55 0.18 55);
+  --ag-input-focus-border-color: oklch(0.55 0.18 55);
+  --ag-accent-color: oklch(0.55 0.18 55);
+}
+
+/* AG Grid styling - Dark mode */
+.ember.dark {
+  --ag-background-color: oklch(0.145 0.012 55);
+  --ag-header-background-color: oklch(0.17 0.015 55);
+  --ag-odd-row-background-color: oklch(0.16 0.014 55);
+  --ag-foreground-color: oklch(0.985 0 0);
+  --ag-header-foreground-color: oklch(0.985 0 0);
+  --ag-border-color: oklch(0.28 0.035 55);
+  --ag-active-color: oklch(0.75 0.16 55);
+  --ag-selected-row-background-color: oklch(0.75 0.16 55 / 0.15);
+  --ag-row-hover-color: oklch(0.75 0.16 55 / 0.08);
+  --ag-range-selection-border-color: oklch(0.75 0.16 55);
+  --ag-range-selection-background-color: oklch(0.75 0.16 55 / 0.18);
+  --ag-checkbox-checked-color: oklch(0.75 0.16 55);
+  --ag-input-focus-border-color: oklch(0.75 0.16 55);
+  --ag-accent-color: oklch(0.75 0.16 55);
+}
+
+/* Component enhancements - Light mode */
+.ember {
+  /* Smooth transitions - exclude sidebar to preserve collapse animation */
+  & *:not([data-sidebar]):not([data-slot="sidebar"]):not(.sidebar):not([class*="sidebar"]) {
+    transition-property: background-color, border-color, box-shadow;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
+
+  /* Page header (navbar) styling */
+  & .page-header {
+    border-bottom-color: oklch(0.55 0.18 55 / 0.15);
+  }
+
+  /* Main nav tab bar styling */
+  & .main-nav {
+    background: oklch(0.55 0.18 55 / 0.06);
+    border: 1px solid oklch(0.55 0.18 55 / 0.08);
+  }
+
+  & .main-nav-item[data-active="true"] {
+    background: oklch(0.55 0.18 55 / 0.18);
+    color: oklch(0.45 0.15 55);
+  }
+
+  & .main-nav-item:not([data-active="true"]):hover {
+    background: oklch(0.55 0.18 55 / 0.08);
+  }
+
+  /* Enhanced card shadows with amber tint */
+  & [data-slot="card"],
+  & .card {
+    box-shadow:
+      0 1px 3px oklch(0.55 0.18 55 / 0.08),
+      0 4px 12px oklch(0.55 0.18 55 / 0.05);
+  }
+
+  /* Pagination styling - matches AG Grid background */
+  & [data-slot="pagination"] {
+    background-color: oklch(0.985 0.008 55);
+    box-shadow: 0 1px 3px oklch(0.55 0.18 55 / 0.06);
+  }
+
+  /* Primary button amber glow on hover */
+  & button[data-variant="default"]:hover,
+  & .btn-primary:hover {
+    box-shadow: 0 0 20px oklch(0.55 0.18 55 / 0.35);
+  }
+
+  /* Input focus amber glow */
+  & input:focus,
+  & textarea:focus,
+  & select:focus {
+    box-shadow: 0 0 0 3px oklch(0.55 0.18 55 / 0.18);
+  }
+
+  /* Sidebar hover with amber tint */
+  & [data-sidebar="menu-button"]:hover {
+    background: oklch(0.55 0.18 55 / 0.1);
+  }
+
+  /* Badge/pill styling */
+  & [data-slot="badge"] {
+    background: oklch(0.55 0.18 55 / 0.12);
+    color: oklch(0.55 0.18 55);
+  }
+
+  /* Config nav styling */
+  & .config-nav-item[data-active="true"] {
+    background: oklch(0.55 0.18 55 / 0.15);
+    color: oklch(0.48 0.14 55);
+    border-left: 3px solid oklch(0.55 0.18 55);
+    padding-left: 9px;
+  }
+
+  & .config-nav-item:not([data-active="true"]):hover {
+    background: oklch(0.55 0.18 55 / 0.08);
+  }
+
+  /* Config sidebar styling */
+  @media (min-width: 768px) {
+    & .config-sidebar {
+      border-right: 1px solid oklch(0.55 0.18 55 / 0.1);
+      padding-right: 1rem;
+    }
+  }
+
+  /* Config content area styling */
+  & .config-content {
+    border-color: oklch(0.55 0.18 55 / 0.12);
+  }
+}
+
+/* Component enhancements - Dark mode */
+.ember.dark {
+  /* Page header (navbar) styling */
+  & .page-header {
+    border-bottom-color: oklch(0.75 0.16 55 / 0.2);
+  }
+
+  /* Main nav tab bar styling */
+  & .main-nav {
+    background: oklch(0.75 0.16 55 / 0.08);
+    border: 1px solid oklch(0.75 0.16 55 / 0.12);
+  }
+
+  & .main-nav-item[data-active="true"] {
+    background: oklch(0.75 0.16 55 / 0.25);
+    color: oklch(0.8 0.13 55);
+  }
+
+  & .main-nav-item:not([data-active="true"]):hover {
+    background: oklch(0.75 0.16 55 / 0.12);
+  }
+
+  /* Card shadows with amber glow */
+  & [data-slot="card"],
+  & .card {
+    box-shadow:
+      0 1px 3px oklch(0 0 0 / 0.4),
+      0 4px 16px oklch(0 0 0 / 0.3),
+      0 0 1px oklch(0.75 0.16 55 / 0.2);
+  }
+
+  /* Pagination styling - matches AG Grid background */
+  & [data-slot="pagination"] {
+    background-color: oklch(0.145 0.012 55);
+    box-shadow:
+      0 1px 3px oklch(0 0 0 / 0.2),
+      0 0 1px oklch(0.75 0.16 55 / 0.15);
+  }
+
+  /* Glowing amber button */
+  & button[data-variant="default"]:hover,
+  & .btn-primary:hover {
+    box-shadow: 0 0 24px oklch(0.75 0.16 55 / 0.45);
+  }
+
+  /* Input focus glow */
+  & input:focus,
+  & textarea:focus,
+  & select:focus {
+    box-shadow: 0 0 0 3px oklch(0.75 0.16 55 / 0.28);
+  }
+
+  /* Sidebar active with amber glow */
+  & [data-sidebar="menu-button"][data-active="true"] {
+    background: oklch(0.75 0.16 55 / 0.18);
+  }
+
+  /* Popover with subtle amber edge */
+  & [data-radix-popper-content-wrapper] > div {
+    box-shadow:
+      0 4px 24px oklch(0 0 0 / 0.5),
+      0 0 1px oklch(0.75 0.16 55 / 0.3);
+  }
+
+  /* Badge/pill styling */
+  & [data-slot="badge"] {
+    background: oklch(0.75 0.16 55 / 0.18);
+    color: oklch(0.75 0.16 55);
+  }
+
+  /* Config nav styling */
+  & .config-nav-item[data-active="true"] {
+    background: oklch(0.75 0.16 55 / 0.2);
+    color: oklch(0.82 0.12 55);
+    border-left: 3px solid oklch(0.75 0.16 55);
+    padding-left: 9px;
+  }
+
+  & .config-nav-item:not([data-active="true"]):hover {
+    background: oklch(0.75 0.16 55 / 0.12);
+  }
+
+  /* Config sidebar styling */
+  @media (min-width: 768px) {
+    & .config-sidebar {
+      border-right: 1px solid oklch(0.75 0.16 55 / 0.15);
+      padding-right: 1rem;
+    }
+  }
+
+  /* Config content area styling */
+  & .config-content {
+    border-color: oklch(0.75 0.16 55 / 0.18);
+  }
+}

@@ -1,0 +1,235 @@
+---
+title: Docs
+description: Start here to run SideSeat locally, instrument your agent, and debug runs in the workbench.
+---
+
+import { Card, CardGrid, Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+AI agents are hard to debug. Requests fly by, context builds up, and when something fails you're left guessing. SideSeat captures every LLM call, tool call, and agent decision, then displays them in a web UI as they happen.
+
+## Quick Start
+
+<Steps>
+1. **Start the server**
+
+   ```bash
+   npx sideseat
+   ```
+
+2. **Install the SDK**
+
+   <Tabs>
+     <TabItem label="Python">
+       ```bash
+       pip install strands-agents sideseat
+       # or
+       uv add strands-agents sideseat
+       ```
+     </TabItem>
+     <TabItem label="JavaScript">
+       ```bash
+       npm install ai @ai-sdk/openai @sideseat/sdk
+       ```
+     </TabItem>
+   </Tabs>
+
+3. **Initialize in your code**
+
+   <Tabs>
+     <TabItem label="Python">
+       ```python
+       from strands import Agent
+       from sideseat import SideSeat, Frameworks
+
+       SideSeat(framework=Frameworks.Strands)   # add this
+
+       agent = Agent()  # uses Amazon Bedrock by default
+       agent("Analyze this dataset...")
+       ```
+     </TabItem>
+     <TabItem label="JavaScript">
+       ```typescript
+       import { generateText } from "ai";
+       import { openai } from "@ai-sdk/openai";
+       import { init } from "@sideseat/sdk";
+
+       init();   // add this
+
+       const { text } = await generateText({
+         model: openai("gpt-5-mini"),
+         prompt: "Analyze this dataset...",
+         experimental_telemetry: { isEnabled: true },
+       });
+       ```
+     </TabItem>
+   </Tabs>
+</Steps>
+
+Open [http://localhost:5388](http://localhost:5388). You'll see a live timeline of each prompt, tool call, and model response.
+
+## Framework Examples
+
+<Tabs>
+  <TabItem label="Strands">
+    ```python
+    from sideseat import SideSeat, Frameworks
+    from strands import Agent
+
+    SideSeat(framework=Frameworks.Strands)
+
+    agent = Agent()
+    response = agent("What is 2+2?")
+    print(response)
+    ```
+  </TabItem>
+  <TabItem label="Vercel AI">
+    ```typescript
+    import { init } from '@sideseat/sdk';
+    import { generateText } from 'ai';
+    import { bedrock } from '@ai-sdk/amazon-bedrock';
+
+    init();
+
+    const { text } = await generateText({
+      model: bedrock('anthropic.claude-sonnet-4-5-20250929-v1:0'),
+      prompt: 'What is 2+2?',
+      experimental_telemetry: { isEnabled: true },
+    });
+
+    console.log(text);
+    ```
+  </TabItem>
+  <TabItem label="Google ADK">
+    ```python
+    import asyncio
+    from sideseat import SideSeat, Frameworks
+    from google.adk.agents import Agent
+    from google.adk.runners import Runner
+    from google.adk.sessions import InMemorySessionService
+    from google.genai import types
+
+    SideSeat(framework=Frameworks.GoogleADK)
+
+    agent = Agent(
+        model="gemini-2.5-flash",
+        name="assistant",
+        instruction="You are a helpful assistant.",
+    )
+
+    async def main():
+        session_service = InMemorySessionService()
+        runner = Runner(agent=agent, app_name="my_app", session_service=session_service)
+        session = await session_service.create_session(app_name="my_app", user_id="user")
+        message = types.Content(role="user", parts=[types.Part(text="What is 2+2?")])
+        async for event in runner.run_async(
+            session_id=session.id, user_id="user", new_message=message
+        ):
+            if event.content and event.content.parts:
+                for part in event.content.parts:
+                    if hasattr(part, "text") and part.text:
+                        print(part.text)
+
+    asyncio.run(main())
+    ```
+  </TabItem>
+  <TabItem label="LangGraph">
+    ```python
+    from sideseat import SideSeat, Frameworks
+    from langgraph.prebuilt import create_react_agent
+    from langchain_openai import ChatOpenAI
+
+    SideSeat(framework=Frameworks.LangGraph)
+
+    llm = ChatOpenAI(model="gpt-5-mini")
+    agent = create_react_agent(llm, tools=[])
+    result = agent.invoke({"messages": [("user", "What is 2+2?")]})
+    print(result["messages"][-1].content)
+    ```
+  </TabItem>
+  <TabItem label="CrewAI">
+    ```python
+    from sideseat import SideSeat, Frameworks
+    from crewai import Agent, Task, Crew
+
+    SideSeat(framework=Frameworks.CrewAI)
+
+    researcher = Agent(
+        role="Researcher",
+        goal="Find information",
+        backstory="Expert researcher",
+    )
+
+    task = Task(
+        description="Research AI trends",
+        expected_output="Summary of trends",
+        agent=researcher,
+    )
+
+    crew = Crew(agents=[researcher], tasks=[task])
+
+    result = crew.kickoff()
+    print(result)
+    ```
+  </TabItem>
+  <TabItem label="AutoGen">
+    ```python
+    from sideseat import SideSeat, Frameworks
+    from autogen import AssistantAgent, UserProxyAgent
+
+    SideSeat(framework=Frameworks.AutoGen)
+
+    llm_config = {"config_list": [{"model": "gpt-5-mini"}]}
+    assistant = AssistantAgent("assistant", llm_config=llm_config)
+    user = UserProxyAgent("user", human_input_mode="NEVER")
+    user.initiate_chat(assistant, message="Hello!")
+    ```
+  </TabItem>
+  <TabItem label="OpenAI Agents">
+    ```python
+    from sideseat import SideSeat, Frameworks
+    from agents import Agent, Runner
+
+    SideSeat(framework=Frameworks.OpenAIAgents)
+
+    agent = Agent(name="Assistant", instructions="You are helpful.")
+    result = Runner.run_sync(agent, "What is the capital of France?")
+    print(result.final_output)
+    ```
+  </TabItem>
+</Tabs>
+
+See [all supported frameworks](/docs/integrations/).
+
+## AI Agent Development with MCP
+
+SideSeat includes a built-in [MCP server](/docs/mcp/) that gives your coding agent direct access to your agent's traces, conversations, and costs. Connect it and let your coding tool optimize prompts, debug failures, and reduce costs using real data.
+
+```bash
+# Kiro CLI
+kiro-cli mcp add --name sideseat --url http://localhost:5388/api/v1/projects/default/mcp
+
+# Claude Code
+claude mcp add --transport http sideseat http://localhost:5388/api/v1/projects/default/mcp
+
+# OpenAI Codex
+codex mcp add --transport http sideseat http://localhost:5388/api/v1/projects/default/mcp
+```
+
+See the [MCP Server guide](/docs/mcp/) for Kiro, Cursor, and other clients.
+
+## Choose Your Path
+
+<CardGrid>
+  <Card title="Python SDK" icon="seti:python">
+    [Full Python SDK reference](/docs/sdks/python/) with configuration and examples.
+  </Card>
+  <Card title="JavaScript SDK" icon="seti:javascript">
+    [Full JavaScript SDK reference](/docs/sdks/javascript/) for Node.js apps.
+  </Card>
+  <Card title="Integrations" icon="puzzle">
+    [Connect your framework](/docs/integrations/) — Strands, LangGraph, CrewAI, and more.
+  </Card>
+  <Card title="Concepts" icon="open-book">
+    [Understand runs, steps, and messages](/docs/concepts/).
+  </Card>
+</CardGrid>

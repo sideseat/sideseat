@@ -1,0 +1,33 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+import Navbar from '../components/marketing/Navbar.astro';
+import Hero from '../components/marketing/Hero.astro';
+import FrameworkLogos from '../components/marketing/FrameworkLogos.astro';
+import ProblemSection from '../components/marketing/ProblemSection.astro';
+import WorkbenchSection from '../components/marketing/WorkbenchSection.astro';
+import FeatureCards from '../components/marketing/FeatureCards.astro';
+import CodeExample from '../components/marketing/CodeExample.astro';
+import LocalFirst from '../components/marketing/LocalFirst.astro';
+import McpSection from '../components/marketing/McpSection.astro';
+import FinalCta from '../components/marketing/FinalCta.astro';
+import Footer from '../components/marketing/Footer.astro';
+---
+
+<MarketingLayout
+  title="SideSeat - Local AI Development Workbench"
+  description="Build, debug, and ship AI agents locally. Trace prompts, tool calls, and model responses in one live workbench."
+>
+  <Navbar />
+  <main>
+    <Hero />
+    <FrameworkLogos />
+    <ProblemSection />
+    <WorkbenchSection />
+    <FeatureCards />
+    <CodeExample />
+    <McpSection />
+    <LocalFirst />
+    <FinalCta />
+  </main>
+  <Footer />
+</MarketingLayout>

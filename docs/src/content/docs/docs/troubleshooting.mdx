@@ -1,0 +1,50 @@
+---
+title: Troubleshooting
+description: Fix common SideSeat setup and instrumentation issues.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Quick fixes for common issues with the local AI development workbench.
+
+## Runs Not Appearing
+
+1. **Confirm SideSeat is running** — you should see `Local: http://127.0.0.1:5388` in the terminal
+2. **Check the OTLP endpoint** — default is `http://localhost:5388/otel/default/v1/traces`
+3. **Flush before exit** — call `client.shutdown()` (Python) or `await shutdown()` (JavaScript) before the script exits
+
+<Aside type="tip">
+You can set `SIDESEAT_ENDPOINT` or the standard `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable to configure the endpoint. The OpenTelemetry variable takes precedence if both are set.
+</Aside>
+
+## Port Already in Use
+
+If port 5388 is occupied:
+
+```bash
+sideseat --port 5390
+```
+
+Update your SDK/OTLP endpoint to match.
+
+## Auth Issues
+
+If the UI asks for a token or refuses to load:
+
+- Open the **tokenized URL** printed at startup when auth is enabled
+- Or disable auth locally: `sideseat --no-auth`
+
+## Missing Tokens or Cost Data
+
+- Ensure the model ID is captured in `gen_ai.request.model`
+- Use a recognized provider (OpenAI, Anthropic, Amazon Bedrock, Vertex, etc.)
+
+## Missing Tool Calls
+
+- Confirm your framework emits tool spans via OpenTelemetry
+- Use the SideSeat SDK for best results with tool I/O normalization
+
+## Still Stuck?
+
+- [API Reference](/docs/reference/api/) — full endpoint documentation
+- [Integrations](/docs/integrations/) — framework and provider setup guides

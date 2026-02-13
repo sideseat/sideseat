@@ -1,0 +1,142 @@
+---
+title: Amazon Bedrock
+description: SideSeat extracts model and token information from Amazon Bedrock API calls.
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+SideSeat automatically extracts model information, token usage, and costs from Amazon Bedrock API calls.
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- SDK installed (`pip install sideseat` / `uv add sideseat` or `npm install @sideseat/sdk`)
+- AWS credentials configured for Amazon Bedrock
+
+## Usage with Boto3
+
+```python
+from sideseat import SideSeat
+SideSeat()
+
+import boto3
+import json
+
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+
+response = bedrock.invoke_model(
+    modelId="anthropic.claude-sonnet-4-5-20250929-v1:0",
+    body=json.dumps({
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 1024,
+        "messages": [{"role": "user", "content": "Hello!"}]
+    })
+)
+
+result = json.loads(response["body"].read())
+print(result["content"][0]["text"])
+```
+
+## Usage with Strands
+
+Strands has native Bedrock support:
+
+```python
+from sideseat import SideSeat, Frameworks
+SideSeat(framework=Frameworks.Strands)
+
+from strands import Agent
+
+agent = Agent()
+response = agent("Hello!")
+print(response)
+```
+
+Strands uses Amazon Bedrock by default. To specify a model explicitly:
+
+```python
+from strands.models import BedrockModel
+
+model = BedrockModel(model_id="anthropic.claude-sonnet-4-5-20250929-v1:0")
+agent = Agent(model=model)
+```
+
+## Extracted Attributes
+
+| Attribute | Source |
+|-----------|--------|
+| `gen_ai.system` | `bedrock` |
+| `gen_ai.request.model` | Model ID from request |
+| `gen_ai.response.model` | Model ID from response |
+| `gen_ai.usage.input_tokens` | Usage metrics |
+| `gen_ai.usage.output_tokens` | Usage metrics |
+| `cloud.provider` | `aws` |
+| `cloud.region` | AWS region |
+
+## Cross-Region Inference
+
+Bedrock cross-region inference is supported:
+
+```python
+model = BedrockModel(
+    model_id="anthropic.claude-sonnet-4-5-20250929-v1:0",
+    region_name="us-east-1"
+)
+```
+
+The `us.` prefix indicates cross-region inference.
+
+## Streaming
+
+Streaming responses are captured:
+
+```python
+response = bedrock.invoke_model_with_response_stream(
+    modelId="anthropic.claude-sonnet-4-5-20250929-v1:0",
+    body=json.dumps({
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 1024,
+        "messages": [{"role": "user", "content": "Tell me a story"}]
+    })
+)
+
+for event in response["body"]:
+    chunk = json.loads(event["chunk"]["bytes"])
+    if chunk["type"] == "content_block_delta":
+        print(chunk["delta"]["text"], end="")
+```
+
+## Converse API
+
+The Bedrock Converse API is also supported:
+
+```python
+response = bedrock.converse(
+    modelId="anthropic.claude-sonnet-4-5-20250929-v1:0",
+    messages=[{
+        "role": "user",
+        "content": [{"text": "Hello!"}]
+    }]
+)
+
+print(response["output"]["message"]["content"][0]["text"])
+```
+
+## Authentication
+
+Amazon Bedrock uses the standard AWS credential chain:
+
+```bash
+# Environment variables
+export AWS_ACCESS_KEY_ID=xxx
+export AWS_SECRET_ACCESS_KEY=xxx
+export AWS_REGION=us-east-1
+
+# Or AWS profile
+export AWS_PROFILE=my-profile
+```
+
+## Next Steps
+
+- [Strands](/docs/integrations/frameworks/strands/) — full Strands guide
+- [Python SDK](/docs/sdks/python/) — SDK reference

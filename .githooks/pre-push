@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+echo "[pre-push] Running format check + lint + full test suite..."
+
+# Check prerequisites
+if [ ! -d "$REPO_ROOT/web/node_modules" ]; then
+    echo "Error: web/node_modules missing. Run 'make setup' first."
+    exit 1
+fi
+
+if [ ! -d "$REPO_ROOT/sdk/js/node_modules" ]; then
+    echo "Error: sdk/js/node_modules missing. Run 'make setup' first."
+    exit 1
+fi
+
+if ! command -v uv &> /dev/null; then
+    echo "Error: uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"
+    exit 1
+fi
+
+# Sync Python SDK dependencies (in case they changed)
+cd "$REPO_ROOT/sdk/python"
+uv sync --extra dev
+
+# Format check (catches issues if pre-commit was bypassed with --no-verify)
+cd "$REPO_ROOT/server"
+cargo fmt --check || { echo "Error: Rust code not formatted. Run 'make fmt' to fix."; exit 1; }
+
+cd "$REPO_ROOT/web"
+npx prettier --check "src/**/*.{ts,tsx,css,json}" || { echo "Error: Web code not formatted. Run 'make fmt' to fix."; exit 1; }
+
+cd "$REPO_ROOT/sdk/js"
+npx prettier --check "src/**/*.ts" || { echo "Error: JS SDK code not formatted. Run 'cd sdk/js && npm run fmt' to fix."; exit 1; }
+
+cd "$REPO_ROOT/sdk/python"
+uv run ruff format --check . || { echo "Error: Python SDK code not formatted. Run 'cd sdk/python && uv run ruff format .' to fix."; exit 1; }
+
+# Lint (catches issues if pre-commit was bypassed with --no-verify)
+cd "$REPO_ROOT/server"
+cargo clippy --all-targets -- -D warnings
+
+cd "$REPO_ROOT/web"
+npm run lint
+
+cd "$REPO_ROOT/sdk/js"
+npm run lint
+
+cd "$REPO_ROOT/sdk/python"
+uv run ruff check .
+uv run mypy src
+
+# Full test suite
+cd "$REPO_ROOT/server"
+cargo test --quiet
+
+cd "$REPO_ROOT/web"
+npm test -- --run
+
+cd "$REPO_ROOT/sdk/js"
+npm test
+
+cd "$REPO_ROOT/sdk/python"
+uv run pytest
+
+echo "[pre-push] All checks passed"

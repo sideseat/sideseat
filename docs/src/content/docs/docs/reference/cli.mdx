@@ -1,0 +1,203 @@
+---
+title: CLI Reference
+description: Command-line interface reference for running the SideSeat local workbench.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The SideSeat CLI starts the local workbench server and configures its behavior.
+
+## Installation
+
+```bash
+# Global install (recommended)
+npm install -g sideseat
+sideseat
+
+# One-off run
+npx sideseat
+```
+
+## Usage
+
+```bash
+sideseat [OPTIONS] [COMMAND]
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `start` | Start the server (default) |
+
+Running `sideseat` without a command is equivalent to `sideseat start`.
+
+## Options
+
+### Server Options
+
+| Option | Env Variable | Default | Description |
+|--------|-------------|---------|-------------|
+| `-H, --host` | `SIDESEAT_HOST` | `127.0.0.1` | Server host address |
+| `-p, --port` | `SIDESEAT_PORT` | `5388` | Server port |
+| `--no-auth` | - | `false` | Disable authentication |
+| `--debug` | `SIDESEAT_DEBUG` | `false` | Enable debug mode |
+| `-c, --config` | `SIDESEAT_CONFIG` | - | Config file path |
+
+### OTEL Options
+
+| Option | Env Variable | Default | Description |
+|--------|-------------|---------|-------------|
+| `--otel-grpc` | `SIDESEAT_OTEL_GRPC_ENABLED` | `false` | Enable gRPC endpoint |
+| `--otel-grpc-port` | `SIDESEAT_OTEL_GRPC_PORT` | `4317` | gRPC port |
+| `--otel-retention-max-age` | `SIDESEAT_OTEL_RETENTION_MAX_AGE_MINUTES` | (none) | Max age in minutes |
+| `--otel-retention-max-spans` | `SIDESEAT_OTEL_RETENTION_MAX_SPANS` | `5000000` | Max spans to retain |
+| `--otel-auth-required` | `SIDESEAT_OTEL_AUTH_REQUIRED` | `false` | Require auth for ingestion |
+
+### Database Options
+
+| Option | Env Variable | Default | Description |
+|--------|-------------|---------|-------------|
+| `--analytics-backend` | `SIDESEAT_ANALYTICS_BACKEND` | `duckdb` | `duckdb` or `clickhouse` |
+| `--transactional-backend` | `SIDESEAT_TRANSACTIONAL_BACKEND` | `sqlite` | `sqlite` or `postgres` |
+| `--postgres-url` | `SIDESEAT_POSTGRES_URL` | - | PostgreSQL connection URL |
+| `--clickhouse-url` | `SIDESEAT_CLICKHOUSE_URL` | - | ClickHouse connection URL |
+
+### Cache Options
+
+| Option | Env Variable | Default | Description |
+|--------|-------------|---------|-------------|
+| `--cache-backend` | `SIDESEAT_CACHE_BACKEND` | `memory` | `memory` or `redis` |
+| `--cache-max-entries` | `SIDESEAT_CACHE_MAX_ENTRIES` | `10000` | Max cache entries |
+| `--cache-eviction-policy` | `SIDESEAT_CACHE_EVICTION_POLICY` | `tinylfu` | `tinylfu` or `lru` |
+| `--cache-redis-url` | `SIDESEAT_CACHE_REDIS_URL` | - | Redis connection URL |
+
+### Rate Limit Options
+
+| Option | Env Variable | Default | Description |
+|--------|-------------|---------|-------------|
+| `--rate-limit-enabled` | `SIDESEAT_RATE_LIMIT_ENABLED` | `false` | Enable rate limiting |
+| `--rate-limit-per-ip` | `SIDESEAT_RATE_LIMIT_PER_IP` | `false` | Enable per-IP limits |
+| `--rate-limit-api-rpm` | `SIDESEAT_RATE_LIMIT_API_RPM` | `1000` | API requests/minute |
+| `--rate-limit-ingestion-rpm` | `SIDESEAT_RATE_LIMIT_INGESTION_RPM` | `10000` | Ingestion requests/minute |
+| `--rate-limit-auth-rpm` | `SIDESEAT_RATE_LIMIT_AUTH_RPM` | `100` | Auth requests/minute |
+
+### Storage Options
+
+| Option | Env Variable | Default | Description |
+|--------|-------------|---------|-------------|
+| `--files-enabled` | `SIDESEAT_FILES_ENABLED` | `true` | Enable file storage |
+| `--files-storage` | `SIDESEAT_FILES_STORAGE` | `filesystem` | `filesystem` or `s3` |
+| `--files-quota-bytes` | `SIDESEAT_FILES_QUOTA_BYTES` | `1073741824` | Storage quota per project |
+
+### MCP Options
+
+| Option | Env Variable | Default | Description |
+|--------|-------------|---------|-------------|
+| `--mcp` | `SIDESEAT_MCP_ENABLED` | `true` | Enable MCP server for AI agent access |
+
+### Other Options
+
+| Option | Env Variable | Default | Description |
+|--------|-------------|---------|-------------|
+| `--pricing-sync-hours` | `SIDESEAT_PRICING_SYNC_HOURS` | `24` | Pricing data sync interval (0 = disabled) |
+| `--no-update-check` | `SIDESEAT_NO_UPDATE_CHECK` | `false` | Disable update check on startup |
+
+## Examples
+
+### Development
+
+```bash
+# Basic development server
+sideseat
+
+# With debug output
+sideseat --debug
+
+# Disable authentication
+sideseat --no-auth
+```
+
+### Custom Port
+
+```bash
+sideseat --port 8080
+
+# Or via environment
+SIDESEAT_PORT=8080 sideseat
+```
+
+### External Access
+
+```bash
+# Allow connections from other machines
+sideseat --host 0.0.0.0
+```
+
+### Enable gRPC
+
+```bash
+sideseat --otel-grpc --otel-grpc-port 4317
+```
+
+### Advanced: External Databases
+
+```bash
+sideseat \
+  --host 0.0.0.0 \
+  --analytics-backend clickhouse \
+  --clickhouse-url http://clickhouse:8123 \
+  --transactional-backend postgres \
+  --postgres-url postgres://user:pass@postgres:5432/sideseat \
+  --cache-backend redis \
+  --cache-redis-url redis://redis:6379 \
+  --rate-limit-enabled
+```
+
+### With Config File
+
+```bash
+sideseat --config /path/to/sideseat.json
+```
+
+## Configuration Priority
+
+Configuration is loaded from multiple sources with this priority (highest first):
+
+1. **CLI arguments**: `--port 8080`
+2. **Environment variables**: `SIDESEAT_PORT=8080`
+3. **Working directory config**: `./sideseat.json`
+4. **User config**: `~/.sideseat/sideseat.json`
+5. **Defaults**: Built-in values
+
+## Version and Help
+
+```bash
+# Show version
+sideseat --version
+
+# Show help
+sideseat --help
+```
+
+## Exit Codes
+
+| Code | Description |
+|------|-------------|
+| 0 | Success |
+| 1 | General error |
+| 2 | Configuration error |
+
+## Signals
+
+| Signal | Behavior |
+|--------|----------|
+| `SIGINT` (Ctrl+C) | Graceful shutdown |
+| `SIGTERM` | Graceful shutdown |
+| `SIGHUP` | Reload configuration |
+
+## Next Steps
+
+- [Configuration Schema](/docs/reference/config/) — all configuration options
+- [API Reference](/docs/reference/api/) — REST API documentation
+- [First Run](/docs/quickstart/) — get started with SideSeat

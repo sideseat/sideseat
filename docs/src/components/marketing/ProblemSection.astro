@@ -1,0 +1,102 @@
+---
+---
+<section class="section">
+  <div class="container stack-lg">
+    <div class="split">
+      <div class="stack-lg">
+        <div class="stack">
+          <p class="eyebrow">From fragments to full runs</p>
+          <h2 class="section-title">Reconstruct every agent run end-to-end.</h2>
+          <p class="section-lead">
+            Logs are fragments. SideSeat stitches prompts, tool calls, model responses, and costs into a single run so you
+            can diagnose failures fast.
+          </p>
+        </div>
+      </div>
+
+      <div class="comparison">
+        <div class="card card-muted">
+          <div class="card-title">Without SideSeat</div>
+          <div class="flow">
+            <span class="flow-chip">Prompt sent</span>
+            <span class="flow-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14" />
+                <path d="m13 6 6 6-6 6" />
+              </svg>
+            </span>
+            <span class="flow-chip">LLM response</span>
+            <span class="flow-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14" />
+                <path d="m13 6 6 6-6 6" />
+              </svg>
+            </span>
+            <span class="flow-chip">Tool call</span>
+            <span class="flow-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14" />
+                <path d="m13 6 6 6-6 6" />
+              </svg>
+            </span>
+            <span class="flow-chip error">Unknown failure</span>
+          </div>
+        </div>
+        <div class="card card-accent">
+          <div class="card-title">With SideSeat</div>
+          <ul class="checklist">
+            <li class="check-item">
+              <span class="check-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </span>
+              <span>Threaded prompts, tool calls, and model responses in order.</span>
+            </li>
+            <li class="check-item">
+              <span class="check-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </span>
+              <span>Token, latency, and cost breakdowns per step and run.</span>
+            </li>
+            <li class="check-item">
+              <span class="check-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </span>
+              <span>Sessions grouped with errors and bottlenecks highlighted.</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="media-wide">
+      <div class="media-frame">
+        <img
+          src="/images/screenshots/screenshot_2.png"
+          alt="SideSeat showing a full trace with tool calls and model responses"
+          loading="lazy"
+        />
+      </div>
+      <p class="media-caption">Inspect every prompt, tool call, and response in a single timeline.</p>
+    </div>
+
+    <div class="impact-row">
+      <div>
+        <p class="eyebrow">Impact</p>
+        <p class="section-lead" style="margin: 0;">
+          Turn guesswork into evidence. Every run is searchable and reproducible on your machine.
+        </p>
+      </div>
+      <div class="hero-strip">
+        <div class="hero-strip-item">Latency bottlenecks highlighted</div>
+        <div class="hero-strip-item">Errors grouped by session</div>
+        <div class="hero-strip-item">Searchable run history</div>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,45 @@
+{
+  "name": "sideseat",
+  "version": "1.0.6",
+  "description": "Your unified workspace for building and debugging AI agents",
+  "main": "index.js",
+  "bin": {
+    "sideseat": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "README.md"
+  ],
+  "optionalDependencies": {
+    "@sideseat/platform-darwin-x64": "1.0.6",
+    "@sideseat/platform-darwin-arm64": "1.0.6",
+    "@sideseat/platform-linux-x64": "1.0.6",
+    "@sideseat/platform-linux-arm64": "1.0.6",
+    "@sideseat/platform-win32-x64": "1.0.6"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "llm",
+    "cli",
+    "debugging",
+    "development",
+    "strands",
+    "mcp",
+    "a2a",
+    "sideseat"
+  ],
+  "author": "Sergey Pugachev",
+  "license": "AGPL-3.0",
+  "homepage": "https://sideseat.ai",
+  "bugs": {
+    "url": "https://github.com/sideseat/sideseat/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sideseat/sideseat"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

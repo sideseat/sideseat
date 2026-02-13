@@ -1,0 +1,112 @@
+---
+title: API Overview
+description: Overview of the SideSeat REST API for querying runs (traces), spans, and sessions.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The SideSeat REST API provides programmatic access to run data (traces), session management, and real-time streaming.
+
+## Base URL
+
+All API endpoints are prefixed with `/api/v1/project/{project_id}/otel`.
+
+```
+http://localhost:5388/api/v1/project/default/otel
+```
+
+The default project ID is `default`.
+
+## Authentication
+
+When authentication is enabled, include a Bearer token in requests:
+
+```bash
+curl -H "Authorization: Bearer your-token" \
+  http://localhost:5388/api/v1/project/default/otel/traces
+```
+
+See [Authentication](/docs/reference/auth/) for details on obtaining tokens.
+
+## Pagination
+
+List endpoints use page-based pagination.
+
+**Query Parameters:**
+- `page` - Page number (default: 1)
+- `limit` - Items per page (default: 50)
+
+**Response Fields:**
+- `data` - Array of results
+- `meta` - Pagination metadata (`page`, `limit`, `total_items`, `total_pages`)
+
+```bash
+# First page
+curl "http://localhost:5388/api/v1/project/default/otel/traces?page=1&limit=20"
+
+# Next page
+curl "http://localhost:5388/api/v1/project/default/otel/traces?page=2&limit=20"
+```
+
+## Error Responses
+
+All errors follow a consistent format:
+
+```json
+{
+  "error": "error_type",
+  "code": "ERROR_CODE",
+  "message": "Human-readable error message"
+}
+```
+
+**Common Error Codes:**
+
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `TRACE_NOT_FOUND` | 404 | Trace does not exist |
+| `SPAN_NOT_FOUND` | 404 | Span does not exist |
+| `SESSION_NOT_FOUND` | 404 | Session does not exist |
+| `STORAGE_ERROR` | 500 | Database error |
+| `AUTH_REQUIRED` | 401 | Authentication required |
+| `TOKEN_EXPIRED` | 401 | Token has expired |
+
+## Endpoints
+
+| Endpoint | Description | Docs |
+|----------|-------------|------|
+| `GET /traces` | List traces | [Traces](/docs/reference/api/traces/) |
+| `GET /traces/{id}` | Get trace | [Traces](/docs/reference/api/traces/) |
+| `GET /traces/{id}/messages` | Get trace messages | [Traces](/docs/reference/api/traces/) |
+| `GET /spans` | List spans | [Spans](/docs/reference/api/spans/) |
+| `GET /traces/{trace_id}/spans/{span_id}` | Get span | [Spans](/docs/reference/api/spans/) |
+| `GET /sessions` | List sessions | [Sessions](/docs/reference/api/sessions/) |
+| `GET /sessions/{id}` | Get session | [Sessions](/docs/reference/api/sessions/) |
+| `GET /sse` | Real-time stream | [SSE](/docs/reference/api/sse/) |
+
+## Health Check
+
+```
+GET /api/v1/health
+```
+
+Returns server health status:
+
+```json
+{
+  "status": "ok",
+  "version": "1.0.5"
+}
+```
+
+## OTLP Ingestion
+
+Traces are ingested via OTLP endpoints:
+
+```
+POST /otel/{project_id}/v1/traces
+POST /otel/{project_id}/v1/metrics
+POST /otel/{project_id}/v1/logs
+```
+
+See [OpenTelemetry Reference](/docs/reference/otel/) for ingestion details.

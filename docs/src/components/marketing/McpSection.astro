@@ -1,0 +1,101 @@
+---
+---
+<section class="section section-contrast">
+  <div class="container">
+    <div class="section-header center">
+      <p class="eyebrow">AI agent development</p>
+      <h2 class="section-title">Let your coding agent read your agent's traces.</h2>
+      <p class="section-lead">SideSeat includes a built-in MCP server. Connect Kiro, Claude Code, or Codex and let them optimize prompts, debug failures, and cut costs using real observability data.</p>
+    </div>
+
+    <div class="mcp-grid">
+      <div class="terminal compact">
+        <div class="terminal-header">
+          <div class="terminal-dot red"></div>
+          <div class="terminal-dot yellow"></div>
+          <div class="terminal-dot green"></div>
+          <span class="terminal-title">connect your tool</span>
+        </div>
+        <div class="terminal-body">
+          <pre><code><span class="text-muted"># Kiro CLI</span>
+kiro-cli mcp add --name sideseat --url <span class="text-accent">http://localhost:5388/api/v1/projects/default/mcp</span>
+
+<span class="text-muted"># Claude Code</span>
+claude mcp add --transport http sideseat <span class="text-accent">http://localhost:5388/api/v1/projects/default/mcp</span>
+
+<span class="text-muted"># OpenAI Codex</span>
+codex mcp add --transport http sideseat <span class="text-accent">http://localhost:5388/api/v1/projects/default/mcp</span></code></pre>
+        </div>
+      </div>
+
+      <div class="mcp-tools">
+        <div class="mcp-tool-card">
+          <div class="card-title">Discover</div>
+          <p><code>list_traces</code> <code>list_sessions</code> <code>list_spans</code></p>
+        </div>
+        <div class="mcp-tool-card">
+          <div class="card-title">Inspect</div>
+          <p><code>get_trace</code> <code>get_messages</code> <code>get_raw_span</code></p>
+        </div>
+        <div class="mcp-tool-card">
+          <div class="card-title">Analyze</div>
+          <p><code>get_stats</code></p>
+        </div>
+      </div>
+    </div>
+
+    <p class="code-note">
+      <a href="/docs/mcp/" class="link">
+        Read the MCP setup guide
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14" />
+          <path d="m12 5 7 7-7 7" />
+        </svg>
+      </a>
+    </p>
+  </div>
+</section>
+
+<style>
+  .mcp-grid {
+    display: grid;
+    gap: 20px;
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  .mcp-tools {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .mcp-tool-card {
+    padding: 16px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background: rgba(255, 255, 255, 0.85);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .mcp-tool-card p {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 0.9rem;
+    line-height: 1.8;
+  }
+
+  .mcp-tool-card code {
+    font-size: 0.82rem;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: rgba(15, 21, 34, 0.06);
+    color: var(--color-ink-soft);
+  }
+
+  @media (max-width: 700px) {
+    .mcp-tools {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

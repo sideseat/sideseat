@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>SideSeat</RootNamespace>
+
+    <!-- NuGet package metadata -->
+    <PackageId>SideSeat</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>SideSeat</Authors>
+    <Description>AI Development Workbench — Debug, trace, and understand your AI agents</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://sideseat.ai</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/sideseat/sideseat</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>ai;llm;opentelemetry;tracing;observability;agents</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+</Project>

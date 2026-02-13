@@ -1,0 +1,65 @@
+{
+  "name": "@sideseat/sdk",
+  "version": "1.0.6",
+  "description": "SideSeat SDK for AI observability",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts",
+    "dev": "tsup src/index.ts --format esm,cjs --dts --watch",
+    "test": "vitest run",
+    "lint": "eslint src",
+    "fmt": "prettier --write src"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/core": "^1.30.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
+    "@opentelemetry/resources": "^1.30.0",
+    "@opentelemetry/sdk-trace-base": "^1.30.0",
+    "@opentelemetry/sdk-trace-node": "^1.30.0",
+    "@opentelemetry/semantic-conventions": "^1.28.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.53.1",
+    "vitest": "^2.0.0"
+  },
+  "keywords": [
+    "sideseat",
+    "opentelemetry",
+    "observability",
+    "ai",
+    "llm",
+    "agents"
+  ],
+  "license": "MIT",
+  "homepage": "https://sideseat.ai",
+  "bugs": {
+    "url": "https://github.com/sideseat/sideseat/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sideseat/sideseat"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
