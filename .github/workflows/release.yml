@@ -201,6 +201,28 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Verify platform packages are resolvable
+        run: |
+          VERSION=$(node -p "require('./cli/package.json').version")
+          echo "Verifying all platform packages are resolvable (v$VERSION)..."
+          for pkg in $CLI_PLATFORMS; do
+            attempt=1
+            while [ $attempt -le 30 ]; do
+              if npm view "@sideseat/platform-$pkg@$VERSION" version 2>/dev/null; then
+                echo "@sideseat/platform-$pkg@$VERSION available"
+                break
+              fi
+              echo "Waiting for @sideseat/platform-$pkg@$VERSION (attempt $attempt/30)..."
+              sleep 5
+              attempt=$((attempt + 1))
+            done
+            if [ $attempt -gt 30 ]; then
+              echo "Error: @sideseat/platform-$pkg@$VERSION not available after 150s"
+              exit 1
+            fi
+          done
+          echo "All platform packages verified"
+
       - name: Publish main package
         run: |
           cd cli

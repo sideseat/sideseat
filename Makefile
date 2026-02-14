@@ -557,11 +557,39 @@ publish-cli:
 	@$(MAKE) --no-print-directory version-check
 	@echo "[publish-cli] Publishing platform packages..."
 	@$(foreach p,$(PLATFORMS),(cd $(CLI_DIR)/platforms/platform-$(p) && npm publish --access public) &&) true
-	@echo "[publish-cli] Waiting for registry propagation..."
-	@sleep 5
+	@VERSION=$$(node -p "require('./$(CLI_DIR)/package.json').version"); \
+	echo "[publish-cli] Waiting for platform packages to propagate (v$$VERSION)..."; \
+	for p in $(PLATFORMS); do \
+		attempt=1; \
+		while [ $$attempt -le 30 ]; do \
+			if npm view "@sideseat/platform-$$p@$$VERSION" version >/dev/null 2>&1; then \
+				echo "  @sideseat/platform-$$p@$$VERSION available"; \
+				break; \
+			fi; \
+			echo "  Waiting for @sideseat/platform-$$p@$$VERSION (attempt $$attempt/30)..."; \
+			sleep 5; \
+			attempt=$$((attempt + 1)); \
+		done; \
+		if [ $$attempt -gt 30 ]; then \
+			echo "Error: @sideseat/platform-$$p@$$VERSION not available after 150s"; \
+			exit 1; \
+		fi; \
+	done
 	@echo "[publish-cli] Publishing main sideseat package..."
 	@cd $(CLI_DIR) && npm publish --access public
-	@echo "[publish-cli] Published $$(node -p "require('./cli/package.json').version")"
+	@VERSION=$$(node -p "require('./$(CLI_DIR)/package.json').version"); \
+	echo "[publish-cli] Verifying sideseat@$$VERSION on registry..."; \
+	attempt=1; \
+	while [ $$attempt -le 30 ]; do \
+		if npm view "sideseat@$$VERSION" version >/dev/null 2>&1; then \
+			echo "[publish-cli] Published and verified sideseat@$$VERSION"; \
+			exit 0; \
+		fi; \
+		echo "  Waiting for sideseat@$$VERSION (attempt $$attempt/30)..."; \
+		sleep 5; \
+		attempt=$$((attempt + 1)); \
+	done; \
+	echo "Warning: sideseat@$$VERSION published but not yet verified on registry"
 
 publish-sdk-js:
 	@echo "[publish-sdk-js] Verifying npm authentication..."
