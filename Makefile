@@ -175,7 +175,7 @@ BUILD_CMD_linux-arm64    := cargo zigbuild
 BIN_NAME_linux-arm64     := sideseat
 
 RUST_TARGET_win32-x64    := x86_64-pc-windows-gnu
-BUILD_CMD_win32-x64      := cargo build
+BUILD_CMD_win32-x64      := CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=$(CURDIR)/misc/scripts/mingw-static-link.sh cargo build
 BIN_NAME_win32-x64       := sideseat.exe
 
 # Derived lists
@@ -443,7 +443,7 @@ build-cli-preflight:
 	@[ "$(UNAME_S)" = "Darwin" ] || { echo "Error: build-cli requires macOS (cross-compilation host)"; exit 1; }
 	@command -v cargo-zigbuild >/dev/null 2>&1 || { echo "Error: cargo-zigbuild not found. Install: cargo install cargo-zigbuild"; exit 1; }
 	@command -v zig >/dev/null 2>&1 || { echo "Error: zig not found. Install: brew install zig"; exit 1; }
-	@command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { echo "Error: mingw-w64 not found. Install: brew install mingw-w64"; exit 1; }
+	@command -v x86_64-w64-mingw32-g++ >/dev/null 2>&1 || { echo "Error: mingw-w64 not found. Install: brew install mingw-w64"; exit 1; }
 	@MISSING=""; for t in $(ALL_RUST_TARGETS); do \
 		rustup target list --installed | grep -q "^$$t$$" || MISSING="$$MISSING $$t"; \
 	done; \
