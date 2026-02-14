@@ -67,8 +67,14 @@ impl DuckdbService {
 
         let conn = tokio::task::spawn_blocking(move || {
             let conn = Connection::open(&db_path)?;
-            conn.execute_batch("SET force_compression = 'auto';")?;
-            conn.execute_batch("PRAGMA enable_checkpoint_on_shutdown;")?;
+            conn.execute_batch(
+                "SET autoinstall_known_extensions = false;
+                 SET autoload_known_extensions = false;
+                 SET extension_directory = '';
+                 SET force_compression = 'auto';
+                 PRAGMA enable_checkpoint_on_shutdown;
+                 LOAD json;",
+            )?;
             Ok::<_, duckdb::Error>(conn)
         })
         .await

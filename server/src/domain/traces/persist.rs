@@ -209,7 +209,7 @@ async fn finalize_pending_files(
     }
 
     if failure_count > 0 {
-        tracing::debug!(
+        tracing::warn!(
             finalized = success_count,
             failed = failure_count,
             total = count,
@@ -217,7 +217,7 @@ async fn finalize_pending_files(
             "File finalization complete with failures"
         );
     } else if success_count > 0 {
-        tracing::debug!(
+        tracing::trace!(
             files = success_count,
             context,
             "Files finalized successfully"
