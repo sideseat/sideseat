@@ -98,6 +98,10 @@
 #     release            Full release: check -> bump -> commit -> tag -> push
 #                        Usage: make release TYPE=patch (or minor, major)
 #
+#   Docker:
+#     docker-build       Build image for current platform (local testing)
+#     docker-publish     Multi-arch build + push (linux/amd64 + linux/arm64)
+#
 #   Docs:
 #     build-docs         Build documentation site (Astro/Starlight)
 #     dev-docs           Start docs dev server
@@ -152,6 +156,10 @@ CLI_DIR := cli
 PRICES_URL := https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json
 PRICES_FILE := $(SERVER_DIR)/data/model_prices_and_context_window.json
 
+# Docker
+DOCKER_IMAGE := sideseat/core
+DOCKER_FILE  := misc/docker/Dockerfile.core
+
 # =============================================================================
 # Platform Config (single source of truth)
 # =============================================================================
@@ -201,6 +209,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: publish publish-cli publish-sdk-js publish-sdk-python
 .PHONY: release
 .PHONY: build-docs dev-docs docs-preview
+.PHONY: docker-build docker-publish
 .PHONY: clean download-prices deps-check run start
 
 .SILENT: help version
@@ -258,6 +267,10 @@ help:
 	@echo "Release:"
 	@echo "  make release TYPE=patch  Check, bump, commit, tag, push (triggers CI/CD)"
 	@echo "  (TYPE can be patch, minor, or major)"
+	@echo ""
+	@echo "Docker:"
+	@echo "  make docker-build    Build image for current platform"
+	@echo "  make docker-publish  Multi-arch build + push to registry"
 	@echo ""
 	@echo "Docs:"
 	@echo "  make build-docs      Build documentation site"
@@ -625,6 +638,24 @@ release:
 	echo "[release] Pushing to remote..." && \
 	git push && git push --tags && \
 	echo "[release] Done. GitHub Actions will build and publish v$$NEW_VERSION"
+
+# =============================================================================
+# Docker
+# =============================================================================
+
+docker-build:
+	@echo "[docker-build] Building $(DOCKER_IMAGE) for current platform..."
+	@docker build -t $(DOCKER_IMAGE) -f $(DOCKER_FILE) .
+	@echo "[docker-build] Done. Run: docker run -p 5388:5388 -v sideseat-data:/data $(DOCKER_IMAGE)"
+
+docker-publish:
+	@echo "[docker-publish] Building and pushing multi-arch image..."
+	@VERSION=$$(node -p "require('./cli/package.json').version") && \
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t $(DOCKER_IMAGE):latest -t $(DOCKER_IMAGE):$$VERSION \
+		-f $(DOCKER_FILE) --push .
+	@VERSION=$$(node -p "require('./cli/package.json').version") && \
+	echo "[docker-publish] Pushed $(DOCKER_IMAGE):latest and $(DOCKER_IMAGE):$$VERSION"
 
 # =============================================================================
 # Documentation
