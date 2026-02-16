@@ -17,32 +17,12 @@
 # Run:
 #   docker run -p 5388:5388 -v sideseat-data:/data sideseat/core
 
-# ---------- Stage 1: Build web frontend ----------
-FROM node:24-bookworm-slim AS web-builder
+FROM debian:bookworm-slim AS bin-selector
+ARG TARGETARCH
+COPY cli/platforms/platform-linux-x64/sideseat /tmp/bin/amd64
+COPY cli/platforms/platform-linux-arm64/sideseat /tmp/bin/arm64
+RUN cp /tmp/bin/${TARGETARCH} /tmp/sideseat && chmod +x /tmp/sideseat
 
-WORKDIR /build/web
-COPY web/package.json web/package-lock.json ./
-RUN npm ci
-COPY web/ ./
-RUN npm run build
-
-# ---------- Stage 2: Build Rust server ----------
-FROM rust:1.91-bookworm AS server-builder
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /build
-
-COPY Cargo.toml Cargo.lock ./
-COPY server/ server/
-COPY sdk/rust/ sdk/rust/
-COPY --from=web-builder /build/web/dist/ web/dist/
-
-RUN cargo build --release -p sideseat-server
-
-# ---------- Stage 3: Runtime ----------
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -51,7 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN groupadd -r sideseat && useradd -r -g sideseat -m sideseat
 
-COPY --from=server-builder /build/target/release/sideseat /usr/local/bin/sideseat
+COPY --from=bin-selector /tmp/sideseat /usr/local/bin/sideseat
 
 RUN mkdir -p /data && chown sideseat:sideseat /data
 

@@ -8,7 +8,10 @@ web/dist/
 *.duckdb
 *.db
 docs/
-cli/
+cli/node_modules/
+cli/dist/
+cli/platforms/platform-darwin-*/
+cli/platforms/platform-win-*/
 sdk/python/
 sdk/js/
 sdk/dotnet/
