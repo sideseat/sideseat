@@ -70,8 +70,9 @@ cuid2 = { workspace = true }
 utoipa = { workspace = true }
 semver = { workspace = true }
 
-# S3 storage
+# AWS SDKs
 aws-sdk-s3 = { workspace = true }
+aws-sdk-secretsmanager = { workspace = true }
 aws-config = { workspace = true }
 
 # Cache
@@ -89,6 +90,10 @@ clickhouse = { workspace = true }
 rmcp = { workspace = true }
 schemars = { workspace = true }
 tokio-util = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = { workspace = true }
+core-foundation = { workspace = true }
 
 [features]
 default = []

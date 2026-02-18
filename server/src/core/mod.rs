@@ -4,7 +4,6 @@ pub(crate) mod banner;
 pub mod cli;
 pub mod config;
 pub mod constants;
-pub mod secret;
 pub mod shutdown;
 pub mod storage;
 pub(crate) mod update;
@@ -12,7 +11,6 @@ pub(crate) mod update;
 pub use crate::app::CoreApp;
 pub use cli::{CliConfig, Commands};
 pub use config::{AppConfig, AuthConfig, ServerConfig};
-pub use secret::{Secret, SecretBackend, SecretManager};
 pub use storage::{AppStorage, DataSubdir};
 
 // Re-export service enums from data layer

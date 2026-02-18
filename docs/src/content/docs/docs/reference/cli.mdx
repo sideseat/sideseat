@@ -29,6 +29,7 @@ sideseat [OPTIONS] [COMMAND]
 | Command | Description |
 |---------|-------------|
 | `start` | Start the server (default) |
+| `system prune` | Delete local data directory. Use `-y` to skip confirmation |
 
 Running `sideseat` without a command is equivalent to `sideseat start`.
 
@@ -153,6 +154,20 @@ sideseat \
   --cache-redis-url redis://redis:6379 \
   --rate-limit-enabled
 ```
+
+### System Commands
+
+```bash
+# Delete local data directory (with confirmation prompt)
+sideseat system prune
+
+# Delete local data directory without confirmation
+sideseat system prune -y
+```
+
+<Aside type="note">
+`system prune` only deletes the local data directory (DuckDB, SQLite, file-based secrets, local file storage). External backends (ClickHouse, PostgreSQL, S3, Redis, Vault, AWS Secrets Manager) are not affected.
+</Aside>
 
 ### With Config File
 

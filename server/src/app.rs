@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 use crate::api::{ApiServer, AuthManager, OtlpGrpcServer};
 use opentelemetry_proto::tonic::collector::{
@@ -11,15 +11,15 @@ use opentelemetry_proto::tonic::collector::{
 
 use crate::core::TopicService;
 use crate::core::banner;
-use crate::core::cli::{self, CliConfig, Commands};
+use crate::core::cli::{self, CliConfig, Commands, SystemCommands};
 use crate::core::config::AppConfig;
 use crate::core::constants::{APP_NAME_LOWER, ENV_LOG, TOPIC_METRICS, TOPIC_TRACES};
-use crate::core::secret::SecretManager;
 use crate::core::shutdown::ShutdownService;
 use crate::core::storage::AppStorage;
 use crate::core::update;
 use crate::data::cache::{CacheService, RateLimiter};
 use crate::data::files::FileService;
+use crate::data::secrets::SecretManager;
 use crate::data::{AnalyticsService, TransactionalService};
 use crate::domain::pricing::PricingService;
 
@@ -49,17 +49,23 @@ impl CoreApp {
         let (cli_config, command) = cli::parse();
         tracing::trace!(command = ?command, "Parsed command");
 
-        let app = Self::init(&cli_config).await?;
-
         match command {
-            Some(Commands::Start) | None => Self::start_server(app).await,
+            Some(Commands::System {
+                command: system_cmd,
+            }) => {
+                return Self::handle_system_command(system_cmd);
+            }
+            Some(Commands::Start) | None => {}
         }
+
+        let app = Self::init(&cli_config).await?;
+        Self::start_server(app).await
     }
 
     async fn init(cli: &CliConfig) -> Result<Self> {
         let config = AppConfig::load(cli)?;
         let storage = AppStorage::init(&config).await?;
-        let secrets = SecretManager::init(&storage).await?;
+        let secrets = SecretManager::init(&storage, &config.secrets).await?;
         secrets.ensure_secrets().await?;
 
         // Initialize cache service
@@ -129,6 +135,52 @@ impl CoreApp {
             cache,
             rate_limiter,
         })
+    }
+
+    fn handle_system_command(cmd: SystemCommands) -> Result<()> {
+        match cmd {
+            SystemCommands::Prune { yes } => Self::prune_data(yes),
+        }
+    }
+
+    fn prune_data(skip_confirm: bool) -> Result<()> {
+        let data_dir = AppStorage::resolve_data_dir();
+
+        if !data_dir.exists() {
+            println!(
+                "Nothing to prune. Data directory does not exist: {}",
+                data_dir.display()
+            );
+            return Ok(());
+        }
+
+        let data_dir = data_dir.canonicalize().unwrap_or(data_dir);
+
+        println!("This will permanently delete the local data directory:");
+        println!("  {}", data_dir.display());
+        println!();
+        println!(
+            "Make sure the server is not running. \
+             Deleting data while the server is running will cause data corruption."
+        );
+
+        if !skip_confirm {
+            print!("\nContinue? [y/N] ");
+            std::io::Write::flush(&mut std::io::stdout())?;
+
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input)?;
+
+            if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
+                println!("Aborted.");
+                return Ok(());
+            }
+        }
+
+        std::fs::remove_dir_all(&data_dir)
+            .with_context(|| format!("Failed to delete data directory: {}", data_dir.display()))?;
+        println!("Pruned: {}", data_dir.display());
+        Ok(())
     }
 
     fn init_logging() {
@@ -203,6 +255,13 @@ impl CoreApp {
     }
 
     pub async fn start_background_tasks(&self) -> Result<()> {
+        self.shutdown
+            .register(
+                self.secrets
+                    .start_health_check_task(self.shutdown.subscribe()),
+            )
+            .await;
+
         self.shutdown
             .register(
                 self.database

@@ -12,11 +12,15 @@ use super::constants::{
     APP_DOT_FOLDER, CONFIG_FILE_NAME, DEFAULT_CACHE_MAX_ENTRIES, DEFAULT_HOST,
     DEFAULT_OTEL_GRPC_PORT, DEFAULT_OTEL_RETENTION_MAX_SPANS, DEFAULT_PORT,
     DEFAULT_RATE_LIMIT_API_RPM, DEFAULT_RATE_LIMIT_AUTH_RPM, DEFAULT_RATE_LIMIT_FILES_RPM,
-    DEFAULT_RATE_LIMIT_INGESTION_RPM, FILES_DEFAULT_QUOTA_BYTES, FILES_DEFAULT_S3_PREFIX,
-    POSTGRES_DEFAULT_ACQUIRE_TIMEOUT_SECS, POSTGRES_DEFAULT_IDLE_TIMEOUT_SECS,
-    POSTGRES_DEFAULT_MAX_CONNECTIONS, POSTGRES_DEFAULT_MAX_LIFETIME_SECS,
-    POSTGRES_DEFAULT_MIN_CONNECTIONS, POSTGRES_DEFAULT_STATEMENT_TIMEOUT_SECS,
-    PRICING_SYNC_INTERVAL_SECS,
+    DEFAULT_RATE_LIMIT_INGESTION_RPM, ENV_SECRETS_AWS_PREFIX, ENV_SECRETS_AWS_REGION,
+    ENV_SECRETS_ENV_PREFIX, ENV_SECRETS_VAULT_ADDR, ENV_SECRETS_VAULT_MOUNT,
+    ENV_SECRETS_VAULT_PREFIX, ENV_SECRETS_VAULT_TOKEN, FILES_DEFAULT_QUOTA_BYTES,
+    FILES_DEFAULT_S3_PREFIX, POSTGRES_DEFAULT_ACQUIRE_TIMEOUT_SECS,
+    POSTGRES_DEFAULT_IDLE_TIMEOUT_SECS, POSTGRES_DEFAULT_MAX_CONNECTIONS,
+    POSTGRES_DEFAULT_MAX_LIFETIME_SECS, POSTGRES_DEFAULT_MIN_CONNECTIONS,
+    POSTGRES_DEFAULT_STATEMENT_TIMEOUT_SECS, PRICING_SYNC_INTERVAL_SECS,
+    SECRETS_DEFAULT_AWS_PREFIX, SECRETS_DEFAULT_ENV_PREFIX, SECRETS_DEFAULT_VAULT_MOUNT,
+    SECRETS_DEFAULT_VAULT_PREFIX,
 };
 
 // =============================================================================
@@ -128,6 +132,80 @@ impl fmt::Display for EvictionPolicy {
             EvictionPolicy::TinyLfu => write!(f, "tinylfu"),
             EvictionPolicy::Lru => write!(f, "lru"),
         }
+    }
+}
+
+// =============================================================================
+// Secrets Backend Enum
+// =============================================================================
+
+/// Secrets storage backend type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SecretsBackend {
+    DataProtectionKeychain,
+    Keychain,
+    CredentialManager,
+    SecretService,
+    Keyutils,
+    File,
+    Env,
+    Aws,
+    Vault,
+}
+
+impl SecretsBackend {
+    /// Auto-detect best available backend for the current platform.
+    pub fn detect() -> Self {
+        #[cfg(target_os = "macos")]
+        {
+            Self::DataProtectionKeychain
+        }
+        #[cfg(target_os = "windows")]
+        {
+            Self::CredentialManager
+        }
+        #[cfg(target_os = "linux")]
+        {
+            Self::SecretService
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+        {
+            Self::File
+        }
+    }
+
+    /// Whether this backend uses vault-blob storage (keychain/file variants)
+    pub fn is_vault_based(&self) -> bool {
+        matches!(
+            self,
+            Self::DataProtectionKeychain
+                | Self::Keychain
+                | Self::CredentialManager
+                | Self::SecretService
+                | Self::Keyutils
+                | Self::File
+        )
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::DataProtectionKeychain => "data-protection-keychain",
+            Self::Keychain => "keychain",
+            Self::CredentialManager => "credential-manager",
+            Self::SecretService => "secret-service",
+            Self::Keyutils => "keyutils",
+            Self::File => "file",
+            Self::Env => "env",
+            Self::Aws => "aws",
+            Self::Vault => "vault",
+        }
+    }
+}
+
+impl fmt::Display for SecretsBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -316,6 +394,38 @@ pub struct DatabaseFileConfig {
     pub memory_cache: Option<MemoryCacheFileConfig>,
 }
 
+/// Secrets env backend configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct SecretsEnvFileConfig {
+    pub prefix: Option<String>,
+}
+
+/// Secrets AWS backend configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct SecretsAwsFileConfig {
+    pub region: Option<String>,
+    pub prefix: Option<String>,
+    pub recovery_window_days: Option<u32>,
+}
+
+/// Secrets Vault backend configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct SecretsVaultFileConfig {
+    pub address: Option<String>,
+    pub mount: Option<String>,
+    pub prefix: Option<String>,
+    pub token: Option<String>,
+}
+
+/// Secrets configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct SecretsFileConfig {
+    pub backend: Option<SecretsBackend>,
+    pub env: Option<SecretsEnvFileConfig>,
+    pub aws: Option<SecretsAwsFileConfig>,
+    pub vault: Option<SecretsVaultFileConfig>,
+}
+
 /// File-based configuration (JSON)
 #[derive(Debug, Default, Deserialize)]
 pub struct FileConfig {
@@ -327,6 +437,7 @@ pub struct FileConfig {
     pub rate_limit: Option<RateLimitFileConfig>,
     pub update: Option<UpdateFileConfig>,
     pub database: Option<DatabaseFileConfig>,
+    pub secrets: Option<SecretsFileConfig>,
     pub debug: Option<bool>,
     #[serde(flatten)]
     pub extra: serde_json::Value,
@@ -622,6 +733,56 @@ impl FileConfig {
             }
         }
 
+        // Secrets
+        if let Some(secrets) = other.secrets {
+            let current = self.secrets.get_or_insert_with(SecretsFileConfig::default);
+            if secrets.backend.is_some() {
+                tracing::trace!(backend = ?secrets.backend, "Merging secrets.backend");
+                current.backend = secrets.backend;
+            }
+            if let Some(env_cfg) = secrets.env {
+                let ce = current
+                    .env
+                    .get_or_insert_with(SecretsEnvFileConfig::default);
+                if env_cfg.prefix.is_some() {
+                    ce.prefix = env_cfg.prefix;
+                }
+            }
+            if let Some(aws_cfg) = secrets.aws {
+                let ca = current
+                    .aws
+                    .get_or_insert_with(SecretsAwsFileConfig::default);
+                if aws_cfg.region.is_some() {
+                    ca.region = aws_cfg.region;
+                }
+                if aws_cfg.prefix.is_some() {
+                    ca.prefix = aws_cfg.prefix;
+                }
+                if aws_cfg.recovery_window_days.is_some() {
+                    ca.recovery_window_days = aws_cfg.recovery_window_days;
+                }
+            }
+            if let Some(vault_cfg) = secrets.vault {
+                let cv = current
+                    .vault
+                    .get_or_insert_with(SecretsVaultFileConfig::default);
+                if vault_cfg.address.is_some() {
+                    tracing::trace!(address = "***", "Merging secrets.vault.address");
+                    cv.address = vault_cfg.address;
+                }
+                if vault_cfg.mount.is_some() {
+                    cv.mount = vault_cfg.mount;
+                }
+                if vault_cfg.prefix.is_some() {
+                    cv.prefix = vault_cfg.prefix;
+                }
+                if vault_cfg.token.is_some() {
+                    tracing::trace!(token = "***", "Merging secrets.vault.token");
+                    cv.token = vault_cfg.token;
+                }
+            }
+        }
+
         // Debug
         if other.debug.is_some() {
             tracing::trace!(debug = ?other.debug, "Merging debug");
@@ -807,6 +968,42 @@ pub struct DatabaseConfig {
     pub memory_cache: MemoryCacheConfig,
 }
 
+// =============================================================================
+// Secrets Runtime Config
+// =============================================================================
+
+/// Secrets env backend configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct SecretsEnvConfig {
+    pub prefix: String,
+}
+
+/// Secrets AWS backend configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct SecretsAwsConfig {
+    pub region: Option<String>,
+    pub prefix: String,
+    pub recovery_window_days: Option<u32>,
+}
+
+/// Secrets Vault backend configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct SecretsVaultConfig {
+    pub address: String,
+    pub mount: String,
+    pub prefix: String,
+    pub token: String,
+}
+
+/// Secrets configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct SecretsConfig {
+    pub backend: SecretsBackend,
+    pub env: Option<SecretsEnvConfig>,
+    pub aws: Option<SecretsAwsConfig>,
+    pub vault: Option<SecretsVaultConfig>,
+}
+
 impl DatabaseConfig {
     /// Build a CacheConfig for use by CacheService
     pub fn cache_config(&self) -> CacheConfig {
@@ -831,6 +1028,7 @@ pub struct AppConfig {
     pub update: UpdateConfig,
     pub mcp: McpConfig,
     pub database: DatabaseConfig,
+    pub secrets: SecretsConfig,
     pub debug: bool,
 }
 
@@ -1155,6 +1353,76 @@ impl AppConfig {
             memory_cache: memory_cache_config,
         };
 
+        // Secrets config: CLI > file > platform auto-detect
+        let file_secrets = file_config.secrets.unwrap_or_default();
+
+        let secrets_backend = cli
+            .secrets_backend
+            .or(file_secrets.backend)
+            .unwrap_or_else(SecretsBackend::detect);
+
+        let secrets_env = if secrets_backend == SecretsBackend::Env {
+            let file_env = file_secrets.env.unwrap_or_default();
+            Some(SecretsEnvConfig {
+                prefix: std::env::var(ENV_SECRETS_ENV_PREFIX)
+                    .ok()
+                    .or(file_env.prefix)
+                    .unwrap_or_else(|| SECRETS_DEFAULT_ENV_PREFIX.to_string()),
+            })
+        } else {
+            None
+        };
+
+        let secrets_aws = if secrets_backend == SecretsBackend::Aws {
+            let file_aws = file_secrets.aws.unwrap_or_default();
+            Some(SecretsAwsConfig {
+                region: std::env::var(ENV_SECRETS_AWS_REGION)
+                    .ok()
+                    .or(file_aws.region),
+                prefix: std::env::var(ENV_SECRETS_AWS_PREFIX)
+                    .ok()
+                    .or(file_aws.prefix)
+                    .unwrap_or_else(|| SECRETS_DEFAULT_AWS_PREFIX.to_string()),
+                recovery_window_days: file_aws.recovery_window_days,
+            })
+        } else {
+            None
+        };
+
+        let secrets_vault = if secrets_backend == SecretsBackend::Vault {
+            let file_vault = file_secrets.vault.unwrap_or_default();
+            Some(SecretsVaultConfig {
+                address: std::env::var(ENV_SECRETS_VAULT_ADDR)
+                    .ok()
+                    .or(file_vault.address)
+                    .unwrap_or_default()
+                    .trim_end_matches('/')
+                    .to_string(),
+                mount: std::env::var(ENV_SECRETS_VAULT_MOUNT)
+                    .ok()
+                    .or(file_vault.mount)
+                    .unwrap_or_else(|| SECRETS_DEFAULT_VAULT_MOUNT.to_string()),
+                prefix: std::env::var(ENV_SECRETS_VAULT_PREFIX)
+                    .ok()
+                    .or(file_vault.prefix)
+                    .unwrap_or_else(|| SECRETS_DEFAULT_VAULT_PREFIX.to_string()),
+                token: std::env::var(ENV_SECRETS_VAULT_TOKEN)
+                    .ok()
+                    .or_else(|| std::env::var("VAULT_TOKEN").ok())
+                    .or(file_vault.token)
+                    .unwrap_or_default(),
+            })
+        } else {
+            None
+        };
+
+        let secrets = SecretsConfig {
+            backend: secrets_backend,
+            env: secrets_env,
+            aws: secrets_aws,
+            vault: secrets_vault,
+        };
+
         let config = Self {
             server: ServerConfig { host, port },
             auth: AuthConfig {
@@ -1178,6 +1446,7 @@ impl AppConfig {
                 enabled: mcp_enabled,
             },
             database,
+            secrets,
             debug,
         };
 
@@ -1330,6 +1599,47 @@ impl AppConfig {
             }
         }
 
+        // AWS recovery_window_days must be 7-30 if set
+        if let Some(ref aws) = self.secrets.aws
+            && let Some(d) = aws.recovery_window_days
+            && !(7..=30).contains(&d)
+        {
+            anyhow::bail!(
+                "Configuration error: secrets.aws.recovery_window_days must be between 7 and 30 (got {})",
+                d
+            );
+        }
+
+        // Vault address and token required when using Vault secrets backend
+        if self.secrets.backend == SecretsBackend::Vault {
+            if let Some(ref v) = self.secrets.vault {
+                if v.address.is_empty() {
+                    anyhow::bail!(
+                        "Configuration error: secrets.vault.address is required when secrets.backend is 'vault'. \
+                         Set via {} env var or secrets.vault.address in config file.",
+                        ENV_SECRETS_VAULT_ADDR
+                    );
+                }
+                if !v.address.starts_with("http://") && !v.address.starts_with("https://") {
+                    anyhow::bail!(
+                        "Configuration error: secrets.vault.address must start with http:// or https://. Got: {}",
+                        v.address
+                    );
+                }
+                if v.token.is_empty() {
+                    anyhow::bail!(
+                        "Configuration error: Vault token required when secrets.backend is 'vault'. \
+                         Set via VAULT_TOKEN, {} env var, or secrets.vault.token in config file.",
+                        ENV_SECRETS_VAULT_TOKEN
+                    );
+                }
+            } else {
+                anyhow::bail!(
+                    "Configuration error: Vault configuration missing when secrets.backend is 'vault'"
+                );
+            }
+        }
+
         Ok(())
     }
 }
@@ -1473,6 +1783,7 @@ mod tests {
             rate_limit: None,
             update: None,
             database: None,
+            secrets: None,
             debug: Some(false),
             extra: serde_json::Value::Null,
         };
@@ -1504,6 +1815,7 @@ mod tests {
             rate_limit: None,
             update: None,
             database: None,
+            secrets: None,
             debug: Some(true),
             extra: serde_json::Value::Null,
         };
@@ -1568,6 +1880,7 @@ mod tests {
             rate_limit_auth_rpm: None,
             rate_limit_files_rpm: None,
             rate_limit_bypass_header: None,
+            secrets_backend: None,
             mcp: None,
             transactional_backend: None,
             analytics_backend: None,
@@ -1924,5 +2237,77 @@ mod tests {
         };
         let config = AppConfig::load(&cli).unwrap();
         assert!(!config.mcp.enabled);
+    }
+
+    #[test]
+    fn test_secrets_aws_recovery_window_days_from_json() {
+        let json = r#"{ "secrets": { "backend": "aws", "aws": { "recovery_window_days": 14 } } }"#;
+        let config: FileConfig = serde_json::from_str(json).unwrap();
+        let aws = config.secrets.unwrap().aws.unwrap();
+        assert_eq!(aws.recovery_window_days, Some(14));
+    }
+
+    #[test]
+    fn test_secrets_aws_recovery_window_days_validation_too_low() {
+        use std::io::Write;
+        let json = r#"{ "secrets": { "backend": "aws", "aws": { "recovery_window_days": 5 } } }"#;
+        let mut temp_file = tempfile::NamedTempFile::new().unwrap();
+        temp_file.write_all(json.as_bytes()).unwrap();
+        let cli = CliConfig {
+            config: Some(temp_file.path().to_path_buf()),
+            secrets_backend: Some(SecretsBackend::Aws),
+            ..Default::default()
+        };
+        let result = AppConfig::load(&cli);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("between 7 and 30"));
+    }
+
+    #[test]
+    fn test_secrets_aws_recovery_window_days_validation_too_high() {
+        use std::io::Write;
+        let json = r#"{ "secrets": { "backend": "aws", "aws": { "recovery_window_days": 50 } } }"#;
+        let mut temp_file = tempfile::NamedTempFile::new().unwrap();
+        temp_file.write_all(json.as_bytes()).unwrap();
+        let cli = CliConfig {
+            config: Some(temp_file.path().to_path_buf()),
+            secrets_backend: Some(SecretsBackend::Aws),
+            ..Default::default()
+        };
+        let result = AppConfig::load(&cli);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("between 7 and 30"));
+    }
+
+    #[test]
+    fn test_secrets_aws_recovery_window_days_valid() {
+        use std::io::Write;
+        let json = r#"{ "secrets": { "backend": "aws", "aws": { "recovery_window_days": 7 } } }"#;
+        let mut temp_file = tempfile::NamedTempFile::new().unwrap();
+        temp_file.write_all(json.as_bytes()).unwrap();
+        let cli = CliConfig {
+            config: Some(temp_file.path().to_path_buf()),
+            secrets_backend: Some(SecretsBackend::Aws),
+            ..Default::default()
+        };
+        let config = AppConfig::load(&cli).unwrap();
+        let aws = config.secrets.aws.unwrap();
+        assert_eq!(aws.recovery_window_days, Some(7));
+    }
+
+    #[test]
+    fn test_secrets_aws_recovery_window_days_omitted() {
+        use std::io::Write;
+        let json = r#"{ "secrets": { "backend": "aws", "aws": { "region": "us-east-1" } } }"#;
+        let mut temp_file = tempfile::NamedTempFile::new().unwrap();
+        temp_file.write_all(json.as_bytes()).unwrap();
+        let cli = CliConfig {
+            config: Some(temp_file.path().to_path_buf()),
+            secrets_backend: Some(SecretsBackend::Aws),
+            ..Default::default()
+        };
+        let config = AppConfig::load(&cli).unwrap();
+        let aws = config.secrets.aws.unwrap();
+        assert!(aws.recovery_window_days.is_none());
     }
 }
