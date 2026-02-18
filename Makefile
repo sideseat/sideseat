@@ -210,6 +210,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: release
 .PHONY: build-docs dev-docs docs-preview
 .PHONY: docker-build docker-publish
+.PHONY: sign-release sign-verify
 .PHONY: clean download-prices deps-check run start
 
 .SILENT: help version
@@ -334,13 +335,13 @@ dev:
 dev-server:
 	@if command -v watchexec >/dev/null 2>&1; then \
 		cd $(SERVER_DIR) && watchexec -r -e rs,toml -- \
-			"SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat SIDESEAT_SECRET_BACKEND=file cargo run -- $(ARGS)"; \
+			"SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat SIDESEAT_SECRETS_BACKEND=file cargo run -- $(ARGS)"; \
 	elif command -v cargo-watch >/dev/null 2>&1; then \
-		cd $(SERVER_DIR) && SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat SIDESEAT_SECRET_BACKEND=file \
+		cd $(SERVER_DIR) && SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat SIDESEAT_SECRETS_BACKEND=file \
 			cargo watch -x "run -- $(ARGS)"; \
 	else \
 		echo "No watch tool found. Install: brew install watchexec"; \
-		cd $(SERVER_DIR) && SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat SIDESEAT_SECRET_BACKEND=file \
+		cd $(SERVER_DIR) && SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat SIDESEAT_SECRETS_BACKEND=file \
 			cargo run -- $(ARGS); \
 	fi
 
@@ -676,6 +677,27 @@ docs-preview:
 	@echo "[docs-preview] Previewing built docs..."
 	@[ -d "docs/dist" ] || { $(MAKE) build-docs; }
 	@cd docs && npm run preview
+
+# =============================================================================
+# Code Signing (macOS)
+# =============================================================================
+
+# Production signing identity (set via env or make arg)
+SIGN_IDENTITY ?=
+
+sign-release:  ## Sign release binary with Developer ID (SIGN_IDENTITY required)
+	@[ "$(UNAME_S)" = "Darwin" ] || { echo "Error: code signing requires macOS"; exit 1; }
+	@[ -f "target/release/sideseat" ] || { echo "Error: target/release/sideseat not found. Run 'make build-server' first."; exit 1; }
+	@[ -n "$(SIGN_IDENTITY)" ] || { echo "Error: SIGN_IDENTITY required. Usage: make sign-release SIGN_IDENTITY=\"Developer ID Application: Name (TEAMID)\""; exit 1; }
+	@codesign --force --options runtime --sign "$(SIGN_IDENTITY)" --entitlements server/entitlements.plist target/release/sideseat
+	@echo "[sign-release] Signed target/release/sideseat"
+
+sign-verify:  ## Verify code signature and entitlements
+	@BINARY="target/release/sideseat"; \
+	[ -f "$$BINARY" ] || BINARY="target/debug/sideseat"; \
+	[ -f "$$BINARY" ] || { echo "Error: No binary found."; exit 1; }; \
+	echo "=== Signature ===" && codesign -dvv "$$BINARY" && \
+	echo "" && echo "=== Entitlements ===" && codesign -d --entitlements :- "$$BINARY"
 
 # =============================================================================
 # Utilities

@@ -462,6 +462,100 @@
         }
       ]
     },
+    "secrets": {
+      "type": "object",
+      "description": "Secrets backend configuration for secure credential storage",
+      "properties": {
+        "backend": {
+          "type": "string",
+          "enum": ["data-protection-keychain", "keychain", "credential-manager", "secret-service", "keyutils", "file", "env", "aws", "vault"],
+          "description": "Secrets backend. Defaults to platform auto-detection (data-protection-keychain on macOS, credential-manager on Windows, secret-service on Linux)."
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variable backend configuration (used when backend is 'env')",
+          "properties": {
+            "prefix": {
+              "type": "string",
+              "description": "Prefix for environment variable names",
+              "default": "SIDESEAT_SECRET_"
+            }
+          },
+          "additionalProperties": false
+        },
+        "aws": {
+          "type": "object",
+          "description": "AWS Secrets Manager configuration (used when backend is 'aws')",
+          "properties": {
+            "region": {
+              "type": "string",
+              "description": "AWS region. Uses SDK default resolution if not specified.",
+              "examples": ["us-east-1", "eu-west-1"]
+            },
+            "prefix": {
+              "type": "string",
+              "description": "Prefix for secret names in AWS Secrets Manager",
+              "default": "sideseat"
+            },
+            "recovery_window_days": {
+              "type": "integer",
+              "description": "Days before a deleted secret is permanently removed (7-30). Omit for AWS default (30 days).",
+              "minimum": 7,
+              "maximum": 30
+            }
+          },
+          "additionalProperties": false
+        },
+        "vault": {
+          "type": "object",
+          "description": "HashiCorp Vault KV v2 configuration (used when backend is 'vault')",
+          "properties": {
+            "address": {
+              "type": "string",
+              "description": "Vault server address (must include http:// or https://)",
+              "examples": ["https://vault.internal:8200", "http://localhost:8200"]
+            },
+            "mount": {
+              "type": "string",
+              "description": "KV v2 mount path",
+              "default": "secret"
+            },
+            "prefix": {
+              "type": "string",
+              "description": "Prefix within the KV mount for all secrets",
+              "default": "sideseat"
+            },
+            "token": {
+              "type": "string",
+              "description": "Vault authentication token. Prefer VAULT_TOKEN env var."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "backend": { "const": "vault" }
+            },
+            "required": ["backend"]
+          },
+          "then": {
+            "required": ["vault"],
+            "properties": {
+              "vault": {
+                "required": ["address"],
+                "properties": {
+                  "address": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
     "debug": {
       "type": "boolean",
       "description": "Enable debug mode (writes incoming OTLP data to debug folder)",

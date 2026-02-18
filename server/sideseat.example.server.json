@@ -62,6 +62,22 @@
       "url": "redis://redis.internal:6379/0"
     }
   },
+  "secrets": {
+    "backend": "vault",
+    "env": {
+      "prefix": "SIDESEAT_SECRET_"
+    },
+    "aws": {
+      "region": "us-east-1",
+      "prefix": "sideseat",
+      "recovery_window_days": 30
+    },
+    "vault": {
+      "address": "https://vault.internal:8200",
+      "mount": "secret",
+      "prefix": "sideseat"
+    }
+  },
   "update": {
     "enabled": true
   },

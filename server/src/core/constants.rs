@@ -62,19 +62,37 @@ pub const ENV_DATA_DIR: &str = "SIDESEAT_DATA_DIR";
 // Environment Variables - Secrets
 // =============================================================================
 
-/// Environment variable to force specific secret backend
+/// Environment variable to force specific secrets backend
 ///
-/// Valid values by platform:
-/// - macOS: `keychain`
+/// Platform-specific values:
+/// - macOS: `data-protection-keychain` (default), `keychain`
 /// - Windows: `credential-manager`
 /// - Linux: `secret-service`, `keyutils`
-pub const ENV_SECRET_BACKEND: &str = "SIDESEAT_SECRET_BACKEND";
+/// - All platforms: `file`, `env`, `aws`, `vault`
+pub const ENV_SECRETS_BACKEND: &str = "SIDESEAT_SECRETS_BACKEND";
 
 /// Service name for keychain/credential manager entries
 pub const SECRET_SERVICE_NAME: &str = "sideseat";
 
 /// Secret key name for JWT signing key
 pub const SECRET_KEY_JWT_SIGNING: &str = "jwt_signing_key";
+
+// =============================================================================
+// Secrets Backends
+// =============================================================================
+
+pub const ENV_SECRETS_ENV_PREFIX: &str = "SIDESEAT_SECRETS_ENV_PREFIX";
+pub const ENV_SECRETS_AWS_REGION: &str = "SIDESEAT_SECRETS_AWS_REGION";
+pub const ENV_SECRETS_AWS_PREFIX: &str = "SIDESEAT_SECRETS_AWS_PREFIX";
+pub const ENV_SECRETS_VAULT_ADDR: &str = "SIDESEAT_SECRETS_VAULT_ADDR";
+pub const ENV_SECRETS_VAULT_TOKEN: &str = "SIDESEAT_SECRETS_VAULT_TOKEN";
+pub const ENV_SECRETS_VAULT_MOUNT: &str = "SIDESEAT_SECRETS_VAULT_MOUNT";
+pub const ENV_SECRETS_VAULT_PREFIX: &str = "SIDESEAT_SECRETS_VAULT_PREFIX";
+
+pub const SECRETS_DEFAULT_AWS_PREFIX: &str = "sideseat";
+pub const SECRETS_DEFAULT_VAULT_MOUNT: &str = "secret";
+pub const SECRETS_DEFAULT_VAULT_PREFIX: &str = "sideseat";
+pub const SECRETS_DEFAULT_ENV_PREFIX: &str = "SIDESEAT_SECRET_";
 
 // =============================================================================
 // Authentication

@@ -48,7 +48,7 @@ keyring = { version = "3.6", default-features = false, features = [
   "crypto-rust",
 ] }
 # Note: linux-native and sync-secret-service removed for cross-compilation.
-# Linux uses file-based secrets by default. Set SIDESEAT_SECRET_BACKEND=file.
+# Linux uses file-based secrets by default. Set SIDESEAT_SECRETS_BACKEND=file.
 local-ip-address = "0.6"
 supports-hyperlinks = "3"
 jsonwebtoken = "9"
@@ -85,8 +85,9 @@ cuid2 = "0.1"
 utoipa = { version = "5", features = ["axum_extras", "chrono", "uuid"] }
 semver = "1.0"
 
-# S3 storage (optional)
+# AWS SDKs
 aws-sdk-s3 = "1.87"
+aws-sdk-secretsmanager = "1"
 aws-config = { version = "1.7", features = ["behavior-version-latest"] }
 
 # Cache (moka for in-memory, deadpool-redis for Redis)
@@ -102,6 +103,8 @@ clickhouse = { version = "0.14", features = ["lz4", "time"] }
 rmcp = { version = "0.15", features = ["server", "macros", "transport-streamable-http-server"] }
 schemars = "1.0"
 tokio-util = { version = "0.7", features = ["rt"] }
+security-framework = { version = "3", features = ["OSX_10_15"] }
+core-foundation = "0.10"
 
 [profile.release]
 opt-level = 3

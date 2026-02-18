@@ -84,7 +84,7 @@ impl AppStorage {
     }
 
     /// Resolve data directory from env var or platform default
-    fn resolve_data_dir() -> PathBuf {
+    pub fn resolve_data_dir() -> PathBuf {
         // Check env var override first
         if let Ok(dir) = std::env::var(ENV_DATA_DIR) {
             return expand_path(&dir);

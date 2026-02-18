@@ -3,8 +3,8 @@
 use anyhow::Result;
 
 use super::jwt::{JwtError, SessionClaims, create_session_token, validate_session_token};
-use crate::core::SecretManager;
 use crate::core::constants::DEFAULT_USER_ID;
+use crate::data::secrets::SecretManager;
 use crate::utils::crypto;
 
 /// Main authentication manager

@@ -3,7 +3,8 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 use super::config::{
-    AnalyticsBackend, CacheBackendType, EvictionPolicy, StorageBackend, TransactionalBackend,
+    AnalyticsBackend, CacheBackendType, EvictionPolicy, SecretsBackend, StorageBackend,
+    TransactionalBackend,
 };
 use super::constants::{
     ENV_ANALYTICS_BACKEND, ENV_CACHE_BACKEND, ENV_CACHE_EVICTION_POLICY, ENV_CACHE_MAX_ENTRIES,
@@ -13,7 +14,8 @@ use super::constants::{
     ENV_OTEL_RETENTION_MAX_AGE_MINUTES, ENV_OTEL_RETENTION_MAX_SPANS, ENV_PORT, ENV_POSTGRES_URL,
     ENV_PRICING_SYNC_HOURS, ENV_RATE_LIMIT_API_RPM, ENV_RATE_LIMIT_AUTH_RPM,
     ENV_RATE_LIMIT_BYPASS_HEADER, ENV_RATE_LIMIT_ENABLED, ENV_RATE_LIMIT_FILES_RPM,
-    ENV_RATE_LIMIT_INGESTION_RPM, ENV_RATE_LIMIT_PER_IP, ENV_TRANSACTIONAL_BACKEND,
+    ENV_RATE_LIMIT_INGESTION_RPM, ENV_RATE_LIMIT_PER_IP, ENV_SECRETS_BACKEND,
+    ENV_TRANSACTIONAL_BACKEND,
 };
 
 #[derive(Parser)]
@@ -134,6 +136,10 @@ pub struct Cli {
     #[arg(long, global = true, env = ENV_RATE_LIMIT_BYPASS_HEADER)]
     pub rate_limit_bypass_header: Option<String>,
 
+    /// Secrets backend
+    #[arg(long, global = true, env = ENV_SECRETS_BACKEND, value_parser = parse_secrets_backend)]
+    pub secrets_backend: Option<SecretsBackend>,
+
     // Database options
     /// Transactional database backend (sqlite or postgres)
     #[arg(long, global = true, env = ENV_TRANSACTIONAL_BACKEND, value_parser = parse_transactional_backend)]
@@ -212,10 +218,45 @@ fn parse_analytics_backend(s: &str) -> Result<AnalyticsBackend, String> {
     }
 }
 
+/// Parse secrets backend from CLI/env string
+fn parse_secrets_backend(s: &str) -> Result<SecretsBackend, String> {
+    match s.to_lowercase().as_str() {
+        "data-protection-keychain" => Ok(SecretsBackend::DataProtectionKeychain),
+        "keychain" => Ok(SecretsBackend::Keychain),
+        "credential-manager" => Ok(SecretsBackend::CredentialManager),
+        "secret-service" => Ok(SecretsBackend::SecretService),
+        "keyutils" => Ok(SecretsBackend::Keyutils),
+        "file" => Ok(SecretsBackend::File),
+        "env" => Ok(SecretsBackend::Env),
+        "aws" => Ok(SecretsBackend::Aws),
+        "vault" | "hashicorp" => Ok(SecretsBackend::Vault),
+        _ => Err(format!(
+            "Invalid secrets backend '{}'. Valid: data-protection-keychain, keychain, \
+             credential-manager, secret-service, keyutils, file, env, aws, vault",
+            s
+        )),
+    }
+}
+
 #[derive(Subcommand, Clone, Debug)]
 pub enum Commands {
     /// Start the server (default command)
     Start,
+    /// System maintenance commands
+    System {
+        #[command(subcommand)]
+        command: SystemCommands,
+    },
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum SystemCommands {
+    /// Delete local data directory (databases, files, caches). Requires confirmation.
+    Prune {
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        yes: bool,
+    },
 }
 
 /// Configuration derived from CLI arguments
@@ -248,6 +289,7 @@ pub struct CliConfig {
     pub rate_limit_auth_rpm: Option<u32>,
     pub rate_limit_files_rpm: Option<u32>,
     pub rate_limit_bypass_header: Option<String>,
+    pub secrets_backend: Option<SecretsBackend>,
     pub transactional_backend: Option<TransactionalBackend>,
     pub analytics_backend: Option<AnalyticsBackend>,
     pub postgres_url: Option<String>,
@@ -285,6 +327,7 @@ pub fn parse() -> (CliConfig, Option<Commands>) {
         rate_limit_auth_rpm: cli.rate_limit_auth_rpm,
         rate_limit_files_rpm: cli.rate_limit_files_rpm,
         rate_limit_bypass_header: cli.rate_limit_bypass_header,
+        secrets_backend: cli.secrets_backend,
         transactional_backend: cli.transactional_backend,
         analytics_backend: cli.analytics_backend,
         postgres_url: cli.postgres_url,
