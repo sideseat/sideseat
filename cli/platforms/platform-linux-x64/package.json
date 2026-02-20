@@ -11,6 +11,9 @@
   "libc": [
     "glibc"
   ],
+  "bin": {
+    "sideseat": "./sideseat"
+  },
   "files": [
     "sideseat"
   ],
