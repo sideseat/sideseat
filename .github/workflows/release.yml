@@ -1,8 +1,9 @@
-name: Release
+name: Release (disabled)
 
+# Disabled: local build-release + publish-release workflow used instead.
+# Tag push no longer triggers this workflow.
 on:
-  push:
-    tags: ['v*']
+  workflow_dispatch: {}
 
 concurrency:
   group: release

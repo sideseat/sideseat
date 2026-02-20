@@ -542,3 +542,4 @@ cli/bin/sideseat-*
 cli/platforms/*/sideseat
 cli/platforms/*/sideseat.exe
 cli/vendor/
+release/

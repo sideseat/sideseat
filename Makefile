@@ -34,9 +34,10 @@
 #     publish-docker           Multi-arch build + push to registry
 #     publish                  All of the above
 #
-#   Tagged release (CI/CD):
+#   Tagged release:
 #     release TYPE=patch       check -> bump -> commit -> tag -> push
-#                              GitHub Actions handles build + publish on tag push
+#     build-release            create archives (zip/tar.gz) + notarize + checksums
+#     publish-release          upload archives to GitHub Releases
 #
 # TARGETS
 #
@@ -98,10 +99,13 @@
 #     publish-sdk-js     Build + publish @sideseat/sdk to npm
 #     publish-sdk-python Build + publish sideseat to PyPI
 #     publish-docker     Multi-arch build + push (linux/amd64 + linux/arm64)
+#     publish-release    Upload release archives to GitHub Releases
 #
 #   Release:
 #     release            Full release: check -> bump -> commit -> tag -> push
 #                        Usage: make release TYPE=patch (or minor, major)
+#     build-release      Create release archives (zip/tar.gz) + notarize + checksums
+#     publish-release    Upload archives to GitHub Releases (requires tag + gh auth)
 #
 #   Docs:
 #     build-docs         Build documentation site (Astro/Starlight)
@@ -161,6 +165,11 @@ PRICES_FILE := $(SERVER_DIR)/data/model_prices_and_context_window.json
 DOCKER_IMAGE := sideseat/core
 DOCKER_FILE  := misc/docker/Dockerfile.core
 
+# Release archives
+RELEASE_DIR     := release
+NOTARY_PROFILE  ?= sideseat-notarize
+SHA256CMD       := $(if $(filter Darwin,$(UNAME_S)),shasum -a 256,sha256sum)
+
 # =============================================================================
 # Platform Config (single source of truth)
 # =============================================================================
@@ -212,6 +221,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: build-docs dev-docs preview-docs
 .PHONY: build-docker publish-docker
 .PHONY: sign-release sign-verify
+.PHONY: build-release publish-release
 .PHONY: clean download-prices deps-check run start
 
 .SILENT: help version
@@ -267,10 +277,13 @@ help:
 	@echo "  make publish-sdk-js  Build and publish JS SDK"
 	@echo "  make publish-sdk-python Build and publish Python SDK"
 	@echo "  make publish-docker  Multi-arch build + push to registry"
+	@echo "  make publish-release Upload release archives to GitHub Releases"
 	@echo ""
 	@echo "Release:"
-	@echo "  make release TYPE=patch  Check, bump, commit, tag, push (triggers CI/CD)"
+	@echo "  make release TYPE=patch  Check, bump, commit, tag, push"
 	@echo "  (TYPE can be patch, minor, or major)"
+	@echo "  make build-release   Create archives (zip/tar.gz) + notarize + checksums"
+	@echo "  make publish-release Upload archives to GitHub Releases"
 	@echo ""
 	@echo "Docs:"
 	@echo "  make build-docs      Build documentation site"
@@ -658,7 +671,7 @@ release:
 	git tag "v$$NEW_VERSION" && \
 	echo "[release] Pushing to remote..." && \
 	git push && git push --tags && \
-	echo "[release] Done. GitHub Actions will build and publish v$$NEW_VERSION"
+	echo "[release] Done. Run 'make build-cli && make build-release && make publish-release' to publish v$$NEW_VERSION"
 
 # =============================================================================
 # Docker
@@ -731,6 +744,77 @@ sign-verify:  ## Verify code signature and entitlements on macOS platform binari
 	[ $$FOUND -gt 0 ] || { echo "Error: no macOS binaries found in cli/platforms/"; exit 1; }
 
 # =============================================================================
+# Release Archives
+# =============================================================================
+
+build-release:
+	@VERSION=$$(node -p "require('./cli/package.json').version") && \
+	OUTDIR="$(RELEASE_DIR)/v$$VERSION" && \
+	echo "[build-release] Building release archives for v$$VERSION..." && \
+	echo "[build-release] Verifying binaries exist..." && \
+	$(foreach p,$(PLATFORMS),[ -f "$(call cli-bin,$(p))" ] || \
+		{ echo "Error: Missing binary for $(p): $(call cli-bin,$(p)). Run 'make build-cli' first."; exit 1; } &&) \
+	echo "[build-release] Verifying darwin code signatures..." && \
+	$(foreach p,$(DARWIN_PLATFORMS),codesign --verify --strict "$(call cli-bin,$(p))" 2>/dev/null || \
+		{ echo "Error: $(call cli-bin,$(p)) is not signed. Run 'make build-cli' first."; exit 1; } &&) \
+	rm -rf "$$OUTDIR" && mkdir -p "$$OUTDIR" && \
+	for plat in $(PLATFORMS); do \
+		case $$plat in \
+			darwin-*|win32-*) EXT=zip ;; \
+			*)                EXT=tar.gz ;; \
+		esac && \
+		ARCHIVE="sideseat-$$VERSION-$$plat.$$EXT" && \
+		case $$plat in \
+			win32-*) BINFILE=sideseat.exe ;; \
+			*)       BINFILE=sideseat ;; \
+		esac && \
+		TMPDIR=$$(mktemp -d) && \
+		cp "$(CLI_DIR)/platforms/platform-$$plat/$$BINFILE" "$$TMPDIR/$$BINFILE" && \
+		cp LICENSE "$$TMPDIR/LICENSE" && \
+		if [ "$$EXT" = "zip" ]; then \
+			(cd "$$TMPDIR" && zip -q "$$ARCHIVE" "$$BINFILE" LICENSE) && \
+			mv "$$TMPDIR/$$ARCHIVE" "$$OUTDIR/$$ARCHIVE"; \
+		else \
+			tar czf "$$OUTDIR/$$ARCHIVE" -C "$$TMPDIR" "$$BINFILE" LICENSE; \
+		fi && \
+		rm -rf "$$TMPDIR" && \
+		echo "  $$ARCHIVE"; \
+	done && \
+	if [ "$$(uname -s)" = "Darwin" ]; then \
+		echo "[build-release] Notarizing darwin archives..." && \
+		for plat in $(DARWIN_PLATFORMS); do \
+			ARCHIVE="sideseat-$$VERSION-$$plat.zip" && \
+			echo "  Submitting $$ARCHIVE..." && \
+			xcrun notarytool submit "$$OUTDIR/$$ARCHIVE" \
+				--keychain-profile "$(NOTARY_PROFILE)" --wait --timeout 30m || \
+				{ echo "Error: Notarization failed for $$ARCHIVE"; exit 1; } && \
+			xcrun stapler staple "$$OUTDIR/$$ARCHIVE" || \
+				{ echo "Error: Stapling failed for $$ARCHIVE"; exit 1; } && \
+			echo "  $$ARCHIVE: notarized + stapled"; \
+		done; \
+	else \
+		echo "[build-release] WARNING: Not on macOS -- darwin zips are NOT notarized"; \
+	fi && \
+	echo "[build-release] Generating checksums..." && \
+	(cd "$$OUTDIR" && $(SHA256CMD) sideseat-* > checksums-sha256.txt) && \
+	echo "[build-release] Done: $$OUTDIR/"
+
+publish-release:
+	@VERSION=$$(node -p "require('./cli/package.json').version") && \
+	OUTDIR="$(RELEASE_DIR)/v$$VERSION" && \
+	echo "[publish-release] Publishing v$$VERSION to GitHub Releases..." && \
+	[ -d "$$OUTDIR" ] || { echo "Error: $$OUTDIR not found. Run 'make build-release' first."; exit 1; } && \
+	echo "[publish-release] Verifying checksums..." && \
+	(cd "$$OUTDIR" && $(SHA256CMD) -c checksums-sha256.txt) || \
+		{ echo "Error: Checksum verification failed"; exit 1; } && \
+	echo "[publish-release] Verifying tag v$$VERSION exists..." && \
+	git rev-parse "v$$VERSION" >/dev/null 2>&1 || \
+		{ echo "Error: Tag v$$VERSION not found. Create it first: git tag v$$VERSION"; exit 1; } && \
+	echo "[publish-release] Creating GitHub release..." && \
+	gh release create "v$$VERSION" "$$OUTDIR"/* --generate-notes --title "v$$VERSION" && \
+	echo "[publish-release] Done: https://github.com/$$(gh repo view --json nameWithOwner -q .nameWithOwner)/releases/tag/v$$VERSION"
+
+# =============================================================================
 # Utilities
 # =============================================================================
 
@@ -775,6 +859,7 @@ clean:
 	@rm -f $(CLI_DIR)/platforms/*/sideseat $(CLI_DIR)/platforms/*/sideseat.exe
 	@rm -rf sdk/js/dist
 	@rm -rf sdk/python/dist
+	@rm -rf $(RELEASE_DIR)
 	@echo "[clean] Done"
 
 # Aliases
