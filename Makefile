@@ -100,6 +100,7 @@
 #     publish-sdk-python Build + publish sideseat to PyPI
 #     publish-docker     Multi-arch build + push (linux/amd64 + linux/arm64)
 #     publish-release    Upload release archives to GitHub Releases
+#     publish-brew       Update Homebrew tap formula (requires gh auth + tap repo)
 #
 #   Release:
 #     release            Full release: check -> bump -> commit -> tag -> push
@@ -165,6 +166,9 @@ PRICES_FILE := $(SERVER_DIR)/data/model_prices_and_context_window.json
 DOCKER_IMAGE := sideseat/core
 DOCKER_FILE  := misc/docker/Dockerfile.core
 
+# Homebrew tap
+BREW_TAP_REPO ?= sideseat/homebrew-tap
+
 # Release archives
 RELEASE_DIR     := release
 NOTARY_PROFILE  ?= sideseat-notarize
@@ -221,7 +225,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: build-docs dev-docs preview-docs
 .PHONY: build-docker publish-docker
 .PHONY: sign-release sign-verify
-.PHONY: build-release publish-release
+.PHONY: build-release publish-release publish-brew
 .PHONY: clean download-prices deps-check run start
 
 .SILENT: help version
@@ -278,6 +282,7 @@ help:
 	@echo "  make publish-sdk-python Build and publish Python SDK"
 	@echo "  make publish-docker  Multi-arch build + push to registry"
 	@echo "  make publish-release Upload release archives to GitHub Releases"
+	@echo "  make publish-brew    Update Homebrew tap formula"
 	@echo ""
 	@echo "Release:"
 	@echo "  make release TYPE=patch  Check, bump, commit, tag, push"
@@ -786,7 +791,7 @@ build-release:
 			ARCHIVE="sideseat-$$VERSION-$$plat.zip" && \
 			echo "  Submitting $$ARCHIVE..." && \
 			xcrun notarytool submit "$$OUTDIR/$$ARCHIVE" \
-				--keychain-profile "$(NOTARY_PROFILE)" --wait --timeout 30m || \
+				--keychain-profile "$(NOTARY_PROFILE)" --wait --timeout 3h || \
 				{ echo "Error: Notarization failed for $$ARCHIVE"; exit 1; } && \
 			xcrun stapler staple "$$OUTDIR/$$ARCHIVE" || \
 				{ echo "Error: Stapling failed for $$ARCHIVE"; exit 1; } && \
@@ -812,7 +817,55 @@ publish-release:
 		{ echo "Error: Tag v$$VERSION not found. Create it first: git tag v$$VERSION"; exit 1; } && \
 	echo "[publish-release] Creating GitHub release..." && \
 	gh release create "v$$VERSION" "$$OUTDIR"/* --generate-notes --title "v$$VERSION" && \
-	echo "[publish-release] Done: https://github.com/$$(gh repo view --json nameWithOwner -q .nameWithOwner)/releases/tag/v$$VERSION"
+	echo "[publish-release] Done: https://github.com/$$(gh repo view --json nameWithOwner -q .nameWithOwner)/releases/tag/v$$VERSION" && \
+	echo "[publish-release] Next: make publish-brew"
+
+# =============================================================================
+# Homebrew Tap
+# =============================================================================
+
+publish-brew:
+	@VERSION=$$(node -p "require('./cli/package.json').version") && \
+	CHECKSUMS="$(RELEASE_DIR)/v$$VERSION/checksums-sha256.txt" && \
+	echo "[publish-brew] Publishing Homebrew formula for v$$VERSION..." && \
+	[ -f "$$CHECKSUMS" ] || \
+		{ echo "Error: $$CHECKSUMS not found. Run 'make build-release' first."; exit 1; } && \
+	gh release view "v$$VERSION" >/dev/null 2>&1 || \
+		{ echo "Error: GitHub Release v$$VERSION not found. Run 'make publish-release' first."; exit 1; } && \
+	SHA_DARWIN_ARM64=$$(grep -F 'darwin-arm64' "$$CHECKSUMS" | awk '{print $$1}') && \
+	SHA_DARWIN_X64=$$(grep -F 'darwin-x64' "$$CHECKSUMS" | awk '{print $$1}') && \
+	SHA_LINUX_X64=$$(grep -F 'linux-x64' "$$CHECKSUMS" | awk '{print $$1}') && \
+	SHA_LINUX_ARM64=$$(grep -F 'linux-arm64' "$$CHECKSUMS" | awk '{print $$1}') && \
+	for hash in $$SHA_DARWIN_ARM64 $$SHA_DARWIN_X64 $$SHA_LINUX_X64 $$SHA_LINUX_ARM64; do \
+		echo "$$hash" | grep -qE '^[0-9a-f]{64}$$' || \
+			{ echo "Error: Invalid SHA256 hash: $$hash"; exit 1; }; \
+	done && \
+	FORMULA=$$(mktemp) && \
+	sed -e "s/__VERSION__/$$VERSION/g" \
+		-e "s/__SHA256_DARWIN_ARM64__/$$SHA_DARWIN_ARM64/g" \
+		-e "s/__SHA256_DARWIN_X64__/$$SHA_DARWIN_X64/g" \
+		-e "s/__SHA256_LINUX_X64__/$$SHA_LINUX_X64/g" \
+		-e "s/__SHA256_LINUX_ARM64__/$$SHA_LINUX_ARM64/g" \
+		misc/brew/sideseat.rb.tmpl > "$$FORMULA" && \
+	grep -q '__' "$$FORMULA" && \
+		{ echo "Error: Unreplaced placeholders in generated formula"; rm -f "$$FORMULA"; exit 1; } || true && \
+	ENCODED=$$(base64 < "$$FORMULA" | tr -d '\n') && \
+	EXISTING_SHA=$$(gh api "repos/$(BREW_TAP_REPO)/contents/Formula/sideseat.rb" --jq '.sha' 2>/dev/null || echo "") && \
+	if [ -n "$$EXISTING_SHA" ]; then \
+		gh api --method PUT "repos/$(BREW_TAP_REPO)/contents/Formula/sideseat.rb" \
+			-f message="Update sideseat to v$$VERSION" \
+			-f content="$$ENCODED" \
+			-f sha="$$EXISTING_SHA" \
+			--silent; \
+	else \
+		gh api --method PUT "repos/$(BREW_TAP_REPO)/contents/Formula/sideseat.rb" \
+			-f message="Add sideseat v$$VERSION" \
+			-f content="$$ENCODED" \
+			--silent; \
+	fi && \
+	rm -f "$$FORMULA" && \
+	echo "[publish-brew] Formula pushed to $(BREW_TAP_REPO)" && \
+	echo "[publish-brew] Install: brew tap sideseat/tap && brew install sideseat"
 
 # =============================================================================
 # Utilities

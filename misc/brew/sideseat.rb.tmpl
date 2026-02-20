@@ -1,0 +1,36 @@
+class Sideseat < Formula
+  desc "AI/LLM observability toolkit — traces, messages, costs in one UI"
+  homepage "https://github.com/sideseat/sideseat"
+  license "Apache-2.0"
+  version "__VERSION__"
+
+  on_macos do
+    on_arm do
+      url "https://github.com/sideseat/sideseat/releases/download/v#{version}/sideseat-#{version}-darwin-arm64.zip"
+      sha256 "__SHA256_DARWIN_ARM64__"
+    end
+    on_intel do
+      url "https://github.com/sideseat/sideseat/releases/download/v#{version}/sideseat-#{version}-darwin-x64.zip"
+      sha256 "__SHA256_DARWIN_X64__"
+    end
+  end
+
+  on_linux do
+    on_arm do
+      url "https://github.com/sideseat/sideseat/releases/download/v#{version}/sideseat-#{version}-linux-arm64.tar.gz"
+      sha256 "__SHA256_LINUX_ARM64__"
+    end
+    on_intel do
+      url "https://github.com/sideseat/sideseat/releases/download/v#{version}/sideseat-#{version}-linux-x64.tar.gz"
+      sha256 "__SHA256_LINUX_X64__"
+    end
+  end
+
+  def install
+    bin.install "sideseat"
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/sideseat --version")
+  end
+end
