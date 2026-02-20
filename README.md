@@ -128,6 +128,20 @@ Then ask your coding agent:
 
 **Self-hosted** — Deploy to your private cloud for team-wide observability. See the [configuration guide](https://sideseat.ai/docs/reference/config/).
 
+## Docker
+
+**Docker image:** https://hub.docker.com/r/sideseat/core
+
+```bash
+docker pull sideseat/core:latest
+docker run -p 5388:5388 \
+  -v $(pwd)/data:/data \
+  --name sideseat \
+  sideseat/core:latest
+```
+
+This mounts a local `./data` directory into the container at `/data` to persist traces and project data.
+
 ## Compatibility
 
 **Agent frameworks** — Strands Agents, LangGraph, CrewAI, AutoGen, Google ADK, OpenAI Agents, LangChain, PydanticAI
