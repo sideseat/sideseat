@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 const { spawn } = require('child_process');
-const { chmodSync, accessSync, constants } = require('fs');
+const fs = require('fs');
 const path = require('path');
 
 const platform = process.platform;
@@ -8,26 +8,66 @@ const arch = process.arch;
 const pkgName = `@sideseat/platform-${platform}-${arch}`;
 const binName = platform === 'win32' ? 'sideseat.exe' : 'sideseat';
 
+function resolveBinFromPkgJson(pkgJsonPath) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
+    const bin = pkg.bin;
+    if (!bin) return null;
+    const rel = typeof bin === 'string' ? bin : (bin.sideseat || bin[Object.keys(bin)[0]]);
+    if (!rel) return null;
+    return path.resolve(path.dirname(pkgJsonPath), rel);
+  } catch {
+    return null;
+  }
+}
+
 let binaryPath;
 try {
-  binaryPath = path.join(require.resolve(`${pkgName}/package.json`), '..', binName);
+  const pkgJsonPath = require.resolve(`${pkgName}/package.json`);
+  binaryPath = resolveBinFromPkgJson(pkgJsonPath) ||
+    path.join(path.dirname(pkgJsonPath), binName);
 } catch {
-  console.error(`Error: Platform package not found: ${pkgName}`);
-  console.error(`\nThis usually means your platform (${platform}-${arch}) is not supported,`);
-  console.error(`or the platform package failed to install.`);
-  console.error(`\nSupported platforms: darwin-arm64, darwin-x64, linux-x64, linux-arm64, win32-x64`);
-  console.error(`\nTry reinstalling: npm install sideseat`);
-  console.error(`Or install the platform package directly: npm install ${pkgName}`);
-  process.exit(1);
+  // Fallback: check if postinstall placed the binary in vendor/
+  const vendorPkg = path.join(__dirname, 'vendor', `platform-${platform}-${arch}`, 'package.json');
+  const vendorBin = fs.existsSync(vendorPkg) && resolveBinFromPkgJson(vendorPkg);
+  const vendorDirect = path.join(__dirname, 'vendor', `platform-${platform}-${arch}`, binName);
+  if (vendorBin && fs.existsSync(vendorBin)) {
+    binaryPath = vendorBin;
+  } else if (fs.existsSync(vendorDirect)) {
+    binaryPath = vendorDirect;
+  } else {
+    console.error(`Error: Platform package not found: ${pkgName}`);
+    console.error(`\nThis usually means your platform (${platform}-${arch}) is not supported,`);
+    console.error(`or the platform package failed to install.`);
+    console.error(`\nSupported platforms: darwin-arm64, darwin-x64, linux-x64, linux-arm64, win32-x64`);
+    const version = require('./package.json').version;
+    console.error(`\nIf using npx, try specifying the version directly:`);
+    console.error(`  npx --yes sideseat@${version}`);
+    console.error(`\nOr run the platform package directly:`);
+    console.error(`  npx --yes ${pkgName}@${version}`);
+    console.error(`\nOr install globally: npm install -g sideseat`);
+    try {
+      const npmCache = require('child_process')
+        .execSync('npm config get cache', { encoding: 'utf8', stdio: 'pipe' }).trim();
+      const npxCache = path.join(npmCache, '_npx');
+      console.error(`\nIf npx keeps reusing a broken install, delete its cache:`);
+      if (platform === 'win32') {
+        console.error(`  rmdir /s /q "${npxCache}"`);
+      } else {
+        console.error(`  rm -rf "${npxCache}"`);
+      }
+    } catch {}
+    process.exit(1);
+  }
 }
 
 // Ensure binary is executable (Unix only)
 if (platform !== 'win32') {
   try {
-    accessSync(binaryPath, constants.X_OK);
+    fs.accessSync(binaryPath, fs.constants.X_OK);
   } catch {
     try {
-      chmodSync(binaryPath, 0o755);
+      fs.chmodSync(binaryPath, 0o755);
     } catch (err) {
       console.error(`Warning: Could not make binary executable: ${err.message}`);
     }

@@ -541,3 +541,4 @@ cli/bin/sideseat-*
 !cli/bin/.gitkeep
 cli/platforms/*/sideseat
 cli/platforms/*/sideseat.exe
+cli/vendor/

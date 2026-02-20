@@ -31,6 +31,7 @@
 #     publish-cli              Verify binaries -> publish 5 platform pkgs -> main pkg
 #     publish-sdk-js           Build + publish @sideseat/sdk
 #     publish-sdk-python       Build + publish sideseat (PyPI)
+#     publish-docker           Multi-arch build + push to registry
 #     publish                  All of the above
 #
 #   Tagged release (CI/CD):
@@ -82,6 +83,9 @@
 #     Platforms: darwin-arm64, darwin-x64, linux-x64, linux-arm64, win32-x64
 #     Requires: macOS host, cargo-zigbuild, zig, mingw-w64
 #
+#   Build -- Docker:
+#     build-docker       Build image for current platform (local testing)
+#
 #   Version:
 #     version            Show all package versions
 #     version-check      Verify all packages have the same version
@@ -89,23 +93,20 @@
 #     sync-version       Sync cli/package.json version to all other packages
 #
 #   Publish:
-#     publish            Publish everything (CLI + JS SDK + Python SDK)
+#     publish            Publish everything (CLI + SDKs + Docker)
 #     publish-cli        Publish CLI: verify binaries -> platform pkgs -> main pkg
 #     publish-sdk-js     Build + publish @sideseat/sdk to npm
 #     publish-sdk-python Build + publish sideseat to PyPI
+#     publish-docker     Multi-arch build + push (linux/amd64 + linux/arm64)
 #
 #   Release:
 #     release            Full release: check -> bump -> commit -> tag -> push
 #                        Usage: make release TYPE=patch (or minor, major)
 #
-#   Docker:
-#     docker-build       Build image for current platform (local testing)
-#     docker-publish     Multi-arch build + push (linux/amd64 + linux/arm64)
-#
 #   Docs:
 #     build-docs         Build documentation site (Astro/Starlight)
 #     dev-docs           Start docs dev server
-#     docs-preview       Preview built docs
+#     preview-docs       Preview built docs
 #
 #   Utilities:
 #     clean              Remove build artifacts (target, dist, sdk artifacts)
@@ -208,8 +209,8 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: version version-check bump sync-version
 .PHONY: publish publish-cli publish-sdk-js publish-sdk-python
 .PHONY: release
-.PHONY: build-docs dev-docs docs-preview
-.PHONY: docker-build docker-publish
+.PHONY: build-docs dev-docs preview-docs
+.PHONY: build-docker publish-docker
 .PHONY: sign-release sign-verify
 .PHONY: clean download-prices deps-check run start
 
@@ -243,6 +244,7 @@ help:
 	@echo "  make build-sdk-python Build Python SDK"
 	@echo "  make build-cli       Cross-compile all platforms for npm"
 	@echo "  make build-cli-<p>   Build single platform (e.g. build-cli-darwin-arm64)"
+	@echo "  make build-docker    Build Docker image for current platform"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test            Run all tests"
@@ -264,19 +266,16 @@ help:
 	@echo "  make publish-cli     Publish CLI platform packages + main package"
 	@echo "  make publish-sdk-js  Build and publish JS SDK"
 	@echo "  make publish-sdk-python Build and publish Python SDK"
+	@echo "  make publish-docker  Multi-arch build + push to registry"
 	@echo ""
 	@echo "Release:"
 	@echo "  make release TYPE=patch  Check, bump, commit, tag, push (triggers CI/CD)"
 	@echo "  (TYPE can be patch, minor, or major)"
 	@echo ""
-	@echo "Docker:"
-	@echo "  make docker-build    Build image for current platform"
-	@echo "  make docker-publish  Multi-arch build + push to registry"
-	@echo ""
 	@echo "Docs:"
 	@echo "  make build-docs      Build documentation site"
 	@echo "  make dev-docs        Start docs dev server"
-	@echo "  make docs-preview    Preview built docs"
+	@echo "  make preview-docs    Preview built docs"
 	@echo ""
 	@echo "Other:"
 	@echo "  make deps-check      Check for outdated dependencies"
@@ -574,7 +573,7 @@ sync-version:
 # Publish
 # =============================================================================
 
-publish: publish-cli publish-sdk-js publish-sdk-python
+publish: publish-cli publish-sdk-js publish-sdk-python publish-docker
 
 publish-cli:
 	@echo "[publish-cli] Verifying npm authentication..."
@@ -594,20 +593,22 @@ publish-cli:
 	echo "[publish-cli] Waiting for platform packages to propagate (v$$VERSION)..."; \
 	for p in $(PLATFORMS); do \
 		attempt=1; \
-		while [ $$attempt -le 30 ]; do \
+		while [ $$attempt -le 60 ]; do \
 			if npm view "@sideseat/platform-$$p@$$VERSION" version >/dev/null 2>&1; then \
 				echo "  @sideseat/platform-$$p@$$VERSION available"; \
 				break; \
 			fi; \
-			echo "  Waiting for @sideseat/platform-$$p@$$VERSION (attempt $$attempt/30)..."; \
+			echo "  Waiting for @sideseat/platform-$$p@$$VERSION (attempt $$attempt/60)..."; \
 			sleep 5; \
 			attempt=$$((attempt + 1)); \
 		done; \
-		if [ $$attempt -gt 30 ]; then \
-			echo "Error: @sideseat/platform-$$p@$$VERSION not available after 150s"; \
+		if [ $$attempt -gt 60 ]; then \
+			echo "Error: @sideseat/platform-$$p@$$VERSION not available"; \
 			exit 1; \
 		fi; \
 	done
+	@echo "[publish-cli] Waiting 5 min for CDN propagation..."
+	@sleep 300
 	@echo "[publish-cli] Publishing main sideseat package..."
 	@cd $(CLI_DIR) && npm publish --access public
 	@VERSION=$$(node -p "require('./$(CLI_DIR)/package.json').version"); \
@@ -663,19 +664,19 @@ release:
 # Docker
 # =============================================================================
 
-docker-build:
-	@echo "[docker-build] Building $(DOCKER_IMAGE) for current platform..."
+build-docker:
+	@echo "[build-docker] Building $(DOCKER_IMAGE) for current platform..."
 	@docker build -t $(DOCKER_IMAGE) -f $(DOCKER_FILE) .
-	@echo "[docker-build] Done. Run: docker run -p 5388:5388 -v sideseat-data:/data $(DOCKER_IMAGE)"
+	@echo "[build-docker] Done. Run: docker run -p 5388:5388 -v sideseat-data:/data $(DOCKER_IMAGE)"
 
-docker-publish:
-	@echo "[docker-publish] Building and pushing multi-arch image..."
+publish-docker:
+	@echo "[publish-docker] Building and pushing multi-arch image..."
 	@VERSION=$$(node -p "require('./cli/package.json').version") && \
 	docker buildx build --platform linux/amd64,linux/arm64 \
 		-t $(DOCKER_IMAGE):latest -t $(DOCKER_IMAGE):$$VERSION \
 		-f $(DOCKER_FILE) --push .
 	@VERSION=$$(node -p "require('./cli/package.json').version") && \
-	echo "[docker-publish] Pushed $(DOCKER_IMAGE):latest and $(DOCKER_IMAGE):$$VERSION"
+	echo "[publish-docker] Pushed $(DOCKER_IMAGE):latest and $(DOCKER_IMAGE):$$VERSION"
 
 # =============================================================================
 # Documentation
@@ -692,8 +693,8 @@ dev-docs:
 	@[ -d "docs/node_modules" ] || { cd docs && npm install; }
 	@cd docs && npm run dev
 
-docs-preview:
-	@echo "[docs-preview] Previewing built docs..."
+preview-docs:
+	@echo "[preview-docs] Previewing built docs..."
 	@[ -d "docs/dist" ] || { $(MAKE) build-docs; }
 	@cd docs && npm run preview
 

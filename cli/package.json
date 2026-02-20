@@ -8,8 +8,12 @@
   },
   "files": [
     "index.js",
+    "postinstall.js",
     "README.md"
   ],
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
   "optionalDependencies": {
     "@sideseat/platform-darwin-x64": "1.0.9",
     "@sideseat/platform-darwin-arm64": "1.0.9",

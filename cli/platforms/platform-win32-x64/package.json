@@ -8,6 +8,9 @@
   "cpu": [
     "x64"
   ],
+  "bin": {
+    "sideseat": "./sideseat.exe"
+  },
   "files": [
     "sideseat.exe"
   ],
