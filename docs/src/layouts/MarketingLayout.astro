@@ -6,6 +6,7 @@ import '@fontsource/space-grotesk/700.css';
 import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '../styles/marketing.css';
+import PostHog from '../components/posthog.astro';
 
 interface Props {
   title: string;
@@ -34,6 +35,8 @@ const { title, description } = Astro.props;
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
+
+    <PostHog />
   </head>
   <body class="bg-background text-foreground antialiased">
     <slot />

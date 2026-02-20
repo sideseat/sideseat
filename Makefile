@@ -786,17 +786,34 @@ build-release:
 		echo "  $$ARCHIVE"; \
 	done && \
 	if [ "$$(uname -s)" = "Darwin" ]; then \
-		echo "[build-release] Notarizing darwin archives..." && \
+		echo "[build-release] Notarizing darwin archives (parallel)..." && \
+		NOTARY_PIDS="" && \
 		for plat in $(DARWIN_PLATFORMS); do \
 			ARCHIVE="sideseat-$$VERSION-$$plat.zip" && \
+			LOG="$$OUTDIR/$$plat-notarize.log" && \
 			echo "  Submitting $$ARCHIVE..." && \
-			xcrun notarytool submit "$$OUTDIR/$$ARCHIVE" \
-				--keychain-profile "$(NOTARY_PROFILE)" --wait --timeout 3h || \
-				{ echo "Error: Notarization failed for $$ARCHIVE"; exit 1; } && \
-			xcrun stapler staple "$$OUTDIR/$$ARCHIVE" || \
-				{ echo "Error: Stapling failed for $$ARCHIVE"; exit 1; } && \
-			echo "  $$ARCHIVE: notarized + stapled"; \
-		done; \
+			( xcrun notarytool submit "$$OUTDIR/$$ARCHIVE" \
+				--keychain-profile "$(NOTARY_PROFILE)" --wait --timeout 48h && \
+			  xcrun stapler staple "$$OUTDIR/$$ARCHIVE" \
+			) > "$$LOG" 2>&1 & \
+			NOTARY_PIDS="$$NOTARY_PIDS $$!"; \
+		done && \
+		NOTARY_FAIL="" && \
+		IDX=0 && \
+		for pid in $$NOTARY_PIDS; do \
+			IDX=$$((IDX + 1)) && \
+			PLAT=$$(echo "$(DARWIN_PLATFORMS)" | cut -d' ' -f$$IDX) && \
+			LOG="$$OUTDIR/$$PLAT-notarize.log" && \
+			if wait $$pid; then \
+				echo "  $$PLAT: notarized + stapled"; \
+			else \
+				echo "  $$PLAT: FAILED"; \
+				NOTARY_FAIL="$$NOTARY_FAIL $$PLAT"; \
+			fi; \
+			cat "$$LOG" && rm -f "$$LOG"; \
+		done && \
+		[ -z "$$NOTARY_FAIL" ] || \
+			{ echo "Error: Notarization failed for:$$NOTARY_FAIL"; exit 1; }; \
 	else \
 		echo "[build-release] WARNING: Not on macOS -- darwin zips are NOT notarized"; \
 	fi && \
