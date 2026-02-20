@@ -2,8 +2,9 @@
 
 ## Prerequisites
 
-- Rust 1.75+
+- Rust 1.85+
 - Node.js 20+
+- [uv](https://docs.astral.sh/uv/)
 - Make
 
 ## Setup
@@ -31,14 +32,35 @@ misc/       Samples, test fixtures, scripts, and resources
 ## Development Commands
 
 ```bash
-make dev       # Start dev servers with hot reload
-make test      # Run all tests
-make fmt       # Format code
-make lint      # Lint code
-make build     # Production build
+make dev                                  # Start server + web in parallel
+make dev-server                           # Start Rust server with hot reload
+make dev-server ARGS="--debug --no-auth"  # Server without authentication
+make dev-web                              # Start Vite dev server
+make test                                 # Run all tests
+make fmt                                  # Format code
+make lint                                 # Lint code
+make check                                # fmt-check + lint + test
+make build                                # Production build
 ```
 
-To generate test traces, run `uv run telemetry-strands` from the `misc/samples/python/` directory.
+To generate test traces, run `uv run strands` from the `misc/samples/python/` directory.
+
+### Release Workflow
+
+```bash
+make release TYPE=patch  # check, bump, commit, tag, push
+make build-cli           # cross-compile all platforms
+make build-release       # create archives + notarize + checksums
+make build-docker        # build Docker image for current platform
+make publish-cli         # publish platform packages + main package to npm
+make publish-sdk-js      # publish JS SDK to npm
+make publish-sdk-python  # publish Python SDK to PyPI
+make publish-release     # upload to GitHub Releases
+make publish-docker      # multi-arch build + push to registry
+make publish-brew        # update Homebrew tap formula
+```
+
+Homebrew formula template: `misc/brew/sideseat.rb.tmpl`. Users install via `brew tap sideseat/tap && brew install sideseat`.
 
 ## Code Style
 
@@ -72,7 +94,7 @@ constructor(private client: ApiClient) {}
 1. Open an issue first for significant changes
 2. Create a feature branch: `git checkout -b fix/issue-123`
 3. Keep changes focused — one issue per PR
-4. Run `make fmt`, `make lint`, and `make test` before committing
+4. Run `make check` before committing (runs fmt-check + lint + test)
 5. Write a clear description explaining why and what
 6. Reference related issues
 
