@@ -4940,7 +4940,7 @@ version = "0.1.0"
 
 [[package]]
 name = "sideseat-server"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -4955,7 +4955,6 @@ dependencies = [
  "chrono-tz",
  "clap",
  "clickhouse",
- "core-foundation 0.10.1",
  "cuid2",
  "dashmap",
  "deadpool-redis",
@@ -4984,7 +4983,6 @@ dependencies = [
  "rust-embed",
  "rustc-hash",
  "schemars",
- "security-framework 3.5.1",
  "semver",
  "serde",
  "serde_json",

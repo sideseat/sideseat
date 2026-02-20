@@ -1,6 +1,6 @@
 {
   "name": "@sideseat/platform-linux-arm64",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "SideSeat binary for Linux ARM64",
   "os": [
     "linux"

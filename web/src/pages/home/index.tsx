@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { Plus, Sparkles } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { useProjects, type Project } from "@/api/projects";
 import { PageHeader } from "@/components/page-header";
@@ -31,16 +31,12 @@ export default function HomePage() {
     <div className="min-h-screen bg-background">
       <PageHeader />
 
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-8 px-4 py-6 sm:px-6">
+      <div className="mx-auto flex w-full max-w-400 flex-col gap-8 px-4 py-6 sm:px-6">
         <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-linear-to-br from-sky-500/10 via-emerald-500/10 to-amber-500/10 p-6 shadow-xl dark:from-violet-500/15 dark:via-indigo-500/20 dark:to-cyan-500/15 sm:p-10">
           <div className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-sky-500/10 blur-3xl dark:bg-violet-500/30" />
           <div className="absolute bottom-0 left-4 h-24 w-24 rounded-full bg-emerald-500/15 blur-2xl dark:bg-cyan-500/30" />
           <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-2xl space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase text-primary">
-                <Sparkles className="h-4 w-4" />
-                Agentic AI
-              </div>
               <div>
                 <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
                   Welcome to{" "}
@@ -59,7 +55,7 @@ export default function HomePage() {
                 </Button>
               </div>
             </div>
-            <div className="flex w-full min-w-[280px] flex-col items-center rounded-2xl border border-border/60 bg-card/80 px-12 py-8 shadow-lg backdrop-blur sm:w-auto">
+            <div className="flex w-full min-w-70 flex-col items-center rounded-2xl border border-border/60 bg-card/80 px-12 py-8 shadow-lg backdrop-blur sm:w-auto">
               <p className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
                 Projects
               </p>

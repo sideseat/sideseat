@@ -6,6 +6,8 @@ use axum::http::{HeaderValue, Method, StatusCode, header};
 use axum::response::IntoResponse;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
+use crate::core::config::is_all_interfaces;
+
 /// Allowed origins configuration
 #[derive(Debug, Clone)]
 pub struct AllowedOrigins {
@@ -17,18 +19,31 @@ impl AllowedOrigins {
     pub fn new(host: &str, port: u16) -> Self {
         let mut origins = Vec::new();
         let dev_port = port + 1;
+        let is_all = is_all_interfaces(host);
 
-        origins.push(format!("http://{}:{}", host, port));
-        origins.push(format!("http://{}:{}", host, dev_port));
+        // When binding to all interfaces or localhost, allow both localhost
+        // and 127.0.0.1; otherwise use the configured host directly.
+        let base_hosts: Vec<&str> = if is_all || host == "127.0.0.1" || host == "localhost" {
+            vec!["localhost", "127.0.0.1"]
+        } else {
+            vec![host]
+        };
 
-        // Also allow localhost
-        if host == "127.0.0.1" || host == "localhost" {
-            origins.push(format!("http://localhost:{}", port));
-            origins.push(format!("http://localhost:{}", dev_port));
-            origins.push(format!("http://127.0.0.1:{}", port));
-            origins.push(format!("http://127.0.0.1:{}", dev_port));
-            origins.push("http://127.0.0.1".to_string());
-            origins.push("http://localhost".to_string());
+        for h in &base_hosts {
+            origins.push(format!("http://{}:{}", h, port));
+            origins.push(format!("http://{}:{}", h, dev_port));
+            origins.push(format!("http://{}", h));
+        }
+
+        // Allow LAN IPs when binding to all interfaces
+        if is_all && let Ok(interfaces) = local_ip_address::list_afinet_netifas() {
+            for (_, ip) in interfaces
+                .iter()
+                .filter(|(_, ip)| ip.is_ipv4() && !ip.is_loopback())
+            {
+                origins.push(format!("http://{}:{}", ip, port));
+                origins.push(format!("http://{}:{}", ip, dev_port));
+            }
         }
 
         Self { origins }

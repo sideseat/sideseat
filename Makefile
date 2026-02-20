@@ -442,6 +442,18 @@ build-sdk-python:
 # Build -- CLI (cross-compile all platforms)
 # =============================================================================
 
+# Platforms that require code signing
+DARWIN_PLATFORMS := darwin-arm64 darwin-x64
+SIGN_IDENTITY ?= Developer ID Application: Sergey Pugachev (KJ994CNGPG)
+
+# Sign a single binary if it's a darwin platform
+define sign-if-darwin
+$(if $(filter $(DARWIN_PLATFORMS),$(1)),\
+	codesign --force --options runtime --sign "$(SIGN_IDENTITY)" --entitlements server/entitlements.plist $$(call cli-bin,$(1)) || \
+		{ echo "Error: failed to sign $$(call cli-bin,$(1))"; exit 1; }; \
+	echo "[build-cli] Signed $$(call cli-bin,$(1))";)
+endef
+
 # Per-platform targets (generated)
 define MAKE_CLI_TARGET
 build-cli-$(1): build-web
@@ -449,6 +461,7 @@ build-cli-$(1): build-web
 	@cd $$(SERVER_DIR) && $(BUILD_CMD_$(1)) --release --target $(RUST_TARGET_$(1))
 	@cp target/$(RUST_TARGET_$(1))/release/$(BIN_NAME_$(1)) $$(call cli-bin,$(1))
 	@chmod +x $$(call cli-bin,$(1)) 2>/dev/null || true
+	@$(call sign-if-darwin,$(1))
 endef
 $(foreach p,$(PLATFORMS),$(eval $(call MAKE_CLI_TARGET,$(p))))
 
@@ -568,6 +581,12 @@ publish-cli:
 	@npm whoami >/dev/null 2>&1 || { echo "Error: Not logged in to npm. Run 'npm login' first."; exit 1; }
 	@echo "[publish-cli] Verifying binaries exist..."
 	@$(foreach p,$(PLATFORMS),[ -f "$(call cli-bin,$(p))" ] || { echo "Error: Missing binary for $(p): $(call cli-bin,$(p)). Run 'make build-cli' first."; exit 1; };)
+	@echo "[publish-cli] Verifying macOS code signatures..."
+	@$(foreach p,$(DARWIN_PLATFORMS),codesign --verify --strict "$(call cli-bin,$(p))" 2>/dev/null || \
+		{ echo "Error: $(call cli-bin,$(p)) is not signed. Run 'make sign-release' first."; exit 1; }; \
+		codesign -dvv "$(call cli-bin,$(p))" 2>&1 | grep -q "flags=.*runtime" || \
+		{ echo "Error: $(call cli-bin,$(p)) missing Hardened Runtime. Re-sign with --options runtime."; exit 1; }; \
+		echo "  $(call cli-bin,$(p)): signed (Hardened Runtime)";)
 	@$(MAKE) --no-print-directory version-check
 	@echo "[publish-cli] Publishing platform packages..."
 	@$(foreach p,$(PLATFORMS),(cd $(CLI_DIR)/platforms/platform-$(p) && npm publish --access public) &&) true
@@ -683,21 +702,32 @@ docs-preview:
 # =============================================================================
 
 # Production signing identity (set via env or make arg)
-SIGN_IDENTITY ?=
-
-sign-release:  ## Sign release binary with Developer ID (SIGN_IDENTITY required)
+sign-release:  ## Sign macOS platform binaries with Developer ID
 	@[ "$(UNAME_S)" = "Darwin" ] || { echo "Error: code signing requires macOS"; exit 1; }
-	@[ -f "target/release/sideseat" ] || { echo "Error: target/release/sideseat not found. Run 'make build-server' first."; exit 1; }
 	@[ -n "$(SIGN_IDENTITY)" ] || { echo "Error: SIGN_IDENTITY required. Usage: make sign-release SIGN_IDENTITY=\"Developer ID Application: Name (TEAMID)\""; exit 1; }
-	@codesign --force --options runtime --sign "$(SIGN_IDENTITY)" --entitlements server/entitlements.plist target/release/sideseat
-	@echo "[sign-release] Signed target/release/sideseat"
+	@SIGNED=0; \
+	for bin in cli/platforms/platform-darwin-arm64/sideseat cli/platforms/platform-darwin-x64/sideseat; do \
+		if [ -f "$$bin" ]; then \
+			codesign --force --options runtime --sign "$(SIGN_IDENTITY)" --entitlements server/entitlements.plist "$$bin" || \
+				{ echo "Error: failed to sign $$bin"; exit 1; }; \
+			echo "[sign-release] Signed $$bin"; \
+			SIGNED=$$((SIGNED + 1)); \
+		fi; \
+	done; \
+	[ $$SIGNED -gt 0 ] || { echo "Error: no macOS binaries found in cli/platforms/"; exit 1; }
 
-sign-verify:  ## Verify code signature and entitlements
-	@BINARY="target/release/sideseat"; \
-	[ -f "$$BINARY" ] || BINARY="target/debug/sideseat"; \
-	[ -f "$$BINARY" ] || { echo "Error: No binary found."; exit 1; }; \
-	echo "=== Signature ===" && codesign -dvv "$$BINARY" && \
-	echo "" && echo "=== Entitlements ===" && codesign -d --entitlements :- "$$BINARY"
+sign-verify:  ## Verify code signature and entitlements on macOS platform binaries
+	@FOUND=0; \
+	for bin in cli/platforms/platform-darwin-arm64/sideseat cli/platforms/platform-darwin-x64/sideseat; do \
+		if [ -f "$$bin" ]; then \
+			echo "=== $$bin ===" && \
+			echo "--- Signature ---" && codesign -dvv "$$bin" && \
+			echo "" && echo "--- Entitlements ---" && codesign -d --entitlements :- "$$bin" && \
+			echo ""; \
+			FOUND=$$((FOUND + 1)); \
+		fi; \
+	done; \
+	[ $$FOUND -gt 0 ] || { echo "Error: no macOS binaries found in cli/platforms/"; exit 1; }
 
 # =============================================================================
 # Utilities

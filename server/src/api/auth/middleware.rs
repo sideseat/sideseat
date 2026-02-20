@@ -185,10 +185,16 @@ pub async fn require_auth(
                 .get(header::REFERER)
                 .and_then(|v| v.to_str().ok())
                 .and_then(|referer| {
-                    // Extract origin from Referer URL (scheme + host)
+                    // Extract origin from Referer URL (scheme + host + port)
                     match reqwest::Url::parse(referer) {
                         Ok(u) => match u.host_str() {
-                            Some(host) => Some(format!("{}://{}", u.scheme(), host)),
+                            Some(host) => {
+                                let origin = match u.port() {
+                                    Some(port) => format!("{}://{}:{}", u.scheme(), host, port),
+                                    None => format!("{}://{}", u.scheme(), host),
+                                };
+                                Some(origin)
+                            }
                             None => {
                                 tracing::warn!(referer = %referer, "Referer URL has no host");
                                 None

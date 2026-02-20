@@ -143,7 +143,6 @@ impl fmt::Display for EvictionPolicy {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SecretsBackend {
-    DataProtectionKeychain,
     Keychain,
     CredentialManager,
     SecretService,
@@ -159,7 +158,7 @@ impl SecretsBackend {
     pub fn detect() -> Self {
         #[cfg(target_os = "macos")]
         {
-            Self::DataProtectionKeychain
+            Self::Keychain
         }
         #[cfg(target_os = "windows")]
         {
@@ -179,8 +178,7 @@ impl SecretsBackend {
     pub fn is_vault_based(&self) -> bool {
         matches!(
             self,
-            Self::DataProtectionKeychain
-                | Self::Keychain
+            Self::Keychain
                 | Self::CredentialManager
                 | Self::SecretService
                 | Self::Keyutils
@@ -190,7 +188,6 @@ impl SecretsBackend {
 
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::DataProtectionKeychain => "data-protection-keychain",
             Self::Keychain => "keychain",
             Self::CredentialManager => "credential-manager",
             Self::SecretService => "secret-service",
@@ -1650,7 +1647,7 @@ fn get_profile_config_path() -> Option<PathBuf> {
 }
 
 /// Check if host binds to all network interfaces
-fn is_all_interfaces(host: &str) -> bool {
+pub(crate) fn is_all_interfaces(host: &str) -> bool {
     matches!(host, "0.0.0.0" | "::" | "[::]")
 }
 
