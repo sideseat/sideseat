@@ -25,10 +25,8 @@ pub struct KeyringProvider {
 impl KeyringProvider {
     pub async fn init(backend: SecretsBackend) -> Result<Self> {
         debug_assert!(
-            backend.is_vault_based()
-                && backend != SecretsBackend::File
-                && backend != SecretsBackend::DataProtectionKeychain,
-            "KeyringProvider does not handle File or DataProtectionKeychain backends"
+            backend.is_vault_based() && backend != SecretsBackend::File,
+            "KeyringProvider does not handle File backend"
         );
 
         let service_name = SECRET_SERVICE_NAME.to_string();

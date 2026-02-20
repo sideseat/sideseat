@@ -221,7 +221,6 @@ fn parse_analytics_backend(s: &str) -> Result<AnalyticsBackend, String> {
 /// Parse secrets backend from CLI/env string
 fn parse_secrets_backend(s: &str) -> Result<SecretsBackend, String> {
     match s.to_lowercase().as_str() {
-        "data-protection-keychain" => Ok(SecretsBackend::DataProtectionKeychain),
         "keychain" => Ok(SecretsBackend::Keychain),
         "credential-manager" => Ok(SecretsBackend::CredentialManager),
         "secret-service" => Ok(SecretsBackend::SecretService),
@@ -231,7 +230,7 @@ fn parse_secrets_backend(s: &str) -> Result<SecretsBackend, String> {
         "aws" => Ok(SecretsBackend::Aws),
         "vault" | "hashicorp" => Ok(SecretsBackend::Vault),
         _ => Err(format!(
-            "Invalid secrets backend '{}'. Valid: data-protection-keychain, keychain, \
+            "Invalid secrets backend '{}'. Valid: keychain, \
              credential-manager, secret-service, keyutils, file, env, aws, vault",
             s
         )),

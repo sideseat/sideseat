@@ -98,6 +98,7 @@ export const settings = Settings.getInstance();
 
 // Global settings keys
 export const GLOBAL_PAGE_SIZE_KEY = "global.pageSize";
+export const GLOBAL_TIME_PRESET_KEY = "global.timePreset";
 export const COLOR_SCHEME_KEY = "colorScheme";
 
 // Sidebar settings

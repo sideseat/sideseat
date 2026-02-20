@@ -45,6 +45,7 @@ import { useRecentlyDeletedIds, useSseDetailRefresh } from "@/hooks/use-grid-hel
 import {
   settings,
   GLOBAL_PAGE_SIZE_KEY,
+  GLOBAL_TIME_PRESET_KEY,
   SPANS_COLUMN_VISIBILITY_KEY,
   SPANS_REALTIME_KEY,
   SPANS_SHOW_NON_GENAI_KEY,
@@ -79,12 +80,23 @@ export default function SpansPage() {
     "sort",
     withDefault(StringParam, "timestamp_start:desc"),
   );
+  const savedTimePresetRef = useRef(
+    settings.get<string>(GLOBAL_TIME_PRESET_KEY) ?? DEFAULT_TIME_PRESET,
+  );
   const [timePreset, setTimePreset] = useQueryParam(
     "time",
-    withDefault(StringParam, DEFAULT_TIME_PRESET),
+    withDefault(StringParam, savedTimePresetRef.current),
   );
   const [fromTimestamp, setFromTimestamp] = useQueryParam("from", StringParam);
   const [toTimestamp, setToTimestamp] = useQueryParam("to", StringParam);
+
+  // Persist time preset to settings whenever it changes
+  useEffect(() => {
+    if (timePreset && timePreset !== savedTimePresetRef.current) {
+      settings.set(GLOBAL_TIME_PRESET_KEY, timePreset);
+      savedTimePresetRef.current = timePreset;
+    }
+  }, [timePreset]);
 
   // Compute effective fromTimestamp: use URL param if set, otherwise derive from preset
   const effectiveFromTimestamp = useMemo(() => {
@@ -514,7 +526,7 @@ export default function SpansPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="px-2 gap-1.5 min-w-[52px] sm:min-w-[68px]"
+                className="px-2 gap-1.5 min-w-13 sm:min-w-17"
                 onClick={() => {
                   setRealtimeEnabled((prev) => {
                     const next = !prev;

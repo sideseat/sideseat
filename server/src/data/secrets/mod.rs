@@ -5,8 +5,6 @@
 
 mod aws;
 mod cached;
-#[cfg(target_os = "macos")]
-mod data_protection_keychain;
 mod env;
 mod error;
 mod file;
@@ -40,38 +38,6 @@ impl SecretManager {
     /// Initialize from config. Constructs the appropriate provider.
     pub async fn init(storage: &AppStorage, config: &SecretsConfig) -> Result<Self> {
         let provider: Arc<dyn SecretProvider> = match config.backend {
-            SecretsBackend::DataProtectionKeychain => {
-                #[cfg(target_os = "macos")]
-                {
-                    match data_protection_keychain::DataProtectionKeychainProvider::init().await {
-                        Ok(p) => Arc::new(p),
-                        Err(e) => {
-                            tracing::debug!(
-                                error = %e,
-                                "Data Protection Keychain unavailable, falling back to login keychain. \
-                                 For hardware-backed secrets, sign the binary with a Developer ID certificate."
-                            );
-                            match keyring::KeyringProvider::init(SecretsBackend::Keychain).await {
-                                Ok(p) => Arc::new(p),
-                                Err(keyring_err) => {
-                                    tracing::warn!(
-                                        error = %keyring_err,
-                                        "Login keychain also unavailable, falling back to file-based storage"
-                                    );
-                                    Arc::new(file::FileProvider::init(storage.data_dir()).await?)
-                                }
-                            }
-                        }
-                    }
-                }
-                #[cfg(not(target_os = "macos"))]
-                {
-                    anyhow::bail!(
-                        "data-protection-keychain secrets backend is only available on macOS. \
-                         Use --secrets-backend file for cross-platform development."
-                    );
-                }
-            }
             SecretsBackend::File => Arc::new(file::FileProvider::init(storage.data_dir()).await?),
             SecretsBackend::Keychain
             | SecretsBackend::CredentialManager

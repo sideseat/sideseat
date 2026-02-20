@@ -1,5 +1,6 @@
 //! Startup banner and URL display
 
+use super::config::is_all_interfaces;
 use super::constants::APP_NAME;
 use crate::utils::terminal::terminal_link;
 
@@ -15,6 +16,13 @@ pub fn print_banner(
     data_dir: &str,
     mcp_enabled: bool,
 ) {
+    // Use localhost for display when binding to all interfaces
+    let display_host = if is_all_interfaces(host) {
+        "localhost"
+    } else {
+        host
+    };
+
     println!();
     println!(
         "  \x1b[1m\x1b[36m{}\x1b[0m \x1b[90mv{}\x1b[0m",
@@ -25,39 +33,49 @@ pub fn print_banner(
 
     // Show local URL (with token if auth is enabled)
     let local_url = if auth_enabled {
-        format!("http://{}:{}/ui?token={}", host, port, bootstrap_token)
+        format!(
+            "http://{}:{}/ui?token={}",
+            display_host, port, bootstrap_token
+        )
     } else {
-        format!("http://{}:{}", host, port)
+        format!("http://{}:{}", display_host, port)
     };
+    // Label width: "OpenTelemetry HTTP:" is 19 chars, pad to 21 for alignment
+    const W: usize = 21;
+
     println!(
-        "  \x1b[32m➜\x1b[0m  \x1b[1mWeb UI:\x1b[0m   {}",
+        "  \x1b[32m➜\x1b[0m  \x1b[1m{:<W$}\x1b[0m {}",
+        "Web UI:",
         terminal_link(&local_url)
     );
 
     // Show OTLP endpoints (using "default" project)
     println!(
-        "  \x1b[33m➜\x1b[0m  \x1b[1mOpenTelemetry HTTP:\x1b[0m http://{}:{}/otel/default",
-        host, port
+        "  \x1b[33m➜\x1b[0m  \x1b[1m{:<W$}\x1b[0m http://{}:{}/otel/default",
+        "OpenTelemetry HTTP:", display_host, port
     );
     if grpc_enabled {
         println!(
-            "  \x1b[33m➜\x1b[0m  \x1b[1mOpenTelemetry gRPC:\x1b[0m {}:{} \x1b[90m(x-sideseat-project-id header)\x1b[0m",
-            host, grpc_port
+            "  \x1b[33m➜\x1b[0m  \x1b[1m{:<W$}\x1b[0m {}:{} \x1b[90m(x-sideseat-project-id header)\x1b[0m",
+            "OpenTelemetry gRPC:", host, grpc_port
         );
     }
 
     if mcp_enabled {
         println!(
-            "  \x1b[35m➜\x1b[0m  \x1b[1mMCP:\x1b[0m          http://{}:{}/api/v1/projects/default/mcp",
-            host, port
+            "  \x1b[35m➜\x1b[0m  \x1b[1m{:<W$}\x1b[0m http://{}:{}/api/v1/projects/default/mcp",
+            "MCP:", display_host, port
         );
     }
 
     // Show network info based on bind address
     if host == "127.0.0.1" || host == "localhost" {
-        println!("  \x1b[90m➜  Network:  use --host 0.0.0.0 to expose\x1b[0m");
-    } else {
-        // Show actual network addresses when exposed
+        println!(
+            "  \x1b[90m➜  {:<W$} use --host 0.0.0.0 to expose\x1b[0m",
+            "Network:"
+        );
+    } else if is_all_interfaces(host) {
+        // Enumerate LAN IPs when binding to all interfaces
         if let Ok(interfaces) = local_ip_address::list_afinet_netifas() {
             for (_, ip) in interfaces
                 .iter()
@@ -65,13 +83,22 @@ pub fn print_banner(
             {
                 let network_url = format!("http://{}:{}", ip, port);
                 println!(
-                    "  \x1b[32m➜\x1b[0m  \x1b[1mNetwork:\x1b[0m  {}",
+                    "  \x1b[32m➜\x1b[0m  \x1b[1m{:<W$}\x1b[0m {}",
+                    "Network:",
                     terminal_link(&network_url)
                 );
             }
         }
+    } else {
+        // Binding to a specific IP — show it directly
+        let network_url = format!("http://{}:{}", host, port);
+        println!(
+            "  \x1b[32m➜\x1b[0m  \x1b[1m{:<W$}\x1b[0m {}",
+            "Network:",
+            terminal_link(&network_url)
+        );
     }
-    println!("  \x1b[90m➜  Data: {}\x1b[0m", data_dir);
+    println!("  \x1b[90m➜  {:<W$} {}\x1b[0m", "Data:", data_dir);
 
     println!();
 }

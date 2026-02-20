@@ -1,6 +1,6 @@
 [package]
 name = "sideseat-server"
-version = "1.0.8"
+version = "1.0.9"
 edition = "2024"
 
 [[bin]]
@@ -90,10 +90,6 @@ clickhouse = { workspace = true }
 rmcp = { workspace = true }
 schemars = { workspace = true }
 tokio-util = { workspace = true }
-
-[target.'cfg(target_os = "macos")'.dependencies]
-security-framework = { workspace = true }
-core-foundation = { workspace = true }
 
 [features]
 default = []

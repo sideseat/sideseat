@@ -1,6 +1,6 @@
 {
   "name": "sideseat",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Your unified workspace for building and debugging AI agents",
   "main": "index.js",
   "bin": {
@@ -11,11 +11,11 @@
     "README.md"
   ],
   "optionalDependencies": {
-    "@sideseat/platform-darwin-x64": "1.0.8",
-    "@sideseat/platform-darwin-arm64": "1.0.8",
-    "@sideseat/platform-linux-x64": "1.0.8",
-    "@sideseat/platform-linux-arm64": "1.0.8",
-    "@sideseat/platform-win32-x64": "1.0.8"
+    "@sideseat/platform-darwin-x64": "1.0.9",
+    "@sideseat/platform-darwin-arm64": "1.0.9",
+    "@sideseat/platform-linux-x64": "1.0.9",
+    "@sideseat/platform-linux-arm64": "1.0.9",
+    "@sideseat/platform-win32-x64": "1.0.9"
   },
   "keywords": [
     "ai",

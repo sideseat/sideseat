@@ -65,7 +65,7 @@ pub const ENV_DATA_DIR: &str = "SIDESEAT_DATA_DIR";
 /// Environment variable to force specific secrets backend
 ///
 /// Platform-specific values:
-/// - macOS: `data-protection-keychain` (default), `keychain`
+/// - macOS: `keychain` (default)
 /// - Windows: `credential-manager`
 /// - Linux: `secret-service`, `keyutils`
 /// - All platforms: `file`, `env`, `aws`, `vault`
