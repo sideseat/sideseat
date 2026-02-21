@@ -37,6 +37,7 @@
 #   Tagged release:
 #     release TYPE=patch       check -> bump -> commit -> tag -> push
 #     build-release            create archives (zip/tar.gz) + notarize + checksums
+#     sign-notarize            notarize + staple darwin archives (re-runnable)
 #     publish-release          upload archives to GitHub Releases
 #
 # TARGETS
@@ -224,7 +225,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: release
 .PHONY: build-docs dev-docs preview-docs
 .PHONY: build-docker publish-docker
-.PHONY: sign-release sign-verify
+.PHONY: sign-release sign-verify sign-notarize
 .PHONY: build-release publish-release publish-brew
 .PHONY: clean download-prices deps-check run start
 
@@ -288,6 +289,7 @@ help:
 	@echo "  make release TYPE=patch  Check, bump, commit, tag, push"
 	@echo "  (TYPE can be patch, minor, or major)"
 	@echo "  make build-release   Create archives (zip/tar.gz) + notarize + checksums"
+	@echo "  make sign-notarize   Notarize + staple darwin archives (re-runnable)"
 	@echo "  make publish-release Upload archives to GitHub Releases"
 	@echo ""
 	@echo "Docs:"
@@ -748,6 +750,25 @@ sign-verify:  ## Verify code signature and entitlements on macOS platform binari
 	done; \
 	[ $$FOUND -gt 0 ] || { echo "Error: no macOS binaries found in cli/platforms/"; exit 1; }
 
+sign-notarize:  ## Notarize and staple darwin release archives (requires macOS)
+	@[ "$$(uname -s)" = "Darwin" ] || { echo "Error: notarization requires macOS"; exit 1; } && \
+	VERSION=$$(node -p "require('./cli/package.json').version") && \
+	OUTDIR="$(RELEASE_DIR)/v$$VERSION" && \
+	[ -d "$$OUTDIR" ] || { echo "Error: $$OUTDIR not found. Run 'make build-release' first."; exit 1; } && \
+	echo "[sign-notarize] Notarizing darwin archives for v$$VERSION..." && \
+	for plat in $(DARWIN_PLATFORMS); do \
+		ARCHIVE="sideseat-$$VERSION-$$plat.zip" && \
+		[ -f "$$OUTDIR/$$ARCHIVE" ] || { echo "Error: $$OUTDIR/$$ARCHIVE not found"; exit 1; } && \
+		echo "  Submitting $$ARCHIVE..." && \
+		xcrun notarytool submit "$$OUTDIR/$$ARCHIVE" \
+			--keychain-profile "$(NOTARY_PROFILE)" --wait --timeout 48h || \
+			{ echo "Error: Notarization failed for $$plat"; exit 1; } && \
+		xcrun stapler staple "$$OUTDIR/$$ARCHIVE" || \
+			{ echo "Error: Stapling failed for $$plat"; exit 1; } && \
+		echo "  $$plat: notarized + stapled"; \
+	done && \
+	echo "[sign-notarize] Done"
+
 # =============================================================================
 # Release Archives
 # =============================================================================
@@ -786,34 +807,7 @@ build-release:
 		echo "  $$ARCHIVE"; \
 	done && \
 	if [ "$$(uname -s)" = "Darwin" ]; then \
-		echo "[build-release] Notarizing darwin archives (parallel)..." && \
-		NOTARY_PIDS="" && \
-		for plat in $(DARWIN_PLATFORMS); do \
-			ARCHIVE="sideseat-$$VERSION-$$plat.zip" && \
-			LOG="$$OUTDIR/$$plat-notarize.log" && \
-			echo "  Submitting $$ARCHIVE..." && \
-			( xcrun notarytool submit "$$OUTDIR/$$ARCHIVE" \
-				--keychain-profile "$(NOTARY_PROFILE)" --wait --timeout 48h && \
-			  xcrun stapler staple "$$OUTDIR/$$ARCHIVE" \
-			) > "$$LOG" 2>&1 & \
-			NOTARY_PIDS="$$NOTARY_PIDS $$!"; \
-		done && \
-		NOTARY_FAIL="" && \
-		IDX=0 && \
-		for pid in $$NOTARY_PIDS; do \
-			IDX=$$((IDX + 1)) && \
-			PLAT=$$(echo "$(DARWIN_PLATFORMS)" | cut -d' ' -f$$IDX) && \
-			LOG="$$OUTDIR/$$PLAT-notarize.log" && \
-			if wait $$pid; then \
-				echo "  $$PLAT: notarized + stapled"; \
-			else \
-				echo "  $$PLAT: FAILED"; \
-				NOTARY_FAIL="$$NOTARY_FAIL $$PLAT"; \
-			fi; \
-			cat "$$LOG" && rm -f "$$LOG"; \
-		done && \
-		[ -z "$$NOTARY_FAIL" ] || \
-			{ echo "Error: Notarization failed for:$$NOTARY_FAIL"; exit 1; }; \
+		$(MAKE) sign-notarize; \
 	else \
 		echo "[build-release] WARNING: Not on macOS -- darwin zips are NOT notarized"; \
 	fi && \
