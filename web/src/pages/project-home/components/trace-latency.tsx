@@ -41,7 +41,7 @@ export function TraceLatency({
 
   if (isLoading) {
     return (
-      <Card className="h-full min-h-[280px]">
+      <Card className="h-full min-h-70">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Avg Trace Latency</CardTitle>
           <CardDescription>Average duration over time</CardDescription>
@@ -63,7 +63,7 @@ export function TraceLatency({
 
   if (chartData.length === 0 || !hasData) {
     return (
-      <Card className="h-full min-h-[280px]">
+      <Card className="h-full min-h-70">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Avg Trace Latency</CardTitle>
           <CardDescription>Average duration over time</CardDescription>
@@ -78,7 +78,7 @@ export function TraceLatency({
   }
 
   return (
-    <Card className="h-full min-h-[280px]">
+    <Card className="h-full min-h-70">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">Avg Trace Latency</CardTitle>
         <CardDescription>Average duration over time</CardDescription>

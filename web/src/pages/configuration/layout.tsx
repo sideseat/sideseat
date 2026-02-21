@@ -1,3 +1,4 @@
+import { Suspense, useEffect } from "react";
 import { Link, Navigate, Outlet, useLocation, useParams } from "react-router";
 import { QueryParamProvider } from "use-query-params";
 import { ReactRouter6Adapter } from "use-query-params/adapters/react-router-6";
@@ -5,6 +6,7 @@ import { Key, TerminalSquare, Workflow, type LucideIcon } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { isPathActive } from "@/lib/navigation";
+import { prefetchOnIdle } from "@/lib/prefetch";
 import { cn } from "@/lib/utils";
 
 type ConfigSection = {
@@ -25,6 +27,14 @@ export default function ConfigurationLayout() {
   const { pathname } = useLocation();
   const { orgId } = useParams<{ orgId: string }>();
 
+  useEffect(() => {
+    return prefetchOnIdle(
+      () => import("./telemetry"),
+      () => import("./mcp"),
+      () => import("./api-keys"),
+    );
+  }, []);
+
   // Redirect if no orgId (shouldn't happen with proper routing)
   if (!orgId) {
     return <Navigate to="/" replace />;
@@ -43,7 +53,7 @@ export default function ConfigurationLayout() {
       <PageHeader />
 
       {/* Main content */}
-      <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
+      <div className="mx-auto w-full max-w-400 px-4 py-6 sm:px-6">
         <div className="mb-6">
           <h1 className="text-2xl font-semibold tracking-tight">Configuration</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -92,7 +102,18 @@ export default function ConfigurationLayout() {
           {/* Content area - right side */}
           <main className="config-content min-w-0 flex-1 rounded-lg border bg-card p-6">
             <QueryParamProvider adapter={ReactRouter6Adapter}>
-              <Outlet />
+              <Suspense
+                fallback={
+                  <div className="flex h-48 w-full items-center justify-center">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
+                      <div className="h-4 w-32 animate-pulse rounded-md bg-muted" />
+                    </div>
+                  </div>
+                }
+              >
+                <Outlet />
+              </Suspense>
             </QueryParamProvider>
           </main>
         </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { Plus } from "lucide-react";
 
@@ -6,6 +6,7 @@ import { useProjects, type Project } from "@/api/projects";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { prefetchOnIdle } from "@/lib/prefetch";
 import { sortProjectsWithDefaultFirst } from "@/lib/utils";
 
 import { ProjectCard } from "./project-card";
@@ -19,6 +20,10 @@ export default function HomePage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [deleteProject, setDeleteProject] = useState<Project | null>(null);
+
+  useEffect(() => {
+    return prefetchOnIdle(() => import("@/project-layout"));
+  }, []);
 
   const projects = useMemo(() => sortProjectsWithDefaultFirst(data?.data ?? []), [data?.data]);
 

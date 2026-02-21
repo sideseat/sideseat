@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import { StrictMode, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider, createBrowserRouter, Navigate } from "react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -11,23 +11,24 @@ import { AuthProvider } from "@/auth/context";
 import { AuthGuard } from "@/auth/guard";
 import { queryClient, setQueryErrorHandler } from "@/api/query-client";
 import { AppProvider } from "@/lib/app-context";
-import ProjectLayout from "./project-layout";
-import HomePage from "./pages/home";
-import ProjectHomePage from "./pages/project-home";
-import AuthPage from "./pages/auth";
-import NotFoundPage from "./pages/not-found";
-import TracesPage from "./pages/observability/traces/traces";
-import TraceDetailPage from "./pages/observability/trace/trace-detail-page";
-import SessionsPage from "./pages/observability/sessions/sessions";
-import SessionDetailPage from "./pages/observability/session/session-detail-page";
-import SpansPage from "./pages/observability/spans/spans";
-import SpanDetailPage from "./pages/observability/span/span-detail-page";
-import ConfigurationLayout from "./pages/configuration/layout";
-import TelemetryPage from "./pages/configuration/telemetry";
-import McpPage from "./pages/configuration/mcp";
-import ApiKeysPage from "./pages/configuration/api-keys";
-import RealtimePage from "./pages/observability/realtime";
 import "./styles/index.css";
+
+const ProjectLayout = lazy(() => import("./project-layout"));
+const HomePage = lazy(() => import("./pages/home"));
+const ProjectHomePage = lazy(() => import("./pages/project-home"));
+const AuthPage = lazy(() => import("./pages/auth"));
+const NotFoundPage = lazy(() => import("./pages/not-found"));
+const TracesPage = lazy(() => import("./pages/observability/traces/traces"));
+const TraceDetailPage = lazy(() => import("./pages/observability/trace/trace-detail-page"));
+const SessionsPage = lazy(() => import("./pages/observability/sessions/sessions"));
+const SessionDetailPage = lazy(() => import("./pages/observability/session/session-detail-page"));
+const SpansPage = lazy(() => import("./pages/observability/spans/spans"));
+const SpanDetailPage = lazy(() => import("./pages/observability/span/span-detail-page"));
+const ConfigurationLayout = lazy(() => import("./pages/configuration/layout"));
+const TelemetryPage = lazy(() => import("./pages/configuration/telemetry"));
+const McpPage = lazy(() => import("./pages/configuration/mcp"));
+const ApiKeysPage = lazy(() => import("./pages/configuration/api-keys"));
+const RealtimePage = lazy(() => import("./pages/observability/realtime"));
 
 const HIDE_QUERY_DEVTOOLS = true;
 
@@ -115,7 +116,18 @@ createRoot(document.getElementById("root")!).render(
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme="system" storageKey="theme">
           <AuthProvider>
-            <RouterProvider router={router} />
+            <Suspense
+              fallback={
+                <div className="flex h-screen w-full items-center justify-center">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
+                    <div className="h-4 w-32 animate-pulse rounded-md bg-muted" />
+                  </div>
+                </div>
+              }
+            >
+              <RouterProvider router={router} />
+            </Suspense>
             <Toaster />
           </AuthProvider>
         </ThemeProvider>

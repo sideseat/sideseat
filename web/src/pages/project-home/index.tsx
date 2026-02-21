@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { RefreshCw } from "lucide-react";
 import { useProjectStats, useTraces } from "@/api/otel/hooks/queries";
 import { useSpanStream } from "@/api/otel/hooks/streams";

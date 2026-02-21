@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { lazy, Suspense, useState, useEffect, useCallback } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { settings, getTraceViewLayoutKey } from "@/lib/settings";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,9 +11,12 @@ import { TraceViewProvider } from "./contexts/trace-view-context";
 import { useTraceView } from "./contexts/use-trace-view";
 import { SpanTree } from "./components/span-tree";
 import { SpanTimeline } from "./components/span-timeline";
-import { SpanDiagram } from "./components/span-diagram";
 import { SpanDetailPanel } from "./components/span-detail";
 import { TraceViewHeader } from "./components/trace-view-header";
+
+const SpanDiagram = lazy(() =>
+  import("./components/span-diagram").then((m) => ({ default: m.SpanDiagram })),
+);
 
 interface TraceViewProps {
   projectId: string;
@@ -165,7 +168,17 @@ function TraceViewContent({
       case "timeline":
         return <SpanTimeline />;
       case "diagram":
-        return <SpanDiagram />;
+        return (
+          <Suspense
+            fallback={
+              <div className="flex h-full items-center justify-center">
+                <div className="h-6 w-36 animate-pulse rounded-md bg-muted" />
+              </div>
+            }
+          >
+            <SpanDiagram />
+          </Suspense>
+        );
       default:
         return <SpanTree />;
     }

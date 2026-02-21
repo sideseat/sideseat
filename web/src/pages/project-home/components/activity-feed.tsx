@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { ArrowUpRight } from "lucide-react";
 import {
   Card,
@@ -57,7 +57,7 @@ interface ActivityFeedProps {
 export function ActivityFeed({ projectId, traces, recentCount, isLoading }: ActivityFeedProps) {
   if (isLoading) {
     return (
-      <Card className="h-full min-h-[280px]">
+      <Card className="h-full min-h-70">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
         </CardHeader>
@@ -78,7 +78,7 @@ export function ActivityFeed({ projectId, traces, recentCount, isLoading }: Acti
 
   if (!traces || traces.length === 0) {
     return (
-      <Card className="h-full min-h-[280px]">
+      <Card className="h-full min-h-70">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
           <CardDescription>Latest traces across your project</CardDescription>
@@ -99,7 +99,7 @@ export function ActivityFeed({ projectId, traces, recentCount, isLoading }: Acti
   }
 
   return (
-    <Card className="h-full min-h-[280px]">
+    <Card className="h-full min-h-70">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
         <CardDescription>Latest traces across your project</CardDescription>
