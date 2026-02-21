@@ -36,7 +36,7 @@
 #
 #   Tagged release:
 #     release TYPE=patch       check -> bump -> commit -> tag -> push
-#     build-release            create archives (zip/tar.gz) + notarize + checksums
+#     build-release            create archives (zip/tar.gz) + checksums (NOTARIZE=1 to notarize)
 #     sign-notarize            notarize + staple darwin archives (re-runnable)
 #     publish-release          upload archives to GitHub Releases
 #
@@ -106,7 +106,7 @@
 #   Release:
 #     release            Full release: check -> bump -> commit -> tag -> push
 #                        Usage: make release TYPE=patch (or minor, major)
-#     build-release      Create release archives (zip/tar.gz) + notarize + checksums
+#     build-release      Create release archives (zip/tar.gz) + checksums (NOTARIZE=1 to notarize)
 #     publish-release    Upload archives to GitHub Releases (requires tag + gh auth)
 #
 #   Docs:
@@ -135,8 +135,9 @@
 #
 # VARIABLES
 #
-#   ARGS     Extra args passed to dev-server (e.g. make dev-server ARGS="--no-auth")
-#   TYPE     Version bump type for bump/release (patch, minor, major; default: patch)
+#   ARGS      Extra args passed to dev-server (e.g. make dev-server ARGS="--no-auth")
+#   TYPE      Version bump type for bump/release (patch, minor, major; default: patch)
+#   NOTARIZE  Enable Apple notarization in build-release (0|1; default: 0)
 #
 # =============================================================================
 # Preamble
@@ -155,6 +156,7 @@ UNAME_M := $(shell uname -m)
 
 ARGS ?=
 TYPE ?= patch
+NOTARIZE ?= 0
 SERVER_DIR := server
 WEB_DIR := web
 CLI_DIR := cli
@@ -288,7 +290,8 @@ help:
 	@echo "Release:"
 	@echo "  make release TYPE=patch  Check, bump, commit, tag, push"
 	@echo "  (TYPE can be patch, minor, or major)"
-	@echo "  make build-release   Create archives (zip/tar.gz) + notarize + checksums"
+	@echo "  make build-release   Create archives (zip/tar.gz) + checksums"
+	@echo "  make build-release NOTARIZE=1  ...with Apple notarization"
 	@echo "  make sign-notarize   Notarize + staple darwin archives (re-runnable)"
 	@echo "  make publish-release Upload archives to GitHub Releases"
 	@echo ""
@@ -806,10 +809,14 @@ build-release:
 		rm -rf "$$TMPDIR" && \
 		echo "  $$ARCHIVE"; \
 	done && \
-	if [ "$$(uname -s)" = "Darwin" ]; then \
-		$(MAKE) sign-notarize; \
+	if [ "$(NOTARIZE)" = "1" ]; then \
+		if [ "$$(uname -s)" = "Darwin" ]; then \
+			$(MAKE) sign-notarize; \
+		else \
+			echo "[build-release] WARNING: Not on macOS -- cannot notarize"; \
+		fi; \
 	else \
-		echo "[build-release] WARNING: Not on macOS -- darwin zips are NOT notarized"; \
+		echo "[build-release] Skipping notarization (use NOTARIZE=1 to enable)"; \
 	fi && \
 	echo "[build-release] Generating checksums..." && \
 	(cd "$$OUTDIR" && $(SHA256CMD) sideseat-* > checksums-sha256.txt) && \
@@ -823,9 +830,11 @@ publish-release:
 	echo "[publish-release] Verifying checksums..." && \
 	(cd "$$OUTDIR" && $(SHA256CMD) -c checksums-sha256.txt) || \
 		{ echo "Error: Checksum verification failed"; exit 1; } && \
-	echo "[publish-release] Verifying tag v$$VERSION exists..." && \
-	git rev-parse "v$$VERSION" >/dev/null 2>&1 || \
-		{ echo "Error: Tag v$$VERSION not found. Create it first: git tag v$$VERSION"; exit 1; } && \
+	if ! git rev-parse "v$$VERSION" >/dev/null 2>&1; then \
+		echo "[publish-release] Creating tag v$$VERSION..." && \
+		git tag "v$$VERSION" && \
+		git push origin "v$$VERSION"; \
+	fi && \
 	echo "[publish-release] Creating GitHub release..." && \
 	gh release create "v$$VERSION" "$$OUTDIR"/* --generate-notes --title "v$$VERSION" && \
 	echo "[publish-release] Done: https://github.com/$$(gh repo view --json nameWithOwner -q .nameWithOwner)/releases/tag/v$$VERSION" && \
