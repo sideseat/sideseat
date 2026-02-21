@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { QueryParamProvider } from "use-query-params";
 import { ReactRouter6Adapter } from "use-query-params/adapters/react-router-6";
@@ -29,6 +29,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { findNavigationTrail, mainNavigation, type NavigationItem } from "@/lib/navigation";
+import { prefetchOnIdle } from "@/lib/prefetch";
 
 export default function ProjectLayout() {
   return (
@@ -52,6 +53,19 @@ function ProjectLayoutContent() {
   const relativePath = projectPathMatch ? `/${projectPathMatch[1]}` : "/";
   const navigationTrail = findNavigationTrail(relativePath);
 
+  useEffect(() => {
+    return prefetchOnIdle(
+      () => import("./pages/project-home"),
+      () => import("./pages/observability/traces/traces"),
+      () => import("./pages/observability/trace/trace-detail-page"),
+      () => import("./pages/observability/sessions/sessions"),
+      () => import("./pages/observability/session/session-detail-page"),
+      () => import("./pages/observability/spans/spans"),
+      () => import("./pages/observability/span/span-detail-page"),
+      () => import("./pages/observability/realtime"),
+    );
+  }, []);
+
   if (isLoading) {
     return <ProjectLoadingState />;
   }
@@ -66,7 +80,18 @@ function ProjectLayoutContent() {
       <SidebarInset className="min-w-0">
         <LayoutHeader navigationTrail={navigationTrail} />
         <div className="flex flex-1 flex-col">
-          <Outlet />
+          <Suspense
+            fallback={
+              <div className="flex h-64 w-full items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
+                  <div className="h-4 w-32 animate-pulse rounded-md bg-muted" />
+                </div>
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </div>
       </SidebarInset>
     </>

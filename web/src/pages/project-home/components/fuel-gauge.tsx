@@ -88,7 +88,7 @@ export function FuelGauge({ projectId, timeRange, costs, isLoading }: FuelGaugeP
 
   if (isLoading) {
     return (
-      <Card className="h-full min-h-[280px]">
+      <Card className="h-full min-h-70">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Cost</CardTitle>
           <CardDescription>Loading budget status</CardDescription>
@@ -131,7 +131,7 @@ export function FuelGauge({ projectId, timeRange, costs, isLoading }: FuelGaugeP
   const cacheTotal = costs.cache_read + costs.cache_write;
 
   return (
-    <Card className="h-full min-h-[280px]">
+    <Card className="h-full min-h-70">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">Cost</CardTitle>
         <CardDescription>{getTimeRangeLabel(timeRange)}</CardDescription>

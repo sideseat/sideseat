@@ -1,11 +1,16 @@
-import { useEffect, useCallback, useMemo } from "react";
+import { lazy, Suspense, useEffect, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ThreadView, type ThreadTab } from "@/components/thread";
-import { TraceView } from "@/components/trace-view";
 import type { ViewMode } from "@/components/trace-view/lib/types";
 import { useTraceMessages, useTrace } from "@/api/otel/hooks/queries";
 import { useSpanStream } from "@/api/otel/hooks/streams";
-import { RawSpansView } from "./raw-spans-view";
+
+const TraceView = lazy(() =>
+  import("@/components/trace-view").then((m) => ({ default: m.TraceView })),
+);
+const RawSpansView = lazy(() =>
+  import("./raw-spans-view").then((m) => ({ default: m.RawSpansView })),
+);
 
 export type TraceTab = "thread" | "trace" | "raw";
 
@@ -142,31 +147,43 @@ export function TraceDetail({
 
   if (activeTab === "raw") {
     return (
-      <RawSpansView
-        key={traceId}
-        spans={spansWithRaw}
-        entityId={traceId}
-        downloadPrefix="trace"
-        isLoading={traceLoading}
-        error={traceError}
-        onRetry={refetchTrace}
-      />
+      <Suspense fallback={<TabFallback />}>
+        <RawSpansView
+          key={traceId}
+          spans={spansWithRaw}
+          entityId={traceId}
+          downloadPrefix="trace"
+          isLoading={traceLoading}
+          error={traceError}
+          onRetry={refetchTrace}
+        />
+      </Suspense>
     );
   }
 
   return (
-    <TraceView
-      projectId={projectId}
-      traceId={traceId}
-      spans={traceData?.spans}
-      durationMs={traceData?.duration_ms}
-      tokenBreakdown={tokenBreakdown}
-      costBreakdown={costBreakdown}
-      isLoading={traceLoading}
-      error={traceError ?? undefined}
-      onRetry={refetchTrace}
-      viewMode={traceTab}
-      onViewModeChange={onTraceTabChange}
-    />
+    <Suspense fallback={<TabFallback />}>
+      <TraceView
+        projectId={projectId}
+        traceId={traceId}
+        spans={traceData?.spans}
+        durationMs={traceData?.duration_ms}
+        tokenBreakdown={tokenBreakdown}
+        costBreakdown={costBreakdown}
+        isLoading={traceLoading}
+        error={traceError ?? undefined}
+        onRetry={refetchTrace}
+        viewMode={traceTab}
+        onViewModeChange={onTraceTabChange}
+      />
+    </Suspense>
+  );
+}
+
+function TabFallback() {
+  return (
+    <div className="flex h-64 w-full items-center justify-center">
+      <div className="h-6 w-36 animate-pulse rounded-md bg-muted" />
+    </div>
   );
 }

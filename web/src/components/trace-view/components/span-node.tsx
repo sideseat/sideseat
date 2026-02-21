@@ -26,7 +26,7 @@ export const SpanNode = memo(function SpanNode({ data, selected }: NodeProps<Spa
       <Handle type="target" position={Position.Left} className="bg-border!" />
       <div
         className={cn(
-          "flex min-w-[180px] flex-col rounded-md border bg-background p-3 shadow-sm transition-all duration-300",
+          "flex min-w-45 flex-col rounded-md border bg-background p-3 shadow-sm transition-all duration-300",
           data.isError && !selected ? "border-destructive/50" : "",
           selected && "ring-2 ring-primary",
           data.animationState === "active" && "ring-2 ring-primary shadow-lg shadow-primary/25",

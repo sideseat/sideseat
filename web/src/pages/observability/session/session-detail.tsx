@@ -1,11 +1,16 @@
-import { useEffect, useCallback, useMemo } from "react";
+import { lazy, Suspense, useEffect, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ThreadView, type ThreadTab } from "@/components/thread";
 import { useSessionMessages, useSession, useSessionSpans } from "@/api/otel/hooks/queries";
 import { useSpanStream } from "@/api/otel/hooks/streams";
 import type { ViewMode } from "@/components/trace-view/lib/types";
-import { SessionSpansView } from "./session-spans-view";
-import { RawSpansView } from "../trace/raw-spans-view";
+
+const SessionSpansView = lazy(() =>
+  import("./session-spans-view").then((m) => ({ default: m.SessionSpansView })),
+);
+const RawSpansView = lazy(() =>
+  import("../trace/raw-spans-view").then((m) => ({ default: m.RawSpansView })),
+);
 
 export type SessionTab = "thread" | "trace" | "raw";
 
@@ -158,30 +163,42 @@ export function SessionDetail({
 
   if (activeTab === "trace") {
     return (
-      <SessionSpansView
-        projectId={projectId}
-        spans={spans}
-        viewMode={traceTab ?? "tree"}
-        onViewModeChange={onTraceTabChange ?? noop}
-        isLoading={spansLoading}
-        error={spansError ?? undefined}
-        onRetry={refetchSpans}
-        durationMs={durationMs}
-        tokenBreakdown={tokenBreakdown}
-        costBreakdown={costBreakdown}
-      />
+      <Suspense fallback={<TabFallback />}>
+        <SessionSpansView
+          projectId={projectId}
+          spans={spans}
+          viewMode={traceTab ?? "tree"}
+          onViewModeChange={onTraceTabChange ?? noop}
+          isLoading={spansLoading}
+          error={spansError ?? undefined}
+          onRetry={refetchSpans}
+          durationMs={durationMs}
+          tokenBreakdown={tokenBreakdown}
+          costBreakdown={costBreakdown}
+        />
+      </Suspense>
     );
   }
 
   // Raw tab (default fallback)
   return (
-    <RawSpansView
-      spans={spansWithRaw}
-      entityId={sessionId}
-      downloadPrefix="session"
-      isLoading={spansLoading}
-      error={spansError ?? undefined}
-      onRetry={refetchSpans}
-    />
+    <Suspense fallback={<TabFallback />}>
+      <RawSpansView
+        spans={spansWithRaw}
+        entityId={sessionId}
+        downloadPrefix="session"
+        isLoading={spansLoading}
+        error={spansError ?? undefined}
+        onRetry={refetchSpans}
+      />
+    </Suspense>
+  );
+}
+
+function TabFallback() {
+  return (
+    <div className="flex h-64 w-full items-center justify-center">
+      <div className="h-6 w-36 animate-pulse rounded-md bg-muted" />
+    </div>
   );
 }

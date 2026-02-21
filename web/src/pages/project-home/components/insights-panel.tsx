@@ -37,7 +37,7 @@ function InsightCard({ label, value, detail, icon }: InsightItem) {
 export function InsightsPanel({ stats, isLoading }: InsightsPanelProps) {
   if (isLoading) {
     return (
-      <Card className="h-full min-h-[280px]">
+      <Card className="h-full min-h-70">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Insights</CardTitle>
           <CardDescription>Key signals from the selected time range</CardDescription>
@@ -60,7 +60,7 @@ export function InsightsPanel({ stats, isLoading }: InsightsPanelProps) {
 
   if (!stats) {
     return (
-      <Card className="h-full min-h-[280px]">
+      <Card className="h-full min-h-70">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Insights</CardTitle>
           <CardDescription>Key signals from the selected time range</CardDescription>
@@ -107,7 +107,7 @@ export function InsightsPanel({ stats, isLoading }: InsightsPanelProps) {
   ];
 
   return (
-    <Card className="h-full min-h-[280px]">
+    <Card className="h-full min-h-70">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">Insights</CardTitle>
         <CardDescription>Key signals from the selected time range</CardDescription>

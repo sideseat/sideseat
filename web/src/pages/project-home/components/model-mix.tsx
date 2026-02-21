@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -64,7 +64,7 @@ export function ModelMix({ projectId, data, totalTokens, traceCount, isLoading }
 
   if (isLoading) {
     return (
-      <Card className="h-full min-h-[280px]">
+      <Card className="h-full min-h-70">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Model Mix</CardTitle>
           <CardDescription>Token share and spend by model</CardDescription>
@@ -80,7 +80,7 @@ export function ModelMix({ projectId, data, totalTokens, traceCount, isLoading }
 
   if (displayData.length === 0) {
     return (
-      <Card className="h-full min-h-[280px]">
+      <Card className="h-full min-h-70">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Model Mix</CardTitle>
           <CardDescription>Token share and spend by model</CardDescription>
@@ -95,7 +95,7 @@ export function ModelMix({ projectId, data, totalTokens, traceCount, isLoading }
   }
 
   return (
-    <Card className="h-full min-h-[280px]">
+    <Card className="h-full min-h-70">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">Model Mix</CardTitle>
         <CardDescription>Token share and spend by model</CardDescription>

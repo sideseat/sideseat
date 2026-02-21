@@ -34,7 +34,7 @@ export function TokenTrend({ data, total, timeRange, isLoading }: TokenTrendProp
 
   if (isLoading) {
     return (
-      <Card className="h-full min-h-[280px]">
+      <Card className="h-full min-h-70">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Token Volume</CardTitle>
           <CardDescription>Token usage over time</CardDescription>
@@ -50,7 +50,7 @@ export function TokenTrend({ data, total, timeRange, isLoading }: TokenTrendProp
 
   if (chartData.length === 0 || !hasData) {
     return (
-      <Card className="h-full min-h-[280px]">
+      <Card className="h-full min-h-70">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Token Volume</CardTitle>
           <CardDescription>Token usage over time</CardDescription>
@@ -65,7 +65,7 @@ export function TokenTrend({ data, total, timeRange, isLoading }: TokenTrendProp
   }
 
   return (
-    <Card className="h-full min-h-[280px]">
+    <Card className="h-full min-h-70">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">Token Volume</CardTitle>
         <CardDescription>Token usage over time</CardDescription>

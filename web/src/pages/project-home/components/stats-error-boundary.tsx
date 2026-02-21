@@ -59,7 +59,7 @@ export class WidgetErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <Card className="h-full min-h-[280px]">
+        <Card className="h-full min-h-70">
           {this.props.title && (
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">{this.props.title}</CardTitle>
