@@ -9,7 +9,6 @@ use serde::Serialize;
 
 use crate::data::clickhouse::ClickhouseError;
 use crate::data::types::NormalizedSpan;
-use crate::utils::json::json_to_opt_string;
 
 /// Row structure for inserting spans into ClickHouse
 #[derive(Row, Serialize)]
@@ -164,7 +163,7 @@ impl From<&NormalizedSpan> for SpanRow {
             gen_ai_usage_cache_read_tokens: span.gen_ai_usage_cache_read_tokens,
             gen_ai_usage_cache_write_tokens: span.gen_ai_usage_cache_write_tokens,
             gen_ai_usage_reasoning_tokens: span.gen_ai_usage_reasoning_tokens,
-            gen_ai_usage_details: json_to_opt_string(&span.gen_ai_usage_details),
+            gen_ai_usage_details: span.gen_ai_usage_details.clone(),
             gen_ai_cost_input: span.gen_ai_cost_input,
             gen_ai_cost_output: span.gen_ai_cost_output,
             gen_ai_cost_cache_read: span.gen_ai_cost_cache_read,
@@ -188,14 +187,13 @@ impl From<&NormalizedSpan> for SpanRow {
             } else {
                 serde_json::to_string(&span.tags).ok()
             },
-            metadata: json_to_opt_string(&span.metadata),
+            metadata: span.metadata.clone(),
             input_preview: span.input_preview.clone(),
             output_preview: span.output_preview.clone(),
-            messages: json_to_opt_string(&span.messages).unwrap_or_else(|| "[]".to_string()),
-            tool_definitions: json_to_opt_string(&span.tool_definitions)
-                .unwrap_or_else(|| "[]".to_string()),
-            tool_names: json_to_opt_string(&span.tool_names).unwrap_or_else(|| "[]".to_string()),
-            raw_span: json_to_opt_string(&span.raw_span),
+            messages: span.messages.clone().unwrap_or_else(|| "[]".to_string()),
+            tool_definitions: span.tool_definitions.clone().unwrap_or_else(|| "[]".to_string()),
+            tool_names: span.tool_names.clone().unwrap_or_else(|| "[]".to_string()),
+            raw_span: span.raw_span.clone(),
         }
     }
 }

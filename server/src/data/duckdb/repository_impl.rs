@@ -497,9 +497,8 @@ impl AnalyticsRepository for Arc<DuckdbService> {
 
     // ==================== Ingestion Operations ====================
 
-    async fn insert_spans(&self, spans: &[NormalizedSpan]) -> Result<(), DataError> {
+    async fn insert_spans(&self, spans: Vec<NormalizedSpan>) -> Result<(), DataError> {
         let db = Arc::clone(self);
-        let spans = spans.to_vec();
         DuckdbService::run_query(move || {
             let conn = db.conn();
             span::insert_batch(&conn, &spans)

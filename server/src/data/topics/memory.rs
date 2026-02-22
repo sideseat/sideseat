@@ -21,7 +21,7 @@ use std::time::Instant;
 use async_stream::stream;
 use async_trait::async_trait;
 use parking_lot::RwLock;
-use tokio::sync::broadcast;
+use tokio::sync::{Notify, broadcast};
 
 use super::backend::{
     BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend,
@@ -81,6 +81,8 @@ struct SharedState {
     broadcast_channels: RwLock<HashMap<String, broadcast::Sender<Vec<u8>>>>,
     /// Stream state by topic name
     streams: RwLock<HashMap<String, StreamState>>,
+    /// Per-stream notifiers for immediate subscriber wakeup (avoids polling)
+    stream_notifiers: RwLock<HashMap<String, Arc<Notify>>>,
     /// Channel capacity for new broadcast topics
     broadcast_capacity: usize,
 }
@@ -111,6 +113,7 @@ impl MemoryTopicBackend {
             state: Arc::new(SharedState {
                 broadcast_channels: RwLock::new(HashMap::new()),
                 streams: RwLock::new(HashMap::new()),
+                stream_notifiers: RwLock::new(HashMap::new()),
                 broadcast_capacity: DEFAULT_BROADCAST_CAPACITY,
             }),
         }
@@ -123,6 +126,7 @@ impl MemoryTopicBackend {
             state: Arc::new(SharedState {
                 broadcast_channels: RwLock::new(HashMap::new()),
                 streams: RwLock::new(HashMap::new()),
+                stream_notifiers: RwLock::new(HashMap::new()),
                 broadcast_capacity: capacity,
             }),
         }
@@ -157,6 +161,23 @@ impl MemoryTopicBackend {
                 }
             }
         }
+    }
+
+    /// Get or create a Notify for a stream topic (for immediate subscriber wakeup)
+    fn get_or_create_notifier(&self, topic: &str) -> Arc<Notify> {
+        {
+            let notifiers = self.state.stream_notifiers.read();
+            if let Some(n) = notifiers.get(topic) {
+                return Arc::clone(n);
+            }
+        }
+        let mut notifiers = self.state.stream_notifiers.write();
+        if let Some(n) = notifiers.get(topic) {
+            return Arc::clone(n);
+        }
+        let n = Arc::new(Notify::new());
+        notifiers.insert(topic.to_string(), Arc::clone(&n));
+        n
     }
 }
 
@@ -199,19 +220,25 @@ impl TopicBackend for MemoryTopicBackend {
     // =========================================================================
 
     async fn stream_publish(&self, topic: &str, payload: &[u8]) -> Result<String, TopicError> {
-        let mut streams = self.state.streams.write();
-        let stream = streams.entry(topic.to_string()).or_default();
+        let id = {
+            let mut streams = self.state.streams.write();
+            let stream = streams.entry(topic.to_string()).or_default();
 
-        let id = stream.next_id;
-        stream.next_id += 1;
+            let id = stream.next_id;
+            stream.next_id += 1;
 
-        stream.messages.push_back(StreamEntry {
-            id,
-            payload: payload.to_vec(),
-            timestamp: Instant::now(),
-        });
+            stream.messages.push_back(StreamEntry {
+                id,
+                payload: payload.to_vec(),
+                timestamp: Instant::now(),
+            });
 
-        Self::trim_stream(stream);
+            Self::trim_stream(stream);
+            id
+        };
+
+        // Wake subscriber immediately (no 100ms polling delay)
+        self.get_or_create_notifier(topic).notify_one();
 
         Ok(id.to_string())
     }
@@ -233,6 +260,7 @@ impl TopicBackend for MemoryTopicBackend {
         let group = group.to_string();
         let consumer = consumer.to_string();
         let state = Arc::clone(&self.state);
+        let notifier = self.get_or_create_notifier(&topic);
 
         let stream = stream! {
             let mut last_seen: u64 = 0;
@@ -288,16 +316,16 @@ impl TopicBackend for MemoryTopicBackend {
                 };
 
                 if !stream_exists {
-                    // Stream doesn't exist, wait and retry
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    // Stream doesn't exist yet, wait for publish to create it
+                    notifier.notified().await;
                     continue;
                 }
 
                 if let Some(msg) = maybe_msg {
                     yield Ok(msg);
                 } else {
-                    // No new messages, wait a bit (simulates BLOCK in Redis)
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    // Wait for notification of new message (no polling delay)
+                    notifier.notified().await;
                 }
             }
         };

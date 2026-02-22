@@ -17,7 +17,7 @@ pub use enums::{
 };
 
 // Re-export normalized types (for ingestion)
-pub use normalized::{NormalizedMetric, NormalizedSpan};
+pub use normalized::{NormalizedMetric, NormalizedSpan, json_to_pre_serialized};
 
 // Re-export analytics types (query results and params)
 pub use analytics::{
