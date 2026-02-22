@@ -8,6 +8,15 @@ use serde_json::Value as JsonValue;
 
 use super::{AggregationTemporality, Framework, MetricType, ObservationType, SpanCategory};
 
+/// Helper to serialize a JsonValue to an Option<String>, returning None for null.
+pub fn json_to_pre_serialized(value: &JsonValue) -> Option<String> {
+    if value.is_null() {
+        None
+    } else {
+        serde_json::to_string(value).ok()
+    }
+}
+
 // ============================================================================
 // NORMALIZED METRIC
 // ============================================================================
@@ -170,8 +179,8 @@ pub struct NormalizedSpan {
     // Reasoning token usage - defaults to 0, never NULL
     pub gen_ai_usage_reasoning_tokens: i64,
 
-    // Usage details (provider-specific overflow)
-    pub gen_ai_usage_details: JsonValue,
+    // Usage details (provider-specific overflow, pre-serialized JSON)
+    pub gen_ai_usage_details: Option<String>,
 
     // Cost fields - defaults to 0.0, never NULL
     pub gen_ai_cost_input: f64,
@@ -198,25 +207,28 @@ pub struct NormalizedSpan {
     pub messaging_system: Option<String>,
     pub messaging_destination: Option<String>,
 
-    // Tags and metadata
+    // Tags and metadata (pre-serialized JSON)
     pub tags: Vec<String>,
-    pub metadata: JsonValue,
+    pub metadata: Option<String>,
 
     // Preview text for trace list display (extracted from events)
     pub input_preview: Option<String>,
     pub output_preview: Option<String>,
 
-    // Raw messages (converted to SideML on query)
-    pub messages: JsonValue,
+    // Raw messages (converted to SideML on query, pre-serialized JSON string)
+    // None means "[]" at write time
+    pub messages: Option<String>,
 
-    // Raw tool definitions (separate from conversation messages)
-    pub tool_definitions: JsonValue,
+    // Raw tool definitions (separate from conversation messages, pre-serialized JSON string)
+    // None means "[]" at write time
+    pub tool_definitions: Option<String>,
 
-    // Raw tool names (list of tool names, separate from full definitions)
-    pub tool_names: JsonValue,
+    // Raw tool names (list of tool names, separate from full definitions, pre-serialized JSON string)
+    // None means "[]" at write time
+    pub tool_names: Option<String>,
 
-    // Raw span JSON (includes attributes and resource.attributes)
-    pub raw_span: JsonValue,
+    // Raw span JSON (includes attributes and resource.attributes, pre-serialized JSON)
+    pub raw_span: Option<String>,
 
     // Ingestion time (server time when span was received, for feed cursor)
     // Note: Not used in insert - populated by DB default (now())

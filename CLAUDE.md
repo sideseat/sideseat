@@ -132,11 +132,11 @@ This ensures bug fixes apply to historical data without re-ingestion.
 
 ### Data Processing Principle
 
-| Phase     | Location             | What to do                                           |
-| --------- | -------------------- | ---------------------------------------------------- |
+| Phase     | Location             | What to do                                                             |
+| --------- | -------------------- | ---------------------------------------------------------------------- |
 | Ingestion | `traces/extract/`    | Preserve raw data, add metadata (tool_call_id, exception fields, etc.) |
-| Query     | `sideml/pipeline.rs` | Role derivation, normalization, deduplication        |
-| Query     | `sideml/feed/mod.rs` | Error display composed from exception_type/message/stacktrace |
+| Query     | `sideml/pipeline.rs` | Role derivation, normalization, deduplication                          |
+| Query     | `sideml/feed/mod.rs` | Error display composed from exception_type/message/stacktrace          |
 
 **Never** transform roles or content during ingestion. All semantic processing in SideML.
 
@@ -163,6 +163,7 @@ Attribute: Has role → role, else → user
 Reconstructs conversation timelines from OTEL spans with history duplication.
 
 **Pipeline stages:**
+
 ```
 1. PARSE       Raw JSON → SideML messages
 2. FLATTEN     One BlockEntry per ContentBlock (with metadata)
@@ -173,13 +174,14 @@ Reconstructs conversation timelines from OTEL spans with history duplication.
 ```
 
 **Output classification (is_output field):**
+
 - `gen_ai.choice` events → OUTPUT (protected from history, uses span_end)
 - Assistant text/thinking → OUTPUT
 - ToolUse from generation spans → OUTPUT
 - Everything else → INPUT (can be history, uses event_time)
 
-**Eight-phase history detection:**
-0. **Output protection**: gen_ai.choice events are NEVER marked as history
+**Eight-phase history detection:** 0. **Output protection**: gen_ai.choice events are NEVER marked as history
+
 1. **Timestamp-based**: Message timestamp < span start → historical context
 2. **Accumulator span input**: Input events from non-execution spans (span/agent/chain)
 3. **Session history**: User/system messages in non-agent spans not in agent spans
@@ -194,11 +196,13 @@ Cross-trace prefix strip (session mode): attribute-input only, per-span reset, r
 Event-based frameworks (Strands) stay trace-independent; no cross-trace stripping.
 
 **Content-based identity** (not ID-based):
+
 - Tool calls: hash(name + input) — call_id ignored (regenerated in history)
 - Tool results: hash(content) — tool_use_id ignored
 - Regular: hash(trace_id + role + content)
 
 **Quality scoring** (higher = preferred in dedup):
+
 ```
 +100  Non-history block
 +10   Has finish_reason
@@ -208,6 +212,7 @@ Event-based frameworks (Strands) stay trace-independent; no cross-trace strippin
 ```
 
 **Semantic ordering** (for same birth_time):
+
 ```
 User(0) → System(1) → Assistant+ToolUse(2) → Tool(3) → Assistant+Text(4)
 ```
@@ -279,7 +284,6 @@ omitPagination(params); // Remove page/limit for filter comparison
 ## Quality Standards
 
 - **Universal solutions**: Not fragile, works for all frameworks
-- **No migrations needed**: First version of app
 - **Review checklist**: Gaps? Duplications? Architecture? Best practices?
 - **Before implementation**: Find subtle issues, think outside the box, test for surprising issues
 - **After implementation**: Is plan fully implemented? Any gaps?

@@ -8,7 +8,6 @@ use duckdb::params;
 
 use crate::data::duckdb::sql_types::{SqlOptTimestamp, SqlTimestamp, SqlVec};
 use crate::data::duckdb::{DuckdbError, NormalizedSpan, in_transaction};
-use crate::utils::json::json_to_opt_string;
 
 pub fn insert_batch(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), DuckdbError> {
     if spans.is_empty() {
@@ -32,7 +31,6 @@ fn insert_spans(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), Duckd
         let tags = SqlVec(&span.tags);
         let stop_sequences = SqlVec(&span.gen_ai_stop_sequences);
         let finish_reasons = SqlVec(&span.gen_ai_finish_reasons);
-        let metadata = json_to_opt_string(&span.metadata);
 
         let timestamp_start = SqlTimestamp(span.timestamp_start);
         let timestamp_end = SqlOptTimestamp(span.timestamp_end);
@@ -92,7 +90,8 @@ fn insert_spans(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), Duckd
             span.gen_ai_usage_cache_read_tokens,
             span.gen_ai_usage_cache_write_tokens,
             span.gen_ai_usage_reasoning_tokens,
-            json_to_opt_string(&span.gen_ai_usage_details).as_deref(),
+            // Pre-serialized JSON fields (no json_to_opt_string conversion needed)
+            span.gen_ai_usage_details.as_deref(),
             span.gen_ai_cost_input,
             span.gen_ai_cost_output,
             span.gen_ai_cost_cache_read,
@@ -112,23 +111,15 @@ fn insert_spans(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), Duckd
             span.messaging_system.as_deref(),
             span.messaging_destination.as_deref(),
             tags,
-            metadata.as_deref(),
+            span.metadata.as_deref(),
             span.input_preview.as_deref(),
             span.output_preview.as_deref(),
-            // Raw messages (JSON array)
-            json_to_opt_string(&span.messages)
-                .as_deref()
-                .unwrap_or("[]"),
-            // Raw tool definitions (JSON array)
-            json_to_opt_string(&span.tool_definitions)
-                .as_deref()
-                .unwrap_or("[]"),
-            // Raw tool names (JSON array)
-            json_to_opt_string(&span.tool_names)
-                .as_deref()
-                .unwrap_or("[]"),
-            // Raw span JSON (includes attributes, resource.attributes, events, links)
-            json_to_opt_string(&span.raw_span).as_deref(),
+            // Pre-serialized JSON arrays (None → "[]")
+            span.messages.as_deref().unwrap_or("[]"),
+            span.tool_definitions.as_deref().unwrap_or("[]"),
+            span.tool_names.as_deref().unwrap_or("[]"),
+            // Pre-serialized raw span JSON
+            span.raw_span.as_deref(),
         ])?;
     }
 
@@ -205,7 +196,7 @@ mod tests {
             span_id: "span1".to_string(),
             span_name: "test".to_string(),
             timestamp_start: Utc::now(),
-            raw_span: serde_json::json!({
+            raw_span: Some(serde_json::to_string(&serde_json::json!({
                 "trace_id": "trace1",
                 "span_id": "span1",
                 "events": [
@@ -214,7 +205,7 @@ mod tests {
                 "links": [
                     {"trace_id": "linked_trace", "span_id": "linked_span", "attributes": null}
                 ]
-            }),
+            })).unwrap()),
             ..Default::default()
         };
 
@@ -247,7 +238,7 @@ mod tests {
             span_id: "span-rt".to_string(),
             span_name: "roundtrip-test".to_string(),
             timestamp_start: Utc::now(),
-            raw_span: serde_json::json!({
+            raw_span: Some(serde_json::to_string(&serde_json::json!({
                 "trace_id": "trace-rt",
                 "span_id": "span-rt",
                 "events": [
@@ -255,7 +246,7 @@ mod tests {
                     {"timestamp": "2025-01-01T00:00:02.000000Z", "name": "event-2", "attributes": {"key2": 42}}
                 ],
                 "links": []
-            }),
+            })).unwrap()),
             ..Default::default()
         };
 
@@ -285,7 +276,7 @@ mod tests {
             span_id: "span-rt".to_string(),
             span_name: "roundtrip-test".to_string(),
             timestamp_start: Utc::now(),
-            raw_span: serde_json::json!({
+            raw_span: Some(serde_json::to_string(&serde_json::json!({
                 "trace_id": "trace-rt",
                 "span_id": "span-rt",
                 "events": [],
@@ -293,7 +284,7 @@ mod tests {
                     {"trace_id": "linked-trace-1", "span_id": "linked-span-1", "attributes": {"relation": "parent"}},
                     {"trace_id": "linked-trace-2", "span_id": "linked-span-2", "attributes": null}
                 ]
-            }),
+            })).unwrap()),
             ..Default::default()
         };
 
@@ -325,12 +316,12 @@ mod tests {
             span_id: "span-empty".to_string(),
             span_name: "no-events".to_string(),
             timestamp_start: Utc::now(),
-            raw_span: serde_json::json!({
+            raw_span: Some(serde_json::to_string(&serde_json::json!({
                 "trace_id": "trace-empty",
                 "span_id": "span-empty",
                 "events": [],
                 "links": []
-            }),
+            })).unwrap()),
             ..Default::default()
         };
 

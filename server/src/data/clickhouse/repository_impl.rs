@@ -287,10 +287,10 @@ impl AnalyticsRepository for Arc<ClickhouseService> {
 
     // ==================== Ingestion Operations ====================
 
-    async fn insert_spans(&self, spans: &[NormalizedSpan]) -> Result<(), DataError> {
+    async fn insert_spans(&self, spans: Vec<NormalizedSpan>) -> Result<(), DataError> {
         // Use local table for distributed mode for optimal insert performance
         let table = self.insert_table("otel_spans");
-        span::insert_batch(self.client(), &table, spans)
+        span::insert_batch(self.client(), &table, &spans)
             .await
             .map_err(Into::into)
     }
