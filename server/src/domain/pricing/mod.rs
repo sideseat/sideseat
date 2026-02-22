@@ -921,7 +921,7 @@ impl PricingService {
         let (pricing, match_type) = match data.lookup(input.system.as_deref(), model) {
             Some(result) => result,
             None => {
-                tracing::debug!(
+                tracing::trace!(
                     model = model,
                     system = input.system.as_deref().unwrap_or("none"),
                     "No pricing found for model"
