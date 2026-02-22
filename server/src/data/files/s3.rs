@@ -9,10 +9,43 @@ use std::path::Path;
 
 use async_trait::async_trait;
 use aws_sdk_s3::Client;
+use aws_sdk_s3::error::SdkError;
+use aws_sdk_s3::operation::head_object::HeadObjectError;
 use aws_sdk_s3::primitives::ByteStream;
 
 use super::error::FileStorageError;
 use super::storage::FileStorage;
+
+/// Format an SDK error with HTTP status and error code for diagnostics.
+fn format_sdk_error<E: std::fmt::Debug>(err: &SdkError<E>) -> String {
+    match err {
+        SdkError::ServiceError(e) => {
+            let status = e.raw().status().as_u16();
+            let body = std::str::from_utf8(e.raw().body().bytes().unwrap_or_default())
+                .unwrap_or("<binary>");
+            format!("HTTP {status}: {body}")
+        }
+        other => format!("{other}"),
+    }
+}
+
+/// Check if a HeadObject error indicates a real problem (not just "not found").
+///
+/// HeadObject returns 404 for non-existent keys but the AWS SDK sometimes
+/// classifies this as `Unhandled` (no XML body to parse). We check both the
+/// typed error and raw HTTP status. Returns true only for definitive non-404
+/// errors like 403 Forbidden.
+fn is_real_head_error(err: &SdkError<HeadObjectError>) -> bool {
+    match err {
+        SdkError::ServiceError(e) => {
+            let status = e.raw().status().as_u16();
+            // 404 = not found (expected), 403/401 = auth issue but we still
+            // want to attempt the upload rather than silently failing
+            !e.err().is_not_found() && status != 404 && status != 403
+        }
+        _ => false,
+    }
+}
 
 /// S3-based file storage
 #[derive(Debug, Clone)]
@@ -105,7 +138,9 @@ impl FileStorage for S3Storage {
 
         let key = self.object_key(project_id, hash);
 
-        // Check if object already exists (content-addressed deduplication)
+        // Check if object already exists (content-addressed deduplication).
+        // On any HeadObject error, proceed to upload — PutObject is idempotent
+        // for content-addressed keys, so re-uploading is safe.
         match self
             .client
             .head_object()
@@ -123,13 +158,13 @@ impl FileStorage for S3Storage {
                 return Ok(());
             }
             Err(err) => {
-                // Only continue if the error is "not found"
-                let service_err = err.into_service_error();
-                if !service_err.is_not_found() {
-                    return Err(FileStorageError::Backend(format!(
-                        "S3 head_object error: {}",
-                        service_err
-                    )));
+                if is_real_head_error(&err) {
+                    tracing::warn!(
+                        project_id,
+                        hash,
+                        error = %err,
+                        "S3 head_object unexpected error, proceeding to upload"
+                    );
                 }
             }
         }
@@ -142,7 +177,10 @@ impl FileStorage for S3Storage {
             .body(ByteStream::from(data.to_vec()))
             .send()
             .await
-            .map_err(|e| FileStorageError::Backend(format!("S3 put_object error: {}", e)))?;
+            .map_err(|e| {
+                let detail = format_sdk_error(&e);
+                FileStorageError::Backend(format!("S3 put_object error: {detail}"))
+            })?;
 
         tracing::debug!(
             project_id,
@@ -205,14 +243,13 @@ impl FileStorage for S3Storage {
         {
             Ok(_) => Ok(true),
             Err(err) => {
-                let service_err = err.into_service_error();
-                if service_err.is_not_found() {
-                    Ok(false)
-                } else {
+                if is_real_head_error(&err) {
                     Err(FileStorageError::Backend(format!(
                         "S3 head_object error: {}",
-                        service_err
+                        err
                     )))
+                } else {
+                    Ok(false)
                 }
             }
         }
@@ -327,7 +364,8 @@ impl FileStorage for S3Storage {
 
         let key = self.object_key(project_id, hash);
 
-        // Check if object already exists (content-addressed deduplication)
+        // Check if object already exists (content-addressed deduplication).
+        // On any HeadObject error, proceed to upload — PutObject is idempotent.
         match self
             .client
             .head_object()
@@ -347,12 +385,13 @@ impl FileStorage for S3Storage {
                 return Ok(());
             }
             Err(err) => {
-                let service_err = err.into_service_error();
-                if !service_err.is_not_found() {
-                    return Err(FileStorageError::Backend(format!(
-                        "S3 head_object error: {}",
-                        service_err
-                    )));
+                if is_real_head_error(&err) {
+                    tracing::warn!(
+                        project_id,
+                        hash,
+                        error = %err,
+                        "S3 head_object unexpected error, proceeding to upload"
+                    );
                 }
             }
         }
@@ -369,7 +408,10 @@ impl FileStorage for S3Storage {
             .body(ByteStream::from(data))
             .send()
             .await
-            .map_err(|e| FileStorageError::Backend(format!("S3 put_object error: {}", e)))?;
+            .map_err(|e| {
+                let detail = format_sdk_error(&e);
+                FileStorageError::Backend(format!("S3 put_object error: {detail}"))
+            })?;
 
         // Remove temp file
         tokio::fs::remove_file(temp_path).await.ok();
