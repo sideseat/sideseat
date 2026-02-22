@@ -463,7 +463,7 @@ impl TopicBackend for RedisTopicBackend {
                     .arg("BLOCK")
                     .arg(XREADGROUP_BLOCK_MS)
                     .arg("COUNT")
-                    .arg(1)
+                    .arg(256)
                     .arg("STREAMS")
                     .arg(&key)
                     .arg(">")  // Only new messages
@@ -506,6 +506,28 @@ impl TopicBackend for RedisTopicBackend {
             .arg(id)
             .query_async(&mut conn)
             .await?;
+
+        Ok(())
+    }
+
+    async fn stream_ack_batch(
+        &self,
+        topic: &str,
+        group: &str,
+        ids: &[String],
+    ) -> Result<(), TopicError> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+        let key = self.stream_key(topic);
+        let mut conn = self.pool.get().await?;
+
+        let mut cmd = deadpool_redis::redis::cmd("XACK");
+        cmd.arg(&key).arg(group);
+        for id in ids {
+            cmd.arg(id.as_str());
+        }
+        let _: i64 = cmd.query_async(&mut conn).await?;
 
         Ok(())
     }

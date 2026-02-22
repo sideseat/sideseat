@@ -96,6 +96,14 @@ pub trait TopicBackend: Send + Sync {
     /// successful processing to prevent re-delivery.
     async fn stream_ack(&self, topic: &str, group: &str, id: &str) -> Result<(), TopicError>;
 
+    /// Acknowledge multiple messages in a single call
+    async fn stream_ack_batch(
+        &self,
+        topic: &str,
+        group: &str,
+        ids: &[String],
+    ) -> Result<(), TopicError>;
+
     /// Claim pending messages that have been idle too long
     ///
     /// Used for recovery when consumers crash without acknowledging.

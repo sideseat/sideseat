@@ -563,6 +563,13 @@ impl StreamAcker {
     pub async fn ack(&self, id: &str) -> Result<(), TopicError> {
         self.backend.stream_ack(&self.name, &self.group, id).await
     }
+
+    /// Acknowledge multiple messages in a single call
+    pub async fn ack_batch(&self, ids: &[String]) -> Result<(), TopicError> {
+        self.backend
+            .stream_ack_batch(&self.name, &self.group, ids)
+            .await
+    }
 }
 
 /// Claimer for claiming stuck messages from other consumers (Send + Sync)
