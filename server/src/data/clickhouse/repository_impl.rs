@@ -319,4 +319,13 @@ impl AnalyticsRepository for Arc<ClickhouseService> {
         .await
         .map_err(Into::into)
     }
+
+    async fn count_spans_by_project(
+        &self,
+        project_ids: &[String],
+    ) -> Result<HashMap<String, u64>, DataError> {
+        query::count_spans_by_project(self.client(), project_ids)
+            .await
+            .map_err(Into::into)
+    }
 }

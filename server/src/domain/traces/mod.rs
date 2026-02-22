@@ -21,4 +21,3 @@ pub use pipeline::TracePipeline;
 
 // Internal re-exports for use within domain crate
 pub(crate) use extract::SpanData;
-pub(crate) use extract::files;

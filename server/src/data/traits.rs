@@ -218,6 +218,13 @@ pub trait AnalyticsRepository: Send + Sync {
 
     /// Delete all data for a project
     async fn delete_project_data(&self, project_id: &str) -> Result<u64, DataError>;
+
+    /// Count spans grouped by project for a set of project IDs.
+    /// Used for org/user-level span count aggregation.
+    async fn count_spans_by_project(
+        &self,
+        project_ids: &[String],
+    ) -> Result<HashMap<String, u64>, DataError>;
 }
 
 // ============================================================================
@@ -572,6 +579,12 @@ pub trait TransactionalRepository: Send + Sync {
 
     /// Get all files with zero ref_count (for cleanup)
     async fn get_orphan_files(&self) -> Result<Vec<(String, String)>, DataError>;
+
+    /// Get total file storage used by all projects in an organization
+    async fn get_org_file_storage_bytes(&self, org_id: &str) -> Result<i64, DataError>;
+
+    /// Get total file storage used across all orgs a user belongs to
+    async fn get_user_file_storage_bytes(&self, user_id: &str) -> Result<i64, DataError>;
 
     // ==================== API Key Operations ====================
 

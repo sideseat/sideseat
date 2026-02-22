@@ -1527,6 +1527,40 @@ pub fn delete_project_data(conn: &Connection, project_id: &str) -> Result<u64, D
     })
 }
 
+/// Count spans grouped by project for a set of project IDs.
+pub fn count_spans_by_project(
+    conn: &Connection,
+    project_ids: &[String],
+) -> Result<std::collections::HashMap<String, u64>, DuckdbError> {
+    use std::collections::HashMap;
+
+    if project_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let placeholders: Vec<&str> = project_ids.iter().map(|_| "?").collect();
+    let sql = format!(
+        "SELECT project_id, COUNT(span_id) FROM otel_spans WHERE project_id IN ({}) GROUP BY project_id",
+        placeholders.join(", ")
+    );
+
+    let params: Vec<&dyn duckdb::ToSql> = project_ids
+        .iter()
+        .map(|v| v as &dyn duckdb::ToSql)
+        .collect();
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt.query(params.as_slice())?;
+
+    let mut result = HashMap::new();
+    while let Some(row) = rows.next()? {
+        let project_id: String = row.get(0)?;
+        let count: i64 = row.get(1)?;
+        result.insert(project_id, count as u64);
+    }
+
+    Ok(result)
+}
+
 // --- Filter options queries ---
 
 /// Result for filter option value with count

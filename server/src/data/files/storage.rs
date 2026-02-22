@@ -18,14 +18,14 @@ pub struct FileContent {
 /// Trait for file storage backends
 ///
 /// All implementations must be thread-safe (Send + Sync) for use in async contexts.
-/// Files are organized per-project with content-addressed storage using SHA-256 hashes.
+/// Files are organized per-project with content-addressed storage using content hashes.
 #[async_trait]
 pub trait FileStorage: Send + Sync {
     /// Store a file
     ///
     /// # Arguments
     /// * `project_id` - Project identifier for isolation
-    /// * `hash` - SHA-256 hash of the file content (64 hex chars)
+    /// * `hash` - Content hash of the file (64 hex chars)
     /// * `data` - File bytes to store
     ///
     /// # Notes
@@ -41,7 +41,7 @@ pub trait FileStorage: Send + Sync {
     ///
     /// # Arguments
     /// * `project_id` - Project identifier
-    /// * `hash` - SHA-256 hash of the file
+    /// * `hash` - Content hash of the file
     ///
     /// # Returns
     /// File bytes or NotFound error
@@ -51,14 +51,14 @@ pub trait FileStorage: Send + Sync {
     ///
     /// # Arguments
     /// * `project_id` - Project identifier
-    /// * `hash` - SHA-256 hash of the file
+    /// * `hash` - Content hash of the file
     async fn exists(&self, project_id: &str, hash: &str) -> Result<bool, FileStorageError>;
 
     /// Delete a file
     ///
     /// # Arguments
     /// * `project_id` - Project identifier
-    /// * `hash` - SHA-256 hash of the file
+    /// * `hash` - Content hash of the file
     ///
     /// # Notes
     /// Does not fail if file doesn't exist.
@@ -77,7 +77,7 @@ pub trait FileStorage: Send + Sync {
     ///
     /// # Arguments
     /// * `project_id` - Project identifier
-    /// * `hash` - SHA-256 hash (used as filename)
+    /// * `hash` - Content hash (used as filename)
     /// * `temp_path` - Path to the temporary file
     ///
     /// # Notes

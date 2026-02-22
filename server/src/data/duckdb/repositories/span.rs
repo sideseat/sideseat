@@ -316,12 +316,15 @@ mod tests {
             span_id: "span-empty".to_string(),
             span_name: "no-events".to_string(),
             timestamp_start: Utc::now(),
-            raw_span: Some(serde_json::to_string(&serde_json::json!({
-                "trace_id": "trace-empty",
-                "span_id": "span-empty",
-                "events": [],
-                "links": []
-            })).unwrap()),
+            raw_span: Some(
+                serde_json::to_string(&serde_json::json!({
+                    "trace_id": "trace-empty",
+                    "span_id": "span-empty",
+                    "events": [],
+                    "links": []
+                }))
+                .unwrap(),
+            ),
             ..Default::default()
         };
 

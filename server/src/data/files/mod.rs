@@ -1,7 +1,7 @@
 //! File storage layer
 //!
 //! Provides binary file storage with deduplication for the application.
-//! Files are stored outside DuckDB with SHA-256 hash-based content addressing.
+//! Files are stored outside DuckDB with hash-based content addressing.
 //!
 //! ## Architecture
 //!
@@ -23,7 +23,7 @@
 //! ## Usage
 //!
 //! ```text
-//! let file_service = FileService::new(config, storage, database).await?;
+//! let file_service = FileService::new(config, storage, database, cache).await?;
 //!
 //! // Get file content
 //! let content = file_service.get_file(project_id, hash).await?;
@@ -40,10 +40,13 @@ pub mod storage;
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::core::config::FilesConfig;
+use crate::core::constants::CACHE_TTL_FILE_QUOTA;
 use crate::core::storage::{AppStorage, DataSubdir};
 use crate::data::TransactionalService;
+use crate::data::cache::{CacheKey, CacheService};
 
 pub use error::{FileServiceError, FileStorageError};
 pub use filesystem::FilesystemStorage;
@@ -69,6 +72,8 @@ pub struct FileService {
     config: FilesConfig,
     /// Path to temp directory
     temp_dir: PathBuf,
+    /// Shared cache service (Redis in SaaS, in-memory in local)
+    cache: Arc<CacheService>,
 }
 
 impl FileService {
@@ -79,6 +84,7 @@ impl FileService {
         config: FilesConfig,
         app_storage: &AppStorage,
         database: Arc<TransactionalService>,
+        cache: Arc<CacheService>,
     ) -> Result<Self, FileServiceError> {
         let temp_dir = app_storage.subdir(DataSubdir::FilesTemp);
 
@@ -125,6 +131,7 @@ impl FileService {
             database,
             config,
             temp_dir,
+            cache,
         };
 
         // Run startup cleanup for orphan temp files
@@ -291,6 +298,8 @@ impl FileService {
             }
         }
 
+        self.invalidate_quota_cache(&[project_id]).await;
+
         Ok(())
     }
 
@@ -307,6 +316,8 @@ impl FileService {
         let repo = self.database.repository();
         repo.delete_project_files(project_id).await?;
 
+        self.invalidate_quota_cache(&[project_id]).await;
+
         tracing::debug!(project_id, deleted, "Deleted all project files");
 
         Ok(deleted)
@@ -320,6 +331,63 @@ impl FileService {
 
         let repo = self.database.repository();
         Ok(repo.get_project_storage_bytes(project_id).await?)
+    }
+
+    /// Check if project has quota for additional bytes. Returns true if within quota.
+    /// Uses CacheService (Redis/memory) with TTL to avoid hitting the DB on every batch.
+    pub async fn check_quota(
+        &self,
+        project_id: &str,
+        additional_bytes: i64,
+    ) -> Result<bool, FileServiceError> {
+        if !self.config.enabled {
+            return Ok(true);
+        }
+        let key = CacheKey::file_quota(project_id);
+        let current = match self.cache.get::<i64>(&key).await.unwrap_or(None) {
+            Some(cached) => cached,
+            None => {
+                let bytes = self.get_storage_bytes(project_id).await?;
+                let _ = self
+                    .cache
+                    .set(
+                        &key,
+                        &bytes,
+                        Some(Duration::from_secs(CACHE_TTL_FILE_QUOTA)),
+                    )
+                    .await;
+                bytes
+            }
+        };
+        Ok((current + additional_bytes) <= self.config.quota_bytes as i64)
+    }
+
+    /// Invalidate cached quota for projects after storage changes (writes or deletes).
+    /// Called by persist layer after file writes and by cleanup after deletions.
+    pub async fn invalidate_quota_cache(&self, project_ids: &[&str]) {
+        for project_id in project_ids {
+            self.cache
+                .invalidate_key(&CacheKey::file_quota(project_id))
+                .await;
+        }
+    }
+
+    /// Get total file storage used by all projects in an organization
+    pub async fn get_org_storage_bytes(&self, org_id: &str) -> Result<i64, FileServiceError> {
+        if !self.config.enabled {
+            return Ok(0);
+        }
+        let repo = self.database.repository();
+        Ok(repo.get_org_file_storage_bytes(org_id).await?)
+    }
+
+    /// Get total file storage used across all orgs a user belongs to
+    pub async fn get_user_storage_bytes(&self, user_id: &str) -> Result<i64, FileServiceError> {
+        if !self.config.enabled {
+            return Ok(0);
+        }
+        let repo = self.database.repository();
+        Ok(repo.get_user_file_storage_bytes(user_id).await?)
     }
 
     /// Get the storage backend
@@ -344,7 +412,7 @@ mod tests {
         "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".to_string()
     }
 
-    async fn setup_test() -> (TempDir, Arc<TransactionalService>) {
+    async fn setup_test() -> (TempDir, Arc<TransactionalService>, Arc<CacheService>) {
         let temp_dir = TempDir::new().unwrap();
 
         // Create SQLite pool with full schema (single connection for :memory: to ensure shared state)
@@ -364,12 +432,20 @@ mod tests {
         let sqlite_service = SqliteService::from_pool(pool);
         let database = Arc::new(TransactionalService::Sqlite(Arc::new(sqlite_service)));
 
-        (temp_dir, database)
+        let cache_config = crate::core::config::CacheConfig {
+            backend: crate::core::config::CacheBackendType::Memory,
+            max_entries: 1000,
+            eviction_policy: crate::core::config::EvictionPolicy::TinyLfu,
+            redis_url: None,
+        };
+        let cache = Arc::new(CacheService::new(&cache_config).await.unwrap());
+
+        (temp_dir, database, cache)
     }
 
     #[tokio::test]
     async fn test_file_service_disabled() {
-        let (temp_dir, database) = setup_test().await;
+        let (temp_dir, database, cache) = setup_test().await;
 
         let config = FilesConfig {
             enabled: false,
@@ -380,7 +456,7 @@ mod tests {
         };
 
         let app_storage = AppStorage::init_for_test(temp_dir.path().to_path_buf());
-        let service = FileService::new(config, &app_storage, database)
+        let service = FileService::new(config, &app_storage, database, cache)
             .await
             .unwrap();
 
@@ -392,7 +468,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_service_get_file() {
-        let (temp_dir, database) = setup_test().await;
+        let (temp_dir, database, cache) = setup_test().await;
 
         let config = FilesConfig {
             enabled: true,
@@ -403,7 +479,7 @@ mod tests {
         };
 
         let app_storage = AppStorage::init_for_test(temp_dir.path().to_path_buf());
-        let service = FileService::new(config, &app_storage, database.clone())
+        let service = FileService::new(config, &app_storage, database.clone(), cache)
             .await
             .unwrap();
 
@@ -428,7 +504,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_service_cleanup_traces() {
-        let (temp_dir, database) = setup_test().await;
+        let (temp_dir, database, cache) = setup_test().await;
 
         // Create directories
         fs::create_dir_all(temp_dir.path().join("files"))
@@ -447,7 +523,7 @@ mod tests {
         };
 
         let app_storage = AppStorage::init_for_test(temp_dir.path().to_path_buf());
-        let service = FileService::new(config, &app_storage, database.clone())
+        let service = FileService::new(config, &app_storage, database.clone(), cache)
             .await
             .unwrap();
 
