@@ -3,7 +3,7 @@
 //! Initial schema with all tables. No migrations needed for first version.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 1;
+pub const SCHEMA_VERSION: i32 = 2;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS files (
     file_hash TEXT NOT NULL,
     media_type TEXT,
     size_bytes INTEGER NOT NULL,
+    hash_algo TEXT NOT NULL DEFAULT 'sha256',
     ref_count INTEGER NOT NULL DEFAULT 1,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,

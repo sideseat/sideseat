@@ -90,14 +90,15 @@ async fn apply_initial_schema(pool: &SqlitePool) -> Result<(), SqliteError> {
 }
 
 /// Apply a specific migration version
-async fn apply_migration(_pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
+const MIGRATION_V2: &str = "ALTER TABLE files ADD COLUMN hash_algo TEXT NOT NULL DEFAULT 'sha256'";
+
+async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
     match version {
         1 => {
             // Already handled by initial schema
             Ok(())
         }
-        // Future migrations go here:
-        // 2 => apply_versioned_migration(pool, 2, "migration_name", MIGRATION_V2).await,
+        2 => apply_versioned_migration(pool, 2, "add_hash_algo_to_files", MIGRATION_V2).await,
         _ => Err(SqliteError::MigrationFailed {
             version,
             name: "unknown".to_string(),

@@ -103,8 +103,7 @@ async fn apply_versioned_migration(pool: &PgPool, version: i32) -> Result<(), Po
 
     // Add future migrations here as match arms:
     let (name, sql): (&str, &str) = match version {
-        // Example:
-        // 2 => ("add_some_table", "CREATE TABLE ..."),
+        2 => ("add_hash_algo_to_files", "ALTER TABLE files ADD COLUMN hash_algo TEXT NOT NULL DEFAULT 'sha256'"),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,

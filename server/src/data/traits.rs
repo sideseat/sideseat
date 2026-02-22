@@ -208,8 +208,8 @@ pub trait AnalyticsRepository: Send + Sync {
 
     // ==================== Ingestion Operations ====================
 
-    /// Insert spans in batch
-    async fn insert_spans(&self, spans: &[NormalizedSpan]) -> Result<(), DataError>;
+    /// Insert spans in batch (takes ownership to avoid clone for spawn_blocking)
+    async fn insert_spans(&self, spans: Vec<NormalizedSpan>) -> Result<(), DataError>;
 
     /// Insert metrics in batch
     async fn insert_metrics(&self, metrics: &[NormalizedMetric]) -> Result<(), DataError>;
@@ -518,6 +518,7 @@ pub trait TransactionalRepository: Send + Sync {
         file_hash: &str,
         media_type: Option<&str>,
         size_bytes: i64,
+        hash_algo: &str,
     ) -> Result<i64, DataError>;
 
     /// Get a file by project and hash

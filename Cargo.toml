@@ -75,6 +75,7 @@ hex = "0.4"
 regex = "1.11"
 fs2 = "0.4"
 sha2 = "0.10"
+blake3 = "1"
 hmac = "0.12"
 dashmap = "6.1"
 duckdb = { version = "1.4.2", features = ["bundled", "json", "vtab"] }
