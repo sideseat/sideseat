@@ -96,7 +96,17 @@ pub async fn get_file(
     .await?;
 
     Ok(row.map(
-        |(id, project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at)| {
+        |(
+            id,
+            project_id,
+            file_hash,
+            media_type,
+            size_bytes,
+            hash_algo,
+            ref_count,
+            created_at,
+            updated_at,
+        )| {
             FileRow {
                 id,
                 project_id,
@@ -247,6 +257,47 @@ pub async fn get_project_storage_bytes(
     Ok(result.0.unwrap_or(0))
 }
 
+/// Get total file storage used by all projects in an organization
+pub async fn get_org_file_storage_bytes(
+    pool: &SqlitePool,
+    org_id: &str,
+) -> Result<i64, SqliteError> {
+    let result: (Option<i64>,) = sqlx::query_as(
+        r#"
+        SELECT COALESCE(SUM(f.size_bytes), 0)
+        FROM files f
+        JOIN projects p ON f.project_id = p.id
+        WHERE p.organization_id = ?
+        "#,
+    )
+    .bind(org_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(result.0.unwrap_or(0))
+}
+
+/// Get total file storage used across all orgs a user belongs to
+pub async fn get_user_file_storage_bytes(
+    pool: &SqlitePool,
+    user_id: &str,
+) -> Result<i64, SqliteError> {
+    let result: (Option<i64>,) = sqlx::query_as(
+        r#"
+        SELECT COALESCE(SUM(f.size_bytes), 0)
+        FROM files f
+        JOIN projects p ON f.project_id = p.id
+        JOIN organization_members m ON p.organization_id = m.organization_id
+        WHERE m.user_id = ?
+        "#,
+    )
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(result.0.unwrap_or(0))
+}
+
 /// Get all files with zero ref_count across all projects (for global cleanup)
 ///
 /// Returns (project_id, file_hash) pairs for orphaned files.
@@ -288,9 +339,16 @@ mod tests {
     async fn test_upsert_file_new() {
         let pool = setup_test_pool().await;
 
-        let ref_count = upsert_file(&pool,"default", test_hash(), Some("image/png"), 1024, "sha256")
-            .await
-            .unwrap();
+        let ref_count = upsert_file(
+            &pool,
+            "default",
+            test_hash(),
+            Some("image/png"),
+            1024,
+            "sha256",
+        )
+        .await
+        .unwrap();
 
         assert_eq!(ref_count, 1);
 
@@ -308,19 +366,40 @@ mod tests {
     async fn test_upsert_file_increments_ref_count() {
         let pool = setup_test_pool().await;
 
-        let ref1 = upsert_file(&pool,"default", test_hash(), Some("image/png"), 1024, "sha256")
-            .await
-            .unwrap();
+        let ref1 = upsert_file(
+            &pool,
+            "default",
+            test_hash(),
+            Some("image/png"),
+            1024,
+            "sha256",
+        )
+        .await
+        .unwrap();
         assert_eq!(ref1, 1);
 
-        let ref2 = upsert_file(&pool,"default", test_hash(), Some("image/png"), 1024, "sha256")
-            .await
-            .unwrap();
+        let ref2 = upsert_file(
+            &pool,
+            "default",
+            test_hash(),
+            Some("image/png"),
+            1024,
+            "sha256",
+        )
+        .await
+        .unwrap();
         assert_eq!(ref2, 2);
 
-        let ref3 = upsert_file(&pool,"default", test_hash(), Some("image/png"), 1024, "sha256")
-            .await
-            .unwrap();
+        let ref3 = upsert_file(
+            &pool,
+            "default",
+            test_hash(),
+            Some("image/png"),
+            1024,
+            "sha256",
+        )
+        .await
+        .unwrap();
         assert_eq!(ref3, 3);
     }
 
@@ -328,10 +407,10 @@ mod tests {
     async fn test_decrement_ref_count() {
         let pool = setup_test_pool().await;
 
-        upsert_file(&pool,"default", test_hash(), None, 1024, "sha256")
+        upsert_file(&pool, "default", test_hash(), None, 1024, "sha256")
             .await
             .unwrap();
-        upsert_file(&pool,"default", test_hash(), None, 1024, "sha256")
+        upsert_file(&pool, "default", test_hash(), None, 1024, "sha256")
             .await
             .unwrap();
 
@@ -362,7 +441,7 @@ mod tests {
 
         assert!(!file_exists(&pool, "default", test_hash()).await.unwrap());
 
-        upsert_file(&pool,"default", test_hash(), None, 1024, "sha256")
+        upsert_file(&pool, "default", test_hash(), None, 1024, "sha256")
             .await
             .unwrap();
 
@@ -373,7 +452,7 @@ mod tests {
     async fn test_delete_file() {
         let pool = setup_test_pool().await;
 
-        upsert_file(&pool,"default", test_hash(), None, 1024, "sha256")
+        upsert_file(&pool, "default", test_hash(), None, 1024, "sha256")
             .await
             .unwrap();
 
@@ -390,10 +469,10 @@ mod tests {
         let hash2 = "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3";
 
         // Insert file records first
-        upsert_file(&pool,"default", hash1, None, 1024, "sha256")
+        upsert_file(&pool, "default", hash1, None, 1024, "sha256")
             .await
             .unwrap();
-        upsert_file(&pool,"default", hash2, None, 2048, "sha256")
+        upsert_file(&pool, "default", hash2, None, 2048, "sha256")
             .await
             .unwrap();
 
@@ -431,7 +510,7 @@ mod tests {
         let pool = setup_test_pool().await;
         let hash = test_hash();
 
-        upsert_file(&pool,"default", hash, None, 1024, "sha256")
+        upsert_file(&pool, "default", hash, None, 1024, "sha256")
             .await
             .unwrap();
         insert_trace_file(&pool, "trace1", "default", hash)
@@ -486,10 +565,10 @@ mod tests {
         let pool = setup_test_pool().await;
         let hash = test_hash();
 
-        upsert_file(&pool,"project1", hash, None, 1024, "sha256")
+        upsert_file(&pool, "project1", hash, None, 1024, "sha256")
             .await
             .unwrap();
-        upsert_file(&pool,"project2", hash, None, 2048, "sha256")
+        upsert_file(&pool, "project2", hash, None, 2048, "sha256")
             .await
             .unwrap();
 

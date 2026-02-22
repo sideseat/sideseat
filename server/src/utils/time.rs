@@ -12,6 +12,11 @@ pub fn nanos_to_datetime(nanos: u64) -> DateTime<Utc> {
     })
 }
 
+/// Convert nanoseconds since Unix epoch to ISO 8601 string (microsecond precision)
+pub fn nanos_to_iso(nanos: u64) -> String {
+    nanos_to_datetime(nanos).to_rfc3339_opts(chrono::SecondsFormat::Micros, true)
+}
+
 /// Convert microseconds since Unix epoch to DateTime<Utc>
 pub fn micros_to_datetime(micros: i64) -> DateTime<Utc> {
     DateTime::from_timestamp_micros(micros).unwrap_or_else(|| {
@@ -111,5 +116,52 @@ mod tests {
     fn test_parse_iso_timestamp_invalid() {
         let dt = parse_iso_timestamp("not-a-timestamp");
         assert_eq!(dt, DateTime::UNIX_EPOCH);
+    }
+
+    // ================================================================
+    // Regression: nanos_to_iso (moved from persist.rs)
+    // ================================================================
+
+    #[test]
+    fn test_nanos_to_iso_epoch() {
+        assert_eq!(nanos_to_iso(0), "1970-01-01T00:00:00.000000Z");
+    }
+
+    #[test]
+    fn test_nanos_to_iso_known_timestamp() {
+        // 2024-01-01 00:00:00 UTC
+        let nanos = 1704067200_u64 * 1_000_000_000;
+        assert_eq!(nanos_to_iso(nanos), "2024-01-01T00:00:00.000000Z");
+    }
+
+    #[test]
+    fn test_nanos_to_iso_microsecond_precision() {
+        // 1 second + 123456 microseconds
+        let nanos = 1_000_000_000 + 123_456_000;
+        let iso = nanos_to_iso(nanos);
+        assert_eq!(iso, "1970-01-01T00:00:01.123456Z");
+    }
+
+    #[test]
+    fn test_nanos_to_iso_sub_microsecond_truncated() {
+        // Nanoseconds below microsecond precision should be truncated
+        let nanos = 1_000_000_000 + 123_456_789;
+        let iso = nanos_to_iso(nanos);
+        // chrono's Micros precision rounds/truncates sub-microsecond
+        assert!(
+            iso.starts_with("1970-01-01T00:00:01.123456"),
+            "Sub-microsecond nanos should be truncated, got: {}",
+            iso
+        );
+    }
+
+    #[test]
+    fn test_nanos_to_iso_uses_utc_suffix() {
+        let iso = nanos_to_iso(0);
+        assert!(
+            iso.ends_with('Z'),
+            "Should use Z suffix for UTC, got: {}",
+            iso
+        );
     }
 }

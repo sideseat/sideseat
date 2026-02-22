@@ -96,7 +96,17 @@ pub async fn get_file(
     .await?;
 
     Ok(row.map(
-        |(id, project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at)| {
+        |(
+            id,
+            project_id,
+            file_hash,
+            media_type,
+            size_bytes,
+            hash_algo,
+            ref_count,
+            created_at,
+            updated_at,
+        )| {
             FileRow {
                 id,
                 project_id,
@@ -253,6 +263,44 @@ pub async fn get_project_storage_bytes(
             .bind(project_id)
             .fetch_one(pool)
             .await?;
+
+    Ok(result.0.unwrap_or(0))
+}
+
+/// Get total file storage used by all projects in an organization
+pub async fn get_org_file_storage_bytes(pool: &PgPool, org_id: &str) -> Result<i64, PostgresError> {
+    let result: (Option<i64>,) = sqlx::query_as(
+        r#"
+        SELECT COALESCE(SUM(f.size_bytes), 0)
+        FROM files f
+        JOIN projects p ON f.project_id = p.id
+        WHERE p.organization_id = $1
+        "#,
+    )
+    .bind(org_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(result.0.unwrap_or(0))
+}
+
+/// Get total file storage used across all orgs a user belongs to
+pub async fn get_user_file_storage_bytes(
+    pool: &PgPool,
+    user_id: &str,
+) -> Result<i64, PostgresError> {
+    let result: (Option<i64>,) = sqlx::query_as(
+        r#"
+        SELECT COALESCE(SUM(f.size_bytes), 0)
+        FROM files f
+        JOIN projects p ON f.project_id = p.id
+        JOIN organization_members m ON p.organization_id = m.organization_id
+        WHERE m.user_id = $1
+        "#,
+    )
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
 
     Ok(result.0.unwrap_or(0))
 }

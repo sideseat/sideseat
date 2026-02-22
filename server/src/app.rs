@@ -115,9 +115,14 @@ impl CoreApp {
 
         tracing::debug!(backend = topics.backend_name(), "Topics initialized");
         let files = Arc::new(
-            FileService::new(config.files.clone(), &storage, database.clone())
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to initialize file service: {}", e))?,
+            FileService::new(
+                config.files.clone(),
+                &storage,
+                database.clone(),
+                cache.clone(),
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to initialize file service: {}", e))?,
         );
         let shutdown = ShutdownService::new(topics.clone(), database.clone(), analytics.clone());
 

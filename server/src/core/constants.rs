@@ -244,12 +244,21 @@ pub const FILES_MAX_SIZE_BYTES: usize = 50 * 1024 * 1024;
 /// Messages larger than this after extraction likely have base64 we missed
 pub const FILES_MAX_MESSAGE_SIZE_BYTES: usize = 10 * 1024 * 1024;
 
+/// Hash algorithm used for file content addressing
+pub const FILE_HASH_ALGORITHM: &str = "blake3";
+
 /// Default per-project storage quota (1 GB)
 pub const FILES_DEFAULT_QUOTA_BYTES: u64 = 1024 * 1024 * 1024;
 
 /// Max concurrent file finalization operations during batch processing
 /// Limits parallel I/O to prevent overwhelming the storage backend
 pub const FILES_MAX_CONCURRENT_FINALIZATION: usize = 128;
+
+/// Max entries in the in-process file extraction cache (moka TinyLFU)
+pub const FILE_EXTRACTION_CACHE_MAX_ENTRIES: u64 = 10_000;
+
+/// Cache TTL for file quota storage bytes (seconds)
+pub const CACHE_TTL_FILE_QUOTA: u64 = 60;
 
 /// Threshold for streaming large file decoding (5 MB)
 /// Files larger than this are decoded and hashed incrementally
