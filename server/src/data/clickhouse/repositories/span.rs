@@ -191,7 +191,10 @@ impl From<&NormalizedSpan> for SpanRow {
             input_preview: span.input_preview.clone(),
             output_preview: span.output_preview.clone(),
             messages: span.messages.clone().unwrap_or_else(|| "[]".to_string()),
-            tool_definitions: span.tool_definitions.clone().unwrap_or_else(|| "[]".to_string()),
+            tool_definitions: span
+                .tool_definitions
+                .clone()
+                .unwrap_or_else(|| "[]".to_string()),
             tool_names: span.tool_names.clone().unwrap_or_else(|| "[]".to_string()),
             raw_span: span.raw_span.clone(),
         }

@@ -92,7 +92,7 @@ aws-sdk-secretsmanager = "1"
 aws-config = { version = "1.7", features = ["behavior-version-latest"] }
 
 # Cache (moka for in-memory, deadpool-redis for Redis)
-moka = { version = "0.12", features = ["future"] }
+moka = { version = "0.12", features = ["future", "sync"] }
 rmp-serde = "1"
 md5 = "0.7"
 deadpool-redis = "0.18"

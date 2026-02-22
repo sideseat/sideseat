@@ -6,7 +6,7 @@
 use serde_json::{Value as JsonValue, json};
 
 use super::types::ChatRole;
-use crate::domain::traces::files;
+use crate::utils::file_uri as files;
 
 /// FNV-1a hash constants (32-bit).
 ///

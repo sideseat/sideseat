@@ -1748,6 +1748,44 @@ pub async fn delete_project_data(
     Ok(count)
 }
 
+/// Count spans grouped by project for a set of project IDs.
+pub async fn count_spans_by_project(
+    client: &Client,
+    project_ids: &[String],
+) -> Result<std::collections::HashMap<String, u64>, ClickhouseError> {
+    use std::collections::HashMap;
+
+    if project_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let placeholders: Vec<&str> = project_ids.iter().map(|_| "?").collect();
+    let sql = format!(
+        "SELECT project_id, count() AS cnt FROM otel_spans FINAL WHERE project_id IN ({}) GROUP BY project_id",
+        placeholders.join(", ")
+    );
+
+    #[derive(Row, Deserialize)]
+    struct CountRow {
+        project_id: String,
+        cnt: u64,
+    }
+
+    let mut query = client.query(&sql);
+    for pid in project_ids {
+        query = query.bind(pid);
+    }
+
+    let rows: Vec<CountRow> = query.fetch_all().await?;
+
+    let mut result = HashMap::new();
+    for row in rows {
+        result.insert(row.project_id, row.cnt);
+    }
+
+    Ok(result)
+}
+
 /// ClickHouse row for filter options
 #[derive(Row, Deserialize)]
 struct ChFilterOptionRow {

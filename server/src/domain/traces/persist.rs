@@ -15,26 +15,27 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use base64::prelude::*;
-use chrono::{DateTime, Utc};
 use futures::stream::StreamExt;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
-use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
 use opentelemetry_proto::tonic::trace::v1::Span;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as JsonValue, json};
 
 use super::enrich::SpanEnrichment;
 use super::extract::files::{
-    extract_and_replace_files, extract_and_replace_files_cached, FileExtractionCache,
+    ExtractedFile, FileExtractionCache, extract_and_replace_files, extract_and_replace_files_cached,
 };
 use super::extract::{RawMessage, RawToolDefinition, RawToolNames, SpanData};
-use crate::core::constants::FILES_MAX_CONCURRENT_FINALIZATION;
+use crate::core::constants::{
+    DEFAULT_PROJECT_ID, FILE_HASH_ALGORITHM, FILES_MAX_CONCURRENT_FINALIZATION,
+};
 use crate::core::{TopicMessage, TopicService};
 use crate::data::AnalyticsService;
 use crate::data::files::FileService;
 use crate::data::types::{NormalizedSpan, json_to_pre_serialized};
-use crate::utils::otlp::extract_attributes;
+use crate::utils::otlp::{build_attributes_json, extract_attributes};
 use crate::utils::retry::{DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS, retry_with_backoff_async};
+use crate::utils::time::nanos_to_iso;
 
 // ============================================================================
 // SSE EVENT MODEL
@@ -81,7 +82,7 @@ impl TopicMessage for SseSpanEvent {
 ///
 /// Contains the file bytes and metadata needed to persist to storage.
 /// Created during the CPU-only extraction phase, consumed by
-/// `persist_extracted_files` in a background task.
+/// `persist_extracted_files` in parallel with DuckDB write.
 pub(super) struct PendingFileWrite {
     pub project_id: String,
     pub trace_id: String,
@@ -93,6 +94,15 @@ pub(super) struct PendingFileWrite {
     pub hash_algo: String,
 }
 
+/// Extracted data from a batch of spans, ready for flattening and persistence.
+pub(super) struct BatchInput {
+    pub spans: Vec<SpanData>,
+    pub messages: Vec<Vec<RawMessage>>,
+    pub tool_definitions: Vec<Vec<RawToolDefinition>>,
+    pub tool_names: Vec<Vec<RawToolNames>>,
+    pub enrichments: Vec<SpanEnrichment>,
+}
+
 /// Prepare spans for persistence: file extraction (CPU only) + flatten.
 ///
 /// Returns NormalizedSpans ready for DuckDB write, plus pending file writes
@@ -101,14 +111,9 @@ pub(super) struct PendingFileWrite {
 /// File extraction (CPU phase) replaces base64 data with `#!B64!#` URIs
 /// in the JSON fields so DuckDB stores compact references, not raw base64.
 /// The actual file I/O (temp write, SQLite metadata, finalization) is deferred.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn prepare_batch(
     request: &ExportTraceServiceRequest,
-    spans: Vec<SpanData>,
-    messages: Vec<Vec<RawMessage>>,
-    tool_definitions: Vec<Vec<RawToolDefinition>>,
-    tool_names: Vec<Vec<RawToolNames>>,
-    enrichments: Vec<SpanEnrichment>,
+    input: BatchInput,
     files_enabled: bool,
     file_cache: Option<&FileExtractionCache>,
 ) -> (Vec<NormalizedSpan>, Vec<PendingFileWrite>) {
@@ -116,11 +121,11 @@ pub(super) fn prepare_batch(
 
     // Extract files from messages (CPU only: replace base64 with URIs)
     let processed_messages = if files_enabled {
-        let (msgs, files) = extract_files_cpu_messages(messages, &spans, file_cache);
+        let (msgs, files) = extract_files_cpu_messages(input.messages, &input.spans, file_cache);
         pending_files = files;
         msgs
     } else {
-        messages
+        input.messages
     };
 
     // Convert SpanData + Enrichment to NormalizedSpan, build raw span JSON.
@@ -128,11 +133,11 @@ pub(super) fn prepare_batch(
     // BEFORE serialization, eliminating the serialize→deserialize→re-serialize round-trip.
     let (db_spans, raw_span_files) = flatten(
         request,
-        spans,
+        input.spans,
         processed_messages,
-        tool_definitions,
-        tool_names,
-        enrichments,
+        input.tool_definitions,
+        input.tool_names,
+        input.enrichments,
         files_enabled,
         file_cache,
     );
@@ -141,31 +146,23 @@ pub(super) fn prepare_batch(
     (db_spans, pending_files)
 }
 
-/// Write prepared spans to DuckDB and publish SSE events.
-pub(super) async fn persist_prepared(
-    db_spans: Vec<NormalizedSpan>,
-    topics: &TopicService,
-    analytics: &Arc<AnalyticsService>,
-) {
-    publish_to_sse(&db_spans, topics).await;
-    write_to_duckdb(db_spans, analytics).await;
-}
-
 // ============================================================================
 // SSE PUBLISHING
 // ============================================================================
 
-/// Publish spans to per-project SSE topics for real-time streaming.
+/// Publish pre-built SSE events to per-project topics for real-time streaming.
 ///
 /// Uses BroadcastTopic for distributed pub/sub. In Redis mode, events are
 /// published via Redis Pub/Sub so all SSE endpoints receive them.
-async fn publish_to_sse(spans: &[NormalizedSpan], topics: &TopicService) {
-    for span in spans {
-        if let Some(ref project_id) = span.project_id {
+///
+/// SSE events are built before DuckDB write so clients only receive notifications
+/// after both the DuckDB write and file persistence are complete.
+pub(super) async fn publish_sse_events(events: &[SseSpanEvent], topics: &TopicService) {
+    for event in events {
+        if let Some(ref project_id) = event.project_id {
             let topic_name = format!("sse_spans:{}", project_id);
             let topic = topics.broadcast_topic::<SseSpanEvent>(&topic_name);
-            let event = SseSpanEvent::from(span);
-            if let Err(e) = topic.publish(&event).await {
+            if let Err(e) = topic.publish(event).await {
                 tracing::warn!(error = %e, project_id, "Failed to publish SSE event");
             }
         }
@@ -247,6 +244,23 @@ async fn finalize_pending_files(
     }
 }
 
+/// Convert extracted files to pending writes for a given project/trace.
+fn to_pending_files<'a>(
+    files: Vec<ExtractedFile>,
+    project_id: &'a str,
+    trace_id: &'a str,
+) -> impl Iterator<Item = PendingFileWrite> + 'a {
+    files.into_iter().map(move |f| PendingFileWrite {
+        project_id: project_id.to_string(),
+        trace_id: trace_id.to_string(),
+        hash: f.hash,
+        media_type: f.media_type,
+        size: f.size,
+        data: f.data,
+        hash_algo: FILE_HASH_ALGORITHM.to_string(),
+    })
+}
+
 /// CPU-only: extract files from all messages in a batch.
 ///
 /// Replaces base64 data with `#!B64!#` URIs in message content.
@@ -260,7 +274,7 @@ fn extract_files_cpu_messages(
 
     for (span_idx, span_messages) in messages.iter_mut().enumerate() {
         let span = &spans[span_idx];
-        let project_id = span.project_id.as_deref().unwrap_or("default");
+        let project_id = span.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID);
         let trace_id = &span.trace_id;
 
         for raw_message in span_messages.iter_mut() {
@@ -268,19 +282,7 @@ fn extract_files_cpu_messages(
                 Some(c) => extract_and_replace_files_cached(&mut raw_message.content, c),
                 None => extract_and_replace_files(&mut raw_message.content),
             };
-            if result.modified {
-                for file in result.files {
-                    pending.push(PendingFileWrite {
-                        project_id: project_id.to_string(),
-                        trace_id: trace_id.clone(),
-                        hash: file.hash,
-                        media_type: file.media_type,
-                        size: file.size,
-                        data: file.data,
-                        hash_algo: "blake3".to_string(),
-                    });
-                }
-            }
+            pending.extend(to_pending_files(result.files, project_id, trace_id));
         }
     }
 
@@ -291,7 +293,7 @@ fn extract_files_cpu_messages(
 ///
 /// Handles temp file writes, SQLite metadata upserts, and finalization.
 /// Deduplicates by hash within the batch to avoid redundant I/O.
-/// Called from a background task after DuckDB write completes.
+/// Called in parallel with DuckDB write via tokio::join!.
 pub(super) async fn persist_extracted_files(
     files: Vec<PendingFileWrite>,
     file_service: &Arc<FileService>,
@@ -300,7 +302,81 @@ pub(super) async fn persist_extracted_files(
         return;
     }
 
+    // Phase 1: Quota filtering
+    let (files, project_sizes) = filter_over_quota(files, file_service).await;
+    if files.is_empty() {
+        return;
+    }
+
+    // Phase 2: Decode, write, and record files
     let file_count = files.len();
+    let (pending_finalizations, unique_count) = write_and_record_files(&files, file_service).await;
+
+    // Phase 3: Finalize temp files to permanent storage
+    finalize_pending_files(pending_finalizations, file_service, "batch").await;
+
+    // Phase 4: Invalidate quota cache for affected projects
+    let affected_projects: Vec<&str> = project_sizes.keys().map(|s| s.as_str()).collect();
+    file_service
+        .invalidate_quota_cache(&affected_projects)
+        .await;
+
+    tracing::debug!(
+        total = file_count,
+        unique = unique_count,
+        "File persistence batch completed"
+    );
+}
+
+/// Filter out files from projects that exceed storage quota.
+/// Returns filtered files and project size map (for later cache invalidation).
+async fn filter_over_quota(
+    files: Vec<PendingFileWrite>,
+    file_service: &Arc<FileService>,
+) -> (Vec<PendingFileWrite>, HashMap<String, usize>) {
+    let mut project_sizes: HashMap<String, usize> = HashMap::new();
+    for f in &files {
+        *project_sizes.entry(f.project_id.clone()).or_default() += f.size;
+    }
+
+    let mut over_quota: HashSet<String> = HashSet::new();
+    for (project_id, pending_size) in &project_sizes {
+        match file_service
+            .check_quota(project_id, *pending_size as i64)
+            .await
+        {
+            Ok(false) => {
+                over_quota.insert(project_id.clone());
+                tracing::warn!(
+                    project_id,
+                    pending_bytes = pending_size,
+                    "File quota exceeded, skipping file persistence"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    project_id,
+                    error = %e,
+                    "Quota check failed, allowing persistence"
+                );
+            }
+            _ => {}
+        }
+    }
+
+    let filtered: Vec<_> = files
+        .into_iter()
+        .filter(|f| !over_quota.contains(&f.project_id))
+        .collect();
+    (filtered, project_sizes)
+}
+
+/// Decode base64, write temp files, upsert metadata, and record trace associations.
+/// Returns pending finalizations and count of unique files written.
+async fn write_and_record_files(
+    files: &[PendingFileWrite],
+    file_service: &Arc<FileService>,
+) -> (Vec<PendingFinalization>, usize) {
     let temp_dir = file_service.temp_dir();
     let repo = file_service.database().repository();
     let mut pending_finalizations: Vec<PendingFinalization> = Vec::new();
@@ -310,7 +386,7 @@ pub(super) async fn persist_extracted_files(
     // Deduplicate: only insert trace-file once per unique (trace_id, hash)
     let mut trace_hashes: HashSet<(String, String)> = HashSet::new();
 
-    for file in &files {
+    for file in files {
         let dedup_key = format!("{}:{}", file.project_id, file.hash);
         let is_new = written_hashes.insert(dedup_key);
 
@@ -356,8 +432,7 @@ pub(super) async fn persist_extracted_files(
                     continue;
                 }
 
-                // Upsert file metadata
-                let upsert_result = repo
+                if let Err(e) = repo
                     .upsert_file(
                         &file.project_id,
                         &file.hash,
@@ -366,9 +441,7 @@ pub(super) async fn persist_extracted_files(
                         &file.hash_algo,
                     )
                     .await
-                    .map_err(|e| e.to_string());
-
-                if let Err(e) = upsert_result {
+                {
                     tracing::warn!(
                         error = %e,
                         hash = %file.hash,
@@ -379,7 +452,6 @@ pub(super) async fn persist_extracted_files(
                     continue;
                 }
 
-                // Queue for finalization
                 pending_finalizations.push(PendingFinalization {
                     project_id: file.project_id.clone(),
                     hash: file.hash.clone(),
@@ -390,31 +462,21 @@ pub(super) async fn persist_extracted_files(
 
         // Record trace-file association (once per trace+hash)
         let trace_key = (file.trace_id.clone(), file.hash.clone());
-        if trace_hashes.insert(trace_key) {
-            let insert_result = repo
+        if trace_hashes.insert(trace_key)
+            && let Err(e) = repo
                 .insert_trace_file(&file.trace_id, &file.project_id, &file.hash)
                 .await
-                .map_err(|e| e.to_string());
-
-            if let Err(e) = insert_result {
-                tracing::warn!(
-                    error = %e,
-                    hash = %file.hash,
-                    trace_id = %file.trace_id,
-                    "Failed to insert trace-file association"
-                );
-            }
+        {
+            tracing::warn!(
+                error = %e,
+                hash = %file.hash,
+                trace_id = %file.trace_id,
+                "Failed to insert trace-file association"
+            );
         }
     }
 
-    // Finalize all files with bounded concurrency
-    finalize_pending_files(pending_finalizations, file_service, "batch").await;
-
-    tracing::debug!(
-        total = file_count,
-        unique = written_hashes.len(),
-        "Background file persistence completed"
-    );
+    (pending_finalizations, written_hashes.len())
 }
 
 // ============================================================================
@@ -426,7 +488,7 @@ pub(super) async fn persist_extracted_files(
 /// Each attempt clones spans (insert_spans consumes ownership for spawn_blocking).
 /// With pre-serialized String fields, clone cost is ~microseconds of memcpy, negligible
 /// compared to the DuckDB write which takes milliseconds-to-seconds.
-async fn write_to_duckdb(spans: Vec<NormalizedSpan>, analytics: &Arc<AnalyticsService>) {
+pub(super) async fn write_to_duckdb(spans: Vec<NormalizedSpan>, analytics: &Arc<AnalyticsService>) {
     let span_count = spans.len();
     let repo = analytics.repository();
 
@@ -522,53 +584,37 @@ fn flatten(
                     // Extract files from JSON values in-memory BEFORE serialization.
                     // This avoids the costly serialize→deserialize→re-serialize round-trip.
                     if files_enabled {
-                        let project_id =
-                            span.project_id.as_deref().unwrap_or("default").to_string();
+                        let project_id = span
+                            .project_id
+                            .as_deref()
+                            .unwrap_or(DEFAULT_PROJECT_ID)
+                            .to_string();
                         let trace_id = &span.trace_id;
 
                         // raw_span
-                        for file in extract_fn(&mut raw_span_json).files {
-                            pending_files.push(PendingFileWrite {
-                                project_id: project_id.clone(),
-                                trace_id: trace_id.clone(),
-                                hash: file.hash,
-                                media_type: file.media_type,
-                                size: file.size,
-                                data: file.data,
-                                hash_algo: "blake3".to_string(),
-                            });
-                        }
+                        pending_files.extend(to_pending_files(
+                            extract_fn(&mut raw_span_json).files,
+                            &project_id,
+                            trace_id,
+                        ));
 
                         // tool_definitions
-                        for file in extract_fn(&mut tool_definitions_json).files {
-                            pending_files.push(PendingFileWrite {
-                                project_id: project_id.clone(),
-                                trace_id: trace_id.clone(),
-                                hash: file.hash,
-                                media_type: file.media_type,
-                                size: file.size,
-                                data: file.data,
-                                hash_algo: "blake3".to_string(),
-                            });
-                        }
+                        pending_files.extend(to_pending_files(
+                            extract_fn(&mut tool_definitions_json).files,
+                            &project_id,
+                            trace_id,
+                        ));
 
                         // metadata (owned, mutate in place before serialization)
-                        for file in extract_fn(&mut span.metadata).files {
-                            pending_files.push(PendingFileWrite {
-                                project_id: project_id.clone(),
-                                trace_id: trace_id.clone(),
-                                hash: file.hash,
-                                media_type: file.media_type,
-                                size: file.size,
-                                data: file.data,
-                                hash_algo: "blake3".to_string(),
-                            });
-                        }
+                        pending_files.extend(to_pending_files(
+                            extract_fn(&mut span.metadata).files,
+                            &project_id,
+                            trace_id,
+                        ));
                     }
 
                     // Serialize to strings ONCE (after file extraction)
-                    let tool_definitions_str =
-                        serde_json::to_string(&tool_definitions_json).ok();
+                    let tool_definitions_str = serde_json::to_string(&tool_definitions_json).ok();
                     let raw_span_str = serde_json::to_string(&raw_span_json).ok();
 
                     result.push(to_normalized_span(
@@ -760,15 +806,6 @@ fn to_normalized_span(
 // RAW SPAN JSON BUILDING
 // ============================================================================
 
-/// Convert nanoseconds since epoch to ISO 8601 timestamp string
-fn nanos_to_iso(nanos: u64) -> String {
-    let secs = (nanos / 1_000_000_000) as i64;
-    let nsecs = (nanos % 1_000_000_000) as u32;
-    DateTime::<Utc>::from_timestamp(secs, nsecs)
-        .map(|dt| dt.to_rfc3339_opts(chrono::SecondsFormat::Micros, true))
-        .unwrap_or_default()
-}
-
 /// Build a raw JSON representation of an OTLP span for archival.
 /// Uses ordered map for better readability (identity -> timing -> content -> metadata).
 fn build_raw_span_json(span: &Span, resource_attrs: &HashMap<String, String>) -> JsonValue {
@@ -810,7 +847,7 @@ fn build_raw_span_json(span: &Span, resource_attrs: &HashMap<String, String>) ->
     );
 
     // Attributes
-    map.insert("attributes".into(), build_attributes_raw(&span.attributes));
+    map.insert("attributes".into(), build_attributes_json(&span.attributes));
 
     // Events (with ordered fields)
     let events: Vec<JsonValue> = span
@@ -820,7 +857,7 @@ fn build_raw_span_json(span: &Span, resource_attrs: &HashMap<String, String>) ->
             let mut event_map = serde_json::Map::new();
             event_map.insert("name".into(), json!(&e.name));
             event_map.insert("timestamp".into(), json!(nanos_to_iso(e.time_unix_nano)));
-            event_map.insert("attributes".into(), build_attributes_raw(&e.attributes));
+            event_map.insert("attributes".into(), build_attributes_json(&e.attributes));
             event_map.insert(
                 "dropped_attributes_count".into(),
                 json!(e.dropped_attributes_count),
@@ -839,7 +876,7 @@ fn build_raw_span_json(span: &Span, resource_attrs: &HashMap<String, String>) ->
             link_map.insert("trace_id".into(), json!(hex::encode(&l.trace_id)));
             link_map.insert("span_id".into(), json!(hex::encode(&l.span_id)));
             link_map.insert("trace_state".into(), json!(&l.trace_state));
-            link_map.insert("attributes".into(), build_attributes_raw(&l.attributes));
+            link_map.insert("attributes".into(), build_attributes_json(&l.attributes));
             link_map.insert("flags".into(), json!(l.flags));
             link_map.insert(
                 "dropped_attributes_count".into(),
@@ -889,46 +926,6 @@ fn build_resource_attributes(attrs: &HashMap<String, String>) -> JsonValue {
     let map: serde_json::Map<String, JsonValue> =
         attrs.iter().map(|(k, v)| (k.clone(), json!(v))).collect();
     JsonValue::Object(map)
-}
-
-/// Build JSON from raw KeyValue attributes (preserves types)
-fn build_attributes_raw(attrs: &[KeyValue]) -> JsonValue {
-    let map: serde_json::Map<String, JsonValue> = attrs
-        .iter()
-        .filter_map(|kv| {
-            kv.value
-                .as_ref()
-                .map(|v| (kv.key.clone(), any_value_to_json(v)))
-        })
-        .collect();
-    JsonValue::Object(map)
-}
-
-/// Convert AnyValue to JSON value (preserves types)
-fn any_value_to_json(value: &AnyValue) -> JsonValue {
-    match &value.value {
-        Some(any_value::Value::StringValue(s)) => json!(s),
-        Some(any_value::Value::BoolValue(b)) => json!(b),
-        Some(any_value::Value::IntValue(i)) => json!(i),
-        Some(any_value::Value::DoubleValue(d)) => json!(d),
-        Some(any_value::Value::ArrayValue(arr)) => {
-            json!(arr.values.iter().map(any_value_to_json).collect::<Vec<_>>())
-        }
-        Some(any_value::Value::KvlistValue(kvlist)) => {
-            let map: serde_json::Map<String, JsonValue> = kvlist
-                .values
-                .iter()
-                .filter_map(|kv| {
-                    kv.value
-                        .as_ref()
-                        .map(|v| (kv.key.clone(), any_value_to_json(v)))
-                })
-                .collect();
-            JsonValue::Object(map)
-        }
-        Some(any_value::Value::BytesValue(b)) => json!(hex::encode(b)),
-        None => JsonValue::Null,
-    }
 }
 
 // ============================================================================
@@ -1091,8 +1088,7 @@ mod tests {
 
         // Verify messages are stored as pre-serialized JSON string
         let messages_str = result[0].messages.as_deref().unwrap();
-        let stored_messages: Vec<serde_json::Value> =
-            serde_json::from_str(messages_str).unwrap();
+        let stored_messages: Vec<serde_json::Value> = serde_json::from_str(messages_str).unwrap();
         assert_eq!(stored_messages.len(), 2);
         // Raw messages have "content" field with original message data
         assert_eq!(stored_messages[0]["content"]["content"], "Hello");
