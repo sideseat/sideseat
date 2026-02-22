@@ -1,0 +1,60 @@
+{
+  "$schema": "../../../server/sideseat.schema.json",
+  "server": {
+    "host": "127.0.0.1",
+    "port": 5388
+  },
+  "auth": {
+    "enabled": false
+  },
+  "otel": {
+    "grpc": {
+      "enabled": true,
+      "port": 4317
+    },
+    "retention": {
+      "max_spans": 5000000
+    }
+  },
+  "files": {
+    "enabled": true,
+    "storage": "filesystem",
+    "quota_bytes": 1073741824
+  },
+  "rate_limit": {
+    "enabled": false
+  },
+  "database": {
+    "transactional": "postgres",
+    "analytics": "clickhouse",
+    "cache": "redis",
+    "postgres": {
+      "url": "postgres://postgres:postgres@127.0.0.1:5432/sideseat",
+      "max_connections": 10
+    },
+    "clickhouse": {
+      "url": "http://127.0.0.1:8123",
+      "database": "sideseat",
+      "timeout_secs": 30,
+      "compression": true,
+      "async_insert": true,
+      "wait_for_async_insert": false
+    },
+    "redis": {
+      "url": "redis://:dev_password@127.0.0.1:6379/0"
+    }
+  },
+  "secrets": {
+    "backend": "vault",
+    "vault": {
+      "address": "http://127.0.0.1:8200",
+      "token": "devroot",
+      "mount": "secret",
+      "prefix": "sideseat"
+    }
+  },
+  "update": {
+    "enabled": true
+  },
+  "debug": false
+}

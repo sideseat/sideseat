@@ -31,7 +31,7 @@ pub async fn upsert_file(
         ON CONFLICT(project_id, file_hash) DO UPDATE SET
             ref_count = files.ref_count + 1,
             updated_at = $8
-        RETURNING ref_count
+        RETURNING ref_count::bigint
         "#,
     )
     .bind(project_id)
@@ -65,7 +65,7 @@ pub async fn decrement_ref_count(
         UPDATE files
         SET ref_count = ref_count - 1, updated_at = $1
         WHERE project_id = $2 AND file_hash = $3
-        RETURNING ref_count
+        RETURNING ref_count::bigint
         "#,
     )
     .bind(now)
@@ -85,7 +85,7 @@ pub async fn get_file(
 ) -> Result<Option<FileRow>, PostgresError> {
     let row = sqlx::query_as::<_, (i64, String, String, Option<String>, i64, String, i64, i64, i64)>(
         r#"
-        SELECT id, project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at
+        SELECT id, project_id, file_hash, media_type, size_bytes, hash_algo, ref_count::bigint, created_at, updated_at
         FROM files
         WHERE project_id = $1 AND file_hash = $2
         "#,
@@ -259,7 +259,7 @@ pub async fn get_project_storage_bytes(
     project_id: &str,
 ) -> Result<i64, PostgresError> {
     let result: (Option<i64>,) =
-        sqlx::query_as("SELECT SUM(size_bytes) FROM files WHERE project_id = $1")
+        sqlx::query_as("SELECT SUM(size_bytes)::bigint FROM files WHERE project_id = $1")
             .bind(project_id)
             .fetch_one(pool)
             .await?;
@@ -271,7 +271,7 @@ pub async fn get_project_storage_bytes(
 pub async fn get_org_file_storage_bytes(pool: &PgPool, org_id: &str) -> Result<i64, PostgresError> {
     let result: (Option<i64>,) = sqlx::query_as(
         r#"
-        SELECT COALESCE(SUM(f.size_bytes), 0)
+        SELECT COALESCE(SUM(f.size_bytes), 0)::bigint
         FROM files f
         JOIN projects p ON f.project_id = p.id
         WHERE p.organization_id = $1
@@ -291,7 +291,7 @@ pub async fn get_user_file_storage_bytes(
 ) -> Result<i64, PostgresError> {
     let result: (Option<i64>,) = sqlx::query_as(
         r#"
-        SELECT COALESCE(SUM(f.size_bytes), 0)
+        SELECT COALESCE(SUM(f.size_bytes), 0)::bigint
         FROM files f
         JOIN projects p ON f.project_id = p.id
         JOIN organization_members m ON p.organization_id = m.organization_id

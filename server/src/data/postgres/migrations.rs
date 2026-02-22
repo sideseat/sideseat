@@ -71,11 +71,17 @@ pub async fn run_migrations(pool: &PgPool) -> Result<(), PostgresError> {
 async fn apply_initial_schema(pool: &PgPool) -> Result<(), PostgresError> {
     let now = chrono::Utc::now().timestamp();
 
-    // Apply schema
-    sqlx::query(SCHEMA).execute(pool).await?;
+    let mut tx = pool.begin().await?;
+
+    // Apply schema (split by semicolons — PostgreSQL doesn't support multiple statements per query)
+    for statement in SCHEMA.split(';').filter(|s| !s.trim().is_empty()) {
+        sqlx::query(statement.trim()).execute(&mut *tx).await?;
+    }
 
     // Apply default data
-    sqlx::query(DEFAULT_DATA).execute(pool).await?;
+    for statement in DEFAULT_DATA.split(';').filter(|s| !s.trim().is_empty()) {
+        sqlx::query(statement.trim()).execute(&mut *tx).await?;
+    }
 
     // Record schema version
     sqlx::query(
@@ -85,8 +91,10 @@ async fn apply_initial_schema(pool: &PgPool) -> Result<(), PostgresError> {
     )
     .bind(SCHEMA_VERSION)
     .bind(now)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     tracing::debug!("PostgreSQL schema v{} applied successfully", SCHEMA_VERSION);
     Ok(())

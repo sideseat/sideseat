@@ -355,16 +355,23 @@ dev:
 	wait
 
 dev-server:
-	@if command -v watchexec >/dev/null 2>&1; then \
+	@_args=$$(echo "$(ARGS)" | sed "s|--config[= ] *\([^/~ ][^ ]*\)|--config $$(pwd)/\1|"); \
+	_secrets_env=""; \
+	if [ -n "$${SIDESEAT_SECRETS_BACKEND}" ]; then \
+		_secrets_env="SIDESEAT_SECRETS_BACKEND=$${SIDESEAT_SECRETS_BACKEND}"; \
+	elif ! echo "$$_args" | grep -q -- '--config'; then \
+		_secrets_env="SIDESEAT_SECRETS_BACKEND=file"; \
+	fi; \
+	if command -v watchexec >/dev/null 2>&1; then \
 		cd $(SERVER_DIR) && watchexec -r -e rs,toml -- \
-			"SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat SIDESEAT_SECRETS_BACKEND=file cargo run -- $(ARGS)"; \
+			"SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat $$_secrets_env cargo run -- $$_args"; \
 	elif command -v cargo-watch >/dev/null 2>&1; then \
-		cd $(SERVER_DIR) && SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat SIDESEAT_SECRETS_BACKEND=file \
-			cargo watch -x "run -- $(ARGS)"; \
+		cd $(SERVER_DIR) && SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat $$_secrets_env \
+			cargo watch -x "run -- $$_args"; \
 	else \
 		echo "No watch tool found. Install: brew install watchexec"; \
-		cd $(SERVER_DIR) && SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat SIDESEAT_SECRETS_BACKEND=file \
-			cargo run -- $(ARGS); \
+		cd $(SERVER_DIR) && SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat $$_secrets_env \
+			cargo run -- $$_args; \
 	fi
 
 dev-web:

@@ -7,8 +7,8 @@
 # Stop:
 #   docker compose down
 #
-# Stop and remove volumes:
-#   docker compose down -v
+# All data is stored in ./data/ (bind mounts, not Docker volumes).
+# Delete ./data/ to reset everything.
 
 name: sideseat-local
 
@@ -43,20 +43,23 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql
+      - ./data/postgres:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-sideseat}"]
       interval: 10s
       timeout: 5s
       retries: 10
-    mem_limit: 768m
+    deploy:
+      resources:
+        limits:
+          memory: 768m
 
   clickhouse:
     image: clickhouse/clickhouse-server:26.1.2
     container_name: sideseat_clickhouse
     restart: unless-stopped
     environment:
-      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-default}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-sideseat}
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
@@ -66,19 +69,18 @@ services:
         hard: 262144
     ports:
       - "${CLICKHOUSE_HTTP_PORT:-8123}:8123"
-      - "${CLICKHOUSE_NATIVE_PORT:-9000}:9000"
     volumes:
-      - clickhouse_data:/var/lib/clickhouse
-      - clickhouse_logs:/var/log/clickhouse-server
-      - ./clickhouse/initdb:/docker-entrypoint-initdb.d:ro
-      - ./clickhouse/config.d:/etc/clickhouse-server/config.d:ro
-      - ./clickhouse/users.d:/etc/clickhouse-server/users.d:ro
+      - ./data/clickhouse:/var/lib/clickhouse
+      - ./data/clickhouse-logs:/var/log/clickhouse-server
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8123/ping | grep -q Ok"]
       interval: 10s
       timeout: 5s
       retries: 10
-    mem_limit: 1536m
+    deploy:
+      resources:
+        limits:
+          memory: 4096m
 
   valkey:
     image: valkey/valkey:9-alpine
@@ -104,13 +106,16 @@ services:
     ports:
       - "${VALKEY_PORT:-6379}:6379"
     volumes:
-      - valkey_data:/data
+      - ./data/valkey:/data
     healthcheck:
       test: ["CMD-SHELL", "valkey-cli -a ${VALKEY_PASSWORD:-dev_password} ping 2>/dev/null | grep -q PONG"]
       interval: 10s
       timeout: 3s
       retries: 10
-    mem_limit: 384m
+    deploy:
+      resources:
+        limits:
+          memory: 384m
 
   vault:
     image: hashicorp/vault:1.21.1
@@ -119,24 +124,25 @@ services:
     cap_add:
       - IPC_LOCK
     environment:
-      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID:-devroot}
-      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
-    command: ["vault", "server", "-dev"]
+      VAULT_ADDR: "http://127.0.0.1:8200"
+      VAULT_DEV_TOKEN: ${VAULT_DEV_TOKEN:-devroot}
+    entrypoint: ["/vault/scripts/vault-entrypoint.sh"]
     ports:
       - "${VAULT_PORT:-8200}:8200"
+    volumes:
+      - ./data/vault:/vault/data
+      - ./vault.hcl:/vault/config/vault.hcl:ro
+      - ./vault-entrypoint.sh:/vault/scripts/vault-entrypoint.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8200/v1/sys/health >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
-    mem_limit: 256m
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
 networks:
   default:
     name: sideseat-local-net
-
-volumes:
-  postgres_data:
-  clickhouse_data:
-  clickhouse_logs:
-  valkey_data:
