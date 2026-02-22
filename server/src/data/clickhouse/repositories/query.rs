@@ -7,6 +7,42 @@ use clickhouse::{Client, Row};
 use serde::Deserialize;
 
 // ============================================================================
+// Token Dedup SQL Fragments
+// ============================================================================
+// ClickHouse does not support correlated NOT EXISTS subqueries on the same table
+// (always evaluates EXISTS as true). Use materialized CTE + NOT IN instead.
+
+/// CTE that materializes spans with tokens for anti-join dedup logic.
+/// Requires 1 bind parameter: project_id
+pub(super) const DEDUP_LOOKUP_CTE: &str = r#"dedup_lookup AS (
+        SELECT span_id, parent_span_id, trace_id, observation_type
+        FROM otel_spans FINAL
+        WHERE project_id = ?
+          AND (gen_ai_usage_input_tokens + gen_ai_usage_output_tokens) > 0
+    )"#;
+
+/// Anti-join condition for gen_totals, replacing 3 correlated NOT EXISTS subqueries.
+/// Requires dedup_lookup CTE to be defined earlier in the WITH clause.
+pub(super) const TOKEN_DEDUP_CONDITION: &str = r#"(
+                  (g.observation_type = 'generation'
+                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                   AND g.span_id NOT IN (
+                       SELECT parent_span_id FROM dedup_lookup
+                       WHERE observation_type = 'generation' AND parent_span_id IS NOT NULL
+                   ))
+                  OR
+                  (g.observation_type != 'generation'
+                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                   AND g.trace_id NOT IN (
+                       SELECT DISTINCT trace_id FROM dedup_lookup
+                       WHERE observation_type = 'generation'
+                   )
+                   AND (g.parent_span_id IS NULL OR g.parent_span_id NOT IN (
+                       SELECT span_id FROM dedup_lookup
+                   )))
+              )"#;
+
+// ============================================================================
 // Parameterized Query Builder
 // ============================================================================
 
@@ -142,7 +178,7 @@ struct ChTraceRow {
     trace_name: Option<String>,
     start_time: i64,
     end_time: i64,
-    duration_ms: Option<i64>,
+    duration_ms: i64,
     session_id: Option<String>,
     user_id: Option<String>,
     environment: Option<String>,
@@ -164,7 +200,7 @@ struct ChTraceRow {
     metadata: Option<String>,
     input_preview: Option<String>,
     output_preview: Option<String>,
-    has_error: bool,
+    has_error: u8,
 }
 
 impl From<ChTraceRow> for TraceRow {
@@ -177,7 +213,7 @@ impl From<ChTraceRow> for TraceRow {
             end_time: Some(
                 DateTime::from_timestamp_micros(row.end_time).unwrap_or(DateTime::UNIX_EPOCH),
             ),
-            duration_ms: row.duration_ms,
+            duration_ms: Some(row.duration_ms),
             session_id: row.session_id,
             user_id: row.user_id,
             environment: row.environment,
@@ -199,7 +235,7 @@ impl From<ChTraceRow> for TraceRow {
             metadata: row.metadata,
             input_preview: row.input_preview,
             output_preview: row.output_preview,
-            has_error: row.has_error,
+            has_error: row.has_error != 0,
         }
     }
 }
@@ -216,8 +252,8 @@ struct ChSpanRow {
     observation_type: Option<String>,
     framework: Option<String>,
     status_code: Option<String>,
-    timestamp_start: i64,
-    timestamp_end: Option<i64>,
+    start_time: i64,
+    end_time: Option<i64>,
     duration_ms: Option<i64>,
     environment: Option<String>,
     resource_attributes: Option<String>,
@@ -245,7 +281,7 @@ struct ChSpanRow {
     input_preview: Option<String>,
     output_preview: Option<String>,
     raw_span: Option<String>,
-    ingested_at: i64,
+    ingested_at_us: i64,
 }
 
 impl From<ChSpanRow> for SpanRow {
@@ -260,9 +296,9 @@ impl From<ChSpanRow> for SpanRow {
             observation_type: row.observation_type,
             framework: row.framework,
             status_code: row.status_code,
-            timestamp_start: DateTime::from_timestamp_micros(row.timestamp_start)
+            timestamp_start: DateTime::from_timestamp_micros(row.start_time)
                 .unwrap_or(DateTime::UNIX_EPOCH),
-            timestamp_end: row.timestamp_end.and_then(DateTime::from_timestamp_micros),
+            timestamp_end: row.end_time.and_then(DateTime::from_timestamp_micros),
             duration_ms: row.duration_ms,
             environment: row.environment,
             resource_attributes: row.resource_attributes,
@@ -290,7 +326,7 @@ impl From<ChSpanRow> for SpanRow {
             input_preview: row.input_preview,
             output_preview: row.output_preview,
             raw_span: row.raw_span,
-            ingested_at: DateTime::from_timestamp_micros(row.ingested_at)
+            ingested_at: DateTime::from_timestamp_micros(row.ingested_at_us)
                 .unwrap_or(DateTime::UNIX_EPOCH),
         }
     }
@@ -299,7 +335,7 @@ impl From<ChSpanRow> for SpanRow {
 /// ClickHouse row for session queries
 #[derive(Row, Deserialize)]
 struct ChSessionRow {
-    session_id: String,
+    session_id: Option<String>,
     user_id: Option<String>,
     environment: Option<String>,
     start_time: i64,
@@ -324,7 +360,7 @@ struct ChSessionRow {
 impl From<ChSessionRow> for SessionRow {
     fn from(row: ChSessionRow) -> Self {
         Self {
-            session_id: row.session_id,
+            session_id: row.session_id.unwrap_or_default(),
             user_id: row.user_id,
             environment: row.environment,
             start_time: DateTime::from_timestamp_micros(row.start_time)
@@ -489,7 +525,8 @@ pub async fn list_traces(
     // Data query with CTEs
     let data_sql = format!(
         r#"
-        WITH gen_totals AS (
+        WITH {dedup_cte},
+        gen_totals AS (
             SELECT
                 g.trace_id,
                 sum(gen_ai_usage_input_tokens) AS input_tokens,
@@ -506,33 +543,7 @@ pub async fn list_traces(
                 sum(toFloat64(gen_ai_cost_total)) AS total_cost
             FROM otel_spans g FINAL
             WHERE {where_clause}
-              AND (
-                  (g.observation_type = 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans c FINAL
-                       WHERE c.parent_span_id = g.span_id
-                         AND c.project_id = g.project_id
-                         AND c.observation_type = 'generation'
-                         AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
-                   ))
-                  OR
-                  (g.observation_type != 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans gen FINAL
-                       WHERE gen.trace_id = g.trace_id
-                         AND gen.project_id = g.project_id
-                         AND gen.observation_type = 'generation'
-                         AND (gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0
-                   )
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans p FINAL
-                       WHERE p.span_id = g.parent_span_id
-                         AND p.project_id = g.project_id
-                         AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
-                   ))
-              )
+              AND {dedup_condition}
             GROUP BY g.trace_id
         ),
         filtered_traces AS (
@@ -585,13 +596,15 @@ pub async fn list_traces(
                 argMinIf(s.output_preview, s.timestamp_start, s.parent_span_id IS NULL AND s.output_preview IS NOT NULL AND s.output_preview != ''),
                 argMaxIf(s.output_preview, s.timestamp_start, s.output_preview IS NOT NULL AND s.output_preview != '')
             ) AS output_preview,
-            max(s.status_code = 'ERROR') AS has_error
+            coalesce(max(s.status_code = 'ERROR'), 0) AS has_error
         FROM filtered_traces t
         JOIN otel_spans s FINAL ON t.project_id = s.project_id AND t.trace_id = s.trace_id
         LEFT JOIN gen_totals gt2 ON t.trace_id = gt2.trace_id
         GROUP BY t.trace_id, t.min_ts
         ORDER BY t.min_ts {sort_dir}
         "#,
+        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_condition = TOKEN_DEDUP_CONDITION,
         where_clause = where_clause,
         having_clause = having_clause,
         ch_sort_field = ch_sort_field,
@@ -600,8 +613,9 @@ pub async fn list_traces(
         offset = offset
     );
 
-    // Bind parameters 3 times for the 3 uses of where_clause in CTEs
-    let rows: Vec<ChTraceRow> = cb.bind_to_n(client.query(&data_sql), 3).fetch_all().await?;
+    // Bind: dedup_lookup(project_id) + where_clause x2 (gen_totals + filtered_traces)
+    let query = client.query(&data_sql).bind(params.project_id.as_str());
+    let rows: Vec<ChTraceRow> = cb.bind_to_n(query, 2).fetch_all().await?;
 
     Ok((rows.into_iter().map(TraceRow::from).collect(), total))
 }
@@ -624,8 +638,8 @@ pub async fn get_spans_for_trace(
             observation_type,
             framework,
             status_code,
-            toInt64(toUnixTimestamp64Micro(timestamp_start)) as timestamp_start,
-            if(timestamp_end IS NOT NULL, toInt64(toUnixTimestamp64Micro(timestamp_end)), NULL) as timestamp_end,
+            toInt64(toUnixTimestamp64Micro(timestamp_start)) as start_time,
+            if(timestamp_end IS NOT NULL, toInt64(toUnixTimestamp64Micro(timestamp_end)), NULL) as end_time,
             duration_ms,
             environment,
             JSONExtractRaw(raw_span, 'resource', 'attributes') as resource_attributes,
@@ -653,7 +667,7 @@ pub async fn get_spans_for_trace(
             input_preview,
             output_preview,
             raw_span,
-            toInt64(toUnixTimestamp64Micro(ingested_at)) as ingested_at
+            toInt64(toUnixTimestamp64Micro(ingested_at)) as ingested_at_us
         FROM otel_spans FINAL
         WHERE project_id = ? AND trace_id = ?
         ORDER BY timestamp_start
@@ -691,8 +705,8 @@ pub async fn get_span(
             observation_type,
             framework,
             status_code,
-            toInt64(toUnixTimestamp64Micro(timestamp_start)) as timestamp_start,
-            if(timestamp_end IS NOT NULL, toInt64(toUnixTimestamp64Micro(timestamp_end)), NULL) as timestamp_end,
+            toInt64(toUnixTimestamp64Micro(timestamp_start)) as start_time,
+            if(timestamp_end IS NOT NULL, toInt64(toUnixTimestamp64Micro(timestamp_end)), NULL) as end_time,
             duration_ms,
             environment,
             JSONExtractRaw(raw_span, 'resource', 'attributes') as resource_attributes,
@@ -720,7 +734,7 @@ pub async fn get_span(
             input_preview,
             output_preview,
             raw_span,
-            toInt64(toUnixTimestamp64Micro(ingested_at)) as ingested_at
+            toInt64(toUnixTimestamp64Micro(ingested_at)) as ingested_at_us
         FROM otel_spans FINAL
         WHERE project_id = ? AND trace_id = ? AND span_id = ?
         LIMIT 1
@@ -833,8 +847,8 @@ pub async fn list_spans(
             observation_type,
             framework,
             status_code,
-            toInt64(toUnixTimestamp64Micro(timestamp_start)) as timestamp_start,
-            if(timestamp_end IS NOT NULL, toInt64(toUnixTimestamp64Micro(timestamp_end)), NULL) as timestamp_end,
+            toInt64(toUnixTimestamp64Micro(timestamp_start)) as start_time,
+            if(timestamp_end IS NOT NULL, toInt64(toUnixTimestamp64Micro(timestamp_end)), NULL) as end_time,
             duration_ms,
             environment,
             JSONExtractRaw(raw_span, 'resource', 'attributes') as resource_attributes,
@@ -862,7 +876,7 @@ pub async fn list_spans(
             input_preview,
             output_preview,
             raw_span,
-            toInt64(toUnixTimestamp64Micro(ingested_at)) as ingested_at
+            toInt64(toUnixTimestamp64Micro(ingested_at)) as ingested_at_us
         FROM otel_spans FINAL
         WHERE {}
         ORDER BY {}
@@ -920,8 +934,8 @@ pub async fn get_feed_spans(
             observation_type,
             framework,
             status_code,
-            toInt64(toUnixTimestamp64Micro(timestamp_start)) as timestamp_start,
-            if(timestamp_end IS NOT NULL, toInt64(toUnixTimestamp64Micro(timestamp_end)), NULL) as timestamp_end,
+            toInt64(toUnixTimestamp64Micro(timestamp_start)) as start_time,
+            if(timestamp_end IS NOT NULL, toInt64(toUnixTimestamp64Micro(timestamp_end)), NULL) as end_time,
             duration_ms,
             environment,
             JSONExtractRaw(raw_span, 'resource', 'attributes') as resource_attributes,
@@ -949,7 +963,7 @@ pub async fn get_feed_spans(
             input_preview,
             output_preview,
             raw_span,
-            toInt64(toUnixTimestamp64Micro(ingested_at)) as ingested_at
+            toInt64(toUnixTimestamp64Micro(ingested_at)) as ingested_at_us
         FROM otel_spans FINAL
         WHERE {}
         ORDER BY ingested_at DESC, span_id DESC
@@ -1022,7 +1036,8 @@ pub async fn list_sessions(
 
     let data_sql = format!(
         r#"
-        WITH gen_totals AS (
+        WITH {dedup_cte},
+        gen_totals AS (
             SELECT
                 g.session_id,
                 sum(gen_ai_usage_input_tokens) AS input_tokens,
@@ -1039,33 +1054,7 @@ pub async fn list_sessions(
                 sum(toFloat64(gen_ai_cost_total)) AS total_cost
             FROM otel_spans g FINAL
             WHERE {where_clause}
-              AND (
-                  (g.observation_type = 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans c FINAL
-                       WHERE c.parent_span_id = g.span_id
-                         AND c.project_id = g.project_id
-                         AND c.observation_type = 'generation'
-                         AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
-                   ))
-                  OR
-                  (g.observation_type != 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans gen FINAL
-                       WHERE gen.trace_id = g.trace_id
-                         AND gen.project_id = g.project_id
-                         AND gen.observation_type = 'generation'
-                         AND (gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0
-                   )
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans p FINAL
-                       WHERE p.span_id = g.parent_span_id
-                         AND p.project_id = g.project_id
-                         AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
-                   ))
-              )
+              AND {dedup_condition}
             GROUP BY g.session_id
         ),
         filtered_sessions AS (
@@ -1110,6 +1099,8 @@ pub async fn list_sessions(
         GROUP BY f.session_id, f.min_ts
         ORDER BY f.min_ts {sort_dir}
         "#,
+        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_condition = TOKEN_DEDUP_CONDITION,
         where_clause = where_clause,
         ch_sort_field = ch_sort_field,
         sort_dir = sort_dir,
@@ -1117,8 +1108,9 @@ pub async fn list_sessions(
         offset = offset
     );
 
-    // Bind parameters 3 times for the 3 uses of where_clause in CTEs
-    let rows: Vec<ChSessionRow> = cb.bind_to_n(client.query(&data_sql), 3).fetch_all().await?;
+    // Bind: dedup_lookup(project_id) + where_clause x2 (gen_totals + filtered_sessions)
+    let query = client.query(&data_sql).bind(params.project_id.as_str());
+    let rows: Vec<ChSessionRow> = cb.bind_to_n(query, 2).fetch_all().await?;
 
     Ok((rows.into_iter().map(SessionRow::from).collect(), total))
 }
@@ -1131,11 +1123,13 @@ pub async fn get_session(
     project_id: &str,
     session_id: &str,
 ) -> Result<Option<SessionRow>, ClickhouseError> {
-    let sql = r#"
+    let sql = format!(
+        r#"
         WITH session_traces AS (
             SELECT DISTINCT trace_id FROM otel_spans FINAL
             WHERE project_id = ? AND session_id = ?
         ),
+        {dedup_cte},
         gen_totals AS (
             SELECT
                 sum(gen_ai_usage_input_tokens) AS input_tokens,
@@ -1153,36 +1147,10 @@ pub async fn get_session(
             FROM otel_spans g FINAL
             WHERE g.project_id = ?
               AND g.trace_id IN (SELECT trace_id FROM session_traces)
-              AND (
-                  (g.observation_type = 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans c FINAL
-                       WHERE c.parent_span_id = g.span_id
-                         AND c.project_id = g.project_id
-                         AND c.observation_type = 'generation'
-                         AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
-                   ))
-                  OR
-                  (g.observation_type != 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans gen FINAL
-                       WHERE gen.trace_id = g.trace_id
-                         AND gen.project_id = g.project_id
-                         AND gen.observation_type = 'generation'
-                         AND (gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0
-                   )
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans p FINAL
-                       WHERE p.span_id = g.parent_span_id
-                         AND p.project_id = g.project_id
-                         AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
-                   ))
-              )
+              AND {dedup_condition}
         )
         SELECT
-            ? as session_id,
+            toNullable(?) as session_id,
             argMinIf(s.user_id, s.timestamp_start, s.user_id IS NOT NULL) as user_id,
             argMinIf(s.environment, s.timestamp_start, s.environment IS NOT NULL) as environment,
             toInt64(toUnixTimestamp64Micro(min(s.timestamp_start))) as start_time,
@@ -1210,14 +1178,18 @@ pub async fn get_session(
                  gt.cache_read_tokens, gt.cache_write_tokens, gt.reasoning_tokens,
                  gt.input_cost, gt.output_cost, gt.cache_read_cost, gt.cache_write_cost,
                  gt.reasoning_cost, gt.total_cost
-    "#;
+    "#,
+        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_condition = TOKEN_DEDUP_CONDITION,
+    );
 
-    // Bind order: session_traces(project_id, session_id), gen_totals(project_id),
-    //             SELECT(session_id), main(project_id)
+    // Bind order: session_traces(project_id, session_id), dedup_lookup(project_id),
+    //             gen_totals(project_id), SELECT(session_id), main(project_id)
     let row: Option<ChSessionRow> = client
-        .query(sql)
+        .query(&sql)
         .bind(project_id)
         .bind(session_id)
+        .bind(project_id)
         .bind(project_id)
         .bind(session_id)
         .bind(project_id)
@@ -1304,8 +1276,10 @@ pub async fn get_trace(
     project_id: &str,
     trace_id: &str,
 ) -> Result<Option<TraceRow>, ClickhouseError> {
-    let sql = r#"
-        WITH gen_totals AS (
+    let sql = format!(
+        r#"
+        WITH {dedup_cte},
+        gen_totals AS (
             SELECT
                 sum(gen_ai_usage_input_tokens) AS input_tokens,
                 sum(gen_ai_usage_output_tokens) AS output_tokens,
@@ -1321,33 +1295,7 @@ pub async fn get_trace(
                 sum(toFloat64(gen_ai_cost_total)) AS total_cost
             FROM otel_spans g FINAL
             WHERE g.project_id = ? AND g.trace_id = ?
-              AND (
-                  (g.observation_type = 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans c FINAL
-                       WHERE c.parent_span_id = g.span_id
-                         AND c.project_id = g.project_id
-                         AND c.observation_type = 'generation'
-                         AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
-                   ))
-                  OR
-                  (g.observation_type != 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans gen FINAL
-                       WHERE gen.trace_id = g.trace_id
-                         AND gen.project_id = g.project_id
-                         AND gen.observation_type = 'generation'
-                         AND (gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0
-                   )
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans p FINAL
-                       WHERE p.span_id = g.parent_span_id
-                         AND p.project_id = g.project_id
-                         AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
-                   ))
-              )
+              AND {dedup_condition}
         )
         SELECT
             s.trace_id as trace_id,
@@ -1382,7 +1330,7 @@ pub async fn get_trace(
                 argMinIf(s.output_preview, s.timestamp_start, s.parent_span_id IS NULL AND s.output_preview IS NOT NULL AND s.output_preview != ''),
                 argMaxIf(s.output_preview, s.timestamp_start, s.output_preview IS NOT NULL AND s.output_preview != '')
             ) AS output_preview,
-            max(s.status_code = 'ERROR') AS has_error
+            coalesce(max(s.status_code = 'ERROR'), 0) AS has_error
         FROM otel_spans s FINAL
         CROSS JOIN gen_totals gt
         WHERE s.project_id = ? AND s.trace_id = ?
@@ -1390,10 +1338,15 @@ pub async fn get_trace(
                  gt.cache_read_tokens, gt.cache_write_tokens, gt.reasoning_tokens,
                  gt.input_cost, gt.output_cost, gt.cache_read_cost, gt.cache_write_cost,
                  gt.reasoning_cost, gt.total_cost
-    "#;
+    "#,
+        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_condition = TOKEN_DEDUP_CONDITION,
+    );
 
+    // Bind order: dedup_lookup(project_id), gen_totals(project_id, trace_id), main(project_id, trace_id)
     let row: Option<ChTraceRow> = client
-        .query(sql)
+        .query(&sql)
+        .bind(project_id)
         .bind(project_id)
         .bind(trace_id)
         .bind(project_id)
@@ -1412,11 +1365,13 @@ pub async fn get_traces_for_session(
     project_id: &str,
     session_id: &str,
 ) -> Result<Vec<TraceRow>, ClickhouseError> {
-    let sql = r#"
+    let sql = format!(
+        r#"
         WITH session_traces AS (
             SELECT DISTINCT trace_id FROM otel_spans FINAL
             WHERE project_id = ? AND session_id = ?
         ),
+        {dedup_cte},
         gen_totals AS (
             SELECT
                 g.trace_id,
@@ -1435,33 +1390,7 @@ pub async fn get_traces_for_session(
             FROM otel_spans g FINAL
             WHERE g.project_id = ?
               AND g.trace_id IN (SELECT trace_id FROM session_traces)
-              AND (
-                  (g.observation_type = 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans c FINAL
-                       WHERE c.parent_span_id = g.span_id
-                         AND c.project_id = g.project_id
-                         AND c.observation_type = 'generation'
-                         AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
-                   ))
-                  OR
-                  (g.observation_type != 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans gen FINAL
-                       WHERE gen.trace_id = g.trace_id
-                         AND gen.project_id = g.project_id
-                         AND gen.observation_type = 'generation'
-                         AND (gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0
-                   )
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans p FINAL
-                       WHERE p.span_id = g.parent_span_id
-                         AND p.project_id = g.project_id
-                         AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
-                   ))
-              )
+              AND {dedup_condition}
             GROUP BY g.trace_id
         )
         SELECT
@@ -1497,20 +1426,25 @@ pub async fn get_traces_for_session(
                 argMinIf(s.output_preview, s.timestamp_start, s.parent_span_id IS NULL AND s.output_preview IS NOT NULL AND s.output_preview != ''),
                 argMaxIf(s.output_preview, s.timestamp_start, s.output_preview IS NOT NULL AND s.output_preview != '')
             ) AS output_preview,
-            max(s.status_code = 'ERROR') AS has_error
+            coalesce(max(s.status_code = 'ERROR'), 0) AS has_error
         FROM otel_spans s FINAL
         LEFT JOIN gen_totals gt ON s.trace_id = gt.trace_id
         WHERE s.project_id = ?
           AND s.trace_id IN (SELECT trace_id FROM session_traces)
         GROUP BY s.trace_id
         ORDER BY min(s.timestamp_start) DESC
-    "#;
+    "#,
+        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_condition = TOKEN_DEDUP_CONDITION,
+    );
 
-    // Bind order: session_traces(project_id, session_id), gen_totals(project_id), main(project_id)
+    // Bind order: session_traces(project_id, session_id), dedup_lookup(project_id),
+    //             gen_totals(project_id), main(project_id)
     let rows: Vec<ChTraceRow> = client
-        .query(sql)
+        .query(&sql)
         .bind(project_id)
         .bind(session_id)
+        .bind(project_id)
         .bind(project_id)
         .bind(project_id)
         .fetch_all()
@@ -1578,8 +1512,8 @@ pub async fn get_span_counts_bulk(
         r#"SELECT
             trace_id,
             span_id,
-            JSONLength(raw_span, 'events') as event_count,
-            JSONLength(raw_span, 'links') as link_count
+            coalesce(JSONLength(raw_span, 'events'), 0) as event_count,
+            coalesce(JSONLength(raw_span, 'links'), 0) as link_count
          FROM otel_spans FINAL
          WHERE project_id = ? AND (trace_id, span_id) IN ({})"#,
         in_clause
@@ -1867,7 +1801,7 @@ pub async fn get_trace_filter_options(
 
         let sql = format!(
             r#"
-            SELECT {col} as value, approxCountDistinct(trace_id) as count
+            SELECT {col} as value, uniq(trace_id) as count
             FROM otel_spans FINAL
             WHERE project_id = ?{time_cond}{extra_cond} AND {col} IS NOT NULL
             GROUP BY {col}
@@ -1927,8 +1861,8 @@ pub async fn get_trace_tags_options(
     let sql = format!(
         r#"
         SELECT
-            arrayJoin(JSONExtractArrayRaw(tags)) as value,
-            approxCountDistinct(trace_id) as count
+            arrayJoin(JSONExtractArrayRaw(assumeNotNull(tags))) as value,
+            uniq(trace_id) as count
         FROM otel_spans FINAL
         WHERE project_id = ?{time_cond} AND tags IS NOT NULL AND tags != '[]'
         GROUP BY value
@@ -2072,7 +2006,7 @@ pub async fn get_session_filter_options(
 
         let sql = format!(
             r#"
-            SELECT {col} as value, approxCountDistinct(session_id) as count
+            SELECT {col} as value, uniq(session_id) as count
             FROM otel_spans FINAL
             WHERE project_id = ?{cond} AND session_id IS NOT NULL AND {col} IS NOT NULL
             GROUP BY {col}

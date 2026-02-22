@@ -329,7 +329,9 @@ impl TracePipeline {
                             .map(|h| match h.join() {
                                 Ok(result) => result,
                                 Err(_) => {
-                                    tracing::error!("process_request thread panicked, skipping request");
+                                    tracing::error!(
+                                        "process_request thread panicked, skipping request"
+                                    );
                                     None
                                 }
                             })
@@ -363,7 +365,9 @@ impl TracePipeline {
                             .flat_map(|h| match h.join() {
                                 Ok(results) => results,
                                 Err(_) => {
-                                    tracing::error!("process_request thread panicked, skipping chunk");
+                                    tracing::error!(
+                                        "process_request thread panicked, skipping chunk"
+                                    );
                                     Vec::new()
                                 }
                             })
