@@ -9,7 +9,8 @@ use super::config::{
 use super::constants::{
     ENV_ANALYTICS_BACKEND, ENV_CACHE_BACKEND, ENV_CACHE_EVICTION_POLICY, ENV_CACHE_MAX_ENTRIES,
     ENV_CACHE_REDIS_URL, ENV_CLICKHOUSE_URL, ENV_CONFIG, ENV_DEBUG, ENV_FILES_ENABLED,
-    ENV_FILES_QUOTA_BYTES, ENV_FILES_STORAGE, ENV_HOST, ENV_MCP_ENABLED, ENV_NO_UPDATE_CHECK,
+    ENV_FILES_QUOTA_BYTES, ENV_FILES_S3_BUCKET, ENV_FILES_S3_ENDPOINT, ENV_FILES_S3_PREFIX,
+    ENV_FILES_S3_REGION, ENV_FILES_STORAGE, ENV_HOST, ENV_MCP_ENABLED, ENV_NO_UPDATE_CHECK,
     ENV_OTEL_AUTH_REQUIRED, ENV_OTEL_GRPC_ENABLED, ENV_OTEL_GRPC_PORT,
     ENV_OTEL_RETENTION_MAX_AGE_MINUTES, ENV_OTEL_RETENTION_MAX_SPANS, ENV_PORT, ENV_POSTGRES_URL,
     ENV_PRICING_SYNC_HOURS, ENV_RATE_LIMIT_API_RPM, ENV_RATE_LIMIT_AUTH_RPM,
@@ -88,6 +89,22 @@ pub struct Cli {
     /// File storage quota in bytes per project
     #[arg(long, global = true, env = ENV_FILES_QUOTA_BYTES)]
     pub files_quota_bytes: Option<u64>,
+
+    /// S3 bucket name for file storage
+    #[arg(long, global = true, env = ENV_FILES_S3_BUCKET)]
+    pub files_s3_bucket: Option<String>,
+
+    /// S3 key prefix for file storage
+    #[arg(long, global = true, env = ENV_FILES_S3_PREFIX)]
+    pub files_s3_prefix: Option<String>,
+
+    /// S3 region for file storage
+    #[arg(long, global = true, env = ENV_FILES_S3_REGION)]
+    pub files_s3_region: Option<String>,
+
+    /// S3 endpoint URL for S3-compatible services (e.g. MinIO)
+    #[arg(long, global = true, env = ENV_FILES_S3_ENDPOINT)]
+    pub files_s3_endpoint: Option<String>,
 
     // Cache options
     /// Cache backend (memory or redis)
@@ -277,6 +294,10 @@ pub struct CliConfig {
     pub mcp: Option<bool>,
     pub files_storage: Option<StorageBackend>,
     pub files_quota_bytes: Option<u64>,
+    pub files_s3_bucket: Option<String>,
+    pub files_s3_prefix: Option<String>,
+    pub files_s3_region: Option<String>,
+    pub files_s3_endpoint: Option<String>,
     pub cache_backend: Option<CacheBackendType>,
     pub cache_max_entries: Option<u64>,
     pub cache_eviction_policy: Option<EvictionPolicy>,
@@ -315,6 +336,10 @@ pub fn parse() -> (CliConfig, Option<Commands>) {
         mcp: cli.mcp,
         files_storage: cli.files_storage,
         files_quota_bytes: cli.files_quota_bytes,
+        files_s3_bucket: cli.files_s3_bucket,
+        files_s3_prefix: cli.files_s3_prefix,
+        files_s3_region: cli.files_s3_region,
+        files_s3_endpoint: cli.files_s3_endpoint,
         cache_backend: cli.cache_backend,
         cache_max_entries: cli.cache_max_entries,
         cache_eviction_policy: cli.cache_eviction_policy,

@@ -1149,20 +1149,31 @@ impl AppConfig {
             .unwrap_or(FILES_DEFAULT_QUOTA_BYTES);
 
         // Parse S3 config if storage type is s3
+        // CLI/env vars override config file values
         let s3_config = if storage_backend == StorageBackend::S3 {
-            file_files.s3.as_ref().and_then(|s3| {
-                s3.bucket
-                    .as_ref()
-                    .filter(|b| !b.is_empty())
-                    .map(|bucket| S3Config {
-                        bucket: bucket.clone(),
-                        prefix: s3
-                            .prefix
-                            .clone()
-                            .unwrap_or_else(|| FILES_DEFAULT_S3_PREFIX.to_string()),
-                        region: s3.region.clone(),
-                        endpoint: s3.endpoint.clone(),
-                    })
+            let file_s3 = file_files.s3.as_ref();
+            let bucket = cli
+                .files_s3_bucket
+                .clone()
+                .or_else(|| file_s3.and_then(|s| s.bucket.clone()));
+            let prefix = cli
+                .files_s3_prefix
+                .clone()
+                .or_else(|| file_s3.and_then(|s| s.prefix.clone()));
+            let region = cli
+                .files_s3_region
+                .clone()
+                .or_else(|| file_s3.and_then(|s| s.region.clone()));
+            let endpoint = cli
+                .files_s3_endpoint
+                .clone()
+                .or_else(|| file_s3.and_then(|s| s.endpoint.clone()));
+
+            bucket.filter(|b| !b.is_empty()).map(|bucket| S3Config {
+                bucket,
+                prefix: prefix.unwrap_or_else(|| FILES_DEFAULT_S3_PREFIX.to_string()),
+                region,
+                endpoint,
             })
         } else {
             None
@@ -1866,6 +1877,10 @@ mod tests {
             files_enabled: Some(false),
             files_storage: None,
             files_quota_bytes: Some(500_000_000),
+            files_s3_bucket: None,
+            files_s3_prefix: None,
+            files_s3_region: None,
+            files_s3_endpoint: None,
             cache_backend: None,
             cache_max_entries: None,
             cache_eviction_policy: None,
