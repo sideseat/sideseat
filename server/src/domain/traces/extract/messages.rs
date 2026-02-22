@@ -1214,7 +1214,7 @@ pub(crate) fn try_vercel_ai(
                 }
             }
             Err(e) => {
-                tracing::warn!(
+                tracing::debug!(
                     error = %e,
                     prompt_json_preview = %prompt_json.chars().take(100).collect::<String>(),
                     "try_vercel_ai failed to parse prompt messages"
