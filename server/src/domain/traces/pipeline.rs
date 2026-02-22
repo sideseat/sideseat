@@ -65,10 +65,10 @@ const CLAIM_MIN_IDLE_MS: u64 = 60_000;
 const CLAIM_MAX_COUNT: usize = 100;
 
 /// Maximum number of requests to batch before processing
-const PIPELINE_BATCH_MAX_SIZE: usize = 256;
+const PIPELINE_BATCH_MAX_SIZE: usize = 1024;
 
 /// Timeout for collecting additional messages into a batch (microseconds)
-const PIPELINE_BATCH_DRAIN_TIMEOUT_US: u64 = 500;
+const PIPELINE_BATCH_DRAIN_TIMEOUT_US: u64 = 5_000;
 
 // ============================================================================
 // PIPELINE PROCESSOR
@@ -226,11 +226,9 @@ impl TracePipeline {
                     batch.into_iter().map(|(_, req)| req).collect();
                 self.run_batch(&requests).await;
 
-                // Phase 4: Acknowledge all messages
-                for msg_id in &msg_ids {
-                    if let Err(e) = acker.ack(msg_id).await {
-                        tracing::warn!(error = %e, msg_id = %msg_id, "Failed to ack message");
-                    }
+                // Phase 4: Acknowledge all messages in one call
+                if let Err(e) = acker.ack_batch(&msg_ids).await {
+                    tracing::warn!(error = %e, count = msg_ids.len(), "Failed to batch ack messages");
                 }
             }
 
@@ -460,40 +458,8 @@ fn process_request(
     // Stage 1b: Extract Messages, Tool Definitions, and Tool Names
     let (raw_messages, tool_definitions, tool_names) = extract_messages_batch(request, &spans);
 
-    // Debug: Log raw_messages counts for VercelAISDK
-    for (i, (span, raw_msgs)) in spans.iter().zip(raw_messages.iter()).enumerate() {
-        if matches!(
-            span.framework,
-            Some(crate::data::types::Framework::VercelAISdk)
-        ) {
-            tracing::debug!(
-                idx = i,
-                span_id = %span.span_id,
-                span_name = %span.span_name,
-                raw_msgs_count = raw_msgs.len(),
-                "VercelAISDK: after extract_messages_batch"
-            );
-        }
-    }
-
     // Stage 2: SideML Conversion
     let messages = to_sideml_batch(&raw_messages);
-
-    // Debug: Log SideML messages counts for VercelAISDK
-    for (i, (span, sideml_msgs)) in spans.iter().zip(messages.iter()).enumerate() {
-        if matches!(
-            span.framework,
-            Some(crate::data::types::Framework::VercelAISdk)
-        ) {
-            tracing::debug!(
-                idx = i,
-                span_id = %span.span_id,
-                span_name = %span.span_name,
-                sideml_msgs_count = sideml_msgs.len(),
-                "VercelAISDK: after to_sideml_batch"
-            );
-        }
-    }
 
     // Stage 3: Enrich
     let enrichments = enrich_batch(&spans, &messages, pricing);
