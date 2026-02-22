@@ -1,6 +1,7 @@
 //! Utility functions for the application
 
 pub mod api_key;
+pub mod clickhouse;
 pub mod crypto;
 pub mod debug;
 pub mod file;

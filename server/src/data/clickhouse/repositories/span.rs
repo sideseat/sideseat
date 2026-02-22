@@ -9,6 +9,7 @@ use serde::Serialize;
 
 use crate::data::clickhouse::ClickhouseError;
 use crate::data::types::NormalizedSpan;
+use crate::utils::clickhouse::to_decimal64;
 
 /// Row structure for inserting spans into ClickHouse
 #[derive(Row, Serialize)]
@@ -64,12 +65,12 @@ struct SpanRow {
     gen_ai_usage_cache_write_tokens: i64,
     gen_ai_usage_reasoning_tokens: i64,
     gen_ai_usage_details: Option<String>,
-    gen_ai_cost_input: f64,
-    gen_ai_cost_output: f64,
-    gen_ai_cost_cache_read: f64,
-    gen_ai_cost_cache_write: f64,
-    gen_ai_cost_reasoning: f64,
-    gen_ai_cost_total: f64,
+    gen_ai_cost_input: i64,
+    gen_ai_cost_output: i64,
+    gen_ai_cost_cache_read: i64,
+    gen_ai_cost_cache_write: i64,
+    gen_ai_cost_reasoning: i64,
+    gen_ai_cost_total: i64,
     http_method: Option<String>,
     http_url: Option<String>,
     http_status_code: Option<i32>,
@@ -164,12 +165,12 @@ impl From<&NormalizedSpan> for SpanRow {
             gen_ai_usage_cache_write_tokens: span.gen_ai_usage_cache_write_tokens,
             gen_ai_usage_reasoning_tokens: span.gen_ai_usage_reasoning_tokens,
             gen_ai_usage_details: span.gen_ai_usage_details.clone(),
-            gen_ai_cost_input: span.gen_ai_cost_input,
-            gen_ai_cost_output: span.gen_ai_cost_output,
-            gen_ai_cost_cache_read: span.gen_ai_cost_cache_read,
-            gen_ai_cost_cache_write: span.gen_ai_cost_cache_write,
-            gen_ai_cost_reasoning: span.gen_ai_cost_reasoning,
-            gen_ai_cost_total: span.gen_ai_cost_total,
+            gen_ai_cost_input: to_decimal64(span.gen_ai_cost_input),
+            gen_ai_cost_output: to_decimal64(span.gen_ai_cost_output),
+            gen_ai_cost_cache_read: to_decimal64(span.gen_ai_cost_cache_read),
+            gen_ai_cost_cache_write: to_decimal64(span.gen_ai_cost_cache_write),
+            gen_ai_cost_reasoning: to_decimal64(span.gen_ai_cost_reasoning),
+            gen_ai_cost_total: to_decimal64(span.gen_ai_cost_total),
             http_method: span.http_method.clone(),
             http_url: span.http_url.clone(),
             http_status_code: span.http_status_code.map(|c| c as i32),

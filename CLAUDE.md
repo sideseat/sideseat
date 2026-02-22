@@ -342,8 +342,14 @@ finish_reason: Option<FinishReason> (Stop, Length, ToolUse, ContentFilter)
 11. **Config validation** - Ports must be >0, S3 requires bucket, port collision checked at startup
 12. **ClickHouse timestamps** - Use `fromUnixTimestamp64Micro(?)` with `.bind(ts.timestamp_micros())`, never format strings
 13. **ClickHouse distributed DELETE** - Use local table + `ON CLUSTER` clause, not distributed table
-14. **Identity rules differ by block type** - Tool calls dedupe by (name+input), tool results by tool_use_id when present (else content)
-15. **History-only messages are filtered** - If a message appears only in history (no current-turn equivalent), it's excluded from feed
+14. **ClickHouse no correlated NOT EXISTS** - ClickHouse silently breaks correlated `NOT EXISTS` on the same table (always returns true for EXISTS). Use materialized CTE + `NOT IN` instead. See `DEDUP_LOOKUP_CTE`/`TOKEN_DEDUP_CONDITION` in `query.rs`
+15. **ClickHouse Nullable propagation** - Expressions on `Nullable` columns stay Nullable: `nullable_col = 'val'` → `Nullable(UInt8)`, `max(Nullable(UInt8))` → `Nullable(UInt8)`. Wrap with `coalesce(..., default)` or `assumeNotNull(...)` to strip
+16. **ClickHouse Decimal64(6) maps to i64** - The `clickhouse` crate deserializes `Decimal64(6)` as `i64` (value × 10^6), not `f64`. Use `to_decimal64()` from `utils/clickhouse.rs` for writes, `toFloat64(col)` in SELECT for reads
+17. **ClickHouse SELECT aliases visible in WHERE** - Unlike standard SQL, ClickHouse SELECT aliases shadow original column names in WHERE. Alias `toInt64(...) as timestamp_start` then `WHERE timestamp_start >= ...` compares Int64 vs DateTime64 → overflow. Use distinct alias names (`start_time`, `end_time`)
+18. **ClickHouse aggregate nullability** - `avg()`, `sum()`, `count()`, `dateDiff()` return non-nullable types. Don't use `Option<T>` for these in Rust structs. But `max(nullable_expr)` stays Nullable
+19. **ClickHouse JOIN requires equality** - JOIN ON must have at least one equality condition. Range-only joins (`ON a >= b AND a < c`) are rejected. Use cross join + WHERE for bucketing, then LEFT JOIN on equality
+20. **Identity rules differ by block type** - Tool calls dedupe by (name+input), tool results by tool_use_id when present (else content)
+21. **History-only messages are filtered** - If a message appears only in history (no current-turn equivalent), it's excluded from feed
 
 ## Memory Bank
 
