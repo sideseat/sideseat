@@ -121,6 +121,7 @@ pub struct FileRow {
     pub file_hash: String,
     pub media_type: Option<String>,
     pub size_bytes: i64,
+    pub hash_algo: String,
     pub ref_count: i64,
     pub created_at: i64,
     pub updated_at: i64,

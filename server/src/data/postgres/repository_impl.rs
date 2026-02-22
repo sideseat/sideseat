@@ -450,8 +450,9 @@ impl TransactionalRepository for Arc<PostgresService> {
         file_hash: &str,
         media_type: Option<&str>,
         size_bytes: i64,
+        hash_algo: &str,
     ) -> Result<i64, DataError> {
-        file::upsert_file(self.pool(), project_id, file_hash, media_type, size_bytes)
+        file::upsert_file(self.pool(), project_id, file_hash, media_type, size_bytes, hash_algo)
             .await
             .map_err(Into::into)
     }

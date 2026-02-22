@@ -18,6 +18,7 @@ pub async fn upsert_file(
     file_hash: &str,
     media_type: Option<&str>,
     size_bytes: i64,
+    hash_algo: &str,
 ) -> Result<i64, PostgresError> {
     let now = chrono::Utc::now().timestamp();
 
@@ -25,11 +26,11 @@ pub async fn upsert_file(
     // If file exists, increment ref_count; otherwise insert with ref_count=1
     let result: (i64,) = sqlx::query_as(
         r#"
-        INSERT INTO files (project_id, file_hash, media_type, size_bytes, ref_count, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, 1, $5, $6)
+        INSERT INTO files (project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, 1, $6, $7)
         ON CONFLICT(project_id, file_hash) DO UPDATE SET
             ref_count = files.ref_count + 1,
-            updated_at = $7
+            updated_at = $8
         RETURNING ref_count
         "#,
     )
@@ -37,6 +38,7 @@ pub async fn upsert_file(
     .bind(file_hash)
     .bind(media_type)
     .bind(size_bytes)
+    .bind(hash_algo)
     .bind(now)
     .bind(now)
     .bind(now)
@@ -81,9 +83,9 @@ pub async fn get_file(
     project_id: &str,
     file_hash: &str,
 ) -> Result<Option<FileRow>, PostgresError> {
-    let row = sqlx::query_as::<_, (i64, String, String, Option<String>, i64, i64, i64, i64)>(
+    let row = sqlx::query_as::<_, (i64, String, String, Option<String>, i64, String, i64, i64, i64)>(
         r#"
-        SELECT id, project_id, file_hash, media_type, size_bytes, ref_count, created_at, updated_at
+        SELECT id, project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at
         FROM files
         WHERE project_id = $1 AND file_hash = $2
         "#,
@@ -94,13 +96,14 @@ pub async fn get_file(
     .await?;
 
     Ok(row.map(
-        |(id, project_id, file_hash, media_type, size_bytes, ref_count, created_at, updated_at)| {
+        |(id, project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at)| {
             FileRow {
                 id,
                 project_id,
                 file_hash,
                 media_type,
                 size_bytes,
+                hash_algo,
                 ref_count,
                 created_at,
                 updated_at,

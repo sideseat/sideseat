@@ -60,6 +60,7 @@ hex = { workspace = true }
 regex = { workspace = true }
 fs2 = { workspace = true }
 sha2 = { workspace = true }
+blake3 = { workspace = true }
 hmac = { workspace = true }
 dashmap = { workspace = true }
 duckdb = { workspace = true }

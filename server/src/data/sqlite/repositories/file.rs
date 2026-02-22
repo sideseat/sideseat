@@ -18,6 +18,7 @@ pub async fn upsert_file(
     file_hash: &str,
     media_type: Option<&str>,
     size_bytes: i64,
+    hash_algo: &str,
 ) -> Result<i64, SqliteError> {
     let now = chrono::Utc::now().timestamp();
 
@@ -25,8 +26,8 @@ pub async fn upsert_file(
     // If file exists, increment ref_count; otherwise insert with ref_count=1
     let result: (i64,) = sqlx::query_as(
         r#"
-        INSERT INTO files (project_id, file_hash, media_type, size_bytes, ref_count, created_at, updated_at)
-        VALUES (?, ?, ?, ?, 1, ?, ?)
+        INSERT INTO files (project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 1, ?, ?)
         ON CONFLICT(project_id, file_hash) DO UPDATE SET
             ref_count = ref_count + 1,
             updated_at = ?
@@ -37,6 +38,7 @@ pub async fn upsert_file(
     .bind(file_hash)
     .bind(media_type)
     .bind(size_bytes)
+    .bind(hash_algo)
     .bind(now)
     .bind(now)
     .bind(now)
@@ -81,9 +83,9 @@ pub async fn get_file(
     project_id: &str,
     file_hash: &str,
 ) -> Result<Option<FileRow>, SqliteError> {
-    let row = sqlx::query_as::<_, (i64, String, String, Option<String>, i64, i64, i64, i64)>(
+    let row = sqlx::query_as::<_, (i64, String, String, Option<String>, i64, String, i64, i64, i64)>(
         r#"
-        SELECT id, project_id, file_hash, media_type, size_bytes, ref_count, created_at, updated_at
+        SELECT id, project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at
         FROM files
         WHERE project_id = ? AND file_hash = ?
         "#,
@@ -94,13 +96,14 @@ pub async fn get_file(
     .await?;
 
     Ok(row.map(
-        |(id, project_id, file_hash, media_type, size_bytes, ref_count, created_at, updated_at)| {
+        |(id, project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at)| {
             FileRow {
                 id,
                 project_id,
                 file_hash,
                 media_type,
                 size_bytes,
+                hash_algo,
                 ref_count,
                 created_at,
                 updated_at,
@@ -285,7 +288,7 @@ mod tests {
     async fn test_upsert_file_new() {
         let pool = setup_test_pool().await;
 
-        let ref_count = upsert_file(&pool, "default", test_hash(), Some("image/png"), 1024)
+        let ref_count = upsert_file(&pool,"default", test_hash(), Some("image/png"), 1024, "sha256")
             .await
             .unwrap();
 
@@ -305,17 +308,17 @@ mod tests {
     async fn test_upsert_file_increments_ref_count() {
         let pool = setup_test_pool().await;
 
-        let ref1 = upsert_file(&pool, "default", test_hash(), Some("image/png"), 1024)
+        let ref1 = upsert_file(&pool,"default", test_hash(), Some("image/png"), 1024, "sha256")
             .await
             .unwrap();
         assert_eq!(ref1, 1);
 
-        let ref2 = upsert_file(&pool, "default", test_hash(), Some("image/png"), 1024)
+        let ref2 = upsert_file(&pool,"default", test_hash(), Some("image/png"), 1024, "sha256")
             .await
             .unwrap();
         assert_eq!(ref2, 2);
 
-        let ref3 = upsert_file(&pool, "default", test_hash(), Some("image/png"), 1024)
+        let ref3 = upsert_file(&pool,"default", test_hash(), Some("image/png"), 1024, "sha256")
             .await
             .unwrap();
         assert_eq!(ref3, 3);
@@ -325,10 +328,10 @@ mod tests {
     async fn test_decrement_ref_count() {
         let pool = setup_test_pool().await;
 
-        upsert_file(&pool, "default", test_hash(), None, 1024)
+        upsert_file(&pool,"default", test_hash(), None, 1024, "sha256")
             .await
             .unwrap();
-        upsert_file(&pool, "default", test_hash(), None, 1024)
+        upsert_file(&pool,"default", test_hash(), None, 1024, "sha256")
             .await
             .unwrap();
 
@@ -359,7 +362,7 @@ mod tests {
 
         assert!(!file_exists(&pool, "default", test_hash()).await.unwrap());
 
-        upsert_file(&pool, "default", test_hash(), None, 1024)
+        upsert_file(&pool,"default", test_hash(), None, 1024, "sha256")
             .await
             .unwrap();
 
@@ -370,7 +373,7 @@ mod tests {
     async fn test_delete_file() {
         let pool = setup_test_pool().await;
 
-        upsert_file(&pool, "default", test_hash(), None, 1024)
+        upsert_file(&pool,"default", test_hash(), None, 1024, "sha256")
             .await
             .unwrap();
 
@@ -387,10 +390,10 @@ mod tests {
         let hash2 = "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3";
 
         // Insert file records first
-        upsert_file(&pool, "default", hash1, None, 1024)
+        upsert_file(&pool,"default", hash1, None, 1024, "sha256")
             .await
             .unwrap();
-        upsert_file(&pool, "default", hash2, None, 2048)
+        upsert_file(&pool,"default", hash2, None, 2048, "sha256")
             .await
             .unwrap();
 
@@ -428,7 +431,7 @@ mod tests {
         let pool = setup_test_pool().await;
         let hash = test_hash();
 
-        upsert_file(&pool, "default", hash, None, 1024)
+        upsert_file(&pool,"default", hash, None, 1024, "sha256")
             .await
             .unwrap();
         insert_trace_file(&pool, "trace1", "default", hash)
@@ -459,6 +462,7 @@ mod tests {
             "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
             None,
             1024,
+            "sha256",
         )
         .await
         .unwrap();
@@ -468,6 +472,7 @@ mod tests {
             "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
             None,
             2048,
+            "sha256",
         )
         .await
         .unwrap();
@@ -481,10 +486,10 @@ mod tests {
         let pool = setup_test_pool().await;
         let hash = test_hash();
 
-        upsert_file(&pool, "project1", hash, None, 1024)
+        upsert_file(&pool,"project1", hash, None, 1024, "sha256")
             .await
             .unwrap();
-        upsert_file(&pool, "project2", hash, None, 2048)
+        upsert_file(&pool,"project2", hash, None, 2048, "sha256")
             .await
             .unwrap();
 

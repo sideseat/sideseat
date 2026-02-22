@@ -14,6 +14,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use base64::prelude::*;
 use chrono::{DateTime, Utc};
 use futures::stream::StreamExt;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
@@ -23,13 +24,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value as JsonValue, json};
 
 use super::enrich::SpanEnrichment;
-use super::extract::files::extract_and_replace_files;
+use super::extract::files::{
+    extract_and_replace_files, extract_and_replace_files_cached, FileExtractionCache,
+};
 use super::extract::{RawMessage, RawToolDefinition, RawToolNames, SpanData};
 use crate::core::constants::FILES_MAX_CONCURRENT_FINALIZATION;
 use crate::core::{TopicMessage, TopicService};
 use crate::data::AnalyticsService;
 use crate::data::files::FileService;
-use crate::data::types::NormalizedSpan;
+use crate::data::types::{NormalizedSpan, json_to_pre_serialized};
 use crate::utils::otlp::extract_attributes;
 use crate::utils::retry::{DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS, retry_with_backoff_async};
 
@@ -74,59 +77,78 @@ impl TopicMessage for SseSpanEvent {
 // BATCH PERSISTENCE
 // ============================================================================
 
-/// Persist data to DuckDB and SSE topics (Stage 4).
+/// File data extracted during CPU phase, pending I/O write.
 ///
-/// Combines spans with enrichments (costs, previews) and converts to DB format.
-/// Builds raw span JSON from original OTLP request (deferred for performance).
-/// SSE events are published only after successful DuckDB write.
+/// Contains the file bytes and metadata needed to persist to storage.
+/// Created during the CPU-only extraction phase, consumed by
+/// `persist_extracted_files` in a background task.
+pub(super) struct PendingFileWrite {
+    pub project_id: String,
+    pub trace_id: String,
+    pub hash: String,
+    pub media_type: Option<String>,
+    pub size: usize,
+    /// Raw base64 bytes (not decoded) for cache misses, empty for cache hits
+    pub data: Vec<u8>,
+    pub hash_algo: String,
+}
+
+/// Prepare spans for persistence: file extraction (CPU only) + flatten.
 ///
-/// ## File Extraction Flow
+/// Returns NormalizedSpans ready for DuckDB write, plus pending file writes
+/// that should be persisted in a background task via `persist_extracted_files`.
 ///
-/// 1. Extract base64 files from messages, replace with #!B64!# URIs
-/// 2. Write temp files for extracted content
-/// 3. Upsert file metadata in SQLite
-/// 4. Finalize files to permanent storage (synchronous)
-/// 5. Write to DuckDB (messages now have #!B64!# URIs)
+/// File extraction (CPU phase) replaces base64 data with `#!B64!#` URIs
+/// in the JSON fields so DuckDB stores compact references, not raw base64.
+/// The actual file I/O (temp write, SQLite metadata, finalization) is deferred.
 #[allow(clippy::too_many_arguments)]
-pub(super) async fn persist_batch(
+pub(super) fn prepare_batch(
     request: &ExportTraceServiceRequest,
     spans: Vec<SpanData>,
     messages: Vec<Vec<RawMessage>>,
     tool_definitions: Vec<Vec<RawToolDefinition>>,
     tool_names: Vec<Vec<RawToolNames>>,
     enrichments: Vec<SpanEnrichment>,
-    topics: &TopicService,
-    analytics: &Arc<AnalyticsService>,
-    file_service: &Arc<FileService>,
-) {
-    // Extract files from messages if file storage is enabled
-    // Files are finalized synchronously to ensure they exist before DuckDB write
-    let processed_messages = if file_service.is_enabled() {
-        extract_files_from_batch(messages, &spans, file_service).await
+    files_enabled: bool,
+    file_cache: Option<&FileExtractionCache>,
+) -> (Vec<NormalizedSpan>, Vec<PendingFileWrite>) {
+    let mut pending_files = Vec::new();
+
+    // Extract files from messages (CPU only: replace base64 with URIs)
+    let processed_messages = if files_enabled {
+        let (msgs, files) = extract_files_cpu_messages(messages, &spans, file_cache);
+        pending_files = files;
+        msgs
     } else {
         messages
     };
 
-    // DuckDB Write - batch write with retry logic
-    // Converts SpanData + Enrichment to NormalizedSpan, builds raw span JSON
-    let mut db_spans = flatten(
+    // Convert SpanData + Enrichment to NormalizedSpan, build raw span JSON.
+    // File extraction from raw_span/tool_definitions/metadata is done inline
+    // BEFORE serialization, eliminating the serialize→deserialize→re-serialize round-trip.
+    let (db_spans, raw_span_files) = flatten(
         request,
         spans,
         processed_messages,
         tool_definitions,
         tool_names,
         enrichments,
+        files_enabled,
+        file_cache,
     );
+    pending_files.extend(raw_span_files);
 
-    // Extract files from raw_span as well (same base64 data may appear in OTLP attributes)
-    if file_service.is_enabled() {
-        extract_files_from_raw_spans(&mut db_spans, file_service).await;
-    }
+    (db_spans, pending_files)
+}
 
-    write_to_duckdb(&db_spans, analytics).await;
-
-    // SSE Publish - real-time updates to per-project topics (after persist)
+/// Write prepared spans to DuckDB and publish SSE events.
+pub(super) async fn persist_prepared(
+    db_spans: Vec<NormalizedSpan>,
+    topics: &TopicService,
+    analytics: &Arc<AnalyticsService>,
+) {
     publish_to_sse(&db_spans, topics).await;
+    write_to_duckdb(db_spans, analytics).await;
 }
 
 // ============================================================================
@@ -225,186 +247,152 @@ async fn finalize_pending_files(
     }
 }
 
-/// Extract files from all messages in a batch.
+/// CPU-only: extract files from all messages in a batch.
 ///
-/// For each span's messages:
-/// 1. Extract base64 data >= 1KB
-/// 2. Write temp file
-/// 3. Upsert metadata in SQLite
-/// 4. Record trace-file association
-/// 5. Finalize all files to permanent storage (bounded parallel I/O)
-///
-/// Files are finalized in parallel (with concurrency limit) and confirmed
-/// before returning. This prevents broken #!B64!# references while
-/// maximizing throughput.
-async fn extract_files_from_batch(
+/// Replaces base64 data with `#!B64!#` URIs in message content.
+/// Returns modified messages and pending file writes for I/O phase.
+fn extract_files_cpu_messages(
     mut messages: Vec<Vec<RawMessage>>,
     spans: &[SpanData],
-    file_service: &Arc<FileService>,
-) -> Vec<Vec<RawMessage>> {
-    let temp_dir = file_service.temp_dir();
-    let repo = file_service.database().repository();
-    let mut pending_finalizations: Vec<PendingFinalization> = Vec::new();
+    cache: Option<&FileExtractionCache>,
+) -> (Vec<Vec<RawMessage>>, Vec<PendingFileWrite>) {
+    let mut pending = Vec::new();
 
     for (span_idx, span_messages) in messages.iter_mut().enumerate() {
         let span = &spans[span_idx];
         let project_id = span.project_id.as_deref().unwrap_or("default");
         let trace_id = &span.trace_id;
 
-        // Track unique hashes per trace to avoid duplicate trace_files entries
-        let mut trace_hashes: HashSet<String> = HashSet::new();
-
         for raw_message in span_messages.iter_mut() {
-            // Extract files from message content
-            let result = extract_and_replace_files(&mut raw_message.content);
-
+            let result = match cache {
+                Some(c) => extract_and_replace_files_cached(&mut raw_message.content, c),
+                None => extract_and_replace_files(&mut raw_message.content),
+            };
             if result.modified {
                 for file in result.files {
-                    // Write temp file
-                    let temp_path = temp_dir.join(format!("{}_{}", project_id, &file.hash));
-                    if let Err(e) = tokio::fs::write(&temp_path, &file.data).await {
-                        tracing::warn!(
-                            error = %e,
-                            hash = %file.hash,
-                            project_id,
-                            "Failed to write temp file, skipping"
-                        );
-                        continue;
-                    }
-
-                    // Upsert file metadata in database via repository trait
-                    let upsert_result = repo
-                        .upsert_file(
-                            project_id,
-                            &file.hash,
-                            file.media_type.as_deref(),
-                            file.size as i64,
-                        )
-                        .await
-                        .map_err(|e| e.to_string());
-
-                    if let Err(e) = upsert_result {
-                        tracing::warn!(
-                            error = %e,
-                            hash = %file.hash,
-                            project_id,
-                            "Failed to upsert file metadata, cleaning up temp file"
-                        );
-                        // Clean up temp file since we can't track it
-                        let _ = tokio::fs::remove_file(&temp_path).await;
-                        continue;
-                    }
-
-                    // Record trace-file association (deduplicated per trace)
-                    if !trace_hashes.contains(&file.hash) {
-                        trace_hashes.insert(file.hash.clone());
-                        let insert_result = repo
-                            .insert_trace_file(trace_id, project_id, &file.hash)
-                            .await
-                            .map_err(|e| e.to_string());
-
-                        if let Err(e) = insert_result {
-                            tracing::warn!(
-                                error = %e,
-                                hash = %file.hash,
-                                trace_id,
-                                "Failed to insert trace-file association"
-                            );
-                        }
-                    }
-
-                    // Queue for parallel finalization
-                    pending_finalizations.push(PendingFinalization {
+                    pending.push(PendingFileWrite {
                         project_id: project_id.to_string(),
+                        trace_id: trace_id.clone(),
                         hash: file.hash,
-                        temp_path,
+                        media_type: file.media_type,
+                        size: file.size,
+                        data: file.data,
+                        hash_algo: "blake3".to_string(),
                     });
                 }
             }
         }
     }
 
-    // Finalize all files with bounded concurrency
-    finalize_pending_files(pending_finalizations, file_service, "messages").await;
-
-    messages
+    (messages, pending)
 }
 
-/// Extract files from all JSON fields in normalized spans.
+/// Persist extracted files to storage (I/O phase).
 ///
-/// Extracts base64 from:
-/// - raw_span: OTLP attributes/events
-/// - tool_definitions: tool schemas (could have example data)
-/// - metadata: user-provided metadata
-///
-/// Files are finalized with bounded concurrency and confirmed before returning.
-/// This ensures ALL base64 is extracted from the database, not just messages.
-async fn extract_files_from_raw_spans(
-    db_spans: &mut [NormalizedSpan],
+/// Handles temp file writes, SQLite metadata upserts, and finalization.
+/// Deduplicates by hash within the batch to avoid redundant I/O.
+/// Called from a background task after DuckDB write completes.
+pub(super) async fn persist_extracted_files(
+    files: Vec<PendingFileWrite>,
     file_service: &Arc<FileService>,
 ) {
+    if files.is_empty() {
+        return;
+    }
+
+    let file_count = files.len();
     let temp_dir = file_service.temp_dir();
     let repo = file_service.database().repository();
     let mut pending_finalizations: Vec<PendingFinalization> = Vec::new();
 
-    for span in db_spans.iter_mut() {
-        let project_id = span.project_id.as_deref().unwrap_or("default");
-        let trace_id = &span.trace_id;
+    // Deduplicate: only write/upsert once per unique (project_id, hash)
+    let mut written_hashes: HashSet<String> = HashSet::new();
+    // Deduplicate: only insert trace-file once per unique (trace_id, hash)
+    let mut trace_hashes: HashSet<(String, String)> = HashSet::new();
 
-        // Extract from all JSON fields that could contain base64
-        let mut all_files = Vec::new();
+    for file in &files {
+        let dedup_key = format!("{}:{}", file.project_id, file.hash);
+        let is_new = written_hashes.insert(dedup_key);
 
-        // raw_span
-        let result = extract_and_replace_files(&mut span.raw_span);
-        all_files.extend(result.files);
+        if is_new {
+            if file.data.is_empty() {
+                // Cache hit from previous extraction — file already in storage.
+                // Just upsert metadata to maintain ref_count.
+                let _ = repo
+                    .upsert_file(
+                        &file.project_id,
+                        &file.hash,
+                        file.media_type.as_deref(),
+                        file.size as i64,
+                        &file.hash_algo,
+                    )
+                    .await;
+            } else {
+                // Fresh extraction: decode base64, write temp file, upsert metadata, finalize
+                let decoded = match BASE64_STANDARD.decode(&file.data) {
+                    Ok(d) => d,
+                    Err(_) => match BASE64_URL_SAFE.decode(&file.data) {
+                        Ok(d) => d,
+                        Err(e) => {
+                            tracing::warn!(
+                                error = %e,
+                                hash = %file.hash,
+                                project_id = %file.project_id,
+                                "Failed to decode base64, skipping file"
+                            );
+                            continue;
+                        }
+                    },
+                };
 
-        // tool_definitions
-        let result = extract_and_replace_files(&mut span.tool_definitions);
-        all_files.extend(result.files);
+                let temp_path = temp_dir.join(format!("{}_{}", file.project_id, file.hash));
+                if let Err(e) = tokio::fs::write(&temp_path, &decoded).await {
+                    tracing::warn!(
+                        error = %e,
+                        hash = %file.hash,
+                        project_id = %file.project_id,
+                        "Failed to write temp file, skipping"
+                    );
+                    continue;
+                }
 
-        // metadata
-        let result = extract_and_replace_files(&mut span.metadata);
-        all_files.extend(result.files);
+                // Upsert file metadata
+                let upsert_result = repo
+                    .upsert_file(
+                        &file.project_id,
+                        &file.hash,
+                        file.media_type.as_deref(),
+                        file.size as i64,
+                        &file.hash_algo,
+                    )
+                    .await
+                    .map_err(|e| e.to_string());
 
-        for file in all_files {
-            // Write temp file
-            let temp_path = temp_dir.join(format!("{}_{}", project_id, &file.hash));
-            if let Err(e) = tokio::fs::write(&temp_path, &file.data).await {
-                tracing::warn!(
-                    error = %e,
-                    hash = %file.hash,
-                    project_id,
-                    "Failed to write temp file, skipping"
-                );
-                continue;
+                if let Err(e) = upsert_result {
+                    tracing::warn!(
+                        error = %e,
+                        hash = %file.hash,
+                        project_id = %file.project_id,
+                        "Failed to upsert file metadata, cleaning up temp file"
+                    );
+                    let _ = tokio::fs::remove_file(&temp_path).await;
+                    continue;
+                }
+
+                // Queue for finalization
+                pending_finalizations.push(PendingFinalization {
+                    project_id: file.project_id.clone(),
+                    hash: file.hash.clone(),
+                    temp_path,
+                });
             }
+        }
 
-            // Upsert file metadata in database via repository trait
-            let upsert_result = repo
-                .upsert_file(
-                    project_id,
-                    &file.hash,
-                    file.media_type.as_deref(),
-                    file.size as i64,
-                )
-                .await
-                .map_err(|e| e.to_string());
-
-            if let Err(e) = upsert_result {
-                tracing::warn!(
-                    error = %e,
-                    hash = %file.hash,
-                    project_id,
-                    "Failed to upsert file metadata, cleaning up temp file"
-                );
-                // Clean up temp file since we can't track it
-                let _ = tokio::fs::remove_file(&temp_path).await;
-                continue;
-            }
-
-            // Record trace-file association
+        // Record trace-file association (once per trace+hash)
+        let trace_key = (file.trace_id.clone(), file.hash.clone());
+        if trace_hashes.insert(trace_key) {
             let insert_result = repo
-                .insert_trace_file(trace_id, project_id, &file.hash)
+                .insert_trace_file(&file.trace_id, &file.project_id, &file.hash)
                 .await
                 .map_err(|e| e.to_string());
 
@@ -412,22 +400,21 @@ async fn extract_files_from_raw_spans(
                 tracing::warn!(
                     error = %e,
                     hash = %file.hash,
-                    trace_id,
+                    trace_id = %file.trace_id,
                     "Failed to insert trace-file association"
                 );
             }
-
-            // Queue for parallel finalization
-            pending_finalizations.push(PendingFinalization {
-                project_id: project_id.to_string(),
-                hash: file.hash,
-                temp_path,
-            });
         }
     }
 
     // Finalize all files with bounded concurrency
-    finalize_pending_files(pending_finalizations, file_service, "raw_spans").await;
+    finalize_pending_files(pending_finalizations, file_service, "batch").await;
+
+    tracing::debug!(
+        total = file_count,
+        unique = written_hashes.len(),
+        "Background file persistence completed"
+    );
 }
 
 // ============================================================================
@@ -435,12 +422,16 @@ async fn extract_files_from_raw_spans(
 // ============================================================================
 
 /// Write batch to analytics backend with exponential backoff retry.
-async fn write_to_duckdb(spans: &[NormalizedSpan], analytics: &Arc<AnalyticsService>) {
+///
+/// Each attempt clones spans (insert_spans consumes ownership for spawn_blocking).
+/// With pre-serialized String fields, clone cost is ~microseconds of memcpy, negligible
+/// compared to the DuckDB write which takes milliseconds-to-seconds.
+async fn write_to_duckdb(spans: Vec<NormalizedSpan>, analytics: &Arc<AnalyticsService>) {
     let span_count = spans.len();
     let repo = analytics.repository();
 
     let result = retry_with_backoff_async(DEFAULT_MAX_ATTEMPTS, DEFAULT_BASE_DELAY_MS, || {
-        repo.insert_spans(spans)
+        repo.insert_spans(spans.clone())
     })
     .await;
 
@@ -476,8 +467,14 @@ async fn write_to_duckdb(spans: &[NormalizedSpan], analytics: &Arc<AnalyticsServ
 /// Iterates request in same order as normalize_batch to match spans with OTLP data.
 /// Builds raw span JSON directly from request (no lookup needed).
 ///
+/// When `files_enabled`, extracts base64 files from raw_span, tool_definitions, and
+/// metadata JSON values **in-memory before serialization**. This eliminates the
+/// serialize→deserialize→re-serialize round-trip that previously happened in
+/// `extract_files_cpu_raw_spans`.
+///
 /// # Panics
 /// Debug assertion fails if span counts don't match (indicates pipeline bug).
+#[allow(clippy::too_many_arguments)]
 fn flatten(
     request: &ExportTraceServiceRequest,
     span_data: Vec<SpanData>,
@@ -485,15 +482,23 @@ fn flatten(
     tool_definitions: Vec<Vec<RawToolDefinition>>,
     tool_names: Vec<Vec<RawToolNames>>,
     enrichments: Vec<SpanEnrichment>,
-) -> Vec<NormalizedSpan> {
+    files_enabled: bool,
+    file_cache: Option<&FileExtractionCache>,
+) -> (Vec<NormalizedSpan>, Vec<PendingFileWrite>) {
     let span_count = span_data.len();
     let mut result = Vec::with_capacity(span_count);
+    let mut pending_files: Vec<PendingFileWrite> = Vec::new();
     let mut iter = span_data
         .into_iter()
         .zip(messages)
         .zip(tool_definitions)
         .zip(tool_names)
         .zip(enrichments);
+
+    let extract_fn = |json: &mut JsonValue| match file_cache {
+        Some(c) => extract_and_replace_files_cached(json, c),
+        None => extract_and_replace_files(json),
+    };
 
     // Iterate request in same order as normalize_batch
     for resource_spans in &request.resource_spans {
@@ -505,24 +510,74 @@ fn flatten(
 
         for scope_spans in &resource_spans.scope_spans {
             for otlp_span in &scope_spans.spans {
-                if let Some(((((span, msgs), tools), tnames), enrichment)) = iter.next() {
-                    let messages_json =
-                        serde_json::to_value(&msgs).unwrap_or(JsonValue::Array(vec![]));
+                if let Some(((((mut span, msgs), tools), tnames), enrichment)) = iter.next() {
+                    let messages_str = serde_json::to_string(&msgs).ok();
 
-                    // Flatten tool definitions: extract content arrays and merge
-                    let tool_definitions_json = flatten_tool_definitions(&tools);
-
-                    // Flatten tool names: extract content arrays and merge into flat string list
+                    let mut tool_definitions_json = flatten_tool_definitions(&tools);
                     let tool_names_json = flatten_tool_names(&tnames);
+                    let tool_names_str = serde_json::to_string(&tool_names_json).ok();
 
-                    let raw_span = build_raw_span_json(otlp_span, &resource_attrs);
+                    let mut raw_span_json = build_raw_span_json(otlp_span, &resource_attrs);
+
+                    // Extract files from JSON values in-memory BEFORE serialization.
+                    // This avoids the costly serialize→deserialize→re-serialize round-trip.
+                    if files_enabled {
+                        let project_id =
+                            span.project_id.as_deref().unwrap_or("default").to_string();
+                        let trace_id = &span.trace_id;
+
+                        // raw_span
+                        for file in extract_fn(&mut raw_span_json).files {
+                            pending_files.push(PendingFileWrite {
+                                project_id: project_id.clone(),
+                                trace_id: trace_id.clone(),
+                                hash: file.hash,
+                                media_type: file.media_type,
+                                size: file.size,
+                                data: file.data,
+                                hash_algo: "blake3".to_string(),
+                            });
+                        }
+
+                        // tool_definitions
+                        for file in extract_fn(&mut tool_definitions_json).files {
+                            pending_files.push(PendingFileWrite {
+                                project_id: project_id.clone(),
+                                trace_id: trace_id.clone(),
+                                hash: file.hash,
+                                media_type: file.media_type,
+                                size: file.size,
+                                data: file.data,
+                                hash_algo: "blake3".to_string(),
+                            });
+                        }
+
+                        // metadata (owned, mutate in place before serialization)
+                        for file in extract_fn(&mut span.metadata).files {
+                            pending_files.push(PendingFileWrite {
+                                project_id: project_id.clone(),
+                                trace_id: trace_id.clone(),
+                                hash: file.hash,
+                                media_type: file.media_type,
+                                size: file.size,
+                                data: file.data,
+                                hash_algo: "blake3".to_string(),
+                            });
+                        }
+                    }
+
+                    // Serialize to strings ONCE (after file extraction)
+                    let tool_definitions_str =
+                        serde_json::to_string(&tool_definitions_json).ok();
+                    let raw_span_str = serde_json::to_string(&raw_span_json).ok();
+
                     result.push(to_normalized_span(
                         span,
                         &enrichment,
-                        messages_json,
-                        tool_definitions_json,
-                        tool_names_json,
-                        raw_span,
+                        messages_str,
+                        tool_definitions_str,
+                        tool_names_str,
+                        raw_span_str,
                     ));
                 }
             }
@@ -537,7 +592,7 @@ fn flatten(
         result.len()
     );
 
-    result
+    (result, pending_files)
 }
 
 /// Flatten tool definitions: extract content from each RawToolDefinition and merge arrays.
@@ -574,10 +629,10 @@ fn flatten_tool_names(tnames: &[RawToolNames]) -> JsonValue {
 fn to_normalized_span(
     span: SpanData,
     enrichment: &SpanEnrichment,
-    messages: JsonValue,
-    tool_definitions: JsonValue,
-    tool_names: JsonValue,
-    raw_span: JsonValue,
+    messages: Option<String>,
+    tool_definitions: Option<String>,
+    tool_names: Option<String>,
+    raw_span: Option<String>,
 ) -> NormalizedSpan {
     NormalizedSpan {
         // Identity
@@ -649,7 +704,7 @@ fn to_normalized_span(
         gen_ai_usage_cache_read_tokens: span.gen_ai_usage_cache_read_tokens,
         gen_ai_usage_cache_write_tokens: span.gen_ai_usage_cache_write_tokens,
         gen_ai_usage_reasoning_tokens: span.gen_ai_usage_reasoning_tokens,
-        gen_ai_usage_details: span.gen_ai_usage_details,
+        gen_ai_usage_details: json_to_pre_serialized(&span.gen_ai_usage_details),
 
         // Enrichment data (costs)
         gen_ai_cost_input: enrichment.input_cost,
@@ -682,7 +737,7 @@ fn to_normalized_span(
 
         // Tags and metadata
         tags: span.tags,
-        metadata: span.metadata,
+        metadata: json_to_pre_serialized(&span.metadata),
 
         // Raw messages (converted to SideML on query)
         messages,
@@ -948,13 +1003,15 @@ mod tests {
         let tool_definitions: Vec<Vec<RawToolDefinition>> = vec![];
         let tool_names: Vec<Vec<RawToolNames>> = vec![];
         let enrichments: Vec<SpanEnrichment> = vec![];
-        let result = flatten(
+        let (result, _) = flatten(
             &request,
             spans,
             messages,
             tool_definitions,
             tool_names,
             enrichments,
+            false,
+            None,
         );
         assert!(result.is_empty());
     }
@@ -967,20 +1024,22 @@ mod tests {
         let tool_definitions: Vec<Vec<RawToolDefinition>> = vec![vec![]];
         let tool_names: Vec<Vec<RawToolNames>> = vec![vec![]];
         let enrichments = vec![make_enrichment()];
-        let result = flatten(
+        let (result, _) = flatten(
             &request,
             spans,
             messages,
             tool_definitions,
             tool_names,
             enrichments,
+            false,
+            None,
         );
 
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].span_id, "span1");
-        assert_eq!(result[0].messages, json!([]));
-        assert_eq!(result[0].tool_definitions, json!([]));
-        assert_eq!(result[0].tool_names, json!([]));
+        assert_eq!(result[0].messages.as_deref().unwrap_or("[]"), "[]");
+        assert_eq!(result[0].tool_definitions.as_deref().unwrap_or("[]"), "[]");
+        assert_eq!(result[0].tool_names.as_deref().unwrap_or("[]"), "[]");
     }
 
     #[test]
@@ -991,13 +1050,15 @@ mod tests {
         let tool_definitions: Vec<Vec<RawToolDefinition>> = vec![vec![], vec![], vec![]];
         let tool_names: Vec<Vec<RawToolNames>> = vec![vec![], vec![], vec![]];
         let enrichments = vec![make_enrichment(), make_enrichment(), make_enrichment()];
-        let result = flatten(
+        let (result, _) = flatten(
             &request,
             spans,
             messages,
             tool_definitions,
             tool_names,
             enrichments,
+            false,
+            None,
         );
 
         assert_eq!(result.len(), 3);
@@ -1015,19 +1076,23 @@ mod tests {
         let tool_names: Vec<Vec<RawToolNames>> = vec![vec![]];
         let enrichments = vec![make_enrichment()];
 
-        let result = flatten(
+        let (result, _) = flatten(
             &request,
             spans,
             messages,
             tool_definitions,
             tool_names,
             enrichments,
+            false,
+            None,
         );
 
         assert_eq!(result.len(), 1);
 
-        // Verify messages are stored as JSON array with raw structure
-        let stored_messages = result[0].messages.as_array().unwrap();
+        // Verify messages are stored as pre-serialized JSON string
+        let messages_str = result[0].messages.as_deref().unwrap();
+        let stored_messages: Vec<serde_json::Value> =
+            serde_json::from_str(messages_str).unwrap();
         assert_eq!(stored_messages.len(), 2);
         // Raw messages have "content" field with original message data
         assert_eq!(stored_messages[0]["content"]["content"], "Hello");
@@ -1050,13 +1115,15 @@ mod tests {
             ..Default::default()
         }];
 
-        let result = flatten(
+        let (result, _) = flatten(
             &request,
             spans,
             messages,
             tool_definitions,
             tool_names,
             enrichments,
+            false,
+            None,
         );
 
         assert_eq!(result[0].gen_ai_cost_input, 0.001);

@@ -24,12 +24,63 @@
 //!    b. Detect raw base64 by charset validation + decode attempt
 //!    c. Detect media type from magic bytes when not explicit
 
+use std::collections::HashMap;
+
 use base64::prelude::*;
+use parking_lot::RwLock;
 use serde_json::Value as JsonValue;
-use sha2::{Digest, Sha256};
 
 use crate::core::constants::{FILES_MAX_SIZE_BYTES, FILES_MIN_SIZE_BYTES};
 use crate::utils::mime::detect_mime_type;
+
+// ============================================================================
+// FILE EXTRACTION CACHE
+// ============================================================================
+
+/// Cached result of a previous base64 extraction.
+///
+/// Stores the BLAKE3 hash, media type, and estimated decoded size so that
+/// repeated encounters of the same base64 string can skip the
+/// charset validation + BLAKE3 hash computation entirely.
+#[derive(Clone)]
+struct CachedFileResult {
+    hash: String,
+    media_type: Option<String>,
+    size: usize,
+}
+
+/// Cross-batch cache for base64 file extraction.
+///
+/// Keyed on first 8 bytes of BLAKE3(string) as u64.
+/// On cache hit, charset validation, normalization, and BLAKE3 are skipped.
+///
+/// In real workloads, the same images appear repeatedly across spans
+/// (history accumulation, agent context duplication). Observed: 91 total
+/// extractions for only 3 unique files — 97% redundant work.
+pub struct FileExtractionCache {
+    inner: RwLock<HashMap<u64, CachedFileResult>>,
+}
+
+impl FileExtractionCache {
+    pub fn new() -> Self {
+        Self {
+            inner: RwLock::new(HashMap::new()),
+        }
+    }
+
+    fn hash_key(s: &str) -> u64 {
+        let hash = blake3::hash(s.as_bytes());
+        u64::from_le_bytes(hash.as_bytes()[..8].try_into().unwrap())
+    }
+
+    fn get(&self, key: u64) -> Option<CachedFileResult> {
+        self.inner.read().get(&key).cloned()
+    }
+
+    fn insert(&self, key: u64, value: CachedFileResult) {
+        self.inner.write().insert(key, value);
+    }
+}
 
 /// Fields that may contain base64 data to extract.
 ///
@@ -95,13 +146,13 @@ pub const FILE_URI_PREFIX: &str = "#!B64!#";
 /// An extracted file ready for storage
 #[derive(Debug, Clone)]
 pub struct ExtractedFile {
-    /// SHA-256 hash of the file content (64 hex chars)
+    /// BLAKE3 hash of the normalized base64 content (64 hex chars)
     pub hash: String,
-    /// Raw file bytes
+    /// Raw base64 bytes (not decoded) for cache misses, empty for cache hits
     pub data: Vec<u8>,
     /// Media type (e.g., "image/jpeg")
     pub media_type: Option<String>,
-    /// Size in bytes
+    /// Estimated decoded size in bytes
     pub size: usize,
 }
 
@@ -112,6 +163,14 @@ pub struct ExtractionResult {
     pub files: Vec<ExtractedFile>,
     /// Whether any modifications were made to the JSON
     pub modified: bool,
+}
+
+/// Build a `#!B64!#` file URI from hash and optional media type.
+fn build_file_uri(hash: &str, media_type: Option<&str>) -> String {
+    match media_type {
+        Some(mt) => format!("{FILE_URI_PREFIX}{mt}::{hash}"),
+        None => format!("{FILE_URI_PREFIX}::{hash}"),
+    }
 }
 
 /// Extract and replace base64 data in raw messages.
@@ -129,7 +188,26 @@ pub fn extract_and_replace_files(messages: &mut JsonValue) -> ExtractionResult {
     let mut result = ExtractionResult::default();
     let mut seen_hashes = std::collections::HashSet::new();
 
-    result.modified = extract_recursive(messages, None, &mut result.files, &mut seen_hashes);
+    result.modified = extract_recursive(messages, None, &mut result.files, &mut seen_hashes, None);
+
+    result
+}
+
+/// Extract and replace base64 data with cross-batch caching.
+///
+/// Same as `extract_and_replace_files` but uses a shared cache to skip
+/// charset validation + BLAKE3 hash for previously seen base64 strings.
+/// Cache-hit files have `data: Vec::new()` (empty) since the actual bytes
+/// were already captured by a previous extraction.
+pub fn extract_and_replace_files_cached(
+    messages: &mut JsonValue,
+    cache: &FileExtractionCache,
+) -> ExtractionResult {
+    let mut result = ExtractionResult::default();
+    let mut seen_hashes = std::collections::HashSet::new();
+
+    result.modified =
+        extract_recursive(messages, None, &mut result.files, &mut seen_hashes, Some(cache));
 
     result
 }
@@ -141,6 +219,7 @@ fn extract_recursive(
     parent_key: Option<&str>,
     files: &mut Vec<ExtractedFile>,
     seen_hashes: &mut std::collections::HashSet<String>,
+    cache: Option<&FileExtractionCache>,
 ) -> bool {
     match json {
         JsonValue::String(s) => {
@@ -149,7 +228,8 @@ fn extract_recursive(
             // e.g., events[].attributes.content = "[{\"image\": {\"bytes\": \"...\"}}]"
             if s.starts_with('{') || s.starts_with('[') {
                 if let Ok(mut nested) = serde_json::from_str::<JsonValue>(s) {
-                    let modified = extract_recursive(&mut nested, None, files, seen_hashes);
+                    let modified =
+                        extract_recursive(&mut nested, None, files, seen_hashes, cache);
                     if modified {
                         match serde_json::to_string(&nested) {
                             Ok(new_s) => *s = new_s,
@@ -164,7 +244,9 @@ fn extract_recursive(
 
             // Scan for embedded data URLs in any string, regardless of field name.
             // Data URLs are self-describing (data:mime;base64,...) with zero false-positive risk.
-            if let Some(modified_str) = extract_embedded_data_urls(s, files, seen_hashes) {
+            if let Some(modified_str) =
+                extract_embedded_data_urls(s, files, seen_hashes, cache)
+            {
                 *s = modified_str;
                 return true;
             }
@@ -186,16 +268,41 @@ fn extract_recursive(
                 return false;
             }
 
-            // Try to extract base64 data
+            // Try to extract base64 data.
+            // Check cache first to skip charset validation + BLAKE3 for repeated content.
+            let cache_key = cache.map(|_| FileExtractionCache::hash_key(s));
+
+            if let Some(cached) = cache_key.and_then(|key| cache.unwrap().get(key)) {
+                let uri = build_file_uri(&cached.hash, cached.media_type.as_deref());
+                if !seen_hashes.contains(&cached.hash) {
+                    seen_hashes.insert(cached.hash.clone());
+                    files.push(ExtractedFile {
+                        hash: cached.hash,
+                        data: Vec::new(),
+                        media_type: cached.media_type,
+                        size: cached.size,
+                    });
+                }
+                *s = uri;
+                return true;
+            }
+
             if let Some(extracted) = try_extract_base64(s) {
                 if extracted.size >= FILES_MIN_SIZE_BYTES {
-                    let hash = sha256_bytes(&extracted.data);
+                    let hash = blake3_base64(&extracted.data);
+                    let uri = build_file_uri(&hash, extracted.media_type.as_deref());
 
-                    // Build replacement URI before moving media_type
-                    let uri = match &extracted.media_type {
-                        Some(mt) => format!("{FILE_URI_PREFIX}{mt}::{hash}"),
-                        None => format!("{FILE_URI_PREFIX}::{hash}"),
-                    };
+                    // Populate cache on miss
+                    if let (Some(cache), Some(key)) = (cache, cache_key) {
+                        cache.insert(
+                            key,
+                            CachedFileResult {
+                                hash: hash.clone(),
+                                media_type: extracted.media_type.clone(),
+                                size: extracted.size,
+                            },
+                        );
+                    }
 
                     // Deduplicate within same extraction
                     if !seen_hashes.contains(&hash) {
@@ -217,14 +324,14 @@ fn extract_recursive(
         JsonValue::Array(arr) => {
             let mut modified = false;
             for item in arr.iter_mut() {
-                modified |= extract_recursive(item, None, files, seen_hashes);
+                modified |= extract_recursive(item, None, files, seen_hashes, cache);
             }
             modified
         }
         JsonValue::Object(obj) => {
             let mut modified = false;
             for (key, value) in obj.iter_mut() {
-                modified |= extract_recursive(value, Some(key), files, seen_hashes);
+                modified |= extract_recursive(value, Some(key), files, seen_hashes, cache);
             }
             modified
         }
@@ -244,7 +351,10 @@ struct ExtractedData {
 /// Detection priority:
 /// 1. Skip URLs, already-extracted URIs, and placeholders
 /// 2. Parse data URLs (most reliable - contains mime type)
-/// 3. Detect raw base64 by charset + decode + magic bytes
+/// 3. Detect raw base64 by charset validation + size estimate + partial decode for magic bytes
+///
+/// Does NOT fully decode the base64 — returns normalized base64 bytes.
+/// Full decode is deferred to persist time.
 fn try_extract_base64(s: &str) -> Option<ExtractedData> {
     // Skip URLs (but not data URLs)
     if s.starts_with("http://") || s.starts_with("https://") {
@@ -271,36 +381,37 @@ fn try_extract_base64(s: &str) -> Option<ExtractedData> {
         return None;
     }
 
-    // Validate base64 charset before expensive decode
-    if !is_valid_base64_charset(s) {
+    // Single-pass: validate charset and detect whitespace simultaneously.
+    let has_whitespace = check_base64_charset(s)?;
+
+    // Normalize: strip whitespace if present (common case: no whitespace)
+    let normalized: Vec<u8> = if has_whitespace {
+        s.bytes().filter(|b| !b.is_ascii_whitespace()).collect()
+    } else {
+        s.as_bytes().to_vec()
+    };
+
+    // Estimate decoded size from base64 length
+    let estimated_size = estimate_decoded_size(&normalized);
+
+    if estimated_size < FILES_MIN_SIZE_BYTES {
         return None;
     }
-
-    // Clean whitespace (some encoders add line breaks)
-    let cleaned: String = s.chars().filter(|c| !c.is_ascii_whitespace()).collect();
-
-    // Try to decode
-    let data = decode_base64_flexible(&cleaned)?;
-
-    // Check size limits
-    if data.len() < FILES_MIN_SIZE_BYTES {
-        return None;
-    }
-    if data.len() > FILES_MAX_SIZE_BYTES {
+    if estimated_size > FILES_MAX_SIZE_BYTES {
         tracing::warn!(
-            size = data.len(),
+            size = estimated_size,
             max = FILES_MAX_SIZE_BYTES,
             "Skipping file extraction: exceeds max size"
         );
         return None;
     }
 
-    // Detect media type from magic bytes (for raw base64 without explicit type)
-    let media_type = detect_mime_type(&data).map(String::from);
+    // Detect media type from first 16 base64 chars (partial decode of 12 bytes)
+    let media_type = detect_media_type_from_b64_prefix(&normalized);
 
     Some(ExtractedData {
-        size: data.len(),
-        data,
+        size: estimated_size,
+        data: normalized,
         media_type,
     })
 }
@@ -360,10 +471,8 @@ fn is_placeholder_value(s: &str) -> bool {
 ///
 /// Format: `data:[<mediatype>][;base64],<data>`
 ///
-/// Examples:
-/// - `data:image/png;base64,iVBORw0KGgo...`
-/// - `data:;base64,SGVsbG8=` (no media type)
-/// - `data:text/plain,Hello%20World` (not base64 - returns None)
+/// Does NOT fully decode — returns normalized base64 bytes.
+/// Full decode is deferred to persist time.
 fn parse_data_url(url: &str) -> Option<ExtractedData> {
     let without_prefix = url.strip_prefix("data:")?;
 
@@ -374,74 +483,106 @@ fn parse_data_url(url: &str) -> Option<ExtractedData> {
     let media_type = &without_prefix[..base64_pos];
     let base64_data = &without_prefix[base64_pos + base64_marker.len()..];
 
-    // Strip whitespace and decode (some encoders add newlines in data URLs)
-    let cleaned: String = base64_data
-        .chars()
-        .filter(|c| !c.is_ascii_whitespace())
-        .collect();
-    let data = decode_base64_flexible(&cleaned)?;
+    // Normalize: strip whitespace if present (common case: no whitespace)
+    let normalized: Vec<u8> = if base64_data.bytes().any(|b| b.is_ascii_whitespace()) {
+        base64_data
+            .bytes()
+            .filter(|b| !b.is_ascii_whitespace())
+            .collect()
+    } else {
+        base64_data.as_bytes().to_vec()
+    };
 
-    // Check size limits
-    if data.len() < FILES_MIN_SIZE_BYTES {
+    // Estimate decoded size from base64 length
+    let estimated_size = estimate_decoded_size(&normalized);
+
+    if estimated_size < FILES_MIN_SIZE_BYTES {
         return None;
     }
-    if data.len() > FILES_MAX_SIZE_BYTES {
+    if estimated_size > FILES_MAX_SIZE_BYTES {
         tracing::warn!(
-            size = data.len(),
+            size = estimated_size,
             max = FILES_MAX_SIZE_BYTES,
             "Skipping data URL extraction: exceeds max size"
         );
         return None;
     }
 
-    // Determine media type: explicit from URL, or detect from magic bytes
+    // Determine media type: explicit from URL, or detect from magic bytes via partial decode
     let detected_type = if media_type.is_empty() {
-        detect_mime_type(&data).map(String::from)
+        detect_media_type_from_b64_prefix(&normalized)
     } else {
         Some(media_type.to_string())
     };
 
     Some(ExtractedData {
-        size: data.len(),
-        data,
+        size: estimated_size,
+        data: normalized,
         media_type: detected_type,
     })
 }
 
-/// Decode base64 data, trying both standard and URL-safe alphabets
-fn decode_base64_flexible(s: &str) -> Option<Vec<u8>> {
-    // Try standard base64 first (most common)
-    if let Ok(data) = BASE64_STANDARD.decode(s) {
-        return Some(data);
-    }
-    // Try URL-safe base64
-    if let Ok(data) = BASE64_URL_SAFE.decode(s) {
-        return Some(data);
-    }
-    // Try URL-safe without padding
-    BASE64_URL_SAFE_NO_PAD.decode(s).ok()
-}
-
-/// Check if string contains only valid base64 characters.
-/// Allows standard base64 (+/), URL-safe base64 (-_), padding (=), and whitespace.
-/// Uses byte iteration since all valid base64 characters are ASCII.
-fn is_valid_base64_charset(s: &str) -> bool {
-    s.bytes().all(|b| {
-        b.is_ascii_alphanumeric()
+/// Single-pass charset validation + whitespace detection.
+///
+/// Returns `Some(has_whitespace)` if the string contains only valid base64 characters,
+/// `None` if any invalid character is found. Replaces the previous two-pass approach
+/// of separate charset check + whitespace strip.
+fn check_base64_charset(s: &str) -> Option<bool> {
+    let mut has_whitespace = false;
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric()
             || b == b'+'
             || b == b'/'
-            || b == b'-' // URL-safe variant
-            || b == b'_' // URL-safe variant
+            || b == b'-'
+            || b == b'_'
             || b == b'='
-            || b.is_ascii_whitespace() // Some encoders add newlines
-    })
+        {
+            continue;
+        } else if b.is_ascii_whitespace() {
+            has_whitespace = true;
+        } else {
+            return None;
+        }
+    }
+    Some(has_whitespace)
 }
 
-/// Calculate SHA-256 hash of bytes and return as hex string
-fn sha256_bytes(data: &[u8]) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(data);
-    hex::encode(hasher.finalize())
+/// BLAKE3 hash of raw base64 bytes, returned as 64-char hex string.
+fn blake3_base64(b64: &[u8]) -> String {
+    blake3::hash(b64).to_hex().to_string()
+}
+
+/// Estimate decoded size from base64 bytes (handles both padded and unpadded).
+fn estimate_decoded_size(b64: &[u8]) -> usize {
+    let len = b64.len();
+    if len == 0 {
+        return 0;
+    }
+    let padding = b64.iter().rev().take(2).filter(|&&b| b == b'=').count();
+    (len * 3) / 4 - padding
+}
+
+/// Detect media type by partially decoding the first 16 base64 chars (12 raw bytes).
+fn detect_media_type_from_b64_prefix(b64: &[u8]) -> Option<String> {
+    let mut prefix = [0u8; 16];
+    let mut count = 0;
+    for &b in b64 {
+        if count >= 16 {
+            break;
+        }
+        if !b.is_ascii_whitespace() {
+            prefix[count] = b;
+            count += 1;
+        }
+    }
+    if count < 16 {
+        return None;
+    }
+    let decoded = BASE64_STANDARD
+        .decode(&prefix[..16])
+        .or_else(|_| BASE64_URL_SAFE.decode(&prefix[..16]))
+        .ok()?;
+    detect_mime_type(&decoded).map(String::from)
 }
 
 /// Check if a string is a valid MIME type (e.g., "image/png", "application/octet-stream").
@@ -488,6 +629,7 @@ fn extract_embedded_data_urls(
     s: &str,
     files: &mut Vec<ExtractedFile>,
     seen_hashes: &mut std::collections::HashSet<String>,
+    cache: Option<&FileExtractionCache>,
 ) -> Option<String> {
     if !s.contains(";base64,") || !s.contains("data:") {
         return None;
@@ -514,41 +656,77 @@ fn extract_embedded_data_urls(
 
                 let after_prefix = data_start + 5;
 
-                let extracted = s[after_prefix..]
-                    .find(";base64,")
-                    .and_then(|marker_offset| {
-                        let mime = &s[after_prefix..after_prefix + marker_offset];
-                        if !mime.is_empty() && !is_valid_mime_type(mime) {
-                            return None;
+                // Find the data URL boundaries (cheap: just scanning chars)
+                let url_bounds = s[after_prefix..].find(";base64,").and_then(|marker_offset| {
+                    let mime = &s[after_prefix..after_prefix + marker_offset];
+                    if !mime.is_empty() && !is_valid_mime_type(mime) {
+                        return None;
+                    }
+                    let b64_start = after_prefix + marker_offset + 8;
+                    let b64_end = find_base64_end(s, b64_start);
+                    Some((data_start, b64_end))
+                });
+
+                if let Some((url_start, url_end)) = url_bounds {
+                    let data_url = &s[url_start..url_end];
+
+                    // Check cache first to skip charset validation + BLAKE3
+                    let cache_key = cache.map(|_| FileExtractionCache::hash_key(data_url));
+                    if let Some(cached) = cache_key.and_then(|key| cache.unwrap().get(key)) {
+                        let uri =
+                            build_file_uri(&cached.hash, cached.media_type.as_deref());
+                        result.push_str(&s[pos..url_start]);
+                        result.push_str(&uri);
+                        if !seen_hashes.contains(&cached.hash) {
+                            seen_hashes.insert(cached.hash.clone());
+                            files.push(ExtractedFile {
+                                hash: cached.hash,
+                                data: Vec::new(),
+                                media_type: cached.media_type,
+                                size: cached.size,
+                            });
                         }
-                        let b64_start = after_prefix + marker_offset + 8;
-                        let b64_end = find_base64_end(s, b64_start);
-                        let data_url = &s[data_start..b64_end];
-                        parse_data_url(data_url).map(|ext| (ext, b64_end))
-                    });
-
-                if let Some((extracted, end_pos)) = extracted {
-                    let hash = sha256_bytes(&extracted.data);
-                    let uri = match &extracted.media_type {
-                        Some(mt) => format!("{FILE_URI_PREFIX}{mt}::{hash}"),
-                        None => format!("{FILE_URI_PREFIX}::{hash}"),
-                    };
-
-                    result.push_str(&s[pos..data_start]);
-                    result.push_str(&uri);
-
-                    if !seen_hashes.contains(&hash) {
-                        seen_hashes.insert(hash.clone());
-                        files.push(ExtractedFile {
-                            hash,
-                            data: extracted.data,
-                            media_type: extracted.media_type,
-                            size: extracted.size,
-                        });
+                        modified = true;
+                        pos = url_end;
+                        continue;
                     }
 
-                    modified = true;
-                    pos = end_pos;
+                    // Cache miss: normalize + BLAKE3 hash
+                    if let Some(extracted) = parse_data_url(data_url) {
+                        let hash = blake3_base64(&extracted.data);
+                        let uri = build_file_uri(&hash, extracted.media_type.as_deref());
+
+                        // Populate cache
+                        if let (Some(cache), Some(key)) = (cache, cache_key) {
+                            cache.insert(
+                                key,
+                                CachedFileResult {
+                                    hash: hash.clone(),
+                                    media_type: extracted.media_type.clone(),
+                                    size: extracted.size,
+                                },
+                            );
+                        }
+
+                        result.push_str(&s[pos..url_start]);
+                        result.push_str(&uri);
+
+                        if !seen_hashes.contains(&hash) {
+                            seen_hashes.insert(hash.clone());
+                            files.push(ExtractedFile {
+                                hash,
+                                data: extracted.data,
+                                media_type: extracted.media_type,
+                                size: extracted.size,
+                            });
+                        }
+
+                        modified = true;
+                        pos = url_end;
+                    } else {
+                        result.push_str(&s[pos..after_prefix]);
+                        pos = after_prefix;
+                    }
                 } else {
                     result.push_str(&s[pos..after_prefix]);
                     pos = after_prefix;
@@ -2157,5 +2335,151 @@ mod tests {
             "URI should embed image/jpeg from magic bytes, got: {}",
             data
         );
+    }
+
+    // ========================================================================
+    // Performance Benchmark (run with --nocapture to see output)
+    // ========================================================================
+
+    #[test]
+    fn bench_extract_files_performance() {
+        use std::time::Instant;
+
+        // Create realistic image data with PNG magic bytes
+        fn make_png_b64(size: usize) -> String {
+            let mut data = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+            data.extend(vec![0x42u8; size - 8]);
+            BASE64_STANDARD.encode(&data)
+        }
+
+        let sizes = [50_000, 200_000, 500_000];
+        let image_count = 10;
+
+        // Build a span with many images (simulates image-heavy agent output)
+        let images: Vec<_> = sizes
+            .iter()
+            .cycle()
+            .take(image_count)
+            .map(|&sz| {
+                json!({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": make_png_b64(sz)
+                    }
+                })
+            })
+            .collect();
+
+        let template = json!({ "content": images });
+
+        // Warmup
+        {
+            let mut msg = template.clone();
+            extract_and_replace_files(&mut msg);
+        }
+
+        // --- Benchmark: no cache (cold) ---
+        let iterations = 20;
+        let mut cold_times = Vec::with_capacity(iterations);
+        for _ in 0..iterations {
+            let mut msg = template.clone();
+            let start = Instant::now();
+            let result = extract_and_replace_files(&mut msg);
+            let elapsed = start.elapsed();
+            cold_times.push(elapsed);
+            assert!(result.modified);
+        }
+
+        // --- Benchmark: with cache (simulates history accumulation) ---
+        let cache = FileExtractionCache::new();
+        let mut warm_times = Vec::with_capacity(iterations);
+        // Prime the cache with first call
+        {
+            let mut msg = template.clone();
+            extract_and_replace_files_cached(&mut msg, &cache);
+        }
+        for _ in 0..iterations {
+            let mut msg = template.clone();
+            let start = Instant::now();
+            let result = extract_and_replace_files_cached(&mut msg, &cache);
+            let elapsed = start.elapsed();
+            warm_times.push(elapsed);
+            assert!(result.modified);
+        }
+
+        // --- Benchmark: single-image latency ---
+        let single_img = json!({
+            "source": { "data": make_png_b64(200_000) }
+        });
+        let single_iters = 100;
+        let mut single_times = Vec::with_capacity(single_iters);
+        for _ in 0..single_iters {
+            let mut msg = single_img.clone();
+            let start = Instant::now();
+            extract_and_replace_files(&mut msg);
+            let elapsed = start.elapsed();
+            single_times.push(elapsed);
+        }
+
+        // --- Report ---
+        let cold_total: std::time::Duration = cold_times.iter().sum();
+        let warm_total: std::time::Duration = warm_times.iter().sum();
+        let single_total: std::time::Duration = single_times.iter().sum();
+
+        let cold_avg = cold_total / iterations as u32;
+        let warm_avg = warm_total / iterations as u32;
+        let single_avg = single_total / single_iters as u32;
+
+        cold_times.sort();
+        warm_times.sort();
+        single_times.sort();
+
+        let total_b64_bytes: usize = sizes
+            .iter()
+            .cycle()
+            .take(image_count)
+            .map(|sz| (sz * 4 + 2) / 3) // approximate b64 size
+            .sum();
+
+        eprintln!("\n=== FILE EXTRACTION BENCHMARK ===");
+        eprintln!(
+            "Workload: {} images, sizes {:?}, ~{:.1} MB base64 total",
+            image_count,
+            sizes,
+            total_b64_bytes as f64 / 1_048_576.0
+        );
+        eprintln!("---");
+        eprintln!(
+            "Cold (no cache):  avg={:>8.2?}  p50={:>8.2?}  p95={:>8.2?}  ({} iters)",
+            cold_avg,
+            cold_times[iterations / 2],
+            cold_times[iterations * 95 / 100],
+            iterations
+        );
+        eprintln!(
+            "Warm (cached):    avg={:>8.2?}  p50={:>8.2?}  p95={:>8.2?}  ({} iters)",
+            warm_avg,
+            warm_times[iterations / 2],
+            warm_times[iterations * 95 / 100],
+            iterations
+        );
+        eprintln!(
+            "Single 200KB img: avg={:>8.2?}  p50={:>8.2?}  p95={:>8.2?}  ({} iters)",
+            single_avg,
+            single_times[single_iters / 2],
+            single_times[single_iters * 95 / 100],
+            single_iters
+        );
+        eprintln!(
+            "Per-image (cold):      {:>8.2?}",
+            cold_avg / image_count as u32
+        );
+        eprintln!(
+            "Per-image (cached):    {:>8.2?}",
+            warm_avg / image_count as u32
+        );
+        eprintln!("=================================\n");
     }
 }
