@@ -353,6 +353,18 @@ impl TopicBackend for MemoryTopicBackend {
         Ok(())
     }
 
+    async fn stream_ack_batch(
+        &self,
+        topic: &str,
+        group: &str,
+        ids: &[String],
+    ) -> Result<(), TopicError> {
+        for id in ids {
+            self.stream_ack(topic, group, id).await?;
+        }
+        Ok(())
+    }
+
     async fn stream_claim(
         &self,
         topic: &str,
