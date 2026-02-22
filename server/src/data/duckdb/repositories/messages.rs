@@ -212,7 +212,7 @@ mod tests {
             span_id: span_id.to_string(),
             span_name: "test".to_string(),
             timestamp_start: Utc::now(),
-            messages: serde_json::from_str(messages_json).unwrap_or_default(),
+            messages: Some(messages_json.to_string()),
             ..Default::default()
         }
     }
@@ -258,7 +258,7 @@ mod tests {
             span_id: "span-2".to_string(),
             span_name: "empty".to_string(),
             timestamp_start: Utc::now(),
-            messages: serde_json::json!([]),
+            messages: Some("[]".to_string()),
             ..Default::default()
         };
 
