@@ -5,6 +5,7 @@ use chrono_tz::Tz;
 use clickhouse::{Client, Row};
 use serde::Deserialize;
 
+use super::query::{DEDUP_LOOKUP_CTE, TOKEN_DEDUP_CONDITION};
 use crate::core::constants::QUERY_MAX_TOP_STATS;
 use crate::data::clickhouse::ClickhouseError;
 use crate::data::types::{
@@ -42,7 +43,7 @@ struct ChCountRow {
 /// ClickHouse row for avg duration
 #[derive(Row, Deserialize)]
 struct ChAvgDurationRow {
-    avg_duration_ms: Option<f64>,
+    avg_duration_ms: f64,
 }
 
 /// ClickHouse row for framework breakdown
@@ -147,8 +148,10 @@ async fn query_main_aggregation(
     let from_micros = params.from_timestamp.timestamp_micros();
     let to_micros = params.to_timestamp.timestamp_micros();
 
-    let sql = r#"
-        WITH gen_agg AS (
+    let sql = format!(
+        r#"
+        WITH {dedup_cte},
+        gen_agg AS (
             SELECT
                 coalesce(sum(gen_ai_usage_input_tokens), 0) AS input_tokens,
                 coalesce(sum(gen_ai_usage_output_tokens), 0) AS output_tokens,
@@ -166,33 +169,7 @@ async fn query_main_aggregation(
             WHERE g.project_id = ?
               AND g.timestamp_start >= fromUnixTimestamp64Micro(?)
               AND g.timestamp_start <= fromUnixTimestamp64Micro(?)
-              AND (
-                  (g.observation_type = 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans c FINAL
-                       WHERE c.parent_span_id = g.span_id
-                         AND c.project_id = g.project_id
-                         AND c.observation_type = 'generation'
-                         AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
-                   ))
-                  OR
-                  (g.observation_type != 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans gen FINAL
-                       WHERE gen.trace_id = g.trace_id
-                         AND gen.project_id = g.project_id
-                         AND gen.observation_type = 'generation'
-                         AND (gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0
-                   )
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans p FINAL
-                       WHERE p.span_id = g.parent_span_id
-                         AND p.project_id = g.project_id
-                         AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
-                   ))
-              )
+              AND {dedup_condition}
         )
         SELECT
             count(DISTINCT s.trace_id) AS traces,
@@ -216,10 +193,15 @@ async fn query_main_aggregation(
         WHERE s.project_id = ?
           AND s.timestamp_start >= fromUnixTimestamp64Micro(?)
           AND s.timestamp_start <= fromUnixTimestamp64Micro(?)
-        "#;
+        "#,
+        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_condition = TOKEN_DEDUP_CONDITION,
+    );
 
+    // Bind order: dedup_lookup(project_id), gen_agg(project_id, from, to), main(project_id, from, to)
     let row: ChMainAggRow = client
-        .query(sql)
+        .query(&sql)
+        .bind(&params.project_id)
         .bind(&params.project_id)
         .bind(from_micros)
         .bind(to_micros)
@@ -314,7 +296,7 @@ async fn query_avg_trace_duration(
         .fetch_one()
         .await?;
 
-    Ok(row.avg_duration_ms)
+    Ok(Some(row.avg_duration_ms))
 }
 
 async fn query_framework_breakdown(
@@ -389,7 +371,8 @@ async fn query_model_breakdown(
 
     let sql = format!(
         r#"
-        WITH gen_roots AS (
+        WITH {dedup_cte},
+        gen_roots AS (
             SELECT
                 g.gen_ai_request_model,
                 g.gen_ai_usage_total_tokens,
@@ -398,33 +381,7 @@ async fn query_model_breakdown(
             WHERE g.project_id = ?
               AND g.timestamp_start >= fromUnixTimestamp64Micro(?)
               AND g.timestamp_start <= fromUnixTimestamp64Micro(?)
-              AND (
-                  (g.observation_type = 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans c FINAL
-                       WHERE c.parent_span_id = g.span_id
-                         AND c.project_id = g.project_id
-                         AND c.observation_type = 'generation'
-                         AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
-                   ))
-                  OR
-                  (g.observation_type != 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans gen FINAL
-                       WHERE gen.trace_id = g.trace_id
-                         AND gen.project_id = g.project_id
-                         AND gen.observation_type = 'generation'
-                         AND (gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0
-                   )
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans p FINAL
-                       WHERE p.span_id = g.parent_span_id
-                         AND p.project_id = g.project_id
-                         AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
-                   ))
-              )
+              AND {dedup_condition}
         ),
         model_stats AS (
             SELECT
@@ -446,11 +403,15 @@ async fn query_model_breakdown(
         ORDER BY ms.tokens DESC
         LIMIT {limit}
         "#,
+        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_condition = TOKEN_DEDUP_CONDITION,
         limit = QUERY_MAX_TOP_STATS
     );
 
+    // Bind order: dedup_lookup(project_id), gen_roots(project_id, from, to)
     let rows: Vec<ChModelRow> = client
         .query(&sql)
+        .bind(&params.project_id)
         .bind(&params.project_id)
         .bind(from_micros)
         .bind(to_micros)
@@ -510,6 +471,7 @@ async fn query_trend_data(
                 bucket + {interval} AS bucket_end
             FROM all_buckets
         ),
+        {dedup_cte},
         gen_roots AS (
             SELECT
                 g.timestamp_start,
@@ -518,54 +480,34 @@ async fn query_trend_data(
             WHERE g.project_id = ?
               AND g.timestamp_start >= fromUnixTimestamp64Micro(?)
               AND g.timestamp_start <= fromUnixTimestamp64Micro(?)
-              AND (
-                  (g.observation_type = 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans c FINAL
-                       WHERE c.parent_span_id = g.span_id
-                         AND c.project_id = g.project_id
-                         AND c.observation_type = 'generation'
-                         AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
-                   ))
-                  OR
-                  (g.observation_type != 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans gen FINAL
-                       WHERE gen.trace_id = g.trace_id
-                         AND gen.project_id = g.project_id
-                         AND gen.observation_type = 'generation'
-                         AND (gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0
-                   )
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans p FINAL
-                       WHERE p.span_id = g.parent_span_id
-                         AND p.project_id = g.project_id
-                         AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
-                   ))
-              )
+              AND {dedup_condition}
         ),
-        data_buckets AS (
+        bucketed_data AS (
             SELECT
                 br.bucket,
-                coalesce(sum(gr.total_tokens), 0) AS tokens
-            FROM bucket_ranges br
-            LEFT JOIN gen_roots gr ON
-                gr.timestamp_start >= br.bucket_start
-                AND gr.timestamp_start < br.bucket_end
+                sum(gr.total_tokens) AS tokens
+            FROM gen_roots gr, bucket_ranges br
+            WHERE gr.timestamp_start >= br.bucket_start
+              AND gr.timestamp_start < br.bucket_end
             GROUP BY br.bucket
         )
-        SELECT toInt64(toUnixTimestamp64Micro(bucket)) AS bucket, tokens
-        FROM data_buckets
+        SELECT
+            toInt64(toUnixTimestamp64Micro(ab.bucket)) AS bucket,
+            coalesce(bd.tokens, 0) AS tokens
+        FROM all_buckets ab
+        LEFT JOIN bucketed_data bd ON bd.bucket = ab.bucket
         ORDER BY bucket ASC
         "#,
         buckets_array = buckets_array,
-        interval = interval
+        interval = interval,
+        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_condition = TOKEN_DEDUP_CONDITION,
     );
 
+    // Bind order: dedup_lookup(project_id), gen_roots(project_id, from, to)
     let rows: Vec<ChTrendRow> = client
         .query(&sql)
+        .bind(&params.project_id)
         .bind(&params.project_id)
         .bind(from_micros)
         .bind(to_micros)
@@ -634,18 +576,20 @@ async fn query_latency_trend_data(
               AND timestamp_start <= fromUnixTimestamp64Micro(?)
             GROUP BY trace_id
         ),
-        data_buckets AS (
+        bucketed_data AS (
             SELECT
                 br.bucket,
                 avg(dateDiff('millisecond', t.min_ts, t.max_ts)) AS avg_duration_ms
-            FROM bucket_ranges br
-            LEFT JOIN traces t ON
-                t.min_ts >= br.bucket_start
-                AND t.min_ts < br.bucket_end
+            FROM traces t, bucket_ranges br
+            WHERE t.min_ts >= br.bucket_start
+              AND t.min_ts < br.bucket_end
             GROUP BY br.bucket
         )
-        SELECT toInt64(toUnixTimestamp64Micro(bucket)) AS bucket, coalesce(avg_duration_ms, 0.0) AS avg_duration_ms
-        FROM data_buckets
+        SELECT
+            toInt64(toUnixTimestamp64Micro(ab.bucket)) AS bucket,
+            coalesce(bd.avg_duration_ms, 0.0) AS avg_duration_ms
+        FROM all_buckets ab
+        LEFT JOIN bucketed_data bd ON bd.bucket = ab.bucket
         ORDER BY bucket ASC
         "#,
         buckets_array = buckets_array,
