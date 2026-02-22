@@ -406,7 +406,7 @@ mod tests {
 
         // Create database record via repository trait
         let repo = database.repository();
-        repo.upsert_file("project1", &hash, Some("text/plain"), 12)
+        repo.upsert_file("project1", &hash, Some("text/plain"), 12, "sha256")
             .await
             .unwrap();
 
@@ -435,7 +435,7 @@ mod tests {
 
         // Create database record and store in permanent storage
         let repo = database.repository();
-        repo.upsert_file("project1", &hash, Some("text/plain"), 12)
+        repo.upsert_file("project1", &hash, Some("text/plain"), 12, "sha256")
             .await
             .unwrap();
         storage
@@ -483,7 +483,7 @@ mod tests {
 
         // Create database record with ref_count=0 via repository trait
         let repo = database.repository();
-        repo.upsert_file("project1", &hash, Some("text/plain"), 12)
+        repo.upsert_file("project1", &hash, Some("text/plain"), 12, "sha256")
             .await
             .unwrap();
 

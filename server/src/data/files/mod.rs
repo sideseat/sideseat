@@ -416,7 +416,7 @@ mod tests {
 
         // Insert metadata via repository trait
         let repo = database.repository();
-        repo.upsert_file("default", &test_hash(), Some("text/plain"), 12)
+        repo.upsert_file("default", &test_hash(), Some("text/plain"), 12, "sha256")
             .await
             .unwrap();
 
@@ -460,7 +460,7 @@ mod tests {
 
         // Insert metadata with ref_count = 1 via repository trait
         let repo = database.repository();
-        repo.upsert_file("default", &test_hash(), None, 12)
+        repo.upsert_file("default", &test_hash(), None, 12, "sha256")
             .await
             .unwrap();
 
