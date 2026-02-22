@@ -85,7 +85,7 @@ pub async fn get_file(
 ) -> Result<Option<FileRow>, PostgresError> {
     let row = sqlx::query_as::<_, (i64, String, String, Option<String>, i64, String, i64, i64, i64)>(
         r#"
-        SELECT id, project_id, file_hash, media_type, size_bytes, hash_algo, ref_count::bigint, created_at, updated_at
+        SELECT id::bigint, project_id, file_hash, media_type, size_bytes, hash_algo, ref_count::bigint, created_at, updated_at
         FROM files
         WHERE project_id = $1 AND file_hash = $2
         "#,

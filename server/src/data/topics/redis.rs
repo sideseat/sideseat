@@ -161,7 +161,7 @@ impl RedisTopicBackend {
             .arg("CREATE")
             .arg(&key)
             .arg(group)
-            .arg("$") // Start from latest
+            .arg("0") // Start from beginning to pick up messages published before consumer
             .arg("MKSTREAM") // Create stream if not exists
             .query_async(&mut conn)
             .await;
@@ -484,8 +484,26 @@ impl TopicBackend for RedisTopicBackend {
                         }
                     }
                     Err(e) => {
-                        tracing::warn!(error = %e, "XREADGROUP error, retrying...");
-                        tokio::time::sleep(Duration::from_secs(1)).await;
+                        let err_str = e.to_string();
+                        if err_str.contains("NOGROUP") {
+                            // Consumer group was lost (e.g. stream key recreated).
+                            // Re-create it starting from ID 0 to consume all pending.
+                            tracing::warn!("Consumer group lost, recreating from start...");
+                            if let Ok(mut conn) = pool.get().await {
+                                let _: RedisResult<String> = deadpool_redis::redis::cmd("XGROUP")
+                                    .arg("CREATE")
+                                    .arg(&key)
+                                    .arg(&group)
+                                    .arg("0") // From beginning to consume pending
+                                    .arg("MKSTREAM")
+                                    .query_async(&mut conn)
+                                    .await;
+                            }
+                            tokio::time::sleep(Duration::from_millis(100)).await;
+                        } else {
+                            tracing::warn!(error = %e, "XREADGROUP error, retrying...");
+                            tokio::time::sleep(Duration::from_secs(1)).await;
+                        }
                     }
                 }
             }

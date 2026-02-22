@@ -236,7 +236,7 @@ async fn finalize_pending_files(
             "File finalization complete with failures"
         );
     } else if success_count > 0 {
-        tracing::trace!(
+        tracing::debug!(
             files = success_count,
             context,
             "Files finalized successfully"
@@ -386,12 +386,21 @@ async fn write_and_record_files(
     // Deduplicate: only insert trace-file once per unique (trace_id, hash)
     let mut trace_hashes: HashSet<(String, String)> = HashSet::new();
 
+    // Diagnostic counters
+    let mut cache_hits = 0usize;
+    let mut fresh_ok = 0usize;
+    let mut decode_fail = 0usize;
+    let mut write_fail = 0usize;
+    let mut upsert_fail = 0usize;
+    let mut dedup_skip = 0usize;
+
     for file in files {
         let dedup_key = format!("{}:{}", file.project_id, file.hash);
         let is_new = written_hashes.insert(dedup_key);
 
         if is_new {
             if file.data.is_empty() {
+                cache_hits += 1;
                 // Cache hit from previous extraction — file already in storage.
                 // Just upsert metadata to maintain ref_count.
                 let _ = repo
@@ -410,9 +419,11 @@ async fn write_and_record_files(
                     Err(_) => match BASE64_URL_SAFE.decode(&file.data) {
                         Ok(d) => d,
                         Err(e) => {
+                            decode_fail += 1;
                             tracing::warn!(
                                 error = %e,
                                 hash = %file.hash,
+                                data_len = file.data.len(),
                                 project_id = %file.project_id,
                                 "Failed to decode base64, skipping file"
                             );
@@ -423,6 +434,7 @@ async fn write_and_record_files(
 
                 let temp_path = temp_dir.join(format!("{}_{}", file.project_id, file.hash));
                 if let Err(e) = tokio::fs::write(&temp_path, &decoded).await {
+                    write_fail += 1;
                     tracing::warn!(
                         error = %e,
                         hash = %file.hash,
@@ -442,6 +454,7 @@ async fn write_and_record_files(
                     )
                     .await
                 {
+                    upsert_fail += 1;
                     tracing::warn!(
                         error = %e,
                         hash = %file.hash,
@@ -452,12 +465,15 @@ async fn write_and_record_files(
                     continue;
                 }
 
+                fresh_ok += 1;
                 pending_finalizations.push(PendingFinalization {
                     project_id: file.project_id.clone(),
                     hash: file.hash.clone(),
                     temp_path,
                 });
             }
+        } else {
+            dedup_skip += 1;
         }
 
         // Record trace-file association (once per trace+hash)
@@ -475,6 +491,19 @@ async fn write_and_record_files(
             );
         }
     }
+
+    tracing::debug!(
+        total = files.len(),
+        unique = written_hashes.len(),
+        fresh_ok,
+        cache_hits,
+        dedup_skip,
+        decode_fail,
+        write_fail,
+        upsert_fail,
+        pending = pending_finalizations.len(),
+        "File write summary"
+    );
 
     (pending_finalizations, written_hashes.len())
 }

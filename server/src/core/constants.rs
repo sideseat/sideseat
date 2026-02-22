@@ -273,6 +273,18 @@ pub const ENV_FILES_STORAGE: &str = "SIDESEAT_FILES_STORAGE";
 /// Environment variable for file storage quota (bytes)
 pub const ENV_FILES_QUOTA_BYTES: &str = "SIDESEAT_FILES_QUOTA_BYTES";
 
+/// Environment variable for S3 bucket name
+pub const ENV_FILES_S3_BUCKET: &str = "SIDESEAT_FILES_S3_BUCKET";
+
+/// Environment variable for S3 key prefix
+pub const ENV_FILES_S3_PREFIX: &str = "SIDESEAT_FILES_S3_PREFIX";
+
+/// Environment variable for S3 region
+pub const ENV_FILES_S3_REGION: &str = "SIDESEAT_FILES_S3_REGION";
+
+/// Environment variable for S3 endpoint (for S3-compatible services)
+pub const ENV_FILES_S3_ENDPOINT: &str = "SIDESEAT_FILES_S3_ENDPOINT";
+
 /// Default S3 key prefix for file storage
 pub const FILES_DEFAULT_S3_PREFIX: &str = "sideseat/files";
 
