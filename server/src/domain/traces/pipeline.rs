@@ -41,7 +41,8 @@ use super::enrich::enrich_batch;
 use super::extract::files::FileExtractionCache;
 use super::extract::{extract_attributes_batch, extract_messages_batch};
 use super::persist::{
-    PendingFileWrite, prepare_batch, persist_extracted_files, persist_prepared,
+    BatchInput, PendingFileWrite, SseSpanEvent, persist_extracted_files, prepare_batch,
+    publish_sse_events, write_to_duckdb,
 };
 use crate::core::TopicService;
 use crate::data::AnalyticsService;
@@ -87,7 +88,7 @@ pub struct TracePipeline {
     topics: Arc<TopicService>,
     file_service: Arc<FileService>,
     /// Cross-batch cache for base64 extraction.
-    /// Avoids redundant decode + SHA-256 for repeated images across spans/batches.
+    /// Avoids redundant decode + BLAKE3 for repeated images across spans/batches.
     file_cache: FileExtractionCache,
 }
 
@@ -292,8 +293,8 @@ impl TracePipeline {
     /// Run the complete pipeline for a batch of OTLP requests.
     ///
     /// Processes requests in parallel across CPU cores (extract, sideml, enrich,
-    /// base64 extraction are all CPU-bound), then batches DuckDB write + SSE.
-    /// File I/O is spawned as a background task.
+    /// base64 extraction are all CPU-bound), then DuckDB write + file I/O in parallel,
+    /// SSE publish after both complete.
     async fn run_batch(&self, requests: &[ExportTraceServiceRequest]) {
         let t_batch_start = std::time::Instant::now();
 
@@ -304,8 +305,8 @@ impl TracePipeline {
         // Process requests in parallel using scoped threads.
         // base64 extraction can take 100ms-1s per request for image-heavy spans,
         // so parallel processing across CPU cores significantly reduces batch time.
-        // The FileExtractionCache is shared across threads (RwLock) to skip
-        // redundant decode + SHA-256 for the same base64 content.
+        // The FileExtractionCache is shared across threads (moka is Send+Sync) to skip
+        // redundant decode + BLAKE3 for the same base64 content.
         let results: Vec<Option<(Vec<NormalizedSpan>, Vec<PendingFileWrite>)>> =
             tokio::task::block_in_place(|| {
                 let num_workers = std::thread::available_parallelism()
@@ -373,20 +374,19 @@ impl TracePipeline {
         let t_prepare_done = std::time::Instant::now();
         let span_count = all_db_spans.len();
 
-        // Single DuckDB write + SSE publish for entire batch
-        persist_prepared(all_db_spans, &self.topics, &self.analytics).await;
+        // Build SSE events before write (captures span metadata)
+        let sse_events: Vec<SseSpanEvent> = all_db_spans.iter().map(SseSpanEvent::from).collect();
+
+        // DuckDB write + file persistence in parallel, SSE after both complete
+        tokio::join!(write_to_duckdb(all_db_spans, &self.analytics), async {
+            if !all_pending_files.is_empty() {
+                persist_extracted_files(all_pending_files, &self.file_service).await;
+            }
+        });
 
         let t_persist_done = std::time::Instant::now();
 
-        // File I/O in background (doesn't block pipeline for next batch)
-        if !all_pending_files.is_empty() {
-            let file_service = Arc::clone(&self.file_service);
-            let file_count = all_pending_files.len();
-            tracing::debug!(files = file_count, "Spawning background file persistence");
-            tokio::spawn(async move {
-                persist_extracted_files(all_pending_files, &file_service).await;
-            });
-        }
+        publish_sse_events(&sse_events, &self.topics).await;
 
         tracing::debug!(
             requests = requests.len(),
@@ -411,8 +411,12 @@ impl TracePipeline {
             if db_spans.is_empty() {
                 return;
             }
-            persist_prepared(db_spans, &self.topics, &self.analytics).await;
-            persist_extracted_files(pending_files, &self.file_service).await;
+            let sse_events: Vec<SseSpanEvent> = db_spans.iter().map(SseSpanEvent::from).collect();
+            tokio::join!(
+                write_to_duckdb(db_spans, &self.analytics),
+                persist_extracted_files(pending_files, &self.file_service)
+            );
+            publish_sse_events(&sse_events, &self.topics).await;
         }
     }
 }
@@ -481,11 +485,13 @@ fn process_request(
     // Stage 4: Prepare (CPU-only file extraction + flatten to NormalizedSpan)
     let (db_spans, pending_files) = prepare_batch(
         request,
-        spans,
-        raw_messages,
-        tool_definitions,
-        tool_names,
-        enrichments,
+        BatchInput {
+            spans,
+            messages: raw_messages,
+            tool_definitions,
+            tool_names,
+            enrichments,
+        },
         files_enabled,
         Some(file_cache),
     );

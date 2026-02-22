@@ -452,9 +452,16 @@ impl TransactionalRepository for Arc<SqliteService> {
         size_bytes: i64,
         hash_algo: &str,
     ) -> Result<i64, DataError> {
-        file::upsert_file(self.pool(), project_id, file_hash, media_type, size_bytes, hash_algo)
-            .await
-            .map_err(Into::into)
+        file::upsert_file(
+            self.pool(),
+            project_id,
+            file_hash,
+            media_type,
+            size_bytes,
+            hash_algo,
+        )
+        .await
+        .map_err(Into::into)
     }
 
     async fn get_file(
@@ -534,6 +541,18 @@ impl TransactionalRepository for Arc<SqliteService> {
 
     async fn get_orphan_files(&self) -> Result<Vec<(String, String)>, DataError> {
         file::get_orphan_files(self.pool())
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn get_org_file_storage_bytes(&self, org_id: &str) -> Result<i64, DataError> {
+        file::get_org_file_storage_bytes(self.pool(), org_id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn get_user_file_storage_bytes(&self, user_id: &str) -> Result<i64, DataError> {
+        file::get_user_file_storage_bytes(self.pool(), user_id)
             .await
             .map_err(Into::into)
     }

@@ -124,6 +124,18 @@ pub fn detect_mime_type(data: &[u8]) -> Option<&'static str> {
     None
 }
 
+/// Check if a string is a valid MIME type (e.g., "image/png", "application/octet-stream").
+/// Requires exactly one `/` and only valid MIME characters.
+pub fn is_valid_mime_type(s: &str) -> bool {
+    let slash_count = s.bytes().filter(|&b| b == b'/').count();
+    if slash_count != 1 {
+        return false;
+    }
+    s.bytes().all(|b| {
+        b.is_ascii_alphanumeric() || b == b'/' || b == b'.' || b == b'-' || b == b'+' || b == b'_'
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

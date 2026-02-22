@@ -47,6 +47,56 @@ pub fn parse_string_array(value: &str) -> Vec<String> {
     }
 }
 
+/// Check if value is a placeholder (not actual content).
+///
+/// Frameworks often replace binary content with placeholder strings during
+/// logging or when content is too large to include.
+pub fn is_placeholder_value(s: &str) -> bool {
+    if s.is_empty() {
+        return true;
+    }
+
+    const PLACEHOLDERS: &[&str] = &[
+        "<replaced>",
+        "<binary>",
+        "<truncated>",
+        "<omitted>",
+        "<redacted>",
+        "<image>",
+        "<audio>",
+        "<video>",
+        "<file>",
+        "[binary]",
+        "[replaced]",
+        "[truncated]",
+        "[omitted]",
+        "[redacted]",
+        "[image]",
+        "[audio]",
+        "[video]",
+        "[file]",
+        "...",
+        "\u{2026}",
+    ];
+
+    let trimmed = s.trim();
+    if PLACEHOLDERS.contains(&trimmed) {
+        return true;
+    }
+
+    // Generic angle bracket placeholders like <...>, <base64 data>, etc.
+    if trimmed.starts_with('<') && trimmed.ends_with('>') && trimmed.len() < 50 {
+        return true;
+    }
+
+    // Generic square bracket placeholders
+    if trimmed.starts_with('[') && trimmed.ends_with(']') && trimmed.len() < 50 {
+        return true;
+    }
+
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
