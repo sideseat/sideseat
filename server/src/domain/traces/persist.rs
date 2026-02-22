@@ -573,11 +573,15 @@ fn flatten(
         for scope_spans in &resource_spans.scope_spans {
             for otlp_span in &scope_spans.spans {
                 if let Some(((((mut span, msgs), tools), tnames), enrichment)) = iter.next() {
-                    let messages_str = serde_json::to_string(&msgs).ok();
+                    let messages_str =
+                        Some(serde_json::to_string(&msgs).expect("JsonValue is always valid JSON"));
 
                     let mut tool_definitions_json = flatten_tool_definitions(&tools);
                     let tool_names_json = flatten_tool_names(&tnames);
-                    let tool_names_str = serde_json::to_string(&tool_names_json).ok();
+                    let tool_names_str = Some(
+                        serde_json::to_string(&tool_names_json)
+                            .expect("JsonValue is always valid JSON"),
+                    );
 
                     let mut raw_span_json = build_raw_span_json(otlp_span, &resource_attrs);
 
@@ -614,8 +618,14 @@ fn flatten(
                     }
 
                     // Serialize to strings ONCE (after file extraction)
-                    let tool_definitions_str = serde_json::to_string(&tool_definitions_json).ok();
-                    let raw_span_str = serde_json::to_string(&raw_span_json).ok();
+                    let tool_definitions_str = Some(
+                        serde_json::to_string(&tool_definitions_json)
+                            .expect("JsonValue is always valid JSON"),
+                    );
+                    let raw_span_str = Some(
+                        serde_json::to_string(&raw_span_json)
+                            .expect("JsonValue is always valid JSON"),
+                    );
 
                     result.push(to_normalized_span(
                         span,
