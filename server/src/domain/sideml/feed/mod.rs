@@ -856,7 +856,7 @@ fn build_span_hierarchy(span_rows: &[MessageSpanRow]) -> HashMap<String, Vec<Str
         .collect();
 
     let mut paths = HashMap::new();
-    let max_depth = span_rows.len(); // Can't have more ancestors than total spans
+    let max_depth = span_rows.len().max(256); // Floor for partial views (single-span queries)
 
     for span in span_rows {
         let mut path = vec![span.span_id.clone()];
