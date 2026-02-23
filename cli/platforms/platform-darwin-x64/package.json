@@ -1,6 +1,6 @@
 {
   "name": "@sideseat/platform-darwin-x64",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "SideSeat binary for macOS Intel",
   "os": [
     "darwin"
@@ -9,9 +9,10 @@
     "x64"
   ],
   "bin": {
-    "sideseat": "sideseat"
+    "platform-darwin-x64": "bin.js"
   },
   "files": [
+    "bin.js",
     "sideseat"
   ],
   "license": "AGPL-3.0",
