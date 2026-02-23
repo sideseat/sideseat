@@ -2,7 +2,8 @@
 //!
 //! Handles schema initialization and versioned migrations.
 
-use sqlx::PgPool;
+use sqlx::postgres::PgConnection;
+use sqlx::{Acquire, PgPool};
 
 use super::error::PostgresError;
 use super::schema::{DEFAULT_DATA, SCHEMA, SCHEMA_VERSION};
@@ -10,28 +11,33 @@ use super::schema::{DEFAULT_DATA, SCHEMA, SCHEMA_VERSION};
 /// Run all pending migrations.
 ///
 /// Uses `pg_advisory_lock` to prevent concurrent migration execution
-/// across multiple application instances.
+/// across multiple application instances. A dedicated connection is held
+/// for the entire migration process — advisory locks are session-level
+/// and must be acquired and released on the same connection.
 pub async fn run_migrations(pool: &PgPool) -> Result<(), PostgresError> {
     // Acquire advisory lock to prevent concurrent migrations.
     // Lock ID 0x5364_5365_6174 ("SdSeat" in hex) avoids collision with other apps.
     const MIGRATION_LOCK_ID: i64 = 0x5364_5365;
+
+    let mut conn = pool.acquire().await?;
+
     sqlx::query("SELECT pg_advisory_lock($1)")
         .bind(MIGRATION_LOCK_ID)
-        .execute(pool)
+        .execute(&mut *conn)
         .await?;
 
-    let result = run_migrations_inner(pool).await;
+    let result = run_migrations_inner(&mut conn).await;
 
     // Always release the advisory lock, even on error
     let _ = sqlx::query("SELECT pg_advisory_unlock($1)")
         .bind(MIGRATION_LOCK_ID)
-        .execute(pool)
+        .execute(&mut *conn)
         .await;
 
     result
 }
 
-async fn run_migrations_inner(pool: &PgPool) -> Result<(), PostgresError> {
+async fn run_migrations_inner(conn: &mut PgConnection) -> Result<(), PostgresError> {
     // Check if schema_version table exists
     let table_exists: bool = sqlx::query_scalar(
         r#"
@@ -42,27 +48,27 @@ async fn run_migrations_inner(pool: &PgPool) -> Result<(), PostgresError> {
         )
         "#,
     )
-    .fetch_one(pool)
+    .fetch_one(&mut *conn)
     .await?;
 
     if !table_exists {
         // Fresh database - apply initial schema
         tracing::debug!("Applying initial PostgreSQL schema v{}", SCHEMA_VERSION);
-        apply_initial_schema(pool).await?;
+        apply_initial_schema(&mut *conn).await?;
         return Ok(());
     }
 
     // Get current version
     let current_version: Option<i32> =
         sqlx::query_scalar("SELECT version FROM schema_version WHERE id = 1")
-            .fetch_optional(pool)
+            .fetch_optional(&mut *conn)
             .await?;
 
     match current_version {
         None => {
             // Table exists but no version row - apply schema
             tracing::debug!("Applying initial PostgreSQL schema v{}", SCHEMA_VERSION);
-            apply_initial_schema(pool).await?;
+            apply_initial_schema(&mut *conn).await?;
         }
         Some(v) if v < SCHEMA_VERSION => {
             // Run incremental migrations
@@ -72,7 +78,7 @@ async fn run_migrations_inner(pool: &PgPool) -> Result<(), PostgresError> {
                 SCHEMA_VERSION
             );
             for version in (v + 1)..=SCHEMA_VERSION {
-                apply_versioned_migration(pool, version).await?;
+                apply_versioned_migration(&mut *conn, version).await?;
             }
         }
         Some(v) if v > SCHEMA_VERSION => {
@@ -91,10 +97,10 @@ async fn run_migrations_inner(pool: &PgPool) -> Result<(), PostgresError> {
 }
 
 /// Apply the initial schema
-async fn apply_initial_schema(pool: &PgPool) -> Result<(), PostgresError> {
+async fn apply_initial_schema(conn: &mut PgConnection) -> Result<(), PostgresError> {
     let now = chrono::Utc::now().timestamp();
 
-    let mut tx = pool.begin().await?;
+    let mut tx = conn.begin().await?;
 
     // Apply schema (split by semicolons — PostgreSQL doesn't support multiple statements per query)
     for statement in SCHEMA.split(';').filter(|s| !s.trim().is_empty()) {
@@ -127,7 +133,10 @@ async fn apply_initial_schema(pool: &PgPool) -> Result<(), PostgresError> {
 ///
 /// PostgreSQL supports DDL inside transactions, so the entire migration
 /// (DDL + metadata update) is atomic. Uses IF NOT EXISTS for idempotency.
-async fn apply_versioned_migration(pool: &PgPool, version: i32) -> Result<(), PostgresError> {
+async fn apply_versioned_migration(
+    conn: &mut PgConnection,
+    version: i32,
+) -> Result<(), PostgresError> {
     let start = std::time::Instant::now();
     let now = chrono::Utc::now().timestamp();
 
@@ -146,7 +155,7 @@ async fn apply_versioned_migration(pool: &PgPool, version: i32) -> Result<(), Po
         }
     };
 
-    let mut tx = pool.begin().await?;
+    let mut tx = conn.begin().await?;
 
     sqlx::query(sql)
         .execute(&mut *tx)

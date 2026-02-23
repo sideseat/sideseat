@@ -11,6 +11,7 @@ dependencies = [
 
 [project.scripts]
 replay = "main:main"
+generate_load = "generate_load:main"
 
 [build-system]
 requires = ["hatchling"]

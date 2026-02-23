@@ -225,3 +225,11 @@ uv run --directory misc/replay replay traces-autogen.jsonl.gz --base-url http://
 ```
 
 Signal type (traces/metrics/logs) is auto-detected from the filename. Compressed files are decompressed to a temp directory and cleaned up after replay.
+
+## Load Testing
+
+Generate synthetic spans from template traces for performance testing. Handles server backpressure (503) with exponential backoff and retry.
+
+```bash
+uv run --directory misc/replay generate_load --spans 100000 --workers 5
+```
