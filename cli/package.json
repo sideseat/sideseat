@@ -4,7 +4,7 @@
   "description": "Your unified workspace for building and debugging AI agents",
   "main": "index.js",
   "bin": {
-    "sideseat": "./index.js"
+    "sideseat": "index.js"
   },
   "files": [
     "index.js",

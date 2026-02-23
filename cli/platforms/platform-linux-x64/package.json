@@ -12,7 +12,7 @@
     "glibc"
   ],
   "bin": {
-    "sideseat": "./sideseat"
+    "sideseat": "sideseat"
   },
   "files": [
     "sideseat"
