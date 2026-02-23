@@ -156,7 +156,7 @@ UNAME_M := $(shell uname -m)
 
 ARGS ?=
 TYPE ?= patch
-NOTARIZE ?= 0
+NOTARIZE ?= 1
 SERVER_DIR := server
 WEB_DIR := web
 CLI_DIR := cli
@@ -760,7 +760,7 @@ sign-verify:  ## Verify code signature and entitlements on macOS platform binari
 	done; \
 	[ $$FOUND -gt 0 ] || { echo "Error: no macOS binaries found in cli/platforms/"; exit 1; }
 
-sign-notarize:  ## Notarize and staple darwin release archives (requires macOS)
+sign-notarize:  ## Notarize darwin release archives (requires macOS)
 	@[ "$$(uname -s)" = "Darwin" ] || { echo "Error: notarization requires macOS"; exit 1; } && \
 	VERSION=$$(node -p "require('./cli/package.json').version") && \
 	OUTDIR="$(RELEASE_DIR)/v$$VERSION" && \
@@ -773,11 +773,9 @@ sign-notarize:  ## Notarize and staple darwin release archives (requires macOS)
 		xcrun notarytool submit "$$OUTDIR/$$ARCHIVE" \
 			--keychain-profile "$(NOTARY_PROFILE)" --wait --timeout 48h || \
 			{ echo "Error: Notarization failed for $$plat"; exit 1; } && \
-		xcrun stapler staple "$$OUTDIR/$$ARCHIVE" || \
-			{ echo "Error: Stapling failed for $$plat"; exit 1; } && \
-		echo "  $$plat: notarized + stapled"; \
+		echo "  $$plat: notarized"; \
 	done && \
-	echo "[sign-notarize] Done"
+	echo "[sign-notarize] Done (stapling skipped -- not supported for ZIP/CLI; Gatekeeper checks online)"
 
 # =============================================================================
 # Release Archives
