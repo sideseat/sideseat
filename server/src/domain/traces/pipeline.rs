@@ -156,9 +156,12 @@ impl TracePipeline {
                     match tokio::time::timeout(Duration::from_millis(100), subscriber.recv()).await
                     {
                         Ok(Ok((msg_id, msg))) => {
-                            self.run(&msg).await;
-                            if let Err(e) = acker.ack(&msg_id).await {
-                                tracing::warn!(error = %e, msg_id = %msg_id, "Failed to ack during drain");
+                            if self.run(&msg).await {
+                                if let Err(e) = acker.ack(&msg_id).await {
+                                    tracing::warn!(error = %e, msg_id = %msg_id, "Failed to ack during drain");
+                                }
+                            } else {
+                                tracing::warn!(msg_id = %msg_id, "Skipping ack during drain: write failed");
                             }
                             continue;
                         }
@@ -224,11 +227,19 @@ impl TracePipeline {
                 let msg_ids: Vec<String> = batch.iter().map(|(id, _)| id.clone()).collect();
                 let requests: Vec<ExportTraceServiceRequest> =
                     batch.into_iter().map(|(_, req)| req).collect();
-                self.run_batch(&requests).await;
+                let db_ok = self.run_batch(&requests).await;
 
-                // Phase 4: Acknowledge all messages in one call
-                if let Err(e) = acker.ack_batch(&msg_ids).await {
-                    tracing::warn!(error = %e, count = msg_ids.len(), "Failed to batch ack messages");
+                // Phase 4: Acknowledge only on successful DuckDB write.
+                // On failure, messages remain pending for redelivery (at-least-once).
+                if db_ok {
+                    if let Err(e) = acker.ack_batch(&msg_ids).await {
+                        tracing::warn!(error = %e, count = msg_ids.len(), "Failed to batch ack messages");
+                    }
+                } else {
+                    tracing::warn!(
+                        count = msg_ids.len(),
+                        "Skipping ack: analytics write failed, messages will be redelivered"
+                    );
                 }
             }
 
@@ -261,9 +272,12 @@ impl TracePipeline {
                     // Decode and process the claimed message
                     match ExportTraceServiceRequest::decode(&msg.payload[..]) {
                         Ok(request) => {
-                            self.run(&request).await;
-                            if let Err(e) = acker.ack(&msg.id).await {
-                                tracing::warn!(error = %e, msg_id = %msg.id, "Failed to ack claimed message");
+                            if self.run(&request).await {
+                                if let Err(e) = acker.ack(&msg.id).await {
+                                    tracing::warn!(error = %e, msg_id = %msg.id, "Failed to ack claimed message");
+                                }
+                            } else {
+                                tracing::warn!(msg_id = %msg.id, "Skipping ack for claimed message: write failed");
                             }
                         }
                         Err(e) => {
@@ -293,7 +307,10 @@ impl TracePipeline {
     /// Processes requests in parallel across CPU cores (extract, sideml, enrich,
     /// base64 extraction are all CPU-bound), then DuckDB write + file I/O in parallel,
     /// SSE publish after both complete.
-    async fn run_batch(&self, requests: &[ExportTraceServiceRequest]) {
+    ///
+    /// Returns true if the DuckDB write succeeded (messages should be ACKed),
+    /// false if it failed (messages should NOT be ACKed for redelivery).
+    async fn run_batch(&self, requests: &[ExportTraceServiceRequest]) -> bool {
         let t_batch_start = std::time::Instant::now();
 
         let pricing = &self.pricing;
@@ -312,13 +329,32 @@ impl TracePipeline {
                     .unwrap_or(4);
 
                 if requests.len() <= num_workers {
-                    // Few requests: one thread per request
+                    // Few requests: one thread per request.
+                    // Each is wrapped in catch_unwind so a panic in one request
+                    // doesn't propagate through thread::scope and drop the batch.
                     std::thread::scope(|s| {
                         let handles: Vec<_> = requests
                             .iter()
                             .map(|request| {
                                 s.spawn(|| {
-                                    process_request(request, pricing, files_enabled, file_cache)
+                                    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+                                        || {
+                                            process_request(
+                                                request,
+                                                pricing,
+                                                files_enabled,
+                                                file_cache,
+                                            )
+                                        },
+                                    )) {
+                                        Ok(result) => result,
+                                        Err(_) => {
+                                            tracing::error!(
+                                                "process_request panicked, skipping one request"
+                                            );
+                                            None
+                                        }
+                                    }
                                 })
                             })
                             .collect();
@@ -327,16 +363,16 @@ impl TracePipeline {
                             .map(|h| match h.join() {
                                 Ok(result) => result,
                                 Err(_) => {
-                                    tracing::error!(
-                                        "process_request thread panicked, skipping request"
-                                    );
+                                    tracing::error!("process_request thread panicked unexpectedly");
                                     None
                                 }
                             })
                             .collect()
                     })
                 } else {
-                    // Many requests: chunk into worker-sized groups
+                    // Many requests: chunk into worker-sized groups.
+                    // Each request is individually wrapped in catch_unwind so a panic
+                    // in one request doesn't drop the entire chunk.
                     let chunk_size = requests.len().div_ceil(num_workers);
                     std::thread::scope(|s| {
                         let handles: Vec<_> = requests
@@ -346,12 +382,24 @@ impl TracePipeline {
                                     chunk
                                         .iter()
                                         .map(|request| {
-                                            process_request(
-                                                request,
-                                                pricing,
-                                                files_enabled,
-                                                file_cache,
-                                            )
+                                            match std::panic::catch_unwind(
+                                                std::panic::AssertUnwindSafe(|| {
+                                                    process_request(
+                                                        request,
+                                                        pricing,
+                                                        files_enabled,
+                                                        file_cache,
+                                                    )
+                                                }),
+                                            ) {
+                                                Ok(result) => result,
+                                                Err(_) => {
+                                                    tracing::error!(
+                                                        "process_request panicked, skipping one request"
+                                                    );
+                                                    None
+                                                }
+                                            }
                                         })
                                         .collect::<Vec<_>>()
                                 })
@@ -363,9 +411,7 @@ impl TracePipeline {
                             .flat_map(|h| match h.join() {
                                 Ok(results) => results,
                                 Err(_) => {
-                                    tracing::error!(
-                                        "process_request thread panicked, skipping chunk"
-                                    );
+                                    tracing::error!("process_request thread panicked unexpectedly");
                                     Vec::new()
                                 }
                             })
@@ -382,7 +428,7 @@ impl TracePipeline {
         }
 
         if all_db_spans.is_empty() {
-            return;
+            return true;
         }
 
         let t_prepare_done = std::time::Instant::now();
@@ -392,7 +438,7 @@ impl TracePipeline {
         let sse_events: Vec<SseSpanEvent> = all_db_spans.iter().map(SseSpanEvent::from).collect();
 
         // DuckDB write + file persistence in parallel, SSE after both complete
-        tokio::join!(write_to_duckdb(all_db_spans, &self.analytics), async {
+        let (db_ok, _) = tokio::join!(write_to_duckdb(all_db_spans, &self.analytics), async {
             if !all_pending_files.is_empty() {
                 persist_extracted_files(all_pending_files, &self.file_service).await;
             }
@@ -400,21 +446,28 @@ impl TracePipeline {
 
         let t_persist_done = std::time::Instant::now();
 
-        publish_sse_events(&sse_events, &self.topics).await;
+        if db_ok {
+            publish_sse_events(&sse_events, &self.topics).await;
+        }
 
         tracing::debug!(
             requests = requests.len(),
             spans = span_count,
+            db_ok,
             prepare_ms = t_prepare_done.duration_since(t_batch_start).as_millis() as u64,
             persist_ms = t_persist_done.duration_since(t_prepare_done).as_millis() as u64,
             total_ms = t_persist_done.duration_since(t_batch_start).as_millis() as u64,
             "Pipeline batch completed"
         );
+
+        db_ok
     }
 
     /// Run the complete pipeline for a single request (used during shutdown drain
     /// and claimed message recovery). File I/O is done inline for reliability.
-    async fn run(&self, request: &ExportTraceServiceRequest) {
+    ///
+    /// Returns true if the DuckDB write succeeded, false otherwise.
+    async fn run(&self, request: &ExportTraceServiceRequest) -> bool {
         let result = process_request(
             request,
             &self.pricing,
@@ -423,14 +476,19 @@ impl TracePipeline {
         );
         if let Some((db_spans, pending_files)) = result {
             if db_spans.is_empty() {
-                return;
+                return true;
             }
             let sse_events: Vec<SseSpanEvent> = db_spans.iter().map(SseSpanEvent::from).collect();
-            tokio::join!(
+            let (db_ok, _) = tokio::join!(
                 write_to_duckdb(db_spans, &self.analytics),
                 persist_extracted_files(pending_files, &self.file_service)
             );
-            publish_sse_events(&sse_events, &self.topics).await;
+            if db_ok {
+                publish_sse_events(&sse_events, &self.topics).await;
+            }
+            db_ok
+        } else {
+            true
         }
     }
 }

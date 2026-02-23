@@ -1,6 +1,6 @@
 {
   "name": "@sideseat/platform-darwin-arm64",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "SideSeat binary for macOS Apple Silicon",
   "os": [
     "darwin"

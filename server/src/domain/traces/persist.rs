@@ -403,7 +403,7 @@ async fn write_and_record_files(
                 cache_hits += 1;
                 // Cache hit from previous extraction — file already in storage.
                 // Just upsert metadata to maintain ref_count.
-                let _ = repo
+                if let Err(e) = repo
                     .upsert_file(
                         &file.project_id,
                         &file.hash,
@@ -411,7 +411,15 @@ async fn write_and_record_files(
                         file.size as i64,
                         &file.hash_algo,
                     )
-                    .await;
+                    .await
+                {
+                    tracing::warn!(
+                        error = %e,
+                        hash = %file.hash,
+                        project_id = %file.project_id,
+                        "Failed to upsert cached file metadata (ref_count may drift)"
+                    );
+                }
             } else {
                 // Fresh extraction: decode base64, write temp file, upsert metadata, finalize
                 let decoded = match BASE64_STANDARD.decode(&file.data) {
@@ -511,7 +519,10 @@ async fn write_and_record_files(
 /// Each attempt clones spans (insert_spans consumes ownership for spawn_blocking).
 /// With pre-serialized String fields, clone cost is ~microseconds of memcpy, negligible
 /// compared to the DuckDB write which takes milliseconds-to-seconds.
-pub(super) async fn write_to_duckdb(spans: Vec<NormalizedSpan>, analytics: &Arc<AnalyticsService>) {
+pub(super) async fn write_to_duckdb(
+    spans: Vec<NormalizedSpan>,
+    analytics: &Arc<AnalyticsService>,
+) -> bool {
     let span_count = spans.len();
     let repo = analytics.repository();
 
@@ -531,6 +542,7 @@ pub(super) async fn write_to_duckdb(spans: Vec<NormalizedSpan>, analytics: &Arc<
             } else {
                 tracing::trace!(spans = span_count, "Wrote traces to analytics backend");
             }
+            true
         }
         Err((e, attempts)) => {
             tracing::error!(
@@ -539,6 +551,7 @@ pub(super) async fn write_to_duckdb(spans: Vec<NormalizedSpan>, analytics: &Arc<
                 attempts,
                 "Failed to write spans to analytics backend after retries"
             );
+            false
         }
     }
 }

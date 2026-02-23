@@ -12,23 +12,44 @@ use serde::Deserialize;
 // ClickHouse does not support correlated NOT EXISTS subqueries on the same table
 // (always evaluates EXISTS as true). Use materialized CTE + NOT IN instead.
 
-/// CTE that materializes spans with tokens for anti-join dedup logic.
-/// Requires 1 bind parameter: project_id
-pub(super) const DEDUP_LOOKUP_CTE: &str = r#"dedup_lookup AS (
+/// Build the dedup_lookup CTE with optional extra WHERE conditions.
+///
+/// Always requires 1 bind parameter: project_id.
+/// `extra_where` is appended to narrow the materialized set:
+/// - `""` for list queries (full project scan — required for correctness)
+/// - `"trace_id = ?"` for single-trace queries (+1 bind param)
+/// - `"trace_id IN (SELECT trace_id FROM session_traces)"` for session queries (no extra binds)
+pub(super) fn build_dedup_lookup_cte(extra_where: &str) -> String {
+    let extra = if extra_where.is_empty() {
+        String::new()
+    } else {
+        format!("\n          AND {extra_where}")
+    };
+    format!(
+        r#"dedup_lookup AS (
         SELECT span_id, parent_span_id, trace_id, observation_type
         FROM otel_spans FINAL
         WHERE project_id = ?
-          AND (gen_ai_usage_input_tokens + gen_ai_usage_output_tokens) > 0
-    )"#;
+          AND (gen_ai_usage_input_tokens + gen_ai_usage_output_tokens) > 0{extra}
+    )"#
+    )
+}
 
 /// Anti-join condition for gen_totals, replacing 3 correlated NOT EXISTS subqueries.
 /// Requires dedup_lookup CTE to be defined earlier in the WITH clause.
+///
+/// Each subquery is scoped to the same trace as the outer row (`g.trace_id`)
+/// to maintain correctness: generation spans in trace A must not affect
+/// token dedup for unrelated trace B. This mirrors the DuckDB correlated
+/// NOT EXISTS semantics (`gen.trace_id = g.trace_id`).
 pub(super) const TOKEN_DEDUP_CONDITION: &str = r#"(
                   (g.observation_type = 'generation'
                    AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
                    AND g.span_id NOT IN (
                        SELECT parent_span_id FROM dedup_lookup
-                       WHERE observation_type = 'generation' AND parent_span_id IS NOT NULL
+                       WHERE observation_type = 'generation'
+                         AND parent_span_id IS NOT NULL
+                         AND trace_id = g.trace_id
                    ))
                   OR
                   (g.observation_type != 'generation'
@@ -36,11 +57,51 @@ pub(super) const TOKEN_DEDUP_CONDITION: &str = r#"(
                    AND g.trace_id NOT IN (
                        SELECT DISTINCT trace_id FROM dedup_lookup
                        WHERE observation_type = 'generation'
+                         AND trace_id = g.trace_id
                    )
                    AND (g.parent_span_id IS NULL OR g.parent_span_id NOT IN (
                        SELECT span_id FROM dedup_lookup
+                       WHERE trace_id = g.trace_id
                    )))
               )"#;
+
+/// Build a dedup CTE scoped to traces that have at least one span in the
+/// given time range. The CTE still loads ALL spans for those traces (no time
+/// filter on the CTE itself) so that generation spans outside the time window
+/// are still considered for token dedup.
+///
+/// Returns `(cte_sql, extra_bind_params)`. The extra params must be bound
+/// between the base CTE project_id param and the rest of the query params.
+///
+/// When no time filters are provided, falls back to the unscoped CTE.
+pub(super) fn build_time_scoped_dedup(
+    project_id: &str,
+    from: Option<&DateTime<Utc>>,
+    to: Option<&DateTime<Utc>>,
+) -> (String, Vec<QueryParam>) {
+    if from.is_none() && to.is_none() {
+        return (build_dedup_lookup_cte(""), vec![]);
+    }
+
+    let mut time_conds = vec!["project_id = ?".to_string()];
+    let mut extra_binds = vec![QueryParam::String(project_id.to_string())];
+
+    if let Some(f) = from {
+        time_conds.push("timestamp_start >= fromUnixTimestamp64Micro(?)".to_string());
+        extra_binds.push(QueryParam::Int64(f.timestamp_micros()));
+    }
+    if let Some(t) = to {
+        time_conds.push("timestamp_start <= fromUnixTimestamp64Micro(?)".to_string());
+        extra_binds.push(QueryParam::Int64(t.timestamp_micros()));
+    }
+
+    let scope = format!(
+        "trace_id IN (SELECT DISTINCT trace_id FROM otel_spans WHERE {})",
+        time_conds.join(" AND ")
+    );
+
+    (build_dedup_lookup_cte(&scope), extra_binds)
+}
 
 // ============================================================================
 // Parameterized Query Builder
@@ -49,7 +110,7 @@ pub(super) const TOKEN_DEDUP_CONDITION: &str = r#"(
 /// Query parameter that can be bound to ClickHouse queries.
 /// All user-controllable values MUST go through this enum for SQL injection safety.
 #[derive(Clone)]
-enum QueryParam {
+pub(super) enum QueryParam {
     /// String parameter (bound as-is)
     String(String),
     /// Integer parameter (used for timestamps as microseconds)
@@ -462,7 +523,6 @@ pub async fn list_traces(
 
     let where_clause = cb.build();
 
-    // Count query - need to bind params twice if using subquery
     let (count_sql, needs_double_bind) = if !params.include_nongenai {
         (
             format!(
@@ -521,6 +581,15 @@ pub async fn list_traces(
     } else {
         ""
     };
+
+    // Scope dedup CTE to traces in the time range when available.
+    // The CTE loads ALL spans for matching traces (no time filter on CTE itself)
+    // so generation spans outside the window still affect token dedup.
+    let dedup = build_time_scoped_dedup(
+        &params.project_id,
+        params.from_timestamp.as_ref(),
+        params.to_timestamp.as_ref(),
+    );
 
     // Data query with CTEs
     let data_sql = format!(
@@ -603,7 +672,7 @@ pub async fn list_traces(
         GROUP BY t.trace_id, t.min_ts
         ORDER BY t.min_ts {sort_dir}
         "#,
-        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_cte = dedup.0,
         dedup_condition = TOKEN_DEDUP_CONDITION,
         where_clause = where_clause,
         having_clause = having_clause,
@@ -613,8 +682,14 @@ pub async fn list_traces(
         offset = offset
     );
 
-    // Bind: dedup_lookup(project_id) + where_clause x2 (gen_totals + filtered_traces)
-    let query = client.query(&data_sql).bind(params.project_id.as_str());
+    // Bind: dedup_lookup(project_id + time-scope params) + where_clause x2
+    let mut query = client.query(&data_sql).bind(params.project_id.as_str());
+    for param in &dedup.1 {
+        query = match param {
+            QueryParam::String(s) => query.bind(s.as_str()),
+            QueryParam::Int64(i) => query.bind(i),
+        };
+    }
     let rows: Vec<ChTraceRow> = cb.bind_to_n(query, 2).fetch_all().await?;
 
     Ok((rows.into_iter().map(TraceRow::from).collect(), total))
@@ -1004,7 +1079,6 @@ pub async fn list_sessions(
 
     let where_clause = cb.build();
 
-    // Count query
     let count_sql = format!(
         "SELECT count(DISTINCT session_id) as cnt FROM otel_spans FINAL WHERE {}",
         where_clause
@@ -1033,6 +1107,12 @@ pub async fn list_sessions(
     };
 
     let offset = (params.page.saturating_sub(1)) * params.limit;
+
+    let dedup = build_time_scoped_dedup(
+        &params.project_id,
+        params.from_timestamp.as_ref(),
+        params.to_timestamp.as_ref(),
+    );
 
     let data_sql = format!(
         r#"
@@ -1099,7 +1179,7 @@ pub async fn list_sessions(
         GROUP BY f.session_id, f.min_ts
         ORDER BY f.min_ts {sort_dir}
         "#,
-        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_cte = dedup.0,
         dedup_condition = TOKEN_DEDUP_CONDITION,
         where_clause = where_clause,
         ch_sort_field = ch_sort_field,
@@ -1108,8 +1188,14 @@ pub async fn list_sessions(
         offset = offset
     );
 
-    // Bind: dedup_lookup(project_id) + where_clause x2 (gen_totals + filtered_sessions)
-    let query = client.query(&data_sql).bind(params.project_id.as_str());
+    // Bind: dedup_lookup(project_id + time-scope params) + where_clause x2
+    let mut query = client.query(&data_sql).bind(params.project_id.as_str());
+    for param in &dedup.1 {
+        query = match param {
+            QueryParam::String(s) => query.bind(s.as_str()),
+            QueryParam::Int64(i) => query.bind(i),
+        };
+    }
     let rows: Vec<ChSessionRow> = cb.bind_to_n(query, 2).fetch_all().await?;
 
     Ok((rows.into_iter().map(SessionRow::from).collect(), total))
@@ -1179,7 +1265,7 @@ pub async fn get_session(
                  gt.input_cost, gt.output_cost, gt.cache_read_cost, gt.cache_write_cost,
                  gt.reasoning_cost, gt.total_cost
     "#,
-        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_cte = build_dedup_lookup_cte("trace_id IN (SELECT trace_id FROM session_traces)"),
         dedup_condition = TOKEN_DEDUP_CONDITION,
     );
 
@@ -1339,14 +1425,15 @@ pub async fn get_trace(
                  gt.input_cost, gt.output_cost, gt.cache_read_cost, gt.cache_write_cost,
                  gt.reasoning_cost, gt.total_cost
     "#,
-        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_cte = build_dedup_lookup_cte("trace_id = ?"),
         dedup_condition = TOKEN_DEDUP_CONDITION,
     );
 
-    // Bind order: dedup_lookup(project_id), gen_totals(project_id, trace_id), main(project_id, trace_id)
+    // Bind order: dedup_lookup(project_id, trace_id), gen_totals(project_id, trace_id), main(project_id, trace_id)
     let row: Option<ChTraceRow> = client
         .query(&sql)
         .bind(project_id)
+        .bind(trace_id)
         .bind(project_id)
         .bind(trace_id)
         .bind(project_id)
@@ -1434,7 +1521,7 @@ pub async fn get_traces_for_session(
         GROUP BY s.trace_id
         ORDER BY min(s.timestamp_start) DESC
     "#,
-        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_cte = build_dedup_lookup_cte("trace_id IN (SELECT trace_id FROM session_traces)"),
         dedup_condition = TOKEN_DEDUP_CONDITION,
     );
 
@@ -1801,7 +1888,7 @@ pub async fn get_trace_filter_options(
 
         let sql = format!(
             r#"
-            SELECT {col} as value, uniq(trace_id) as count
+            SELECT {col} as value, count(DISTINCT trace_id) as count
             FROM otel_spans FINAL
             WHERE project_id = ?{time_cond}{extra_cond} AND {col} IS NOT NULL
             GROUP BY {col}
@@ -1862,7 +1949,7 @@ pub async fn get_trace_tags_options(
         r#"
         SELECT
             arrayJoin(JSONExtractArrayRaw(assumeNotNull(tags))) as value,
-            uniq(trace_id) as count
+            count(DISTINCT trace_id) as count
         FROM otel_spans FINAL
         WHERE project_id = ?{time_cond} AND tags IS NOT NULL AND tags != '[]'
         GROUP BY value
@@ -1937,7 +2024,7 @@ pub async fn get_span_filter_options(
         let sql = format!(
             r#"
             SELECT {col} as value, count() as count
-            FROM otel_spans FINAL
+            FROM otel_spans
             WHERE project_id = ?{cond} AND {col} IS NOT NULL
             GROUP BY {col}
             ORDER BY count DESC
@@ -2006,8 +2093,8 @@ pub async fn get_session_filter_options(
 
         let sql = format!(
             r#"
-            SELECT {col} as value, uniq(session_id) as count
-            FROM otel_spans FINAL
+            SELECT {col} as value, count(DISTINCT session_id) as count
+            FROM otel_spans
             WHERE project_id = ?{cond} AND session_id IS NOT NULL AND {col} IS NOT NULL
             GROUP BY {col}
             ORDER BY count DESC

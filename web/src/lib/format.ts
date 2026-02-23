@@ -72,12 +72,15 @@ export function formatCompact(n: number): string {
  * Use this for dashboard displays where consistent formatting is needed.
  */
 export function formatCurrencyFixed(n: number): string {
+  const minimumFractionDigits = 2;
+  const floor = Math.pow(10, -minimumFractionDigits);
+  const value = n > 0 && n < floor ? floor : n;
   return new Intl.NumberFormat(undefined, {
     style: "currency",
     currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n);
+    minimumFractionDigits,
+    maximumFractionDigits: minimumFractionDigits,
+  }).format(value);
 }
 
 /**

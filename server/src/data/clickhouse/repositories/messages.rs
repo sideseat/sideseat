@@ -171,12 +171,11 @@ pub async fn get_project_messages(
     ];
     let mut bind_params: Vec<BindParam> = vec![BindParam::String(params.project_id.clone())];
 
-    // Cursor condition - cursor_time_us is safe (derived integer), cursor_span_id uses placeholder
+    // Cursor condition - both values bound as parameters
     if let Some((cursor_time_us, cursor_span_id)) = &params.cursor {
-        conditions.push(format!(
-            "(toInt64(toUnixTimestamp64Micro(ingested_at)), span_id) < ({}, ?)",
-            cursor_time_us
-        ));
+        conditions
+            .push("(toInt64(toUnixTimestamp64Micro(ingested_at)), span_id) < (?, ?)".to_string());
+        bind_params.push(BindParam::Int64(*cursor_time_us));
         bind_params.push(BindParam::String(cursor_span_id.clone()));
     }
 
