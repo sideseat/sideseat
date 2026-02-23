@@ -94,6 +94,7 @@ misc/
 ```bash
 # Strands Agents
 uv run --directory misc/samples/python strands                        # List samples and models
+uv run --directory misc/samples/python strands error                  # Error
 uv run --directory misc/samples/python strands tool_use               # Tool usage
 uv run --directory misc/samples/python strands mcp_tools              # MCP server integration
 uv run --directory misc/samples/python strands structured_output      # Structured data extraction
