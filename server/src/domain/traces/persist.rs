@@ -110,7 +110,7 @@ pub(super) struct BatchInput {
 ///
 /// File extraction (CPU phase) replaces base64 data with `#!B64!#` URIs
 /// in the JSON fields so DuckDB stores compact references, not raw base64.
-/// The actual file I/O (temp write, SQLite metadata, finalization) is deferred.
+/// The actual file I/O (temp write, metadata upsert, finalization) is deferred.
 pub(super) fn prepare_batch(
     request: &ExportTraceServiceRequest,
     input: BatchInput,
@@ -291,7 +291,7 @@ fn extract_files_cpu_messages(
 
 /// Persist extracted files to storage (I/O phase).
 ///
-/// Handles temp file writes, SQLite metadata upserts, and finalization.
+/// Handles temp file writes, metadata upserts, and finalization.
 /// Deduplicates by hash within the batch to avoid redundant I/O.
 /// Called in parallel with DuckDB write via tokio::join!.
 pub(super) async fn persist_extracted_files(
@@ -309,8 +309,7 @@ pub(super) async fn persist_extracted_files(
     }
 
     // Phase 2: Decode, write, and record files
-    let file_count = files.len();
-    let (pending_finalizations, unique_count) = write_and_record_files(&files, file_service).await;
+    let pending_finalizations = write_and_record_files(&files, file_service).await;
 
     // Phase 3: Finalize temp files to permanent storage
     finalize_pending_files(pending_finalizations, file_service, "batch").await;
@@ -320,12 +319,6 @@ pub(super) async fn persist_extracted_files(
     file_service
         .invalidate_quota_cache(&affected_projects)
         .await;
-
-    tracing::debug!(
-        total = file_count,
-        unique = unique_count,
-        "File persistence batch completed"
-    );
 }
 
 /// Filter out files from projects that exceed storage quota.
@@ -334,6 +327,8 @@ async fn filter_over_quota(
     files: Vec<PendingFileWrite>,
     file_service: &Arc<FileService>,
 ) -> (Vec<PendingFileWrite>, HashMap<String, usize>) {
+    // Conservative estimate: may over-count when duplicates exist within the batch,
+    // but actual dedup happens downstream in write_and_record_files and at the DB layer.
     let mut project_sizes: HashMap<String, usize> = HashMap::new();
     for f in &files {
         *project_sizes.entry(f.project_id.clone()).or_default() += f.size;
@@ -372,11 +367,10 @@ async fn filter_over_quota(
 }
 
 /// Decode base64, write temp files, upsert metadata, and record trace associations.
-/// Returns pending finalizations and count of unique files written.
 async fn write_and_record_files(
     files: &[PendingFileWrite],
     file_service: &Arc<FileService>,
-) -> (Vec<PendingFinalization>, usize) {
+) -> Vec<PendingFinalization> {
     let temp_dir = file_service.temp_dir();
     let repo = file_service.database().repository();
     let mut pending_finalizations: Vec<PendingFinalization> = Vec::new();
@@ -386,15 +380,21 @@ async fn write_and_record_files(
     // Deduplicate: only insert trace-file once per unique (trace_id, hash)
     let mut trace_hashes: HashSet<(String, String)> = HashSet::new();
 
-    // Diagnostic counters
     let mut cache_hits = 0usize;
     let mut fresh_ok = 0usize;
-    let mut decode_fail = 0usize;
-    let mut write_fail = 0usize;
-    let mut upsert_fail = 0usize;
-    let mut dedup_skip = 0usize;
 
-    for file in files {
+    // Process files with data (cache misses) before empty-data entries (cache hits).
+    // When concurrent extraction threads race on the shared FileExtractionCache,
+    // the thread that runs first gets a cache miss (with data) while later threads
+    // get hits (empty data). Since results are collected in request order (not
+    // execution order), a cache-hit entry may appear before the data-bearing entry
+    // for the same file. Processing data-first ensures the fresh entry always wins
+    // dedup, preventing files from being silently skipped.
+    for file in files
+        .iter()
+        .filter(|f| !f.data.is_empty())
+        .chain(files.iter().filter(|f| f.data.is_empty()))
+    {
         let dedup_key = format!("{}:{}", file.project_id, file.hash);
         let is_new = written_hashes.insert(dedup_key);
 
@@ -416,12 +416,12 @@ async fn write_and_record_files(
                 // Fresh extraction: decode base64, write temp file, upsert metadata, finalize
                 let decoded = match BASE64_STANDARD.decode(&file.data) {
                     Ok(d) => d,
-                    Err(_) => match BASE64_URL_SAFE.decode(&file.data) {
+                    Err(e1) => match BASE64_URL_SAFE.decode(&file.data) {
                         Ok(d) => d,
                         Err(e) => {
-                            decode_fail += 1;
                             tracing::warn!(
                                 error = %e,
+                                std_error = %e1,
                                 hash = %file.hash,
                                 data_len = file.data.len(),
                                 project_id = %file.project_id,
@@ -434,7 +434,6 @@ async fn write_and_record_files(
 
                 let temp_path = temp_dir.join(format!("{}_{}", file.project_id, file.hash));
                 if let Err(e) = tokio::fs::write(&temp_path, &decoded).await {
-                    write_fail += 1;
                     tracing::warn!(
                         error = %e,
                         hash = %file.hash,
@@ -454,7 +453,6 @@ async fn write_and_record_files(
                     )
                     .await
                 {
-                    upsert_fail += 1;
                     tracing::warn!(
                         error = %e,
                         hash = %file.hash,
@@ -473,7 +471,7 @@ async fn write_and_record_files(
                 });
             }
         } else {
-            dedup_skip += 1;
+            // Duplicate within batch, already handled above
         }
 
         // Record trace-file association (once per trace+hash)
@@ -495,17 +493,13 @@ async fn write_and_record_files(
     tracing::debug!(
         total = files.len(),
         unique = written_hashes.len(),
-        fresh_ok,
-        cache_hits,
-        dedup_skip,
-        decode_fail,
-        write_fail,
-        upsert_fail,
+        fresh = fresh_ok,
+        cached = cache_hits,
         pending = pending_finalizations.len(),
         "File write summary"
     );
 
-    (pending_finalizations, written_hashes.len())
+    pending_finalizations
 }
 
 // ============================================================================

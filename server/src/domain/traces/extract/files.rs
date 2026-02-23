@@ -29,7 +29,8 @@ use moka::sync::Cache;
 use serde_json::Value as JsonValue;
 
 use crate::core::constants::{
-    FILE_EXTRACTION_CACHE_MAX_ENTRIES, FILES_MAX_SIZE_BYTES, FILES_MIN_SIZE_BYTES,
+    FILE_EXTRACTION_CACHE_IDLE_SECS, FILE_EXTRACTION_CACHE_MAX_ENTRIES, FILES_MAX_SIZE_BYTES,
+    FILES_MIN_SIZE_BYTES,
 };
 #[cfg(test)]
 use crate::utils::file_uri::FILE_URI_PREFIX;
@@ -71,6 +72,9 @@ impl FileExtractionCache {
         Self {
             inner: Cache::builder()
                 .max_capacity(FILE_EXTRACTION_CACHE_MAX_ENTRIES)
+                .time_to_idle(std::time::Duration::from_secs(
+                    FILE_EXTRACTION_CACHE_IDLE_SECS,
+                ))
                 .build(),
         }
     }

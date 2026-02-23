@@ -6,6 +6,9 @@ INIT_FILE="/vault/data/init.json"
 STATIC_TOKEN="${VAULT_DEV_TOKEN:-devroot}"
 export VAULT_ADDR="http://127.0.0.1:8200"
 
+# Ensure data directory exists with correct permissions
+mkdir -p /vault/data
+
 # Start Vault server in background
 vault server -config=/vault/config/vault.hcl &
 VAULT_PID=$!
