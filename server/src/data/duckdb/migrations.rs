@@ -72,12 +72,17 @@ fn apply_initial_schema(conn: &Connection) -> Result<(), DuckdbError> {
     })
 }
 
-#[allow(unused)]
-fn apply_migration(_conn: &Connection, version: i32) -> Result<(), DuckdbError> {
+fn apply_migration(conn: &Connection, version: i32) -> Result<(), DuckdbError> {
     match version {
         1 => Ok(()), // Handled by apply_initial_schema
-        // Future migrations go here:
-        // 2 => apply_versioned_migration(conn, 2, "migration_name", "SQL..."),
+        2 => apply_versioned_migration(
+            conn,
+            2,
+            "create_spans_dedup_view",
+            "CREATE VIEW IF NOT EXISTS otel_spans_v AS \
+             SELECT * FROM otel_spans \
+             QUALIFY ROW_NUMBER() OVER (PARTITION BY trace_id, span_id ORDER BY ingested_at DESC) = 1;",
+        ),
         _ => Err(DuckdbError::MigrationFailed {
             version,
             name: "unknown".to_string(),
@@ -101,7 +106,6 @@ fn apply_migration(_conn: &Connection, version: i32) -> Result<(), DuckdbError> 
 ///     }
 /// }
 /// ```
-#[allow(unused)]
 fn apply_versioned_migration(
     conn: &Connection,
     version: i32,
