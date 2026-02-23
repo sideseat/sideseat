@@ -22,9 +22,9 @@ pub use normalized::{NormalizedMetric, NormalizedSpan, json_to_pre_serialized};
 // Re-export analytics types (query results and params)
 pub use analytics::{
     EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams,
-    ObservationTokens, SessionRow, SpanCounts, SpanRow, TraceRow, deduplicate_spans,
-    filter_observations, find_root_span, get_observation_cost, get_observation_tokens,
-    get_observation_type, is_observation, parse_finish_reasons, parse_tags,
+    ObservationTokens, SessionRow, SpanCounts, SpanIdentity, SpanRow, TraceRow,
+    deduplicate_by_span_identity, filter_observations, find_root_span, get_observation_cost,
+    get_observation_tokens, get_observation_type, is_observation, parse_finish_reasons, parse_tags,
 };
 
 // Re-export message types

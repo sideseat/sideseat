@@ -4,6 +4,8 @@
 
 use chrono::{DateTime, Utc};
 
+use super::analytics::SpanIdentity;
+
 // ============================================================================
 // Row types
 // ============================================================================
@@ -43,6 +45,18 @@ pub struct MessageSpanRow {
     pub session_id: Option<String>,
     /// Ingestion time for cursor-based pagination in feed API
     pub ingested_at: DateTime<Utc>,
+}
+
+impl SpanIdentity for MessageSpanRow {
+    fn trace_id(&self) -> &str {
+        &self.trace_id
+    }
+    fn span_id(&self) -> &str {
+        &self.span_id
+    }
+    fn ordering_timestamp(&self) -> DateTime<Utc> {
+        self.span_timestamp
+    }
 }
 
 // ============================================================================

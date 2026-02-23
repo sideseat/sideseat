@@ -4,7 +4,6 @@
 //! by both DuckDB and ClickHouse backends.
 
 use chrono::{DateTime, Utc};
-use rustc_hash::FxHashMap;
 
 use crate::api::routes::otel::filters::Filter;
 use crate::api::types::OrderBy;
@@ -267,25 +266,35 @@ pub fn filter_observations(spans: &[SpanRow]) -> Vec<&SpanRow> {
     spans.iter().filter(|s| is_observation(s)).collect()
 }
 
-/// Deduplicate spans by (trace_id, span_id), keeping the latest by timestamp_start.
-///
-/// Uses FxHashMap for O(n) performance instead of SQL window functions.
-pub fn deduplicate_spans(spans: Vec<SpanRow>) -> Vec<SpanRow> {
-    let mut latest: FxHashMap<(String, String), SpanRow> = FxHashMap::default();
+/// Trait for types that can be deduplicated by (trace_id, span_id).
+pub trait SpanIdentity {
+    fn trace_id(&self) -> &str;
+    fn span_id(&self) -> &str;
+    fn ordering_timestamp(&self) -> DateTime<Utc>;
+}
 
-    for span in spans {
-        let key = (span.trace_id.clone(), span.span_id.clone());
-        match latest.get(&key) {
-            Some(existing) if existing.timestamp_start >= span.timestamp_start => {}
-            _ => {
-                latest.insert(key, span);
-            }
-        }
+impl SpanIdentity for SpanRow {
+    fn trace_id(&self) -> &str {
+        &self.trace_id
     }
+    fn span_id(&self) -> &str {
+        &self.span_id
+    }
+    fn ordering_timestamp(&self) -> DateTime<Utc> {
+        self.timestamp_start
+    }
+}
 
-    let mut result: Vec<SpanRow> = latest.into_values().collect();
-    result.sort_by(|a, b| a.timestamp_start.cmp(&b.timestamp_start));
-    result
+/// Deduplicate items by (trace_id, span_id), keeping the first occurrence.
+///
+/// Preserves input order (from SQL ORDER BY). SQL queries already sort by
+/// ingested_at or timestamp_start, so the first occurrence is the correct one.
+pub fn deduplicate_by_span_identity<T: SpanIdentity>(items: Vec<T>) -> Vec<T> {
+    let mut seen = rustc_hash::FxHashSet::default();
+    items
+        .into_iter()
+        .filter(|item| seen.insert((item.trace_id().to_string(), item.span_id().to_string())))
+        .collect()
 }
 
 /// Parse tags from JSON string
