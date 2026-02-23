@@ -212,9 +212,9 @@ uv run --directory misc/replay replay traces-strands.jsonl.gz
 uv run --directory misc/replay replay traces-adk.jsonl.gz
 uv run --directory misc/replay replay traces-vercel.jsonl.gz
 uv run --directory misc/replay replay traces-langgraph.jsonl.gz
-uv run --directory misc/replay replay traces-openai.jsonl.gz
 uv run --directory misc/replay replay traces-autogen.jsonl.gz
 uv run --directory misc/replay replay traces-crewai.jsonl.gz
+uv run --directory misc/replay replay traces-openai.jsonl.gz
 
 # Absolute path
 uv run --directory misc/replay replay /path/to/file.jsonl
