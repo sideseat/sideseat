@@ -9,7 +9,7 @@
     "x64"
   ],
   "bin": {
-    "sideseat": "./sideseat.exe"
+    "sideseat": "sideseat.exe"
   },
   "files": [
     "sideseat.exe"
