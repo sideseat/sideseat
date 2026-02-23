@@ -6,6 +6,7 @@ use duckdb::Connection;
 
 use crate::core::constants::QUERY_MAX_TOP_STATS;
 use crate::data::duckdb::DuckdbError;
+use crate::data::duckdb::repositories::query::DEDUP_SPANS;
 use crate::data::types::{
     CostsResult, CountsResult, FrameworkBreakdown, LatencyBucket, ModelBreakdown,
     ProjectStatsResult, StatsParams, TokensResult, TrendBucket,
@@ -86,7 +87,8 @@ fn query_main_aggregation(
 ) -> Result<(MainCounts, CostsResult, TokensResult), DuckdbError> {
     // Two-path token filter to avoid double-counting.
     // See query.rs get_trace for detailed explanation.
-    let sql = r#"
+    let sql = format!(
+        r#"
         WITH gen_agg AS (
             SELECT
                 COALESCE(SUM(gen_ai_usage_input_tokens), 0) AS input_tokens,
@@ -101,7 +103,7 @@ fn query_main_aggregation(
                 COALESCE(SUM(gen_ai_cost_cache_write), 0) AS cache_write_cost,
                 COALESCE(SUM(gen_ai_cost_reasoning), 0) AS reasoning_cost,
                 COALESCE(SUM(gen_ai_cost_total), 0) AS total_cost
-            FROM otel_spans_v g
+            FROM {DEDUP_SPANS} g
             WHERE g.project_id = ?
               AND g.timestamp_start >= ?
               AND g.timestamp_start <= ?
@@ -150,17 +152,19 @@ fn query_main_aggregation(
             ROUND(COALESCE(MAX(ga.cache_write_cost), 0)::DOUBLE, 4) AS cache_write_cost,
             ROUND(COALESCE(MAX(ga.reasoning_cost), 0)::DOUBLE, 4) AS reasoning_cost,
             ROUND(COALESCE(MAX(ga.total_cost), 0)::DOUBLE, 4) AS total_cost
-        FROM otel_spans_v s
+        FROM {DEDUP_SPANS} s
         CROSS JOIN gen_agg ga
         WHERE s.project_id = ?
           AND s.timestamp_start >= ?
           AND s.timestamp_start <= ?
-    "#;
+    "#,
+        DEDUP_SPANS = DEDUP_SPANS
+    );
 
     let from_str = params.from_timestamp.to_rfc3339();
     let to_str = params.to_timestamp.to_rfc3339();
 
-    let mut stmt = conn.prepare(sql)?;
+    let mut stmt = conn.prepare(&sql)?;
     let row = stmt.query_row(
         [
             &params.project_id,
@@ -207,9 +211,10 @@ fn query_trace_count(
     from: DateTime<Utc>,
     to: DateTime<Utc>,
 ) -> Result<i64, DuckdbError> {
+    // COUNT(DISTINCT) is immune to row duplication
     let sql = r#"
         SELECT COUNT(DISTINCT trace_id) AS traces
-        FROM otel_spans_v
+        FROM otel_spans
         WHERE project_id = ?
           AND timestamp_start >= ?
           AND timestamp_start <= ?
@@ -227,13 +232,14 @@ fn query_avg_trace_duration(
     conn: &Connection,
     params: &StatsParams,
 ) -> Result<Option<f64>, DuckdbError> {
+    // GROUP BY trace_id with MIN/MAX is immune to row duplication
     let sql = r#"
         WITH traces AS (
             SELECT
                 trace_id,
                 MIN(timestamp_start) AS min_ts,
                 MAX(COALESCE(timestamp_end, timestamp_start)) AS max_ts
-            FROM otel_spans_v
+            FROM otel_spans
             WHERE project_id = ?
               AND timestamp_start >= ?
               AND timestamp_start <= ?
@@ -256,11 +262,12 @@ fn query_framework_breakdown(
     conn: &Connection,
     params: &StatsParams,
 ) -> Result<Vec<FrameworkBreakdown>, DuckdbError> {
+    // DISTINCT and COUNT(DISTINCT) are immune to row duplication
     let sql = format!(
         r#"
         WITH genai_traces AS (
             SELECT DISTINCT trace_id
-            FROM otel_spans_v
+            FROM otel_spans
             WHERE project_id = ?
               AND timestamp_start >= ?
               AND timestamp_start <= ?
@@ -270,7 +277,7 @@ fn query_framework_breakdown(
             SELECT
                 framework,
                 COUNT(DISTINCT trace_id) AS count
-            FROM otel_spans_v
+            FROM otel_spans
             WHERE project_id = ?
               AND timestamp_start >= ?
               AND timestamp_start <= ?
@@ -286,9 +293,9 @@ fn query_framework_breakdown(
             ROUND(100.0 * fc.count / t.total, 1) AS percentage
         FROM framework_counts fc, total t
         ORDER BY fc.count DESC
-        LIMIT {}
+        LIMIT {limit}
     "#,
-        QUERY_MAX_TOP_STATS
+        limit = QUERY_MAX_TOP_STATS
     );
 
     let from_str = params.from_timestamp.to_rfc3339();
@@ -332,7 +339,7 @@ fn query_model_breakdown(
                 g.gen_ai_request_model,
                 g.gen_ai_usage_total_tokens,
                 g.gen_ai_cost_total
-            FROM otel_spans_v g
+            FROM {DEDUP_SPANS} g
             WHERE g.project_id = ?
               AND g.timestamp_start >= ?
               AND g.timestamp_start <= ?
@@ -382,9 +389,10 @@ fn query_model_breakdown(
             ROUND(100.0 * ms.tokens / t.total, 1) AS percentage
         FROM model_stats ms, total t
         ORDER BY ms.tokens DESC
-        LIMIT {}
+        LIMIT {limit}
     "#,
-        QUERY_MAX_TOP_STATS
+        DEDUP_SPANS = DEDUP_SPANS,
+        limit = QUERY_MAX_TOP_STATS
     );
 
     let from_str = params.from_timestamp.to_rfc3339();
@@ -445,7 +453,7 @@ fn query_trend_data(
             SELECT
                 g.timestamp_start,
                 COALESCE(g.gen_ai_usage_total_tokens, 0) AS total_tokens
-            FROM otel_spans_v g
+            FROM {DEDUP_SPANS} g
             WHERE g.project_id = ?
               AND g.timestamp_start >= ?
               AND g.timestamp_start <= ?
@@ -491,7 +499,8 @@ fn query_trend_data(
         FROM data_buckets
         ORDER BY bucket ASC
         "#,
-        if use_daily { "day" } else { "hour" }
+        if use_daily { "day" } else { "hour" },
+        DEDUP_SPANS = DEDUP_SPANS
     );
 
     let from_str = params.from_timestamp.to_rfc3339();
@@ -554,7 +563,7 @@ fn query_latency_trend_data(
                 trace_id,
                 MIN(timestamp_start) AS min_ts,
                 MAX(COALESCE(timestamp_end, timestamp_start)) AS max_ts
-            FROM otel_spans_v
+            FROM otel_spans
             WHERE project_id = ?
               AND timestamp_start >= ?
               AND timestamp_start <= ?
@@ -574,7 +583,7 @@ fn query_latency_trend_data(
         FROM data_buckets
         ORDER BY bucket ASC
         "#,
-        if use_daily { "day" } else { "hour" }
+        if use_daily { "day" } else { "hour" },
     );
 
     let from_str = params.from_timestamp.to_rfc3339();
@@ -673,9 +682,10 @@ fn query_recent_activity(conn: &Connection, project_id: &str) -> Result<i64, Duc
     let five_min_ago = (now - Duration::minutes(5)).to_rfc3339();
     let now_str = now.to_rfc3339();
 
+    // COUNT(DISTINCT) is immune to row duplication
     let sql = r#"
         SELECT COUNT(DISTINCT trace_id)
-        FROM otel_spans_v
+        FROM otel_spans
         WHERE project_id = ?
           AND timestamp_start >= ?
           AND timestamp_start <= ?

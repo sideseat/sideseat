@@ -147,7 +147,10 @@ impl ClickhouseService {
             )
             .fetch_one()
             .await
-            .unwrap_or(false);
+            .map_err(|e| ClickhouseError::Connection(format!(
+                "Failed to check schema_version table: {}. Verify ClickHouse is running and accessible.",
+                e
+            )))?;
 
         if !table_exists {
             tracing::debug!(
@@ -186,11 +189,15 @@ impl ClickhouseService {
                 }
             }
             Some(v) if v > schema::SCHEMA_VERSION => {
-                tracing::warn!(
-                    "ClickHouse schema version {} is newer than application version {}. This may cause issues.",
-                    v,
-                    schema::SCHEMA_VERSION
-                );
+                return Err(ClickhouseError::MigrationFailed {
+                    version: v,
+                    name: "version_check".to_string(),
+                    error: format!(
+                        "Database schema version {} is newer than application version {}. Upgrade the application.",
+                        v,
+                        schema::SCHEMA_VERSION
+                    ),
+                });
             }
             _ => {
                 tracing::debug!(

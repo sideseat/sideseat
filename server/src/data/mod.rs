@@ -20,6 +20,7 @@
 pub mod cache;
 pub mod cleanup;
 pub mod clickhouse;
+pub mod dedup;
 pub mod duckdb;
 pub mod error;
 pub mod files;
@@ -274,12 +275,14 @@ impl AnalyticsService {
 
     /// Get the repository trait object for data operations
     ///
-    /// This returns a boxed trait object, allowing backend-agnostic
-    /// data operations through the AnalyticsRepository interface.
+    /// Returns a DedupAnalyticsRepository wrapper that deduplicates SpanRow
+    /// and MessageSpanRow results in Rust, while aggregation queries use
+    /// SQL-level dedup directly.
     pub fn repository(&self) -> Box<dyn AnalyticsRepository + Send + Sync> {
-        match self {
+        let inner: Box<dyn AnalyticsRepository + Send + Sync> = match self {
             Self::Duckdb(d) => Box::new(Arc::clone(d)),
             Self::Clickhouse(c) => Box::new(Arc::clone(c)),
-        }
+        };
+        Box::new(dedup::DedupAnalyticsRepository::new(inner))
     }
 }
