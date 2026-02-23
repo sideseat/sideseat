@@ -490,7 +490,7 @@ impl TopicBackend for RedisTopicBackend {
                             // Re-create it starting from ID 0 to consume all pending.
                             tracing::warn!("Consumer group lost, recreating from start...");
                             if let Ok(mut conn) = pool.get().await {
-                                let _: RedisResult<String> = deadpool_redis::redis::cmd("XGROUP")
+                                let result: RedisResult<String> = deadpool_redis::redis::cmd("XGROUP")
                                     .arg("CREATE")
                                     .arg(&key)
                                     .arg(&group)
@@ -498,6 +498,11 @@ impl TopicBackend for RedisTopicBackend {
                                     .arg("MKSTREAM")
                                     .query_async(&mut conn)
                                     .await;
+                                if let Err(e) = result {
+                                    tracing::error!(error = %e, "Failed to recreate consumer group");
+                                    tokio::time::sleep(Duration::from_secs(1)).await;
+                                    continue;
+                                }
                             }
                             tokio::time::sleep(Duration::from_millis(100)).await;
                         } else {

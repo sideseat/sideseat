@@ -4966,7 +4966,7 @@ version = "0.1.0"
 
 [[package]]
 name = "sideseat-server"
-version = "1.0.9"
+version = "1.0.10"
 dependencies = [
  "anyhow",
  "async-stream",

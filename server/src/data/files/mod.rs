@@ -359,7 +359,8 @@ impl FileService {
                 bytes
             }
         };
-        Ok((current + additional_bytes) <= self.config.quota_bytes as i64)
+        let quota = i64::try_from(self.config.quota_bytes).unwrap_or(i64::MAX);
+        Ok((current + additional_bytes) <= quota)
     }
 
     /// Invalidate cached quota for projects after storage changes (writes or deletes).

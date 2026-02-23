@@ -191,10 +191,18 @@ impl FileStorage for FilesystemStorage {
                 );
             }
             Err(_) => {
-                // Cross-filesystem: copy to staging file in dest dir, then atomic
-                // rename. Direct copy to dest_path would expose partial content to
-                // concurrent readers during the copy window.
-                let staging = dest_path.with_extension("tmp");
+                // Cross-filesystem: copy to a unique staging file in dest dir,
+                // then atomic rename. The staging name includes PID + random suffix
+                // to prevent collision between concurrent workers finalizing the
+                // same content-addressed hash.
+                let staging = dest_path.with_extension(format!(
+                    "{}.{}.tmp",
+                    std::process::id(),
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .subsec_nanos()
+                ));
                 fs::copy(temp_path, &staging).await?;
                 if let Err(e) = fs::rename(&staging, &dest_path).await {
                     fs::remove_file(&staging).await.ok();

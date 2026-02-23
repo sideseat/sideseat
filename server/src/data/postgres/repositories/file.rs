@@ -64,7 +64,7 @@ pub async fn decrement_ref_count(
         r#"
         UPDATE files
         SET ref_count = ref_count - 1, updated_at = $1
-        WHERE project_id = $2 AND file_hash = $3
+        WHERE project_id = $2 AND file_hash = $3 AND ref_count > 0
         RETURNING ref_count::bigint
         "#,
     )
@@ -310,7 +310,7 @@ pub async fn get_user_file_storage_bytes(
 /// Returns (project_id, file_hash) pairs for orphaned files.
 pub async fn get_orphan_files(pool: &PgPool) -> Result<Vec<(String, String)>, PostgresError> {
     let sql = format!(
-        "SELECT project_id, file_hash FROM files WHERE ref_count = 0 LIMIT {}",
+        "SELECT project_id, file_hash FROM files WHERE ref_count = 0 ORDER BY created_at ASC LIMIT {}",
         FILE_CLEANUP_BATCH_SIZE
     );
     let rows = sqlx::query_as::<_, (String, String)>(&sql)
