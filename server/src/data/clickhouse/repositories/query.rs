@@ -38,18 +38,18 @@ pub(super) fn build_dedup_lookup_cte(extra_where: &str) -> String {
 /// Anti-join condition for gen_totals, replacing 3 correlated NOT EXISTS subqueries.
 /// Requires dedup_lookup CTE to be defined earlier in the WITH clause.
 ///
-/// Each subquery is scoped to the same trace as the outer row (`g.trace_id`)
-/// to maintain correctness: generation spans in trace A must not affect
-/// token dedup for unrelated trace B. This mirrors the DuckDB correlated
-/// NOT EXISTS semantics (`gen.trace_id = g.trace_id`).
+/// Each subquery is scoped to the same trace as the outer row via tuple NOT IN
+/// (e.g. `(g.trace_id, g.span_id) NOT IN (SELECT trace_id, parent_span_id ...)`)
+/// to maintain correctness without correlation: generation spans in trace A must
+/// not affect token dedup for unrelated trace B. ClickHouse does not support
+/// correlated subqueries inside IN/NOT IN (Code 48).
 pub(super) const TOKEN_DEDUP_CONDITION: &str = r#"(
                   (g.observation_type = 'generation'
                    AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND g.span_id NOT IN (
-                       SELECT parent_span_id FROM dedup_lookup
+                   AND (g.trace_id, g.span_id) NOT IN (
+                       SELECT trace_id, parent_span_id FROM dedup_lookup
                        WHERE observation_type = 'generation'
                          AND parent_span_id IS NOT NULL
-                         AND trace_id = g.trace_id
                    ))
                   OR
                   (g.observation_type != 'generation'
@@ -57,11 +57,9 @@ pub(super) const TOKEN_DEDUP_CONDITION: &str = r#"(
                    AND g.trace_id NOT IN (
                        SELECT DISTINCT trace_id FROM dedup_lookup
                        WHERE observation_type = 'generation'
-                         AND trace_id = g.trace_id
                    )
-                   AND (g.parent_span_id IS NULL OR g.parent_span_id NOT IN (
-                       SELECT span_id FROM dedup_lookup
-                       WHERE trace_id = g.trace_id
+                   AND (g.parent_span_id IS NULL OR (g.trace_id, g.parent_span_id) NOT IN (
+                       SELECT trace_id, span_id FROM dedup_lookup
                    )))
               )"#;
 
