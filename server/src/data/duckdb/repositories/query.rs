@@ -1489,16 +1489,13 @@ pub fn delete_spans(
     }
 
     in_transaction(conn, |conn| {
-        // Build OR conditions for each (trace_id, span_id) pair
-        let conditions: Vec<String> = spans
-            .iter()
-            .map(|_| "(trace_id = ? AND span_id = ?)".to_string())
-            .collect();
-        let where_clause = conditions.join(" OR ");
+        // Use tuple IN for efficient multi-pair matching
+        let placeholders: Vec<&str> = spans.iter().map(|_| "(?, ?)").collect();
+        let in_clause = placeholders.join(", ");
 
         let sql = format!(
-            "DELETE FROM otel_spans WHERE project_id = ? AND ({})",
-            where_clause
+            "DELETE FROM otel_spans WHERE project_id = ? AND (trace_id, span_id) IN ({})",
+            in_clause
         );
         let mut stmt = conn.prepare(&sql)?;
 

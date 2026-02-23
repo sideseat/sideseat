@@ -5,7 +5,7 @@ use chrono_tz::Tz;
 use clickhouse::{Client, Row};
 use serde::Deserialize;
 
-use super::query::{DEDUP_LOOKUP_CTE, TOKEN_DEDUP_CONDITION};
+use super::query::{QueryParam, TOKEN_DEDUP_CONDITION, build_time_scoped_dedup};
 use crate::core::constants::QUERY_MAX_TOP_STATS;
 use crate::data::clickhouse::ClickhouseError;
 use crate::data::types::{
@@ -148,6 +148,12 @@ async fn query_main_aggregation(
     let from_micros = params.from_timestamp.timestamp_micros();
     let to_micros = params.to_timestamp.timestamp_micros();
 
+    let dedup = build_time_scoped_dedup(
+        &params.project_id,
+        Some(&params.from_timestamp),
+        Some(&params.to_timestamp),
+    );
+
     let sql = format!(
         r#"
         WITH {dedup_cte},
@@ -194,14 +200,19 @@ async fn query_main_aggregation(
           AND s.timestamp_start >= fromUnixTimestamp64Micro(?)
           AND s.timestamp_start <= fromUnixTimestamp64Micro(?)
         "#,
-        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_cte = dedup.0,
         dedup_condition = TOKEN_DEDUP_CONDITION,
     );
 
-    // Bind order: dedup_lookup(project_id), gen_agg(project_id, from, to), main(project_id, from, to)
-    let row: ChMainAggRow = client
-        .query(&sql)
-        .bind(&params.project_id)
+    // Bind order: dedup_lookup(project_id + time-scope), gen_agg(project_id, from, to), main(project_id, from, to)
+    let mut q = client.query(&sql).bind(&params.project_id);
+    for param in &dedup.1 {
+        q = match param {
+            QueryParam::String(s) => q.bind(s.as_str()),
+            QueryParam::Int64(i) => q.bind(i),
+        };
+    }
+    let row: ChMainAggRow = q
         .bind(&params.project_id)
         .bind(from_micros)
         .bind(to_micros)
@@ -369,6 +380,12 @@ async fn query_model_breakdown(
     let from_micros = params.from_timestamp.timestamp_micros();
     let to_micros = params.to_timestamp.timestamp_micros();
 
+    let dedup = build_time_scoped_dedup(
+        &params.project_id,
+        Some(&params.from_timestamp),
+        Some(&params.to_timestamp),
+    );
+
     let sql = format!(
         r#"
         WITH {dedup_cte},
@@ -403,15 +420,20 @@ async fn query_model_breakdown(
         ORDER BY ms.tokens DESC
         LIMIT {limit}
         "#,
-        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_cte = dedup.0,
         dedup_condition = TOKEN_DEDUP_CONDITION,
         limit = QUERY_MAX_TOP_STATS
     );
 
-    // Bind order: dedup_lookup(project_id), gen_roots(project_id, from, to)
-    let rows: Vec<ChModelRow> = client
-        .query(&sql)
-        .bind(&params.project_id)
+    // Bind order: dedup_lookup(project_id + time-scope), gen_roots(project_id, from, to)
+    let mut q = client.query(&sql).bind(&params.project_id);
+    for param in &dedup.1 {
+        q = match param {
+            QueryParam::String(s) => q.bind(s.as_str()),
+            QueryParam::Int64(i) => q.bind(i),
+        };
+    }
+    let rows: Vec<ChModelRow> = q
         .bind(&params.project_id)
         .bind(from_micros)
         .bind(to_micros)
@@ -459,6 +481,12 @@ async fn query_trend_data(
         "toIntervalHour(1)"
     };
 
+    let dedup = build_time_scoped_dedup(
+        &params.project_id,
+        Some(&params.from_timestamp),
+        Some(&params.to_timestamp),
+    );
+
     let sql = format!(
         r#"
         WITH all_buckets AS (
@@ -500,14 +528,19 @@ async fn query_trend_data(
         "#,
         buckets_array = buckets_array,
         interval = interval,
-        dedup_cte = DEDUP_LOOKUP_CTE,
+        dedup_cte = dedup.0,
         dedup_condition = TOKEN_DEDUP_CONDITION,
     );
 
-    // Bind order: dedup_lookup(project_id), gen_roots(project_id, from, to)
-    let rows: Vec<ChTrendRow> = client
-        .query(&sql)
-        .bind(&params.project_id)
+    // Bind order: dedup_lookup(project_id + time-scope), gen_roots(project_id, from, to)
+    let mut q = client.query(&sql).bind(&params.project_id);
+    for param in &dedup.1 {
+        q = match param {
+            QueryParam::String(s) => q.bind(s.as_str()),
+            QueryParam::Int64(i) => q.bind(i),
+        };
+    }
+    let rows: Vec<ChTrendRow> = q
         .bind(&params.project_id)
         .bind(from_micros)
         .bind(to_micros)

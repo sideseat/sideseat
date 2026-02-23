@@ -16,6 +16,22 @@ use crate::core::config::ClickhouseConfig;
 /// Current schema version
 pub const SCHEMA_VERSION: i32 = 2;
 
+/// Validate and return a cluster name safe for SQL interpolation.
+///
+/// ClickHouse cluster names may contain alphanumeric characters, underscores,
+/// hyphens, and dots. This prevents SQL injection via the config file.
+fn safe_cluster_name(config: &ClickhouseConfig) -> &str {
+    let name = config.cluster.as_deref().unwrap_or("default");
+    assert!(
+        !name.is_empty()
+            && name
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-' || b == b'.'),
+        "Invalid ClickHouse cluster name: {name:?}. Only alphanumeric, underscore, hyphen, and dot are allowed."
+    );
+    name
+}
+
 /// Generate schema version table
 pub fn schema_version_table(config: &ClickhouseConfig) -> String {
     let engine = if config.distributed {
@@ -28,10 +44,7 @@ pub fn schema_version_table(config: &ClickhouseConfig) -> String {
     };
 
     let on_cluster = if config.distributed {
-        format!(
-            " ON CLUSTER {}",
-            config.cluster.as_deref().unwrap_or("default")
-        )
+        format!(" ON CLUSTER {}", safe_cluster_name(config))
     } else {
         String::new()
     };
@@ -53,7 +66,7 @@ ORDER BY id
 
 /// Generate OTEL spans local table (for distributed mode)
 fn otel_spans_local_table(config: &ClickhouseConfig) -> String {
-    let cluster = config.cluster.as_deref().unwrap_or("default");
+    let cluster = safe_cluster_name(config);
     let ttl_clause = "TTL timestamp_start + INTERVAL 90 DAY DELETE";
 
     format!(
@@ -193,7 +206,7 @@ SETTINGS index_granularity = 8192, merge_with_ttl_timeout = 3600
 
 /// Generate OTEL spans distributed table
 fn otel_spans_distributed_table(config: &ClickhouseConfig) -> String {
-    let cluster = config.cluster.as_deref().unwrap_or("default");
+    let cluster = safe_cluster_name(config);
 
     format!(
         r#"
@@ -340,7 +353,7 @@ SETTINGS index_granularity = 8192, merge_with_ttl_timeout = 3600
 
 /// Generate OTEL metrics local table (for distributed mode)
 fn otel_metrics_local_table(config: &ClickhouseConfig) -> String {
-    let cluster = config.cluster.as_deref().unwrap_or("default");
+    let cluster = safe_cluster_name(config);
 
     format!(
         r#"
@@ -431,7 +444,7 @@ SETTINGS index_granularity = 8192
 
 /// Generate OTEL metrics distributed table
 fn otel_metrics_distributed_table(config: &ClickhouseConfig) -> String {
-    let cluster = config.cluster.as_deref().unwrap_or("default");
+    let cluster = safe_cluster_name(config);
 
     format!(
         r#"
@@ -582,10 +595,7 @@ pub fn get_delete_table(config: &ClickhouseConfig, base_name: &str) -> String {
 /// In distributed mode, mutations need ON CLUSTER to execute on all nodes.
 pub fn get_on_cluster_clause(config: &ClickhouseConfig) -> String {
     if config.distributed {
-        format!(
-            " ON CLUSTER {}",
-            config.cluster.as_deref().unwrap_or("default")
-        )
+        format!(" ON CLUSTER {}", safe_cluster_name(config))
     } else {
         String::new()
     }

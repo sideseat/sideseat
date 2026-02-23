@@ -237,8 +237,8 @@ impl TopicBackend for MemoryTopicBackend {
             id
         };
 
-        // Wake subscriber immediately (no 100ms polling delay)
-        self.get_or_create_notifier(topic).notify_one();
+        // Wake all waiting subscribers (supports multi-consumer groups)
+        self.get_or_create_notifier(topic).notify_waiters();
 
         Ok(id.to_string())
     }
@@ -359,10 +359,17 @@ impl TopicBackend for MemoryTopicBackend {
         group: &str,
         ids: &[String],
     ) -> Result<(), TopicError> {
+        let mut last_err = None;
         for id in ids {
-            self.stream_ack(topic, group, id).await?;
+            if let Err(e) = self.stream_ack(topic, group, id).await {
+                tracing::warn!(error = %e, id, "Failed to ack message in batch, continuing");
+                last_err = Some(e);
+            }
         }
-        Ok(())
+        match last_err {
+            Some(e) => Err(e),
+            None => Ok(()),
+        }
     }
 
     async fn stream_claim(

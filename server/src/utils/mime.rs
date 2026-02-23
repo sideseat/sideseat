@@ -125,10 +125,16 @@ pub fn detect_mime_type(data: &[u8]) -> Option<&'static str> {
 }
 
 /// Check if a string is a valid MIME type (e.g., "image/png", "application/octet-stream").
-/// Requires exactly one `/` and only valid MIME characters.
+/// Requires exactly one `/`, non-empty type and subtype, and only valid MIME characters.
 pub fn is_valid_mime_type(s: &str) -> bool {
-    let slash_count = s.bytes().filter(|&b| b == b'/').count();
-    if slash_count != 1 {
+    let Some((type_part, subtype)) = s.split_once('/') else {
+        return false;
+    };
+    if type_part.is_empty() || subtype.is_empty() {
+        return false;
+    }
+    // Reject multiple slashes
+    if subtype.contains('/') {
         return false;
     }
     s.bytes().all(|b| {
@@ -346,5 +352,75 @@ mod tests {
         d.extend_from_slice(b"ftypM4A ");
         d.extend_from_slice(&[0; 4]);
         assert_eq!(detect_mime_type(&d), Some("audio/mp4"));
+    }
+
+    // ========================================================================
+    // is_valid_mime_type tests
+    // ========================================================================
+
+    #[test]
+    fn test_valid_mime_types() {
+        assert!(is_valid_mime_type("image/png"));
+        assert!(is_valid_mime_type("image/jpeg"));
+        assert!(is_valid_mime_type("application/octet-stream"));
+        assert!(is_valid_mime_type(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ));
+        assert!(is_valid_mime_type("text/plain"));
+        assert!(is_valid_mime_type("audio/mpeg"));
+        assert!(is_valid_mime_type("video/mp4"));
+        assert!(is_valid_mime_type("application/json"));
+        assert!(is_valid_mime_type("image/svg+xml"));
+    }
+
+    #[test]
+    fn test_invalid_mime_empty() {
+        assert!(!is_valid_mime_type(""));
+    }
+
+    #[test]
+    fn test_invalid_mime_no_slash() {
+        assert!(!is_valid_mime_type("image"));
+        assert!(!is_valid_mime_type("png"));
+    }
+
+    #[test]
+    fn test_invalid_mime_multiple_slashes() {
+        assert!(!is_valid_mime_type("image/png/extra"));
+        assert!(!is_valid_mime_type("a/b/c"));
+    }
+
+    #[test]
+    fn test_invalid_mime_special_chars() {
+        assert!(!is_valid_mime_type("image png"));
+        assert!(!is_valid_mime_type("image/png; charset=utf-8"));
+        assert!(!is_valid_mime_type("../etc/passwd"));
+        assert!(!is_valid_mime_type("image\0/png"));
+    }
+
+    #[test]
+    fn test_valid_mime_with_special_allowed_chars() {
+        // Dots, hyphens, plus, underscores are valid
+        assert!(is_valid_mime_type("application/x-tar"));
+        assert!(is_valid_mime_type("application/vnd.ms-excel"));
+        assert!(is_valid_mime_type("application/atom+xml"));
+        assert!(is_valid_mime_type("application/x_custom"));
+    }
+
+    #[test]
+    fn test_invalid_mime_empty_type_or_subtype() {
+        // Empty type part
+        assert!(!is_valid_mime_type("/png"));
+        // Empty subtype part
+        assert!(!is_valid_mime_type("image/"));
+        // Both empty
+        assert!(!is_valid_mime_type("/"));
+    }
+
+    #[test]
+    fn test_valid_mime_case_insensitive() {
+        // MIME types are case-insensitive per RFC; our validator accepts uppercase
+        assert!(is_valid_mime_type("IMAGE/PNG"));
+        assert!(is_valid_mime_type("Application/JSON"));
     }
 }

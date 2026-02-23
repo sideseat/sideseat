@@ -42,7 +42,7 @@ services:
       - "-c"
       - "checkpoint_timeout=10min"
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - ./data/postgres:/var/lib/postgresql
     healthcheck:
@@ -69,7 +69,7 @@ services:
         soft: 262144
         hard: 262144
     ports:
-      - "${CLICKHOUSE_HTTP_PORT:-8123}:8123"
+      - "127.0.0.1:${CLICKHOUSE_HTTP_PORT:-8123}:8123"
     volumes:
       - ./data/clickhouse:/var/lib/clickhouse
       - ./data/clickhouse-logs:/var/log/clickhouse-server
@@ -105,7 +105,7 @@ services:
       - "--loglevel"
       - "notice"
     ports:
-      - "${VALKEY_PORT:-6379}:6379"
+      - "127.0.0.1:${VALKEY_PORT:-6379}:6379"
     volumes:
       - ./data/valkey:/data
     healthcheck:
@@ -129,7 +129,7 @@ services:
       VAULT_DEV_TOKEN: ${VAULT_DEV_TOKEN:-devroot}
     entrypoint: ["/vault/scripts/vault-entrypoint.sh"]
     ports:
-      - "${VAULT_PORT:-8200}:8200"
+      - "127.0.0.1:${VAULT_PORT:-8200}:8200"
     volumes:
       - ./data/vault:/vault/data
       - ./vault.hcl:/vault/config/vault.hcl:ro

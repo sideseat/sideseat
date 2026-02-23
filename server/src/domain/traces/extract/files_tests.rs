@@ -1853,7 +1853,7 @@ fn test_extract_or_cache_returns_none_for_non_base64() {
 #[test]
 fn test_extract_or_cache_returns_none_for_small_base64() {
     // Valid base64 below min size should not be extracted
-    let small = BASE64_STANDARD.encode(&vec![0u8; 100]);
+    let small = BASE64_STANDARD.encode(vec![0u8; 100]);
     let mut messages = json!({ "bytes": small });
     let result = extract_and_replace_files(&mut messages);
     assert!(!result.modified);
