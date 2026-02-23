@@ -108,7 +108,6 @@ async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteEr
 }
 
 /// Apply a versioned migration with tracking
-#[allow(dead_code)]
 async fn apply_versioned_migration(
     pool: &SqlitePool,
     version: i32,

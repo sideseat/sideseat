@@ -155,7 +155,15 @@ pub fn any_value_to_json(value: &AnyValue) -> JsonValue {
         Some(any_value::Value::StringValue(s)) => serde_json::json!(s),
         Some(any_value::Value::BoolValue(b)) => serde_json::json!(b),
         Some(any_value::Value::IntValue(i)) => serde_json::json!(i),
-        Some(any_value::Value::DoubleValue(d)) => serde_json::json!(d),
+        Some(any_value::Value::DoubleValue(d)) => {
+            if d.is_finite() {
+                serde_json::json!(d)
+            } else {
+                // JSON spec does not support NaN/Infinity; use null to avoid
+                // unserializable serde_json::Value that would break persistence.
+                JsonValue::Null
+            }
+        }
         Some(any_value::Value::ArrayValue(arr)) => {
             serde_json::json!(arr.values.iter().map(any_value_to_json).collect::<Vec<_>>())
         }
@@ -349,9 +357,9 @@ mod tests {
 
     #[test]
     fn test_any_value_to_json_double() {
-        let av = make_any_value(any_value::Value::DoubleValue(3.14));
+        let av = make_any_value(any_value::Value::DoubleValue(1.23));
         let json = any_value_to_json(&av);
-        assert_eq!(json, serde_json::json!(3.14));
+        assert_eq!(json, serde_json::json!(1.23));
         assert!(
             json.is_f64(),
             "Double should be preserved as f64, not stringified"
@@ -517,6 +525,59 @@ mod tests {
         let obj = json.as_object().unwrap();
         let nested = obj.get("nested").unwrap().as_object().unwrap();
         assert_eq!(nested.get("inner_key").unwrap(), &serde_json::json!(99));
+    }
+
+    // ================================================================
+    // NaN/Infinity edge cases
+    // ================================================================
+
+    #[test]
+    fn test_any_value_to_json_nan_becomes_null() {
+        // JSON does not support NaN; must produce null, not an unserializable Number
+        let av = make_any_value(any_value::Value::DoubleValue(f64::NAN));
+        let json = any_value_to_json(&av);
+        assert!(json.is_null(), "NaN should become null, got {:?}", json);
+        // Verify the result is serializable
+        assert!(serde_json::to_string(&json).is_ok());
+    }
+
+    #[test]
+    fn test_any_value_to_json_infinity_becomes_null() {
+        let av = make_any_value(any_value::Value::DoubleValue(f64::INFINITY));
+        let json = any_value_to_json(&av);
+        assert!(json.is_null(), "Infinity should become null");
+        assert!(serde_json::to_string(&json).is_ok());
+    }
+
+    #[test]
+    fn test_any_value_to_json_neg_infinity_becomes_null() {
+        let av = make_any_value(any_value::Value::DoubleValue(f64::NEG_INFINITY));
+        let json = any_value_to_json(&av);
+        assert!(json.is_null(), "NEG_INFINITY should become null");
+    }
+
+    #[test]
+    fn test_build_attributes_json_with_nan_is_serializable() {
+        // Regression: a single NaN attribute must not make the entire JSON unserializable
+        let attrs = vec![
+            KeyValue {
+                key: "good".to_string(),
+                value: Some(make_any_value(any_value::Value::IntValue(42))),
+            },
+            KeyValue {
+                key: "bad".to_string(),
+                value: Some(make_any_value(any_value::Value::DoubleValue(f64::NAN))),
+            },
+        ];
+        let json = build_attributes_json(&attrs);
+        let serialized = serde_json::to_string(&json);
+        assert!(
+            serialized.is_ok(),
+            "JSON with NaN attribute must be serializable"
+        );
+        let obj = json.as_object().unwrap();
+        assert_eq!(obj.get("good").unwrap(), &serde_json::json!(42));
+        assert!(obj.get("bad").unwrap().is_null());
     }
 
     #[test]

@@ -63,6 +63,12 @@ impl ClickhouseService {
             client = client.with_compression(clickhouse::Compression::Lz4);
         }
 
+        // FINAL optimization: process each partition independently during FINAL queries.
+        // Without this, ReplacingMergeTree FINAL merges all partitions in a single pass,
+        // which at TB scale causes merge storms processing billions of rows. With this
+        // setting, each monthly partition is processed in parallel.
+        client = client.with_option("do_not_merge_across_partitions_select_final", "1");
+
         // Configure async inserts for high-throughput ingestion
         // This enables server-side batching - inserts are buffered and flushed periodically
         if config.async_insert {

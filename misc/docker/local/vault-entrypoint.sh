@@ -13,6 +13,10 @@ mkdir -p /vault/data
 vault server -config=/vault/config/vault.hcl &
 VAULT_PID=$!
 
+# Forward signals to Vault for graceful shutdown (register early to
+# catch SIGTERM during initialization, not just after ready)
+trap "kill $VAULT_PID 2>/dev/null; wait $VAULT_PID" TERM INT
+
 # Wait for Vault listener (exit code 2 = sealed but reachable)
 echo "Waiting for Vault to start..."
 READY=0
@@ -42,6 +46,7 @@ if [ ! -f "$INIT_FILE" ]; then
     exit 1
   fi
   mv "${INIT_FILE}.tmp" "$INIT_FILE"
+  chmod 600 "$INIT_FILE"
 fi
 
 # Parse unseal key and original root token
@@ -71,7 +76,7 @@ if ! vault secrets list -format=json 2>/dev/null | grep -q '"secret/"'; then
   vault secrets enable -path=secret kv-v2 2>/dev/null || true
 fi
 
-echo "Vault ready (token: $STATIC_TOKEN)"
+echo "Vault ready"
 
 # Foreground: wait for Vault process
 wait $VAULT_PID
