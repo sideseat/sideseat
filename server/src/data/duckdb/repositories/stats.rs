@@ -101,7 +101,7 @@ fn query_main_aggregation(
                 COALESCE(SUM(gen_ai_cost_cache_write), 0) AS cache_write_cost,
                 COALESCE(SUM(gen_ai_cost_reasoning), 0) AS reasoning_cost,
                 COALESCE(SUM(gen_ai_cost_total), 0) AS total_cost
-            FROM otel_spans g
+            FROM otel_spans_v g
             WHERE g.project_id = ?
               AND g.timestamp_start >= ?
               AND g.timestamp_start <= ?
@@ -150,7 +150,7 @@ fn query_main_aggregation(
             ROUND(COALESCE(MAX(ga.cache_write_cost), 0)::DOUBLE, 4) AS cache_write_cost,
             ROUND(COALESCE(MAX(ga.reasoning_cost), 0)::DOUBLE, 4) AS reasoning_cost,
             ROUND(COALESCE(MAX(ga.total_cost), 0)::DOUBLE, 4) AS total_cost
-        FROM otel_spans s
+        FROM otel_spans_v s
         CROSS JOIN gen_agg ga
         WHERE s.project_id = ?
           AND s.timestamp_start >= ?
@@ -209,7 +209,7 @@ fn query_trace_count(
 ) -> Result<i64, DuckdbError> {
     let sql = r#"
         SELECT COUNT(DISTINCT trace_id) AS traces
-        FROM otel_spans
+        FROM otel_spans_v
         WHERE project_id = ?
           AND timestamp_start >= ?
           AND timestamp_start <= ?
@@ -233,7 +233,7 @@ fn query_avg_trace_duration(
                 trace_id,
                 MIN(timestamp_start) AS min_ts,
                 MAX(COALESCE(timestamp_end, timestamp_start)) AS max_ts
-            FROM otel_spans
+            FROM otel_spans_v
             WHERE project_id = ?
               AND timestamp_start >= ?
               AND timestamp_start <= ?
@@ -260,7 +260,7 @@ fn query_framework_breakdown(
         r#"
         WITH genai_traces AS (
             SELECT DISTINCT trace_id
-            FROM otel_spans
+            FROM otel_spans_v
             WHERE project_id = ?
               AND timestamp_start >= ?
               AND timestamp_start <= ?
@@ -270,7 +270,7 @@ fn query_framework_breakdown(
             SELECT
                 framework,
                 COUNT(DISTINCT trace_id) AS count
-            FROM otel_spans
+            FROM otel_spans_v
             WHERE project_id = ?
               AND timestamp_start >= ?
               AND timestamp_start <= ?
@@ -332,7 +332,7 @@ fn query_model_breakdown(
                 g.gen_ai_request_model,
                 g.gen_ai_usage_total_tokens,
                 g.gen_ai_cost_total
-            FROM otel_spans g
+            FROM otel_spans_v g
             WHERE g.project_id = ?
               AND g.timestamp_start >= ?
               AND g.timestamp_start <= ?
@@ -445,7 +445,7 @@ fn query_trend_data(
             SELECT
                 g.timestamp_start,
                 COALESCE(g.gen_ai_usage_total_tokens, 0) AS total_tokens
-            FROM otel_spans g
+            FROM otel_spans_v g
             WHERE g.project_id = ?
               AND g.timestamp_start >= ?
               AND g.timestamp_start <= ?
@@ -554,7 +554,7 @@ fn query_latency_trend_data(
                 trace_id,
                 MIN(timestamp_start) AS min_ts,
                 MAX(COALESCE(timestamp_end, timestamp_start)) AS max_ts
-            FROM otel_spans
+            FROM otel_spans_v
             WHERE project_id = ?
               AND timestamp_start >= ?
               AND timestamp_start <= ?
@@ -675,7 +675,7 @@ fn query_recent_activity(conn: &Connection, project_id: &str) -> Result<i64, Duc
 
     let sql = r#"
         SELECT COUNT(DISTINCT trace_id)
-        FROM otel_spans
+        FROM otel_spans_v
         WHERE project_id = ?
           AND timestamp_start >= ?
           AND timestamp_start <= ?

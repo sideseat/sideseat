@@ -1,11 +1,11 @@
 //! DuckDB schema definitions
 //!
 //! Append-only storage with no PRIMARY KEY constraints.
-//! Deduplication happens at query time via GROUP BY or Rust FxHashMap.
-//! See DESIGN.md for deduplication strategy details.
+//! Deduplication happens at query time via the `otel_spans_v` VIEW
+//! (QUALIFY ROW_NUMBER partitioned by trace_id, span_id).
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 1;
+pub const SCHEMA_VERSION: i32 = 2;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -294,6 +294,14 @@ CREATE INDEX IF NOT EXISTS idx_metrics_project_name ON otel_metrics(project_id, 
 CREATE INDEX IF NOT EXISTS idx_metrics_project_name_ts ON otel_metrics(project_id, metric_name, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_metrics_exemplar_trace ON otel_metrics(project_id, exemplar_trace_id);
 CREATE INDEX IF NOT EXISTS idx_metrics_session ON otel_metrics(project_id, session_id);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Deduplicated spans view: query-time dedup for append-only storage
+-- DuckDB inlines VIEWs and pushes WHERE predicates through the window function
+-- ═══════════════════════════════════════════════════════════════════════════════
+CREATE VIEW IF NOT EXISTS otel_spans_v AS
+SELECT * FROM otel_spans
+QUALIFY ROW_NUMBER() OVER (PARTITION BY trace_id, span_id ORDER BY ingested_at DESC) = 1;
 "#;
 
 #[cfg(test)]
@@ -323,5 +331,10 @@ mod tests {
                 table
             );
         }
+
+        assert!(
+            SCHEMA.contains("CREATE VIEW IF NOT EXISTS otel_spans_v"),
+            "Schema missing dedup view: otel_spans_v"
+        );
     }
 }
