@@ -36,7 +36,18 @@ pub fn run_migrations(conn: &Connection) -> Result<(), DuckdbError> {
         )
         .unwrap_or(0);
 
-    if current_version >= SCHEMA_VERSION {
+    if current_version > SCHEMA_VERSION {
+        return Err(DuckdbError::MigrationFailed {
+            version: current_version,
+            name: "version_check".to_string(),
+            error: format!(
+                "Database schema version {} is newer than application version {}. Upgrade the application.",
+                current_version, SCHEMA_VERSION
+            ),
+        });
+    }
+
+    if current_version == SCHEMA_VERSION {
         tracing::debug!(
             "Database schema is up to date (version {})",
             current_version
@@ -72,17 +83,9 @@ fn apply_initial_schema(conn: &Connection) -> Result<(), DuckdbError> {
     })
 }
 
-fn apply_migration(conn: &Connection, version: i32) -> Result<(), DuckdbError> {
+fn apply_migration(_conn: &Connection, version: i32) -> Result<(), DuckdbError> {
     match version {
         1 => Ok(()), // Handled by apply_initial_schema
-        2 => apply_versioned_migration(
-            conn,
-            2,
-            "create_spans_dedup_view",
-            "CREATE VIEW IF NOT EXISTS otel_spans_v AS \
-             SELECT * FROM otel_spans \
-             QUALIFY ROW_NUMBER() OVER (PARTITION BY trace_id, span_id ORDER BY ingested_at DESC) = 1;",
-        ),
         _ => Err(DuckdbError::MigrationFailed {
             version,
             name: "unknown".to_string(),
@@ -91,6 +94,7 @@ fn apply_migration(conn: &Connection, version: i32) -> Result<(), DuckdbError> {
     }
 }
 
+#[allow(dead_code)]
 /// Apply a versioned migration with transaction safety and audit logging.
 ///
 /// Use this function in `apply_migration` match arms for incremental schema changes.

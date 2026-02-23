@@ -12,6 +12,24 @@ use crate::data::types::{
 };
 use crate::utils::time::{micros_to_datetime, parse_iso_timestamp};
 
+/// Inline dedup subquery replacing the old `otel_spans_v` view.
+///
+/// Used only where duplicates corrupt results:
+/// - SUM/COUNT(*) aggregation (inflated totals)
+/// - LIMIT/OFFSET or cursor pagination data queries (page misalignment)
+///
+/// NOT needed for (these query `otel_spans` directly):
+/// - COUNT(DISTINCT)/APPROX_COUNT_DISTINCT (immune to duplicates)
+/// - DISTINCT subqueries (immune)
+/// - GROUP BY with MIN/MAX only (immune)
+/// - Point lookups by (trace_id, span_id) with DedupAnalyticsRepository
+/// - Single-span UNNEST (point-lookup dedup via ORDER BY ingested_at LIMIT 1)
+pub(crate) const DEDUP_SPANS: &str = "(SELECT s.* FROM otel_spans s \
+     INNER JOIN (SELECT project_id, trace_id, span_id, MIN(ingested_at) AS _mi \
+                 FROM otel_spans GROUP BY project_id, trace_id, span_id \
+     ) _d ON s.project_id = _d.project_id AND s.trace_id = _d.trace_id \
+     AND s.span_id = _d.span_id AND s.ingested_at = _d._mi)";
+
 /// Build span conditions with optional table alias.
 /// Returns (WHERE clause, bind values).
 fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (String, Vec<String>) {
@@ -97,10 +115,13 @@ pub fn list_traces(
     let (span_where, bind_values) = build_trace_span_conditions(params, "");
 
     // Count query: when filtering to GenAI only, use HAVING to filter traces with GenAI spans
+    // Count query — raw otel_spans avoids the DEDUP_SPANS self-join.
+    // Safe because duplicates share identical data for all filterable columns,
+    // and the HAVING > 0 check is immune to row duplication.
     let count_sql = if !params.include_nongenai {
         format!(
             r#"SELECT COUNT(*) FROM (
-                SELECT trace_id FROM otel_spans_v WHERE {}
+                SELECT trace_id FROM otel_spans WHERE {}
                 GROUP BY trace_id
                 HAVING COUNT(*) FILTER (WHERE observation_type != 'span') > 0
             ) t"#,
@@ -108,7 +129,7 @@ pub fn list_traces(
         )
     } else {
         format!(
-            "SELECT COUNT(DISTINCT trace_id) FROM otel_spans_v WHERE {}",
+            "SELECT COUNT(DISTINCT trace_id) FROM otel_spans WHERE {}",
             span_where
         )
     };
@@ -168,7 +189,7 @@ pub fn list_traces(
                 COALESCE(SUM(gen_ai_cost_cache_write), 0) AS cache_write_cost,
                 COALESCE(SUM(gen_ai_cost_reasoning), 0) AS reasoning_cost,
                 COALESCE(SUM(gen_ai_cost_total), 0) AS total_cost
-            FROM otel_spans_v g
+            FROM {DEDUP_SPANS} g
             WHERE {span_where_g}
               AND (
                   (g.observation_type = 'generation'
@@ -208,7 +229,7 @@ pub fn list_traces(
                 DATE_DIFF('millisecond', MIN(sp.timestamp_start), MAX(COALESCE(sp.timestamp_end, sp.timestamp_start))) as duration_ms,
                 COALESCE(MAX(gt.total_cost), 0)::DOUBLE as total_cost,
                 COUNT(*) FILTER (WHERE sp.observation_type != 'span') as observation_count
-            FROM otel_spans_v sp
+            FROM {DEDUP_SPANS} sp
             LEFT JOIN gen_totals gt ON sp.trace_id = gt.trace_id
             WHERE {span_where_sp}
             GROUP BY sp.project_id, sp.trace_id
@@ -254,7 +275,7 @@ pub fn list_traces(
             ) AS output_preview,
             bool_or(s.status_code = 'ERROR') AS has_error
         FROM filtered_traces t
-        JOIN otel_spans_v s ON t.project_id = s.project_id AND t.trace_id = s.trace_id
+        JOIN {DEDUP_SPANS} s ON t.project_id = s.project_id AND t.trace_id = s.trace_id
         LEFT JOIN gen_totals gt2 ON t.trace_id = gt2.trace_id
         GROUP BY t.trace_id, t.min_ts
         ORDER BY t.min_ts {sort_dir}
@@ -264,7 +285,8 @@ pub fn list_traces(
         span_sort_field = span_sort_field,
         sort_dir = sort_dir,
         limit = params.limit,
-        offset = offset
+        offset = offset,
+        DEDUP_SPANS = DEDUP_SPANS
     );
 
     // Combine bind values: gen_totals CTE first, then filtered_traces CTE
@@ -284,7 +306,8 @@ pub fn get_trace(
     // Two-path token filter: (1) generation root spans (parent not a generation),
     // (2) non-generation token spans in traces without any generation spans.
     // Handles: Strands (agent->cycle->gen->botocore), LangGraph, structured output.
-    let sql = r#"
+    let sql = format!(
+        r#"
         WITH gen_totals AS (
             SELECT
                 COALESCE(SUM(gen_ai_usage_input_tokens), 0) AS input_tokens,
@@ -299,7 +322,7 @@ pub fn get_trace(
                 COALESCE(SUM(gen_ai_cost_cache_write), 0) AS cache_write_cost,
                 COALESCE(SUM(gen_ai_cost_reasoning), 0) AS reasoning_cost,
                 COALESCE(SUM(gen_ai_cost_total), 0) AS total_cost
-            FROM otel_spans_v g
+            FROM {DEDUP_SPANS} g
             WHERE g.project_id = ? AND g.trace_id = ?
               AND (
                   (g.observation_type = 'generation'
@@ -366,16 +389,18 @@ pub fn get_trace(
                 FIRST(s.output_preview ORDER BY s.timestamp_start DESC) FILTER (WHERE s.output_preview IS NOT NULL)
             ) AS output_preview,
             bool_or(s.status_code = 'ERROR') AS has_error
-        FROM otel_spans_v s
+        FROM {DEDUP_SPANS} s
         CROSS JOIN gen_totals gt
         WHERE s.project_id = ? AND s.trace_id = ?
         GROUP BY s.trace_id, gt.input_tokens, gt.output_tokens, gt.total_tokens,
                  gt.cache_read_tokens, gt.cache_write_tokens, gt.reasoning_tokens,
                  gt.input_cost, gt.output_cost, gt.cache_read_cost, gt.cache_write_cost,
                  gt.reasoning_cost, gt.total_cost
-    "#;
+    "#,
+        DEDUP_SPANS = DEDUP_SPANS
+    );
 
-    let mut stmt = conn.prepare(sql)?;
+    let mut stmt = conn.prepare(&sql)?;
     let mut rows = stmt.query([
         project_id, trace_id, // generation_roots
         project_id, trace_id, // main query
@@ -472,8 +497,11 @@ pub fn list_spans(
 
     let where_clause = conditions.join(" AND ");
 
-    // Count query (deduplicated via view)
-    let count_sql = format!("SELECT COUNT(*) FROM otel_spans_v WHERE {}", where_clause);
+    // Count query — COUNT(DISTINCT) on raw table avoids the DEDUP_SPANS self-join
+    let count_sql = format!(
+        "SELECT COUNT(*) FROM (SELECT DISTINCT trace_id, span_id FROM otel_spans WHERE {}) _c",
+        where_clause
+    );
     let total = execute_count(conn, &count_sql, &bind_values)?;
 
     // Data query - map API column names (start_time/end_time) to DB columns (timestamp_start/timestamp_end)
@@ -496,8 +524,9 @@ pub fn list_spans(
                 gen_ai_cost_reasoning::DOUBLE, gen_ai_cost_total::DOUBLE,
                 gen_ai_usage_details::VARCHAR, metadata::VARCHAR, (raw_span->'attributes')::VARCHAR,
                 input_preview, output_preview, raw_span::VARCHAR, ingested_at
-         FROM otel_spans_v WHERE {} ORDER BY {} LIMIT {} OFFSET {}",
-        where_clause, order, params.limit, offset
+         FROM {DEDUP_SPANS} WHERE {} ORDER BY {} LIMIT {} OFFSET {}",
+        where_clause, order, params.limit, offset,
+        DEDUP_SPANS = DEDUP_SPANS
     );
 
     let rows = execute_span_query(conn, &data_sql, &bind_values)?;
@@ -552,8 +581,9 @@ pub fn get_feed_spans(
                 gen_ai_cost_reasoning::DOUBLE, gen_ai_cost_total::DOUBLE,
                 gen_ai_usage_details::VARCHAR, metadata::VARCHAR, (raw_span->'attributes')::VARCHAR,
                 input_preview, output_preview, raw_span::VARCHAR, ingested_at
-         FROM otel_spans_v WHERE {} ORDER BY ingested_at DESC, span_id DESC LIMIT {}",
-        where_clause, params.limit
+         FROM {DEDUP_SPANS} WHERE {} ORDER BY ingested_at DESC, span_id DESC LIMIT {}",
+        where_clause, params.limit,
+        DEDUP_SPANS = DEDUP_SPANS
     );
 
     execute_span_query(conn, &data_sql, &bind_values)
@@ -577,7 +607,7 @@ pub fn get_spans_for_trace(
                gen_ai_cost_reasoning::DOUBLE, gen_ai_cost_total::DOUBLE,
                gen_ai_usage_details::VARCHAR, metadata::VARCHAR, (raw_span->'attributes')::VARCHAR,
                input_preview, output_preview, raw_span::VARCHAR, ingested_at
-               FROM otel_spans_v WHERE project_id = ? AND trace_id = ? ORDER BY timestamp_start LIMIT {}",
+               FROM otel_spans WHERE project_id = ? AND trace_id = ? ORDER BY timestamp_start LIMIT {}",
         QUERY_MAX_SPANS_PER_TRACE
     );
 
@@ -602,7 +632,7 @@ pub fn get_span(
                gen_ai_cost_reasoning::DOUBLE, gen_ai_cost_total::DOUBLE,
                gen_ai_usage_details::VARCHAR, metadata::VARCHAR, (raw_span->'attributes')::VARCHAR,
                input_preview, output_preview, raw_span::VARCHAR, ingested_at
-               FROM otel_spans_v WHERE project_id = ? AND trace_id = ? AND span_id = ?";
+               FROM otel_spans WHERE project_id = ? AND trace_id = ? AND span_id = ?";
 
     let mut stmt = conn.prepare(sql)?;
     let mut rows = stmt.query([project_id, trace_id, span_id])?;
@@ -621,14 +651,17 @@ pub fn get_events_for_span(
     trace_id: &str,
     span_id: &str,
 ) -> Result<Vec<EventRow>, DuckdbError> {
-    // LIMIT prevents memory exhaustion with pathological data
+    // Point-lookup dedup: fetch the single canonical row, then UNNEST its events.
+    // Much faster than DEDUP_SPANS which GROUP BY + JOINs all project spans.
     let sql = format!(
-        "SELECT span_id, (ordinality - 1)::INTEGER as event_index,
+        "SELECT _s.span_id, (ordinality - 1)::INTEGER as event_index,
                       event->>'timestamp' as event_timestamp,
                       event->>'name' as event_name,
                       (event->'attributes')::VARCHAR as attributes
-               FROM otel_spans_v, UNNEST(CAST(raw_span->'events' AS JSON[])) WITH ORDINALITY AS t(event, ordinality)
-               WHERE project_id = ? AND trace_id = ? AND span_id = ?
+               FROM (SELECT span_id, raw_span FROM otel_spans
+                     WHERE project_id = ? AND trace_id = ? AND span_id = ?
+                     ORDER BY ingested_at LIMIT 1) _s,
+                    UNNEST(CAST(_s.raw_span->'events' AS JSON[])) WITH ORDINALITY AS t(event, ordinality)
                ORDER BY ordinality
                LIMIT {}",
         QUERY_MAX_SPANS_PER_TRACE
@@ -659,12 +692,14 @@ pub fn get_links_for_span(
     trace_id: &str,
     span_id: &str,
 ) -> Result<Vec<LinkRow>, DuckdbError> {
-    // LIMIT prevents memory exhaustion with pathological data
+    // Point-lookup dedup: fetch the single canonical row, then UNNEST its links.
     let sql = format!(
-        "SELECT span_id, link->>'trace_id' as linked_trace_id, link->>'span_id' as linked_span_id,
+        "SELECT _s.span_id, link->>'trace_id' as linked_trace_id, link->>'span_id' as linked_span_id,
                 (link->'attributes')::VARCHAR as attributes
-               FROM otel_spans_v, UNNEST(CAST(raw_span->'links' AS JSON[])) WITH ORDINALITY AS t(link, ordinality)
-               WHERE project_id = ? AND trace_id = ? AND span_id = ?
+               FROM (SELECT span_id, raw_span FROM otel_spans
+                     WHERE project_id = ? AND trace_id = ? AND span_id = ?
+                     ORDER BY ingested_at LIMIT 1) _s,
+                    UNNEST(CAST(_s.raw_span->'links' AS JSON[])) WITH ORDINALITY AS t(link, ordinality)
                ORDER BY ordinality
                LIMIT {}",
         QUERY_MAX_SPANS_PER_TRACE
@@ -763,8 +798,9 @@ pub fn list_sessions(
     // Build WHERE clause without alias for count query (single table)
     let (span_where, bind_values) = build_session_span_conditions(params, "");
 
+    // Count query — raw otel_spans avoids the DEDUP_SPANS self-join
     let count_sql = format!(
-        "SELECT COUNT(DISTINCT session_id) FROM otel_spans_v WHERE {}",
+        "SELECT COUNT(DISTINCT session_id) FROM otel_spans WHERE {}",
         span_where
     );
     let total = execute_count(conn, &count_sql, &bind_values)?;
@@ -815,7 +851,7 @@ pub fn list_sessions(
                 COALESCE(SUM(gen_ai_cost_cache_write), 0) AS cache_write_cost,
                 COALESCE(SUM(gen_ai_cost_reasoning), 0) AS reasoning_cost,
                 COALESCE(SUM(gen_ai_cost_total), 0) AS total_cost
-            FROM otel_spans_v g
+            FROM {DEDUP_SPANS} g
             WHERE {span_where_g}
               AND (
                   (g.observation_type = 'generation'
@@ -854,7 +890,7 @@ pub fn list_sessions(
                 COALESCE(MAX(gt.total_cost), 0)::DOUBLE as total_cost,
                 COUNT(DISTINCT sp.trace_id) as trace_count,
                 COUNT(*) as span_count
-            FROM otel_spans_v sp
+            FROM {DEDUP_SPANS} sp
             LEFT JOIN gen_totals gt ON sp.session_id = gt.session_id
             WHERE {span_where_sp}
             GROUP BY sp.project_id, sp.session_id
@@ -883,7 +919,7 @@ pub fn list_sessions(
             COALESCE(MAX(gt2.reasoning_cost), 0)::DOUBLE AS reasoning_cost,
             COALESCE(MAX(gt2.total_cost), 0)::DOUBLE AS total_cost
         FROM filtered_sessions f
-        JOIN otel_spans_v s ON f.project_id = s.project_id AND f.session_id = s.session_id
+        JOIN {DEDUP_SPANS} s ON f.project_id = s.project_id AND f.session_id = s.session_id
         LEFT JOIN gen_totals gt2 ON f.session_id = gt2.session_id
         GROUP BY f.session_id, f.min_ts
         ORDER BY f.min_ts {sort_dir}
@@ -893,7 +929,8 @@ pub fn list_sessions(
         span_sort_field = span_sort_field,
         sort_dir = sort_dir,
         limit = params.limit,
-        offset = offset
+        offset = offset,
+        DEDUP_SPANS = DEDUP_SPANS
     );
 
     // Combine bind values: gen_totals CTE first, then filtered_sessions CTE
@@ -913,9 +950,10 @@ pub fn get_session(
     // session_id is only on root spans; use session_traces CTE to find all traces,
     // then query all spans from those traces.
     // Two-path token filter: see get_trace for detailed explanation.
-    let sql = r#"
+    let sql = format!(
+        r#"
         WITH session_traces AS (
-            SELECT DISTINCT trace_id FROM otel_spans_v
+            SELECT DISTINCT trace_id FROM otel_spans
             WHERE project_id = ? AND session_id = ?
         ),
         gen_totals AS (
@@ -932,7 +970,7 @@ pub fn get_session(
                 COALESCE(SUM(gen_ai_cost_cache_write), 0) AS cache_write_cost,
                 COALESCE(SUM(gen_ai_cost_reasoning), 0) AS reasoning_cost,
                 COALESCE(SUM(gen_ai_cost_total), 0) AS total_cost
-            FROM otel_spans_v g
+            FROM {DEDUP_SPANS} g
             WHERE g.project_id = ?
               AND g.trace_id IN (SELECT trace_id FROM session_traces)
               AND (
@@ -984,7 +1022,7 @@ pub fn get_session(
             gt.cache_write_cost::DOUBLE,
             gt.reasoning_cost::DOUBLE,
             gt.total_cost::DOUBLE
-        FROM otel_spans_v s
+        FROM {DEDUP_SPANS} s
         CROSS JOIN gen_totals gt
         WHERE s.project_id = ?
           AND s.trace_id IN (SELECT trace_id FROM session_traces)
@@ -992,9 +1030,11 @@ pub fn get_session(
                  gt.cache_read_tokens, gt.cache_write_tokens, gt.reasoning_tokens,
                  gt.input_cost, gt.output_cost, gt.cache_read_cost, gt.cache_write_cost,
                  gt.reasoning_cost, gt.total_cost
-    "#;
+    "#,
+        DEDUP_SPANS = DEDUP_SPANS
+    );
 
-    let mut stmt = conn.prepare(sql)?;
+    let mut stmt = conn.prepare(&sql)?;
     // Bind order: session_traces(project_id, session_id), gen_totals(project_id),
     //             SELECT(session_id), main(project_id)
     let mut rows = stmt.query([
@@ -1021,9 +1061,10 @@ pub fn get_traces_for_session(
     session_id: &str,
 ) -> Result<Vec<TraceRow>, DuckdbError> {
     // Two-path token filter: see get_trace for detailed explanation.
-    let sql = r#"
+    let sql = format!(
+        r#"
         WITH session_traces AS (
-            SELECT DISTINCT trace_id FROM otel_spans_v
+            SELECT DISTINCT trace_id FROM otel_spans
             WHERE project_id = ? AND session_id = ?
         ),
         gen_totals AS (
@@ -1041,7 +1082,7 @@ pub fn get_traces_for_session(
                 COALESCE(SUM(gen_ai_cost_cache_write), 0) AS cache_write_cost,
                 COALESCE(SUM(gen_ai_cost_reasoning), 0) AS reasoning_cost,
                 COALESCE(SUM(gen_ai_cost_total), 0) AS total_cost
-            FROM otel_spans_v g
+            FROM {DEDUP_SPANS} g
             WHERE g.project_id = ?
               AND g.trace_id IN (SELECT trace_id FROM session_traces)
               AND (
@@ -1110,7 +1151,7 @@ pub fn get_traces_for_session(
                 FIRST(s.output_preview ORDER BY s.timestamp_start DESC) FILTER (WHERE s.output_preview IS NOT NULL)
             ) AS output_preview,
             bool_or(s.status_code = 'ERROR') AS has_error
-        FROM otel_spans_v s
+        FROM {DEDUP_SPANS} s
         LEFT JOIN gen_totals gt ON s.trace_id = gt.trace_id
         WHERE s.project_id = ?
           AND s.trace_id IN (SELECT trace_id FROM session_traces)
@@ -1119,12 +1160,14 @@ pub fn get_traces_for_session(
                  gt.input_cost, gt.output_cost, gt.cache_read_cost, gt.cache_write_cost,
                  gt.reasoning_cost, gt.total_cost
         ORDER BY MIN(s.timestamp_start) DESC
-    "#;
+    "#,
+        DEDUP_SPANS = DEDUP_SPANS
+    );
 
     // Bind order: session_traces(project_id, session_id), gen_totals(project_id), main(project_id)
     execute_trace_query(
         conn,
-        sql,
+        &sql,
         &[
             project_id.to_string(),
             session_id.to_string(), // session_traces CTE
@@ -1165,7 +1208,7 @@ pub fn get_span_counts_bulk(
         "SELECT trace_id, span_id,
                 COALESCE(json_array_length(raw_span->'events'), 0),
                 COALESCE(json_array_length(raw_span->'links'), 0)
-         FROM otel_spans_v
+         FROM otel_spans
          WHERE project_id = ? AND (trace_id, span_id) IN ({})",
         in_clause
     );
@@ -1533,9 +1576,10 @@ pub fn count_spans_by_project(
         return Ok(HashMap::new());
     }
 
+    // Count unique spans per project without the DEDUP_SPANS self-join
     let placeholders: Vec<&str> = project_ids.iter().map(|_| "?").collect();
     let sql = format!(
-        "SELECT project_id, COUNT(span_id) FROM otel_spans_v WHERE project_id IN ({}) GROUP BY project_id",
+        "SELECT project_id, COUNT(*) FROM (SELECT DISTINCT project_id, trace_id, span_id FROM otel_spans WHERE project_id IN ({})) GROUP BY project_id",
         placeholders.join(", ")
     );
 
@@ -1575,7 +1619,7 @@ const TRACE_FILTER_OPTION_COLUMNS: &[(&str, &str)] = &[
 ];
 
 /// Get distinct values with counts for trace filter options
-/// Optimized: queries otel_spans directly instead of the view, uses approximate counts
+/// Optimized: uses approximate counts
 pub fn get_trace_filter_options(
     conn: &Connection,
     project_id: &str,
@@ -1623,11 +1667,11 @@ pub fn get_trace_filter_options(
             ""
         };
 
-        // Query from deduplicated view with approximate trace count
+        // APPROX_COUNT_DISTINCT(trace_id) is immune to row duplication
         let sql = format!(
             r#"
             SELECT {col}, APPROX_COUNT_DISTINCT(trace_id) as cnt
-            FROM otel_spans_v
+            FROM otel_spans
             WHERE {base_where} AND {col} IS NOT NULL{extra}
             GROUP BY {col}
             ORDER BY cnt DESC
@@ -1663,7 +1707,7 @@ pub fn get_trace_filter_options(
 }
 
 /// Get distinct tag values with counts from trace tags array
-/// Optimized: queries otel_spans directly instead of the view, uses approximate counts
+/// Optimized: uses approximate counts
 pub fn get_trace_tags_options(
     conn: &Connection,
     project_id: &str,
@@ -1686,14 +1730,14 @@ pub fn get_trace_tags_options(
 
     let where_clause = conditions.join(" AND ");
 
-    // Query from deduplicated view with approximate trace count per tag
+    // APPROX_COUNT_DISTINCT(trace_id) is immune to row duplication
     // tags is stored as JSON array string (VARCHAR), so parse with from_json first
     let sql = format!(
         r#"
         SELECT tag, APPROX_COUNT_DISTINCT(trace_id) as cnt
         FROM (
             SELECT trace_id, UNNEST(from_json(tags, '["VARCHAR"]')) as tag
-            FROM otel_spans_v
+            FROM otel_spans
             WHERE {} AND tags IS NOT NULL AND tags != '[]'
         )
         WHERE tag IS NOT NULL AND tag != ''
@@ -1776,19 +1820,19 @@ pub fn get_span_filter_options(
             continue;
         }
 
-        // Query distinct values with counts from deduplicated view
+        // DISTINCT (trace_id, span_id) is immune to row duplication
         let sql = format!(
             r#"
             SELECT {col}, COUNT(*) as cnt
-            FROM otel_spans_v
-            WHERE {base_where} AND {col} IS NOT NULL
+            FROM (SELECT DISTINCT trace_id, span_id, {col} FROM otel_spans
+                  WHERE {base_where} AND {col} IS NOT NULL) _d
             GROUP BY {col}
             ORDER BY cnt DESC
             LIMIT {limit}
             "#,
             base_where = base_where,
             col = column,
-            limit = QUERY_MAX_FILTER_SUGGESTIONS
+            limit = QUERY_MAX_FILTER_SUGGESTIONS,
         );
 
         let mut stmt = conn.prepare(&sql)?;
@@ -1857,11 +1901,11 @@ pub fn get_session_filter_options(
             continue;
         }
 
-        // Query distinct values with approximate session counts from deduplicated view
+        // APPROX_COUNT_DISTINCT(session_id) is immune to row duplication
         let sql = format!(
             r#"
             SELECT {col}, APPROX_COUNT_DISTINCT(session_id) as cnt
-            FROM otel_spans_v
+            FROM otel_spans
             WHERE {base_where} AND {col} IS NOT NULL
             GROUP BY {col}
             ORDER BY cnt DESC

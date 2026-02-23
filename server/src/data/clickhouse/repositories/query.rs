@@ -226,7 +226,7 @@ use crate::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_T
 use crate::data::clickhouse::ClickhouseError;
 use crate::data::types::{
     EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams,
-    SessionRow, SpanRow, TraceRow, deduplicate_spans, parse_finish_reasons, parse_tags,
+    SessionRow, SpanRow, TraceRow, parse_finish_reasons, parse_tags,
 };
 use crate::utils::time::parse_iso_timestamp;
 
@@ -757,7 +757,7 @@ pub async fn get_spans_for_trace(
         .await?;
 
     let spans: Vec<SpanRow> = rows.into_iter().map(SpanRow::from).collect();
-    Ok(deduplicate_spans(spans))
+    Ok(spans)
 }
 
 /// Get a single span

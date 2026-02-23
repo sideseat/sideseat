@@ -10,6 +10,7 @@
 use duckdb::Connection;
 
 use crate::data::duckdb::DuckdbError;
+use crate::data::duckdb::repositories::query::DEDUP_SPANS;
 use crate::data::types::{
     FeedMessagesParams, MessageQueryParams, MessageQueryResult, MessageSpanRow,
 };
@@ -85,7 +86,7 @@ pub fn get_messages(
     }
 
     let sql = format!(
-        "SELECT {MESSAGE_SELECT_COLUMNS} FROM otel_spans_v WHERE {} ORDER BY timestamp_start ASC",
+        "SELECT {MESSAGE_SELECT_COLUMNS} FROM otel_spans WHERE {} ORDER BY timestamp_start ASC",
         conditions.join(" AND ")
     );
 
@@ -131,9 +132,10 @@ pub fn get_project_messages(
     }
 
     let sql = format!(
-        "SELECT {MESSAGE_SELECT_COLUMNS} FROM otel_spans_v WHERE {} ORDER BY ingested_at DESC, span_id DESC LIMIT {}",
+        "SELECT {MESSAGE_SELECT_COLUMNS} FROM {DEDUP_SPANS} WHERE {} ORDER BY ingested_at DESC, span_id DESC LIMIT {}",
         conditions.join(" AND "),
-        params.limit
+        params.limit,
+        DEDUP_SPANS = DEDUP_SPANS
     );
 
     let mut stmt = conn.prepare(&sql)?;
