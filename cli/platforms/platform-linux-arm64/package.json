@@ -1,6 +1,6 @@
 {
   "name": "@sideseat/platform-linux-arm64",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "SideSeat binary for Linux ARM64",
   "os": [
     "linux"
@@ -12,9 +12,10 @@
     "glibc"
   ],
   "bin": {
-    "sideseat": "sideseat"
+    "platform-linux-arm64": "bin.js"
   },
   "files": [
+    "bin.js",
     "sideseat"
   ],
   "license": "AGPL-3.0",

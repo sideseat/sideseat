@@ -1,6 +1,6 @@
 {
   "name": "@sideseat/platform-win32-x64",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "SideSeat binary for Windows x64",
   "os": [
     "win32"
@@ -9,9 +9,10 @@
     "x64"
   ],
   "bin": {
-    "sideseat": "sideseat.exe"
+    "platform-win32-x64": "bin.js"
   },
   "files": [
+    "bin.js",
     "sideseat.exe"
   ],
   "license": "AGPL-3.0",

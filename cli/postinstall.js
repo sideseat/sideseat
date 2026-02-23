@@ -1,9 +1,8 @@
-const { execFileSync } = require("child_process");
+const { execSync } = require("child_process");
 const {
   existsSync,
   mkdirSync,
   copyFileSync,
-  readFileSync,
   writeFileSync,
   renameSync,
   chmodSync,
@@ -36,20 +35,6 @@ function log(msg) {
   console.error(`[sideseat postinstall] ${msg}`);
 }
 
-function resolveBinFromPkgJson(pkgJsonPath) {
-  try {
-    const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf8"));
-    const bin = pkg.bin;
-    if (!bin) return null;
-    const rel =
-      typeof bin === "string" ? bin : bin.sideseat || bin[Object.keys(bin)[0]];
-    if (!rel) return null;
-    return path.resolve(path.dirname(pkgJsonPath), rel);
-  } catch {
-    return null;
-  }
-}
-
 function isNpm() {
   const ua = process.env.npm_config_user_agent || "";
   return ua.startsWith("npm/");
@@ -59,10 +44,9 @@ function getRegistryUrl() {
   // Check scoped registry first (@sideseat:registry), then default registry
   if (isNpm()) {
     try {
-      const scoped = execFileSync(
-        "npm",
-        ["config", "get", "@sideseat:registry"],
-        { encoding: "utf8", stdio: "pipe", shell: true, timeout: 5000 }
+      const scoped = execSync(
+        "npm config get @sideseat:registry",
+        { encoding: "utf8", stdio: "pipe", timeout: 5000 }
       ).trim();
       if (scoped && scoped !== "undefined") return scoped.replace(/\/$/, "");
     } catch {}
@@ -75,20 +59,12 @@ function getRegistryUrl() {
 // Tier 1: Check if binary already exists
 function tier1() {
   try {
-    const pkgJsonPath = require.resolve(`${pkgName}/package.json`);
-    const binPath = resolveBinFromPkgJson(pkgJsonPath);
-    if (binPath && existsSync(binPath)) return true;
+    const pkgDir = path.dirname(require.resolve(`${pkgName}/package.json`));
+    if (existsSync(path.join(pkgDir, binName))) return true;
   } catch {
     // Not found via require.resolve
   }
 
-  const vendorPkg = path.join(vendorDir, "package.json");
-  if (existsSync(vendorPkg)) {
-    const binPath = resolveBinFromPkgJson(vendorPkg);
-    if (binPath && existsSync(binPath)) return true;
-  }
-
-  // Direct check as last resort
   if (existsSync(path.join(vendorDir, binName))) return true;
 
   return false;
@@ -115,18 +91,9 @@ function tier2() {
     // a global install (postinstall → npm install → global → postinstall...)
     const env = { ...process.env, npm_config_global: undefined };
 
-    execFileSync(
-      "npm",
-      [
-        "install",
-        "--no-save",
-        "--prefer-online",
-        "--no-audit",
-        "--no-fund",
-        "--ignore-scripts",
-        `${pkgName}@${version}`,
-      ],
-      { cwd: tmpDir, stdio: "pipe", shell: true, timeout: 120000, env }
+    execSync(
+      `npm install --no-save --prefer-online --no-audit --no-fund --ignore-scripts ${pkgName}@${version}`,
+      { cwd: tmpDir, stdio: "pipe", timeout: 120000, env }
     );
 
     const installedPkg = path.join(
@@ -139,9 +106,7 @@ function tier2() {
 
     if (!existsSync(installedPkg)) return false;
 
-    const installedBin =
-      resolveBinFromPkgJson(installedPkg) ||
-      path.join(path.dirname(installedPkg), binName);
+    const installedBin = path.join(path.dirname(installedPkg), binName);
 
     if (!existsSync(installedBin)) return false;
 
@@ -150,12 +115,6 @@ function tier2() {
     const tmpBin = path.join(vendorDir, `${binName}.tmp`);
     copyFileSync(installedBin, tmpBin);
     renameSync(tmpBin, path.join(vendorDir, binName));
-
-    if (existsSync(installedPkg)) {
-      const tmpPkg = path.join(vendorDir, "package.json.tmp");
-      copyFileSync(installedPkg, tmpPkg);
-      renameSync(tmpPkg, path.join(vendorDir, "package.json"));
-    }
 
     if (platform !== "win32") {
       try {
@@ -205,10 +164,6 @@ function tier3() {
         const binEntry = files.find(
           (f) => f.name === `package/${binName}` || f.name === binName
         );
-        const pkgEntry = files.find(
-          (f) =>
-            f.name === "package/package.json" || f.name === "package.json"
-        );
 
         if (!binEntry) {
           throw new Error(`Binary ${binName} not found in tarball`);
@@ -228,12 +183,6 @@ function tier3() {
           mode: platform !== "win32" ? 0o755 : undefined,
         });
         renameSync(tmpBin, path.join(vendorDir, binName));
-
-        if (pkgEntry) {
-          const tmpPkg = path.join(vendorDir, "package.json.tmp");
-          writeFileSync(tmpPkg, pkgEntry.data);
-          renameSync(tmpPkg, path.join(vendorDir, "package.json"));
-        }
 
         return true;
       });
