@@ -257,6 +257,11 @@ pub const FILES_MAX_CONCURRENT_FINALIZATION: usize = 128;
 /// Max entries in the in-process file extraction cache (moka TinyLFU)
 pub const FILE_EXTRACTION_CACHE_MAX_ENTRIES: u64 = 10_000;
 
+/// Idle TTL for file extraction cache entries (seconds).
+/// Entries expire after this duration without access, allowing retry of
+/// failed finalizations within the same server session.
+pub const FILE_EXTRACTION_CACHE_IDLE_SECS: u64 = 300;
+
 /// Cache TTL for file quota storage bytes (seconds)
 pub const CACHE_TTL_FILE_QUOTA: u64 = 60;
 

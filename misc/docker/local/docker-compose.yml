@@ -8,6 +8,7 @@
 #   docker compose down
 #
 # All data is stored in ./data/ (bind mounts, not Docker volumes).
+# Vault secrets are in ./data/vault/.
 # Delete ./data/ to reset everything.
 
 name: sideseat-local

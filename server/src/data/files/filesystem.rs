@@ -103,15 +103,18 @@ impl FileStorage for FilesystemStorage {
 
         let path = self.file_path(project_id, hash);
 
-        if !path.exists() {
-            return Err(FileStorageError::NotFound {
-                project_id: project_id.to_string(),
-                hash: hash.to_string(),
-            });
-        }
-
-        let data = fs::read(&path).await?;
-        Ok(data)
+        // Read directly; map ENOENT to NotFound instead of a separate exists() check
+        // which would be a TOCTOU race (file could vanish between check and read).
+        fs::read(&path).await.map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                FileStorageError::NotFound {
+                    project_id: project_id.to_string(),
+                    hash: hash.to_string(),
+                }
+            } else {
+                FileStorageError::Io(e)
+            }
+        })
     }
 
     async fn exists(&self, project_id: &str, hash: &str) -> Result<bool, FileStorageError> {
@@ -188,14 +191,21 @@ impl FileStorage for FilesystemStorage {
                 );
             }
             Err(_) => {
-                // Cross-filesystem: copy then delete
-                fs::copy(temp_path, &dest_path).await?;
+                // Cross-filesystem: copy to staging file in dest dir, then atomic
+                // rename. Direct copy to dest_path would expose partial content to
+                // concurrent readers during the copy window.
+                let staging = dest_path.with_extension("tmp");
+                fs::copy(temp_path, &staging).await?;
+                if let Err(e) = fs::rename(&staging, &dest_path).await {
+                    fs::remove_file(&staging).await.ok();
+                    return Err(FileStorageError::Io(e));
+                }
                 fs::remove_file(temp_path).await.ok();
                 tracing::debug!(
                     project_id,
                     hash,
                     path = %dest_path.display(),
-                    "File finalized (copy)"
+                    "File finalized (copy+rename)"
                 );
             }
         }
