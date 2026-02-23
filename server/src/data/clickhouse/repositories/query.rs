@@ -2024,7 +2024,7 @@ pub async fn get_span_filter_options(
         let sql = format!(
             r#"
             SELECT {col} as value, count() as count
-            FROM otel_spans
+            FROM otel_spans FINAL
             WHERE project_id = ?{cond} AND {col} IS NOT NULL
             GROUP BY {col}
             ORDER BY count DESC
@@ -2094,7 +2094,7 @@ pub async fn get_session_filter_options(
         let sql = format!(
             r#"
             SELECT {col} as value, count(DISTINCT session_id) as count
-            FROM otel_spans
+            FROM otel_spans FINAL
             WHERE project_id = ?{cond} AND session_id IS NOT NULL AND {col} IS NOT NULL
             GROUP BY {col}
             ORDER BY count DESC

@@ -18,7 +18,7 @@ use super::types::{
 };
 use crate::api::auth::ProjectRead;
 use crate::api::types::{ApiError, parse_timestamp_param};
-use crate::data::types::{FeedMessagesParams, FeedSpansParams, deduplicate_spans};
+use crate::data::types::{FeedMessagesParams, FeedSpansParams};
 use crate::domain::sideml::{FeedOptions, process_feed};
 
 // ============================================================================
@@ -253,8 +253,8 @@ pub async fn get_feed_spans(
     let is_observation = query.is_observation;
     let include_raw_span = query.include_raw_span.unwrap_or(false);
 
-    // Query extra for deduplication buffer, then deduplicate
-    let query_limit = (limit * 2).min(1000);
+    // Query limit + 1 to detect has_more
+    let query_limit = limit + 1;
 
     // Build query parameters with cursor support
     let params = FeedSpansParams {
@@ -272,13 +272,6 @@ pub async fn get_feed_spans(
         .get_feed_spans(&params)
         .await
         .map_err(ApiError::from_data)?;
-
-    // Deduplicate spans (DuckDB is append-only, duplicates possible)
-    spans = deduplicate_spans(spans);
-
-    // Re-sort by ingested_at DESC for correct cursor-based pagination
-    // (deduplicate_spans sorts by timestamp_start, but cursor uses ingested_at)
-    spans.sort_by(|a, b| b.ingested_at.cmp(&a.ingested_at));
 
     // Compute has_more and truncate
     let has_more = spans.len() > limit as usize;
