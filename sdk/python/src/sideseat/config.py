@@ -6,13 +6,15 @@ from importlib.metadata import PackageNotFoundError, version
 
 
 class Frameworks:
-    """Framework identifiers for explicit selection.
+    """Framework and provider identifiers for instrumentation.
 
     Usage:
         SideSeat(framework=Frameworks.Strands)
-        SideSeat(framework=Frameworks.LangChain)
+        SideSeat(framework=[Frameworks.Strands, Frameworks.Bedrock])
+        SideSeat(framework=Frameworks.OpenAI)
     """
 
+    # Frameworks
     Strands = "strands"
     LangChain = "langchain"
     LangGraph = "langgraph"
@@ -21,6 +23,11 @@ class Frameworks:
     OpenAIAgents = "openai-agents"
     GoogleADK = "google-adk"
     PydanticAI = "pydantic-ai"
+    # Providers
+    Bedrock = "bedrock"
+    Anthropic = "anthropic"
+    OpenAI = "openai"
+    VertexAI = "vertex_ai"
 
 
 FRAMEWORK_PACKAGES = [
@@ -32,6 +39,28 @@ FRAMEWORK_PACKAGES = [
     (Frameworks.GoogleADK, "google-adk"),
     (Frameworks.PydanticAI, "pydantic-ai"),
 ]
+
+_FRAMEWORK_KEYS = {key for key, _ in FRAMEWORK_PACKAGES}
+
+
+def _resolve_framework_input(
+    framework: str | list[str] | None,
+) -> tuple[str | None, tuple[str, ...]]:
+    """Partition framework input into (framework, providers).
+
+    A single framework string or list is split: items matching FRAMEWORK_PACKAGES
+    keys become the framework; everything else becomes providers.
+    At most one framework is allowed.
+    """
+    if framework is None:
+        return None, ()
+    if isinstance(framework, str):
+        return (framework, ()) if framework in _FRAMEWORK_KEYS else (None, (framework,))
+    fw_items = [x for x in framework if x in _FRAMEWORK_KEYS]
+    prov_items = [x for x in framework if x not in _FRAMEWORK_KEYS]
+    if len(fw_items) > 1:
+        raise ValueError(f"At most one framework allowed, got {fw_items}")
+    return (fw_items[0] if fw_items else None), tuple(prov_items)
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +81,9 @@ class Config:
     encode_binary: bool
     capture_content: bool
     debug: bool
+    providers: tuple[str, ...]
+    user_id: str | None
+    session_id: str | None
 
     def __repr__(self) -> str:
         return (
@@ -67,7 +99,7 @@ class Config:
         endpoint: str | None = None,
         api_key: str | None = None,
         project_id: str | None = None,
-        framework: str | None = None,
+        framework: str | list[str] | None = None,
         service_name: str | None = None,
         service_version: str | None = None,
         auto_instrument: bool = True,
@@ -77,6 +109,8 @@ class Config:
         encode_binary: bool = True,
         capture_content: bool = True,
         debug: bool | None = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
     ) -> "Config":
         """Create config with env var fallback chain."""
         # Check disabled first
@@ -109,9 +143,15 @@ class Config:
         resolved_project_id = project_id or os.getenv("SIDESEAT_PROJECT") or "default"
         resolved_debug = debug if debug is not None else _parse_bool_env("SIDESEAT_DEBUG", False)
 
+        resolved_user_id = user_id or os.getenv("SIDESEAT_USER_ID")
+        resolved_session_id = session_id or os.getenv("SIDESEAT_SESSION_ID")
+
+        # Partition framework input into framework + providers
+        fw, providers = _resolve_framework_input(framework)
+
         # Framework detection
         detected_key, detected_pkg, detected_version = _detect_framework()
-        resolved_framework = framework or detected_key
+        resolved_framework = fw or detected_key
         resolved_service_name = service_name or detected_pkg
         resolved_service_version = service_version or detected_version
 
@@ -130,6 +170,9 @@ class Config:
             encode_binary=encode_binary,
             capture_content=capture_content,
             debug=resolved_debug,
+            providers=providers,
+            user_id=resolved_user_id,
+            session_id=resolved_session_id,
         )
 
 

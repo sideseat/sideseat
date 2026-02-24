@@ -1,5 +1,7 @@
 """Tests for SideSeat configuration."""
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from sideseat.config import (
@@ -8,7 +10,9 @@ from sideseat.config import (
     _detect_framework,
     _normalize_endpoint,
     _parse_bool_env,
+    _resolve_framework_input,
 )
+from sideseat.telemetry import _ContextSpanProcessor, _session_id_var, _user_id_var
 
 
 class TestNormalizeEndpoint:
@@ -105,6 +109,8 @@ class TestConfig:
         monkeypatch.delenv("SIDESEAT_PROJECT", raising=False)
         monkeypatch.delenv("SIDESEAT_DISABLED", raising=False)
         monkeypatch.delenv("SIDESEAT_DEBUG", raising=False)
+        monkeypatch.delenv("SIDESEAT_USER_ID", raising=False)
+        monkeypatch.delenv("SIDESEAT_SESSION_ID", raising=False)
 
         config = Config.create()
 
@@ -227,3 +233,176 @@ class TestFrameworks:
         assert Frameworks.OpenAIAgents == "openai-agents"
         assert Frameworks.GoogleADK == "google-adk"
         assert Frameworks.PydanticAI == "pydantic-ai"
+
+    def test_all_providers_are_strings(self) -> None:
+        """All provider constants should be strings."""
+        assert Frameworks.Bedrock == "bedrock"
+        assert Frameworks.Anthropic == "anthropic"
+        assert Frameworks.OpenAI == "openai"
+        assert Frameworks.VertexAI == "vertex_ai"
+
+
+class TestResolveFrameworkInput:
+    """Tests for _resolve_framework_input partitioning."""
+
+    def test_none_returns_none_and_empty(self) -> None:
+        fw, provs = _resolve_framework_input(None)
+        assert fw is None
+        assert provs == ()
+
+    def test_single_framework_string(self) -> None:
+        fw, provs = _resolve_framework_input("strands")
+        assert fw == "strands"
+        assert provs == ()
+
+    def test_single_provider_string(self) -> None:
+        fw, provs = _resolve_framework_input("bedrock")
+        assert fw is None
+        assert provs == ("bedrock",)
+
+    def test_mixed_list(self) -> None:
+        fw, provs = _resolve_framework_input(["strands", "bedrock", "openai"])
+        assert fw == "strands"
+        assert provs == ("bedrock", "openai")
+
+    def test_provider_only_list(self) -> None:
+        fw, provs = _resolve_framework_input(["bedrock", "anthropic"])
+        assert fw is None
+        assert provs == ("bedrock", "anthropic")
+
+    def test_two_frameworks_raises(self) -> None:
+        with pytest.raises(ValueError, match="At most one framework"):
+            _resolve_framework_input(["strands", "crewai"])
+
+    def test_config_create_with_list(self) -> None:
+        """Config.create should accept list input."""
+        config = Config.create(framework=["strands", "bedrock"])
+        assert config.framework == "strands"
+        assert config.providers == ("bedrock",)
+
+    def test_config_create_with_provider_string(self) -> None:
+        """Config.create with a single provider string."""
+        config = Config.create(framework="openai")
+        assert config.providers == ("openai",)
+
+
+class TestUserIdSessionId:
+    """Tests for user_id and session_id in Config."""
+
+    def test_stores_values(self) -> None:
+        config = Config.create(user_id="u1", session_id="s1")
+        assert config.user_id == "u1"
+        assert config.session_id == "s1"
+
+    def test_defaults_to_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("SIDESEAT_USER_ID", raising=False)
+        monkeypatch.delenv("SIDESEAT_SESSION_ID", raising=False)
+        config = Config.create()
+        assert config.user_id is None
+        assert config.session_id is None
+
+    def test_env_var_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SIDESEAT_USER_ID", "env-user")
+        monkeypatch.setenv("SIDESEAT_SESSION_ID", "env-session")
+        config = Config.create()
+        assert config.user_id == "env-user"
+        assert config.session_id == "env-session"
+
+    def test_constructor_overrides_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SIDESEAT_USER_ID", "env-user")
+        monkeypatch.setenv("SIDESEAT_SESSION_ID", "env-session")
+        config = Config.create(user_id="ctor-user", session_id="ctor-session")
+        assert config.user_id == "ctor-user"
+        assert config.session_id == "ctor-session"
+
+
+class TestContextSpanProcessor:
+    """Tests for _ContextSpanProcessor."""
+
+    def test_sets_attributes_from_config(self) -> None:
+        proc = _ContextSpanProcessor(user_id="u1", session_id="s1")
+        span = MagicMock()
+        proc.on_start(span)
+        span.set_attribute.assert_any_call("user.id", "u1")
+        span.set_attribute.assert_any_call("session.id", "s1")
+
+    def test_noop_when_both_none(self) -> None:
+        proc = _ContextSpanProcessor(user_id=None, session_id=None)
+        span = MagicMock()
+        proc.on_start(span)
+        span.set_attribute.assert_not_called()
+
+    def test_contextvar_overrides_config(self) -> None:
+        proc = _ContextSpanProcessor(user_id="config-user", session_id="config-session")
+        span = MagicMock()
+        token_u = _user_id_var.set("ctx-user")
+        token_s = _session_id_var.set("ctx-session")
+        try:
+            proc.on_start(span)
+            span.set_attribute.assert_any_call("user.id", "ctx-user")
+            span.set_attribute.assert_any_call("session.id", "ctx-session")
+        finally:
+            _user_id_var.reset(token_u)
+            _session_id_var.reset(token_s)
+
+    def test_contextvar_with_no_config(self) -> None:
+        proc = _ContextSpanProcessor(user_id=None, session_id=None)
+        span = MagicMock()
+        token_u = _user_id_var.set("ctx-user")
+        try:
+            proc.on_start(span)
+            span.set_attribute.assert_any_call("user.id", "ctx-user")
+            assert span.set_attribute.call_count == 1
+        finally:
+            _user_id_var.reset(token_u)
+
+    def test_force_flush_returns_true(self) -> None:
+        proc = _ContextSpanProcessor(user_id=None, session_id=None)
+        assert proc.force_flush() is True
+
+
+class TestSpanContextVars:
+    """Tests for TelemetryClient.span() contextvar management."""
+
+    def test_span_sets_and_resets_contextvars(self) -> None:
+        from sideseat.telemetry import TelemetryClient
+
+        config = Config.create(disabled=True)
+        client = TelemetryClient(config)
+
+        assert _user_id_var.get() is None
+        assert _session_id_var.get() is None
+
+        with client.span("test", user_id="u1", session_id="s1"):
+            assert _user_id_var.get() == "u1"
+            assert _session_id_var.get() == "s1"
+
+        assert _user_id_var.get() is None
+        assert _session_id_var.get() is None
+
+    def test_nested_spans_restore_previous(self) -> None:
+        from sideseat.telemetry import TelemetryClient
+
+        config = Config.create(disabled=True)
+        client = TelemetryClient(config)
+
+        with client.span("outer", user_id="outer-u", session_id="outer-s"):
+            assert _user_id_var.get() == "outer-u"
+            with client.span("inner", user_id="inner-u", session_id="inner-s"):
+                assert _user_id_var.get() == "inner-u"
+                assert _session_id_var.get() == "inner-s"
+            assert _user_id_var.get() == "outer-u"
+            assert _session_id_var.get() == "outer-s"
+
+        assert _user_id_var.get() is None
+
+    def test_span_without_ids_no_contextvar_change(self) -> None:
+        from sideseat.telemetry import TelemetryClient
+
+        config = Config.create(disabled=True)
+        client = TelemetryClient(config)
+
+        assert _user_id_var.get() is None
+        with client.span("test"):
+            assert _user_id_var.get() is None
+        assert _user_id_var.get() is None

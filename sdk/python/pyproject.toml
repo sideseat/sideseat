@@ -38,12 +38,22 @@ autogen = ["openinference-instrumentation-autogen-agentchat>=0.1.0"]
 openai-agents = ["logfire>=0.50.0"]
 pydantic-ai = ["logfire>=0.50.0"]
 
+# Cloud provider instrumentation
+aws = ["wrapt>=1.14.0"]
+openai = ["openinference-instrumentation-openai>=0.1.0"]
+anthropic = ["openinference-instrumentation-anthropic>=0.1.0"]
+vertex = ["openinference-instrumentation-vertexai>=0.1.0"]
+
 # Bundle all instrumentation extras
 all = [
     "openinference-instrumentation-langchain>=0.1.0",
     "openinference-instrumentation-crewai>=0.1.0",
     "openinference-instrumentation-autogen-agentchat>=0.1.0",
+    "openinference-instrumentation-openai>=0.1.0",
+    "openinference-instrumentation-anthropic>=0.1.0",
+    "openinference-instrumentation-vertexai>=0.1.0",
     "logfire>=0.50.0",
+    "wrapt>=1.14.0",
 ]
 
 # Development dependencies

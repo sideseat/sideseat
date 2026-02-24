@@ -13,6 +13,8 @@ uv sync --directory misc/samples/python             # Install Python deps
 npm --prefix misc/samples/js install                # Install JS deps
 uv sync --directory misc/replay                     # Install replay deps
 
+uv sync --directory misc/samples/python  --reinstall-package sideseat
+
 # Run a sample
 uv run --directory misc/samples/python strands tool_use --sideseat
 npm --prefix misc/samples/js run vercel-ai -- tool-use --sideseat

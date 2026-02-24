@@ -60,10 +60,9 @@ Add two lines at the top of your entry point:
   <TabItem label="Python (Strands)">
     ```python
     from sideseat import SideSeat, Frameworks
-    SideSeat(framework=Frameworks.Strands)
-
-    # Your existing code
     from strands import Agent
+
+    SideSeat(framework=Frameworks.Strands)
 
     agent = Agent()
     response = agent("What is the capital of France?")

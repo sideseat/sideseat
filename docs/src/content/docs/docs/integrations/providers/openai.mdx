@@ -18,10 +18,10 @@ SideSeat automatically extracts model information, token usage, and costs from O
 <Tabs>
   <TabItem label="Python">
     ```python
-    from sideseat import SideSeat
-    SideSeat()
-
+    from sideseat import SideSeat, Frameworks
     from openai import OpenAI
+
+    SideSeat(framework=Frameworks.OpenAI)
 
     client = OpenAI()
     response = client.chat.completions.create(
@@ -34,9 +34,9 @@ SideSeat automatically extracts model information, token usage, and costs from O
   <TabItem label="JavaScript">
     ```typescript
     import { init } from '@sideseat/sdk';
-    init();
-
     import OpenAI from 'openai';
+
+    init();
 
     const client = new OpenAI();
     const response = await client.chat.completions.create({

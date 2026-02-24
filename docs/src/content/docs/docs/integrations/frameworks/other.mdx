@@ -17,9 +17,9 @@ uv add langchain langchain-openai sideseat
 
 ```python
 from sideseat import SideSeat, Frameworks
-SideSeat(framework=Frameworks.LangChain)
-
 from langchain_openai import ChatOpenAI
+
+SideSeat(framework=Frameworks.LangChain)
 
 llm = ChatOpenAI(model="gpt-5-mini")
 response = llm.invoke("Hello!")
@@ -40,9 +40,9 @@ uv add pydantic-ai sideseat
 
 ```python
 from sideseat import SideSeat, Frameworks
-SideSeat(framework=Frameworks.PydanticAI)
-
 from pydantic_ai import Agent
+
+SideSeat(framework=Frameworks.PydanticAI)
 
 agent = Agent('openai:gpt-5-mini')
 result = agent.run_sync('What is the capital of France?')
@@ -50,6 +50,8 @@ print(result.data)
 ```
 
 ## LlamaIndex
+
+LlamaIndex emits OpenTelemetry traces natively. SideSeat captures them without framework-specific instrumentation.
 
 ```bash
 pip install llama-index sideseat
@@ -59,9 +61,9 @@ uv add llama-index sideseat
 
 ```python
 from sideseat import SideSeat
-SideSeat()
-
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
+
+SideSeat(auto_instrument=False)
 
 documents = SimpleDirectoryReader("data").load_data()
 index = VectorStoreIndex.from_documents(documents)

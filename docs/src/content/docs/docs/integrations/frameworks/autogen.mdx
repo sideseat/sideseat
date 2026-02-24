@@ -28,9 +28,9 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 
    ```python
    from sideseat import SideSeat, Frameworks
-   SideSeat(framework=Frameworks.AutoGen)
-
    from autogen import AssistantAgent, UserProxyAgent
+
+   SideSeat(framework=Frameworks.AutoGen)
 
    llm_config = {"config_list": [{"model": "gpt-5-mini", "api_key": "sk-xxx"}]}
    assistant = AssistantAgent("assistant", llm_config=llm_config)

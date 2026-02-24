@@ -146,7 +146,7 @@ telemetry = StrandsTelemetry()
 telemetry.setup_otlp_exporter(endpoint="http://localhost:5388/otel/default/v1/traces")
 
 # Create agent with optional trace attributes
-model = BedrockModel(model_id="anthropic.claude-sonnet-4-5-20250929-v1:0")
+model = BedrockModel(model_id="us.anthropic.claude-sonnet-4-5-20250929-v1:0")
 agent = Agent(
     name="my-agent",
     model=model,
