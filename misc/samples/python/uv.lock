@@ -4258,6 +4258,8 @@ requires-dist = [
     { name = "logfire", marker = "extra == 'openai-agents'", specifier = ">=0.50.0" },
     { name = "logfire", marker = "extra == 'pydantic-ai'", specifier = ">=0.50.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
+    { name = "openinference-instrumentation-anthropic", marker = "extra == 'all'", specifier = ">=0.1.0" },
+    { name = "openinference-instrumentation-anthropic", marker = "extra == 'anthropic'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-autogen-agentchat", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-autogen-agentchat", marker = "extra == 'autogen'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-crewai", marker = "extra == 'all'", specifier = ">=0.1.0" },
@@ -4265,13 +4267,19 @@ requires-dist = [
     { name = "openinference-instrumentation-langchain", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langchain'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langgraph'", specifier = ">=0.1.0" },
+    { name = "openinference-instrumentation-openai", marker = "extra == 'all'", specifier = ">=0.1.0" },
+    { name = "openinference-instrumentation-openai", marker = "extra == 'openai'", specifier = ">=0.1.0" },
+    { name = "openinference-instrumentation-vertexai", marker = "extra == 'all'", specifier = ">=0.1.0" },
+    { name = "openinference-instrumentation-vertexai", marker = "extra == 'vertex'", specifier = ">=0.1.0" },
     { name = "opentelemetry-api", specifier = ">=1.20.0" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.20.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.20.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
+    { name = "wrapt", marker = "extra == 'all'", specifier = ">=1.14.0" },
+    { name = "wrapt", marker = "extra == 'aws'", specifier = ">=1.14.0" },
 ]
-provides-extras = ["all", "autogen", "crewai", "dev", "langchain", "langgraph", "openai-agents", "pydantic-ai"]
+provides-extras = ["all", "anthropic", "autogen", "aws", "crewai", "dev", "langchain", "langgraph", "openai", "openai-agents", "pydantic-ai", "vertex"]
 
 [[package]]
 name = "six"

@@ -16,25 +16,22 @@ SideSeat automatically extracts model information, token usage, and costs from A
 ## Usage with Boto3
 
 ```python
-from sideseat import SideSeat
-SideSeat()
-
+from sideseat import SideSeat, Frameworks
 import boto3
-import json
+
+SideSeat(framework=Frameworks.Bedrock)
 
 bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
 
-response = bedrock.invoke_model(
-    modelId="anthropic.claude-sonnet-4-5-20250929-v1:0",
-    body=json.dumps({
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 1024,
-        "messages": [{"role": "user", "content": "Hello!"}]
-    })
+response = bedrock.converse(
+    modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    messages=[{
+        "role": "user",
+        "content": [{"text": "Hello!"}]
+    }]
 )
 
-result = json.loads(response["body"].read())
-print(result["content"][0]["text"])
+print(response["output"]["message"]["content"][0]["text"])
 ```
 
 ## Usage with Strands
@@ -43,9 +40,9 @@ Strands has native Bedrock support:
 
 ```python
 from sideseat import SideSeat, Frameworks
-SideSeat(framework=Frameworks.Strands)
-
 from strands import Agent
+
+SideSeat(framework=Frameworks.Strands)
 
 agent = Agent()
 response = agent("Hello!")
@@ -57,7 +54,7 @@ Strands uses Amazon Bedrock by default. To specify a model explicitly:
 ```python
 from strands.models import BedrockModel
 
-model = BedrockModel(model_id="anthropic.claude-sonnet-4-5-20250929-v1:0")
+model = BedrockModel(model_id="us.anthropic.claude-sonnet-4-5-20250929-v1:0")
 agent = Agent(model=model)
 ```
 
@@ -75,52 +72,74 @@ agent = Agent(model=model)
 
 ## Cross-Region Inference
 
-Bedrock cross-region inference is supported:
+Bedrock cross-region inference profiles use a region prefix (e.g. `us.`, `eu.`):
 
 ```python
 model = BedrockModel(
-    model_id="anthropic.claude-sonnet-4-5-20250929-v1:0",
+    model_id="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
     region_name="us-east-1"
 )
 ```
-
-The `us.` prefix indicates cross-region inference.
 
 ## Streaming
 
 Streaming responses are captured:
 
 ```python
-response = bedrock.invoke_model_with_response_stream(
-    modelId="anthropic.claude-sonnet-4-5-20250929-v1:0",
-    body=json.dumps({
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 1024,
-        "messages": [{"role": "user", "content": "Tell me a story"}]
-    })
-)
-
-for event in response["body"]:
-    chunk = json.loads(event["chunk"]["bytes"])
-    if chunk["type"] == "content_block_delta":
-        print(chunk["delta"]["text"], end="")
-```
-
-## Converse API
-
-The Bedrock Converse API is also supported:
-
-```python
-response = bedrock.converse(
-    modelId="anthropic.claude-sonnet-4-5-20250929-v1:0",
+response = bedrock.converse_stream(
+    modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
     messages=[{
         "role": "user",
-        "content": [{"text": "Hello!"}]
+        "content": [{"text": "Tell me a story"}]
     }]
 )
 
-print(response["output"]["message"]["content"][0]["text"])
+for event in response["stream"]:
+    if "contentBlockDelta" in event:
+        print(event["contentBlockDelta"]["delta"]["text"], end="")
 ```
+
+## User and Session Tracking
+
+Associate spans with a user or session for filtering in the SideSeat UI:
+
+```python
+SideSeat(
+    framework=Frameworks.Bedrock,
+    user_id="user-123",
+    session_id="session-abc",
+)
+```
+
+All Bedrock spans will include `user.id` and `session.id` attributes.
+
+To track a multi-turn conversation, wrap the calls in a `client.span()`:
+
+```python
+client = SideSeat(framework=Frameworks.Bedrock, user_id="user-123")
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+messages = []
+
+with client.span("chat-session", session_id="session-abc"):
+    # First turn
+    messages.append({"role": "user", "content": [{"text": "What is the capital of France?"}]})
+    response = bedrock.converse(modelId=model_id, messages=messages)
+    assistant_msg = response["output"]["message"]
+    messages.append(assistant_msg)
+
+    # Second turn — same session
+    messages.append({"role": "user", "content": [{"text": "What about Germany?"}]})
+    response = bedrock.converse(modelId=model_id, messages=messages)
+    assistant_msg = response["output"]["message"]
+    messages.append(assistant_msg)
+
+    print(assistant_msg["content"][0]["text"])
+```
+
+Both converse calls and all child spans inherit `user.id` and `session.id`, grouping them into a single session in the SideSeat UI.
+
+Values can also be set via environment variables (`SIDESEAT_USER_ID`, `SIDESEAT_SESSION_ID`).
 
 ## Authentication
 

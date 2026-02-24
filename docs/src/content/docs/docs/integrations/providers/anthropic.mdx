@@ -22,10 +22,10 @@ Examples use Claude Sonnet 4.5. Replace the `model` value with the exact model I
 <Tabs>
   <TabItem label="Python">
     ```python
-    from sideseat import SideSeat
-    SideSeat()
-
+    from sideseat import SideSeat, Frameworks
     import anthropic
+
+    SideSeat(framework=Frameworks.Anthropic)
 
     client = anthropic.Anthropic()
     message = client.messages.create(
@@ -39,9 +39,9 @@ Examples use Claude Sonnet 4.5. Replace the `model` value with the exact model I
   <TabItem label="JavaScript">
     ```typescript
     import { init } from '@sideseat/sdk';
-    init();
-
     import Anthropic from '@anthropic-ai/sdk';
+
+    init();
 
     const client = new Anthropic();
     const message = await client.messages.create({
