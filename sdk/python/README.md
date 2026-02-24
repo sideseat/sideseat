@@ -87,7 +87,7 @@ Strands Agents and Google ADK require only the core SDK.
 
 ## Framework Examples
 
-SideSeat auto-detects installed frameworks in this order: Strands, LangChain/LangGraph, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI. When multiple frameworks are installed, use the `framework` parameter to select one explicitly.
+SideSeat auto-detects installed frameworks in this order: Strands, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI. When multiple frameworks are installed, use the `framework` parameter to select one explicitly. LangGraph is detected as LangChain — use `framework=Frameworks.LangGraph` to select it explicitly.
 
 ### Strands Agents
 
@@ -100,6 +100,31 @@ SideSeat(framework=Frameworks.Strands)
 agent = Agent()
 response = agent("What is 2+2?")
 print(response)
+```
+
+### Amazon Bedrock (Converse)
+
+```python
+import boto3
+from sideseat import SideSeat, Frameworks
+
+client = SideSeat(framework=Frameworks.Bedrock, user_id="user-123")
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+messages = []
+
+with client.span("chat-session", session_id="session-abc"):
+    messages.append({"role": "user", "content": [{"text": "What is the capital of France?"}]})
+    response = bedrock.converse(modelId=model_id, messages=messages)
+    assistant_msg = response["output"]["message"]
+    messages.append(assistant_msg)
+
+    messages.append({"role": "user", "content": [{"text": "What about Germany?"}]})
+    response = bedrock.converse(modelId=model_id, messages=messages)
+    assistant_msg = response["output"]["message"]
+    messages.append(assistant_msg)
+
+    print(assistant_msg["content"][0]["text"])
 ```
 
 ### Google ADK
@@ -235,13 +260,15 @@ print(result.data)
 
 ### Environment Variables
 
-| Variable            | Default                 | Description            |
-| ------------------- | ----------------------- | ---------------------- |
-| `SIDESEAT_ENDPOINT` | `http://127.0.0.1:5388` | Server URL             |
-| `SIDESEAT_PROJECT`  | `default`               | Project identifier     |
-| `SIDESEAT_API_KEY`  | —                       | Authentication key     |
-| `SIDESEAT_DISABLED` | `false`                 | Disable all telemetry  |
-| `SIDESEAT_DEBUG`    | `false`                 | Enable verbose logging |
+| Variable              | Default                 | Description                  |
+| --------------------- | ----------------------- | ---------------------------- |
+| `SIDESEAT_ENDPOINT`   | `http://127.0.0.1:5388` | Server URL                   |
+| `SIDESEAT_PROJECT`    | `default`               | Project identifier           |
+| `SIDESEAT_API_KEY`    | —                       | Authentication key           |
+| `SIDESEAT_DISABLED`   | `false`                 | Disable all telemetry        |
+| `SIDESEAT_DEBUG`      | `false`                 | Enable verbose logging       |
+| `SIDESEAT_USER_ID`    | —                       | User identifier for spans    |
+| `SIDESEAT_SESSION_ID` | —                       | Session identifier for spans |
 
 ### Constructor Parameters
 
@@ -250,7 +277,7 @@ SideSeat(
     endpoint="http://localhost:5388",
     project_id="my-project",
     api_key="pk-...",
-    framework=Frameworks.LangGraph,
+    framework=Frameworks.Strands,
     auto_instrument=True,
     service_name="my-app",
     service_version="1.0.0",
@@ -259,6 +286,8 @@ SideSeat(
     enable_logs=False,
     capture_content=True,
     encode_binary=True,
+    user_id="user-123",
+    session_id="session-abc",
     disabled=False,
     debug=False,
 )
@@ -269,7 +298,7 @@ SideSeat(
 | `endpoint`        | `str`  | `http://127.0.0.1:5388` | Server URL                        |
 | `project_id`      | `str`  | `default`               | Project identifier                |
 | `api_key`         | `str`  | `None`                  | Authentication key                |
-| `framework`       | `str`  | Auto-detected           | Framework to instrument           |
+| `framework`       | `str \| list` | Auto-detected     | Framework/providers to instrument |
 | `auto_instrument` | `bool` | `True`                  | Enable framework instrumentation  |
 | `service_name`    | `str`  | Framework name          | Application name in traces        |
 | `service_version` | `str`  | Framework version       | Application version               |
@@ -278,6 +307,8 @@ SideSeat(
 | `enable_logs`     | `bool` | `False`                 | Export logs                       |
 | `capture_content` | `bool` | `True`                  | Capture LLM prompts and responses |
 | `encode_binary`   | `bool` | `True`                  | Base64 encode binary data         |
+| `user_id`         | `str`  | `None`                  | User identifier for spans         |
+| `session_id`      | `str`  | `None`                  | Session identifier for spans      |
 | `disabled`        | `bool` | `False`                 | Disable all telemetry             |
 | `debug`           | `bool` | `False`                 | Enable verbose logging            |
 
@@ -421,6 +452,15 @@ Frameworks.AutoGen
 Frameworks.OpenAIAgents
 Frameworks.GoogleADK
 Frameworks.PydanticAI
+```
+
+### Providers (via Frameworks)
+
+```python
+Frameworks.Bedrock    # Amazon Bedrock (patches botocore)
+Frameworks.OpenAI     # OpenAI (instruments openai SDK)
+Frameworks.Anthropic  # Anthropic (instruments anthropic SDK)
+Frameworks.VertexAI   # Google Vertex AI (instruments vertexai SDK)
 ```
 
 ### Module Functions

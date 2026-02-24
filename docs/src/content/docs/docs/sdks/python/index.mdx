@@ -51,10 +51,9 @@ Add two lines at the top of your entry point:
 
 ```python
 from sideseat import SideSeat, Frameworks
-SideSeat(framework=Frameworks.Strands)
-
-# Your existing code
 from strands import Agent
+
+SideSeat(framework=Frameworks.Strands)
 
 agent = Agent()
 response = agent("Hello!")

@@ -17,7 +17,7 @@ SideSeat(
     api_key: str | None = None,
 
     # Framework
-    framework: str | None = None,
+    framework: str | list[str] | None = None,
     auto_instrument: bool = True,
 
     # Service identity
@@ -32,6 +32,10 @@ SideSeat(
     # Content capture
     capture_content: bool = True,
     encode_binary: bool = True,
+
+    # Identity
+    user_id: str | None = None,
+    session_id: str | None = None,
 
     # Control
     disabled: bool = False,
@@ -93,7 +97,7 @@ Available frameworks:
 
 If not specified, the SDK auto-detects in this order:
 1. Strands (`strands-agents`)
-2. LangChain / LangGraph (`langchain-core`)
+2. LangChain (`langchain-core`)
 3. CrewAI (`crewai`)
 4. AutoGen (`autogen-agentchat`)
 5. OpenAI Agents (`agents`)
@@ -118,6 +122,28 @@ client = SideSeat(auto_instrument=False)
 
 <Aside type="tip">
 Set `auto_instrument=False` if your framework isn't supported or you want to use native instrumentation.
+</Aside>
+
+The `framework` parameter also accepts provider identifiers and lists:
+
+```python
+from sideseat import SideSeat, Frameworks
+
+# Instrument direct Bedrock API calls
+client = SideSeat(framework=Frameworks.Bedrock)
+
+# Framework + provider together
+client = SideSeat(framework=[Frameworks.Strands, Frameworks.Bedrock])
+```
+
+Available providers:
+- `Frameworks.Bedrock` — Amazon Bedrock (patches botocore to capture model, tokens, and messages)
+- `Frameworks.OpenAI` — OpenAI (instruments the `openai` Python SDK)
+- `Frameworks.Anthropic` — Anthropic (instruments the `anthropic` Python SDK)
+- `Frameworks.VertexAI` — Google Vertex AI (instruments the `vertexai` Python SDK)
+
+<Aside type="note">
+Use provider identifiers when calling provider SDKs directly. Framework instrumentation (Strands, LangGraph, etc.) captures LLM calls through their own telemetry and does not need providers. Azure OpenAI uses the same `openai` SDK, so use `Frameworks.OpenAI` for Azure OpenAI as well.
 </Aside>
 
 ## Service Identity
@@ -201,6 +227,31 @@ client = SideSeat(encode_binary=False)
 Keep `encode_binary=True` unless you're sure your spans don't contain binary data. Base64 encoding ensures compatibility with JSON-based exporters.
 </Aside>
 
+## Identity Parameters
+
+### `user_id`
+
+Associate all spans with a user.
+
+```python
+client = SideSeat(user_id="user-123")
+```
+
+### `session_id`
+
+Associate all spans with a session.
+
+```python
+client = SideSeat(session_id="session-abc")
+```
+
+Both can be overridden per-operation via `client.span()`:
+
+```python
+with client.span("operation", user_id="other-user", session_id="other-session"):
+    do_work()
+```
+
 ## Control Parameters
 
 ### `disabled`
@@ -233,6 +284,8 @@ The SDK respects these environment variables:
 | `SIDESEAT_API_KEY` | — | Authentication key |
 | `SIDESEAT_DISABLED` | `false` | Disable all telemetry |
 | `SIDESEAT_DEBUG` | `false` | Enable verbose logging |
+| `SIDESEAT_USER_ID` | — | User identifier for spans |
+| `SIDESEAT_SESSION_ID` | — | Session identifier for spans |
 
 Standard OpenTelemetry variables are also supported:
 
@@ -264,7 +317,7 @@ client = SideSeat(
     api_key="pk-xxx",
 
     # Framework
-    framework=Frameworks.LangGraph,
+    framework=Frameworks.Strands,
     auto_instrument=True,
 
     # Service identity
@@ -279,6 +332,10 @@ client = SideSeat(
     # Content capture
     capture_content=True,
     encode_binary=True,
+
+    # Identity
+    user_id="user-123",
+    session_id="session-abc",
 
     # Control
     disabled=False,

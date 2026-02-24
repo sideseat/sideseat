@@ -933,6 +933,7 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     span.gen_ai_system = get_first(
         attrs,
         &[
+            keys::GEN_AI_PROVIDER_NAME,
             keys::GEN_AI_SYSTEM,
             "az.ai.inference.model_provider",
             "ai.model.provider",

@@ -10,15 +10,11 @@ from typing import TYPE_CHECKING, Any
 
 from sideseat._version import __version__
 from sideseat.config import Config, Frameworks
+from sideseat.instrumentation import patch_adk_tracing, patch_strands_encoder
 from sideseat.telemetry import TelemetryClient
-from sideseat.telemetry.encoding import (
-    encode_value,
-    get_otel_resource,
-    patch_adk_tracing,
-    patch_strands_encoder,
-    span_to_dict,
-)
+from sideseat.telemetry.encoding import encode_value, span_to_dict
 from sideseat.telemetry.exporters import JsonFileSpanExporter
+from sideseat.telemetry.resource import get_otel_resource
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Span, Tracer
@@ -44,6 +40,12 @@ class SideSeat:
         # Explicit framework
         SideSeat(framework=Frameworks.Strands)
 
+        # With cloud provider instrumentation (direct boto3 usage)
+        SideSeat(framework=Frameworks.Bedrock)
+
+        # Framework + provider
+        SideSeat(framework=[Frameworks.Strands, Frameworks.Bedrock])
+
         # Context manager (auto shutdown)
         with SideSeat() as client:
             pass
@@ -59,7 +61,7 @@ class SideSeat:
         endpoint: str | None = None,
         api_key: str | None = None,
         project_id: str | None = None,
-        framework: str | None = None,
+        framework: str | list[str] | None = None,
         service_name: str | None = None,
         service_version: str | None = None,
         auto_instrument: bool = True,
@@ -69,6 +71,8 @@ class SideSeat:
         encode_binary: bool = True,
         capture_content: bool = True,
         debug: bool | None = None,
+        user_id: str | None = None,
+        session_id: str | None = None,
     ):
         self._config = Config.create(
             disabled=disabled,
@@ -85,6 +89,8 @@ class SideSeat:
             encode_binary=encode_binary,
             capture_content=capture_content,
             debug=debug,
+            user_id=user_id,
+            session_id=session_id,
         )
         self._telemetry = TelemetryClient(self._config)
 
@@ -126,8 +132,7 @@ class SideSeat:
         """Create span with automatic error status on exception.
 
         Example:
-            with client.span("process_request") as span:
-                span.set_attribute("user_id", "123")
+            with client.span("process_request", user_id="u1") as span:
                 do_work()
         """
         with self._telemetry.span(name, **kwargs) as s:
