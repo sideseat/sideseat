@@ -16,11 +16,11 @@ SideSeat automatically extracts model information, token usage, and costs from G
 ## Usage with Vertex AI SDK
 
 ```python
-from sideseat import SideSeat
-SideSeat()
-
+from sideseat import SideSeat, Frameworks
 import vertexai
 from vertexai.generative_models import GenerativeModel
+
+SideSeat(framework=Frameworks.VertexAI)
 
 vertexai.init(project="your-project", location="us-central1")
 
@@ -32,10 +32,10 @@ print(response.text)
 ## Usage with Google GenAI SDK
 
 ```python
-from sideseat import SideSeat
-SideSeat()
-
+from sideseat import SideSeat, Frameworks
 import google.generativeai as genai
+
+SideSeat(framework=Frameworks.VertexAI)
 
 genai.configure(api_key="your-api-key")
 

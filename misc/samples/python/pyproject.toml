@@ -53,6 +53,8 @@ dependencies = [
 dev = ["ruff>=0.11.0"]
 
 [project.scripts]
+# Bedrock (raw boto3 API samples)
+bedrock = "bedrock_sample.cli:main"
 # Strands (unified entry point)
 strands = "strands_sample.cli:main"
 # Google ADK (unified entry point)
@@ -83,11 +85,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/common", "src/strands_sample", "src/adk_sample", "src/langgraph_sample", "src/crewai_sample", "src/autogen_sample", "src/openai_agents_sample", "src/loadtest_sample", "src/run_all_sample"]
+packages = ["src/common", "src/bedrock_sample", "src/strands_sample", "src/adk_sample", "src/langgraph_sample", "src/crewai_sample", "src/autogen_sample", "src/openai_agents_sample", "src/loadtest_sample", "src/run_all_sample"]
 sources = ["src"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"../../../sdk/python/src/sideseat" = "sideseat"
 
 [tool.ruff]
 line-length = 100

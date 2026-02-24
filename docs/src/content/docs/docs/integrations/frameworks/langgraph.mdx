@@ -22,10 +22,10 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 
    ```python
    from sideseat import SideSeat, Frameworks
-   SideSeat(framework=Frameworks.LangGraph)
-
    from langgraph.prebuilt import create_react_agent
    from langchain_openai import ChatOpenAI
+
+   SideSeat(framework=Frameworks.LangGraph)
 
    llm = ChatOpenAI(model="gpt-5-mini")
    agent = create_react_agent(llm, tools=[])
@@ -81,13 +81,12 @@ result = agent.invoke({"messages": [("user", "What's the weather in Paris?")]})
 
 ```python
 from sideseat import SideSeat, Frameworks
-
-SideSeat(framework=Frameworks.LangGraph)
-
 from typing import TypedDict, Annotated
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langchain_openai import ChatOpenAI
+
+SideSeat(framework=Frameworks.LangGraph)
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]

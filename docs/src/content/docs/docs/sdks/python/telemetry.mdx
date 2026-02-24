@@ -16,7 +16,7 @@ class SideSeat:
         endpoint: str | None = None,
         project_id: str | None = None,
         api_key: str | None = None,
-        framework: str | None = None,
+        framework: str | list[str] | None = None,
         auto_instrument: bool = True,
         service_name: str | None = None,
         service_version: str | None = None,
@@ -27,6 +27,8 @@ class SideSeat:
         encode_binary: bool = True,
         disabled: bool = False,
         debug: bool = False,
+        user_id: str | None = None,
+        session_id: str | None = None,
     ) -> None: ...
 ```
 
@@ -76,12 +78,14 @@ if client.is_disabled:
 
 ## Methods
 
-### `span(name)`
+### `span(name, **kwargs)`
 
 Create a custom span for tracing.
 
 **Parameters**:
 - `name` (str): Span name
+- `user_id` (str, optional): Override user ID for this span and its children
+- `session_id` (str, optional): Override session ID for this span and its children
 
 **Returns**: `ContextManager[Span]`
 
@@ -89,9 +93,16 @@ Create a custom span for tracing.
 client = SideSeat()
 
 with client.span("my-operation") as span:
-    span.set_attribute("user_id", "123")
+    span.set_attribute("custom_key", "value")
     result = process_request()
 # Errors are automatically recorded with stack trace
+```
+
+Per-operation identity override:
+
+```python
+with client.span("user-request", user_id="user-456", session_id="session-xyz"):
+    do_work()  # This span and children get overridden IDs
 ```
 
 ### `get_tracer(name)`
@@ -210,12 +221,33 @@ client = SideSeat(
 )
 ```
 
+### With Provider Instrumentation
+
+```python
+from sideseat import SideSeat, Frameworks
+
+client = SideSeat(framework=Frameworks.Bedrock)
+```
+
 ### With Debug Exporters
 
 ```python
 client = SideSeat()
 client.telemetry.setup_console_exporter()  # Print spans
 client.telemetry.setup_file_exporter("traces.jsonl")  # Write to file
+```
+
+### User and Session Tracking
+
+```python
+from sideseat import SideSeat
+
+# Global: all spans get these IDs
+client = SideSeat(user_id="user-123", session_id="session-abc")
+
+# Per-operation: override for a specific scope
+with client.span("handle-request", user_id="user-456", session_id="session-xyz"):
+    run_agent()  # This span and children use overridden IDs
 ```
 
 ### Disabled Mode

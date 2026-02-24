@@ -18,10 +18,10 @@ SideSeat automatically extracts model information, token usage, and costs from A
 <Tabs>
   <TabItem label="Python">
     ```python
-    from sideseat import SideSeat
-    SideSeat()
-
+    from sideseat import SideSeat, Frameworks
     from openai import AzureOpenAI
+
+    SideSeat(framework=Frameworks.OpenAI)
 
     client = AzureOpenAI(
         api_key="your-api-key",
@@ -39,9 +39,9 @@ SideSeat automatically extracts model information, token usage, and costs from A
   <TabItem label="JavaScript">
     ```typescript
     import { init } from '@sideseat/sdk';
-    init();
-
     import { AzureOpenAI } from 'openai';
+
+    init();
 
     const client = new AzureOpenAI({
       apiKey: 'your-api-key',

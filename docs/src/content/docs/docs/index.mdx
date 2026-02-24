@@ -38,8 +38,8 @@ AI agents are hard to debug. Requests fly by, context builds up, and when someth
    <Tabs>
      <TabItem label="Python">
        ```python
-       from strands import Agent
        from sideseat import SideSeat, Frameworks
+       from strands import Agent
 
        SideSeat(framework=Frameworks.Strands)   # add this
 
@@ -91,7 +91,7 @@ Open [http://localhost:5388](http://localhost:5388). You'll see a live timeline 
     init();
 
     const { text } = await generateText({
-      model: bedrock('anthropic.claude-sonnet-4-5-20250929-v1:0'),
+      model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
       prompt: 'What is 2+2?',
       experimental_telemetry: { isEnabled: true },
     });
