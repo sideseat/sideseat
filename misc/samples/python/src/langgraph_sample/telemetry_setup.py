@@ -36,7 +36,7 @@ def setup_telemetry(use_sideseat: bool = False):
         from sideseat import Frameworks, SideSeat
 
         client = SideSeat(framework=Frameworks.LangGraph)
-        client.telemetry.setup_file_exporter()
+        # client.telemetry.setup_file_exporter()
         client.telemetry.setup_console_exporter()
         return client
 
