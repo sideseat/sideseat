@@ -24,9 +24,9 @@ class Frameworks:
     GoogleADK = "google-adk"
     PydanticAI = "pydantic-ai"
     OpenAI = "openai"
+    Anthropic = "anthropic"
     # Providers
     Bedrock = "bedrock"
-    Anthropic = "anthropic"
     VertexAI = "vertex_ai"
 
 
@@ -39,12 +39,13 @@ FRAMEWORK_PACKAGES = [
     (Frameworks.GoogleADK, "google-adk"),
     (Frameworks.PydanticAI, "pydantic-ai"),
     (Frameworks.OpenAI, "openai"),
+    (Frameworks.Anthropic, "anthropic"),
 ]
 
 _FRAMEWORK_KEYS = {key for key, _ in FRAMEWORK_PACKAGES}
 
 # Packages too common as transitive deps for reliable auto-detection
-_NO_AUTO_DETECT = {Frameworks.OpenAI}
+_NO_AUTO_DETECT = {Frameworks.OpenAI, Frameworks.Anthropic}
 
 
 def _resolve_framework_input(
