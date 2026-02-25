@@ -1,19 +1,21 @@
 ---
 title: Amazon Bedrock
-description: SideSeat extracts model and token information from Amazon Bedrock API calls.
+description: Instrument Amazon Bedrock Converse and InvokeModel APIs with SideSeat for full observability.
 ---
 
-import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 
-SideSeat automatically extracts model information, token usage, and costs from Amazon Bedrock API calls.
+SideSeat instruments the boto3 Bedrock Runtime client to capture model information, token usage, messages, and costs from both the Converse and InvokeModel APIs.
 
 ## Prerequisites
 
 - SideSeat running locally (`sideseat`)
-- SDK installed (`pip install sideseat` / `uv add sideseat` or `npm install @sideseat/sdk`)
+- Python SDK installed (`pip install sideseat` or `uv add sideseat`)
 - AWS credentials configured for Amazon Bedrock
 
-## Usage with Boto3
+## Converse API
+
+SideSeat patches the boto3 [Converse API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html) automatically. Initialize SideSeat with the `Bedrock` framework, then use boto3 as usual:
 
 ```python
 from sideseat import SideSeat, Frameworks
@@ -25,121 +27,267 @@ bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
 
 response = bedrock.converse(
     modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-    messages=[{
-        "role": "user",
-        "content": [{"text": "Hello!"}]
-    }]
+    system=[{"text": "Answer in one sentence."}],
+    messages=[{"role": "user", "content": [{"text": "What is the speed of light?"}]}],
+    inferenceConfig={"maxTokens": 128},
 )
 
 print(response["output"]["message"]["content"][0]["text"])
 ```
 
-## Usage with Strands
-
-Strands has native Bedrock support:
-
-```python
-from sideseat import SideSeat, Frameworks
-from strands import Agent
-
-SideSeat(framework=Frameworks.Strands)
-
-agent = Agent()
-response = agent("Hello!")
-print(response)
-```
-
-Strands uses Amazon Bedrock by default. To specify a model explicitly:
-
-```python
-from strands.models import BedrockModel
-
-model = BedrockModel(model_id="us.anthropic.claude-sonnet-4-5-20250929-v1:0")
-agent = Agent(model=model)
-```
-
-## Extracted Attributes
-
-| Attribute | Source |
-|-----------|--------|
-| `gen_ai.system` | `bedrock` |
-| `gen_ai.request.model` | Model ID from request |
-| `gen_ai.response.model` | Model ID from response |
-| `gen_ai.usage.input_tokens` | Usage metrics |
-| `gen_ai.usage.output_tokens` | Usage metrics |
-| `cloud.provider` | `aws` |
-| `cloud.region` | AWS region |
-
-## Cross-Region Inference
-
-Bedrock cross-region inference profiles use a region prefix (e.g. `us.`, `eu.`):
-
-```python
-model = BedrockModel(
-    model_id="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-    region_name="us-east-1"
-)
-```
+<Aside type="tip">
+Use cross-region inference profiles (`us.`, `eu.`, `global.`) for automatic region routing. SideSeat captures the resolved model ID from the response.
+</Aside>
 
 ## Streaming
 
-Streaming responses are captured:
+`converse_stream` responses are fully captured, including token counts aggregated from stream metadata:
 
 ```python
+from sideseat import SideSeat, Frameworks
+import boto3
+
+client = SideSeat(framework=Frameworks.Bedrock)
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+
 response = bedrock.converse_stream(
     modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-    messages=[{
-        "role": "user",
-        "content": [{"text": "Tell me a story"}]
-    }]
+    system=[{"text": "Answer in one sentence."}],
+    messages=[{"role": "user", "content": [{"text": "What is the boiling point of water?"}]}],
+    inferenceConfig={"maxTokens": 128},
 )
 
 for event in response["stream"]:
     if "contentBlockDelta" in event:
-        print(event["contentBlockDelta"]["delta"]["text"], end="")
+        print(event["contentBlockDelta"]["delta"].get("text", ""), end="", flush=True)
 ```
 
-## User and Session Tracking
+## Extended Thinking
 
-Associate spans with a user or session for filtering in the SideSeat UI:
+Claude's extended thinking is captured for both sync and streaming calls. Thinking blocks appear in the message thread alongside the final response.
 
 ```python
-SideSeat(
-    framework=Frameworks.Bedrock,
-    user_id="user-123",
-    session_id="session-abc",
+from sideseat import SideSeat, Frameworks
+import boto3
+
+client = SideSeat(framework=Frameworks.Bedrock)
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+
+response = bedrock.converse(
+    modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    system=[{"text": "You are a math tutor. Show your work."}],
+    messages=[{"role": "user", "content": [{"text": "What is 27 * 453?"}]}],
+    inferenceConfig={"maxTokens": 8192},
+    additionalModelRequestFields={
+        "thinking": {"type": "enabled", "budget_tokens": 1024}
+    },
+)
+
+for block in response["output"]["message"]["content"]:
+    if "reasoningContent" in block:
+        print(f"Thinking: {block['reasoningContent']['reasoningText']['text']}")
+    elif "text" in block:
+        print(f"Answer: {block['text']}")
+```
+
+<Aside type="note">
+Extended thinking requires `maxTokens >= 8192` and a Claude model. The `additionalModelRequestFields` uses snake_case keys (`budget_tokens`, not `budgetTokens`).
+</Aside>
+
+## Tool Use
+
+Tool definitions, tool use requests, and tool results are all captured:
+
+```python
+from sideseat import SideSeat, Frameworks
+import boto3
+
+client = SideSeat(framework=Frameworks.Bedrock)
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+
+tool_config = {
+    "tools": [{
+        "toolSpec": {
+            "name": "get_weather",
+            "description": "Get the current weather for a location.",
+            "inputSchema": {
+                "json": {
+                    "type": "object",
+                    "properties": {
+                        "location": {"type": "string", "description": "City name"}
+                    },
+                    "required": ["location"],
+                }
+            },
+        }
+    }]
+}
+
+# Step 1: model requests a tool call
+messages = [{"role": "user", "content": [{"text": "What's the weather in Paris?"}]}]
+response = bedrock.converse(
+    modelId=model_id,
+    system=[{"text": "Use tools when available."}],
+    messages=messages,
+    toolConfig=tool_config,
+)
+assistant_msg = response["output"]["message"]
+messages.append(assistant_msg)
+
+# Step 2: return the tool result
+tool_use = next(b["toolUse"] for b in assistant_msg["content"] if "toolUse" in b)
+messages.append({
+    "role": "user",
+    "content": [{"toolResult": {
+        "toolUseId": tool_use["toolUseId"],
+        "content": [{"text": "Sunny, 22C"}],
+    }}],
+})
+
+# Step 3: model produces the final answer
+response = bedrock.converse(
+    modelId=model_id,
+    system=[{"text": "Use tools when available."}],
+    messages=messages,
+    toolConfig=tool_config,
 )
 ```
 
-All Bedrock spans will include `user.id` and `session.id` attributes.
+SideSeat captures all three steps as separate spans, each with full message details.
 
-To track a multi-turn conversation, wrap the calls in a `client.span()`:
+## InvokeModel API
+
+SideSeat also instruments `invoke_model` and `invoke_model_with_response_stream` for direct Claude Messages API access:
 
 ```python
-client = SideSeat(framework=Frameworks.Bedrock, user_id="user-123")
+from sideseat import SideSeat, Frameworks
+import boto3
+import json
+
+SideSeat(framework=Frameworks.Bedrock)
 bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
-model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-messages = []
 
-with client.span("chat-session", session_id="session-abc"):
-    # First turn
-    messages.append({"role": "user", "content": [{"text": "What is the capital of France?"}]})
-    response = bedrock.converse(modelId=model_id, messages=messages)
-    assistant_msg = response["output"]["message"]
-    messages.append(assistant_msg)
+body = json.dumps({
+    "anthropic_version": "bedrock-2023-05-31",
+    "max_tokens": 128,
+    "system": "Answer in one sentence.",
+    "messages": [{"role": "user", "content": "What is the speed of light?"}],
+})
 
-    # Second turn — same session
-    messages.append({"role": "user", "content": [{"text": "What about Germany?"}]})
-    response = bedrock.converse(modelId=model_id, messages=messages)
-    assistant_msg = response["output"]["message"]
-    messages.append(assistant_msg)
+response = bedrock.invoke_model(
+    modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    body=body,
+    contentType="application/json",
+)
 
-    print(assistant_msg["content"][0]["text"])
+result = json.loads(response["body"].read())
+print(result["content"][0]["text"])
 ```
 
-Both converse calls and all child spans inherit `user.id` and `session.id`, grouping them into a single session in the SideSeat UI.
+<Aside type="note">
+The InvokeModel API is Claude-specific. For multi-model support across Claude, Nova, and other Bedrock models, use the Converse API.
+</Aside>
 
-Values can also be set via environment variables (`SIDESEAT_USER_ID`, `SIDESEAT_SESSION_ID`).
+## Traces
+
+By default, each Bedrock API call produces its own independent trace. Use `client.trace()` to group related calls under a single root span:
+
+```python
+client = SideSeat(framework=Frameworks.Bedrock)
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+
+with client.trace("geography-chat"):
+    messages = []
+
+    # Turn 1
+    messages.append({"role": "user", "content": [{"text": "What is the capital of France?"}]})
+    response = bedrock.converse(modelId=model_id, messages=messages)
+    messages.append(response["output"]["message"])
+
+    # Turn 2 — follows up on the previous answer
+    messages.append({"role": "user", "content": [{"text": "What about Germany?"}]})
+    response = bedrock.converse(modelId=model_id, messages=messages)
+    messages.append(response["output"]["message"])
+
+    # Turn 3
+    messages.append({"role": "user", "content": [{"text": "Which city has a larger population?"}]})
+    response = bedrock.converse(modelId=model_id, messages=messages)
+```
+
+This produces the following span hierarchy:
+
+```
+geography-chat                    (root span)
+  ├── chat claude-sonnet-4-5...   (turn 1)
+  ├── chat claude-sonnet-4-5...   (turn 2)
+  └── chat claude-sonnet-4-5...   (turn 3)
+```
+
+All three calls appear as child spans in the SideSeat UI, with the full multi-turn conversation visible in the trace detail view.
+
+## Sessions
+
+Use `client.session()` to group multiple traces into a session. This sets `session.id` and `user.id` on all child spans, enabling session-level filtering and replay in the SideSeat UI.
+
+A session typically contains multiple `client.trace()` calls, each representing a distinct interaction or topic:
+
+```python
+client = SideSeat(framework=Frameworks.Bedrock)
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+
+with client.session("travel-planner", session_id="sess-abc", user_id="user-123"):
+
+    # Trace 1: Trip planning
+    with client.trace("trip-planning"):
+        messages = []
+        messages.append({"role": "user", "content": [{"text": "Plan a 5-day trip to Japan."}]})
+        response = bedrock.converse(modelId=model_id, messages=messages)
+        messages.append(response["output"]["message"])
+
+        messages.append({"role": "user", "content": [{"text": "Tell me more about Kyoto."}]})
+        response = bedrock.converse(modelId=model_id, messages=messages)
+
+    # Trace 2: Food recommendations (fresh conversation)
+    with client.trace("food-recommendations"):
+        messages = []
+        messages.append({"role": "user", "content": [{"text": "What are the must-try dishes in Tokyo?"}]})
+        response = bedrock.converse(modelId=model_id, messages=messages)
+        messages.append(response["output"]["message"])
+
+        messages.append({"role": "user", "content": [{"text": "What about street food in Osaka?"}]})
+        response = bedrock.converse(modelId=model_id, messages=messages)
+```
+
+This produces:
+
+```
+travel-planner                         (session root, session.id + user.id)
+  ├── trip-planning                    (trace 1)
+  │   ├── chat claude-sonnet-4-5...    (turn 1)
+  │   └── chat claude-sonnet-4-5...    (turn 2)
+  └── food-recommendations             (trace 2)
+      ├── chat claude-sonnet-4-5...    (turn 1)
+      └── chat claude-sonnet-4-5...    (turn 2)
+```
+
+Each trace starts a fresh conversation with its own message history, while the session groups them for the same user.
+
+`user_id` and `session_id` can also be passed directly to `client.trace()` when you don't need a session wrapper:
+
+```python
+from sideseat import SideSeat, Frameworks
+import boto3
+
+client = SideSeat(framework=Frameworks.Bedrock)
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+
+with client.trace("support-ticket", user_id="user-123", session_id="ticket-456"):
+    bedrock.converse(modelId=model_id, messages=[...])
+```
 
 ## Authentication
 
@@ -157,5 +305,6 @@ export AWS_PROFILE=my-profile
 
 ## Next Steps
 
-- [Strands](/docs/integrations/frameworks/strands/) — full Strands guide
-- [Python SDK](/docs/sdks/python/) — SDK reference
+- [Strands Agents](/docs/integrations/frameworks/strands/) — use SideSeat with the Strands agent framework on Bedrock
+- [Python SDK](/docs/sdks/python/) — SDK configuration and API reference
+- [First Run](/docs/quickstart/) — get started with SideSeat

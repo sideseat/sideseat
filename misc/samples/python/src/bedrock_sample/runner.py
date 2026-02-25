@@ -44,18 +44,12 @@ def run_sample(name: str, args) -> bool:
     print()
 
     trace_attrs = create_trace_attributes("bedrock", name)
-    client = setup_telemetry(
-        use_sideseat=args.sideseat,
-        user_id=trace_attrs["user.id"],
-        session_id=trace_attrs["session.id"],
-    )
+    client = setup_telemetry(use_sideseat=args.sideseat)
 
     bedrock = get_model(args.model)
     module = importlib.import_module(SAMPLES[name])
 
-    # Parent span groups all Bedrock API calls into a single trace
-    with client.span(f"bedrock-{name}"):
-        module.run(bedrock, trace_attrs)
+    module.run(bedrock, trace_attrs, client)
     return True
 
 

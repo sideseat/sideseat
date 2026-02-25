@@ -15,10 +15,8 @@ DEFAULT_MODEL = "bedrock-haiku"
 
 SAMPLE_NAMES = [
     "converse",
-    "converse_stream",
-    "converse_tools",
+    "multi_turn",
     "invoke_model",
-    "image",
     "document",
     "session",
     "error",
