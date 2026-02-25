@@ -32,6 +32,14 @@ class TestIsLogfireFramework:
         """PydanticAI should use Logfire."""
         assert is_logfire_framework(Frameworks.PydanticAI) is True
 
+    def test_openai_is_logfire(self) -> None:
+        """OpenAI should use Logfire."""
+        assert is_logfire_framework(Frameworks.OpenAI) is True
+
+    def test_anthropic_is_logfire(self) -> None:
+        """Anthropic should use Logfire."""
+        assert is_logfire_framework(Frameworks.Anthropic) is True
+
     def test_other_frameworks_not_logfire(self) -> None:
         """Other frameworks should not use Logfire."""
         assert is_logfire_framework(Frameworks.Strands) is False
@@ -45,6 +53,8 @@ class TestIsLogfireFramework:
         assert isinstance(LOGFIRE_FRAMEWORKS, frozenset)
         assert Frameworks.OpenAIAgents in LOGFIRE_FRAMEWORKS
         assert Frameworks.PydanticAI in LOGFIRE_FRAMEWORKS
+        assert Frameworks.OpenAI in LOGFIRE_FRAMEWORKS
+        assert Frameworks.Anthropic in LOGFIRE_FRAMEWORKS
 
 
 class TestInstrument:

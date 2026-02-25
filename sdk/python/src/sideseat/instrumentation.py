@@ -14,7 +14,9 @@ logger = logging.getLogger("sideseat.instrumentation")
 _instrumented: set[str] = set()
 _lock = threading.Lock()
 
-LOGFIRE_FRAMEWORKS = frozenset({Frameworks.OpenAIAgents, Frameworks.PydanticAI, Frameworks.OpenAI})
+LOGFIRE_FRAMEWORKS = frozenset(
+    {Frameworks.OpenAIAgents, Frameworks.PydanticAI, Frameworks.OpenAI, Frameworks.Anthropic}
+)
 
 
 def is_logfire_framework(framework: str) -> bool:
@@ -53,6 +55,8 @@ def instrument(
             _instrument_logfire("pydantic_ai", service_name, service_version)
         elif framework == Frameworks.OpenAI:
             _instrument_logfire("openai", service_name, service_version)
+        elif framework == Frameworks.Anthropic:
+            _instrument_logfire("anthropic", service_name, service_version)
         elif framework == Frameworks.GoogleADK:
             pass  # Uses global provider
         else:
@@ -108,10 +112,6 @@ def instrument_providers(
     """
     if "bedrock" in providers:
         _try_instrument_aws(provider)
-    if "anthropic" in providers:
-        _try_instrument_provider(
-            "anthropic", "anthropic", "anthropic", "AnthropicInstrumentor", provider
-        )
     if "vertex_ai" in providers:
         _try_instrument_provider(
             "vertex_ai", "vertexai", "vertexai", "VertexAIInstrumentor", provider
