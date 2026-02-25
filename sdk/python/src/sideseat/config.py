@@ -23,10 +23,10 @@ class Frameworks:
     OpenAIAgents = "openai-agents"
     GoogleADK = "google-adk"
     PydanticAI = "pydantic-ai"
+    OpenAI = "openai"
     # Providers
     Bedrock = "bedrock"
     Anthropic = "anthropic"
-    OpenAI = "openai"
     VertexAI = "vertex_ai"
 
 
@@ -38,9 +38,13 @@ FRAMEWORK_PACKAGES = [
     (Frameworks.OpenAIAgents, "agents"),
     (Frameworks.GoogleADK, "google-adk"),
     (Frameworks.PydanticAI, "pydantic-ai"),
+    (Frameworks.OpenAI, "openai"),
 ]
 
 _FRAMEWORK_KEYS = {key for key, _ in FRAMEWORK_PACKAGES}
+
+# Packages too common as transitive deps for reliable auto-detection
+_NO_AUTO_DETECT = {Frameworks.OpenAI}
 
 
 def _resolve_framework_input(
@@ -188,6 +192,8 @@ def _parse_bool_env(key: str, default: bool) -> bool:
 def _detect_framework() -> tuple[str, str, str]:
     """Detect installed AI framework. Returns (key, package, version)."""
     for key, package in FRAMEWORK_PACKAGES:
+        if key in _NO_AUTO_DETECT:
+            continue
         try:
             return key, package, version(package)
         except PackageNotFoundError:

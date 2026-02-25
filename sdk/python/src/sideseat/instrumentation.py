@@ -14,7 +14,7 @@ logger = logging.getLogger("sideseat.instrumentation")
 _instrumented: set[str] = set()
 _lock = threading.Lock()
 
-LOGFIRE_FRAMEWORKS = frozenset({Frameworks.OpenAIAgents, Frameworks.PydanticAI})
+LOGFIRE_FRAMEWORKS = frozenset({Frameworks.OpenAIAgents, Frameworks.PydanticAI, Frameworks.OpenAI})
 
 
 def is_logfire_framework(framework: str) -> bool:
@@ -51,6 +51,8 @@ def instrument(
             _instrument_logfire("openai_agents", service_name, service_version)
         elif framework == Frameworks.PydanticAI:
             _instrument_logfire("pydantic_ai", service_name, service_version)
+        elif framework == Frameworks.OpenAI:
+            _instrument_logfire("openai", service_name, service_version)
         elif framework == Frameworks.GoogleADK:
             pass  # Uses global provider
         else:
@@ -106,8 +108,6 @@ def instrument_providers(
     """
     if "bedrock" in providers:
         _try_instrument_aws(provider)
-    if "openai" in providers:
-        _try_instrument_provider("openai", "openai", "openai", "OpenAIInstrumentor", provider)
     if "anthropic" in providers:
         _try_instrument_provider(
             "anthropic", "anthropic", "anthropic", "AnthropicInstrumentor", provider
@@ -174,7 +174,22 @@ def _instrument_logfire(
     service_version: str | None,
 ) -> None:
     """Logfire instrumentation (creates its own provider)."""
+    import os
+
     import logfire  # type: ignore[import-not-found]
+
+    # Clear OTLP env vars — SideSeat is the sole export pipeline owner.
+    # Prevents logfire.configure() from creating independent OTLP exporters
+    # that bypass SideSeat's processors (including the streaming reparenter).
+    # The base endpoint triggers exporters for ALL signals (traces, metrics,
+    # logs); signal-specific endpoints trigger their respective exporters.
+    for key in (
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+    ):
+        os.environ.pop(key, None)
 
     logfire.configure(
         service_name=service_name or f"{method_suffix.replace('_', '-')}-app",

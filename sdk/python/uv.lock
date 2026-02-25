@@ -474,24 +474,6 @@ wheels = [
 ]
 
 [[package]]
-name = "openinference-instrumentation-openai"
-version = "0.1.41"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "openinference-instrumentation" },
-    { name = "openinference-semantic-conventions" },
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-instrumentation" },
-    { name = "opentelemetry-semantic-conventions" },
-    { name = "typing-extensions" },
-    { name = "wrapt" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/66/06/77b2fe7171336f71313936daf1b644a9968da85ff0b473a03ca05cc3d5c1/openinference_instrumentation_openai-0.1.41.tar.gz", hash = "sha256:ef4db680986a613b1639720f9beaa315c9e388c20bc985dbbbdf0f4df007c6e9", size = 22848, upload-time = "2025-12-04T19:58:35.349Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a1/db/48f1f540d335f98fa67891e9c25ad56020be7e7b2c0d4fd5014875fe5ddf/openinference_instrumentation_openai-0.1.41-py3-none-any.whl", hash = "sha256:6fad453446835e51333b660882eacababbf1052689ca53cba444a7d97fa2e910", size = 30273, upload-time = "2025-12-04T19:58:34.17Z" },
-]
-
-[[package]]
 name = "openinference-instrumentation-vertexai"
 version = "0.1.12"
 source = { registry = "https://pypi.org/simple" }
@@ -983,7 +965,6 @@ all = [
     { name = "openinference-instrumentation-autogen-agentchat" },
     { name = "openinference-instrumentation-crewai" },
     { name = "openinference-instrumentation-langchain" },
-    { name = "openinference-instrumentation-openai" },
     { name = "openinference-instrumentation-vertexai" },
     { name = "wrapt" },
 ]
@@ -1011,9 +992,6 @@ langgraph = [
     { name = "openinference-instrumentation-langchain" },
 ]
 openai = [
-    { name = "openinference-instrumentation-openai" },
-]
-openai-agents = [
     { name = "logfire" },
 ]
 pydantic-ai = [
@@ -1026,7 +1004,7 @@ vertex = [
 [package.metadata]
 requires-dist = [
     { name = "logfire", marker = "extra == 'all'", specifier = ">=0.50.0" },
-    { name = "logfire", marker = "extra == 'openai-agents'", specifier = ">=0.50.0" },
+    { name = "logfire", marker = "extra == 'openai'", specifier = ">=0.50.0" },
     { name = "logfire", marker = "extra == 'pydantic-ai'", specifier = ">=0.50.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
     { name = "openinference-instrumentation-anthropic", marker = "extra == 'all'", specifier = ">=0.1.0" },
@@ -1038,8 +1016,6 @@ requires-dist = [
     { name = "openinference-instrumentation-langchain", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langchain'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langgraph'", specifier = ">=0.1.0" },
-    { name = "openinference-instrumentation-openai", marker = "extra == 'all'", specifier = ">=0.1.0" },
-    { name = "openinference-instrumentation-openai", marker = "extra == 'openai'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-vertexai", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-vertexai", marker = "extra == 'vertex'", specifier = ">=0.1.0" },
     { name = "opentelemetry-api", specifier = ">=1.20.0" },
@@ -1050,7 +1026,7 @@ requires-dist = [
     { name = "wrapt", marker = "extra == 'all'", specifier = ">=1.14.0" },
     { name = "wrapt", marker = "extra == 'aws'", specifier = ">=1.14.0" },
 ]
-provides-extras = ["all", "anthropic", "autogen", "aws", "crewai", "dev", "langchain", "langgraph", "openai", "openai-agents", "pydantic-ai", "vertex"]
+provides-extras = ["all", "anthropic", "autogen", "aws", "crewai", "dev", "langchain", "langgraph", "openai", "pydantic-ai", "vertex"]
 
 [[package]]
 name = "tomli"

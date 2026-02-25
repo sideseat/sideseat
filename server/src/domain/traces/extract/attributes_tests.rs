@@ -1075,3 +1075,75 @@ fn test_crewai_model_missing_llm_field() {
     extract_genai(&mut span, &attrs, "Crew.kickoff");
     assert_eq!(span.gen_ai_request_model, None);
 }
+
+// ============================================================================
+// SPAN NAME RESOLUTION
+// ============================================================================
+
+#[test]
+fn test_resolve_span_name_logfire_template() {
+    let attrs = make_attrs(&[
+        (
+            "logfire.msg_template",
+            "Chat Completion with {request_data[model]!r}",
+        ),
+        ("logfire.msg", "Chat Completion with 'gpt-4o'"),
+    ]);
+    let mut span = SpanData::default();
+    span.span_name = "Chat Completion with {request_data[model]!r}".to_string();
+
+    resolve_span_name(&mut span, &attrs);
+
+    assert_eq!(span.span_name, "Chat Completion with 'gpt-4o'");
+}
+
+#[test]
+fn test_resolve_span_name_no_template_unchanged() {
+    // Without logfire.msg_template, span name stays as-is even if logfire.msg exists
+    let attrs = make_attrs(&[("logfire.msg", "some resolved name")]);
+    let mut span = SpanData::default();
+    span.span_name = "original span name".to_string();
+
+    resolve_span_name(&mut span, &attrs);
+
+    assert_eq!(span.span_name, "original span name");
+}
+
+#[test]
+fn test_resolve_span_name_template_without_msg_unchanged() {
+    // Template exists but resolved msg is missing — keep original
+    let attrs = make_attrs(&[("logfire.msg_template", "Chat {model}")]);
+    let mut span = SpanData::default();
+    span.span_name = "Chat {model}".to_string();
+
+    resolve_span_name(&mut span, &attrs);
+
+    assert_eq!(span.span_name, "Chat {model}");
+}
+
+#[test]
+fn test_resolve_span_name_empty_msg_unchanged() {
+    // Template exists but resolved msg is empty — keep original
+    let attrs = make_attrs(&[
+        ("logfire.msg_template", "Chat {model}"),
+        ("logfire.msg", ""),
+    ]);
+    let mut span = SpanData::default();
+    span.span_name = "Chat {model}".to_string();
+
+    resolve_span_name(&mut span, &attrs);
+
+    assert_eq!(span.span_name, "Chat {model}");
+}
+
+#[test]
+fn test_resolve_span_name_braces_in_name_no_template() {
+    // Span name with braces but no logfire.msg_template — NOT a template, keep as-is
+    let attrs = make_attrs(&[]);
+    let mut span = SpanData::default();
+    span.span_name = "process {\"key\": \"value\"}".to_string();
+
+    resolve_span_name(&mut span, &attrs);
+
+    assert_eq!(span.span_name, "process {\"key\": \"value\"}");
+}

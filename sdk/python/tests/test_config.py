@@ -259,9 +259,9 @@ class TestResolveFrameworkInput:
         assert provs == ("bedrock",)
 
     def test_mixed_list(self) -> None:
-        fw, provs = _resolve_framework_input(["strands", "bedrock", "openai"])
+        fw, provs = _resolve_framework_input(["strands", "bedrock", "anthropic"])
         assert fw == "strands"
-        assert provs == ("bedrock", "openai")
+        assert provs == ("bedrock", "anthropic")
 
     def test_provider_only_list(self) -> None:
         fw, provs = _resolve_framework_input(["bedrock", "anthropic"])
@@ -280,8 +280,8 @@ class TestResolveFrameworkInput:
 
     def test_config_create_with_provider_string(self) -> None:
         """Config.create with a single provider string."""
-        config = Config.create(framework="openai")
-        assert config.providers == ("openai",)
+        config = Config.create(framework="anthropic")
+        assert config.providers == ("anthropic",)
 
 
 class TestContextSpanProcessor:
