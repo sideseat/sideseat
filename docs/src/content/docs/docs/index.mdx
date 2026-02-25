@@ -28,7 +28,7 @@ AI agents are hard to debug. Requests fly by, context builds up, and when someth
      </TabItem>
      <TabItem label="JavaScript">
        ```bash
-       npm install ai @ai-sdk/openai @sideseat/sdk
+       npm install ai @ai-sdk/amazon-bedrock @sideseat/sdk
        ```
      </TabItem>
    </Tabs>
@@ -50,13 +50,13 @@ AI agents are hard to debug. Requests fly by, context builds up, and when someth
      <TabItem label="JavaScript">
        ```typescript
        import { generateText } from "ai";
-       import { openai } from "@ai-sdk/openai";
+       import { bedrock } from "@ai-sdk/amazon-bedrock";
        import { init } from "@sideseat/sdk";
 
        init();   // add this
 
        const { text } = await generateText({
-         model: openai("gpt-5-mini"),
+         model: bedrock("anthropic.claude-sonnet-4-5-20250929-v1:0"),
          prompt: "Analyze this dataset...",
          experimental_telemetry: { isEnabled: true },
        });

@@ -2872,6 +2872,24 @@ wheels = [
 ]
 
 [[package]]
+name = "openinference-instrumentation-openai"
+version = "0.1.41"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "openinference-instrumentation" },
+    { name = "openinference-semantic-conventions" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-instrumentation" },
+    { name = "opentelemetry-semantic-conventions" },
+    { name = "typing-extensions" },
+    { name = "wrapt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/66/06/77b2fe7171336f71313936daf1b644a9968da85ff0b473a03ca05cc3d5c1/openinference_instrumentation_openai-0.1.41.tar.gz", hash = "sha256:ef4db680986a613b1639720f9beaa315c9e388c20bc985dbbbdf0f4df007c6e9", size = 22848, upload-time = "2025-12-04T19:58:35.349Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a1/db/48f1f540d335f98fa67891e9c25ad56020be7e7b2c0d4fd5014875fe5ddf/openinference_instrumentation_openai-0.1.41-py3-none-any.whl", hash = "sha256:6fad453446835e51333b660882eacababbf1052689ca53cba444a7d97fa2e910", size = 30273, upload-time = "2025-12-04T19:58:34.17Z" },
+]
+
+[[package]]
 name = "openinference-semantic-conventions"
 version = "0.1.25"
 source = { registry = "https://pypi.org/simple" }
@@ -4252,6 +4270,23 @@ dependencies = [
     { name = "opentelemetry-sdk" },
 ]
 
+[package.optional-dependencies]
+autogen = [
+    { name = "openinference-instrumentation-autogen-agentchat" },
+]
+crewai = [
+    { name = "openinference-instrumentation-crewai" },
+]
+langchain = [
+    { name = "openinference-instrumentation-langchain" },
+]
+openai = [
+    { name = "openinference-instrumentation-openai" },
+]
+openai-agents = [
+    { name = "logfire" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "logfire", marker = "extra == 'all'", specifier = ">=0.50.0" },
@@ -4496,11 +4531,7 @@ dependencies = [
     { name = "langchain-openai" },
     { name = "langgraph" },
     { name = "litellm" },
-    { name = "logfire" },
     { name = "openai-agents" },
-    { name = "openinference-instrumentation-autogen-agentchat" },
-    { name = "openinference-instrumentation-crewai" },
-    { name = "openinference-instrumentation-langchain" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
@@ -4509,7 +4540,7 @@ dependencies = [
     { name = "pymupdf" },
     { name = "python-dotenv" },
     { name = "requests" },
-    { name = "sideseat" },
+    { name = "sideseat", extra = ["autogen", "crewai", "langchain", "openai", "openai-agents"] },
     { name = "strands-agents" },
     { name = "strands-agents-tools" },
     { name = "tqdm" },
@@ -4538,11 +4569,7 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=0.3.0" },
     { name = "langgraph", specifier = ">=1.0.7" },
     { name = "litellm", specifier = ">=1.60.0" },
-    { name = "logfire", specifier = ">=3.14.0" },
     { name = "openai-agents", specifier = ">=0.0.16" },
-    { name = "openinference-instrumentation-autogen-agentchat", specifier = ">=0.1.0" },
-    { name = "openinference-instrumentation-crewai", specifier = ">=0.1.0" },
-    { name = "openinference-instrumentation-langchain", specifier = ">=0.1.56" },
     { name = "opentelemetry-api", specifier = ">=1.37.0" },
     { name = "opentelemetry-exporter-otlp", specifier = ">=1.37.0" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.37.0" },
@@ -4551,7 +4578,7 @@ requires-dist = [
     { name = "pymupdf", specifier = ">=1.25.0" },
     { name = "python-dotenv", specifier = ">=1.2.0" },
     { name = "requests", specifier = ">=2.31.0" },
-    { name = "sideseat", editable = "../../../sdk/python" },
+    { name = "sideseat", extras = ["langchain", "crewai", "autogen", "openai-agents", "openai"], editable = "../../../sdk/python" },
     { name = "strands-agents", specifier = ">=1.21.0" },
     { name = "strands-agents-tools", specifier = ">=0.2.19" },
     { name = "tqdm", specifier = ">=4.66.0" },

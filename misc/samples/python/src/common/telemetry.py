@@ -36,7 +36,7 @@ def setup_base_telemetry(
         from sideseat import SideSeat
 
         client = SideSeat(framework=framework)
-        client.telemetry.setup_file_exporter()
+        # client.telemetry.setup_file_exporter()
         client.telemetry.setup_console_exporter()
 
         if instrumentor:
