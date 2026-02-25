@@ -25,7 +25,7 @@ def setup_telemetry(use_sideseat: bool = False):
 
         # SideSeat handles logfire.configure() + instrument_openai_agents() internally
         client = SideSeat(framework=Frameworks.OpenAIAgents)
-        client.telemetry.setup_file_exporter()
+        # client.telemetry.setup_file_exporter()
         client.telemetry.setup_console_exporter()
         return client
     else:

@@ -32,6 +32,7 @@ uv run --directory misc/samples/python langgraph tool_use --sideseat
 uv run --directory misc/samples/python crewai tool_use --sideseat
 uv run --directory misc/samples/python autogen tool_use --sideseat
 uv run --directory misc/samples/python openai-agents tool_use --sideseat
+uv run --directory misc/samples/python openai-provider chat_completions --sideseat
 uv run --directory misc/samples/python bedrock converse --sideseat
 uv run --directory misc/samples/python bedrock multi_turn --sideseat
 
@@ -53,12 +54,16 @@ Copy `misc/.env.example` to `misc/.env` and configure:
 cp misc/.env.example misc/.env
 ```
 
-Required variables:
+Required variables (varies by provider):
 
 ```bash
+# AWS (Bedrock, Strands, LangGraph, CrewAI)
 AWS_REGION=us-east-1
 # AWS_ACCESS_KEY_ID=...      # Or use AWS profiles
 # AWS_SECRET_ACCESS_KEY=...
+
+# OpenAI (OpenAI provider, OpenAI Agents, AutoGen)
+OPENAI_API_KEY=...
 
 # Optional: SideSeat telemetry
 SIDESEAT_ENDPOINT=http://127.0.0.1:5388
@@ -81,6 +86,7 @@ misc/
     ├── python/           # Python samples
     │   └── src/
     │       ├── strands_sample/
+    │       ├── openai_sample/
     │       ├── bedrock_sample/
     │       ├── langgraph_sample/
     │       ├── crewai_sample/
@@ -127,6 +133,16 @@ uv run --directory misc/samples/python crewai tool_use                # CrewAI m
 uv run --directory misc/samples/python adk tool_use                   # Google ADK
 uv run --directory misc/samples/python autogen tool_use               # AutoGen chat
 uv run --directory misc/samples/python openai-agents tool_use         # OpenAI Agents SDK
+
+# OpenAI provider (raw SDK - Chat Completions, Responses)
+uv run --directory misc/samples/python openai-provider                        # List samples and models
+uv run --directory misc/samples/python openai-provider chat_completions       # Sync, streaming, tool use
+uv run --directory misc/samples/python openai-provider responses              # Responses API (sync, streaming, tool use)
+uv run --directory misc/samples/python openai-provider multi_turn             # Multi-turn conversation (trace grouping)
+uv run --directory misc/samples/python openai-provider vision                 # Image analysis (base64 vision)
+uv run --directory misc/samples/python openai-provider session                # Session with multiple traces
+uv run --directory misc/samples/python openai-provider error                  # Error handling
+uv run --directory misc/samples/python openai-provider all                    # Run all samples
 
 # Bedrock (raw boto3 API - Converse, InvokeModel)
 uv run --directory misc/samples/python bedrock                        # List samples and models
@@ -189,7 +205,7 @@ npm --prefix misc/samples/js run strands -- <sample> --help
 | `openai-gpt5nano`  | OpenAI GPT-5 Nano                  |
 | `gemini-flash`     | Google Gemini Flash                |
 
-Default model varies by framework: Strands/LangGraph/CrewAI/ADK use `bedrock-haiku`, AutoGen uses `anthropic-haiku`, OpenAI Agents uses `openai-gpt5nano`.
+Default model varies by framework: Strands/LangGraph/CrewAI/ADK use `bedrock-haiku`, AutoGen uses `anthropic-haiku`, OpenAI Agents/OpenAI provider use `openai-gpt5nano`.
 
 ### JavaScript
 

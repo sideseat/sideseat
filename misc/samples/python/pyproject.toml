@@ -9,8 +9,8 @@ dependencies = [
     "fastmcp>=2.14.0",
     "boto3>=1.42.22",
     "python-dotenv>=1.2.0",
-    # SideSeat SDK (local path dependency)
-    "sideseat",
+    # SideSeat SDK (local path dependency, extras for instrumentation)
+    "sideseat[langchain,crewai,autogen,openai-agents,openai]",
     # Common (pinned to 1.37.0 for google-adk compatibility)
     "opentelemetry-api>=1.37.0",
     "opentelemetry-sdk>=1.37.0",
@@ -33,20 +33,16 @@ dependencies = [
     "langchain-openai>=0.3.0",
     "langchain-google-genai>=2.0.0",
     "langchain-mcp-adapters>=0.2.1",
-    "openinference-instrumentation-langchain>=0.1.56",
     # CrewAI (uses Bedrock via native integration, MCP support)
     "crewai[bedrock]>=0.120.0",
     "crewai-tools[mcp]>=0.36.0",
-    "openinference-instrumentation-crewai>=0.1.0",
     # PDF rendering (transitive via crewai-tools, explicit for autogen files sample)
     "pymupdf>=1.25.0",
     # AutoGen (uses OpenAI, Anthropic, MCP)
     "autogen-agentchat>=0.5.0",
     "autogen-ext[openai,anthropic,mcp]>=0.5.0",
-    "openinference-instrumentation-autogen-agentchat>=0.1.0",
-    # OpenAI Agents SDK (uses Logfire for instrumentation)
+    # OpenAI Agents SDK
     "openai-agents>=0.0.16",
-    "logfire>=3.14.0",
 ]
 
 [dependency-groups]
@@ -69,6 +65,8 @@ telemetry-crewai = "crewai_sample.cli:main"
 # AutoGen (unified entry point)
 autogen = "autogen_sample.cli:main"
 telemetry-autogen = "autogen_sample.cli:main"
+# OpenAI provider (raw SDK - Chat Completions, Responses)
+openai-provider = "openai_sample.cli:main"
 # OpenAI Agents SDK (unified entry point)
 openai-agents = "openai_agents_sample.cli:main"
 telemetry-openai-agents = "openai_agents_sample.cli:main"
@@ -85,7 +83,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/common", "src/bedrock_sample", "src/strands_sample", "src/adk_sample", "src/langgraph_sample", "src/crewai_sample", "src/autogen_sample", "src/openai_agents_sample", "src/loadtest_sample", "src/run_all_sample"]
+packages = ["src/common", "src/bedrock_sample", "src/openai_sample", "src/strands_sample", "src/adk_sample", "src/langgraph_sample", "src/crewai_sample", "src/autogen_sample", "src/openai_agents_sample", "src/loadtest_sample", "src/run_all_sample"]
 sources = ["src"]
 
 [tool.ruff]

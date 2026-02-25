@@ -1,5 +1,7 @@
 ---
+
 ---
+
 <section class="section section-contrast">
   <div class="container">
     <div class="section-header center">
@@ -17,7 +19,7 @@
     <div class="section-header center" style="margin-bottom: 20px;">
       <div class="code-tabs" role="tablist" aria-label="SDK selector">
         <button class="code-tab is-active" data-tab="python" role="tab" aria-selected="true">Strands Agents</button>
-        <button class="code-tab" data-tab="bedrock" role="tab" aria-selected="false">Bedrock Converse</button>
+        <button class="code-tab" data-tab="bedrock" role="tab" aria-selected="false">Amazon Bedrock</button>
         <button class="code-tab" data-tab="javascript" role="tab" aria-selected="false">Vercel AI</button>
       </div>
     </div>
@@ -77,13 +79,13 @@ print(response["output"]["message"]["content"][0]["text"])</code></pre>
         </div>
         <div class="terminal-body">
           <pre><code>import &#123; generateText &#125; from "ai";
-import &#123; openai &#125; from "@ai-sdk/openai";
+import &#123; bedrock &#125; from "@ai-sdk/amazon-bedrock";
 <span class="text-accent">import &#123; init &#125; from "@sideseat/sdk";</span>
 
 <span class="text-accent">init();</span>   <span class="text-muted">// add this</span>
 
 const &#123; text &#125; = await generateText(&#123;
-  model: openai("gpt-5-mini"),
+  model: bedrock("anthropic.claude-sonnet-4-5-20250929-v1:0"),
   prompt: "Analyze this dataset...",
   experimental_telemetry: &#123; isEnabled: true &#125;,
 &#125;);</code></pre>

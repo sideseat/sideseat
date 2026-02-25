@@ -36,6 +36,8 @@ Built on [OpenTelemetry](https://opentelemetry.io/) — the open standard alread
 
 **Supported frameworks:** Strands Agents, LangGraph, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI
 
+**Supported providers:** OpenAI, Amazon Bedrock, Anthropic, Vertex AI
+
 ## Quick Start
 
 **Requirements:** Python 3.9+, Node.js 18+ (for the server)
@@ -67,21 +69,24 @@ response = agent("What is 2+2?")
 print(response)
 ```
 
-**Amazon Bedrock (Converse API):**
+**Vercel AI SDK:**
 
-```python
-from sideseat import SideSeat, Frameworks
-import boto3
+```bash
+npm install ai @ai-sdk/amazon-bedrock @sideseat/sdk
+```
 
-SideSeat(framework=Frameworks.Bedrock)
+```typescript
+import { generateText } from "ai";
+import { bedrock } from "@ai-sdk/amazon-bedrock";
+import { init } from "@sideseat/sdk";
 
-bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
-response = bedrock.converse(
-    modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-    messages=[{"role": "user", "content": [{"text": "What is 2+2?"}]}],
-)
+init();
 
-print(response["output"]["message"]["content"][0]["text"])
+const { text } = await generateText({
+  model: bedrock("anthropic.claude-sonnet-4-5-20250929-v1:0"),
+  prompt: "Analyze this dataset...",
+  experimental_telemetry: { isEnabled: true },
+});
 ```
 
 **3. View traces**
@@ -100,7 +105,14 @@ pip install "sideseat[langgraph]"       # + LangGraph
 pip install "sideseat[crewai]"          # + CrewAI
 pip install "sideseat[autogen]"         # + AutoGen
 pip install "sideseat[openai-agents]"   # + OpenAI Agents
-pip install "sideseat[all]"             # All frameworks
+
+# Extras for provider instrumentation:
+pip install "sideseat[openai]"          # + OpenAI
+pip install "sideseat[anthropic]"       # + Anthropic
+pip install "sideseat[aws]"             # + Amazon Bedrock
+pip install "sideseat[vertex]"          # + Vertex AI
+
+pip install "sideseat[all]"             # All frameworks + providers
 ```
 
 Strands Agents and Google ADK require only the core SDK.
@@ -275,9 +287,13 @@ print(result.data)
 
 ## Provider Examples
 
-Use SideSeat directly with cloud provider SDKs, without an agent framework.
+Use SideSeat directly with cloud provider SDKs, without an agent framework. Install the matching extra for instrumentation (e.g., `pip install "sideseat[openai]"`).
 
 ### Amazon Bedrock
+
+```bash
+pip install "sideseat[aws]"
+```
 
 ```python
 from sideseat import SideSeat, Frameworks
@@ -295,6 +311,10 @@ print(response["output"]["message"]["content"][0]["text"])
 ```
 
 ### Anthropic
+
+```bash
+pip install "sideseat[anthropic]"
+```
 
 ```python
 from sideseat import SideSeat, Frameworks
@@ -314,19 +334,48 @@ print(message.content[0].text)
 
 ### OpenAI
 
+```bash
+pip install "sideseat[openai]"
+```
+
+**Chat Completions API:**
+
+```python
+from sideseat import SideSeat, Frameworks
+from openai import OpenAI
+
+client = SideSeat(framework=Frameworks.OpenAI)
+openai = OpenAI()
+
+with client.trace("geography-chat", session_id="sess-abc", user_id="user-123"):
+    messages = []
+
+    messages.append({"role": "user", "content": "What is the capital of France?"})
+    response = openai.chat.completions.create(model="gpt-5-mini", messages=messages)
+    messages.append({"role": "assistant", "content": response.choices[0].message.content})
+
+    messages.append({"role": "user", "content": "What about Germany?"})
+    response = openai.chat.completions.create(model="gpt-5-mini", messages=messages)
+    print(response.choices[0].message.content)
+```
+
+**Responses API:**
+
 ```python
 from sideseat import SideSeat, Frameworks
 from openai import OpenAI
 
 SideSeat(framework=Frameworks.OpenAI)
+openai = OpenAI()
 
-client = OpenAI()
-response = client.chat.completions.create(
+response = openai.responses.create(
     model="gpt-5-mini",
-    messages=[{"role": "user", "content": "What is 2+2?"}],
+    instructions="Answer in one sentence.",
+    input="What is the speed of light?",
+    max_output_tokens=1024,
 )
 
-print(response.choices[0].message.content)
+print(response.output_text)
 ```
 
 ## Configuration

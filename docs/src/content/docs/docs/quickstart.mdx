@@ -87,15 +87,14 @@ Add two lines at the top of your entry point:
   </TabItem>
   <TabItem label="JavaScript (Vercel AI)">
     ```typescript
+    import { generateText } from 'ai';
+    import { bedrock } from '@ai-sdk/amazon-bedrock';
     import { init } from '@sideseat/sdk';
+
     init();
 
-    // Your existing code
-    import { generateText } from 'ai';
-    import { openai } from '@ai-sdk/openai';
-
     const { text } = await generateText({
-      model: openai('gpt-5-mini'),
+      model: bedrock('anthropic.claude-sonnet-4-5-20250929-v1:0'),
       prompt: 'What is the capital of France?',
       experimental_telemetry: { isEnabled: true },
     });

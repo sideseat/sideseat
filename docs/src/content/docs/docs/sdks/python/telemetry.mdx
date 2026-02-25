@@ -115,9 +115,9 @@ Create a root span that groups child spans into a single trace.
 **Returns**: `ContextManager[Span]`
 
 ```python
-with client.trace("bedrock-converse"):
-    bedrock.converse(modelId=model_id, messages=messages)
-    bedrock.converse(modelId=model_id, messages=messages)
+with client.trace("multi-turn-chat"):
+    openai.chat.completions.create(model="gpt-5-mini", messages=messages)
+    openai.chat.completions.create(model="gpt-5-mini", messages=messages)
 ```
 
 ### `get_tracer(name)`
@@ -241,6 +241,8 @@ client = SideSeat(
 ```python
 from sideseat import SideSeat, Frameworks
 
+client = SideSeat(framework=Frameworks.OpenAI)
+# or
 client = SideSeat(framework=Frameworks.Bedrock)
 ```
 
