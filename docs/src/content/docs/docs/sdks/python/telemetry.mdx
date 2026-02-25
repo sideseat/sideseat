@@ -120,23 +120,6 @@ with client.trace("bedrock-converse"):
     bedrock.converse(modelId=model_id, messages=messages)
 ```
 
-### `session(name, *, session_id, **kwargs)`
-
-Create a session-scoped trace with an explicit session ID.
-
-**Parameters**:
-- `name` (str): Session name
-- `session_id` (str, required): Session identifier
-- `user_id` (str, optional): User ID for this session and its children
-
-**Returns**: `ContextManager[Span]`
-
-```python
-with client.session("chat", session_id="sess-123", user_id="user-456"):
-    bedrock.converse(modelId=model_id, messages=messages)
-# All child spans get session.id="sess-123" and user.id="user-456"
-```
-
 ### `get_tracer(name)`
 
 Get an OpenTelemetry tracer.
@@ -271,15 +254,15 @@ client.telemetry.setup_file_exporter("traces.jsonl")  # Write to file
 
 ### User and Session Tracking
 
-Set `user_id` and `session_id` per-operation via `session()`, `trace()`, or `span()`:
+Set `user_id` and `session_id` via `trace()` or `span()`:
 
 ```python
 from sideseat import SideSeat
 
 client = SideSeat()
 
-# Session-scoped trace
-with client.session("chat", session_id="session-abc", user_id="user-123"):
+# Group traces into a session
+with client.trace("chat", session_id="session-abc", user_id="user-123"):
     run_agent()  # This span and children get user.id and session.id
 
 # Or on any span

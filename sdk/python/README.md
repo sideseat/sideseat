@@ -12,6 +12,7 @@
 - [Quick Start](#quick-start)
 - [Installation](#installation)
 - [Framework Examples](#framework-examples)
+- [Provider Examples](#provider-examples)
 - [Configuration](#configuration)
 - [Advanced Usage](#advanced-usage)
 - [Data and Privacy](#data-and-privacy)
@@ -130,20 +131,17 @@ from sideseat import SideSeat, Frameworks
 client = SideSeat(framework=Frameworks.Bedrock)
 bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
 model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-messages = []
 
-with client.session("chat-session", session_id="session-abc", user_id="user-123"):
+with client.trace("geography-chat", session_id="session-abc", user_id="user-123"):
+    messages = []
+
     messages.append({"role": "user", "content": [{"text": "What is the capital of France?"}]})
     response = bedrock.converse(modelId=model_id, messages=messages)
-    assistant_msg = response["output"]["message"]
-    messages.append(assistant_msg)
+    messages.append(response["output"]["message"])
 
     messages.append({"role": "user", "content": [{"text": "What about Germany?"}]})
     response = bedrock.converse(modelId=model_id, messages=messages)
-    assistant_msg = response["output"]["message"]
-    messages.append(assistant_msg)
-
-    print(assistant_msg["content"][0]["text"])
+    print(response["output"]["message"]["content"][0]["text"])
 ```
 
 ### Google ADK
@@ -273,6 +271,62 @@ SideSeat(framework=Frameworks.PydanticAI)
 agent = Agent("openai:gpt-5-mini", system_prompt="Be concise.")
 result = agent.run_sync("What is Python?")
 print(result.data)
+```
+
+## Provider Examples
+
+Use SideSeat directly with cloud provider SDKs, without an agent framework.
+
+### Amazon Bedrock
+
+```python
+from sideseat import SideSeat, Frameworks
+import boto3
+
+SideSeat(framework=Frameworks.Bedrock)
+
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+response = bedrock.converse(
+    modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    messages=[{"role": "user", "content": [{"text": "What is 2+2?"}]}],
+)
+
+print(response["output"]["message"]["content"][0]["text"])
+```
+
+### Anthropic
+
+```python
+from sideseat import SideSeat, Frameworks
+import anthropic
+
+SideSeat(framework=Frameworks.Anthropic)
+
+client = anthropic.Anthropic()
+message = client.messages.create(
+    model="claude-sonnet-4-5-20250929",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "What is 2+2?"}],
+)
+
+print(message.content[0].text)
+```
+
+### OpenAI
+
+```python
+from sideseat import SideSeat, Frameworks
+from openai import OpenAI
+
+SideSeat(framework=Frameworks.OpenAI)
+
+client = OpenAI()
+response = client.chat.completions.create(
+    model="gpt-5-mini",
+    messages=[{"role": "user", "content": "What is 2+2?"}],
+)
+
+print(response.choices[0].message.content)
 ```
 
 ## Configuration
@@ -450,7 +504,6 @@ client = SideSeat(**kwargs)
 | ------------------------------ | ---------------------- | --------------------------------- |
 | `span(name, **kwargs)`         | `ContextManager[Span]` | Create a custom span              |
 | `trace(name, **kwargs)`        | `ContextManager[Span]` | Create a root span (trace group)  |
-| `session(name, *, session_id)` | `ContextManager[Span]` | Create a session-scoped trace     |
 | `get_tracer(name)`             | `Tracer`               | Get an OpenTelemetry tracer       |
 | `force_flush(timeout_millis)`  | `bool`                 | Export pending spans immediately  |
 | `validate_connection(timeout)` | `bool`                 | Test server connectivity          |
