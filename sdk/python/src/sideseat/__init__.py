@@ -160,24 +160,6 @@ class SideSeat:
         with self._telemetry.span(name, user_id=user_id, session_id=session_id, **kwargs) as s:
             yield s
 
-    @contextmanager
-    def session(
-        self,
-        name: str,
-        *,
-        session_id: str,
-        user_id: str | None = None,
-        **kwargs: Any,
-    ) -> Iterator[Span]:
-        """Start a session trace with an explicit session ID.
-
-        Example:
-            with client.session("chat", session_id="sess-123"):
-                bedrock.client.converse(...)
-        """
-        with self._telemetry.span(name, user_id=user_id, session_id=session_id, **kwargs) as s:
-            yield s
-
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         """Force flush pending spans."""
         return self._telemetry.force_flush(timeout_millis)
