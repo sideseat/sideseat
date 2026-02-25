@@ -403,24 +403,6 @@ wheels = [
 ]
 
 [[package]]
-name = "openinference-instrumentation-anthropic"
-version = "0.1.20"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "openinference-instrumentation" },
-    { name = "openinference-semantic-conventions" },
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-instrumentation" },
-    { name = "opentelemetry-semantic-conventions" },
-    { name = "typing-extensions" },
-    { name = "wrapt" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ca/62/40a4ae94a7a3e46a50f2d277b9e0d7de7ded77256c104bc1c23501852228/openinference_instrumentation_anthropic-0.1.20.tar.gz", hash = "sha256:d5339dffb100ad32bb7de9948386574e73af5ffdbcab4a4ebfa3d55c22256096", size = 14265, upload-time = "2025-10-10T03:48:53.491Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7a/97/5987b3e0491eb850a090cd5c82abc049fd5805ca0d43469a712ec352edbd/openinference_instrumentation_anthropic-0.1.20-py3-none-any.whl", hash = "sha256:f6dba468d7ae13296bbe221cd6968f98bc4760f62c45080e2de434ca6adc0a54", size = 17391, upload-time = "2025-10-10T03:48:51.137Z" },
-]
-
-[[package]]
 name = "openinference-instrumentation-autogen-agentchat"
 version = "0.1.6"
 source = { registry = "https://pypi.org/simple" }
@@ -961,7 +943,6 @@ dependencies = [
 [package.optional-dependencies]
 all = [
     { name = "logfire" },
-    { name = "openinference-instrumentation-anthropic" },
     { name = "openinference-instrumentation-autogen-agentchat" },
     { name = "openinference-instrumentation-crewai" },
     { name = "openinference-instrumentation-langchain" },
@@ -969,7 +950,7 @@ all = [
     { name = "wrapt" },
 ]
 anthropic = [
-    { name = "openinference-instrumentation-anthropic" },
+    { name = "logfire" },
 ]
 autogen = [
     { name = "openinference-instrumentation-autogen-agentchat" },
@@ -1004,11 +985,10 @@ vertex = [
 [package.metadata]
 requires-dist = [
     { name = "logfire", marker = "extra == 'all'", specifier = ">=0.50.0" },
+    { name = "logfire", marker = "extra == 'anthropic'", specifier = ">=0.50.0" },
     { name = "logfire", marker = "extra == 'openai'", specifier = ">=0.50.0" },
     { name = "logfire", marker = "extra == 'pydantic-ai'", specifier = ">=0.50.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
-    { name = "openinference-instrumentation-anthropic", marker = "extra == 'all'", specifier = ">=0.1.0" },
-    { name = "openinference-instrumentation-anthropic", marker = "extra == 'anthropic'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-autogen-agentchat", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-autogen-agentchat", marker = "extra == 'autogen'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-crewai", marker = "extra == 'all'", specifier = ">=0.1.0" },
