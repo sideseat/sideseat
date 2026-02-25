@@ -4091,6 +4091,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+anthropic = [
+    { name = "logfire" },
+]
 autogen = [
     { name = "openinference-instrumentation-autogen-agentchat" },
 ]
@@ -4107,11 +4110,10 @@ openai = [
 [package.metadata]
 requires-dist = [
     { name = "logfire", marker = "extra == 'all'", specifier = ">=0.50.0" },
+    { name = "logfire", marker = "extra == 'anthropic'", specifier = ">=0.50.0" },
     { name = "logfire", marker = "extra == 'openai'", specifier = ">=0.50.0" },
     { name = "logfire", marker = "extra == 'pydantic-ai'", specifier = ">=0.50.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
-    { name = "openinference-instrumentation-anthropic", marker = "extra == 'all'", specifier = ">=0.1.0" },
-    { name = "openinference-instrumentation-anthropic", marker = "extra == 'anthropic'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-autogen-agentchat", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-autogen-agentchat", marker = "extra == 'autogen'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-crewai", marker = "extra == 'all'", specifier = ">=0.1.0" },
@@ -4353,7 +4355,7 @@ dependencies = [
     { name = "pymupdf" },
     { name = "python-dotenv" },
     { name = "requests" },
-    { name = "sideseat", extra = ["autogen", "crewai", "langchain", "openai"] },
+    { name = "sideseat", extra = ["anthropic", "autogen", "crewai", "langchain", "openai"] },
     { name = "strands-agents" },
     { name = "strands-agents-tools" },
     { name = "tqdm" },
@@ -4391,7 +4393,7 @@ requires-dist = [
     { name = "pymupdf", specifier = ">=1.25.0" },
     { name = "python-dotenv", specifier = ">=1.2.0" },
     { name = "requests", specifier = ">=2.31.0" },
-    { name = "sideseat", extras = ["langchain", "crewai", "autogen", "openai"], editable = "../../../sdk/python" },
+    { name = "sideseat", extras = ["langchain", "crewai", "autogen", "openai", "anthropic"], editable = "../../../sdk/python" },
     { name = "strands-agents", specifier = ">=1.21.0" },
     { name = "strands-agents-tools", specifier = ">=0.2.19" },
     { name = "tqdm", specifier = ">=4.66.0" },

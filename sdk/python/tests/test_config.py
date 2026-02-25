@@ -231,12 +231,12 @@ class TestFrameworks:
         assert Frameworks.OpenAIAgents == "openai-agents"
         assert Frameworks.GoogleADK == "google-adk"
         assert Frameworks.PydanticAI == "pydantic-ai"
+        assert Frameworks.OpenAI == "openai"
+        assert Frameworks.Anthropic == "anthropic"
 
     def test_all_providers_are_strings(self) -> None:
         """All provider constants should be strings."""
         assert Frameworks.Bedrock == "bedrock"
-        assert Frameworks.Anthropic == "anthropic"
-        assert Frameworks.OpenAI == "openai"
         assert Frameworks.VertexAI == "vertex_ai"
 
 
@@ -259,14 +259,14 @@ class TestResolveFrameworkInput:
         assert provs == ("bedrock",)
 
     def test_mixed_list(self) -> None:
-        fw, provs = _resolve_framework_input(["strands", "bedrock", "anthropic"])
+        fw, provs = _resolve_framework_input(["strands", "bedrock", "vertex_ai"])
         assert fw == "strands"
-        assert provs == ("bedrock", "anthropic")
+        assert provs == ("bedrock", "vertex_ai")
 
     def test_provider_only_list(self) -> None:
-        fw, provs = _resolve_framework_input(["bedrock", "anthropic"])
+        fw, provs = _resolve_framework_input(["bedrock", "vertex_ai"])
         assert fw is None
-        assert provs == ("bedrock", "anthropic")
+        assert provs == ("bedrock", "vertex_ai")
 
     def test_two_frameworks_raises(self) -> None:
         with pytest.raises(ValueError, match="At most one framework"):
@@ -281,7 +281,8 @@ class TestResolveFrameworkInput:
     def test_config_create_with_provider_string(self) -> None:
         """Config.create with a single provider string."""
         config = Config.create(framework="anthropic")
-        assert config.providers == ("anthropic",)
+        assert config.framework == "anthropic"
+        assert config.providers == ()
 
 
 class TestContextSpanProcessor:
