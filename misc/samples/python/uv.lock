@@ -4111,6 +4111,7 @@ openai = [
 requires-dist = [
     { name = "logfire", marker = "extra == 'all'", specifier = ">=0.50.0" },
     { name = "logfire", marker = "extra == 'anthropic'", specifier = ">=0.50.0" },
+    { name = "logfire", marker = "extra == 'google-genai'", specifier = ">=0.50.0" },
     { name = "logfire", marker = "extra == 'openai'", specifier = ">=0.50.0" },
     { name = "logfire", marker = "extra == 'pydantic-ai'", specifier = ">=0.50.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
@@ -4121,8 +4122,6 @@ requires-dist = [
     { name = "openinference-instrumentation-langchain", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langchain'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langgraph'", specifier = ">=0.1.0" },
-    { name = "openinference-instrumentation-vertexai", marker = "extra == 'all'", specifier = ">=0.1.0" },
-    { name = "openinference-instrumentation-vertexai", marker = "extra == 'vertex'", specifier = ">=0.1.0" },
     { name = "opentelemetry-api", specifier = ">=1.20.0" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.20.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.20.0" },
@@ -4131,7 +4130,7 @@ requires-dist = [
     { name = "wrapt", marker = "extra == 'all'", specifier = ">=1.14.0" },
     { name = "wrapt", marker = "extra == 'aws'", specifier = ">=1.14.0" },
 ]
-provides-extras = ["all", "anthropic", "autogen", "aws", "crewai", "dev", "langchain", "langgraph", "openai", "pydantic-ai", "vertex"]
+provides-extras = ["all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "langchain", "langgraph", "openai", "pydantic-ai"]
 
 [[package]]
 name = "six"

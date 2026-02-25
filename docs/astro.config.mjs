@@ -62,7 +62,7 @@ export default defineConfig({
                 { label: 'Anthropic', slug: 'docs/integrations/providers/anthropic' },
                 { label: 'Amazon Bedrock', slug: 'docs/integrations/providers/bedrock' },
                 { label: 'Azure OpenAI', slug: 'docs/integrations/providers/azure' },
-                { label: 'Google Vertex AI', slug: 'docs/integrations/providers/vertex' },
+                { label: 'Google Gemini', slug: 'docs/integrations/providers/google-gemini' },
               ],
             },
           ],

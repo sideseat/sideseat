@@ -15,7 +15,13 @@ _instrumented: set[str] = set()
 _lock = threading.Lock()
 
 LOGFIRE_FRAMEWORKS = frozenset(
-    {Frameworks.OpenAIAgents, Frameworks.PydanticAI, Frameworks.OpenAI, Frameworks.Anthropic}
+    {
+        Frameworks.OpenAIAgents,
+        Frameworks.PydanticAI,
+        Frameworks.OpenAI,
+        Frameworks.Anthropic,
+        Frameworks.GoogleGenAI,
+    }
 )
 
 
@@ -57,6 +63,8 @@ def instrument(
             _instrument_logfire("openai", service_name, service_version)
         elif framework == Frameworks.Anthropic:
             _instrument_logfire("anthropic", service_name, service_version)
+        elif framework == Frameworks.GoogleGenAI:
+            _instrument_logfire("google_genai", service_name, service_version)
         elif framework == Frameworks.GoogleADK:
             pass  # Uses global provider
         else:
@@ -112,37 +120,6 @@ def instrument_providers(
     """
     if "bedrock" in providers:
         _try_instrument_aws(provider)
-    if "vertex_ai" in providers:
-        _try_instrument_provider(
-            "vertex_ai", "vertexai", "vertexai", "VertexAIInstrumentor", provider
-        )
-
-
-def _try_instrument_provider(
-    name: str,
-    sdk_package: str,
-    oi_module: str,
-    oi_class: str,
-    provider: "TracerProvider | None",
-) -> None:
-    """Instrument an OpenInference-based provider if its SDK is installed."""
-    from sideseat._utils import _module_available
-
-    if not _module_available(sdk_package):
-        return
-
-    with _lock:
-        if name in _instrumented:
-            return
-        _instrumented.add(name)
-
-    try:
-        _instrument_openinference(oi_module, oi_class, provider)
-        logger.info("Instrumented: %s", name)
-    except Exception as e:
-        logger.debug("%s instrumentation skipped: %s", name, e)
-        with _lock:
-            _instrumented.discard(name)
 
 
 def _try_instrument_aws(provider: "TracerProvider | None") -> None:
