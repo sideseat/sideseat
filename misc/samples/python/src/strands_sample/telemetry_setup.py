@@ -22,7 +22,7 @@ def setup_telemetry(use_sideseat: bool = False):
     if use_sideseat:
         # SideSeat automatically sets up OTLP traces, metrics, and logs
         client = SideSeat(framework=Frameworks.Strands)
-        client.telemetry.setup_file_exporter()
+        # client.telemetry.setup_file_exporter()
         client.telemetry.setup_console_exporter()
         return client
     else:
