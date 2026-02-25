@@ -132,6 +132,11 @@ class TestModelFamilyDetection:
         assert _detect_model_family("us.anthropic.claude-3-7-sonnet-20250219-v1:0") == "claude"
         assert _detect_model_family("anthropic.claude-v2") == "claude"
 
+    def test_nova_models(self) -> None:
+        assert _detect_model_family("us.amazon.nova-2-lite-v1:0") == "nova"
+        assert _detect_model_family("amazon.nova-pro-v1:0") == "nova"
+        assert _detect_model_family("amazon.nova-lite-v1:0") == "nova"
+
     def test_non_claude(self) -> None:
         assert _detect_model_family("amazon.titan-text-express-v1") is None
         assert _detect_model_family("meta.llama3-70b-instruct-v1:0") is None
@@ -639,6 +644,102 @@ class TestConverseStream:
         assert "text" not in content[0]
         assert content[0]["guardContent"]["type"] == "BLOCKED"
 
+    def test_stream_without_content_block_start(
+        self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
+    ) -> None:
+        """Stream that skips contentBlockStart still captures text.
+
+        Some Bedrock endpoints (global inference profiles) send contentBlockDelta
+        directly after messageStart without a contentBlockStart event.
+        """
+        provider, exporter = tracer_setup
+        client = MagicMock()
+
+        chunks = [
+            {"messageStart": {"role": "assistant"}},
+            {"contentBlockDelta": {"contentBlockIndex": 0, "delta": {"text": "Hello "}}},
+            {"contentBlockDelta": {"contentBlockIndex": 0, "delta": {"text": "world!"}}},
+            {"contentBlockStop": {"contentBlockIndex": 0}},
+            {"messageStop": {"stopReason": "end_turn"}},
+            {"metadata": {"usage": {"inputTokens": 10, "outputTokens": 5}}},
+        ]
+
+        stream_response = {"stream": iter(chunks)}
+        client.converse_stream = MagicMock(return_value=stream_response)
+        patch_bedrock_client(client, provider)
+
+        response = client.converse_stream(
+            modelId="global.anthropic.claude-haiku-4-5-20251001-v1:0",
+            messages=[{"role": "user", "content": [{"text": "Hi"}]}],
+        )
+        collected = list(response["stream"])
+        assert len(collected) == 6
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        attrs = dict(spans[0].attributes or {})
+        assert attrs["gen_ai.usage.input_tokens"] == 10
+        assert attrs["gen_ai.usage.output_tokens"] == 5
+        assert attrs["gen_ai.response.finish_reasons"] == ("end_turn",)
+
+        choice = next(e for e in spans[0].events if e.name == "gen_ai.choice")
+        content = json.loads(choice.attributes["message"])
+        assert len(content) == 1
+        assert content[0]["text"] == "Hello world!"
+
+    def test_stream_without_content_block_start_reasoning(
+        self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
+    ) -> None:
+        """Reasoning stream without contentBlockStart correctly types as reasoning block."""
+        provider, exporter = tracer_setup
+        client = MagicMock()
+
+        chunks = [
+            {"messageStart": {"role": "assistant"}},
+            # Reasoning block — no contentBlockStart
+            {
+                "contentBlockDelta": {
+                    "contentBlockIndex": 0,
+                    "delta": {"reasoningContent": {"text": "Let me think..."}},
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "contentBlockIndex": 0,
+                    "delta": {"reasoningContent": {"signature": "sig_abc"}},
+                }
+            },
+            {"contentBlockStop": {"contentBlockIndex": 0}},
+            # Text block — no contentBlockStart
+            {"contentBlockDelta": {"contentBlockIndex": 1, "delta": {"text": "The answer is 42."}}},
+            {"contentBlockStop": {"contentBlockIndex": 1}},
+            {"messageStop": {"stopReason": "end_turn"}},
+            {"metadata": {"usage": {"inputTokens": 20, "outputTokens": 30}}},
+        ]
+
+        stream_response = {"stream": iter(chunks)}
+        client.converse_stream = MagicMock(return_value=stream_response)
+        patch_bedrock_client(client, provider)
+
+        response = client.converse_stream(
+            modelId="global.anthropic.claude-haiku-4-5-20251001-v1:0",
+            messages=[{"role": "user", "content": [{"text": "Think"}]}],
+        )
+        list(response["stream"])
+
+        spans = exporter.get_finished_spans()
+        choice = next(e for e in spans[0].events if e.name == "gen_ai.choice")
+        content = json.loads(choice.attributes["message"])
+        assert len(content) == 2
+
+        # Reasoning block with signature
+        reasoning = content[0]["reasoningContent"]["reasoningText"]
+        assert reasoning["text"] == "Let me think..."
+        assert reasoning["signature"] == "sig_abc"
+
+        # Text block
+        assert content[1]["text"] == "The answer is 42."
+
     def test_stream_close_mid_stream(
         self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
     ) -> None:
@@ -754,6 +855,62 @@ class TestInvokeModel:
         event_names = [e.name for e in spans[0].events]
         assert "gen_ai.choice" not in event_names
 
+    def test_nova_invoke_model(
+        self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
+    ) -> None:
+        """Nova InvokeModel extracts content from output.message with camelCase tokens."""
+        provider, exporter = tracer_setup
+        client = MagicMock()
+
+        response_body = json.dumps(
+            {
+                "output": {
+                    "message": {
+                        "role": "assistant",
+                        "content": [{"text": "Hello from Nova!"}],
+                    }
+                },
+                "stopReason": "end_turn",
+                "usage": {"inputTokens": 12, "outputTokens": 6},
+            }
+        ).encode()
+
+        body_mock = MagicMock()
+        body_mock.read.return_value = response_body
+        client.invoke_model = MagicMock(return_value={"body": body_mock})
+
+        with patch.dict("sys.modules", _mock_botocore_modules()):
+            patch_bedrock_client(client, provider)
+            client.invoke_model(
+                modelId="us.amazon.nova-2-lite-v1:0",
+                body=json.dumps(
+                    {
+                        "system": [{"text": "Be concise."}],
+                        "messages": [{"role": "user", "content": [{"text": "Hello"}]}],
+                        "inferenceConfig": {"maxTokens": 128},
+                    }
+                ),
+            )
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        attrs = dict(spans[0].attributes or {})
+        assert attrs["gen_ai.system"] == "aws_bedrock"
+        assert attrs["gen_ai.response.model"] == "us.amazon.nova-2-lite-v1:0"
+        assert attrs["gen_ai.usage.input_tokens"] == 12
+        assert attrs["gen_ai.usage.output_tokens"] == 6
+        assert attrs["gen_ai.response.finish_reasons"] == ("end_turn",)
+
+        events = spans[0].events
+        event_names = [e.name for e in events]
+        assert "gen_ai.client.inference.operation.details" in event_names
+        assert "gen_ai.choice" in event_names
+
+        choice = next(e for e in events if e.name == "gen_ai.choice")
+        content = json.loads(choice.attributes["message"])
+        assert content == [{"text": "Hello from Nova!"}]
+        assert choice.attributes["finish_reason"] == "end_turn"
+
 
 # ---------------------------------------------------------------------------
 # InvokeModel Streaming
@@ -866,6 +1023,354 @@ class TestInvokeModelStream:
         choice = next(e for e in spans[0].events if e.name == "gen_ai.choice")
         content = json.loads(choice.attributes["message"])
         assert content[0]["text"] == "Hello!"
+
+    def test_nova_stream_converse_format(
+        self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
+    ) -> None:
+        """Nova streaming with Converse-style events extracts content and usage."""
+        provider, exporter = tracer_setup
+        client = MagicMock()
+
+        chunks = [
+            {
+                "chunk": {
+                    "bytes": json.dumps(
+                        {"contentBlockStart": {"start": {}, "contentBlockIndex": 0}}
+                    ).encode()
+                }
+            },
+            {
+                "chunk": {
+                    "bytes": json.dumps(
+                        {
+                            "contentBlockDelta": {
+                                "delta": {"text": "Hello from Nova!"},
+                                "contentBlockIndex": 0,
+                            }
+                        }
+                    ).encode()
+                }
+            },
+            {
+                "chunk": {
+                    "bytes": json.dumps({"contentBlockStop": {"contentBlockIndex": 0}}).encode()
+                }
+            },
+            {"chunk": {"bytes": json.dumps({"messageStop": {"stopReason": "end_turn"}}).encode()}},
+            {
+                "chunk": {
+                    "bytes": json.dumps(
+                        {"metadata": {"usage": {"inputTokens": 10, "outputTokens": 5}}}
+                    ).encode()
+                }
+            },
+        ]
+
+        client.invoke_model_with_response_stream = MagicMock(return_value={"body": iter(chunks)})
+
+        with patch.dict("sys.modules", _mock_botocore_modules()):
+            patch_bedrock_client(client, provider)
+            response = client.invoke_model_with_response_stream(
+                modelId="us.amazon.nova-2-lite-v1:0",
+                body=json.dumps(
+                    {
+                        "system": [{"text": "Be concise."}],
+                        "messages": [{"role": "user", "content": [{"text": "Hello"}]}],
+                    }
+                ),
+            )
+            list(response["body"])
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        attrs = dict(spans[0].attributes or {})
+        assert attrs["gen_ai.usage.input_tokens"] == 10
+        assert attrs["gen_ai.usage.output_tokens"] == 5
+        assert attrs["gen_ai.response.finish_reasons"] == ("end_turn",)
+
+        choice = next(e for e in spans[0].events if e.name == "gen_ai.choice")
+        content = json.loads(choice.attributes["message"])
+        assert content == [{"text": "Hello from Nova!"}]
+
+    def test_nova_stream_full_response_format(
+        self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
+    ) -> None:
+        """Nova streaming with single full-response chunk extracts content."""
+        provider, exporter = tracer_setup
+        client = MagicMock()
+
+        chunks = [
+            {
+                "chunk": {
+                    "bytes": json.dumps(
+                        {
+                            "output": {
+                                "message": {
+                                    "role": "assistant",
+                                    "content": [{"text": "Complete response"}],
+                                }
+                            },
+                            "stopReason": "end_turn",
+                            "usage": {"inputTokens": 8, "outputTokens": 3},
+                        }
+                    ).encode()
+                }
+            },
+        ]
+
+        client.invoke_model_with_response_stream = MagicMock(return_value={"body": iter(chunks)})
+
+        with patch.dict("sys.modules", _mock_botocore_modules()):
+            patch_bedrock_client(client, provider)
+            response = client.invoke_model_with_response_stream(
+                modelId="amazon.nova-pro-v1:0",
+                body=json.dumps(
+                    {
+                        "messages": [{"role": "user", "content": [{"text": "Hello"}]}],
+                    }
+                ),
+            )
+            list(response["body"])
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        attrs = dict(spans[0].attributes or {})
+        assert attrs["gen_ai.usage.input_tokens"] == 8
+        assert attrs["gen_ai.usage.output_tokens"] == 3
+
+        choice = next(e for e in spans[0].events if e.name == "gen_ai.choice")
+        content = json.loads(choice.attributes["message"])
+        assert content == [{"text": "Complete response"}]
+
+    def test_claude_stream_thinking_with_signature(
+        self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
+    ) -> None:
+        """Claude streaming captures thinking text and signature from separate delta events."""
+        provider, exporter = tracer_setup
+        client = MagicMock()
+
+        chunks = [
+            {
+                "chunk": {
+                    "bytes": json.dumps(
+                        {
+                            "type": "message_start",
+                            "message": {
+                                "model": "claude-3-7-sonnet",
+                                "usage": {"input_tokens": 20},
+                            },
+                        }
+                    ).encode()
+                }
+            },
+            {
+                "chunk": {
+                    "bytes": json.dumps(
+                        {
+                            "type": "content_block_start",
+                            "index": 0,
+                            "content_block": {"type": "thinking", "thinking": ""},
+                        }
+                    ).encode()
+                }
+            },
+            {
+                "chunk": {
+                    "bytes": json.dumps(
+                        {
+                            "type": "content_block_delta",
+                            "index": 0,
+                            "delta": {"type": "thinking_delta", "thinking": "Let me reason..."},
+                        }
+                    ).encode()
+                }
+            },
+            {
+                "chunk": {
+                    "bytes": json.dumps(
+                        {
+                            "type": "content_block_delta",
+                            "index": 0,
+                            "delta": {"type": "signature_delta", "signature": "sig_test123"},
+                        }
+                    ).encode()
+                }
+            },
+            {
+                "chunk": {
+                    "bytes": json.dumps(
+                        {
+                            "type": "content_block_stop",
+                            "index": 0,
+                        }
+                    ).encode()
+                }
+            },
+            {
+                "chunk": {
+                    "bytes": json.dumps(
+                        {
+                            "type": "content_block_start",
+                            "index": 1,
+                            "content_block": {"type": "text", "text": ""},
+                        }
+                    ).encode()
+                }
+            },
+            {
+                "chunk": {
+                    "bytes": json.dumps(
+                        {
+                            "type": "content_block_delta",
+                            "index": 1,
+                            "delta": {"text": "The answer is 42."},
+                        }
+                    ).encode()
+                }
+            },
+            {
+                "chunk": {
+                    "bytes": json.dumps(
+                        {
+                            "type": "content_block_stop",
+                            "index": 1,
+                        }
+                    ).encode()
+                }
+            },
+            {
+                "chunk": {
+                    "bytes": json.dumps(
+                        {
+                            "type": "message_delta",
+                            "delta": {"stop_reason": "end_turn"},
+                            "usage": {"output_tokens": 30},
+                        }
+                    ).encode()
+                }
+            },
+            {"chunk": {"bytes": json.dumps({"type": "message_stop"}).encode()}},
+        ]
+
+        client.invoke_model_with_response_stream = MagicMock(return_value={"body": iter(chunks)})
+        patch_bedrock_client(client, provider)
+
+        response = client.invoke_model_with_response_stream(
+            modelId="anthropic.claude-3-7-sonnet-20250219-v1:0",
+            body=json.dumps({"messages": [{"role": "user", "content": "Think hard about 42"}]}),
+        )
+        list(response["body"])
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        choice = next(e for e in spans[0].events if e.name == "gen_ai.choice")
+        content = json.loads(choice.attributes["message"])
+        assert len(content) == 2
+
+        # Thinking block with signature from delta events
+        reasoning = content[0]["reasoningContent"]["reasoningText"]
+        assert reasoning["text"] == "Let me reason..."
+        assert reasoning["signature"] == "sig_test123"
+
+        # Text block
+        assert content[1]["text"] == "The answer is 42."
+
+
+# ---------------------------------------------------------------------------
+# Resilience — instrumentation must never crash user code
+# ---------------------------------------------------------------------------
+
+
+class TestResilience:
+    def test_converse_event_emission_failure_does_not_crash(
+        self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
+    ) -> None:
+        """Event emission failure is swallowed — user's API call still returns."""
+        provider, exporter = tracer_setup
+        client = MagicMock()
+
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "OK"}]}},
+            "usage": {"inputTokens": 5, "outputTokens": 2},
+            "stopReason": "end_turn",
+        }
+        client.converse = MagicMock(return_value=response)
+        patch_bedrock_client(client, provider)
+
+        # Monkey-patch _emit_converse_events to throw
+        import sideseat.instrumentors.aws.bedrock as bedrock_mod
+
+        original_emit = bedrock_mod._emit_converse_events
+        bedrock_mod._emit_converse_events = MagicMock(side_effect=RuntimeError("encode boom"))
+        try:
+            result = client.converse(
+                modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+                messages=[{"role": "user", "content": [{"text": "Hi"}]}],
+            )
+            # User's response is returned despite event emission failure
+            assert result is response
+        finally:
+            bedrock_mod._emit_converse_events = original_emit
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        assert spans[0].status.status_code == StatusCode.OK
+
+    def test_stream_finalize_failure_does_not_crash(
+        self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
+    ) -> None:
+        """Stream finalize failure is swallowed — iteration ends cleanly."""
+        provider, exporter = tracer_setup
+        client = MagicMock()
+
+        chunks = _make_stream_chunks()
+        stream_response = {"stream": iter(chunks)}
+        client.converse_stream = MagicMock(return_value=stream_response)
+        patch_bedrock_client(client, provider)
+
+        response = client.converse_stream(
+            modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            messages=[{"role": "user", "content": [{"text": "Hi"}]}],
+        )
+
+        # Monkey-patch _emit_span_events to throw during finalize
+        import sideseat.instrumentors.aws.bedrock as bedrock_mod
+
+        original_emit = bedrock_mod._emit_span_events
+        bedrock_mod._emit_span_events = MagicMock(side_effect=RuntimeError("serialize boom"))
+        try:
+            # Iteration should complete without raising
+            collected = list(response["stream"])
+            assert len(collected) == 5
+        finally:
+            bedrock_mod._emit_span_events = original_emit
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        assert spans[0].status.status_code == StatusCode.OK
+
+    def test_converse_sync_sets_ok_status(
+        self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
+    ) -> None:
+        """Sync converse sets OK status on success."""
+        provider, exporter = tracer_setup
+        client = MagicMock()
+
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "OK"}]}},
+            "usage": {"inputTokens": 5, "outputTokens": 2},
+            "stopReason": "end_turn",
+        }
+        client.converse = MagicMock(return_value=response)
+        patch_bedrock_client(client, provider)
+
+        client.converse(
+            modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            messages=[{"role": "user", "content": [{"text": "Hi"}]}],
+        )
+
+        spans = exporter.get_finished_spans()
+        assert spans[0].status.status_code == StatusCode.OK
 
 
 # ---------------------------------------------------------------------------

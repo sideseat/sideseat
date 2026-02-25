@@ -1,55 +1,114 @@
-"""Multi-turn conversation with session and user tracking.
+"""Session with multiple traces and multi-turn conversations.
 
 Demonstrates:
-- session.id and user.id attributes on all spans
-- Multi-turn conversation within a single session
-- SideSeat UI groups all turns by session_id
-
-The telemetry setup passes user_id and session_id to the SideSeat constructor,
-so all spans created by the Bedrock instrumentation automatically include
-these attributes. No manual attribute setting is needed.
+- client.session() to set session.id and user.id on all child spans
+- Multiple client.trace() calls within one session
+- Multi-turn conversation within each trace
+- SideSeat UI groups all traces by session_id
 """
 
+from sideseat import SideSeat
 
-def run(bedrock, trace_attrs: dict):
-    """Run a multi-turn session with user/session tracking."""
+
+def _converse(bedrock, system, messages, query, config):
+    """Send a query and return assistant text."""
+    messages.append({"role": "user", "content": [{"text": query}]})
+    response = bedrock.client.converse(
+        modelId=bedrock.model_id,
+        system=system,
+        messages=messages,
+        inferenceConfig=config,
+    )
+    assistant_msg = response["output"]["message"]
+    messages.append(assistant_msg)
+    return assistant_msg["content"][0]["text"]
+
+
+def run(bedrock, trace_attrs: dict, client: SideSeat):
+    """Run a session with multiple traces, each containing multiple calls."""
     session_id = trace_attrs["session.id"]
     user_id = trace_attrs["user.id"]
-    print(f"Session: {session_id}")
-    print(f"User: {user_id}")
-    print()
 
-    system = [{"text": "You are a travel advisor. Help plan trips. Be concise (2-3 sentences)."}]
-    config = {"maxTokens": 512}
-    messages = []
-
-    queries = [
-        "I want to plan a 5-day trip to Japan. What cities should I visit?",
-        "Tell me more about Kyoto. What are the must-see spots?",
-        "What's the best time of year to visit?",
-        "Recommend some local dishes I should try in each city.",
-    ]
-
-    for i, query in enumerate(queries, 1):
-        print(f"--- Turn {i} ---")
-        print(f"User: {query}")
-
-        messages.append({"role": "user", "content": [{"text": query}]})
-
-        response = bedrock.client.converse(
-            modelId=bedrock.model_id,
-            system=system,
-            messages=messages,
-            inferenceConfig=config,
-        )
-
-        assistant_msg = response["output"]["message"]
-        messages.append(assistant_msg)
-
-        text = assistant_msg["content"][0]["text"]
-        usage = response.get("usage", {})
-        print(f"Assistant: {text}")
-        print(f"  Tokens: in={usage.get('inputTokens', 0)} out={usage.get('outputTokens', 0)}")
+    with client.session("bedrock-session", session_id=session_id, user_id=user_id):
+        print(f"Session: {session_id}, User: {user_id}")
         print()
 
-    print(f"Session complete: {len(queries)} turns, session_id={session_id}")
+        config = {"maxTokens": 512}
+
+        # --- Trace 1: Trip planning ---
+        with client.trace("trip-planning"):
+            print("=== Trace 1: Trip Planning ===")
+            system = [{"text": "You are a travel advisor. Be concise (2-3 sentences)."}]
+            messages = []
+
+            text = _converse(
+                bedrock,
+                system,
+                messages,
+                "I want to visit Japan for 5 days. What cities should I see?",
+                config,
+            )
+            print(f"  User: Plan a 5-day Japan trip")
+            print(f"  Assistant: {text}")
+            print()
+
+            text = _converse(
+                bedrock,
+                system,
+                messages,
+                "Tell me more about Kyoto. What are the must-see spots?",
+                config,
+            )
+            print(f"  User: More about Kyoto")
+            print(f"  Assistant: {text}")
+            print()
+
+        # --- Trace 2: Food recommendations ---
+        with client.trace("food-recommendations"):
+            print("=== Trace 2: Food Recommendations ===")
+            system = [
+                {
+                    "text": "You are a food expert specializing in Japanese cuisine. Be concise (2-3 sentences)."
+                }
+            ]
+            messages = []
+
+            text = _converse(
+                bedrock, system, messages, "What are the must-try dishes in Tokyo?", config
+            )
+            print(f"  User: Must-try dishes in Tokyo")
+            print(f"  Assistant: {text}")
+            print()
+
+            text = _converse(bedrock, system, messages, "What about street food in Osaka?", config)
+            print(f"  User: Street food in Osaka")
+            print(f"  Assistant: {text}")
+            print()
+
+        # --- Trace 3: Practical tips ---
+        with client.trace("practical-tips"):
+            print("=== Trace 3: Practical Tips ===")
+            system = [
+                {"text": "You are a Japan travel logistics expert. Be concise (2-3 sentences)."}
+            ]
+            messages = []
+
+            text = _converse(
+                bedrock,
+                system,
+                messages,
+                "What's the best way to get around between cities in Japan?",
+                config,
+            )
+            print(f"  User: Getting around Japan")
+            print(f"  Assistant: {text}")
+            print()
+
+            text = _converse(
+                bedrock, system, messages, "Should I get a Japan Rail Pass for 5 days?", config
+            )
+            print(f"  User: Japan Rail Pass?")
+            print(f"  Assistant: {text}")
+            print()
+
+        print(f"Session complete: 3 traces, 6 calls, session_id={session_id}")

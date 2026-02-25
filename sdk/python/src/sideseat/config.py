@@ -82,8 +82,6 @@ class Config:
     capture_content: bool
     debug: bool
     providers: tuple[str, ...]
-    user_id: str | None
-    session_id: str | None
 
     def __repr__(self) -> str:
         return (
@@ -109,8 +107,6 @@ class Config:
         encode_binary: bool = True,
         capture_content: bool = True,
         debug: bool | None = None,
-        user_id: str | None = None,
-        session_id: str | None = None,
     ) -> "Config":
         """Create config with env var fallback chain."""
         # Check disabled first
@@ -143,9 +139,6 @@ class Config:
         resolved_project_id = project_id or os.getenv("SIDESEAT_PROJECT") or "default"
         resolved_debug = debug if debug is not None else _parse_bool_env("SIDESEAT_DEBUG", False)
 
-        resolved_user_id = user_id or os.getenv("SIDESEAT_USER_ID")
-        resolved_session_id = session_id or os.getenv("SIDESEAT_SESSION_ID")
-
         # Partition framework input into framework + providers
         fw, providers = _resolve_framework_input(framework)
 
@@ -171,8 +164,6 @@ class Config:
             capture_content=capture_content,
             debug=resolved_debug,
             providers=providers,
-            user_id=resolved_user_id,
-            session_id=resolved_session_id,
         )
 
 

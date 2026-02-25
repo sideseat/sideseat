@@ -25,7 +25,7 @@
 #     build-cli                (preflight -> build all 5 platforms -> smoke test)
 #
 #   Version bump:
-#     bump TYPE=patch          (or minor, major; syncs all packages)
+#     bump TYPE=patch          (or minor, major; syncs server + CLI, not SDKs)
 #
 #   Publish (manual, after build):
 #     publish-cli              Verify binaries -> publish 5 platform pkgs -> main pkg
@@ -90,9 +90,9 @@
 #
 #   Version:
 #     version            Show all package versions
-#     version-check      Verify all packages have the same version
+#     version-check      Verify server + CLI packages have the same version
 #     bump               Bump version (TYPE=patch|minor|major, default: patch)
-#     sync-version       Sync cli/package.json version to all other packages
+#     sync-version       Sync cli/package.json version to server + CLI platforms
 #
 #   Publish:
 #     publish            Publish everything (CLI + SDKs + Docker)
@@ -275,8 +275,8 @@ help:
 	@echo ""
 	@echo "Versioning:"
 	@echo "  make version         Show current version"
-	@echo "  make version-check   Verify all packages have matching versions"
-	@echo "  make bump            Bump version (TYPE=patch|minor|major, default: patch)"
+	@echo "  make version-check   Verify server + CLI have matching versions"
+	@echo "  make bump            Bump server + CLI version (TYPE=patch|minor|major)"
 	@echo ""
 	@echo "Publish:"
 	@echo "  make publish         Publish everything (CLI + SDKs)"
@@ -543,14 +543,6 @@ version-check:
 	if [ "$$CLI_VERSION" != "$$SERVER_VERSION" ]; then \
 		MISMATCHED="$$MISMATCHED\n  server/Cargo.toml: $$SERVER_VERSION"; \
 	fi && \
-	JS_SDK_VERSION=$$(node -p "require('./sdk/js/package.json').version") && \
-	if [ "$$CLI_VERSION" != "$$JS_SDK_VERSION" ]; then \
-		MISMATCHED="$$MISMATCHED\n  sdk/js/package.json: $$JS_SDK_VERSION"; \
-	fi && \
-	PY_SDK_VERSION=$$(grep '__version__' sdk/python/src/sideseat/_version.py | sed 's/.*"\(.*\)".*/\1/') && \
-	if [ "$$CLI_VERSION" != "$$PY_SDK_VERSION" ]; then \
-		MISMATCHED="$$MISMATCHED\n  sdk/python/_version.py: $$PY_SDK_VERSION"; \
-	fi && \
 	for pkg in $(PLATFORMS); do \
 		PKG_VERSION=$$(node -p "require('./cli/platforms/platform-'+'$$pkg'+'/package.json').version") && \
 		if [ "$$CLI_VERSION" != "$$PKG_VERSION" ]; then \
@@ -594,10 +586,7 @@ sync-version:
 		node -e "const p=require('./cli/platforms/platform-'+'$$pkg'+'/package.json'); p.version='$$NEW_VERSION'; require('fs').writeFileSync('./cli/platforms/platform-'+'$$pkg'+'/package.json', JSON.stringify(p, null, 2)+'\n')"; \
 	done && \
 	node -e "const p=require('./cli/package.json'); Object.keys(p.optionalDependencies||{}).forEach(k=>p.optionalDependencies[k]='$$NEW_VERSION'); require('fs').writeFileSync('./cli/package.json', JSON.stringify(p, null, 2)+'\n')" && \
-	node -e "const p=require('./sdk/js/package.json'); p.version='$$NEW_VERSION'; require('fs').writeFileSync('./sdk/js/package.json', JSON.stringify(p, null, 2)+'\n')" && \
-	echo "export const VERSION = '$$NEW_VERSION';" > sdk/js/src/version.ts && \
-	echo "__version__ = \"$$NEW_VERSION\"" > sdk/python/src/sideseat/_version.py && \
-	echo "[sync-version] Version synced to $$NEW_VERSION"
+	echo "[sync-version] Version synced to $$NEW_VERSION (server + CLI only; SDKs maintained separately)"
 
 # =============================================================================
 # Publish
