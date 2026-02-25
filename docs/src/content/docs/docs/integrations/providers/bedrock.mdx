@@ -229,53 +229,9 @@ All three calls appear as child spans in the SideSeat UI, with the full multi-tu
 
 ## Sessions
 
-Use `client.session()` to group multiple traces into a session. This sets `session.id` and `user.id` on all child spans, enabling session-level filtering and replay in the SideSeat UI.
+Pass `session_id` and `user_id` to `client.trace()` to group independent traces into a session. The SideSeat sessions view groups all traces that share the same `session_id`.
 
-A session typically contains multiple `client.trace()` calls, each representing a distinct interaction or topic:
-
-```python
-client = SideSeat(framework=Frameworks.Bedrock)
-bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
-model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-
-with client.session("travel-planner", session_id="sess-abc", user_id="user-123"):
-
-    # Trace 1: Trip planning
-    with client.trace("trip-planning"):
-        messages = []
-        messages.append({"role": "user", "content": [{"text": "Plan a 5-day trip to Japan."}]})
-        response = bedrock.converse(modelId=model_id, messages=messages)
-        messages.append(response["output"]["message"])
-
-        messages.append({"role": "user", "content": [{"text": "Tell me more about Kyoto."}]})
-        response = bedrock.converse(modelId=model_id, messages=messages)
-
-    # Trace 2: Food recommendations (fresh conversation)
-    with client.trace("food-recommendations"):
-        messages = []
-        messages.append({"role": "user", "content": [{"text": "What are the must-try dishes in Tokyo?"}]})
-        response = bedrock.converse(modelId=model_id, messages=messages)
-        messages.append(response["output"]["message"])
-
-        messages.append({"role": "user", "content": [{"text": "What about street food in Osaka?"}]})
-        response = bedrock.converse(modelId=model_id, messages=messages)
-```
-
-This produces:
-
-```
-travel-planner                         (session root, session.id + user.id)
-  ├── trip-planning                    (trace 1)
-  │   ├── chat claude-sonnet-4-5...    (turn 1)
-  │   └── chat claude-sonnet-4-5...    (turn 2)
-  └── food-recommendations             (trace 2)
-      ├── chat claude-sonnet-4-5...    (turn 1)
-      └── chat claude-sonnet-4-5...    (turn 2)
-```
-
-Each trace starts a fresh conversation with its own message history, while the session groups them for the same user.
-
-`user_id` and `session_id` can also be passed directly to `client.trace()` when you don't need a session wrapper:
+Each `client.trace()` produces its own trace with its own trace ID, but they are linked by the shared session:
 
 ```python
 from sideseat import SideSeat, Frameworks
@@ -285,9 +241,43 @@ client = SideSeat(framework=Frameworks.Bedrock)
 bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
 model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
-with client.trace("support-ticket", user_id="user-123", session_id="ticket-456"):
-    bedrock.converse(modelId=model_id, messages=[...])
+session_id = "sess-abc"
+user_id = "user-123"
+
+# Trace 1: Trip planning
+with client.trace("trip-planning", session_id=session_id, user_id=user_id):
+    messages = []
+    messages.append({"role": "user", "content": [{"text": "Plan a 5-day trip to Japan."}]})
+    response = bedrock.converse(modelId=model_id, messages=messages)
+    messages.append(response["output"]["message"])
+
+    messages.append({"role": "user", "content": [{"text": "Tell me more about Kyoto."}]})
+    response = bedrock.converse(modelId=model_id, messages=messages)
+
+# Trace 2: Food recommendations (fresh conversation, same session)
+with client.trace("food-recommendations", session_id=session_id, user_id=user_id):
+    messages = []
+    messages.append({"role": "user", "content": [{"text": "What are the must-try dishes in Tokyo?"}]})
+    response = bedrock.converse(modelId=model_id, messages=messages)
+    messages.append(response["output"]["message"])
+
+    messages.append({"role": "user", "content": [{"text": "What about street food in Osaka?"}]})
+    response = bedrock.converse(modelId=model_id, messages=messages)
 ```
+
+This produces two independent traces, each with their own span hierarchy:
+
+```
+Trace 1: trip-planning              (session_id=sess-abc, user_id=user-123)
+  ├── chat claude-sonnet-4-5...     (turn 1)
+  └── chat claude-sonnet-4-5...     (turn 2)
+
+Trace 2: food-recommendations       (session_id=sess-abc, user_id=user-123)
+  ├── chat claude-sonnet-4-5...     (turn 1)
+  └── chat claude-sonnet-4-5...     (turn 2)
+```
+
+Each trace starts a fresh conversation with its own message history. The SideSeat sessions view groups them by `session_id`.
 
 ## Authentication
 
