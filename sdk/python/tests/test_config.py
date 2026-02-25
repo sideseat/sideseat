@@ -233,11 +233,11 @@ class TestFrameworks:
         assert Frameworks.PydanticAI == "pydantic-ai"
         assert Frameworks.OpenAI == "openai"
         assert Frameworks.Anthropic == "anthropic"
+        assert Frameworks.GoogleGenAI == "google_genai"
 
     def test_all_providers_are_strings(self) -> None:
         """All provider constants should be strings."""
         assert Frameworks.Bedrock == "bedrock"
-        assert Frameworks.VertexAI == "vertex_ai"
 
 
 class TestResolveFrameworkInput:
@@ -259,14 +259,14 @@ class TestResolveFrameworkInput:
         assert provs == ("bedrock",)
 
     def test_mixed_list(self) -> None:
-        fw, provs = _resolve_framework_input(["strands", "bedrock", "vertex_ai"])
+        fw, provs = _resolve_framework_input(["strands", "bedrock"])
         assert fw == "strands"
-        assert provs == ("bedrock", "vertex_ai")
+        assert provs == ("bedrock",)
 
     def test_provider_only_list(self) -> None:
-        fw, provs = _resolve_framework_input(["bedrock", "vertex_ai"])
+        fw, provs = _resolve_framework_input(["bedrock", "custom_provider"])
         assert fw is None
-        assert provs == ("bedrock", "vertex_ai")
+        assert provs == ("bedrock", "custom_provider")
 
     def test_two_frameworks_raises(self) -> None:
         with pytest.raises(ValueError, match="At most one framework"):

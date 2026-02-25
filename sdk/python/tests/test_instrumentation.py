@@ -48,6 +48,10 @@ class TestIsLogfireFramework:
         assert is_logfire_framework(Frameworks.AutoGen) is False
         assert is_logfire_framework(Frameworks.GoogleADK) is False
 
+    def test_google_genai_is_logfire(self) -> None:
+        """Google GenAI should use Logfire."""
+        assert is_logfire_framework(Frameworks.GoogleGenAI) is True
+
     def test_logfire_frameworks_frozenset(self) -> None:
         """LOGFIRE_FRAMEWORKS should be a frozenset."""
         assert isinstance(LOGFIRE_FRAMEWORKS, frozenset)
@@ -55,6 +59,7 @@ class TestIsLogfireFramework:
         assert Frameworks.PydanticAI in LOGFIRE_FRAMEWORKS
         assert Frameworks.OpenAI in LOGFIRE_FRAMEWORKS
         assert Frameworks.Anthropic in LOGFIRE_FRAMEWORKS
+        assert Frameworks.GoogleGenAI in LOGFIRE_FRAMEWORKS
 
 
 class TestInstrument:

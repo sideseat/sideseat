@@ -36,7 +36,7 @@ Built on [OpenTelemetry](https://opentelemetry.io/) — the open standard alread
 
 **Supported frameworks:** Strands Agents, LangGraph, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI
 
-**Supported providers:** OpenAI, Amazon Bedrock, Anthropic, Vertex AI
+**Supported providers:** OpenAI, Amazon Bedrock, Anthropic, Google Gemini
 
 ## Quick Start
 
@@ -109,7 +109,7 @@ pip install "sideseat[openai]"          # + OpenAI / OpenAI Agents
 # Extras for provider instrumentation:
 pip install "sideseat[anthropic]"       # + Anthropic
 pip install "sideseat[aws]"             # + Amazon Bedrock
-pip install "sideseat[vertex]"          # + Vertex AI
+pip install "sideseat[google-genai]"    # + Google Gemini
 
 pip install "sideseat[all]"             # All frameworks + providers
 ```
@@ -576,7 +576,7 @@ Frameworks.PydanticAI
 Frameworks.Bedrock    # Amazon Bedrock (patches botocore)
 Frameworks.OpenAI     # OpenAI (instruments openai SDK)
 Frameworks.Anthropic  # Anthropic (instruments anthropic SDK)
-Frameworks.VertexAI   # Google Vertex AI (instruments vertexai SDK)
+Frameworks.GoogleGenAI # Google Gemini (instruments google-genai SDK)
 ```
 
 ### Module Functions
