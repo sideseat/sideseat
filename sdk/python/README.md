@@ -48,10 +48,12 @@ npx sideseat
 **2. Install and initialize**
 
 ```bash
-pip install strands-agents sideseat
+pip install sideseat
 # or
-uv add strands-agents sideseat
+uv add sideseat
 ```
+
+**Strands Agents:**
 
 ```python
 from sideseat import SideSeat, Frameworks
@@ -62,6 +64,23 @@ SideSeat(framework=Frameworks.Strands)
 agent = Agent()
 response = agent("What is 2+2?")
 print(response)
+```
+
+**Amazon Bedrock (Converse API):**
+
+```python
+from sideseat import SideSeat, Frameworks
+import boto3
+
+SideSeat(framework=Frameworks.Bedrock)
+
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+response = bedrock.converse(
+    modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    messages=[{"role": "user", "content": [{"text": "What is 2+2?"}]}],
+)
+
+print(response["output"]["message"]["content"][0]["text"])
 ```
 
 **3. View traces**
@@ -108,12 +127,12 @@ print(response)
 import boto3
 from sideseat import SideSeat, Frameworks
 
-client = SideSeat(framework=Frameworks.Bedrock, user_id="user-123")
+client = SideSeat(framework=Frameworks.Bedrock)
 bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
 model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 messages = []
 
-with client.span("chat-session", session_id="session-abc"):
+with client.session("chat-session", session_id="session-abc", user_id="user-123"):
     messages.append({"role": "user", "content": [{"text": "What is the capital of France?"}]})
     response = bedrock.converse(modelId=model_id, messages=messages)
     assistant_msg = response["output"]["message"]
@@ -267,8 +286,6 @@ print(result.data)
 | `SIDESEAT_API_KEY`    | —                       | Authentication key           |
 | `SIDESEAT_DISABLED`   | `false`                 | Disable all telemetry        |
 | `SIDESEAT_DEBUG`      | `false`                 | Enable verbose logging       |
-| `SIDESEAT_USER_ID`    | —                       | User identifier for spans    |
-| `SIDESEAT_SESSION_ID` | —                       | Session identifier for spans |
 
 ### Constructor Parameters
 
@@ -286,8 +303,6 @@ SideSeat(
     enable_logs=False,
     capture_content=True,
     encode_binary=True,
-    user_id="user-123",
-    session_id="session-abc",
     disabled=False,
     debug=False,
 )
@@ -307,8 +322,6 @@ SideSeat(
 | `enable_logs`     | `bool` | `False`                 | Export logs                       |
 | `capture_content` | `bool` | `True`                  | Capture LLM prompts and responses |
 | `encode_binary`   | `bool` | `True`                  | Base64 encode binary data         |
-| `user_id`         | `str`  | `None`                  | User identifier for spans         |
-| `session_id`      | `str`  | `None`                  | Session identifier for spans      |
 | `disabled`        | `bool` | `False`                 | Disable all telemetry             |
 | `debug`           | `bool` | `False`                 | Enable verbose logging            |
 
@@ -435,7 +448,9 @@ client = SideSeat(**kwargs)
 
 | Name                           | Returns                | Description                       |
 | ------------------------------ | ---------------------- | --------------------------------- |
-| `span(name)`                   | `ContextManager[Span]` | Create a custom span              |
+| `span(name, **kwargs)`         | `ContextManager[Span]` | Create a custom span              |
+| `trace(name, **kwargs)`        | `ContextManager[Span]` | Create a root span (trace group)  |
+| `session(name, *, session_id)` | `ContextManager[Span]` | Create a session-scoped trace     |
 | `get_tracer(name)`             | `Tracer`               | Get an OpenTelemetry tracer       |
 | `force_flush(timeout_millis)`  | `bool`                 | Export pending spans immediately  |
 | `validate_connection(timeout)` | `bool`                 | Test server connectivity          |

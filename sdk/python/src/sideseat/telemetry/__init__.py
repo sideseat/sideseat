@@ -30,15 +30,11 @@ _session_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 
 
 class _ContextSpanProcessor:
-    """Injects session.id and user.id into every span on creation."""
-
-    def __init__(self, user_id: str | None, session_id: str | None) -> None:
-        self._user_id = user_id
-        self._session_id = session_id
+    """Injects session.id and user.id from contextvars into every span on creation."""
 
     def on_start(self, span: Any, parent_context: Any = None) -> None:
-        uid = _user_id_var.get() or self._user_id
-        sid = _session_id_var.get() or self._session_id
+        uid = _user_id_var.get()
+        sid = _session_id_var.get()
         if uid:
             span.set_attribute("user.id", uid)
         if sid:
@@ -102,9 +98,7 @@ class TelemetryClient:
         else:
             self._init_standard_mode(instrument)
 
-        self.tracer_provider.add_span_processor(
-            _ContextSpanProcessor(config.user_id, config.session_id)
-        )
+        self.tracer_provider.add_span_processor(_ContextSpanProcessor())
 
         # Auto-setup metrics and logs (isolated - failures don't crash SDK)
         # Skip for logfire frameworks: logfire.configure() manages these providers
@@ -192,10 +186,15 @@ class TelemetryClient:
         return tracer
 
     @contextmanager
-    def span(self, name: str, **kwargs: Any) -> Iterator[Span]:
+    def span(
+        self,
+        name: str,
+        *,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        **kwargs: Any,
+    ) -> Iterator[Span]:
         """Context manager for spans with auto error status."""
-        user_id = kwargs.pop("user_id", None)
-        session_id = kwargs.pop("session_id", None)
         tokens: list[Any] = []
         if user_id is not None:
             tokens.append(_user_id_var.set(user_id))

@@ -32,6 +32,8 @@ uv run --directory misc/samples/python langgraph tool_use --sideseat
 uv run --directory misc/samples/python crewai tool_use --sideseat
 uv run --directory misc/samples/python autogen tool_use --sideseat
 uv run --directory misc/samples/python openai-agents tool_use --sideseat
+uv run --directory misc/samples/python bedrock converse --sideseat
+uv run --directory misc/samples/python bedrock multi_turn --sideseat
 
 # JavaScript frameworks
 npm --prefix misc/samples/js run vercel-ai -- tool-use --sideseat
@@ -79,6 +81,7 @@ misc/
     ├── python/           # Python samples
     │   └── src/
     │       ├── strands_sample/
+    │       ├── bedrock_sample/
     │       ├── langgraph_sample/
     │       ├── crewai_sample/
     │       ├── adk_sample/
@@ -124,6 +127,16 @@ uv run --directory misc/samples/python crewai tool_use                # CrewAI m
 uv run --directory misc/samples/python adk tool_use                   # Google ADK
 uv run --directory misc/samples/python autogen tool_use               # AutoGen chat
 uv run --directory misc/samples/python openai-agents tool_use         # OpenAI Agents SDK
+
+# Bedrock (raw boto3 API - Converse, InvokeModel)
+uv run --directory misc/samples/python bedrock                        # List samples and models
+uv run --directory misc/samples/python bedrock converse               # Sync, streaming, thinking, tool use
+uv run --directory misc/samples/python bedrock multi_turn             # Multi-turn conversation (trace grouping)
+uv run --directory misc/samples/python bedrock invoke_model           # InvokeModel API (Claude Messages API)
+uv run --directory misc/samples/python bedrock document               # PDF + image multimodal analysis
+uv run --directory misc/samples/python bedrock session                # Session with multiple traces
+uv run --directory misc/samples/python bedrock error                  # Error handling
+uv run --directory misc/samples/python bedrock all                    # Run all samples
 
 # Load testing
 uv run --directory misc/samples/python loadtest                       # Default: 1M spans

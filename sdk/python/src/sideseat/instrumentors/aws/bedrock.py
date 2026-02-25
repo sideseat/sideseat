@@ -65,6 +65,86 @@ def _get_tracer(provider: TracerProvider | None) -> Tracer:
 
 
 # ---------------------------------------------------------------------------
+# Shared: Converse-style event accumulator
+# ---------------------------------------------------------------------------
+
+
+class _ConverseAccumulator:
+    """Accumulates Converse-style streaming events into content blocks.
+
+    Handles text, tool use, reasoning, and unknown block types.
+    Used by ConverseStream (per-chunk) and Nova InvokeModel streaming
+    (post-hoc parsing of accumulated bytes).
+    """
+
+    def __init__(self) -> None:
+        self.blocks: list[dict[str, Any]] = []
+        self.stop_reason: str | None = None
+        self.usage: dict[str, int] = {}
+        self._current_block: dict[str, Any] | None = None
+        self._current_text = ""
+        self._current_signature = ""
+
+    def process_event(self, event: dict[str, Any]) -> None:
+        """Process a single Converse-style streaming event."""
+        if "contentBlockStart" in event:
+            start = event["contentBlockStart"].get("start", {})
+            self._current_block = dict(start)
+            self._current_text = ""
+            self._current_signature = ""
+
+        elif "contentBlockDelta" in event:
+            delta = event["contentBlockDelta"].get("delta", {})
+            if self._current_block is None:
+                if "reasoningContent" in delta:
+                    self._current_block = {"reasoningContent": {}}
+                else:
+                    self._current_block = {}
+                self._current_text = ""
+                self._current_signature = ""
+            if "text" in delta:
+                self._current_text += delta["text"]
+            elif "toolUse" in delta:
+                self._current_text += delta["toolUse"].get("input", "")
+            elif "reasoningContent" in delta:
+                rc = delta["reasoningContent"]
+                if "text" in rc:
+                    self._current_text += rc["text"]
+                if "signature" in rc:
+                    self._current_signature += rc["signature"]
+
+        elif "contentBlockStop" in event:
+            if self._current_block is not None:
+                block = self._current_block
+                if "toolUse" in block:
+                    try:
+                        block["toolUse"]["input"] = json.loads(self._current_text)
+                    except (json.JSONDecodeError, ValueError):
+                        block["toolUse"]["input"] = self._current_text
+                elif "text" in block or not block:
+                    block = {"text": self._current_text}
+                elif "reasoningContent" in block:
+                    reasoning_text: dict[str, Any] = {"text": self._current_text}
+                    if self._current_signature:
+                        reasoning_text["signature"] = self._current_signature
+                    block["reasoningContent"] = {"reasoningText": reasoning_text}
+                # else: unknown type — preserve start data verbatim
+
+                self.blocks.append(block)
+                self._current_block = None
+                self._current_text = ""
+                self._current_signature = ""
+
+        elif "messageStop" in event:
+            self.stop_reason = event["messageStop"].get("stopReason")
+
+        elif "metadata" in event:
+            usage = event["metadata"].get("usage", {})
+            if usage:
+                self.usage = usage
+
+
+# ---------------------------------------------------------------------------
 # Converse (sync)
 # ---------------------------------------------------------------------------
 
@@ -84,7 +164,11 @@ def _wrap_converse(original: Any, tracer: Tracer) -> Any:
                 raise
 
             _set_response_attrs(span, model_id, response)
-            _emit_converse_events(span, kwargs, response)
+            try:
+                _emit_converse_events(span, kwargs, response)
+            except Exception:
+                logger.debug("Failed to emit converse events", exc_info=True)
+            span.set_status(StatusCode.OK)
             return response
 
     return instrumented_converse
@@ -151,14 +235,7 @@ class _ConverseStreamWrapper:
         self._ctx_token = ctx_token
         self._tool_results = tool_results
         self._ended = False
-
-        # Accumulation state
-        self._blocks: list[dict[str, Any]] = []
-        self._current_block: dict[str, Any] | None = None
-        self._current_text = ""
-        self._current_signature = ""
-        self._stop_reason: str | None = None
-        self._usage: dict[str, int] = {}
+        self._acc = _ConverseAccumulator()
 
     def __iter__(self) -> _ConverseStreamWrapper:
         return self
@@ -173,7 +250,7 @@ class _ConverseStreamWrapper:
             self._on_error(exc)
             raise
 
-        self._process_chunk(chunk)
+        self._acc.process_event(chunk)
         return chunk
 
     def close(self) -> None:
@@ -187,61 +264,8 @@ class _ConverseStreamWrapper:
     def __exit__(self, *args: Any) -> None:
         self.close()
 
-    # -- Proxy attributes to inner stream --
     def __getattr__(self, name: str) -> Any:
         return getattr(self._inner, name)
-
-    def _process_chunk(self, chunk: dict[str, Any]) -> None:
-        if "contentBlockStart" in chunk:
-            start = chunk["contentBlockStart"].get("start", {})
-            self._current_block = dict(start)
-            self._current_text = ""
-            self._current_signature = ""
-
-        elif "contentBlockDelta" in chunk:
-            delta = chunk["contentBlockDelta"].get("delta", {})
-            if "text" in delta:
-                self._current_text += delta["text"]
-            elif "toolUse" in delta:
-                self._current_text += delta["toolUse"].get("input", "")
-            elif "reasoningContent" in delta:
-                rc = delta["reasoningContent"]
-                if "text" in rc:
-                    self._current_text += rc["text"]
-                if "signature" in rc:
-                    self._current_signature += rc["signature"]
-
-        elif "contentBlockStop" in chunk:
-            if self._current_block is not None:
-                block = self._current_block
-                if "toolUse" in block:
-                    # Parse accumulated JSON for tool input
-                    try:
-                        block["toolUse"]["input"] = json.loads(self._current_text)
-                    except (json.JSONDecodeError, ValueError):
-                        block["toolUse"]["input"] = self._current_text
-                elif "text" in block or not block:
-                    block = {"text": self._current_text}
-                elif "reasoningContent" in block:
-                    reasoning_text: dict[str, Any] = {"text": self._current_text}
-                    if self._current_signature:
-                        reasoning_text["signature"] = self._current_signature
-                    block["reasoningContent"] = {"reasoningText": reasoning_text}
-                # else: unknown type (image, document, citations, guard, etc.)
-                # Preserve start data verbatim for server-side normalization
-
-                self._blocks.append(block)
-                self._current_block = None
-                self._current_text = ""
-                self._current_signature = ""
-
-        elif "messageStop" in chunk:
-            self._stop_reason = chunk["messageStop"].get("stopReason")
-
-        elif "metadata" in chunk:
-            usage = chunk["metadata"].get("usage", {})
-            if usage:
-                self._usage = usage
 
     def _finalize(self) -> None:
         if self._ended:
@@ -250,36 +274,21 @@ class _ConverseStreamWrapper:
 
         span = self._span
         try:
-            # Token usage
-            if self._usage:
-                _set_usage_attrs(span, self._usage)
+            try:
+                if self._acc.usage:
+                    _set_usage_attrs(span, self._acc.usage)
+                if self._acc.stop_reason:
+                    span.set_attribute(_FINISH_REASONS, [self._acc.stop_reason])
 
-            # Finish reason
-            if self._stop_reason:
-                span.set_attribute(_FINISH_REASONS, [self._stop_reason])
-
-            # Output message
-            output_content = self._blocks
-            output_msg = {"role": "assistant", "content": output_content}
-
-            # Output details (input already emitted at stream start)
-            span.add_event(
-                "gen_ai.client.inference.operation.details",
-                {"gen_ai.output.messages": json.dumps(encode_value([output_msg]))},
-            )
-
-            # Choice event
-            choice_attrs: dict[str, Any] = {
-                "message": json.dumps(encode_value(output_content)),
-            }
-            if self._stop_reason:
-                choice_attrs["finish_reason"] = self._stop_reason
-
-            if self._tool_results:
-                choice_attrs["tool.result"] = json.dumps(encode_value(self._tool_results))
-
-            span.add_event("gen_ai.choice", choice_attrs)
-
+                output_msg = {"role": "assistant", "content": self._acc.blocks}
+                _emit_span_events(
+                    span,
+                    output_msg,
+                    stop_reason=self._acc.stop_reason,
+                    tool_results=self._tool_results or None,
+                )
+            except Exception:
+                logger.debug("Failed to emit stream events", exc_info=True)
             span.set_status(StatusCode.OK)
         finally:
             span.end()
@@ -301,6 +310,7 @@ class _ConverseStreamWrapper:
 
 
 _CLAUDE_FAMILIES = ("claude", "anthropic")
+_NOVA_FAMILIES = ("nova",)
 
 
 def _detect_model_family(model_id: str) -> str | None:
@@ -309,6 +319,9 @@ def _detect_model_family(model_id: str) -> str | None:
     for family in _CLAUDE_FAMILIES:
         if family in lower:
             return "claude"
+    for family in _NOVA_FAMILIES:
+        if family in lower:
+            return "nova"
     return None
 
 
@@ -338,27 +351,35 @@ def _wrap_invoke_model(original: Any, tracer: Tracer) -> Any:
             try:
                 body = json.loads(body_bytes)
             except (json.JSONDecodeError, ValueError):
+                span.set_status(StatusCode.OK)
                 return response
 
-            # Response model (may differ from request)
-            resp_model = body.get("model", model_id)
-            span.set_attribute(_RESPONSE_MODEL, resp_model)
+            try:
+                family = _detect_model_family(model_id)
 
-            # Usage (Claude Messages API uses snake_case keys)
-            usage = body.get("usage", {})
-            if usage:
-                _set_invoke_model_usage_attrs(span, usage)
+                if family == "nova":
+                    span.set_attribute(_RESPONSE_MODEL, model_id)
+                    usage = body.get("usage", {})
+                    if usage:
+                        _set_usage_attrs(span, usage)
+                    stop = body.get("stopReason")
+                    if stop:
+                        span.set_attribute(_FINISH_REASONS, [stop])
+                    _emit_invoke_model_nova_events(span, kwargs, body)
+                elif family == "claude":
+                    resp_model = body.get("model", model_id)
+                    span.set_attribute(_RESPONSE_MODEL, resp_model)
+                    usage = body.get("usage", {})
+                    if usage:
+                        _set_invoke_model_usage_attrs(span, usage)
+                    stop = body.get("stop_reason")
+                    if stop:
+                        span.set_attribute(_FINISH_REASONS, [stop])
+                    _emit_invoke_model_claude_events(span, kwargs, body)
+            except Exception:
+                logger.debug("Failed to emit invoke_model events", exc_info=True)
 
-            # Stop reason
-            stop = body.get("stop_reason")
-            if stop:
-                span.set_attribute(_FINISH_REASONS, [stop])
-
-            # Content extraction (Claude only for now)
-            family = _detect_model_family(model_id)
-            if family == "claude":
-                _emit_invoke_model_claude_events(span, kwargs, body)
-
+            span.set_status(StatusCode.OK)
             return response
 
     return instrumented_invoke_model
@@ -372,31 +393,35 @@ def _emit_invoke_model_claude_events(
     """Emit message events for Claude InvokeModel responses."""
     req_body = _parse_invoke_model_request(kwargs)
     input_msgs = _build_invoke_model_input_messages(req_body)
-
     output_content = body.get("content", [])
     output_msg = {"role": body.get("role", "assistant"), "content": output_content}
-
-    span.add_event(
-        "gen_ai.client.inference.operation.details",
-        {
-            "gen_ai.input.messages": json.dumps(encode_value(input_msgs)),
-            "gen_ai.output.messages": json.dumps(encode_value([output_msg])),
-        },
-    )
-    _emit_input_events(span, input_msgs)
-
-    choice_attrs: dict[str, Any] = {
-        "message": json.dumps(encode_value(output_content)),
-    }
-    stop = body.get("stop_reason")
-    if stop:
-        choice_attrs["finish_reason"] = stop
-
     tool_results = _extract_tool_results(req_body)
-    if tool_results:
-        choice_attrs["tool.result"] = json.dumps(encode_value(tool_results))
+    _emit_span_events(
+        span,
+        output_msg,
+        stop_reason=body.get("stop_reason"),
+        tool_results=tool_results or None,
+        input_msgs=input_msgs,
+    )
 
-    span.add_event("gen_ai.choice", choice_attrs)
+
+def _emit_invoke_model_nova_events(
+    span: Span,
+    kwargs: dict[str, Any],
+    body: dict[str, Any],
+) -> None:
+    """Emit message events for Nova InvokeModel responses."""
+    req_body = _parse_invoke_model_request(kwargs)
+    input_msgs = _build_invoke_model_input_messages(req_body)
+    output_msg = body.get("output", {}).get("message", {})
+    tool_results = _extract_tool_results(req_body)
+    _emit_span_events(
+        span,
+        output_msg,
+        stop_reason=body.get("stopReason"),
+        tool_results=tool_results or None,
+        input_msgs=input_msgs,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -440,7 +465,7 @@ def _wrap_invoke_model_stream(original: Any, tracer: Tracer) -> Any:
 
 
 class _InvokeModelStreamWrapper:
-    """Wraps InvokeModelWithResponseStream body, accumulating Claude streaming events."""
+    """Wraps InvokeModelWithResponseStream body, accumulating streaming events."""
 
     def __init__(
         self,
@@ -499,8 +524,14 @@ class _InvokeModelStreamWrapper:
 
         span = self._span
         try:
-            if self._family == "claude" and self._chunks:
-                self._finalize_claude()
+            try:
+                if self._chunks:
+                    if self._family == "claude":
+                        self._finalize_claude()
+                    elif self._family == "nova":
+                        self._finalize_nova()
+            except Exception:
+                logger.debug("Failed to emit stream events", exc_info=True)
             span.set_status(StatusCode.OK)
         finally:
             span.end()
@@ -515,6 +546,7 @@ class _InvokeModelStreamWrapper:
         model: str | None = None
         block_texts: dict[int, str] = {}
         block_types: dict[int, dict[str, Any]] = {}
+        block_signatures: dict[int, str] = {}
 
         for raw in self._chunks:
             try:
@@ -549,6 +581,9 @@ class _InvokeModelStreamWrapper:
                 elif "thinking" in delta:
                     block_texts.setdefault(idx, "")
                     block_texts[idx] += delta["thinking"]
+                elif "signature" in delta:
+                    block_signatures.setdefault(idx, "")
+                    block_signatures[idx] += delta["signature"]
 
             elif event_type == "content_block_stop":
                 idx = event.get("index", 0)
@@ -572,7 +607,7 @@ class _InvokeModelStreamWrapper:
                     )
                 elif bt == "thinking":
                     reasoning_text: dict[str, Any] = {"text": text}
-                    sig = base.get("signature")
+                    sig = block_signatures.get(idx) or base.get("signature")
                     if sig:
                         reasoning_text["signature"] = sig
                     content_blocks.append({"reasoningContent": {"reasoningText": reasoning_text}})
@@ -606,31 +641,63 @@ class _InvokeModelStreamWrapper:
         if stop_reason:
             span.set_attribute(_FINISH_REASONS, [stop_reason])
 
-        # Emit events
         req_body = _parse_invoke_model_request(self._kwargs)
         input_msgs = _build_invoke_model_input_messages(req_body)
         output_msg = {"role": "assistant", "content": content_blocks}
-
-        span.add_event(
-            "gen_ai.client.inference.operation.details",
-            {
-                "gen_ai.input.messages": json.dumps(encode_value(input_msgs)),
-                "gen_ai.output.messages": json.dumps(encode_value([output_msg])),
-            },
-        )
-        _emit_input_events(span, input_msgs)
-
-        choice_attrs: dict[str, Any] = {
-            "message": json.dumps(encode_value(content_blocks)),
-        }
-        if stop_reason:
-            choice_attrs["finish_reason"] = stop_reason
-
         tool_results = _extract_tool_results(req_body)
-        if tool_results:
-            choice_attrs["tool.result"] = json.dumps(encode_value(tool_results))
 
-        span.add_event("gen_ai.choice", choice_attrs)
+        _emit_span_events(
+            span,
+            output_msg,
+            stop_reason=stop_reason,
+            tool_results=tool_results or None,
+            input_msgs=input_msgs,
+        )
+
+    def _finalize_nova(self) -> None:
+        """Parse accumulated Nova streaming chunks and emit events.
+
+        Nova InvokeModel streaming uses Converse-style events (contentBlockStart,
+        contentBlockDelta, contentBlockStop). Falls back to full-response format
+        for single-chunk responses. Delegates to _ConverseAccumulator for full
+        block type support (text, tool use, reasoning, unknown).
+        """
+        acc = _ConverseAccumulator()
+
+        for raw in self._chunks:
+            try:
+                event = json.loads(raw)
+            except (json.JSONDecodeError, ValueError):
+                continue
+
+            # Full-response format (single chunk)
+            if "output" in event:
+                msg = event.get("output", {}).get("message", {})
+                acc.blocks = msg.get("content", [])
+                acc.usage = event.get("usage", {})
+                acc.stop_reason = event.get("stopReason")
+            else:
+                acc.process_event(event)
+
+        span = self._span
+
+        if acc.usage:
+            _set_usage_attrs(span, acc.usage)
+        if acc.stop_reason:
+            span.set_attribute(_FINISH_REASONS, [acc.stop_reason])
+
+        req_body = _parse_invoke_model_request(self._kwargs)
+        input_msgs = _build_invoke_model_input_messages(req_body)
+        output_msg = {"role": "assistant", "content": acc.blocks}
+        tool_results = _extract_tool_results(req_body)
+
+        _emit_span_events(
+            span,
+            output_msg,
+            stop_reason=acc.stop_reason,
+            tool_results=tool_results or None,
+            input_msgs=input_msgs,
+        )
 
     def _on_error(self, exc: Exception) -> None:
         if self._ended:
@@ -715,7 +782,7 @@ def _strip_binary_blocks(content: Any) -> Any:
         b
         for b in content
         if not isinstance(b, dict)
-        or not (set(b.keys()) & _BINARY_BLOCK_KEYS or b.get("type") in _BINARY_BLOCK_KEYS)
+        or not (any(k in _BINARY_BLOCK_KEYS for k in b) or b.get("type") in _BINARY_BLOCK_KEYS)
     ]
 
 
@@ -751,11 +818,20 @@ def _build_input_messages(kwargs: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _extract_tool_results(kwargs: dict[str, Any]) -> list[dict[str, Any]]:
-    """Extract toolResult blocks from input messages."""
+    """Extract tool result blocks from input messages.
+
+    Handles both Converse format ({"toolResult": {...}}) and
+    Claude Messages API format ({"type": "tool_result", ...}).
+    """
     results: list[dict[str, Any]] = []
     for msg in kwargs.get("messages", []):
-        for block in msg.get("content", []):
-            if isinstance(block, dict) and "toolResult" in block:
+        content = msg.get("content", [])
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if "toolResult" in block or block.get("type") == "tool_result":
                 results.append(block)
     return results
 
@@ -774,7 +850,11 @@ def _parse_invoke_model_request(kwargs: dict[str, Any]) -> dict[str, Any]:
 def _build_invoke_model_input_messages(
     req_body: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """Build input messages from a Claude Messages API request body."""
+    """Build input messages from an InvokeModel request body.
+
+    Handles both Claude Messages API (system can be string) and
+    Nova format (system is always array of text blocks).
+    """
     input_msgs: list[dict[str, Any]] = []
     if "system" in req_body:
         system_content = req_body["system"]
@@ -787,7 +867,7 @@ def _build_invoke_model_input_messages(
 
 
 def _set_invoke_model_usage_attrs(span: Span, usage: dict[str, Any]) -> None:
-    """Set token usage from InvokeModel response (snake_case keys)."""
+    """Set token usage from Claude InvokeModel response (snake_case keys)."""
     if "input_tokens" in usage:
         span.set_attribute(_INPUT_TOKENS, usage["input_tokens"])
     if "output_tokens" in usage:
@@ -798,30 +878,55 @@ def _set_invoke_model_usage_attrs(span: Span, usage: dict[str, Any]) -> None:
         span.set_attribute(_CACHE_WRITE_TOKENS, usage["cache_creation_input_tokens"])
 
 
-def _emit_converse_events(span: Span, kwargs: dict[str, Any], response: dict[str, Any]) -> None:
-    """Emit gen_ai events for a Converse response."""
-    input_msgs = _build_input_messages(kwargs)
-    output_msg = response.get("output", {}).get("message", {})
+def _emit_span_events(
+    span: Span,
+    output_msg: dict[str, Any],
+    stop_reason: str | None = None,
+    tool_results: list[dict[str, Any]] | None = None,
+    input_msgs: list[dict[str, Any]] | None = None,
+) -> None:
+    """Emit standard gen_ai telemetry events on a span.
 
-    span.add_event(
-        "gen_ai.client.inference.operation.details",
-        {
-            "gen_ai.input.messages": json.dumps(encode_value(input_msgs)),
-            "gen_ai.output.messages": json.dumps(encode_value([output_msg])),
-        },
-    )
-    _emit_input_events(span, input_msgs)
+    When input_msgs is provided, emits a combined details event with both
+    input and output plus per-role input preview events. When omitted,
+    emits an output-only details event (for stream finalize where input
+    was already emitted at stream start).
+    """
+    if input_msgs is not None:
+        span.add_event(
+            "gen_ai.client.inference.operation.details",
+            {
+                "gen_ai.input.messages": json.dumps(encode_value(input_msgs)),
+                "gen_ai.output.messages": json.dumps(encode_value([output_msg])),
+            },
+        )
+        _emit_input_events(span, input_msgs)
+    else:
+        span.add_event(
+            "gen_ai.client.inference.operation.details",
+            {"gen_ai.output.messages": json.dumps(encode_value([output_msg]))},
+        )
 
     output_content = output_msg.get("content", [])
     choice_attrs: dict[str, Any] = {
         "message": json.dumps(encode_value(output_content)),
     }
-    stop = response.get("stopReason")
-    if stop:
-        choice_attrs["finish_reason"] = stop
-
-    tool_results = _extract_tool_results(kwargs)
+    if stop_reason:
+        choice_attrs["finish_reason"] = stop_reason
     if tool_results:
         choice_attrs["tool.result"] = json.dumps(encode_value(tool_results))
-
     span.add_event("gen_ai.choice", choice_attrs)
+
+
+def _emit_converse_events(span: Span, kwargs: dict[str, Any], response: dict[str, Any]) -> None:
+    """Emit gen_ai events for a Converse response."""
+    input_msgs = _build_input_messages(kwargs)
+    output_msg = response.get("output", {}).get("message", {})
+    tool_results = _extract_tool_results(kwargs)
+    _emit_span_events(
+        span,
+        output_msg,
+        stop_reason=response.get("stopReason"),
+        tool_results=tool_results or None,
+        input_msgs=input_msgs,
+    )

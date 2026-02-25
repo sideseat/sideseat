@@ -71,8 +71,6 @@ class SideSeat:
         encode_binary: bool = True,
         capture_content: bool = True,
         debug: bool | None = None,
-        user_id: str | None = None,
-        session_id: str | None = None,
     ):
         self._config = Config.create(
             disabled=disabled,
@@ -89,8 +87,6 @@ class SideSeat:
             encode_binary=encode_binary,
             capture_content=capture_content,
             debug=debug,
-            user_id=user_id,
-            session_id=session_id,
         )
         self._telemetry = TelemetryClient(self._config)
 
@@ -128,14 +124,58 @@ class SideSeat:
         return self._telemetry.get_tracer(name)
 
     @contextmanager
-    def span(self, name: str, **kwargs: Any) -> Iterator[Span]:
-        """Create span with automatic error status on exception.
+    def span(
+        self,
+        name: str,
+        *,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        **kwargs: Any,
+    ) -> Iterator[Span]:
+        """Create a span (child of current span if one exists, otherwise root).
 
         Example:
-            with client.span("process_request", user_id="u1") as span:
+            with client.span("sub-task") as span:
                 do_work()
         """
-        with self._telemetry.span(name, **kwargs) as s:
+        with self._telemetry.span(name, user_id=user_id, session_id=session_id, **kwargs) as s:
+            yield s
+
+    @contextmanager
+    def trace(
+        self,
+        name: str,
+        *,
+        user_id: str | None = None,
+        session_id: str | None = None,
+        **kwargs: Any,
+    ) -> Iterator[Span]:
+        """Start a trace (root span that groups child spans).
+
+        Example:
+            with client.trace("bedrock-converse"):
+                bedrock.client.converse(...)
+                bedrock.client.converse(...)
+        """
+        with self._telemetry.span(name, user_id=user_id, session_id=session_id, **kwargs) as s:
+            yield s
+
+    @contextmanager
+    def session(
+        self,
+        name: str,
+        *,
+        session_id: str,
+        user_id: str | None = None,
+        **kwargs: Any,
+    ) -> Iterator[Span]:
+        """Start a session trace with an explicit session ID.
+
+        Example:
+            with client.session("chat", session_id="sess-123"):
+                bedrock.client.converse(...)
+        """
+        with self._telemetry.span(name, user_id=user_id, session_id=session_id, **kwargs) as s:
             yield s
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:

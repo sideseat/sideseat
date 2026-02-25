@@ -82,7 +82,7 @@ Open [http://localhost:5388](http://localhost:5388). You'll see a live timeline 
     print(response)
     ```
   </TabItem>
-  <TabItem label="Vercel AI">
+  <TabItem label="Vercel&nbsp;AI">
     ```typescript
     import { init } from '@sideseat/sdk';
     import { generateText } from 'ai';
@@ -99,7 +99,7 @@ Open [http://localhost:5388](http://localhost:5388). You'll see a live timeline 
     console.log(text);
     ```
   </TabItem>
-  <TabItem label="Google ADK">
+  <TabItem label="Google&nbsp;ADK">
     ```python
     import asyncio
     from sideseat import SideSeat, Frameworks
@@ -184,7 +184,7 @@ Open [http://localhost:5388](http://localhost:5388). You'll see a live timeline 
     user.initiate_chat(assistant, message="Hello!")
     ```
   </TabItem>
-  <TabItem label="OpenAI Agents">
+  <TabItem label="OpenAI&nbsp;Agents">
     ```python
     from sideseat import SideSeat, Frameworks
     from agents import Agent, Runner
@@ -199,6 +199,64 @@ Open [http://localhost:5388](http://localhost:5388). You'll see a live timeline 
 </Tabs>
 
 See [all supported frameworks](/docs/integrations/).
+
+## Provider Examples
+
+Use SideSeat directly with cloud provider SDKs, without an agent framework:
+
+<Tabs>
+  <TabItem label="Amazon&nbsp;Bedrock">
+    ```python
+    from sideseat import SideSeat, Frameworks
+    import boto3
+
+    SideSeat(framework=Frameworks.Bedrock)
+
+    bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+    response = bedrock.converse(
+        modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        messages=[{"role": "user", "content": [{"text": "What is 2+2?"}]}],
+    )
+
+    print(response["output"]["message"]["content"][0]["text"])
+    ```
+  </TabItem>
+  <TabItem label="Anthropic">
+    ```python
+    from sideseat import SideSeat, Frameworks
+    import anthropic
+
+    SideSeat(framework=Frameworks.Anthropic)
+
+    client = anthropic.Anthropic()
+    message = client.messages.create(
+        model="claude-sonnet-4-5-20250929",
+        max_tokens=1024,
+        messages=[{"role": "user", "content": "What is 2+2?"}],
+    )
+
+    print(message.content[0].text)
+    ```
+  </TabItem>
+  <TabItem label="OpenAI">
+    ```python
+    from sideseat import SideSeat, Frameworks
+    from openai import OpenAI
+
+    SideSeat(framework=Frameworks.OpenAI)
+
+    client = OpenAI()
+    response = client.chat.completions.create(
+        model="gpt-5-mini",
+        messages=[{"role": "user", "content": "What is 2+2?"}],
+    )
+
+    print(response.choices[0].message.content)
+    ```
+  </TabItem>
+</Tabs>
+
+See [all supported providers](/docs/integrations/).
 
 ## AI Agent Development with MCP
 

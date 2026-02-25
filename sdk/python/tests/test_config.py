@@ -109,8 +109,6 @@ class TestConfig:
         monkeypatch.delenv("SIDESEAT_PROJECT", raising=False)
         monkeypatch.delenv("SIDESEAT_DISABLED", raising=False)
         monkeypatch.delenv("SIDESEAT_DEBUG", raising=False)
-        monkeypatch.delenv("SIDESEAT_USER_ID", raising=False)
-        monkeypatch.delenv("SIDESEAT_SESSION_ID", raising=False)
 
         config = Config.create()
 
@@ -286,54 +284,17 @@ class TestResolveFrameworkInput:
         assert config.providers == ("openai",)
 
 
-class TestUserIdSessionId:
-    """Tests for user_id and session_id in Config."""
-
-    def test_stores_values(self) -> None:
-        config = Config.create(user_id="u1", session_id="s1")
-        assert config.user_id == "u1"
-        assert config.session_id == "s1"
-
-    def test_defaults_to_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("SIDESEAT_USER_ID", raising=False)
-        monkeypatch.delenv("SIDESEAT_SESSION_ID", raising=False)
-        config = Config.create()
-        assert config.user_id is None
-        assert config.session_id is None
-
-    def test_env_var_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("SIDESEAT_USER_ID", "env-user")
-        monkeypatch.setenv("SIDESEAT_SESSION_ID", "env-session")
-        config = Config.create()
-        assert config.user_id == "env-user"
-        assert config.session_id == "env-session"
-
-    def test_constructor_overrides_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("SIDESEAT_USER_ID", "env-user")
-        monkeypatch.setenv("SIDESEAT_SESSION_ID", "env-session")
-        config = Config.create(user_id="ctor-user", session_id="ctor-session")
-        assert config.user_id == "ctor-user"
-        assert config.session_id == "ctor-session"
-
-
 class TestContextSpanProcessor:
     """Tests for _ContextSpanProcessor."""
 
-    def test_sets_attributes_from_config(self) -> None:
-        proc = _ContextSpanProcessor(user_id="u1", session_id="s1")
-        span = MagicMock()
-        proc.on_start(span)
-        span.set_attribute.assert_any_call("user.id", "u1")
-        span.set_attribute.assert_any_call("session.id", "s1")
-
-    def test_noop_when_both_none(self) -> None:
-        proc = _ContextSpanProcessor(user_id=None, session_id=None)
+    def test_noop_when_no_contextvar(self) -> None:
+        proc = _ContextSpanProcessor()
         span = MagicMock()
         proc.on_start(span)
         span.set_attribute.assert_not_called()
 
-    def test_contextvar_overrides_config(self) -> None:
-        proc = _ContextSpanProcessor(user_id="config-user", session_id="config-session")
+    def test_sets_attributes_from_contextvar(self) -> None:
+        proc = _ContextSpanProcessor()
         span = MagicMock()
         token_u = _user_id_var.set("ctx-user")
         token_s = _session_id_var.set("ctx-session")
@@ -345,8 +306,8 @@ class TestContextSpanProcessor:
             _user_id_var.reset(token_u)
             _session_id_var.reset(token_s)
 
-    def test_contextvar_with_no_config(self) -> None:
-        proc = _ContextSpanProcessor(user_id=None, session_id=None)
+    def test_partial_contextvar(self) -> None:
+        proc = _ContextSpanProcessor()
         span = MagicMock()
         token_u = _user_id_var.set("ctx-user")
         try:
@@ -357,7 +318,7 @@ class TestContextSpanProcessor:
             _user_id_var.reset(token_u)
 
     def test_force_flush_returns_true(self) -> None:
-        proc = _ContextSpanProcessor(user_id=None, session_id=None)
+        proc = _ContextSpanProcessor()
         assert proc.force_flush() is True
 
 
