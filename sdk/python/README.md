@@ -104,10 +104,9 @@ uv add sideseat                        # Core SDK
 pip install "sideseat[langgraph]"       # + LangGraph
 pip install "sideseat[crewai]"          # + CrewAI
 pip install "sideseat[autogen]"         # + AutoGen
-pip install "sideseat[openai-agents]"   # + OpenAI Agents
+pip install "sideseat[openai]"          # + OpenAI / OpenAI Agents
 
 # Extras for provider instrumentation:
-pip install "sideseat[openai]"          # + OpenAI
 pip install "sideseat[anthropic]"       # + Anthropic
 pip install "sideseat[aws]"             # + Amazon Bedrock
 pip install "sideseat[vertex]"          # + Vertex AI

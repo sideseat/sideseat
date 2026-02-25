@@ -614,6 +614,23 @@ pub(crate) fn extract_tool_definitions(
         }
     }
 
+    // request_data.tools - Logfire Chat Completions / Anthropic Messages
+    // Older logfire versions (< 4.20) don't set gen_ai.tool.definitions separately;
+    // tools are only inside the request_data JSON payload.
+    if tool_definitions.is_empty() {
+        if let Some(parsed) = extract_json::<JsonValue>(attrs, keys::REQUEST_DATA) {
+            if let Some(tools) = parsed.get("tools").and_then(|t| t.as_array()) {
+                if !tools.is_empty() {
+                    tool_definitions.push(RawToolDefinition::from_attr(
+                        keys::REQUEST_DATA,
+                        timestamp,
+                        JsonValue::Array(tools.clone()),
+                    ));
+                }
+            }
+        }
+    }
+
     (tool_definitions, tool_names)
 }
 
@@ -1076,6 +1093,39 @@ pub(crate) fn try_logfire_events(
                     ));
                     found = true;
                 }
+            }
+        }
+    }
+
+    // Logfire Chat Completions / Anthropic Messages: request_data/response_data.
+    // Stored as-is — structural extraction happens at query time
+    // via MESSAGE_ARRAY_SOURCES expansion in normalize.rs.
+    if !found {
+        if let Some(parsed) = extract_json::<JsonValue>(attrs, keys::REQUEST_DATA) {
+            if parsed
+                .get("messages")
+                .and_then(|m| m.as_array())
+                .is_some_and(|a| !a.is_empty())
+            {
+                messages.push(RawMessage::from_attr(keys::REQUEST_DATA, timestamp, parsed));
+                found = true;
+            }
+        }
+        if let Some(parsed) = extract_json::<JsonValue>(attrs, keys::RESPONSE_DATA) {
+            // Non-streaming: {message: {role, ...}, usage: {...}}
+            let has_message = parsed.get("message").is_some_and(|m| m.is_object());
+            // Streaming: {combined_chunk_content: "...", chunk_count: N}
+            let has_streaming = parsed
+                .get("combined_chunk_content")
+                .and_then(|c| c.as_str())
+                .is_some_and(|s| !s.is_empty());
+            if has_message || has_streaming {
+                messages.push(RawMessage::from_attr(
+                    keys::RESPONSE_DATA,
+                    timestamp,
+                    parsed,
+                ));
+                found = true;
             }
         }
     }
