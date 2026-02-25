@@ -146,7 +146,7 @@ This mounts a local `./data` directory into the container at `/data` to persist 
 
 **Agent frameworks** — Strands Agents, LangGraph, CrewAI, AutoGen, Google ADK, OpenAI Agents, LangChain, PydanticAI
 
-**LLM providers** — OpenAI, Anthropic, AWS Bedrock, Azure OpenAI, Google Vertex AI
+**LLM providers** — OpenAI, Anthropic, AWS Bedrock, Azure OpenAI, Google Gemini
 
 **Telemetry** — Vercel AI SDK, OpenInference, MLflow, Logfire
 
