@@ -282,6 +282,7 @@ impl BlockEntry {
     /// - `mlflow.spanInputs` - MLflow
     /// - `traceloop.entity.input` - TraceLoop
     /// - `pydantic_ai.all_messages` - Pydantic AI
+    /// - `request_data` - Logfire
     /// - Input events (gen_ai.user.message, etc.)
     #[inline]
     pub fn is_input_source(&self) -> bool {
@@ -307,6 +308,8 @@ impl BlockEntry {
                 || attr == "traceloop.entity.input"
                 // Pydantic AI
                 || attr == "pydantic_ai.all_messages"
+                // Logfire (instrument_openai, instrument_anthropic)
+                || attr == "request_data"
         }) || self.is_input_event()
     }
 
@@ -321,6 +324,7 @@ impl BlockEntry {
     /// - `lk.response.*` - LiveKit
     /// - `mlflow.spanOutputs` - MLflow
     /// - `traceloop.entity.output` - TraceLoop
+    /// - `response_data` - Logfire
     /// - Output events (gen_ai.choice, etc.)
     #[inline]
     pub fn is_output_source(&self) -> bool {
@@ -340,6 +344,8 @@ impl BlockEntry {
                 || attr == "mlflow.spanOutputs"
                 // TraceLoop
                 || attr == "traceloop.entity.output"
+                // Logfire (instrument_openai, instrument_anthropic)
+                || attr == "response_data"
         }) || self.is_output_event()
     }
 
@@ -632,6 +638,22 @@ mod tests {
         block.source_attribute = Some("pydantic_ai.all_messages".to_string());
         assert!(block.is_input_source());
         assert!(!block.is_output_source());
+    }
+
+    #[test]
+    fn test_is_input_source_logfire_request_data() {
+        let mut block = make_test_block();
+        block.source_attribute = Some("request_data".to_string());
+        assert!(block.is_input_source());
+        assert!(!block.is_output_source());
+    }
+
+    #[test]
+    fn test_is_output_source_logfire_response_data() {
+        let mut block = make_test_block();
+        block.source_attribute = Some("response_data".to_string());
+        assert!(block.is_output_source());
+        assert!(!block.is_input_source());
     }
 
     #[test]

@@ -207,13 +207,16 @@ pub(super) mod keys {
     // Logfire
     pub const PROMPT: &str = "prompt";
     pub const ALL_MESSAGES_EVENTS: &str = "all_messages_events";
+    pub const REQUEST_DATA: &str = "request_data";
+    pub const RESPONSE_DATA: &str = "response_data";
+    pub const LOGFIRE_MSG_TEMPLATE: &str = "logfire.msg_template";
+    pub const LOGFIRE_MSG: &str = "logfire.msg";
 
     // Pydantic AI (via Logfire)
     pub const TOOL_ARGUMENTS: &str = "tool_arguments";
     pub const TOOL_RESPONSE: &str = "tool_response";
     pub const PYDANTIC_AI_ALL_MESSAGES: &str = "pydantic_ai.all_messages";
     pub const GEN_AI_SYSTEM_INSTRUCTIONS: &str = "gen_ai.system_instructions";
-    pub const LOGFIRE_MSG: &str = "logfire.msg";
 
     // OTEL Standard GenAI Messages
     pub const GEN_AI_INPUT_MESSAGES: &str = "gen_ai.input.messages";
@@ -318,6 +321,10 @@ pub(super) fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> V
                 // Core OTLP fields
                 attributes::set_core_fields(&mut span, otlp_span);
 
+                // Resolve display name from attributes when the raw span name
+                // is a template or otherwise not human-readable
+                attributes::resolve_span_name(&mut span, &span_attrs);
+
                 // Extract resource attributes
                 span.project_id = resource_attrs.get(keys::PROJECT_ID).cloned();
                 span.environment = resource_attrs
@@ -385,6 +392,18 @@ pub(super) fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> V
                             if let Some(reason) = json.get("finish_reason").and_then(|r| r.as_str())
                             {
                                 span.gen_ai_finish_reasons = vec![reason.to_lowercase()];
+                            }
+                        }
+                    }
+                }
+
+                if span.gen_ai_finish_reasons.is_empty() {
+                    // 5. Try logfire response_data (Text Completions: {finish_reason, text, usage})
+                    if let Some(response) = span_attrs.get(keys::RESPONSE_DATA) {
+                        if let Ok(json) = serde_json::from_str::<JsonValue>(response) {
+                            if let Some(reason) = json.get("finish_reason").and_then(|r| r.as_str())
+                            {
+                                span.gen_ai_finish_reasons = vec![reason.to_string()];
                             }
                         }
                     }

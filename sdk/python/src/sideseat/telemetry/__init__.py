@@ -165,6 +165,11 @@ class TelemetryClient:
         self.tracer_provider = trace.get_tracer_provider()
         if not hasattr(self.tracer_provider, "add_span_processor"):
             raise RuntimeError("Logfire did not create valid TracerProvider")
+
+        # Reparent streaming response logs before OTLP export
+        from sideseat.telemetry.processors import _LogfireStreamingProcessor
+
+        self.tracer_provider.add_span_processor(_LogfireStreamingProcessor())
         self._otlp_processor = setup_otlp(self._config, self.tracer_provider)
 
         # Instrument cloud providers if explicitly requested

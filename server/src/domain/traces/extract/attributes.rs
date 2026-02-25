@@ -138,6 +138,32 @@ fn status_code_to_string(code: i32) -> &'static str {
 }
 
 // ============================================================================
+// SPAN NAME RESOLUTION
+// ============================================================================
+
+/// Resolve the display span name from attributes.
+///
+/// Some instrumentation libraries store a template or internal identifier as the
+/// OTLP span name and put the human-readable resolved name in an attribute.
+/// This function checks for those patterns and overrides `span_name` when a
+/// better display name is available.
+///
+/// Currently handles:
+/// - **Logfire** (`logfire.msg_template` + `logfire.msg`): Span name is a Python
+///   f-string template like `"Chat Completion with {request_data[model]!r}"`.
+///   When `logfire.msg_template` exists, the resolved `logfire.msg` is used.
+pub(super) fn resolve_span_name(span: &mut SpanData, attrs: &HashMap<String, String>) {
+    // Logfire: span name is the unresolved msg_template; logfire.msg is the resolved version
+    if attrs.contains_key(keys::LOGFIRE_MSG_TEMPLATE) {
+        if let Some(resolved) = attrs.get(keys::LOGFIRE_MSG) {
+            if !resolved.is_empty() {
+                span.span_name = resolved.clone();
+            }
+        }
+    }
+}
+
+// ============================================================================
 // SPAN DATA
 // ============================================================================
 

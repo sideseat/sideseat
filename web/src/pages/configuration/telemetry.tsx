@@ -339,7 +339,7 @@ user.initiate_chat(assistant, message="Hello!")`,
     name: "OpenAI Agents",
     lang: "python",
     docUrl: "https://openai.github.io/openai-agents-python/",
-    install: 'pip install openai-agents "sideseat[openai-agents]"',
+    install: 'pip install openai-agents "sideseat[openai]"',
     code: () => `from sideseat import SideSeat, Frameworks
 from agents import Agent, Runner
 

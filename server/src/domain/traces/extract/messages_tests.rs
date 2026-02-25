@@ -4874,6 +4874,57 @@ fn test_extract_tool_definitions_vercel_stringified_array() {
     assert_eq!(arr[1]["name"].as_str(), Some("search"));
 }
 
+#[test]
+fn test_extract_tool_definitions_from_request_data() {
+    // Logfire (older versions) embeds tools inside request_data, not as a separate attribute.
+    let request_data = r#"{"messages":[{"role":"user","content":"Weather?"}],"model":"gpt-4o","tools":[{"type":"function","function":{"name":"get_weather","description":"Get weather","parameters":{"type":"object","properties":{"location":{"type":"string"}}}}}]}"#;
+    let attrs = make_attrs(&[("request_data", request_data)]);
+
+    let (tool_definitions, tool_names) = extract_tool_definitions(&attrs, Utc::now());
+
+    assert_eq!(
+        tool_definitions.len(),
+        1,
+        "Should extract tools from request_data"
+    );
+    assert!(tool_names.is_empty());
+
+    let tools = tool_definitions[0].content.as_array().unwrap();
+    assert_eq!(tools.len(), 1);
+    assert_eq!(tools[0]["function"]["name"].as_str(), Some("get_weather"));
+}
+
+#[test]
+fn test_extract_tool_definitions_gen_ai_takes_precedence_over_request_data() {
+    // When gen_ai.tool.definitions is present (newer logfire), don't duplicate from request_data.
+    let gen_ai_tools = r#"[{"type":"function","function":{"name":"get_weather"}}]"#;
+    let request_data = r#"{"messages":[],"model":"gpt-4o","tools":[{"type":"function","function":{"name":"get_weather"}}]}"#;
+    let attrs = make_attrs(&[
+        ("gen_ai.tool.definitions", gen_ai_tools),
+        ("request_data", request_data),
+    ]);
+
+    let (tool_definitions, _) = extract_tool_definitions(&attrs, Utc::now());
+
+    assert_eq!(
+        tool_definitions.len(),
+        1,
+        "Should only extract from gen_ai.tool.definitions, not duplicate from request_data"
+    );
+}
+
+#[test]
+fn test_extract_tool_definitions_request_data_no_tools() {
+    // request_data without tools field should not produce definitions.
+    let request_data = r#"{"messages":[{"role":"user","content":"Hi"}],"model":"gpt-4o"}"#;
+    let attrs = make_attrs(&[("request_data", request_data)]);
+
+    let (tool_definitions, tool_names) = extract_tool_definitions(&attrs, Utc::now());
+
+    assert!(tool_definitions.is_empty());
+    assert!(tool_names.is_empty());
+}
+
 // ============================================================================
 // INTEGRATION TESTS - extract_messages_for_span
 // ============================================================================
@@ -6110,4 +6161,128 @@ fn test_autogen_tool_execution_event_via_extract_messages_for_span() {
         messages.iter().map(|m| &m.content).collect::<Vec<_>>()
     );
     assert_eq!(messages[0].content["role"].as_str(), Some("tool"));
+}
+
+// ============================================================================
+// Logfire request_data / response_data extraction
+// ============================================================================
+
+#[test]
+fn test_logfire_chat_completions_request_response() {
+    let attrs = make_attrs(&[
+        (
+            "request_data",
+            r#"{"messages":[{"role":"user","content":"Hello"}],"model":"gpt-4o"}"#,
+        ),
+        (
+            "response_data",
+            r#"{"message":{"role":"assistant","content":"Hi!"},"usage":{"prompt_tokens":5}}"#,
+        ),
+    ]);
+
+    let mut messages = Vec::new();
+    let found = try_logfire_events(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
+
+    assert!(found, "Should extract from request_data/response_data");
+    assert_eq!(messages.len(), 2, "Should have request + response messages");
+
+    // request_data stored as-is (with messages wrapper)
+    assert!(
+        matches!(&messages[0].source, MessageSource::Attribute { key, .. } if key == "request_data")
+    );
+    assert!(messages[0].content.get("messages").is_some());
+
+    // response_data stored as-is (with message wrapper)
+    assert!(
+        matches!(&messages[1].source, MessageSource::Attribute { key, .. } if key == "response_data")
+    );
+    assert!(messages[1].content.get("message").is_some());
+}
+
+#[test]
+fn test_logfire_responses_api_skipped() {
+    // Responses API: request_data has no messages array
+    let attrs = make_attrs(&[("request_data", r#"{"model":"gpt-4o","stream":true}"#)]);
+
+    let mut messages = Vec::new();
+    let found = try_logfire_events(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
+
+    assert!(
+        !found,
+        "Should not extract from Responses API request_data (no messages)"
+    );
+    assert!(messages.is_empty());
+}
+
+#[test]
+fn test_logfire_events_take_precedence() {
+    // When events attribute is present, request_data/response_data should be skipped
+    let events_json = r#"[{"event.name":"gen_ai.user.message","content":"Hello!"}]"#;
+    let attrs = make_attrs(&[
+        ("events", events_json),
+        (
+            "request_data",
+            r#"{"messages":[{"role":"user","content":"Hello!"}]}"#,
+        ),
+    ]);
+
+    let mut messages = Vec::new();
+    let found = try_logfire_events(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
+
+    assert!(found);
+    assert_eq!(
+        messages.len(),
+        1,
+        "Should only have event-based message, not request_data"
+    );
+    assert!(
+        matches!(&messages[0].source, MessageSource::Event { name, .. } if name == "gen_ai.user.message"),
+        "Message should come from events, not request_data"
+    );
+}
+
+#[test]
+fn test_logfire_request_only() {
+    // Only request_data, no response_data
+    let attrs = make_attrs(&[(
+        "request_data",
+        r#"{"messages":[{"role":"user","content":"Hello"}],"model":"gpt-4o"}"#,
+    )]);
+
+    let mut messages = Vec::new();
+    let found = try_logfire_events(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
+
+    assert!(found);
+    assert_eq!(messages.len(), 1, "Should have only request_data message");
+}
+
+#[test]
+fn test_logfire_empty_messages_skipped() {
+    // request_data with empty messages array should be skipped
+    let attrs = make_attrs(&[("request_data", r#"{"messages":[],"model":"gpt-4o"}"#)]);
+
+    let mut messages = Vec::new();
+    let found = try_logfire_events(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
+
+    assert!(!found, "Should not extract when messages array is empty");
+    assert!(messages.is_empty());
+}
+
+#[test]
+fn test_logfire_streaming_response() {
+    // Streaming response_data with combined_chunk_content
+    let attrs = make_attrs(&[(
+        "response_data",
+        r#"{"combined_chunk_content":"Hello from streaming!","chunk_count":5}"#,
+    )]);
+
+    let mut messages = Vec::new();
+    let found = try_logfire_events(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
+
+    assert!(found, "Should extract streaming response_data");
+    assert_eq!(messages.len(), 1);
+    assert!(
+        matches!(&messages[0].source, MessageSource::Attribute { key, .. } if key == "response_data")
+    );
+    assert!(messages[0].content.get("combined_chunk_content").is_some());
 }
