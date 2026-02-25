@@ -90,6 +90,9 @@ Available frameworks:
 - `Frameworks.OpenAIAgents`
 - `Frameworks.GoogleADK`
 - `Frameworks.PydanticAI`
+- `Frameworks.OpenAI`
+- `Frameworks.Anthropic`
+- `Frameworks.GoogleGenAI`
 
 If not specified, the SDK auto-detects in this order:
 1. Strands (`strands-agents`)
@@ -134,9 +137,6 @@ client = SideSeat(framework=[Frameworks.Strands, Frameworks.Bedrock])
 
 Available providers:
 - `Frameworks.Bedrock` — Amazon Bedrock (patches botocore to capture model, tokens, and messages)
-- `Frameworks.OpenAI` — OpenAI (instruments the `openai` Python SDK)
-- `Frameworks.Anthropic` — Anthropic (instruments the `anthropic` Python SDK)
-- `Frameworks.VertexAI` — Google Vertex AI (instruments the `vertexai` Python SDK)
 
 <Aside type="note">
 Use provider identifiers when calling provider SDKs directly. Framework instrumentation (Strands, LangGraph, etc.) captures LLM calls through their own telemetry and does not need providers. Azure OpenAI uses the same `openai` SDK, so use `Frameworks.OpenAI` for Azure OpenAI as well.

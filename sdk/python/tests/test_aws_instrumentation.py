@@ -1552,81 +1552,9 @@ class TestInstrumentProviders:
             _try_instrument_aws(None)
             assert "aws" not in _instrumented
 
-
-# ---------------------------------------------------------------------------
-# _try_instrument_provider (OpenAI, Anthropic, VertexAI)
-# ---------------------------------------------------------------------------
-
-
-class TestTryInstrumentProvider:
-    @pytest.fixture(autouse=True)
-    def reset_provider_state(self) -> None:
-        with _lock:
-            _instrumented.discard("openai")
-            _instrumented.discard("anthropic")
-            _instrumented.discard("vertex_ai")
-        yield
-        with _lock:
-            _instrumented.discard("openai")
-            _instrumented.discard("anthropic")
-            _instrumented.discard("vertex_ai")
-
-    def test_openai_provider_instruments(self) -> None:
-        """OpenAI provider calls OpenInference instrumentor when SDK is available."""
-        from sideseat.instrumentation import _try_instrument_provider
-
-        mock_openai = MagicMock()
-        mock_instrumentor = MagicMock()
-        mock_mod = MagicMock()
-        mock_mod.OpenAIInstrumentor.return_value = mock_instrumentor
-
-        with (
-            patch.dict("sys.modules", {"openai": mock_openai}),
-            patch("sideseat.instrumentation._instrument_openinference") as mock_oi,
-        ):
-            _try_instrument_provider("openai", "openai", "openai", "OpenAIInstrumentor", None)
-            mock_oi.assert_called_once_with("openai", "OpenAIInstrumentor", None)
-            assert "openai" in _instrumented
-
-    def test_provider_skips_without_sdk(self) -> None:
-        """No SDK installed -> no-op."""
-        from sideseat.instrumentation import _try_instrument_provider
-
-        with patch("sideseat._utils._module_available", return_value=False):
-            _try_instrument_provider("openai", "openai", "openai", "OpenAIInstrumentor", None)
-            assert "openai" not in _instrumented
-
-    def test_provider_idempotent(self) -> None:
-        """Second call for same provider is a no-op."""
-        from sideseat.instrumentation import _try_instrument_provider
-
-        mock_openai = MagicMock()
-        with (
-            patch.dict("sys.modules", {"openai": mock_openai}),
-            patch("sideseat.instrumentation._instrument_openinference") as mock_oi,
-        ):
-            _try_instrument_provider("openai", "openai", "openai", "OpenAIInstrumentor", None)
-            _try_instrument_provider("openai", "openai", "openai", "OpenAIInstrumentor", None)
-            assert mock_oi.call_count == 1
-
     def test_unknown_provider_ignored(self) -> None:
         """Unknown provider string in providers tuple is harmless."""
         from sideseat.instrumentation import instrument_providers
 
         instrument_providers(None, ("unknown_provider",))
         assert "unknown_provider" not in _instrumented
-
-    def test_provider_failure_cleans_up(self) -> None:
-        """Failed OpenInference instrumentation removes name from _instrumented."""
-        from sideseat.instrumentation import _try_instrument_provider
-
-        mock_openai = MagicMock()
-        with (
-            patch.dict("sys.modules", {"openai": mock_openai}),
-            patch(
-                "sideseat.instrumentation._instrument_openinference",
-                side_effect=RuntimeError("missing dep"),
-            ),
-        ):
-            _try_instrument_provider("openai", "openai", "openai", "OpenAIInstrumentor", None)
-            assert "openai" not in _instrumented
