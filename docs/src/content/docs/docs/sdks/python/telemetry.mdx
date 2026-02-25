@@ -27,8 +27,6 @@ class SideSeat:
         encode_binary: bool = True,
         disabled: bool = False,
         debug: bool = False,
-        user_id: str | None = None,
-        session_id: str | None = None,
     ) -> None: ...
 ```
 
@@ -103,6 +101,40 @@ Per-operation identity override:
 ```python
 with client.span("user-request", user_id="user-456", session_id="session-xyz"):
     do_work()  # This span and children get overridden IDs
+```
+
+### `trace(name, **kwargs)`
+
+Create a root span that groups child spans into a single trace.
+
+**Parameters**:
+- `name` (str): Trace name
+- `user_id` (str, optional): User ID for this trace and its children
+- `session_id` (str, optional): Session ID for this trace and its children
+
+**Returns**: `ContextManager[Span]`
+
+```python
+with client.trace("bedrock-converse"):
+    bedrock.converse(modelId=model_id, messages=messages)
+    bedrock.converse(modelId=model_id, messages=messages)
+```
+
+### `session(name, *, session_id, **kwargs)`
+
+Create a session-scoped trace with an explicit session ID.
+
+**Parameters**:
+- `name` (str): Session name
+- `session_id` (str, required): Session identifier
+- `user_id` (str, optional): User ID for this session and its children
+
+**Returns**: `ContextManager[Span]`
+
+```python
+with client.session("chat", session_id="sess-123", user_id="user-456"):
+    bedrock.converse(modelId=model_id, messages=messages)
+# All child spans get session.id="sess-123" and user.id="user-456"
 ```
 
 ### `get_tracer(name)`
@@ -239,15 +271,20 @@ client.telemetry.setup_file_exporter("traces.jsonl")  # Write to file
 
 ### User and Session Tracking
 
+Set `user_id` and `session_id` per-operation via `session()`, `trace()`, or `span()`:
+
 ```python
 from sideseat import SideSeat
 
-# Global: all spans get these IDs
-client = SideSeat(user_id="user-123", session_id="session-abc")
+client = SideSeat()
 
-# Per-operation: override for a specific scope
+# Session-scoped trace
+with client.session("chat", session_id="session-abc", user_id="user-123"):
+    run_agent()  # This span and children get user.id and session.id
+
+# Or on any span
 with client.span("handle-request", user_id="user-456", session_id="session-xyz"):
-    run_agent()  # This span and children use overridden IDs
+    do_work()
 ```
 
 ### Disabled Mode

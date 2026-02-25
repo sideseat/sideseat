@@ -86,6 +86,7 @@ def _wrap_invoke_agent(original: Any, tracer: Tracer) -> Any:
 
         completion = response.get("completion")
         if completion is None:
+            span.set_status(StatusCode.OK)
             span.end()
             context.detach(token)
             return response
@@ -127,6 +128,7 @@ def _wrap_invoke_inline_agent(original: Any, tracer: Tracer) -> Any:
 
         completion = response.get("completion")
         if completion is None:
+            span.set_status(StatusCode.OK)
             span.end()
             context.detach(token)
             return response
@@ -228,31 +230,34 @@ class _InvokeAgentStreamWrapper:
 
         span = self._span
         try:
-            if self._model:
-                span.set_attribute(_REQUEST_MODEL, self._model)
-                span.set_attribute(_RESPONSE_MODEL, self._model)
+            try:
+                if self._model:
+                    span.set_attribute(_REQUEST_MODEL, self._model)
+                    span.set_attribute(_RESPONSE_MODEL, self._model)
 
-            if self._input_tokens:
-                span.set_attribute(_INPUT_TOKENS, self._input_tokens)
-            if self._output_tokens:
-                span.set_attribute(_OUTPUT_TOKENS, self._output_tokens)
+                if self._input_tokens:
+                    span.set_attribute(_INPUT_TOKENS, self._input_tokens)
+                if self._output_tokens:
+                    span.set_attribute(_OUTPUT_TOKENS, self._output_tokens)
 
-            if self._response_text:
-                output_content = [{"text": self._response_text}]
-                output_msg = {"role": "assistant", "content": output_content}
-                span.add_event(
-                    "gen_ai.client.inference.operation.details",
-                    {
-                        "gen_ai.output.messages": json.dumps(encode_value([output_msg])),
-                    },
-                )
-                span.add_event(
-                    "gen_ai.choice",
-                    {
-                        "message": json.dumps(encode_value(output_content)),
-                        "finish_reason": "end_turn",
-                    },
-                )
+                if self._response_text:
+                    output_content = [{"text": self._response_text}]
+                    output_msg = {"role": "assistant", "content": output_content}
+                    span.add_event(
+                        "gen_ai.client.inference.operation.details",
+                        {
+                            "gen_ai.output.messages": json.dumps(encode_value([output_msg])),
+                        },
+                    )
+                    span.add_event(
+                        "gen_ai.choice",
+                        {
+                            "message": json.dumps(encode_value(output_content)),
+                            "finish_reason": "end_turn",
+                        },
+                    )
+            except Exception:
+                logger.debug("Failed to emit agent stream events", exc_info=True)
 
             span.set_status(StatusCode.OK)
         finally:

@@ -69,6 +69,22 @@ Add two lines at the top of your entry point:
     print(response)
     ```
   </TabItem>
+  <TabItem label="Python (Bedrock)">
+    ```python
+    from sideseat import SideSeat, Frameworks
+    import boto3
+
+    SideSeat(framework=Frameworks.Bedrock)
+
+    bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+    response = bedrock.converse(
+        modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        messages=[{"role": "user", "content": [{"text": "What is the capital of France?"}]}],
+    )
+
+    print(response["output"]["message"]["content"][0]["text"])
+    ```
+  </TabItem>
   <TabItem label="JavaScript (Vercel AI)">
     ```typescript
     import { init } from '@sideseat/sdk';

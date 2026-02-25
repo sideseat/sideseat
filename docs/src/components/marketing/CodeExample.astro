@@ -16,8 +16,9 @@
 
     <div class="section-header center" style="margin-bottom: 20px;">
       <div class="code-tabs" role="tablist" aria-label="SDK selector">
-        <button class="code-tab is-active" data-tab="python" role="tab" aria-selected="true">Python</button>
-        <button class="code-tab" data-tab="javascript" role="tab" aria-selected="false">JavaScript</button>
+        <button class="code-tab is-active" data-tab="python" role="tab" aria-selected="true">Strands Agents</button>
+        <button class="code-tab" data-tab="bedrock" role="tab" aria-selected="false">Bedrock Converse</button>
+        <button class="code-tab" data-tab="javascript" role="tab" aria-selected="false">Vercel AI</button>
       </div>
     </div>
 
@@ -37,6 +38,31 @@
 
 agent = Agent()  <span class="text-muted"># uses Amazon Bedrock by default</span>
 agent("Analyze this dataset...")</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="code-panel hidden" data-panel="bedrock">
+      <div class="terminal">
+        <div class="terminal-header">
+          <div class="terminal-dot red"></div>
+          <div class="terminal-dot yellow"></div>
+          <div class="terminal-dot green"></div>
+          <span class="terminal-title">your_app.py</span>
+        </div>
+        <div class="terminal-body">
+          <pre><code>import boto3
+<span class="text-accent">from sideseat import SideSeat, Frameworks</span>
+
+<span class="text-accent">SideSeat(framework=Frameworks.Bedrock)</span>   <span class="text-muted"># add this</span>
+
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+response = bedrock.converse(
+    modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    messages=[&#123;"role": "user", "content": [&#123;"text": "Analyze this dataset..."&#125;]&#125;],
+)
+
+print(response["output"]["message"]["content"][0]["text"])</code></pre>
         </div>
       </div>
     </div>
