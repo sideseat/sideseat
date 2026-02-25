@@ -10,8 +10,8 @@ dependencies = [
     "boto3>=1.42.22",
     "python-dotenv>=1.2.0",
     # SideSeat SDK (local path dependency, extras for instrumentation)
-    "sideseat[langchain,crewai,autogen,openai-agents,openai]",
-    # Common (pinned to 1.37.0 for google-adk compatibility)
+    "sideseat[langchain,crewai,autogen,openai]",
+    # Common
     "opentelemetry-api>=1.37.0",
     "opentelemetry-sdk>=1.37.0",
     "opentelemetry-exporter-otlp>=1.37.0",
@@ -23,8 +23,8 @@ dependencies = [
     "bedrock-agentcore>=1.1.2",
     # Anthropic direct API (for anthropic-* models)
     "anthropic>=0.52.0",
-    # Google ADK (latest: 1.21.0, pins opentelemetry-sdk==1.37.0)
-    "google-adk>=1.21.0",
+    # Google ADK (latest: 1.25.1, requires opentelemetry-sdk<1.40.0,>=1.36.0)
+    "google-adk>=1.25.1",
     "litellm>=1.60.0",
     # LangGraph (latest: 1.0.7)
     "langgraph>=1.0.7",
