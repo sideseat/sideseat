@@ -1,6 +1,6 @@
 {
   "name": "@sideseat/platform-darwin-x64",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "SideSeat binary for macOS Intel",
   "os": [
     "darwin"
