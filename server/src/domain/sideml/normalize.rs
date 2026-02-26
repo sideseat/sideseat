@@ -275,6 +275,34 @@ fn expand_message_array(result: &mut Vec<RawMessage>, raw: &RawMessage) {
         return;
     }
 
+    // Anthropic: top-level "system" field is not inside "messages" array.
+    // Synthesize a system message before expanding the messages array.
+    if let Some(system) = raw.content.get("system") {
+        let system_text = if let Some(s) = system.as_str() {
+            // Simple string: "system": "You are helpful."
+            Some(s.to_string())
+        } else if let Some(arr) = system.as_array() {
+            // Array of blocks: "system": [{"type": "text", "text": "..."}]
+            let texts: Vec<&str> = arr
+                .iter()
+                .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
+                .collect();
+            if texts.is_empty() {
+                None
+            } else {
+                Some(texts.join("\n"))
+            }
+        } else {
+            None
+        };
+        if let Some(text) = system_text {
+            result.push(RawMessage {
+                source: raw.source.clone(),
+                content: json!({"role": "system", "content": text}),
+            });
+        }
+    }
+
     // Expand array into individual messages
     let mut expanded_count = 0;
     let mut skipped_count = 0;
