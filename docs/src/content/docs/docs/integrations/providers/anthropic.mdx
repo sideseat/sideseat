@@ -1,125 +1,154 @@
 ---
 title: Anthropic
-description: SideSeat automatically extracts model and token information from Anthropic Claude API calls.
+description: Instrument Anthropic Claude Messages API with SideSeat for full observability.
 ---
 
-import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 
-SideSeat automatically extracts model information, token usage, and costs from Anthropic Claude API calls.
+SideSeat instruments the Anthropic Python SDK to capture model information, token usage, messages, and costs from the Messages API.
 
 ## Prerequisites
 
 - SideSeat running locally (`sideseat`)
-- SDK installed (`pip install sideseat` / `uv add sideseat` or `npm install @sideseat/sdk`)
-- Anthropic API credentials configured
+- Python SDK installed with the Anthropic extra (`pip install "sideseat[anthropic]"`)
+- Anthropic API key configured (`ANTHROPIC_API_KEY`)
 
-## Usage with Anthropic SDK
+## Messages API
 
-<Aside type="note">
-Examples use Claude Sonnet 4.5. Replace the `model` value with the exact model ID available in your Anthropic account.
-</Aside>
+SideSeat instruments the Anthropic SDK automatically. Initialize SideSeat with the `Anthropic` framework, then use the SDK as usual:
 
-<Tabs>
-  <TabItem label="Python">
-    ```python
-    from sideseat import SideSeat, Frameworks
-    import anthropic
+```python
+from sideseat import SideSeat, Frameworks
+import anthropic
 
-    SideSeat(framework=Frameworks.Anthropic)
+SideSeat(framework=Frameworks.Anthropic)
 
-    client = anthropic.Anthropic()
-    message = client.messages.create(
-        model="claude-sonnet-4-5-20250929",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": "Hello!"}]
-    )
-    print(message.content[0].text)
-    ```
-  </TabItem>
-  <TabItem label="JavaScript">
-    ```typescript
-    import { init } from '@sideseat/sdk';
-    import Anthropic from '@anthropic-ai/sdk';
+client = anthropic.Anthropic()
+message = client.messages.create(
+    model="claude-sonnet-4-5-20250929",
+    system="Answer in one sentence.",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "What is the speed of light?"}],
+)
 
-    init();
-
-    const client = new Anthropic();
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: 'Hello!' }]
-    });
-    console.log(message.content[0].text);
-    ```
-  </TabItem>
-</Tabs>
-
-## Extracted Attributes
-
-| Attribute | Source |
-|-----------|--------|
-| `gen_ai.system` | `anthropic` |
-| `gen_ai.request.model` | Request model parameter |
-| `gen_ai.response.model` | Response model field |
-| `gen_ai.usage.input_tokens` | `usage.input_tokens` |
-| `gen_ai.usage.output_tokens` | `usage.output_tokens` |
-| `gen_ai.request.max_tokens` | Max tokens parameter |
+print(message.content[0].text)
+```
 
 ## Streaming
 
-Streaming responses are captured:
+Streaming responses are fully captured, including token counts aggregated from stream events:
 
 ```python
-with client.messages.stream(
+from sideseat import SideSeat, Frameworks
+import anthropic
+
+client = SideSeat(framework=Frameworks.Anthropic)
+anthropic_client = anthropic.Anthropic()
+
+with anthropic_client.messages.stream(
     model="claude-sonnet-4-5-20250929",
+    system="Answer in one sentence.",
     max_tokens=1024,
-    messages=[{"role": "user", "content": "Tell me a story"}]
+    messages=[{"role": "user", "content": "What is the boiling point of water?"}],
 ) as stream:
     for text in stream.text_stream:
         print(text, end="", flush=True)
 ```
 
-## Tool Use
+## Extended Thinking
 
-Claude tool use is fully traced:
+Claude's extended thinking is captured for both sync and streaming calls. Thinking blocks appear in the message thread alongside the final response.
 
 ```python
+from sideseat import SideSeat, Frameworks
+import anthropic
+
+client = SideSeat(framework=Frameworks.Anthropic)
+anthropic_client = anthropic.Anthropic()
+
+message = anthropic_client.messages.create(
+    model="claude-sonnet-4-5-20250929",
+    max_tokens=16000,
+    thinking={"type": "enabled", "budget_tokens": 10000},
+    messages=[{"role": "user", "content": "What is 27 * 453?"}],
+)
+
+for block in message.content:
+    if block.type == "thinking":
+        print(f"Thinking: {block.thinking}")
+    elif block.type == "text":
+        print(f"Answer: {block.text}")
+```
+
+<Aside type="note">
+Extended thinking requires `max_tokens` high enough to accommodate both the thinking budget and the response. The `budget_tokens` controls the maximum tokens the model can use for reasoning.
+</Aside>
+
+## Tool Use
+
+Tool definitions, tool use requests, and tool results are all captured:
+
+```python
+from sideseat import SideSeat, Frameworks
+import anthropic
+
+client = SideSeat(framework=Frameworks.Anthropic)
+anthropic_client = anthropic.Anthropic()
+
 tools = [{
     "name": "get_weather",
-    "description": "Get weather for a location",
+    "description": "Get the current weather for a location.",
     "input_schema": {
         "type": "object",
         "properties": {
             "location": {"type": "string", "description": "City name"}
         },
-        "required": ["location"]
-    }
+        "required": ["location"],
+    },
 }]
 
-message = client.messages.create(
+# Step 1: model requests a tool call
+messages = [{"role": "user", "content": "What's the weather in Paris?"}]
+message = anthropic_client.messages.create(
     model="claude-sonnet-4-5-20250929",
+    system="Use tools when available.",
     max_tokens=1024,
     tools=tools,
-    messages=[{"role": "user", "content": "What's the weather in Paris?"}]
+    messages=messages,
+)
+messages.append({"role": "assistant", "content": message.content})
+
+# Step 2: return the tool result
+tool_use = next(b for b in message.content if b.type == "tool_use")
+messages.append({
+    "role": "user",
+    "content": [{"type": "tool_result", "tool_use_id": tool_use.id, "content": "Sunny, 22C"}],
+})
+
+# Step 3: model produces the final answer
+message = anthropic_client.messages.create(
+    model="claude-sonnet-4-5-20250929",
+    system="Use tools when available.",
+    max_tokens=1024,
+    tools=tools,
+    messages=messages,
 )
 ```
 
-SideSeat captures:
-- Tool definitions
-- Tool use requests
-- Tool results
+SideSeat captures all three steps as separate spans, each with full message details.
 
 ## Vision
 
-Image inputs are captured:
+Image inputs are captured (image data base64-encoded):
 
 ```python
 import base64
+import anthropic
 
-with open("image.png", "rb") as f:
+with open("image.jpg", "rb") as f:
     image_data = base64.b64encode(f.read()).decode()
 
-message = client.messages.create(
+message = anthropic.Anthropic().messages.create(
     model="claude-sonnet-4-5-20250929",
     max_tokens=1024,
     messages=[{
@@ -128,33 +157,128 @@ message = client.messages.create(
             {"type": "text", "text": "What's in this image?"},
             {"type": "image", "source": {
                 "type": "base64",
-                "media_type": "image/png",
-                "data": image_data
-            }}
-        ]
-    }]
+                "media_type": "image/jpeg",
+                "data": image_data,
+            }},
+        ],
+    }],
 )
 ```
 
-## Extended Thinking
+## Traces
 
-Claude's extended thinking feature is captured:
+By default, each Anthropic API call produces its own independent trace. Use `client.trace()` to group related calls under a single root span:
 
 ```python
-message = client.messages.create(
-    model="claude-sonnet-4-5-20250929",
-    max_tokens=16000,
-    thinking={
-        "type": "enabled",
-        "budget_tokens": 10000
-    },
-    messages=[{"role": "user", "content": "Solve this complex problem..."}]
-)
+client = SideSeat(framework=Frameworks.Anthropic)
+anthropic_client = anthropic.Anthropic()
+
+with client.trace("geography-chat"):
+    messages = []
+
+    # Turn 1
+    messages.append({"role": "user", "content": "What is the capital of France?"})
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
+    )
+    messages.append({"role": "assistant", "content": response.content[0].text})
+
+    # Turn 2 — follows up on the previous answer
+    messages.append({"role": "user", "content": "What about Germany?"})
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
+    )
+    messages.append({"role": "assistant", "content": response.content[0].text})
+
+    # Turn 3
+    messages.append({"role": "user", "content": "Which city has a larger population?"})
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
+    )
 ```
 
-Thinking blocks appear in the message thread.
+This produces the following span hierarchy:
+
+```
+geography-chat                        (root span)
+  ├── Messages claude-sonnet-4-5...   (turn 1)
+  ├── Messages claude-sonnet-4-5...   (turn 2)
+  └── Messages claude-sonnet-4-5...   (turn 3)
+```
+
+All three calls appear as child spans in the SideSeat UI, with the full multi-turn conversation visible in the trace detail view.
+
+## Sessions
+
+Pass `session_id` and `user_id` to `client.trace()` to group independent traces into a session. The SideSeat sessions view groups all traces that share the same `session_id`.
+
+Each `client.trace()` produces its own trace with its own trace ID, but they are linked by the shared session:
+
+```python
+from sideseat import SideSeat, Frameworks
+import anthropic
+
+client = SideSeat(framework=Frameworks.Anthropic)
+anthropic_client = anthropic.Anthropic()
+
+session_id = "sess-abc"
+user_id = "user-123"
+
+# Trace 1: Trip planning
+with client.trace("trip-planning", session_id=session_id, user_id=user_id):
+    messages = []
+    messages.append({"role": "user", "content": "Plan a 5-day trip to Japan."})
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
+    )
+    messages.append({"role": "assistant", "content": response.content[0].text})
+
+    messages.append({"role": "user", "content": "Tell me more about Kyoto."})
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
+    )
+
+# Trace 2: Food recommendations (fresh conversation, same session)
+with client.trace("food-recommendations", session_id=session_id, user_id=user_id):
+    messages = []
+    messages.append({"role": "user", "content": "What are the must-try dishes in Tokyo?"})
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
+    )
+    messages.append({"role": "assistant", "content": response.content[0].text})
+
+    messages.append({"role": "user", "content": "What about street food in Osaka?"})
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
+    )
+```
+
+This produces two independent traces, each with their own span hierarchy:
+
+```
+Trace 1: trip-planning              (session_id=sess-abc, user_id=user-123)
+  ├── Messages claude-sonnet-4-5... (turn 1)
+  └── Messages claude-sonnet-4-5... (turn 2)
+
+Trace 2: food-recommendations       (session_id=sess-abc, user_id=user-123)
+  ├── Messages claude-sonnet-4-5... (turn 1)
+  └── Messages claude-sonnet-4-5... (turn 2)
+```
+
+Each trace starts a fresh conversation with its own message history. The SideSeat sessions view groups them by `session_id`.
+
+## Authentication
+
+Anthropic uses an API key:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+The Anthropic SDK reads `ANTHROPIC_API_KEY` from the environment automatically. You can also pass it directly: `anthropic.Anthropic(api_key="sk-ant-...")`.
 
 ## Next Steps
 
+- [PydanticAI](/docs/integrations/frameworks/pydantic-ai/) — use SideSeat with PydanticAI on Anthropic
+- [Python SDK](/docs/sdks/python/) — SDK configuration and API reference
 - [First Run](/docs/quickstart/) — get started with SideSeat
-- [Python SDK](/docs/sdks/python/) — SDK reference

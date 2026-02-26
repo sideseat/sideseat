@@ -1,77 +1,247 @@
 ---
 title: Azure OpenAI
-description: SideSeat extracts model and token information from Azure OpenAI API calls.
+description: Instrument Azure OpenAI Chat Completions API with SideSeat for full observability.
 ---
 
-import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 
-SideSeat automatically extracts model information, token usage, and costs from Azure OpenAI API calls.
+SideSeat instruments the Azure OpenAI client to capture model information, token usage, messages, and costs from the Chat Completions API. Azure OpenAI uses the same OpenAI Python SDK with an Azure-specific client.
 
 ## Prerequisites
 
 - SideSeat running locally (`sideseat`)
-- SDK installed (`pip install sideseat` / `uv add sideseat` or `npm install @sideseat/sdk`)
-- Azure OpenAI credentials configured
+- Python SDK installed with the OpenAI extra (`pip install "sideseat[openai]"`)
+- Azure OpenAI credentials configured (API key or Managed Identity)
 
-## Usage with OpenAI SDK
+## Chat Completions API
 
-<Tabs>
-  <TabItem label="Python">
-    ```python
-    from sideseat import SideSeat, Frameworks
-    from openai import AzureOpenAI
+SideSeat instruments the OpenAI SDK automatically. Initialize SideSeat with the `OpenAI` framework, then use the `AzureOpenAI` client as usual:
 
-    SideSeat(framework=Frameworks.OpenAI)
+```python
+from sideseat import SideSeat, Frameworks
+from openai import AzureOpenAI
 
-    client = AzureOpenAI(
-        api_key="your-api-key",
-        api_version="2024-02-01",
-        azure_endpoint="https://your-resource.openai.azure.com"
-    )
+SideSeat(framework=Frameworks.OpenAI)
 
-    response = client.chat.completions.create(
-        model="gpt-5-mini",  # Your deployment name
-        messages=[{"role": "user", "content": "Hello!"}]
-    )
-    print(response.choices[0].message.content)
-    ```
-  </TabItem>
-  <TabItem label="JavaScript">
-    ```typescript
-    import { init } from '@sideseat/sdk';
-    import { AzureOpenAI } from 'openai';
+azure = AzureOpenAI(
+    api_key="your-api-key",
+    api_version="2024-02-01",
+    azure_endpoint="https://your-resource.openai.azure.com",
+)
 
-    init();
+response = azure.chat.completions.create(
+    model="gpt-5-mini",  # Your deployment name
+    messages=[
+        {"role": "system", "content": "Answer in one sentence."},
+        {"role": "user", "content": "What is the speed of light?"},
+    ],
+)
 
-    const client = new AzureOpenAI({
-      apiKey: 'your-api-key',
-      apiVersion: '2024-02-01',
-      endpoint: 'https://your-resource.openai.azure.com'
-    });
+print(response.choices[0].message.content)
+```
 
-    const response = await client.chat.completions.create({
-      model: 'gpt-5-mini',  // Your deployment name
-      messages: [{ role: 'user', content: 'Hello!' }]
-    });
-    console.log(response.choices[0].message.content);
-    ```
-  </TabItem>
-</Tabs>
+<Aside type="tip">
+The `model` parameter is the Azure deployment name, not the OpenAI model name. Create deployments in the Azure AI Foundry portal.
+</Aside>
 
-## Extracted Attributes
+## Streaming
 
-| Attribute | Source |
-|-----------|--------|
-| `gen_ai.system` | `azure_openai` |
-| `gen_ai.request.model` | Deployment name |
-| `gen_ai.response.model` | Response model field |
-| `gen_ai.usage.input_tokens` | `usage.prompt_tokens` |
-| `gen_ai.usage.output_tokens` | `usage.completion_tokens` |
-| `cloud.provider` | `azure` |
+Streaming responses are fully captured, including token counts aggregated from stream chunks:
 
-## Environment Variables
+```python
+from sideseat import SideSeat, Frameworks
+from openai import AzureOpenAI
 
-Configure via environment:
+client = SideSeat(framework=Frameworks.OpenAI)
+azure = AzureOpenAI(
+    api_key="your-api-key",
+    api_version="2024-02-01",
+    azure_endpoint="https://your-resource.openai.azure.com",
+)
+
+stream = azure.chat.completions.create(
+    model="gpt-5-mini",
+    messages=[
+        {"role": "system", "content": "Answer in one sentence."},
+        {"role": "user", "content": "What is the boiling point of water?"},
+    ],
+    stream=True,
+)
+
+for chunk in stream:
+    delta = chunk.choices[0].delta
+    if delta.content:
+        print(delta.content, end="", flush=True)
+```
+
+## Tool Use
+
+Tool definitions, tool call requests, and tool results are all captured:
+
+```python
+from sideseat import SideSeat, Frameworks
+from openai import AzureOpenAI
+
+client = SideSeat(framework=Frameworks.OpenAI)
+azure = AzureOpenAI(
+    api_key="your-api-key",
+    api_version="2024-02-01",
+    azure_endpoint="https://your-resource.openai.azure.com",
+)
+
+tools = [{
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "Get the current weather for a location.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {"type": "string", "description": "City name"}
+            },
+            "required": ["location"],
+        },
+    },
+}]
+
+# Step 1: model requests a tool call
+messages = [
+    {"role": "system", "content": "Use tools when available."},
+    {"role": "user", "content": "What's the weather in Paris?"},
+]
+response = azure.chat.completions.create(
+    model="gpt-5-mini",
+    messages=messages,
+    tools=tools,
+)
+assistant_msg = response.choices[0].message
+messages.append(assistant_msg)
+
+# Step 2: return the tool result
+tool_call = assistant_msg.tool_calls[0]
+messages.append({
+    "role": "tool",
+    "tool_call_id": tool_call.id,
+    "content": "Sunny, 22C",
+})
+
+# Step 3: model produces the final answer
+response = azure.chat.completions.create(
+    model="gpt-5-mini",
+    messages=messages,
+    tools=tools,
+)
+```
+
+SideSeat captures all three steps as separate spans, each with full message details.
+
+## Traces
+
+By default, each API call produces its own independent trace. Use `client.trace()` to group related calls under a single root span:
+
+```python
+client = SideSeat(framework=Frameworks.OpenAI)
+azure = AzureOpenAI(
+    api_key="your-api-key",
+    api_version="2024-02-01",
+    azure_endpoint="https://your-resource.openai.azure.com",
+)
+
+with client.trace("geography-chat"):
+    messages = [
+        {"role": "system", "content": "You are a geography assistant. Answer in 1-2 sentences."},
+    ]
+
+    # Turn 1
+    messages.append({"role": "user", "content": "What is the capital of France?"})
+    response = azure.chat.completions.create(model="gpt-5-mini", messages=messages)
+    messages.append({"role": "assistant", "content": response.choices[0].message.content})
+
+    # Turn 2
+    messages.append({"role": "user", "content": "What about Germany?"})
+    response = azure.chat.completions.create(model="gpt-5-mini", messages=messages)
+    messages.append({"role": "assistant", "content": response.choices[0].message.content})
+
+    # Turn 3
+    messages.append({"role": "user", "content": "Which city has a larger population?"})
+    response = azure.chat.completions.create(model="gpt-5-mini", messages=messages)
+```
+
+This produces the following span hierarchy:
+
+```
+geography-chat                (root span)
+  ├── ChatCompletion          (turn 1)
+  ├── ChatCompletion          (turn 2)
+  └── ChatCompletion          (turn 3)
+```
+
+All three calls appear as child spans in the SideSeat UI, with the full multi-turn conversation visible in the trace detail view.
+
+## Sessions
+
+Pass `session_id` and `user_id` to `client.trace()` to group independent traces into a session. The SideSeat sessions view groups all traces that share the same `session_id`.
+
+Each `client.trace()` produces its own trace with its own trace ID, but they are linked by the shared session:
+
+```python
+from sideseat import SideSeat, Frameworks
+from openai import AzureOpenAI
+
+client = SideSeat(framework=Frameworks.OpenAI)
+azure = AzureOpenAI(
+    api_key="your-api-key",
+    api_version="2024-02-01",
+    azure_endpoint="https://your-resource.openai.azure.com",
+)
+
+session_id = "sess-abc"
+user_id = "user-123"
+
+# Trace 1: Trip planning
+with client.trace("trip-planning", session_id=session_id, user_id=user_id):
+    messages = [
+        {"role": "system", "content": "You are a travel advisor. Be concise."},
+    ]
+    messages.append({"role": "user", "content": "Plan a 5-day trip to Japan."})
+    response = azure.chat.completions.create(model="gpt-5-mini", messages=messages)
+    messages.append({"role": "assistant", "content": response.choices[0].message.content})
+
+    messages.append({"role": "user", "content": "Tell me more about Kyoto."})
+    response = azure.chat.completions.create(model="gpt-5-mini", messages=messages)
+
+# Trace 2: Food recommendations (fresh conversation, same session)
+with client.trace("food-recommendations", session_id=session_id, user_id=user_id):
+    messages = [
+        {"role": "system", "content": "You are a food expert. Be concise."},
+    ]
+    messages.append({"role": "user", "content": "What are the must-try dishes in Tokyo?"})
+    response = azure.chat.completions.create(model="gpt-5-mini", messages=messages)
+    messages.append({"role": "assistant", "content": response.choices[0].message.content})
+
+    messages.append({"role": "user", "content": "What about street food in Osaka?"})
+    response = azure.chat.completions.create(model="gpt-5-mini", messages=messages)
+```
+
+This produces two independent traces, each with their own span hierarchy:
+
+```
+Trace 1: trip-planning              (session_id=sess-abc, user_id=user-123)
+  ├── ChatCompletion                (turn 1)
+  └── ChatCompletion                (turn 2)
+
+Trace 2: food-recommendations       (session_id=sess-abc, user_id=user-123)
+  ├── ChatCompletion                (turn 1)
+  └── ChatCompletion                (turn 2)
+```
+
+Each trace starts a fresh conversation with its own message history. The SideSeat sessions view groups them by `session_id`.
+
+## Authentication
+
+Azure OpenAI supports API keys and Managed Identity.
+
+**API key** (via environment variables):
 
 ```bash
 export AZURE_OPENAI_API_KEY=your-api-key
@@ -83,12 +253,10 @@ export OPENAI_API_VERSION=2024-02-01
 from openai import AzureOpenAI
 
 # Uses environment variables
-client = AzureOpenAI()
+azure = AzureOpenAI()
 ```
 
-## Managed Identity
-
-Azure Managed Identity is supported:
+**Managed Identity** (for Azure-hosted applications):
 
 ```python
 from azure.identity import DefaultAzureCredential
@@ -97,14 +265,15 @@ from openai import AzureOpenAI
 credential = DefaultAzureCredential()
 token = credential.get_token("https://cognitiveservices.azure.com/.default")
 
-client = AzureOpenAI(
+azure = AzureOpenAI(
     azure_ad_token=token.token,
     api_version="2024-02-01",
-    azure_endpoint="https://your-resource.openai.azure.com"
+    azure_endpoint="https://your-resource.openai.azure.com",
 )
 ```
 
 ## Next Steps
 
 - [OpenAI](/docs/integrations/providers/openai/) — standard OpenAI usage
-- [Python SDK](/docs/sdks/python/) — SDK reference
+- [Python SDK](/docs/sdks/python/) — SDK configuration and API reference
+- [First Run](/docs/quickstart/) — get started with SideSeat
