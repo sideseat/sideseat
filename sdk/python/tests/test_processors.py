@@ -252,7 +252,7 @@ class TestLogfireStreamingProcessor:
             span_id=0x1111,
             attrs={
                 "logfire.span_type": "span",
-                "request_data": '{"messages": [{"role": "user", "content": "old"}], "stream": true}',
+                "request_data": '{"messages": [{"role": "user", "content": "old"}], "stream": 1}',
             },
         )
         proc.on_end(request_span)

@@ -10,11 +10,9 @@ from typing import TYPE_CHECKING, Any
 
 from sideseat._version import __version__
 from sideseat.config import Config, Frameworks
-from sideseat.instrumentation import patch_adk_tracing, patch_strands_encoder
 from sideseat.telemetry import TelemetryClient
 from sideseat.telemetry.encoding import encode_value, span_to_dict
 from sideseat.telemetry.exporters import JsonFileSpanExporter
-from sideseat.telemetry.resource import get_otel_resource
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Span, Tracer
@@ -221,7 +219,4 @@ __all__ = [
     "is_initialized",
     "encode_value",
     "span_to_dict",
-    "patch_adk_tracing",
-    "patch_strands_encoder",
-    "get_otel_resource",
 ]
