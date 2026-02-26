@@ -10,6 +10,18 @@ from typing import TYPE_CHECKING, Any
 from opentelemetry import context, trace
 from opentelemetry.trace import SpanKind, StatusCode
 
+from sideseat.instrumentors.aws._constants import (
+    AGENT_ID,
+    INPUT_TOKENS,
+    OPERATION,
+    OUTPUT_TOKENS,
+    PROVIDER_NAME,
+    REQUEST_MODEL,
+    RESPONSE_MODEL,
+    SYSTEM,
+    SYSTEM_VALUE,
+    get_tracer,
+)
 from sideseat.telemetry.encoding import encode_value
 
 if TYPE_CHECKING:
@@ -20,56 +32,44 @@ logger = logging.getLogger("sideseat.instrumentors.aws.bedrock_agent")
 
 _TRACER_NAME = "sideseat.aws.bedrock_agent"
 
-_SYSTEM = "gen_ai.system"
-_PROVIDER_NAME = "gen_ai.provider.name"
-_OPERATION = "gen_ai.operation.name"
-_REQUEST_MODEL = "gen_ai.request.model"
-_RESPONSE_MODEL = "gen_ai.response.model"
-_INPUT_TOKENS = "gen_ai.usage.input_tokens"
-_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
-_AGENT_ID = "gen_ai.agent.id"
-_SYSTEM_VALUE = "aws_bedrock"
-
 
 def patch_bedrock_agent_client(client: Any, provider: TracerProvider | None) -> None:
     """Replace invoke_agent/invoke_inline_agent methods on a bedrock-agent-runtime client."""
-    tracer = _get_tracer(provider)
+    tracer = get_tracer(provider, _TRACER_NAME)
 
-    for method_name, wrapper_fn in (
-        ("invoke_agent", _wrap_invoke_agent),
-        ("invoke_inline_agent", _wrap_invoke_inline_agent),
+    for method_name, use_agent_id in (
+        ("invoke_agent", True),
+        ("invoke_inline_agent", False),
     ):
         original = getattr(client, method_name, None)
         if original is None:
             continue
-        setattr(client, method_name, wrapper_fn(original, tracer))
+        wrapped = _wrap_agent_method(original, tracer, use_agent_id=use_agent_id)
+        setattr(client, method_name, wrapped)
 
     logger.debug("Patched bedrock-agent-runtime client")
 
 
-def _get_tracer(provider: TracerProvider | None) -> Tracer:
-    if provider is not None:
-        return provider.get_tracer(_TRACER_NAME)
-    return trace.get_tracer(_TRACER_NAME)
-
-
 # ---------------------------------------------------------------------------
-# InvokeAgent
+# Shared agent method wrapper
 # ---------------------------------------------------------------------------
 
 
-def _wrap_invoke_agent(original: Any, tracer: Tracer) -> Any:
+def _wrap_agent_method(original: Any, tracer: Tracer, *, use_agent_id: bool) -> Any:
     @functools.wraps(original)
-    def instrumented_invoke_agent(**kwargs: Any) -> Any:
-        agent_id = kwargs.get("agentId", "unknown")
-        span = tracer.start_span(f"invoke_agent {agent_id}", kind=SpanKind.CLIENT)
+    def instrumented(**kwargs: Any) -> Any:
+        agent_id = kwargs.get("agentId", "unknown") if use_agent_id else None
+        span_name = f"invoke_agent {agent_id}" if agent_id else "invoke_inline_agent"
+
+        span = tracer.start_span(span_name, kind=SpanKind.CLIENT)
         token = context.attach(trace.set_span_in_context(span))
 
-        span.set_attribute(_SYSTEM, _SYSTEM_VALUE)
-        span.set_attribute(_PROVIDER_NAME, _SYSTEM_VALUE)
-        span.set_attribute(_OPERATION, "invoke_agent")
-        if agent_id != "unknown":
-            span.set_attribute(_AGENT_ID, agent_id)
+        span.set_attribute(SYSTEM, SYSTEM_VALUE)
+        span.set_attribute(PROVIDER_NAME, SYSTEM_VALUE)
+        span.set_attribute(OPERATION, "invoke_agent")
+
+        if agent_id and agent_id != "unknown":
+            span.set_attribute(AGENT_ID, agent_id)
 
         input_text = kwargs.get("inputText", "")
         if input_text:
@@ -95,58 +95,27 @@ def _wrap_invoke_agent(original: Any, tracer: Tracer) -> Any:
         response["completion"] = wrapper
         return response
 
-    return instrumented_invoke_agent
+    return instrumented
 
 
 # ---------------------------------------------------------------------------
-# InvokeInlineAgent
-# ---------------------------------------------------------------------------
-
-
-def _wrap_invoke_inline_agent(original: Any, tracer: Tracer) -> Any:
-    @functools.wraps(original)
-    def instrumented_invoke_inline_agent(**kwargs: Any) -> Any:
-        span = tracer.start_span("invoke_inline_agent", kind=SpanKind.CLIENT)
-        token = context.attach(trace.set_span_in_context(span))
-
-        span.set_attribute(_SYSTEM, _SYSTEM_VALUE)
-        span.set_attribute(_PROVIDER_NAME, _SYSTEM_VALUE)
-        span.set_attribute(_OPERATION, "invoke_agent")
-
-        input_text = kwargs.get("inputText", "")
-        if input_text:
-            span.add_event("gen_ai.user.message", {"content": input_text})
-
-        try:
-            response = original(**kwargs)
-        except Exception as exc:
-            span.set_status(StatusCode.ERROR, str(exc))
-            span.record_exception(exc)
-            span.end()
-            context.detach(token)
-            raise
-
-        completion = response.get("completion")
-        if completion is None:
-            span.set_status(StatusCode.OK)
-            span.end()
-            context.detach(token)
-            return response
-
-        wrapper = _InvokeAgentStreamWrapper(completion, span, token)
-        response["completion"] = wrapper
-        return response
-
-    return instrumented_invoke_inline_agent
-
-
-# ---------------------------------------------------------------------------
-# Shared stream wrapper
+# Stream wrapper
 # ---------------------------------------------------------------------------
 
 
 class _InvokeAgentStreamWrapper:
     """Wraps agent completion stream, accumulating response chunks."""
+
+    __slots__ = (
+        "_inner",
+        "_span",
+        "_ctx_token",
+        "_ended",
+        "_response_text",
+        "_input_tokens",
+        "_output_tokens",
+        "_model",
+    )
 
     def __init__(self, inner: Any, span: Span, ctx_token: object) -> None:
         self._inner = iter(inner)
@@ -200,7 +169,6 @@ class _InvokeAgentStreamWrapper:
 
         elif "trace" in chunk:
             trace_data = chunk["trace"].get("trace", {})
-            # Extract model invocation data from all trace types
             for trace_key in (
                 "orchestrationTrace",
                 "preProcessingTrace",
@@ -232,13 +200,13 @@ class _InvokeAgentStreamWrapper:
         try:
             try:
                 if self._model:
-                    span.set_attribute(_REQUEST_MODEL, self._model)
-                    span.set_attribute(_RESPONSE_MODEL, self._model)
+                    span.set_attribute(REQUEST_MODEL, self._model)
+                    span.set_attribute(RESPONSE_MODEL, self._model)
 
                 if self._input_tokens:
-                    span.set_attribute(_INPUT_TOKENS, self._input_tokens)
+                    span.set_attribute(INPUT_TOKENS, self._input_tokens)
                 if self._output_tokens:
-                    span.set_attribute(_OUTPUT_TOKENS, self._output_tokens)
+                    span.set_attribute(OUTPUT_TOKENS, self._output_tokens)
 
                 if self._response_text:
                     output_content = [{"text": self._response_text}]

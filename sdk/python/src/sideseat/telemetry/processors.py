@@ -8,10 +8,12 @@ import threading
 import time
 from typing import Any
 
+from opentelemetry.sdk.trace import SpanProcessor
+
 logger = logging.getLogger("sideseat.telemetry")
 
 
-class _LogfireStreamingProcessor:
+class _LogfireStreamingProcessor(SpanProcessor):
     """Reparents logfire streaming response logs under their request span's trace.
 
     Root cause: logfire's ``llm_provider.py`` calls ``get_context()`` in
@@ -27,7 +29,7 @@ class _LogfireStreamingProcessor:
 
     Detection (definitive logfire signals):
       Request span: ``logfire.span_type="span"`` + ``request_data`` present + no ``response_data``
-      Response log: ``logfire.span_type="log"``  + ``request_data`` present + ``response_data`` present
+      Response log: ``logfire.span_type="log"`` + ``request_data`` + ``response_data``
 
     Matching: SHA-256 of the ``request_data`` attribute value.  Both the
     request span and response log carry identical ``request_data`` (set by

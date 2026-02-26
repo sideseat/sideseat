@@ -11,6 +11,24 @@ from typing import TYPE_CHECKING, Any
 from opentelemetry import context, trace
 from opentelemetry.trace import SpanKind, StatusCode
 
+from sideseat.instrumentors.aws._constants import (
+    CACHE_READ_TOKENS,
+    CACHE_WRITE_TOKENS,
+    FINISH_REASONS,
+    INPUT_TOKENS,
+    MAX_TOKENS,
+    OPERATION,
+    OUTPUT_TOKENS,
+    PROVIDER_NAME,
+    REQUEST_MODEL,
+    RESPONSE_MODEL,
+    SYSTEM,
+    SYSTEM_VALUE,
+    TEMPERATURE,
+    TOOL_DEFINITIONS,
+    TOP_P,
+    get_tracer,
+)
 from sideseat.telemetry.encoding import encode_value
 
 if TYPE_CHECKING:
@@ -21,28 +39,10 @@ logger = logging.getLogger("sideseat.instrumentors.aws.bedrock")
 
 _TRACER_NAME = "sideseat.aws.bedrock"
 
-# Gen AI semantic convention attribute keys
-_SYSTEM = "gen_ai.system"
-_PROVIDER_NAME = "gen_ai.provider.name"
-_OPERATION = "gen_ai.operation.name"
-_REQUEST_MODEL = "gen_ai.request.model"
-_RESPONSE_MODEL = "gen_ai.response.model"
-_INPUT_TOKENS = "gen_ai.usage.input_tokens"
-_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
-_CACHE_READ_TOKENS = "gen_ai.usage.cache_read_input_tokens"
-_CACHE_WRITE_TOKENS = "gen_ai.usage.cache_write_input_tokens"
-_FINISH_REASONS = "gen_ai.response.finish_reasons"
-_TOOL_DEFINITIONS = "gen_ai.tool.definitions"
-_TEMPERATURE = "gen_ai.request.temperature"
-_TOP_P = "gen_ai.request.top_p"
-_MAX_TOKENS = "gen_ai.request.max_tokens"
-
-_SYSTEM_VALUE = "aws_bedrock"
-
 
 def patch_bedrock_client(client: Any, provider: TracerProvider | None) -> None:
     """Replace converse/invoke methods on a bedrock-runtime client."""
-    tracer = _get_tracer(provider)
+    tracer = get_tracer(provider, _TRACER_NAME)
 
     for method_name, wrapper_fn in (
         ("converse", _wrap_converse),
@@ -58,12 +58,6 @@ def patch_bedrock_client(client: Any, provider: TracerProvider | None) -> None:
     logger.debug("Patched bedrock-runtime client")
 
 
-def _get_tracer(provider: TracerProvider | None) -> Tracer:
-    if provider is not None:
-        return provider.get_tracer(_TRACER_NAME)
-    return trace.get_tracer(_TRACER_NAME)
-
-
 # ---------------------------------------------------------------------------
 # Shared: Converse-style event accumulator
 # ---------------------------------------------------------------------------
@@ -76,6 +70,15 @@ class _ConverseAccumulator:
     Used by ConverseStream (per-chunk) and Nova InvokeModel streaming
     (post-hoc parsing of accumulated bytes).
     """
+
+    __slots__ = (
+        "blocks",
+        "stop_reason",
+        "usage",
+        "_current_block",
+        "_current_text",
+        "_current_signature",
+    )
 
     def __init__(self) -> None:
         self.blocks: list[dict[str, Any]] = []
@@ -223,6 +226,8 @@ def _wrap_converse_stream(original: Any, tracer: Tracer) -> Any:
 class _ConverseStreamWrapper:
     """Proxies the EventStream, accumulating content blocks for span events."""
 
+    __slots__ = ("_inner", "_span", "_ctx_token", "_tool_results", "_ended", "_acc")
+
     def __init__(
         self,
         inner: Any,
@@ -278,7 +283,7 @@ class _ConverseStreamWrapper:
                 if self._acc.usage:
                     _set_usage_attrs(span, self._acc.usage)
                 if self._acc.stop_reason:
-                    span.set_attribute(_FINISH_REASONS, [self._acc.stop_reason])
+                    span.set_attribute(FINISH_REASONS, [self._acc.stop_reason])
 
                 output_msg = {"role": "assistant", "content": self._acc.blocks}
                 _emit_span_events(
@@ -330,10 +335,10 @@ def _wrap_invoke_model(original: Any, tracer: Tracer) -> Any:
     def instrumented_invoke_model(**kwargs: Any) -> Any:
         model_id = kwargs.get("modelId", "unknown")
         with tracer.start_as_current_span(f"chat {model_id}", kind=SpanKind.CLIENT) as span:
-            span.set_attribute(_SYSTEM, _SYSTEM_VALUE)
-            span.set_attribute(_PROVIDER_NAME, _SYSTEM_VALUE)
-            span.set_attribute(_OPERATION, "chat")
-            span.set_attribute(_REQUEST_MODEL, model_id)
+            span.set_attribute(SYSTEM, SYSTEM_VALUE)
+            span.set_attribute(PROVIDER_NAME, SYSTEM_VALUE)
+            span.set_attribute(OPERATION, "chat")
+            span.set_attribute(REQUEST_MODEL, model_id)
 
             try:
                 response = original(**kwargs)
@@ -358,23 +363,23 @@ def _wrap_invoke_model(original: Any, tracer: Tracer) -> Any:
                 family = _detect_model_family(model_id)
 
                 if family == "nova":
-                    span.set_attribute(_RESPONSE_MODEL, model_id)
+                    span.set_attribute(RESPONSE_MODEL, model_id)
                     usage = body.get("usage", {})
                     if usage:
                         _set_usage_attrs(span, usage)
                     stop = body.get("stopReason")
                     if stop:
-                        span.set_attribute(_FINISH_REASONS, [stop])
+                        span.set_attribute(FINISH_REASONS, [stop])
                     _emit_invoke_model_nova_events(span, kwargs, body)
                 elif family == "claude":
                     resp_model = body.get("model", model_id)
-                    span.set_attribute(_RESPONSE_MODEL, resp_model)
+                    span.set_attribute(RESPONSE_MODEL, resp_model)
                     usage = body.get("usage", {})
                     if usage:
                         _set_invoke_model_usage_attrs(span, usage)
                     stop = body.get("stop_reason")
                     if stop:
-                        span.set_attribute(_FINISH_REASONS, [stop])
+                        span.set_attribute(FINISH_REASONS, [stop])
                     _emit_invoke_model_claude_events(span, kwargs, body)
             except Exception:
                 logger.debug("Failed to emit invoke_model events", exc_info=True)
@@ -436,10 +441,10 @@ def _wrap_invoke_model_stream(original: Any, tracer: Tracer) -> Any:
         span = tracer.start_span(f"chat {model_id}", kind=SpanKind.CLIENT)
         token = context.attach(trace.set_span_in_context(span))
 
-        span.set_attribute(_SYSTEM, _SYSTEM_VALUE)
-        span.set_attribute(_PROVIDER_NAME, _SYSTEM_VALUE)
-        span.set_attribute(_OPERATION, "chat")
-        span.set_attribute(_REQUEST_MODEL, model_id)
+        span.set_attribute(SYSTEM, SYSTEM_VALUE)
+        span.set_attribute(PROVIDER_NAME, SYSTEM_VALUE)
+        span.set_attribute(OPERATION, "chat")
+        span.set_attribute(REQUEST_MODEL, model_id)
 
         try:
             response = original(**kwargs)
@@ -467,6 +472,8 @@ def _wrap_invoke_model_stream(original: Any, tracer: Tracer) -> Any:
 class _InvokeModelStreamWrapper:
     """Wraps InvokeModelWithResponseStream body, accumulating streaming events."""
 
+    __slots__ = ("_inner", "_span", "_ctx_token", "_req_body", "_family", "_ended", "_chunks")
+
     def __init__(
         self,
         inner: Any,
@@ -478,7 +485,7 @@ class _InvokeModelStreamWrapper:
         self._inner = iter(inner)
         self._span = span
         self._ctx_token = ctx_token
-        self._kwargs = kwargs
+        self._req_body = _parse_invoke_model_request(kwargs)
         self._family = family
         self._ended = False
         self._chunks: list[bytes] = []
@@ -633,15 +640,15 @@ class _InvokeModelStreamWrapper:
         span = self._span
 
         if model:
-            span.set_attribute(_RESPONSE_MODEL, model)
+            span.set_attribute(RESPONSE_MODEL, model)
 
         if usage:
             _set_invoke_model_usage_attrs(span, usage)
 
         if stop_reason:
-            span.set_attribute(_FINISH_REASONS, [stop_reason])
+            span.set_attribute(FINISH_REASONS, [stop_reason])
 
-        req_body = _parse_invoke_model_request(self._kwargs)
+        req_body = self._req_body
         input_msgs = _build_invoke_model_input_messages(req_body)
         output_msg = {"role": "assistant", "content": content_blocks}
         tool_results = _extract_tool_results(req_body)
@@ -684,9 +691,9 @@ class _InvokeModelStreamWrapper:
         if acc.usage:
             _set_usage_attrs(span, acc.usage)
         if acc.stop_reason:
-            span.set_attribute(_FINISH_REASONS, [acc.stop_reason])
+            span.set_attribute(FINISH_REASONS, [acc.stop_reason])
 
-        req_body = _parse_invoke_model_request(self._kwargs)
+        req_body = self._req_body
         input_msgs = _build_invoke_model_input_messages(req_body)
         output_msg = {"role": "assistant", "content": acc.blocks}
         tool_results = _extract_tool_results(req_body)
@@ -716,10 +723,10 @@ class _InvokeModelStreamWrapper:
 
 def _set_request_attrs(span: Span, model_id: str, kwargs: dict[str, Any]) -> None:
     """Set common request attributes on a Converse span."""
-    span.set_attribute(_SYSTEM, _SYSTEM_VALUE)
-    span.set_attribute(_PROVIDER_NAME, _SYSTEM_VALUE)
-    span.set_attribute(_OPERATION, "chat")
-    span.set_attribute(_REQUEST_MODEL, model_id)
+    span.set_attribute(SYSTEM, SYSTEM_VALUE)
+    span.set_attribute(PROVIDER_NAME, SYSTEM_VALUE)
+    span.set_attribute(OPERATION, "chat")
+    span.set_attribute(REQUEST_MODEL, model_id)
 
     # Tool definitions
     tool_config = kwargs.get("toolConfig")
@@ -729,22 +736,22 @@ def _set_request_attrs(span: Span, model_id: str, kwargs: dict[str, Any]) -> Non
         tool_choice = tool_config.get("toolChoice")
         if tool_choice:
             defs.append({"toolChoice": tool_choice})
-        span.set_attribute(_TOOL_DEFINITIONS, json.dumps(encode_value(defs)))
+        span.set_attribute(TOOL_DEFINITIONS, json.dumps(encode_value(defs)))
 
     # Inference config
     inf = kwargs.get("inferenceConfig")
     if inf:
         if "temperature" in inf:
-            span.set_attribute(_TEMPERATURE, inf["temperature"])
+            span.set_attribute(TEMPERATURE, inf["temperature"])
         if "topP" in inf:
-            span.set_attribute(_TOP_P, inf["topP"])
+            span.set_attribute(TOP_P, inf["topP"])
         if "maxTokens" in inf:
-            span.set_attribute(_MAX_TOKENS, inf["maxTokens"])
+            span.set_attribute(MAX_TOKENS, inf["maxTokens"])
 
 
 def _set_response_attrs(span: Span, model_id: str, response: dict[str, Any]) -> None:
     """Set common response attributes from a Converse response."""
-    span.set_attribute(_RESPONSE_MODEL, model_id)
+    span.set_attribute(RESPONSE_MODEL, model_id)
 
     usage = response.get("usage", {})
     if usage:
@@ -752,19 +759,19 @@ def _set_response_attrs(span: Span, model_id: str, response: dict[str, Any]) -> 
 
     stop = response.get("stopReason")
     if stop:
-        span.set_attribute(_FINISH_REASONS, [stop])
+        span.set_attribute(FINISH_REASONS, [stop])
 
 
 def _set_usage_attrs(span: Span, usage: dict[str, Any]) -> None:
     """Set token usage attributes."""
     if "inputTokens" in usage:
-        span.set_attribute(_INPUT_TOKENS, usage["inputTokens"])
+        span.set_attribute(INPUT_TOKENS, usage["inputTokens"])
     if "outputTokens" in usage:
-        span.set_attribute(_OUTPUT_TOKENS, usage["outputTokens"])
+        span.set_attribute(OUTPUT_TOKENS, usage["outputTokens"])
     if "cacheReadInputTokenCount" in usage:
-        span.set_attribute(_CACHE_READ_TOKENS, usage["cacheReadInputTokenCount"])
+        span.set_attribute(CACHE_READ_TOKENS, usage["cacheReadInputTokenCount"])
     if "cacheWriteInputTokenCount" in usage:
-        span.set_attribute(_CACHE_WRITE_TOKENS, usage["cacheWriteInputTokenCount"])
+        span.set_attribute(CACHE_WRITE_TOKENS, usage["cacheWriteInputTokenCount"])
 
 
 _BINARY_BLOCK_KEYS = frozenset({"image", "document", "video", "audio"})
@@ -869,13 +876,13 @@ def _build_invoke_model_input_messages(
 def _set_invoke_model_usage_attrs(span: Span, usage: dict[str, Any]) -> None:
     """Set token usage from Claude InvokeModel response (snake_case keys)."""
     if "input_tokens" in usage:
-        span.set_attribute(_INPUT_TOKENS, usage["input_tokens"])
+        span.set_attribute(INPUT_TOKENS, usage["input_tokens"])
     if "output_tokens" in usage:
-        span.set_attribute(_OUTPUT_TOKENS, usage["output_tokens"])
+        span.set_attribute(OUTPUT_TOKENS, usage["output_tokens"])
     if "cache_read_input_tokens" in usage:
-        span.set_attribute(_CACHE_READ_TOKENS, usage["cache_read_input_tokens"])
+        span.set_attribute(CACHE_READ_TOKENS, usage["cache_read_input_tokens"])
     if "cache_creation_input_tokens" in usage:
-        span.set_attribute(_CACHE_WRITE_TOKENS, usage["cache_creation_input_tokens"])
+        span.set_attribute(CACHE_WRITE_TOKENS, usage["cache_creation_input_tokens"])
 
 
 def _emit_span_events(

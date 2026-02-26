@@ -5,17 +5,10 @@ description = "SideSeat telemetry samples for various AI/LLM frameworks"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "tqdm>=4.66.0",
-    "requests>=2.31.0",
-    "fastmcp>=2.14.0",
     "boto3>=1.42.22",
     "python-dotenv>=1.2.0",
     # SideSeat SDK (local path dependency, extras for instrumentation)
     "sideseat[langchain,crewai,autogen,openai,anthropic]",
-    # Common
-    "opentelemetry-api>=1.37.0",
-    "opentelemetry-sdk>=1.37.0",
-    "opentelemetry-exporter-otlp>=1.37.0",
-    "opentelemetry-exporter-otlp-proto-http>=1.37.0",
     # Strands (latest: 1.21.0)
     "strands-agents>=1.21.0",
     "strands-agents-tools>=0.2.19",

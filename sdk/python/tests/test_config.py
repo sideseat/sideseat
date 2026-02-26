@@ -226,6 +226,7 @@ class TestFrameworks:
         """All framework constants should be strings."""
         assert Frameworks.Strands == "strands"
         assert Frameworks.LangChain == "langchain"
+        assert Frameworks.LangGraph == "langgraph"
         assert Frameworks.CrewAI == "crewai"
         assert Frameworks.AutoGen == "autogen"
         assert Frameworks.OpenAIAgents == "openai-agents"
