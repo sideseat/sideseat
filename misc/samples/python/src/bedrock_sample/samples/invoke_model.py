@@ -135,44 +135,12 @@ def run(bedrock, trace_attrs: dict, client: SideSeat):
     ]
     messages: list[dict] = [{"role": "user", "content": "What's the weather in Paris?"}]
 
-    # Step 1: model requests tool use
-    body = json.dumps(
-        {
-            "anthropic_version": _API_VERSION,
-            "max_tokens": 256,
-            "system": "Use tools when available.",
-            "tools": tools,
-            "messages": messages,
-        }
-    )
-    response = bedrock.client.invoke_model(
-        modelId=bedrock.model_id,
-        body=body,
-        contentType="application/json",
-    )
-    result = json.loads(response["body"].read())
-    messages.append({"role": "assistant", "content": result["content"]})
-
-    tool_use = None
-    for block in result["content"]:
-        if block["type"] == "tool_use":
-            tool_use = block
-            print(f"Tool call: {tool_use['name']}({json.dumps(tool_use['input'])})")
-
-    # Step 2: return tool result and get final answer
-    if tool_use:
-        messages.append(
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": tool_use["id"],
-                        "content": "Sunny, 22C, light breeze",
-                    }
-                ],
-            }
-        )
+    with client.trace(
+        "invoke-model-tool-use",
+        session_id=trace_attrs.get("session.id"),
+        user_id=trace_attrs.get("user.id"),
+    ):
+        # Step 1: model requests tool use
         body = json.dumps(
             {
                 "anthropic_version": _API_VERSION,
@@ -188,7 +156,44 @@ def run(bedrock, trace_attrs: dict, client: SideSeat):
             contentType="application/json",
         )
         result = json.loads(response["body"].read())
+        messages.append({"role": "assistant", "content": result["content"]})
+
+        tool_use = None
         for block in result["content"]:
-            if block["type"] == "text":
-                print(f"Assistant: {block['text']}")
+            if block["type"] == "tool_use":
+                tool_use = block
+                print(f"Tool call: {tool_use['name']}({json.dumps(tool_use['input'])})")
+
+        # Step 2: return tool result and get final answer
+        if tool_use:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_use["id"],
+                            "content": "Sunny, 22C, light breeze",
+                        }
+                    ],
+                }
+            )
+            body = json.dumps(
+                {
+                    "anthropic_version": _API_VERSION,
+                    "max_tokens": 256,
+                    "system": "Use tools when available.",
+                    "tools": tools,
+                    "messages": messages,
+                }
+            )
+            response = bedrock.client.invoke_model(
+                modelId=bedrock.model_id,
+                body=body,
+                contentType="application/json",
+            )
+            result = json.loads(response["body"].read())
+            for block in result["content"]:
+                if block["type"] == "text":
+                    print(f"Assistant: {block['text']}")
     print()

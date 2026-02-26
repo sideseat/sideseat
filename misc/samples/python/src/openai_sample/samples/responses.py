@@ -61,35 +61,40 @@ def run(openai_model, trace_attrs: dict, client: SideSeat):
         }
     ]
 
-    # Step 1: model requests tool use
-    response = openai_model.client.responses.create(
-        model=openai_model.model_id,
-        instructions="Use tools when available.",
-        input="What's the weather in Paris?",
-        tools=tools,
-        max_output_tokens=1024,
-    )
-
-    fn_call = None
-    for item in response.output:
-        if item.type == "function_call":
-            fn_call = item
-            print(f"Tool call: {fn_call.name}({fn_call.arguments})")
-
-    # Step 2: provide result via previous_response_id
-    if fn_call:
-        response2 = openai_model.client.responses.create(
+    with client.trace(
+        "responses-tool-use",
+        session_id=trace_attrs.get("session.id"),
+        user_id=trace_attrs.get("user.id"),
+    ):
+        # Step 1: model requests tool use
+        response = openai_model.client.responses.create(
             model=openai_model.model_id,
-            previous_response_id=response.id,
-            input=[
-                {
-                    "type": "function_call_output",
-                    "call_id": fn_call.call_id,
-                    "output": "Sunny, 22C, light breeze",
-                }
-            ],
+            instructions="Use tools when available.",
+            input="What's the weather in Paris?",
             tools=tools,
             max_output_tokens=1024,
         )
-        print(f"Assistant: {response2.output_text}")
+
+        fn_call = None
+        for item in response.output:
+            if item.type == "function_call":
+                fn_call = item
+                print(f"Tool call: {fn_call.name}({fn_call.arguments})")
+
+        # Step 2: provide result via previous_response_id
+        if fn_call:
+            response2 = openai_model.client.responses.create(
+                model=openai_model.model_id,
+                previous_response_id=response.id,
+                input=[
+                    {
+                        "type": "function_call_output",
+                        "call_id": fn_call.call_id,
+                        "output": "Sunny, 22C, light breeze",
+                    }
+                ],
+                tools=tools,
+                max_output_tokens=1024,
+            )
+            print(f"Assistant: {response2.output_text}")
     print()

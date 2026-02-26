@@ -71,6 +71,36 @@ class TestLogfireStreamingProcessor:
         assert response_log._parent.trace_id == 0xAABB
         assert response_log._parent.span_id == 0x1111
 
+    def test_reparents_responses_api_log(self) -> None:
+        """Responses API streaming log (no response_data, has events) should also be reparented."""
+        proc = _LogfireStreamingProcessor()
+
+        request_span = _make_span(
+            trace_id=0xAABB,
+            span_id=0x1111,
+            attrs={
+                "logfire.span_type": "span",
+                "request_data": '{"model":"gpt-5-nano","stream":true}',
+            },
+        )
+        proc.on_end(request_span)
+
+        response_log = _make_span(
+            trace_id=0xCCDD,
+            span_id=0x2222,
+            attrs={
+                "logfire.span_type": "log",
+                "request_data": '{"model":"gpt-5-nano","stream":true}',
+                "events": '[{"event.name":"gen_ai.user.message","content":"Hi","role":"user"}]',
+            },
+        )
+        proc.on_end(response_log)
+
+        assert response_log._context.trace_id == 0xAABB
+        assert response_log._context.span_id == 0x2222
+        assert response_log._parent.trace_id == 0xAABB
+        assert response_log._parent.span_id == 0x1111
+
     def test_non_streaming_span_ignored(self) -> None:
         """Span with both request_data and response_data (non-streaming) is not stored."""
         proc = _LogfireStreamingProcessor()
@@ -131,6 +161,7 @@ class TestLogfireStreamingProcessor:
         proc.on_end(response_log)
 
         assert response_log._context is original_context
+        assert _entry_count(proc) == 0  # entry consumed even though span unchanged
 
     def test_pending_entry_consumed(self) -> None:
         """Matching response log should consume (remove) the pending entry."""

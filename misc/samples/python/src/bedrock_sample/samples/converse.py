@@ -113,38 +113,12 @@ def run(bedrock, trace_attrs: dict, client: SideSeat):
     }
     messages = [{"role": "user", "content": [{"text": "What's the weather in Paris?"}]}]
 
-    # Step 1: model requests tool use
-    response = bedrock.client.converse(
-        modelId=bedrock.model_id,
-        system=[{"text": "Use tools when available."}],
-        messages=messages,
-        toolConfig=tool_config,
-        inferenceConfig={"maxTokens": 256},
-    )
-    assistant_msg = response["output"]["message"]
-    messages.append(assistant_msg)
-
-    tool_use = None
-    for block in assistant_msg["content"]:
-        if "toolUse" in block:
-            tool_use = block["toolUse"]
-            print(f"Tool call: {tool_use['name']}({json.dumps(tool_use['input'])})")
-
-    # Step 2: return tool result and get final answer
-    if tool_use:
-        messages.append(
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "toolResult": {
-                            "toolUseId": tool_use["toolUseId"],
-                            "content": [{"text": "Sunny, 22°C, light breeze"}],
-                        }
-                    }
-                ],
-            }
-        )
+    with client.trace(
+        "converse-tool-use",
+        session_id=trace_attrs.get("session.id"),
+        user_id=trace_attrs.get("user.id"),
+    ):
+        # Step 1: model requests tool use
         response = bedrock.client.converse(
             modelId=bedrock.model_id,
             system=[{"text": "Use tools when available."}],
@@ -152,7 +126,38 @@ def run(bedrock, trace_attrs: dict, client: SideSeat):
             toolConfig=tool_config,
             inferenceConfig={"maxTokens": 256},
         )
-        for block in response["output"]["message"]["content"]:
-            if "text" in block:
-                print(f"Assistant: {block['text']}")
+        assistant_msg = response["output"]["message"]
+        messages.append(assistant_msg)
+
+        tool_use = None
+        for block in assistant_msg["content"]:
+            if "toolUse" in block:
+                tool_use = block["toolUse"]
+                print(f"Tool call: {tool_use['name']}({json.dumps(tool_use['input'])})")
+
+        # Step 2: return tool result and get final answer
+        if tool_use:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "toolResult": {
+                                "toolUseId": tool_use["toolUseId"],
+                                "content": [{"text": "Sunny, 22°C, light breeze"}],
+                            }
+                        }
+                    ],
+                }
+            )
+            response = bedrock.client.converse(
+                modelId=bedrock.model_id,
+                system=[{"text": "Use tools when available."}],
+                messages=messages,
+                toolConfig=tool_config,
+                inferenceConfig={"maxTokens": 256},
+            )
+            for block in response["output"]["message"]["content"]:
+                if "text" in block:
+                    print(f"Assistant: {block['text']}")
     print()
