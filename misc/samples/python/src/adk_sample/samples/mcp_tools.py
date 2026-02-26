@@ -1,6 +1,6 @@
 """MCP server integration sample."""
 
-import sys
+import shutil
 from pathlib import Path
 
 from google.adk.agents import LlmAgent
@@ -16,15 +16,16 @@ APP_NAME = "calculator_app"
 
 async def run(model, trace_attrs: dict):
     """Run the mcp_tools sample."""
-    # Use local MCP calculator server from misc/mcp
-    mcp_server_path = Path(__file__).parents[5] / "mcp" / "calculator.py"
+    # Use local MCP calculator server from misc/mcp (has its own venv with fastmcp)
+    mcp_server_dir = Path(__file__).parents[5] / "mcp"
+    uv = shutil.which("uv") or "uv"
 
     # Configure MCP toolset with stdio connection
     mcp_toolset = McpToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
-                command=sys.executable,
-                args=[str(mcp_server_path)],
+                command=uv,
+                args=["run", "--directory", str(mcp_server_dir), "mcp-calculator"],
             ),
         ),
     )
