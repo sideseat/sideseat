@@ -152,10 +152,22 @@ class Config:
         fw, providers = _resolve_framework_input(framework)
 
         # Framework detection
-        detected_key, detected_pkg, detected_version = _detect_framework()
-        resolved_framework = fw or detected_key
-        resolved_service_name = service_name or detected_pkg
-        resolved_service_version = service_version or detected_version
+        if fw:
+            # Explicit framework: use its package name and version
+            fw_pkg_map = {key: pkg for key, pkg in FRAMEWORK_PACKAGES}
+            resolved_framework = fw
+            explicit_pkg = fw_pkg_map.get(fw, fw)
+            try:
+                explicit_ver = version(explicit_pkg)
+            except PackageNotFoundError:
+                explicit_ver = __version__
+            resolved_service_name = service_name or explicit_pkg
+            resolved_service_version = service_version or explicit_ver
+        else:
+            detected_key, detected_pkg, detected_version = _detect_framework()
+            resolved_framework = detected_key
+            resolved_service_name = service_name or detected_pkg
+            resolved_service_version = service_version or detected_version
 
         return cls(
             disabled=resolved_disabled,

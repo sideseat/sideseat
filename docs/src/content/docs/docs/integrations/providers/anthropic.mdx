@@ -34,6 +34,108 @@ message = client.messages.create(
 print(message.content[0].text)
 ```
 
+## Traces
+
+By default, each Anthropic API call produces its own independent trace. Use `client.trace()` to group related calls under a single root span:
+
+```python
+client = SideSeat(framework=Frameworks.Anthropic)
+anthropic_client = anthropic.Anthropic()
+
+with client.trace("geography-chat"):
+    messages = []
+
+    # Turn 1
+    messages.append({"role": "user", "content": "What is the capital of France?"})
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
+    )
+    messages.append({"role": "assistant", "content": response.content[0].text})
+
+    # Turn 2 — follows up on the previous answer
+    messages.append({"role": "user", "content": "What about Germany?"})
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
+    )
+    messages.append({"role": "assistant", "content": response.content[0].text})
+
+    # Turn 3
+    messages.append({"role": "user", "content": "Which city has a larger population?"})
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
+    )
+```
+
+This produces the following span hierarchy:
+
+```
+geography-chat                        (root span)
+  ├── Messages claude-sonnet-4-5...   (turn 1)
+  ├── Messages claude-sonnet-4-5...   (turn 2)
+  └── Messages claude-sonnet-4-5...   (turn 3)
+```
+
+All three calls appear as child spans in the SideSeat UI, with the full multi-turn conversation visible in the trace detail view.
+
+## Sessions
+
+Pass `session_id` and `user_id` to `client.trace()` to group independent traces into a session. The SideSeat sessions view groups all traces that share the same `session_id`.
+
+Each `client.trace()` produces its own trace with its own trace ID, but they are linked by the shared session:
+
+```python
+from sideseat import SideSeat, Frameworks
+import anthropic
+
+client = SideSeat(framework=Frameworks.Anthropic)
+anthropic_client = anthropic.Anthropic()
+
+session_id = "sess-abc"
+user_id = "user-123"
+
+# Trace 1: Trip planning
+with client.trace("trip-planning", session_id=session_id, user_id=user_id):
+    messages = []
+    messages.append({"role": "user", "content": "Plan a 5-day trip to Japan."})
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
+    )
+    messages.append({"role": "assistant", "content": response.content[0].text})
+
+    messages.append({"role": "user", "content": "Tell me more about Kyoto."})
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
+    )
+
+# Trace 2: Food recommendations (fresh conversation, same session)
+with client.trace("food-recommendations", session_id=session_id, user_id=user_id):
+    messages = []
+    messages.append({"role": "user", "content": "What are the must-try dishes in Tokyo?"})
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
+    )
+    messages.append({"role": "assistant", "content": response.content[0].text})
+
+    messages.append({"role": "user", "content": "What about street food in Osaka?"})
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
+    )
+```
+
+This produces two independent traces, each with their own span hierarchy:
+
+```
+Trace 1: trip-planning              (session_id=sess-abc, user_id=user-123)
+  ├── Messages claude-sonnet-4-5... (turn 1)
+  └── Messages claude-sonnet-4-5... (turn 2)
+
+Trace 2: food-recommendations       (session_id=sess-abc, user_id=user-123)
+  ├── Messages claude-sonnet-4-5... (turn 1)
+  └── Messages claude-sonnet-4-5... (turn 2)
+```
+
+Each trace starts a fresh conversation with its own message history. The SideSeat sessions view groups them by `session_id`.
+
 ## Streaming
 
 Streaming responses are fully captured, including token counts aggregated from stream events:
@@ -164,108 +266,6 @@ message = anthropic.Anthropic().messages.create(
     }],
 )
 ```
-
-## Traces
-
-By default, each Anthropic API call produces its own independent trace. Use `client.trace()` to group related calls under a single root span:
-
-```python
-client = SideSeat(framework=Frameworks.Anthropic)
-anthropic_client = anthropic.Anthropic()
-
-with client.trace("geography-chat"):
-    messages = []
-
-    # Turn 1
-    messages.append({"role": "user", "content": "What is the capital of France?"})
-    response = anthropic_client.messages.create(
-        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
-    )
-    messages.append({"role": "assistant", "content": response.content[0].text})
-
-    # Turn 2 — follows up on the previous answer
-    messages.append({"role": "user", "content": "What about Germany?"})
-    response = anthropic_client.messages.create(
-        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
-    )
-    messages.append({"role": "assistant", "content": response.content[0].text})
-
-    # Turn 3
-    messages.append({"role": "user", "content": "Which city has a larger population?"})
-    response = anthropic_client.messages.create(
-        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
-    )
-```
-
-This produces the following span hierarchy:
-
-```
-geography-chat                        (root span)
-  ├── Messages claude-sonnet-4-5...   (turn 1)
-  ├── Messages claude-sonnet-4-5...   (turn 2)
-  └── Messages claude-sonnet-4-5...   (turn 3)
-```
-
-All three calls appear as child spans in the SideSeat UI, with the full multi-turn conversation visible in the trace detail view.
-
-## Sessions
-
-Pass `session_id` and `user_id` to `client.trace()` to group independent traces into a session. The SideSeat sessions view groups all traces that share the same `session_id`.
-
-Each `client.trace()` produces its own trace with its own trace ID, but they are linked by the shared session:
-
-```python
-from sideseat import SideSeat, Frameworks
-import anthropic
-
-client = SideSeat(framework=Frameworks.Anthropic)
-anthropic_client = anthropic.Anthropic()
-
-session_id = "sess-abc"
-user_id = "user-123"
-
-# Trace 1: Trip planning
-with client.trace("trip-planning", session_id=session_id, user_id=user_id):
-    messages = []
-    messages.append({"role": "user", "content": "Plan a 5-day trip to Japan."})
-    response = anthropic_client.messages.create(
-        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
-    )
-    messages.append({"role": "assistant", "content": response.content[0].text})
-
-    messages.append({"role": "user", "content": "Tell me more about Kyoto."})
-    response = anthropic_client.messages.create(
-        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
-    )
-
-# Trace 2: Food recommendations (fresh conversation, same session)
-with client.trace("food-recommendations", session_id=session_id, user_id=user_id):
-    messages = []
-    messages.append({"role": "user", "content": "What are the must-try dishes in Tokyo?"})
-    response = anthropic_client.messages.create(
-        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
-    )
-    messages.append({"role": "assistant", "content": response.content[0].text})
-
-    messages.append({"role": "user", "content": "What about street food in Osaka?"})
-    response = anthropic_client.messages.create(
-        model="claude-sonnet-4-5-20250929", max_tokens=1024, messages=messages,
-    )
-```
-
-This produces two independent traces, each with their own span hierarchy:
-
-```
-Trace 1: trip-planning              (session_id=sess-abc, user_id=user-123)
-  ├── Messages claude-sonnet-4-5... (turn 1)
-  └── Messages claude-sonnet-4-5... (turn 2)
-
-Trace 2: food-recommendations       (session_id=sess-abc, user_id=user-123)
-  ├── Messages claude-sonnet-4-5... (turn 1)
-  └── Messages claude-sonnet-4-5... (turn 2)
-```
-
-Each trace starts a fresh conversation with its own message history. The SideSeat sessions view groups them by `session_id`.
 
 ## Authentication
 

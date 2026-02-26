@@ -36,11 +36,10 @@ def run_sample(name: str, args) -> bool:
 
     print(f"Running sample: {name}")
     print(f"  Model: {args.model}")
-    print(f"  SideSeat telemetry: {args.sideseat}")
     print()
 
     trace_attrs = create_trace_attributes("anthropic", name)
-    client = setup_telemetry(use_sideseat=args.sideseat)
+    client = setup_telemetry()
 
     model = get_model(args.model)
     module = importlib.import_module(SAMPLES[name])
