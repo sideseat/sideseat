@@ -44,97 +44,6 @@ print(response.choices[0].message.content)
 The `model` parameter is the Azure deployment name, not the OpenAI model name. Create deployments in the Azure AI Foundry portal.
 </Aside>
 
-## Streaming
-
-Streaming responses are fully captured, including token counts aggregated from stream chunks:
-
-```python
-from sideseat import SideSeat, Frameworks
-from openai import AzureOpenAI
-
-client = SideSeat(framework=Frameworks.OpenAI)
-azure = AzureOpenAI(
-    api_key="your-api-key",
-    api_version="2024-02-01",
-    azure_endpoint="https://your-resource.openai.azure.com",
-)
-
-stream = azure.chat.completions.create(
-    model="gpt-5-mini",
-    messages=[
-        {"role": "system", "content": "Answer in one sentence."},
-        {"role": "user", "content": "What is the boiling point of water?"},
-    ],
-    stream=True,
-)
-
-for chunk in stream:
-    delta = chunk.choices[0].delta
-    if delta.content:
-        print(delta.content, end="", flush=True)
-```
-
-## Tool Use
-
-Tool definitions, tool call requests, and tool results are all captured:
-
-```python
-from sideseat import SideSeat, Frameworks
-from openai import AzureOpenAI
-
-client = SideSeat(framework=Frameworks.OpenAI)
-azure = AzureOpenAI(
-    api_key="your-api-key",
-    api_version="2024-02-01",
-    azure_endpoint="https://your-resource.openai.azure.com",
-)
-
-tools = [{
-    "type": "function",
-    "function": {
-        "name": "get_weather",
-        "description": "Get the current weather for a location.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "location": {"type": "string", "description": "City name"}
-            },
-            "required": ["location"],
-        },
-    },
-}]
-
-# Step 1: model requests a tool call
-messages = [
-    {"role": "system", "content": "Use tools when available."},
-    {"role": "user", "content": "What's the weather in Paris?"},
-]
-response = azure.chat.completions.create(
-    model="gpt-5-mini",
-    messages=messages,
-    tools=tools,
-)
-assistant_msg = response.choices[0].message
-messages.append(assistant_msg)
-
-# Step 2: return the tool result
-tool_call = assistant_msg.tool_calls[0]
-messages.append({
-    "role": "tool",
-    "tool_call_id": tool_call.id,
-    "content": "Sunny, 22C",
-})
-
-# Step 3: model produces the final answer
-response = azure.chat.completions.create(
-    model="gpt-5-mini",
-    messages=messages,
-    tools=tools,
-)
-```
-
-SideSeat captures all three steps as separate spans, each with full message details.
-
 ## Traces
 
 By default, each API call produces its own independent trace. Use `client.trace()` to group related calls under a single root span:
@@ -236,6 +145,97 @@ Trace 2: food-recommendations       (session_id=sess-abc, user_id=user-123)
 ```
 
 Each trace starts a fresh conversation with its own message history. The SideSeat sessions view groups them by `session_id`.
+
+## Streaming
+
+Streaming responses are fully captured, including token counts aggregated from stream chunks:
+
+```python
+from sideseat import SideSeat, Frameworks
+from openai import AzureOpenAI
+
+client = SideSeat(framework=Frameworks.OpenAI)
+azure = AzureOpenAI(
+    api_key="your-api-key",
+    api_version="2024-02-01",
+    azure_endpoint="https://your-resource.openai.azure.com",
+)
+
+stream = azure.chat.completions.create(
+    model="gpt-5-mini",
+    messages=[
+        {"role": "system", "content": "Answer in one sentence."},
+        {"role": "user", "content": "What is the boiling point of water?"},
+    ],
+    stream=True,
+)
+
+for chunk in stream:
+    delta = chunk.choices[0].delta
+    if delta.content:
+        print(delta.content, end="", flush=True)
+```
+
+## Tool Use
+
+Tool definitions, tool call requests, and tool results are all captured:
+
+```python
+from sideseat import SideSeat, Frameworks
+from openai import AzureOpenAI
+
+client = SideSeat(framework=Frameworks.OpenAI)
+azure = AzureOpenAI(
+    api_key="your-api-key",
+    api_version="2024-02-01",
+    azure_endpoint="https://your-resource.openai.azure.com",
+)
+
+tools = [{
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "Get the current weather for a location.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {"type": "string", "description": "City name"}
+            },
+            "required": ["location"],
+        },
+    },
+}]
+
+# Step 1: model requests a tool call
+messages = [
+    {"role": "system", "content": "Use tools when available."},
+    {"role": "user", "content": "What's the weather in Paris?"},
+]
+response = azure.chat.completions.create(
+    model="gpt-5-mini",
+    messages=messages,
+    tools=tools,
+)
+assistant_msg = response.choices[0].message
+messages.append(assistant_msg)
+
+# Step 2: return the tool result
+tool_call = assistant_msg.tool_calls[0]
+messages.append({
+    "role": "tool",
+    "tool_call_id": tool_call.id,
+    "content": "Sunny, 22C",
+})
+
+# Step 3: model produces the final answer
+response = azure.chat.completions.create(
+    model="gpt-5-mini",
+    messages=messages,
+    tools=tools,
+)
+```
+
+SideSeat captures all three steps as separate spans, each with full message details.
 
 ## Authentication
 
