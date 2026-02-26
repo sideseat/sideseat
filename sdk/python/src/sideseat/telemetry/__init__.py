@@ -261,7 +261,7 @@ class TelemetryClient:
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         """Force flush all pending spans."""
         if self._otlp_processor:
-            return self._otlp_processor.force_flush(timeout_millis)
+            return bool(self._otlp_processor.force_flush(timeout_millis))
         return True
 
     def _register_atexit(self) -> None:

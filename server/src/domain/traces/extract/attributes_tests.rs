@@ -1089,8 +1089,10 @@ fn test_resolve_span_name_logfire_template() {
         ),
         ("logfire.msg", "Chat Completion with 'gpt-4o'"),
     ]);
-    let mut span = SpanData::default();
-    span.span_name = "Chat Completion with {request_data[model]!r}".to_string();
+    let mut span = SpanData {
+        span_name: "Chat Completion with {request_data[model]!r}".to_string(),
+        ..Default::default()
+    };
 
     resolve_span_name(&mut span, &attrs);
 
@@ -1101,8 +1103,10 @@ fn test_resolve_span_name_logfire_template() {
 fn test_resolve_span_name_no_template_unchanged() {
     // Without logfire.msg_template, span name stays as-is even if logfire.msg exists
     let attrs = make_attrs(&[("logfire.msg", "some resolved name")]);
-    let mut span = SpanData::default();
-    span.span_name = "original span name".to_string();
+    let mut span = SpanData {
+        span_name: "original span name".to_string(),
+        ..Default::default()
+    };
 
     resolve_span_name(&mut span, &attrs);
 
@@ -1113,8 +1117,10 @@ fn test_resolve_span_name_no_template_unchanged() {
 fn test_resolve_span_name_template_without_msg_unchanged() {
     // Template exists but resolved msg is missing — keep original
     let attrs = make_attrs(&[("logfire.msg_template", "Chat {model}")]);
-    let mut span = SpanData::default();
-    span.span_name = "Chat {model}".to_string();
+    let mut span = SpanData {
+        span_name: "Chat {model}".to_string(),
+        ..Default::default()
+    };
 
     resolve_span_name(&mut span, &attrs);
 
@@ -1128,8 +1134,10 @@ fn test_resolve_span_name_empty_msg_unchanged() {
         ("logfire.msg_template", "Chat {model}"),
         ("logfire.msg", ""),
     ]);
-    let mut span = SpanData::default();
-    span.span_name = "Chat {model}".to_string();
+    let mut span = SpanData {
+        span_name: "Chat {model}".to_string(),
+        ..Default::default()
+    };
 
     resolve_span_name(&mut span, &attrs);
 
@@ -1140,8 +1148,10 @@ fn test_resolve_span_name_empty_msg_unchanged() {
 fn test_resolve_span_name_braces_in_name_no_template() {
     // Span name with braces but no logfire.msg_template — NOT a template, keep as-is
     let attrs = make_attrs(&[]);
-    let mut span = SpanData::default();
-    span.span_name = "process {\"key\": \"value\"}".to_string();
+    let mut span = SpanData {
+        span_name: "process {\"key\": \"value\"}".to_string(),
+        ..Default::default()
+    };
 
     resolve_span_name(&mut span, &attrs);
 

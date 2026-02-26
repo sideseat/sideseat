@@ -185,6 +185,20 @@ def _instrument_logfire(
     _patch_logfire_wrappers(method_suffix)
 
 
+def _make_property(name: str) -> property:
+    """Create a property that delegates to self.wrapped."""
+    return property(lambda self: getattr(self.wrapped, name, None))
+
+
+def _make_delegate(name: str) -> Any:
+    """Create a method that delegates to self.wrapped."""
+
+    def delegate(self: Any, *args: Any, **kwargs: Any) -> Any:
+        return getattr(self.wrapped, name)(*args, **kwargs)
+
+    return delegate
+
+
 def _patch_logfire_wrappers(integration_module: str) -> None:
     """Resolve unimplemented abstract methods in logfire wrapper classes.
 
@@ -212,7 +226,7 @@ def _patch_logfire_wrappers(integration_module: str) -> None:
         if cls.__module__ != mod.__name__:
             continue
 
-        abstracts = getattr(cls, "__abstractmethods__", frozenset())
+        abstracts: frozenset[str] = getattr(cls, "__abstractmethods__", frozenset())
         if not abstracts:
             continue
 
@@ -226,20 +240,8 @@ def _patch_logfire_wrappers(integration_module: str) -> None:
             )
 
             if is_prop:
-                # Default argument _n captures method_name per iteration
-                setattr(
-                    cls,
-                    method_name,
-                    property(lambda self, _n=method_name: getattr(self.wrapped, _n, None)),
-                )
+                setattr(cls, method_name, _make_property(method_name))
             else:
-
-                def _make_delegate(_n: str):  # noqa: E306
-                    def delegate(self: Any, *args: Any, **kwargs: Any) -> Any:
-                        return getattr(self.wrapped, _n)(*args, **kwargs)
-
-                    return delegate
-
                 setattr(cls, method_name, _make_delegate(method_name))
 
             patched.add(method_name)
