@@ -32,7 +32,7 @@ class AWSInstrumentor:
             logger.debug("wrapt not installed — AWS instrumentation unavailable")
             return
 
-        import wrapt
+        import wrapt  # type: ignore[import-untyped]
 
         wrapt.wrap_function_wrapper(
             "botocore.client",

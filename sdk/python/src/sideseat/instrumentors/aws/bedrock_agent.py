@@ -230,7 +230,7 @@ class _InvokeAgentStreamWrapper:
             span.set_status(StatusCode.OK)
         finally:
             span.end()
-            context.detach(self._ctx_token)
+            context.detach(self._ctx_token)  # type: ignore[arg-type]
 
     def _on_error(self, exc: Exception) -> None:
         if self._ended:
@@ -239,4 +239,4 @@ class _InvokeAgentStreamWrapper:
         self._span.set_status(StatusCode.ERROR, str(exc))
         self._span.record_exception(exc)
         self._span.end()
-        context.detach(self._ctx_token)
+        context.detach(self._ctx_token)  # type: ignore[arg-type]

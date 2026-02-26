@@ -297,7 +297,7 @@ class _ConverseStreamWrapper:
             span.set_status(StatusCode.OK)
         finally:
             span.end()
-            context.detach(self._ctx_token)
+            context.detach(self._ctx_token)  # type: ignore[arg-type]
 
     def _on_error(self, exc: Exception) -> None:
         if self._ended:
@@ -306,7 +306,7 @@ class _ConverseStreamWrapper:
         self._span.set_status(StatusCode.ERROR, str(exc))
         self._span.record_exception(exc)
         self._span.end()
-        context.detach(self._ctx_token)
+        context.detach(self._ctx_token)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +349,7 @@ def _wrap_invoke_model(original: Any, tracer: Tracer) -> Any:
 
             # Read and rebuffer the streaming body
             body_bytes = response["body"].read()
-            from botocore.response import StreamingBody
+            from botocore.response import StreamingBody  # type: ignore[import-not-found]
 
             response["body"] = StreamingBody(io.BytesIO(body_bytes), len(body_bytes))
 
@@ -542,7 +542,7 @@ class _InvokeModelStreamWrapper:
             span.set_status(StatusCode.OK)
         finally:
             span.end()
-            context.detach(self._ctx_token)
+            context.detach(self._ctx_token)  # type: ignore[arg-type]
 
     def _finalize_claude(self) -> None:
         """Parse accumulated Claude streaming chunks and emit events."""
@@ -713,7 +713,7 @@ class _InvokeModelStreamWrapper:
         self._span.set_status(StatusCode.ERROR, str(exc))
         self._span.record_exception(exc)
         self._span.end()
-        context.detach(self._ctx_token)
+        context.detach(self._ctx_token)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -848,7 +848,8 @@ def _parse_invoke_model_request(kwargs: dict[str, Any]) -> dict[str, Any]:
     try:
         body = kwargs.get("body")
         if isinstance(body, (str, bytes)):
-            return json.loads(body)
+            result: dict[str, Any] = json.loads(body)
+            return result
         return body if isinstance(body, dict) else {}
     except (json.JSONDecodeError, ValueError):
         return {}
