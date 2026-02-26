@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
 
+from sideseat._version import __version__
+
 
 class Frameworks:
     """Framework and provider identifiers for instrumentation.
@@ -32,6 +34,7 @@ class Frameworks:
 
 FRAMEWORK_PACKAGES = [
     (Frameworks.Strands, "strands-agents"),
+    (Frameworks.LangGraph, "langgraph"),
     (Frameworks.LangChain, "langchain-core"),
     (Frameworks.CrewAI, "crewai"),
     (Frameworks.AutoGen, "autogen-agentchat"),
@@ -200,4 +203,4 @@ def _detect_framework() -> tuple[str, str, str]:
             return key, package, version(package)
         except PackageNotFoundError:
             continue
-    return "sideseat", "sideseat-app", "0.0.0"
+    return "sideseat", "sideseat", __version__

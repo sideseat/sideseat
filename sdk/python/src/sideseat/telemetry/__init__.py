@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from opentelemetry import trace
+from opentelemetry.sdk.trace import SpanProcessor
 from opentelemetry.trace import StatusCode
 
 if TYPE_CHECKING:
@@ -29,7 +30,7 @@ _session_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 )
 
 
-class _ContextSpanProcessor:
+class _ContextSpanProcessor(SpanProcessor):
     """Injects session.id and user.id from contextvars into every span on creation."""
 
     def on_start(self, span: Any, parent_context: Any = None) -> None:
