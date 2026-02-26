@@ -833,7 +833,15 @@ pub(crate) fn detect_observation_type(
         }
     }
 
-    // Priority 6: Has model = Generation
+    // Priority 6: Logfire tags (logfire.tags: ["LLM"])
+    if let Some(tags) = attrs.get("logfire.tags") {
+        let tags_lower = tags.to_lowercase();
+        if tags_lower.contains("llm") {
+            return ObservationType::Generation;
+        }
+    }
+
+    // Priority 7: Has model = Generation
     if attrs.contains_key(keys::GEN_AI_REQUEST_MODEL)
         || attrs.contains_key(keys::GEN_AI_RESPONSE_MODEL)
     {
@@ -1010,6 +1018,36 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
         }
     }
 
+    // Logfire: model and system from request_data JSON
+    if span.gen_ai_request_model.is_none() || span.gen_ai_system.is_none() {
+        if let Some(req) = extract_json::<JsonValue>(attrs, keys::REQUEST_DATA) {
+            if span.gen_ai_request_model.is_none() {
+                if let Some(model) = req.get("model").and_then(|v| v.as_str()) {
+                    if !model.is_empty() {
+                        span.gen_ai_request_model = Some(model.to_string());
+                    }
+                }
+            }
+            if span.gen_ai_system.is_none() {
+                // Anthropic: top-level "system" key (string/array); OpenAI: messages[0].role=system
+                if req.get("system").is_some() {
+                    span.gen_ai_system = Some("anthropic".to_string());
+                } else if req.get("messages").is_some() {
+                    span.gen_ai_system = Some("openai".to_string());
+                }
+            }
+            if span.gen_ai_operation_name.is_none() && req.get("messages").is_some() {
+                span.gen_ai_operation_name = Some("chat".to_string());
+            }
+            if span.gen_ai_max_tokens.is_none() {
+                span.gen_ai_max_tokens = req
+                    .get("max_tokens")
+                    .or_else(|| req.get("max_completion_tokens"))
+                    .and_then(|v| v.as_i64());
+            }
+        }
+    }
+
     // Request parameters
     span.gen_ai_temperature = parse_opt(attrs, keys::GEN_AI_TEMPERATURE);
     span.gen_ai_top_p = parse_opt(attrs, keys::GEN_AI_TOP_P);
@@ -1127,12 +1165,52 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
         }
     }
 
+    // Logfire: tokens from response_data.usage JSON
+    // Anthropic: {input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens}
+    // OpenAI: {prompt_tokens, completion_tokens}
+    if span.gen_ai_usage_input_tokens == 0 && span.gen_ai_usage_output_tokens == 0 {
+        if let Some(resp) = extract_json::<JsonValue>(attrs, keys::RESPONSE_DATA) {
+            if let Some(usage) = resp.get("usage") {
+                span.gen_ai_usage_input_tokens = usage
+                    .get("input_tokens")
+                    .or_else(|| usage.get("prompt_tokens"))
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
+                span.gen_ai_usage_output_tokens = usage
+                    .get("output_tokens")
+                    .or_else(|| usage.get("completion_tokens"))
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
+            }
+        }
+    }
+
     span.gen_ai_usage_total_tokens = TOTAL_TOKENS
         .extract(attrs)
         .max(span.gen_ai_usage_input_tokens + span.gen_ai_usage_output_tokens);
     span.gen_ai_usage_cache_read_tokens = CACHE_READ_TOKENS.extract(attrs);
     span.gen_ai_usage_cache_write_tokens = CACHE_WRITE_TOKENS.extract(attrs);
     span.gen_ai_usage_reasoning_tokens = REASONING_TOKENS.extract(attrs);
+
+    // Logfire: cache tokens from response_data.usage (after flat attribute extraction)
+    if span.gen_ai_usage_cache_read_tokens == 0 || span.gen_ai_usage_cache_write_tokens == 0 {
+        if let Some(resp) = extract_json::<JsonValue>(attrs, keys::RESPONSE_DATA) {
+            if let Some(usage) = resp.get("usage") {
+                if span.gen_ai_usage_cache_read_tokens == 0 {
+                    span.gen_ai_usage_cache_read_tokens = usage
+                        .get("cache_read_input_tokens")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
+                }
+                if span.gen_ai_usage_cache_write_tokens == 0 {
+                    span.gen_ai_usage_cache_write_tokens = usage
+                        .get("cache_creation_input_tokens")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
+                }
+            }
+        }
+    }
 
     // CrewAI: tokens from output.value JSON (CrewOutput.token_usage)
     // CrewAI embeds token usage in the serialized CrewOutput object, not as flat attributes.
