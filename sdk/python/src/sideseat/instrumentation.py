@@ -98,13 +98,15 @@ def _instrument_openinference(
     instrumentor_cls = getattr(mod, class_name)
     instrumentor = instrumentor_cls()
 
-    # Some instrumentors don't accept tracer_provider
+    # skip_dep_check: OpenInference dependency checks are overly strict — they
+    # abort instrumentation on minor version skew even when all patch targets
+    # exist.  We manage dependency versions ourselves via the lockfile.
     try:
-        instrumentor.instrument(tracer_provider=provider)
+        instrumentor.instrument(tracer_provider=provider, skip_dep_check=True)
     except TypeError as e:
         if "tracer_provider" in str(e):
             logger.debug("%s doesn't accept tracer_provider, using global", class_name)
-            instrumentor.instrument()
+            instrumentor.instrument(skip_dep_check=True)
         else:
             raise
 

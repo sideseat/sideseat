@@ -129,7 +129,7 @@ class TelemetryClient:
         # Check for existing provider
         existing = trace.get_tracer_provider()
         if isinstance(existing, SDKTracerProvider):
-            logger.warning("TracerProvider already set; adding to existing")
+            logger.debug("TracerProvider already set; adding to existing")
             self.tracer_provider = existing
         else:
             resource = get_otel_resource(self._config.service_name, self._config.service_version)
