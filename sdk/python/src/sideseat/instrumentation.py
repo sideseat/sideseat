@@ -179,6 +179,73 @@ def _instrument_logfire(
     method = getattr(logfire, f"instrument_{method_suffix}")
     method()
 
+    # Resolve abstract method gaps caused by framework SDK / logfire version skew.
+    _patch_logfire_wrappers(method_suffix)
+
+
+def _patch_logfire_wrappers(integration_module: str) -> None:
+    """Resolve unimplemented abstract methods in logfire wrapper classes.
+
+    When a framework SDK evolves faster than logfire (e.g. openai-agents adds
+    ``tracing_api_key`` to ``Trace``/``Span`` but the pinned logfire hasn't
+    caught up), wrapper classes become un-instantiable.
+
+    This scans the logfire integration module for concrete classes that still
+    have unresolved abstract methods, then adds delegation to ``self.wrapped``
+    — the same pattern logfire uses for every other method on these wrappers.
+
+    Safe to call for any logfire integration — modules without abstract wrapper
+    classes are scanned in microseconds with no effect.
+    """
+    try:
+        import importlib
+        import inspect
+
+        mod = importlib.import_module(f"logfire._internal.integrations.{integration_module}")
+    except ImportError:
+        return
+
+    for cls_name, cls in inspect.getmembers(mod, inspect.isclass):
+        # Only patch classes defined in this module, not imported bases
+        if cls.__module__ != mod.__name__:
+            continue
+
+        abstracts = getattr(cls, "__abstractmethods__", frozenset())
+        if not abstracts:
+            continue
+
+        patched: set[str] = set()
+        for method_name in abstracts:
+            # Determine whether the abstract declaration is a property or method
+            is_prop = any(
+                isinstance(base.__dict__[method_name], property)
+                for base in cls.__mro__
+                if method_name in base.__dict__
+            )
+
+            if is_prop:
+                # Default argument _n captures method_name per iteration
+                setattr(
+                    cls,
+                    method_name,
+                    property(lambda self, _n=method_name: getattr(self.wrapped, _n, None)),
+                )
+            else:
+
+                def _make_delegate(_n: str):  # noqa: E306
+                    def delegate(self: Any, *args: Any, **kwargs: Any) -> Any:
+                        return getattr(self.wrapped, _n)(*args, **kwargs)
+
+                    return delegate
+
+                setattr(cls, method_name, _make_delegate(method_name))
+
+            patched.add(method_name)
+
+        if patched:
+            cls.__abstractmethods__ = abstracts - patched
+            logger.debug("Patched %s: %s", cls_name, ", ".join(sorted(patched)))
+
 
 def apply_framework_patches(framework: str, encode_binary: bool) -> None:
     """Apply framework-specific monkey patches before provider setup."""
