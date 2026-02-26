@@ -1,6 +1,6 @@
 """MCP server integration sample."""
 
-import sys
+import shutil
 from pathlib import Path
 
 from agents import Agent, Runner
@@ -12,15 +12,16 @@ def run(model_id: str, trace_attrs: dict, enable_thinking: bool = False):
     """Run the mcp_tools sample."""
     tracer = trace.get_tracer(__name__)
 
-    # Use local MCP calculator server from misc/mcp
-    mcp_server_path = Path(__file__).parents[5] / "mcp" / "calculator.py"
+    # Use local MCP calculator server from misc/mcp (has its own venv with fastmcp)
+    mcp_server_dir = Path(__file__).parents[5] / "mcp"
+    uv = shutil.which("uv") or "uv"
 
     async def run_with_mcp():
         async with MCPServerStdio(
             name="calculator",
             params={
-                "command": sys.executable,
-                "args": [str(mcp_server_path)],
+                "command": uv,
+                "args": ["run", "--directory", str(mcp_server_dir), "mcp-calculator"],
             },
         ) as server:
             agent = Agent(

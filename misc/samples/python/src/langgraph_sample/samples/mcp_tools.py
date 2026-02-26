@@ -8,7 +8,7 @@ Demonstrates:
 """
 
 import asyncio
-import sys
+import shutil
 from pathlib import Path
 
 from langchain_core.messages import AIMessage, SystemMessage
@@ -48,20 +48,15 @@ async def run_async(model, trace_attrs: dict):
         FileNotFoundError: If MCP server script not found
         RuntimeError: If MCP client fails to connect or get tools
     """
-    # Locate MCP calculator server (5 levels up from this file)
-    mcp_server_path = Path(__file__).parents[5] / "mcp" / "calculator.py"
-
-    if not mcp_server_path.exists():
-        raise FileNotFoundError(
-            f"MCP calculator server not found at: {mcp_server_path}\n"
-            "Ensure the misc/mcp/calculator.py file exists."
-        )
+    # Use local MCP calculator server from misc/mcp (has its own venv with fastmcp)
+    mcp_server_dir = Path(__file__).parents[5] / "mcp"
+    uv = shutil.which("uv") or "uv"
 
     # Configure MCP client with stdio transport
     mcp_config = {
         "calculator": {
-            "command": sys.executable,
-            "args": [str(mcp_server_path)],
+            "command": uv,
+            "args": ["run", "--directory", str(mcp_server_dir), "mcp-calculator"],
             "transport": "stdio",
         }
     }
