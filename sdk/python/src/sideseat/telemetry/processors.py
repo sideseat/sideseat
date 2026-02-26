@@ -9,6 +9,7 @@ import time
 from typing import Any
 
 from opentelemetry.sdk.trace import SpanProcessor
+from opentelemetry.trace import SpanContext, TraceFlags
 
 logger = logging.getLogger("sideseat.telemetry")
 
@@ -29,7 +30,10 @@ class _LogfireStreamingProcessor(SpanProcessor):
 
     Detection (definitive logfire signals):
       Request span: ``logfire.span_type="span"`` + ``request_data`` present + no ``response_data``
-      Response log: ``logfire.span_type="log"`` + ``request_data`` + ``response_data``
+      Response log: ``logfire.span_type="log"`` + ``request_data`` present
+
+    Note: Chat Completions streaming logs carry ``response_data``; Responses API
+    streaming logs carry ``events`` instead.  Both are reparented.
 
     Matching: SHA-256 of the ``request_data`` attribute value.  Both the
     request span and response log carry identical ``request_data`` (set by
@@ -53,7 +57,7 @@ class _LogfireStreamingProcessor(SpanProcessor):
     _MAX_PENDING = 1000
 
     def __init__(self) -> None:
-        self._pending: dict[str, list[tuple[int, int, float]]] = {}
+        self._pending: dict[bytes, list[tuple[int, int, float]]] = {}
         self._lock = threading.Lock()
 
     def on_start(self, span: Any, parent_context: Any = None) -> None:
@@ -72,11 +76,9 @@ class _LogfireStreamingProcessor(SpanProcessor):
         if not isinstance(request_data, str):
             return
 
-        has_response = isinstance(attrs.get("response_data"), str)
-
-        if span_type == "span" and not has_response:
+        if span_type == "span" and not isinstance(attrs.get("response_data"), str):
             self._store_request(request_data, span)
-        elif span_type == "log" and has_response:
+        elif span_type == "log":
             self._reparent_response(request_data, span)
 
     def _store_request(self, request_data: str, span: Any) -> None:
@@ -105,8 +107,6 @@ class _LogfireStreamingProcessor(SpanProcessor):
             return
 
         try:
-            from opentelemetry.trace import SpanContext, TraceFlags
-
             span._context = SpanContext(
                 trace_id=target_trace_id,
                 span_id=old_ctx.span_id,
@@ -152,5 +152,5 @@ class _LogfireStreamingProcessor(SpanProcessor):
             total -= 1
 
 
-def _make_key(request_data: str) -> str:
-    return hashlib.sha256(request_data.encode()).hexdigest()
+def _make_key(request_data: str) -> bytes:
+    return hashlib.sha256(request_data.encode()).digest()

@@ -59,38 +59,14 @@ def run(model, trace_attrs: dict, client: SideSeat):
             },
         }
     ]
-    messages = [{"role": "user", "content": "What's the weather in Paris?"}]
+    messages: list[dict] = [{"role": "user", "content": "What's the weather in Paris?"}]
 
-    # Step 1: model requests tool use
-    response = model.client.messages.create(
-        model=model.model_id,
-        system="Use tools when available.",
-        messages=messages,
-        tools=tools,
-        max_tokens=1024,
-    )
-    messages.append({"role": "assistant", "content": response.content})
-
-    tool_use = None
-    for block in response.content:
-        if block.type == "tool_use":
-            tool_use = block
-            print(f"Tool call: {tool_use.name}({json.dumps(tool_use.input)})")
-
-    # Step 2: return tool result and get final answer
-    if tool_use:
-        messages.append(
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": tool_use.id,
-                        "content": "Sunny, 22C, light breeze",
-                    }
-                ],
-            }
-        )
+    with client.trace(
+        "messages-tool-use",
+        session_id=trace_attrs.get("session.id"),
+        user_id=trace_attrs.get("user.id"),
+    ):
+        # Step 1: model requests tool use
         response = model.client.messages.create(
             model=model.model_id,
             system="Use tools when available.",
@@ -98,5 +74,34 @@ def run(model, trace_attrs: dict, client: SideSeat):
             tools=tools,
             max_tokens=1024,
         )
-        print(f"Assistant: {response.content[0].text}")
+        messages.append({"role": "assistant", "content": response.content})
+
+        tool_use = None
+        for block in response.content:
+            if block.type == "tool_use":
+                tool_use = block
+                print(f"Tool call: {tool_use.name}({json.dumps(tool_use.input)})")
+
+        # Step 2: return tool result and get final answer
+        if tool_use:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_use.id,
+                            "content": "Sunny, 22C, light breeze",
+                        }
+                    ],
+                }
+            )
+            response = model.client.messages.create(
+                model=model.model_id,
+                system="Use tools when available.",
+                messages=messages,
+                tools=tools,
+                max_tokens=1024,
+            )
+            print(f"Assistant: {response.content[0].text}")
     print()
