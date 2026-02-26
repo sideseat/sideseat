@@ -1,6 +1,6 @@
 """MCP server integration sample."""
 
-import sys
+import shutil
 from pathlib import Path
 
 from mcp import StdioServerParameters, stdio_client
@@ -10,11 +10,15 @@ from strands.tools.mcp import MCPClient
 
 def run(model, trace_attrs: dict):
     """Run the mcp_tools sample."""
-    # Use local MCP calculator server from misc/mcp
-    mcp_server_path = Path(__file__).parents[5] / "mcp" / "calculator.py"
+    # Use local MCP calculator server from misc/mcp (has its own venv with fastmcp)
+    mcp_server_dir = Path(__file__).parents[5] / "mcp"
+    uv = shutil.which("uv") or "uv"
     mcp_client = MCPClient(
         lambda: stdio_client(
-            StdioServerParameters(command=sys.executable, args=[str(mcp_server_path)])
+            StdioServerParameters(
+                command=uv,
+                args=["run", "--directory", str(mcp_server_dir), "mcp-calculator"],
+            )
         )
     )
 

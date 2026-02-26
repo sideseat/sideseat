@@ -1,6 +1,6 @@
 """MCP server integration sample."""
 
-import sys
+import shutil
 from pathlib import Path
 
 from crewai import Agent, Crew, Process, Task
@@ -12,13 +12,14 @@ def run(llm, trace_attrs: dict):
     """Run the mcp_tools sample."""
     tracer = trace.get_tracer(__name__)
 
-    # Use local MCP calculator server from misc/mcp
-    mcp_server_path = Path(__file__).parents[5] / "mcp" / "calculator.py"
+    # Use local MCP calculator server from misc/mcp (has its own venv with fastmcp)
+    mcp_server_dir = Path(__file__).parents[5] / "mcp"
+    uv = shutil.which("uv") or "uv"
 
     # Configure MCP server using structured configuration
     mcp_server = MCPServerStdio(
-        command=sys.executable,
-        args=[str(mcp_server_path)],
+        command=uv,
+        args=["run", "--directory", str(mcp_server_dir), "mcp-calculator"],
     )
 
     calculator_agent = Agent(
