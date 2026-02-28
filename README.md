@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="misc/screenshots/screenshot_1.png" alt="SideSeat showing an AI agent conversation with tool calls" width="800" />
+  [![Watch the video](misc/screenshots/screenshot_1.png)](https://www.youtube.com/watch?v=JqTcJ2OCLQI)
 </p>
 
 ## What is SideSeat?
