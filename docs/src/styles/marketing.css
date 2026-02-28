@@ -100,7 +100,7 @@ pre {
 }
 
 .section-tight {
-  padding: 72px 0;
+  padding: 44px 0 72px;
 }
 
 .section-contrast {
@@ -618,36 +618,8 @@ body.video-modal-open {
 .media-caption {
   margin-top: 14px;
   text-align: center;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
   color: var(--color-muted);
   font-size: 0.95rem;
-}
-
-.media-caption-link {
-  color: var(--color-accent);
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 36px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 107, 53, 0.28);
-  background: rgba(255, 107, 53, 0.08);
-}
-
-.media-caption-link:hover {
-  color: var(--color-accent-strong);
-  background: rgba(255, 107, 53, 0.14);
-}
-
-.media-caption-link:focus-visible {
-  outline: 2px solid var(--color-accent-cool);
-  outline-offset: 2px;
 }
 
 .command-card {
@@ -1509,18 +1481,6 @@ body.video-modal-open {
   .video-modal-frame {
     aspect-ratio: auto;
     height: clamp(180px, 56vw, calc(100vh - 120px));
-  }
-
-  .media-caption {
-    margin-top: 12px;
-    font-size: 0.9rem;
-    padding: 0 8px;
-    gap: 10px;
-  }
-
-  .media-caption-link {
-    min-height: 40px;
-    padding: 8px 14px;
   }
 
   .local-stats {
