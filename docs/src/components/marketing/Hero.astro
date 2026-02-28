@@ -42,11 +42,62 @@
   <div class="hero-media animate-fade-up delay-4">
     <div class="media-wide">
       <div class="media-frame">
-        <img
-          src="/images/screenshots/screenshot_1.png"
-          alt="SideSeat trace view with timeline, tool calls, and cost breakdowns"
-          loading="eager"
-        />
+        <button
+          type="button"
+          class="video-poster"
+          aria-haspopup="dialog"
+          aria-controls="hero-video-modal"
+          aria-label="Play SideSeat walkthrough video"
+          onclick="openHeroVideo()"
+        >
+          <img
+            src="/images/screenshots/screenshot_1.png"
+            alt="SideSeat showing local code and trace inspection side by side"
+            loading="eager"
+          />
+          <span class="video-poster-overlay" aria-hidden="true"></span>
+          <span class="video-play" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5.5v13l11-6.5z"></path>
+            </svg>
+          </span>
+          <span class="video-poster-copy">
+            <span class="video-poster-kicker">Product walkthrough</span>
+            <span class="video-poster-title">Code + trace side by side in one local loop</span>
+          </span>
+        </button>
+      </div>
+      <p class="media-caption">
+        Watch a real run from local code to inspected trace.
+        <a
+          class="media-caption-link"
+          href="https://www.youtube.com/watch?v=JqTcJ2OCLQI"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Open on YouTube
+        </a>
+      </p>
+    </div>
+  </div>
+
+  <div id="hero-video-modal" class="video-modal" hidden>
+    <div class="video-modal-backdrop" onclick="closeHeroVideo()"></div>
+    <div class="video-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="hero-video-title">
+      <div class="video-modal-header">
+        <p id="hero-video-title">SideSeat walkthrough</p>
+        <button type="button" class="video-modal-close" aria-label="Close video" onclick="closeHeroVideo()">Close</button>
+      </div>
+      <div class="video-modal-frame">
+        <iframe
+          id="hero-video-frame"
+          data-src="https://www.youtube-nocookie.com/embed/JqTcJ2OCLQI?autoplay=1&rel=0"
+          title="SideSeat walkthrough demo video"
+          loading="lazy"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allowfullscreen
+        ></iframe>
       </div>
     </div>
   </div>
@@ -70,6 +121,8 @@
 </section>
 
 <script is:inline>
+  let heroVideoLastFocused = null;
+
   function copyHeroCommand() {
     navigator.clipboard.writeText('npx sideseat').then(() => {
       const btn = document.getElementById('hero-copy-btn');
@@ -82,4 +135,70 @@
       }, 2000);
     });
   }
+
+  function openHeroVideo() {
+    const modal = document.getElementById('hero-video-modal');
+    const frame = document.getElementById('hero-video-frame');
+    if (!(modal instanceof HTMLElement) || !(frame instanceof HTMLIFrameElement)) return;
+    heroVideoLastFocused = document.activeElement;
+    modal.hidden = false;
+    document.body.classList.add('video-modal-open');
+    if (!frame.src) {
+      frame.src = frame.dataset.src || '';
+    }
+    const closeButton = modal.querySelector('.video-modal-close');
+    if (closeButton instanceof HTMLButtonElement) {
+      closeButton.focus();
+    }
+  }
+
+  function closeHeroVideo() {
+    const modal = document.getElementById('hero-video-modal');
+    const frame = document.getElementById('hero-video-frame');
+    if (!(modal instanceof HTMLElement) || !(frame instanceof HTMLIFrameElement)) return;
+    modal.hidden = true;
+    document.body.classList.remove('video-modal-open');
+    frame.src = '';
+    if (heroVideoLastFocused instanceof HTMLElement) {
+      heroVideoLastFocused.focus();
+    }
+    heroVideoLastFocused = null;
+  }
+
+  document.addEventListener('keydown', (event) => {
+    const modal = document.getElementById('hero-video-modal');
+    if (!(modal instanceof HTMLElement) || modal.hidden) return;
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeHeroVideo();
+      return;
+    }
+
+    if (event.key !== 'Tab') return;
+
+    const focusable = modal.querySelectorAll(
+      'a[href], button:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])'
+    );
+    if (!focusable.length) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+
+    if (event.shiftKey && active === first) {
+      event.preventDefault();
+      if (last instanceof HTMLElement) {
+        last.focus();
+      }
+      return;
+    }
+
+    if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      if (first instanceof HTMLElement) {
+        first.focus();
+      }
+    }
+  });
 </script>
