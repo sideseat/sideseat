@@ -22,7 +22,7 @@
 
 AI agents are hard to debug. Requests fly by, context builds up, and when something fails you're left guessing.
 
-SideSeat captures every LLM call, tool call, and agent decision, then displays them in a web UI as they happen. Run it locally during development, or deploy to your private cloud for team visibility.
+SideSeat captures every LLM call, tool call, and agent decision, then displays them in a live dashboard as they happen. Run it locally — proprietary prompts, PII, and confidential documents never leave your machine. Or deploy to your private cloud for team-wide visibility.
 
 Built on [OpenTelemetry](https://opentelemetry.io/) — the open standard already supported by most AI frameworks.
 
@@ -32,14 +32,12 @@ Built on [OpenTelemetry](https://opentelemetry.io/) — the open standard alread
 npx sideseat
 ```
 
-Open [localhost:5388](http://localhost:5388) and instrument your agent. Here's [Strands Agents](https://strandsagents.com) as an example — see the [setup guide](https://sideseat.ai/docs) for Vercel AI, Google ADK, LangGraph, CrewAI, AutoGen, OpenAI Agents, and others.
+Open [localhost:5388](http://localhost:5388) and instrument your agent. See the [setup guide](https://sideseat.ai/docs) for all supported frameworks.
 
-**With SideSeat SDK** — automatic setup, one import:
+**Strands Agents:**
 
 ```bash
 pip install strands-agents sideseat
-# or
-uv add strands-agents sideseat
 ```
 
 ```python
@@ -51,6 +49,44 @@ SideSeat(framework=Frameworks.Strands)
 agent = Agent()
 response = agent("What is 2+2?")
 print(response)
+```
+
+**Amazon Bedrock (direct):**
+
+```bash
+pip install sideseat boto3
+```
+
+```python
+from sideseat import SideSeat, Frameworks
+import boto3
+
+client = SideSeat(framework=Frameworks.Bedrock)
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+
+session_id = "sess-abc"
+user_id = "user-123"
+
+# Trace 1: Trip planning
+with client.trace("trip-planning", session_id=session_id, user_id=user_id):
+    messages = []
+    messages.append({"role": "user", "content": [{"text": "Plan a 5-day trip to Japan."}]})
+    response = bedrock.converse(modelId=model_id, messages=messages)
+    messages.append(response["output"]["message"])
+
+    messages.append({"role": "user", "content": [{"text": "Tell me more about Kyoto."}]})
+    response = bedrock.converse(modelId=model_id, messages=messages)
+
+# Trace 2: Food recommendations (fresh conversation, same session)
+with client.trace("food-recommendations", session_id=session_id, user_id=user_id):
+    messages = []
+    messages.append({"role": "user", "content": [{"text": "What are the must-try dishes in Tokyo?"}]})
+    response = bedrock.converse(modelId=model_id, messages=messages)
+    messages.append(response["output"]["message"])
+
+    messages.append({"role": "user", "content": [{"text": "What about street food in Osaka?"}]})
+    response = bedrock.converse(modelId=model_id, messages=messages)
 ```
 
 **Without SideSeat SDK** — manual OpenTelemetry setup:
@@ -127,7 +163,7 @@ Then ask your coding agent:
 
 ## Deployment
 
-**Local** — Run on your machine with `npx sideseat`. Data never leaves your computer.
+**Local** — Run on your machine with `npx sideseat`. Traces are stored locally. Nothing is sent to any external service.
 
 **Self-hosted** — Deploy to your private cloud for team-wide observability. See the [configuration guide](https://sideseat.ai/docs/reference/config/).
 
