@@ -32,7 +32,11 @@ Built on [OpenTelemetry](https://opentelemetry.io/) — the open standard alread
 npx sideseat
 ```
 
-Open [localhost:5388](http://localhost:5388) and instrument your agent. See the [setup guide](https://sideseat.ai/docs) for all supported frameworks.
+Open [localhost:5388](http://localhost:5388) and instrument your agent.
+
+**Frameworks:** [Strands Agents](https://sideseat.ai/docs/integrations/frameworks/strands/) · [LangGraph](https://sideseat.ai/docs/integrations/frameworks/langgraph/) · [CrewAI](https://sideseat.ai/docs/integrations/frameworks/crewai/) · [AutoGen](https://sideseat.ai/docs/integrations/frameworks/autogen/) · [Google ADK](https://sideseat.ai/docs/integrations/frameworks/google-adk/) · [OpenAI Agents](https://sideseat.ai/docs/integrations/frameworks/openai-agents/) · [Vercel AI](https://sideseat.ai/docs/integrations/frameworks/vercel-ai/) · [more](https://sideseat.ai/docs/integrations/)
+
+**Providers:** [Amazon Bedrock](https://sideseat.ai/docs/integrations/providers/bedrock/) · [Anthropic](https://sideseat.ai/docs/integrations/providers/anthropic/) · [OpenAI](https://sideseat.ai/docs/integrations/providers/openai/) · [Azure](https://sideseat.ai/docs/integrations/providers/azure/) · [Google Gemini](https://sideseat.ai/docs/integrations/providers/google-gemini/)
 
 **Strands Agents:**
 
