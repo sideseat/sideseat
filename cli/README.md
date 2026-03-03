@@ -3,7 +3,7 @@
 **AI Development Workbench** — Debug, trace, and understand your AI agents.
 
 [![npm](https://img.shields.io/npm/v/sideseat)](https://www.npmjs.com/package/sideseat)
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](https://github.com/sideseat/sideseat/blob/main/LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/sideseat/sideseat/blob/main/LICENSE)
 
 ## What is SideSeat?
 
@@ -94,4 +94,4 @@ Requires Node.js 18+ on macOS, Linux, or Windows.
 
 ## License
 
-[AGPL-3.0](https://github.com/sideseat/sideseat/blob/main/LICENSE)
+[Apache-2.0](https://github.com/sideseat/sideseat/blob/main/LICENSE)

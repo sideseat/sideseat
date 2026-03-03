@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/sideseat/sideseat/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License" /></a>
+  <a href="https://github.com/sideseat/sideseat/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License" /></a>
   <a href="https://www.npmjs.com/package/sideseat"><img src="https://img.shields.io/npm/v/sideseat" alt="npm" /></a>
   <a href="https://pypi.org/project/sideseat/"><img src="https://img.shields.io/pypi/v/sideseat" alt="PyPI" /></a>
 </p>
@@ -202,4 +202,4 @@ This mounts a local `./data` directory into the container at `/data` to persist 
 
 ## License
 
-[AGPL-3.0](LICENSE) — Free to use and modify. Distribute modified versions under the same license.
+[Apache-2.0](LICENSE) — Free to use, modify, and distribute.

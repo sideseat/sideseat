@@ -15,7 +15,7 @@
     "bin.js",
     "sideseat"
   ],
-  "license": "AGPL-3.0",
+  "license": "Apache-2.0",
   "homepage": "https://sideseat.ai",
   "bugs": {
     "url": "https://github.com/sideseat/sideseat/issues"
