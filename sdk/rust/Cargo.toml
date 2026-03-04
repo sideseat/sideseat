@@ -30,6 +30,7 @@ aws-sdk-bedrockruntime = { workspace = true }
 aws-sdk-bedrock = { workspace = true }
 aws-credential-types = { workspace = true }
 aws-smithy-types = "1"
+aws-smithy-http = "0.62"
 
 # SSE streaming parser
 eventsource-stream = "0.2"

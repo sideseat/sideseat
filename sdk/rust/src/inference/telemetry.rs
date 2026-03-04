@@ -303,6 +303,17 @@ impl<P: Provider + Send + Sync + 'static> Provider for InstrumentedProvider<P> {
 
             if !span_ended {
                 cx.span().end();
+                if telemetry_config.record_metrics {
+                    record_metrics(
+                        &token_counter,
+                        &duration_hist,
+                        &accumulated_usage,
+                        "chat",
+                        system,
+                        &model,
+                        started.elapsed().as_secs_f64(),
+                    );
+                }
             }
         })
     }

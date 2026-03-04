@@ -5119,6 +5119,7 @@ dependencies = [
  "aws-credential-types",
  "aws-sdk-bedrock",
  "aws-sdk-bedrockruntime",
+ "aws-smithy-http",
  "aws-smithy-types",
  "base64",
  "eventsource-stream",

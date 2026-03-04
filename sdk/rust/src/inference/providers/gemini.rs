@@ -863,6 +863,9 @@ fn format_image_part(img: &ImageContent) -> Result<Value, ProviderError> {
                 }
             }))
         }
+        _ => Err(ProviderError::Unsupported(
+            "Unsupported image source type for Gemini".into(),
+        )),
     }
 }
 
