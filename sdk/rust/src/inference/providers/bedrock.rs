@@ -26,9 +26,12 @@ use crate::{
     error::ProviderError,
     provider::{Provider, ProviderStream},
     types::{
-        ContentBlock, ContentBlockStart, ContentDelta, DocumentFormat as CDocFmt,
-        ImageFormat as CImgFmt, MediaSource, Message, ModelInfo, ProviderConfig, Role, StopReason,
-        StreamEvent, ThinkingBlock, ToolChoice, ToolUseBlock, Usage, VideoFormat as CVidFmt,
+        ContentBlock, ContentBlockStart, ContentDelta, DocumentFormat as CDocFmt, EmbeddingRequest,
+        EmbeddingResponse, GeneratedImage, GeneratedVideo, ImageFormat as CImgFmt,
+        ImageGenerationRequest, ImageGenerationResponse, MediaSource, Message, ModelInfo,
+        ProviderConfig, ReasoningEffort, Role, StopReason, StreamEvent, ThinkingBlock, ToolChoice,
+        ToolUseBlock, Usage, VideoFormat as CVidFmt, VideoGenerationRequest,
+        VideoGenerationResponse,
     },
 };
 
@@ -173,6 +176,220 @@ impl BedrockProvider {
         }
         self
     }
+
+    /// Call `invoke_model` with a JSON body and return the parsed JSON response.
+    async fn invoke_model_json(&self, model: &str, body: &Value) -> Result<Value, ProviderError> {
+        match &self.backend {
+            BedrockBackend::Sdk(client) => {
+                let bytes = serde_json::to_vec(body)
+                    .map_err(|e| ProviderError::Serialization(e.to_string()))?;
+                let resp = client
+                    .invoke_model()
+                    .model_id(model)
+                    .body(Blob::new(bytes))
+                    .send()
+                    .await
+                    .map_err(|e| ProviderError::Api {
+                        status: 0,
+                        message: e.to_string(),
+                    })?;
+                serde_json::from_slice(resp.body().as_ref())
+                    .map_err(|e| ProviderError::Serialization(e.to_string()))
+            }
+            BedrockBackend::ApiKey {
+                api_key,
+                region,
+                endpoint_url,
+                http_client,
+            } => {
+                let default_base = format!("https://bedrock-runtime.{}.amazonaws.com", region);
+                let base = endpoint_url.as_deref().unwrap_or(&default_base);
+                // Model IDs contain colons (e.g. "amazon.nova-canvas-v1:0") which must
+                // be percent-encoded in the URL path.
+                let encoded_model = model.replace(':', "%3A");
+                let url = format!(
+                    "{}/model/{}/invoke",
+                    base.trim_end_matches('/'),
+                    encoded_model
+                );
+                let resp = http_client
+                    .post(&url)
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", format!("Bearer {}", api_key))
+                    .json(body)
+                    .send()
+                    .await
+                    .map_err(|e| ProviderError::Network(e.to_string()))?;
+                let status = resp.status().as_u16();
+                let text = resp.text().await.unwrap_or_default();
+                if status != 200 {
+                    return Err(ProviderError::Api {
+                        status,
+                        message: text,
+                    });
+                }
+                serde_json::from_str(&text).map_err(|e| ProviderError::Serialization(e.to_string()))
+            }
+        }
+    }
+
+    /// Start an async invoke job (Nova Reel) and return the invocation ARN.
+    async fn start_async_invoke_json(
+        &self,
+        model: &str,
+        model_input: &Value,
+        s3_uri: &str,
+    ) -> Result<String, ProviderError> {
+        match &self.backend {
+            BedrockBackend::Sdk(client) => {
+                use aws_sdk_bedrockruntime::types::{
+                    AsyncInvokeOutputDataConfig, AsyncInvokeS3OutputDataConfig,
+                };
+                let s3_config = AsyncInvokeS3OutputDataConfig::builder()
+                    .s3_uri(s3_uri)
+                    .build()
+                    .map_err(|e| ProviderError::Config(e.to_string()))?;
+                let output_config = AsyncInvokeOutputDataConfig::S3OutputDataConfig(s3_config);
+                let resp = client
+                    .start_async_invoke()
+                    .model_id(model)
+                    .model_input(json_to_document(model_input))
+                    .output_data_config(output_config)
+                    .send()
+                    .await
+                    .map_err(|e| ProviderError::Api {
+                        status: 0,
+                        message: e.to_string(),
+                    })?;
+                Ok(resp.invocation_arn().to_string())
+            }
+            BedrockBackend::ApiKey {
+                api_key,
+                region,
+                endpoint_url,
+                http_client,
+            } => {
+                let default_base = format!("https://bedrock-runtime.{}.amazonaws.com", region);
+                let base = endpoint_url.as_deref().unwrap_or(&default_base);
+                let url = format!("{}/async-invoke", base.trim_end_matches('/'));
+                let body = json!({
+                    "modelId": model,
+                    "modelInput": model_input,
+                    "outputDataConfig": {
+                        "s3OutputDataConfig": { "s3Uri": s3_uri }
+                    }
+                });
+                let resp = http_client
+                    .post(&url)
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", format!("Bearer {}", api_key))
+                    .json(&body)
+                    .send()
+                    .await
+                    .map_err(|e| ProviderError::Network(e.to_string()))?;
+                let status = resp.status().as_u16();
+                let text = resp.text().await.unwrap_or_default();
+                if status != 202 && status != 200 {
+                    return Err(ProviderError::Api {
+                        status,
+                        message: text,
+                    });
+                }
+                let json: Value = serde_json::from_str(&text)
+                    .map_err(|e| ProviderError::Serialization(e.to_string()))?;
+                json["invocationArn"]
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| {
+                        ProviderError::Serialization(
+                            "Missing invocationArn in async-invoke response".into(),
+                        )
+                    })
+            }
+        }
+    }
+
+    /// Poll async invoke status until Completed or Failed.
+    async fn poll_async_invoke_until_done(
+        &self,
+        arn: &str,
+        s3_output_uri: &str,
+    ) -> Result<Vec<GeneratedVideo>, ProviderError> {
+        let max_polls = 120; // ~10 minutes at 5s intervals
+        for _ in 0..max_polls {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            let status = self.get_async_invoke_status(arn).await?;
+            match status.as_str() {
+                "Completed" => {
+                    return Ok(vec![GeneratedVideo {
+                        uri: Some(format!(
+                            "{}/output.mp4",
+                            s3_output_uri.trim_end_matches('/')
+                        )),
+                        b64_json: None,
+                        duration_secs: None,
+                    }]);
+                }
+                "Failed" => {
+                    return Err(ProviderError::Api {
+                        status: 0,
+                        message: format!("Bedrock async invoke failed: arn={}", arn),
+                    });
+                }
+                _ => {} // InProgress — keep polling
+            }
+        }
+        Err(ProviderError::Timeout { ms: 600_000 })
+    }
+
+    async fn get_async_invoke_status(&self, arn: &str) -> Result<String, ProviderError> {
+        match &self.backend {
+            BedrockBackend::Sdk(client) => {
+                let resp = client
+                    .get_async_invoke()
+                    .invocation_arn(arn)
+                    .send()
+                    .await
+                    .map_err(|e| ProviderError::Api {
+                        status: 0,
+                        message: e.to_string(),
+                    })?;
+                Ok(resp.status().as_str().to_string())
+            }
+            BedrockBackend::ApiKey {
+                api_key,
+                region,
+                endpoint_url,
+                http_client,
+            } => {
+                let default_base = format!("https://bedrock-runtime.{}.amazonaws.com", region);
+                let base = endpoint_url.as_deref().unwrap_or(&default_base);
+                let encoded_arn = arn.replace(':', "%3A").replace('/', "%2F");
+                let url = format!(
+                    "{}/async-invoke/{}",
+                    base.trim_end_matches('/'),
+                    encoded_arn
+                );
+                let resp = http_client
+                    .get(&url)
+                    .header("Authorization", format!("Bearer {}", api_key))
+                    .send()
+                    .await
+                    .map_err(|e| ProviderError::Network(e.to_string()))?;
+                let text = resp.text().await.unwrap_or_default();
+                let json: Value = serde_json::from_str(&text)
+                    .map_err(|e| ProviderError::Serialization(e.to_string()))?;
+                json["status"]
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| {
+                        ProviderError::Serialization(
+                            "Missing status in async-invoke poll response".into(),
+                        )
+                    })
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -181,6 +398,10 @@ impl BedrockProvider {
 
 #[async_trait]
 impl Provider for BedrockProvider {
+    fn provider_name(&self) -> &'static str {
+        "aws_bedrock"
+    }
+
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         match &self.backend {
             BedrockBackend::Sdk(client) => {
@@ -202,12 +423,9 @@ impl Provider for BedrockProvider {
                     for sys in sys_blocks { req = req.system(sys); }
                     req = req.inference_config(inf_config);
                     if let Some(tc) = tool_config { req = req.tool_config(tc); }
-                    if let Some(budget) = config.thinking_budget {
-                        req = req.additional_model_request_fields(
-                            json_to_document(&json!({
-                                "thinking": {"type": "enabled", "budget_tokens": budget}
-                            }))
-                        );
+                    let amrf = build_additional_model_request_fields(&config);
+                    if !amrf.is_null() {
+                        req = req.additional_model_request_fields(json_to_document(&amrf));
                     }
 
                     let resp = match req.send().await {
@@ -332,10 +550,9 @@ impl Provider for BedrockProvider {
                 if let Some(tc) = tool_config {
                     req = req.tool_config(tc);
                 }
-                if let Some(budget) = config.thinking_budget {
-                    req = req.additional_model_request_fields(json_to_document(&json!({
-                        "thinking": {"type": "enabled", "budget_tokens": budget}
-                    })));
+                let amrf = build_additional_model_request_fields(&config);
+                if !amrf.is_null() {
+                    req = req.additional_model_request_fields(json_to_document(&amrf));
                 }
 
                 let resp = req.send().await.map_err(|e| {
@@ -386,6 +603,10 @@ impl Provider for BedrockProvider {
                     stop_reason,
                     model: None,
                     id: None,
+                    logprobs: None,
+                    grounding_metadata: None,
+                    warnings: vec![],
+                    request_body: None,
                 })
             }
 
@@ -435,6 +656,162 @@ impl Provider for BedrockProvider {
                 "list_models requires SDK credentials; not available for from_client() or with_api_key()".into(),
             ))
         }
+    }
+
+    async fn embed(
+        &self,
+        request: EmbeddingRequest,
+        model: &str,
+    ) -> Result<EmbeddingResponse, ProviderError> {
+        // Build the invoke_model request body based on the model family
+        let body = if model.contains("cohere.embed") {
+            // Cohere Embed on Bedrock
+            json!({
+                "texts": request.inputs,
+                "input_type": "search_document",
+                "embedding_types": ["float"],
+            })
+        } else {
+            // Titan Embed V2 (default): amazon.titan-embed-text-v2:0
+            let mut b = json!({
+                "inputText": request.inputs.first().cloned().unwrap_or_default(),
+                "normalize": true,
+            });
+            if let Some(dims) = request.dimensions {
+                b["dimensions"] = json!(dims);
+            }
+            b
+        };
+
+        let resp_json = self.invoke_model_json(model, &body).await?;
+
+        // Parse response based on model family
+        let (embeddings, input_tokens) = if model.contains("cohere.embed") {
+            let vecs: Vec<Vec<f32>> = resp_json["embeddings"]["float"]
+                .as_array()
+                .unwrap_or(&vec![])
+                .iter()
+                .map(|v| {
+                    v.as_array()
+                        .unwrap_or(&vec![])
+                        .iter()
+                        .filter_map(|f| f.as_f64().map(|n| n as f32))
+                        .collect()
+                })
+                .collect();
+            (vecs, 0u64)
+        } else {
+            // Titan Embed
+            let vec: Vec<f32> = resp_json["embedding"]
+                .as_array()
+                .unwrap_or(&vec![])
+                .iter()
+                .filter_map(|f| f.as_f64().map(|n| n as f32))
+                .collect();
+            let tokens = resp_json["inputTextTokenCount"].as_u64().unwrap_or(0);
+            (vec![vec], tokens)
+        };
+
+        Ok(EmbeddingResponse {
+            embeddings,
+            model: Some(model.to_string()),
+            usage: Usage {
+                input_tokens,
+                ..Default::default()
+            },
+        })
+    }
+
+    async fn generate_image(
+        &self,
+        request: ImageGenerationRequest,
+    ) -> Result<ImageGenerationResponse, ProviderError> {
+        let n = request.n.unwrap_or(1);
+        let (width, height) = request
+            .size
+            .as_ref()
+            .map(|s| {
+                let parts: Vec<&str> = s.as_str().split('x').collect();
+                let w = parts
+                    .first()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(1024u32);
+                let h = parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(1024u32);
+                (w, h)
+            })
+            .unwrap_or((1024, 1024));
+
+        let quality = request
+            .quality
+            .as_ref()
+            .map(|q| q.as_str())
+            .unwrap_or("standard");
+
+        // Nova Canvas and Titan Image Generator share the same request/response format
+        let body = json!({
+            "taskType": "TEXT_IMAGE",
+            "textToImageParams": {
+                "text": request.prompt,
+            },
+            "imageGenerationConfig": {
+                "numberOfImages": n,
+                "width": width,
+                "height": height,
+                "quality": quality,
+            }
+        });
+
+        let resp_json = self.invoke_model_json(&request.model, &body).await?;
+
+        let images: Vec<GeneratedImage> = resp_json["images"]
+            .as_array()
+            .unwrap_or(&vec![])
+            .iter()
+            .map(|img_val| GeneratedImage {
+                url: None,
+                b64_json: img_val.as_str().map(|s| s.to_string()),
+                revised_prompt: None,
+            })
+            .collect();
+
+        Ok(ImageGenerationResponse { images })
+    }
+
+    async fn generate_video(
+        &self,
+        request: VideoGenerationRequest,
+    ) -> Result<VideoGenerationResponse, ProviderError> {
+        let s3_uri = request.output_storage_uri.as_deref().ok_or_else(|| {
+            ProviderError::Config(
+                "Bedrock Nova Reel requires output_storage_uri (s3://bucket/prefix)".into(),
+            )
+        })?;
+
+        let duration = request.duration_secs.unwrap_or(6);
+        let dimension = match request.resolution.as_ref().map(|r| r.as_str()) {
+            Some("1080p") => "1920x1080",
+            _ => "1280x720",
+        };
+
+        let model_input = json!({
+            "taskType": "TEXT_VIDEO",
+            "textToVideoParams": {
+                "text": request.prompt,
+            },
+            "videoGenerationConfig": {
+                "durationSeconds": duration,
+                "fps": 24,
+                "dimension": dimension,
+            }
+        });
+
+        let arn = self
+            .start_async_invoke_json(&request.model, &model_input, s3_uri)
+            .await?;
+
+        // Poll until complete (up to ~10 minutes)
+        let videos = self.poll_async_invoke_until_done(&arn, s3_uri).await?;
+        Ok(VideoGenerationResponse { videos })
     }
 }
 
@@ -556,6 +933,49 @@ fn build_messages_and_system(
         }
     }
     Ok((bmsgs, sys))
+}
+
+/// Build the `additionalModelRequestFields` JSON value for Bedrock Converse.
+///
+/// Merges:
+/// - `reasoning_effort` → `thinking.budget_tokens` (for Claude models)
+/// - `extra["additional_model_request_fields"]` generic pass-through
+fn build_additional_model_request_fields(config: &ProviderConfig) -> Value {
+    let mut fields = serde_json::Map::new();
+
+    // thinking_budget (explicit) takes priority over reasoning_effort
+    if let Some(budget) = config.thinking_budget {
+        fields.insert(
+            "thinking".to_string(),
+            json!({"type": "enabled", "budget_tokens": budget}),
+        );
+    } else if let Some(effort) = &config.reasoning_effort {
+        let budget_tokens = match effort {
+            ReasoningEffort::Low => 1000,
+            ReasoningEffort::Medium => 5000,
+            ReasoningEffort::High => 16000,
+            ReasoningEffort::Max => 32000,
+        };
+        fields.insert(
+            "thinking".to_string(),
+            json!({"type": "enabled", "budget_tokens": budget_tokens}),
+        );
+    }
+
+    // Generic pass-through from extra
+    if let Some(extra_fields) = config.extra.get("additional_model_request_fields")
+        && let Some(obj) = extra_fields.as_object()
+    {
+        for (k, v) in obj {
+            fields.entry(k.clone()).or_insert_with(|| v.clone());
+        }
+    }
+
+    if fields.is_empty() {
+        Value::Null
+    } else {
+        Value::Object(fields)
+    }
 }
 
 fn build_inference_config(config: &ProviderConfig) -> InferenceConfiguration {
@@ -834,7 +1254,10 @@ async fn api_key_complete(
     let text = resp.text().await.unwrap_or_default();
 
     if status == 429 {
-        return Err(ProviderError::RateLimited(text));
+        return Err(ProviderError::TooManyRequests {
+            message: text,
+            retry_after_secs: None,
+        });
     }
     if status != 200 {
         let lower = text.to_lowercase();
@@ -1046,6 +1469,10 @@ fn parse_converse_response(body: &Value) -> Result<crate::types::Response, Provi
         stop_reason,
         model: None,
         id: None,
+        logprobs: None,
+        grounding_metadata: None,
+        warnings: vec![],
+        request_body: None,
     })
 }
 
@@ -1312,6 +1739,7 @@ mod tests {
         let messages = vec![Message {
             role: Role::User,
             content: vec![ContentBlock::Text("Hello".to_string())],
+            name: None,
             cache_control: None,
         }];
         let config = ProviderConfig::new("us.amazon.nova-lite-v1:0").with_max_tokens(100);

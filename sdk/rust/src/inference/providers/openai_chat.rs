@@ -10,9 +10,11 @@ use crate::{
     provider::{Provider, ProviderStream},
     providers::sse::{check_response, sse_data_stream},
     types::{
-        ContentBlock, ContentBlockStart, ContentDelta, EmbeddingRequest, EmbeddingResponse,
-        ImageContent, MediaSource, Message, ModelInfo, ProviderConfig, ResponseFormat, Role,
-        StopReason, StreamEvent, Tool, ToolChoice, ToolUseBlock, Usage, WebSearchConfig,
+        AudioContent, AudioFormat, ContentBlock, ContentBlockStart, ContentDelta, EmbeddingRequest,
+        EmbeddingResponse, GeneratedImage, ImageContent, ImageGenerationRequest,
+        ImageGenerationResponse, MediaSource, Message, ModelInfo, ProviderConfig, ResponseFormat,
+        Role, SpeechRequest, SpeechResponse, StopReason, StreamEvent, TokenCount, Tool, ToolChoice,
+        ToolUseBlock, TranscriptionRequest, TranscriptionResponse, Usage, WebSearchConfig,
     },
 };
 
@@ -38,6 +40,48 @@ pub struct OpenAIChatProvider {
 }
 
 impl OpenAIChatProvider {
+    /// Create a provider from the `OPENAI_API_KEY` environment variable.
+    pub fn from_env() -> Result<Self, ProviderError> {
+        let key = std::env::var("OPENAI_API_KEY")
+            .map_err(|_| ProviderError::Config("OPENAI_API_KEY not set".into()))?;
+        Ok(Self::new(key))
+    }
+
+    /// Create a Groq provider from the `GROQ_API_KEY` environment variable.
+    pub fn for_groq_from_env() -> Result<Self, ProviderError> {
+        let key = std::env::var("GROQ_API_KEY")
+            .map_err(|_| ProviderError::Config("GROQ_API_KEY not set".into()))?;
+        Ok(Self::for_groq(key))
+    }
+
+    /// Create a DeepSeek provider from the `DEEPSEEK_API_KEY` environment variable.
+    pub fn for_deepseek_from_env() -> Result<Self, ProviderError> {
+        let key = std::env::var("DEEPSEEK_API_KEY")
+            .map_err(|_| ProviderError::Config("DEEPSEEK_API_KEY not set".into()))?;
+        Ok(Self::for_deepseek(key))
+    }
+
+    /// Create an xAI provider from the `XAI_API_KEY` environment variable.
+    pub fn for_xai_from_env() -> Result<Self, ProviderError> {
+        let key = std::env::var("XAI_API_KEY")
+            .map_err(|_| ProviderError::Config("XAI_API_KEY not set".into()))?;
+        Ok(Self::for_xai(key))
+    }
+
+    /// Create a Mistral provider from the `MISTRAL_API_KEY` environment variable.
+    pub fn for_mistral_from_env() -> Result<Self, ProviderError> {
+        let key = std::env::var("MISTRAL_API_KEY")
+            .map_err(|_| ProviderError::Config("MISTRAL_API_KEY not set".into()))?;
+        Ok(Self::for_mistral(key))
+    }
+
+    /// Create a Together AI provider from the `TOGETHER_API_KEY` environment variable.
+    pub fn for_together_from_env() -> Result<Self, ProviderError> {
+        let key = std::env::var("TOGETHER_API_KEY")
+            .map_err(|_| ProviderError::Config("TOGETHER_API_KEY not set".into()))?;
+        Ok(Self::for_together(key))
+    }
+
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
             api_key: api_key.into(),
@@ -146,6 +190,10 @@ impl OpenAIChatProvider {
 
 #[async_trait]
 impl Provider for OpenAIChatProvider {
+    fn provider_name(&self) -> &'static str {
+        "openai"
+    }
+
     fn stream(&self, messages: Vec<Message>, mut config: ProviderConfig) -> ProviderStream {
         let api_key = self.api_key.clone();
         let client = Arc::clone(&self.client);
@@ -163,13 +211,14 @@ impl Provider for OpenAIChatProvider {
                 Err(e) => { yield Err(e); return; }
             };
 
-            let resp = match client
+            let mut req_builder = client
                 .post(&base_url)
                 .bearer_auth(&api_key)
-                .json(&body)
-                .send()
-                .await
-            {
+                .json(&body);
+            if let Some(ms) = config.timeout_ms {
+                req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
+            }
+            let resp = match req_builder.send().await {
                 Ok(r) => r,
                 Err(e) => { yield Err(e.into()); return; }
             };
@@ -183,9 +232,12 @@ impl Provider for OpenAIChatProvider {
 
             let text_index: usize = 0;
             let reasoning_index: usize = 1; // thinking block always at index 1 if present
+            let audio_index: usize = 2;     // audio output block at index 2 if present
             let mut text_started = false;
             let mut reasoning_started = false;
+            let mut audio_started = false;
             // Map from tool call stream index to content block index and arg buffer
+            // Tools start at index 3 to leave room for text(0), reasoning(1), audio(2)
             let mut tool_calls: HashMap<usize, (String, String, usize)> = HashMap::new(); // idx -> (id, name, block_idx)
             let mut tool_arg_bufs: HashMap<usize, String> = HashMap::new();
 
@@ -257,6 +309,23 @@ impl Provider for OpenAIChatProvider {
                     }
                 }
 
+                // Audio output delta (gpt-4o-audio-preview and similar)
+                if let Some(audio_data) = delta["audio"]["data"].as_str()
+                    && !audio_data.is_empty()
+                {
+                    if !audio_started {
+                        yield Ok(StreamEvent::ContentBlockStart {
+                            index: audio_index,
+                            block: ContentBlockStart::Audio,
+                        });
+                        audio_started = true;
+                    }
+                    yield Ok(StreamEvent::ContentBlockDelta {
+                        index: audio_index,
+                        delta: ContentDelta::AudioData { b64_data: audio_data.to_string() },
+                    });
+                }
+
                 // Tool call deltas
                 if let Some(tc_arr) = delta["tool_calls"].as_array() {
                     // Close open blocks
@@ -268,8 +337,8 @@ impl Provider for OpenAIChatProvider {
                         yield Ok(StreamEvent::ContentBlockStop { index: text_index });
                         text_started = false;
                     }
-                    // Tool calls start after the reserved reasoning/text indices
-                    let tool_base_index = 2;
+                    // Tool calls start at index 3 (after text=0, reasoning=1, audio=2)
+                    let tool_base_index = 3;
 
                     for tc_delta in tc_arr {
                         let stream_idx = tc_delta["index"].as_u64().unwrap_or(0) as usize;
@@ -314,6 +383,9 @@ impl Provider for OpenAIChatProvider {
                     if text_started {
                         yield Ok(StreamEvent::ContentBlockStop { index: text_index });
                     }
+                    if audio_started {
+                        yield Ok(StreamEvent::ContentBlockStop { index: audio_index });
+                    }
                     for (_, _, block_idx) in tool_calls.values() {
                         yield Ok(StreamEvent::ContentBlockStop { index: *block_idx });
                     }
@@ -337,17 +409,56 @@ impl Provider for OpenAIChatProvider {
         }
         let body = build_request(&messages, &config, false)?;
 
-        let resp = self
+        let mut req_builder = self
             .client
             .post(&self.base_url)
             .bearer_auth(&self.api_key)
-            .json(&body)
-            .send()
-            .await?;
+            .json(&body);
+        if let Some(ms) = config.timeout_ms {
+            req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
+        }
+        let resp = req_builder.send().await?;
 
         let resp = check_response(resp).await?;
         let json: Value = resp.json().await?;
-        parse_response(&json)
+        let mut response = parse_response(&json)?;
+        if config.stop_sequences.len() > 4 {
+            response
+                .warnings
+                .push("stop_sequences truncated to 4 (OpenAI limit)".to_string());
+        }
+        Ok(response)
+    }
+
+    async fn count_tokens(
+        &self,
+        messages: Vec<Message>,
+        config: ProviderConfig,
+    ) -> Result<TokenCount, ProviderError> {
+        // Use the non-streaming request format and return the prompt token count
+        // from a dry-run (streaming=false, max_tokens=1 would charge; instead
+        // use the usage from a zero-shot to avoid cost — but OpenAI doesn't have
+        // a free count endpoint. We approximate with tiktoken-style estimate.
+        // For accurate counts, build the request and hit /v1/chat/completions with
+        // max_tokens=1 and stream=false, then read usage.prompt_tokens.
+        let mut count_config = config.clone();
+        count_config.max_tokens = Some(1);
+        let body = build_request(&messages, &count_config, false)?;
+
+        let mut req_builder = self
+            .client
+            .post(&self.base_url)
+            .bearer_auth(&self.api_key)
+            .json(&body);
+        if let Some(ms) = count_config.timeout_ms {
+            req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
+        }
+        let resp = req_builder.send().await?;
+        let resp = check_response(resp).await?;
+        let json: Value = resp.json().await?;
+
+        let input_tokens = json["usage"]["prompt_tokens"].as_u64().unwrap_or(0);
+        Ok(TokenCount { input_tokens })
     }
 
     async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
@@ -421,6 +532,162 @@ impl Provider for OpenAIChatProvider {
             usage,
         })
     }
+
+    /// Generate images using DALL-E (`/v1/images/generations`).
+    ///
+    /// Supported models: `dall-e-2`, `dall-e-3`, `gpt-image-1`.
+    async fn generate_image(
+        &self,
+        request: ImageGenerationRequest,
+    ) -> Result<ImageGenerationResponse, ProviderError> {
+        let url = format!("{}/images/generations", self.api_base);
+
+        let mut body = json!({
+            "model": request.model,
+            "prompt": request.prompt,
+            "response_format": request.output_format.as_str(),
+        });
+        if let Some(n) = request.n {
+            body["n"] = json!(n);
+        }
+        if let Some(size) = &request.size {
+            body["size"] = json!(size.as_str());
+        }
+        if let Some(quality) = &request.quality {
+            body["quality"] = json!(quality.as_str());
+        }
+        if let Some(style) = &request.style {
+            body["style"] = json!(style.as_str());
+        }
+        if let Some(user) = &request.user {
+            body["user"] = json!(user);
+        }
+        if let Some(seed) = request.seed {
+            body["seed"] = json!(seed);
+        }
+
+        let resp = self
+            .client
+            .post(&url)
+            .bearer_auth(&self.api_key)
+            .json(&body)
+            .send()
+            .await?;
+        let resp = check_response(resp).await?;
+        let json: Value = resp.json().await?;
+
+        let images = json["data"]
+            .as_array()
+            .unwrap_or(&vec![])
+            .iter()
+            .map(|item| GeneratedImage {
+                url: item["url"].as_str().map(|s| s.to_string()),
+                b64_json: item["b64_json"].as_str().map(|s| s.to_string()),
+                revised_prompt: item["revised_prompt"].as_str().map(|s| s.to_string()),
+            })
+            .collect();
+
+        Ok(ImageGenerationResponse { images })
+    }
+
+    async fn generate_speech(
+        &self,
+        request: SpeechRequest,
+    ) -> Result<SpeechResponse, ProviderError> {
+        let url = format!("{}/audio/speech", self.api_base);
+
+        let mut body = serde_json::json!({
+            "model": request.model,
+            "input": request.input,
+            "voice": request.voice,
+        });
+        let format = request.response_format.clone().unwrap_or(AudioFormat::Mp3);
+        let format_str = match &format {
+            AudioFormat::Mp3 => "mp3",
+            AudioFormat::Wav => "wav",
+            AudioFormat::Aac => "aac",
+            AudioFormat::Flac => "flac",
+            AudioFormat::Ogg => "ogg",
+            AudioFormat::Opus => "opus",
+            _ => "mp3",
+        };
+        body["response_format"] = serde_json::json!(format_str);
+        if let Some(speed) = request.speed {
+            body["speed"] = serde_json::json!(speed);
+        }
+
+        let resp = self
+            .client
+            .post(&url)
+            .bearer_auth(&self.api_key)
+            .json(&body)
+            .send()
+            .await?;
+        let resp = check_response(resp).await?;
+        let audio = resp
+            .bytes()
+            .await
+            .map_err(|e| ProviderError::Network(e.to_string()))?
+            .to_vec();
+
+        Ok(SpeechResponse { audio, format })
+    }
+
+    async fn transcribe(
+        &self,
+        request: TranscriptionRequest,
+    ) -> Result<TranscriptionResponse, ProviderError> {
+        let url = format!("{}/audio/transcriptions", self.api_base);
+
+        let ext = match request.format {
+            AudioFormat::Mp3 => "mp3",
+            AudioFormat::Wav => "wav",
+            AudioFormat::Aac => "aac",
+            AudioFormat::Flac => "flac",
+            AudioFormat::Ogg => "ogg",
+            AudioFormat::Opus => "opus",
+            AudioFormat::M4a => "m4a",
+            AudioFormat::Webm => "webm",
+            AudioFormat::Aiff => "aiff",
+        };
+        let filename = format!("audio.{ext}");
+
+        let part = reqwest::multipart::Part::bytes(request.audio)
+            .file_name(filename)
+            .mime_str("application/octet-stream")
+            .map_err(|e| ProviderError::Config(e.to_string()))?;
+
+        let mut form = reqwest::multipart::Form::new()
+            .part("file", part)
+            .text("model", request.model)
+            .text("response_format", "verbose_json");
+
+        if let Some(lang) = request.language {
+            form = form.text("language", lang);
+        }
+        if let Some(prompt) = request.prompt {
+            form = form.text("prompt", prompt);
+        }
+        if let Some(temp) = request.temperature {
+            form = form.text("temperature", temp.to_string());
+        }
+
+        let resp = self
+            .client
+            .post(&url)
+            .bearer_auth(&self.api_key)
+            .multipart(form)
+            .send()
+            .await?;
+        let resp = check_response(resp).await?;
+        let json: serde_json::Value = resp.json().await?;
+
+        Ok(TranscriptionResponse {
+            text: json["text"].as_str().unwrap_or("").to_string(),
+            language: json["language"].as_str().map(|s| s.to_string()),
+            duration_secs: json["duration"].as_f64(),
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -432,7 +699,11 @@ fn build_request(
     config: &ProviderConfig,
     stream: bool,
 ) -> Result<Value, ProviderError> {
-    let openai_messages = format_messages(messages, config.system.as_deref())?;
+    let openai_messages = format_messages(
+        messages,
+        config.system.as_deref(),
+        config.inject_system_as_user_message,
+    )?;
 
     let mut req = json!({
         "model": config.model,
@@ -457,7 +728,16 @@ fn build_request(
         req["seed"] = json!(seed);
     }
     if !config.stop_sequences.is_empty() {
-        req["stop"] = json!(config.stop_sequences);
+        let stop = if config.stop_sequences.len() > 4 {
+            tracing::warn!(
+                "OpenAI supports at most 4 stop sequences; truncating {} to 4",
+                config.stop_sequences.len()
+            );
+            &config.stop_sequences[..4]
+        } else {
+            &config.stop_sequences[..]
+        };
+        req["stop"] = json!(stop);
     }
     if let Some(effort) = &config.reasoning_effort {
         req["reasoning_effort"] = json!(effort.as_str());
@@ -497,6 +777,25 @@ fn build_request(
 
     if let Some(user) = &config.user {
         req["user"] = json!(user);
+    }
+    if let Some(penalty) = config.presence_penalty {
+        req["presence_penalty"] = json!(penalty);
+    }
+    if let Some(penalty) = config.frequency_penalty {
+        req["frequency_penalty"] = json!(penalty);
+    }
+    if let Some(ref bias) = config.logit_bias
+        && !bias.is_empty()
+    {
+        req["logit_bias"] = json!(bias);
+    }
+    if let Some(parallel) = config.parallel_tool_calls
+        && (!config.tools.is_empty() || config.web_search.is_some())
+    {
+        req["parallel_tool_calls"] = json!(parallel);
+    }
+    if let Some(n) = config.n {
+        req["n"] = json!(n);
     }
 
     for (k, v) in &config.extra {
@@ -543,17 +842,33 @@ fn format_web_search_tool(_ws: &WebSearchConfig) -> Value {
 // Message formatting
 // ---------------------------------------------------------------------------
 
-fn format_messages(messages: &[Message], system: Option<&str>) -> Result<Value, ProviderError> {
+fn format_messages(
+    messages: &[Message],
+    system: Option<&str>,
+    inject_system_as_user: bool,
+) -> Result<Value, ProviderError> {
     let mut result = Vec::new();
 
     if let Some(sys) = system {
-        result.push(json!({"role": "system", "content": sys}));
+        if inject_system_as_user {
+            result.push(json!({"role": "user", "content": format!("<system>{}</system>", sys)}));
+        } else {
+            result.push(json!({"role": "system", "content": sys}));
+        }
     }
 
     for msg in messages {
         let role = match msg.role {
             Role::System => {
-                result.push(json!({"role": "system", "content": format_content(&msg.content)?}));
+                let sys_content = format_content(&msg.content)?;
+                if inject_system_as_user {
+                    let text = sys_content.as_str().unwrap_or("");
+                    result.push(
+                        json!({"role": "user", "content": format!("<system>{}</system>", text)}),
+                    );
+                } else {
+                    result.push(json!({"role": "system", "content": sys_content}));
+                }
                 continue;
             }
             Role::User => "user",
@@ -643,7 +958,11 @@ fn format_messages(messages: &[Message], system: Option<&str>) -> Result<Value, 
             }
         }
 
-        result.push(json!({"role": role, "content": format_content(&msg.content)?}));
+        let mut m = json!({"role": role, "content": format_content(&msg.content)?});
+        if let Some(name) = &msg.name {
+            m["name"] = json!(name);
+        }
+        result.push(m);
     }
 
     Ok(json!(result))
@@ -777,6 +1096,16 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
         content.push(ContentBlock::Text(text.to_string()));
     }
 
+    // Audio output (gpt-4o-audio-preview)
+    if let Some(audio_data) = message["audio"]["data"].as_str()
+        && !audio_data.is_empty()
+    {
+        content.push(ContentBlock::Audio(AudioContent {
+            source: MediaSource::base64("audio/mpeg", audio_data),
+            format: AudioFormat::Mp3,
+        }));
+    }
+
     if let Some(tool_calls) = message["tool_calls"].as_array() {
         for tc in tool_calls {
             let id = tc["id"].as_str().unwrap_or("").to_string();
@@ -813,14 +1142,60 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
     let usage = parse_usage(&json["usage"]);
     let stop_reason = parse_finish_reason(finish_reason);
     let model = json["model"].as_str().map(|s| s.to_string());
+    let id = json["id"].as_str().map(|s| s.to_string());
+    let logprobs = parse_logprobs(&choice["logprobs"]);
 
     Ok(crate::types::Response {
         content,
         usage: usage.with_totals(),
         stop_reason,
         model,
-        id: None,
+        id,
+        logprobs,
+        grounding_metadata: None,
+        warnings: vec![],
+        request_body: None,
     })
+}
+
+fn parse_logprobs(logprobs_val: &Value) -> Option<Vec<crate::types::TokenLogprob>> {
+    let content = logprobs_val["content"].as_array()?;
+    let tokens: Vec<crate::types::TokenLogprob> = content
+        .iter()
+        .map(|item| {
+            let top_logprobs = item["top_logprobs"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .map(|t| crate::types::TopLogprob {
+                            token: t["token"].as_str().unwrap_or("").to_string(),
+                            logprob: t["logprob"].as_f64().unwrap_or(0.0),
+                            bytes: t["bytes"].as_array().map(|b| {
+                                b.iter()
+                                    .filter_map(|v| v.as_u64().map(|n| n as u8))
+                                    .collect()
+                            }),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            crate::types::TokenLogprob {
+                token: item["token"].as_str().unwrap_or("").to_string(),
+                logprob: item["logprob"].as_f64().unwrap_or(0.0),
+                bytes: item["bytes"].as_array().map(|b| {
+                    b.iter()
+                        .filter_map(|v| v.as_u64().map(|n| n as u8))
+                        .collect()
+                }),
+                top_logprobs,
+            }
+        })
+        .collect();
+    if tokens.is_empty() {
+        None
+    } else {
+        Some(tokens)
+    }
 }
 
 pub(crate) fn parse_usage(usage: &Value) -> Usage {
