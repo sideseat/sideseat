@@ -153,9 +153,15 @@ pub async fn collect_stream(stream: ProviderStream) -> Result<Response, Provider
             }
             StreamEvent::ContentBlockDelta { index, delta } => match delta {
                 ContentDelta::Text { text } => {
-                    if let Some(t) = text_blocks.get_mut(&index) {
-                        t.push_str(&text);
-                    }
+                    // Some providers (e.g. Bedrock converse-stream) omit ContentBlockStart
+                    // for text blocks; auto-initialize on first delta.
+                    let entry = text_blocks.entry(index).or_insert_with(|| {
+                        if !block_order.contains(&index) {
+                            block_order.push(index);
+                        }
+                        String::new()
+                    });
+                    entry.push_str(&text);
                 }
                 ContentDelta::ToolInput { partial_json } => {
                     if let Some((_, _, buf)) = tool_blocks.get_mut(&index) {

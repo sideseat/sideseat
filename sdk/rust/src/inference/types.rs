@@ -149,6 +149,8 @@ pub enum MediaSource {
         uri: String,
         media_type: String,
     },
+    /// Plain text — used as document text source (Bedrock `DocumentSource::Text`)
+    Text(String),
 }
 
 impl MediaSource {
@@ -629,7 +631,7 @@ impl std::fmt::Display for ServiceTier {
 // ---------------------------------------------------------------------------
 
 /// Anthropic prompt cache control — marks a message or system prompt for caching.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CacheControl {
     /// Ephemeral cache (5-minute TTL, 1.25× token cost for cache writes)
     Ephemeral,
@@ -2121,6 +2123,8 @@ pub struct VideoGenerationRequest {
     pub resolution: Option<VideoResolution>,
     /// S3 URI for async output (required for Bedrock Nova Reel: `s3://bucket/prefix`).
     pub output_storage_uri: Option<String>,
+    /// Random seed for reproducibility (not supported by all providers).
+    pub seed: Option<u64>,
 }
 
 impl VideoGenerationRequest {
@@ -2133,6 +2137,7 @@ impl VideoGenerationRequest {
             aspect_ratio: None,
             resolution: None,
             output_storage_uri: None,
+            seed: None,
         }
     }
 
@@ -2159,6 +2164,11 @@ impl VideoGenerationRequest {
     /// Set the S3 output URI (required for Bedrock Nova Reel).
     pub fn with_output_storage_uri(mut self, uri: impl Into<String>) -> Self {
         self.output_storage_uri = Some(uri.into());
+        self
+    }
+
+    pub fn with_seed(mut self, seed: u64) -> Self {
+        self.seed = Some(seed);
         self
     }
 }

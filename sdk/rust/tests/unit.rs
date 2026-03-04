@@ -1380,3 +1380,133 @@ fn sideseat_telemetry_config_bridge() {
     assert!(config.record_metrics);
     assert_eq!(config.tracer_name, "sideseat");
 }
+
+// ---------------------------------------------------------------------------
+// timeout_ms — structural round-trip (firing is tested in providers.rs integration tests)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn provider_config_timeout_ms_round_trips() {
+    let mut config = ProviderConfig::new("model");
+    config.timeout_ms = Some(5000);
+    assert_eq!(config.timeout_ms, Some(5000));
+}
+
+#[test]
+fn provider_config_timeout_ms_none_by_default() {
+    let config = ProviderConfig::new("model");
+    assert!(config.timeout_ms.is_none());
+}
+
+// ---------------------------------------------------------------------------
+// cache_control on Message (structural check — real wire test is in providers.rs)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn message_cache_control_set() {
+    use sideseat::{CacheControl, Message};
+    let mut msg = Message::user("context to cache");
+    msg.cache_control = Some(CacheControl::Ephemeral);
+    assert_eq!(msg.cache_control, Some(CacheControl::Ephemeral));
+}
+
+#[test]
+fn message_cache_control_system() {
+    use sideseat::{CacheControl, Message, Role};
+    let mut msg = Message::system("system prompt to cache");
+    msg.cache_control = Some(CacheControl::Ephemeral);
+    assert_eq!(msg.role, Role::System);
+    assert_eq!(msg.cache_control, Some(CacheControl::Ephemeral));
+}
+
+// ---------------------------------------------------------------------------
+// MediaSource::Text — Bedrock document text source
+// ---------------------------------------------------------------------------
+
+#[test]
+fn media_source_text_round_trips() {
+    use sideseat::MediaSource;
+    let src = MediaSource::Text("hello world".to_string());
+    if let MediaSource::Text(t) = src {
+        assert_eq!(t, "hello world");
+    } else {
+        panic!("wrong variant");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Bedrock extra params — structural checks (real wire tests require live AWS)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn bedrock_guardrail_extra_keys() {
+    let mut config = ProviderConfig::new("claude-3");
+    config.extra.insert(
+        "guardrail_id".into(),
+        serde_json::json!("gr-123"),
+    );
+    config.extra.insert(
+        "guardrail_version".into(),
+        serde_json::json!("1"),
+    );
+    config.extra.insert(
+        "guardrail_trace".into(),
+        serde_json::json!("enabled"),
+    );
+    assert_eq!(config.extra["guardrail_id"], "gr-123");
+    assert_eq!(config.extra["guardrail_trace"], "enabled");
+}
+
+#[test]
+fn bedrock_performance_config_extra_key() {
+    let mut config = ProviderConfig::new("claude-3");
+    config.extra.insert(
+        "performance_config_latency".into(),
+        serde_json::json!("optimized"),
+    );
+    assert_eq!(config.extra["performance_config_latency"], "optimized");
+}
+
+#[test]
+fn bedrock_request_metadata_extra_key() {
+    let mut config = ProviderConfig::new("claude-3");
+    config.extra.insert(
+        "request_metadata".into(),
+        serde_json::json!({"session_id": "abc123", "user_id": "u1"}),
+    );
+    assert!(config.extra["request_metadata"]["session_id"] == "abc123");
+}
+
+#[test]
+fn bedrock_prompt_variables_extra_key() {
+    let mut config = ProviderConfig::new("claude-3");
+    config.extra.insert(
+        "prompt_variables".into(),
+        serde_json::json!({"topic": "Rust programming"}),
+    );
+    assert_eq!(config.extra["prompt_variables"]["topic"], "Rust programming");
+}
+
+#[test]
+fn bedrock_amr_paths_extra_key() {
+    let mut config = ProviderConfig::new("claude-3");
+    config.extra.insert(
+        "additional_model_response_field_paths".into(),
+        serde_json::json!(["/path/to/field1", "/path/to/field2"]),
+    );
+    let arr = config.extra["additional_model_response_field_paths"].as_array().unwrap();
+    assert_eq!(arr.len(), 2);
+    assert_eq!(arr[0], "/path/to/field1");
+}
+
+#[test]
+fn bedrock_system_tools_extra_key() {
+    let mut config = ProviderConfig::new("claude-3");
+    config.extra.insert(
+        "system_tools".into(),
+        serde_json::json!(["computer", "bash"]),
+    );
+    let arr = config.extra["system_tools"].as_array().unwrap();
+    assert_eq!(arr.len(), 2);
+    assert_eq!(arr[0], "computer");
+}
