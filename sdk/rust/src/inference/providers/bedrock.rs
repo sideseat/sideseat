@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_stream::stream;
 use async_trait::async_trait;
@@ -7,52 +8,43 @@ use aws_sdk_bedrockruntime::{
     Client,
     primitives::Blob,
     types::{
-        AnyToolChoice, AutoToolChoice, ContentBlock as BContent, ContentBlockDelta,
+        AnyToolChoice, AudioBlock, AudioFormat as BAudioFmt, AudioSource as BAudioSource,
+        AutoToolChoice,
+        BidirectionalInputPayloadPart, CachePointBlock, CachePointType,
+        ContentBlock as BContent, ContentBlockDelta,
         ContentBlockStart as BContentBlockStart, ConversationRole, ConverseOutput,
-        ConverseStreamOutput, DocumentBlock, DocumentFormat, DocumentSource, ImageBlock,
-        ImageFormat, ImageSource, InferenceConfiguration, Message as BMessage,
+        ConverseStreamOutput, ConverseTokensRequest, CountTokensInput, DocumentBlock,
+        DocumentFormat, DocumentSource, GuardrailConfiguration, GuardrailStreamConfiguration,
+        GuardrailTrace, ImageBlock, ImageFormat, ImageSource, InferenceConfiguration,
+        InvokeModelWithBidirectionalStreamInput,
+        InvokeModelWithBidirectionalStreamOutput as BidiStreamEvent, Message as BMessage,
+        PerformanceConfigLatency, PerformanceConfiguration, PromptVariableValues,
         ReasoningContentBlock, ReasoningTextBlock, S3Location, SpecificToolChoice,
-        StopReason as BStopReason, SystemContentBlock, Tool as BTool, ToolChoice as BToolChoice,
-        ToolConfiguration, ToolInputSchema, ToolResultBlock as BToolResult, ToolResultContentBlock,
-        ToolResultStatus, ToolSpecification, ToolUseBlock as BToolUse, VideoBlock, VideoFormat,
-        VideoSource,
+        StopReason as BStopReason, SystemContentBlock, SystemTool, Tool as BTool,
+        ToolChoice as BToolChoice, ToolConfiguration, ToolInputSchema,
+        ToolResultBlock as BToolResult, ToolResultContentBlock, ToolResultStatus,
+        ToolSpecification, ToolUseBlock as BToolUse, VideoBlock, VideoFormat, VideoSource,
     },
 };
+use aws_sdk_bedrockruntime::types::error::InvokeModelWithBidirectionalStreamInputError;
+use aws_smithy_http::event_stream::EventStreamSender;
 use aws_smithy_types::Document;
-use reqwest::Client as HttpClient;
 use serde_json::{Value, json};
 
 use crate::{
     error::ProviderError,
     provider::{Provider, ProviderStream},
     types::{
-        ContentBlock, ContentBlockStart, ContentDelta, DocumentFormat as CDocFmt, EmbeddingRequest,
-        EmbeddingResponse, GeneratedImage, GeneratedVideo, ImageFormat as CImgFmt,
-        ImageGenerationRequest, ImageGenerationResponse, MediaSource, Message, ModelInfo,
-        ProviderConfig, ReasoningEffort, Role, StopReason, StreamEvent, ThinkingBlock, ToolChoice,
-        ToolUseBlock, Usage, VideoFormat as CVidFmt, VideoGenerationRequest,
-        VideoGenerationResponse,
+        AudioFormat as CAudioFmt, ContentBlock, ContentBlockStart, ContentDelta,
+        DocumentFormat as CDocFmt,
+        EmbeddingRequest, EmbeddingResponse, GeneratedImage, GeneratedVideo,
+        ImageFormat as CImgFmt, ImageGenerationRequest, ImageGenerationResponse, MediaSource,
+        Message, ModelInfo, ProviderConfig, ReasoningEffort, Role, SpeechRequest, SpeechResponse,
+        StopReason, StreamEvent, ThinkingBlock, TokenCount, ToolChoice, ToolUseBlock,
+        TranscriptionRequest, TranscriptionResponse, Usage, VideoFormat as CVidFmt,
+        VideoGenerationRequest, VideoGenerationResponse,
     },
 };
-
-// ---------------------------------------------------------------------------
-// Backend enum
-// ---------------------------------------------------------------------------
-
-enum BedrockBackend {
-    /// Native AWS SDK client (IAM credentials / instance profile / static keys / profile).
-    Sdk(Arc<Client>),
-    /// Bedrock API key — uses plain HTTP with `Authorization: Bearer <key>`.
-    /// Streaming uses the `/converse` endpoint and emits events from the response.
-    ApiKey {
-        api_key: String,
-        region: String,
-        /// Custom endpoint URL (e.g. for local emulators or enterprise deployments).
-        /// Defaults to `https://bedrock-runtime.<region>.amazonaws.com`.
-        endpoint_url: Option<String>,
-        http_client: Arc<HttpClient>,
-    },
-}
 
 // ---------------------------------------------------------------------------
 // Provider struct
@@ -67,10 +59,10 @@ enum BedrockBackend {
 /// - `with_static_credentials()` — explicit access key ID + secret access key
 /// - `with_profile()` — named AWS profile from `~/.aws/credentials`
 /// - `from_client()` — wrap an existing `aws_sdk_bedrockruntime::Client`
-/// - `with_api_key()` — Bedrock API key (`Authorization: Bearer`) via plain HTTP
+/// - `with_api_key()` — Bedrock API key via the SDK's native bearer-token auth
 pub struct BedrockProvider {
-    backend: BedrockBackend,
-    /// Bedrock management client (for listing models). None when created via `from_client()`.
+    client: Arc<Client>,
+    /// Bedrock management client (for listing models). None only when created via [`from_client()`](Self::from_client).
     mgmt_client: Option<Arc<BedrockMgmtClient>>,
 }
 
@@ -82,7 +74,7 @@ impl BedrockProvider {
             .load()
             .await;
         Self {
-            backend: BedrockBackend::Sdk(Arc::new(Client::new(&config))),
+            client: Arc::new(Client::new(&config)),
             mgmt_client: Some(Arc::new(BedrockMgmtClient::new(&config))),
         }
     }
@@ -108,7 +100,7 @@ impl BedrockProvider {
             .load()
             .await;
         Self {
-            backend: BedrockBackend::Sdk(Arc::new(Client::new(&config))),
+            client: Arc::new(Client::new(&config)),
             mgmt_client: Some(Arc::new(BedrockMgmtClient::new(&config))),
         }
     }
@@ -121,7 +113,7 @@ impl BedrockProvider {
             .load()
             .await;
         Self {
-            backend: BedrockBackend::Sdk(Arc::new(Client::new(&config))),
+            client: Arc::new(Client::new(&config)),
             mgmt_client: Some(Arc::new(BedrockMgmtClient::new(&config))),
         }
     }
@@ -130,107 +122,53 @@ impl BedrockProvider {
     /// Note: `list_models()` is unavailable when using this constructor.
     pub fn from_client(client: Client) -> Self {
         Self {
-            backend: BedrockBackend::Sdk(Arc::new(client)),
+            client: Arc::new(client),
             mgmt_client: None,
         }
     }
 
-    /// Create using a Bedrock API key (short-term or long-term).
+    /// Create using a Bedrock API key.
     ///
-    /// Uses plain HTTP with `Authorization: Bearer <api_key>` against the
-    /// Bedrock Runtime REST API. The `/converse` endpoint is used for both
-    /// streaming and non-streaming calls.
+    /// Configures the AWS SDK client with bearer-token authentication
+    /// (`Authorization: Bearer <api_key>`). No custom HTTP client is needed —
+    /// the SDK handles everything natively.
     ///
     /// See: <https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html>
     pub fn with_api_key(api_key: impl Into<String>, region: impl Into<String>) -> Self {
+        use aws_sdk_bedrockruntime::config::{BehaviorVersion, Region, Token};
+        let api_key = api_key.into();
+        let region = region.into();
+        let conf = aws_sdk_bedrockruntime::Config::builder()
+            .behavior_version(BehaviorVersion::latest())
+            .region(Region::new(region.clone()))
+            .bearer_token(Token::new(api_key.clone(), None))
+            .build();
+        let mgmt_conf = aws_sdk_bedrock::config::Builder::new()
+            .behavior_version(aws_sdk_bedrock::config::BehaviorVersion::latest())
+            .region(aws_sdk_bedrock::config::Region::new(region))
+            .bearer_token(aws_sdk_bedrock::config::Token::new(api_key, None))
+            .build();
         Self {
-            backend: BedrockBackend::ApiKey {
-                api_key: api_key.into(),
-                region: region.into(),
-                endpoint_url: None,
-                http_client: Arc::new(HttpClient::new()),
-            },
-            mgmt_client: None,
+            client: Arc::new(Client::from_conf(conf)),
+            mgmt_client: Some(Arc::new(BedrockMgmtClient::from_conf(mgmt_conf))),
         }
-    }
-
-    /// Override the Bedrock runtime endpoint URL.
-    ///
-    /// Only applies to the `with_api_key()` backend. Useful for local emulators,
-    /// custom Bedrock deployments, or proxies that expose the Bedrock Converse API.
-    /// The model path (`/model/{model}/converse`) is appended automatically.
-    ///
-    /// # Example
-    /// ```no_run
-    /// use sideseat::providers::BedrockProvider;
-    /// let provider = BedrockProvider::with_api_key("key", "us-east-1")
-    ///     .with_endpoint_url("http://localhost:8080");
-    /// ```
-    pub fn with_endpoint_url(mut self, url: impl Into<String>) -> Self {
-        if let BedrockBackend::ApiKey {
-            ref mut endpoint_url,
-            ..
-        } = self.backend
-        {
-            *endpoint_url = Some(url.into());
-        }
-        self
     }
 
     /// Call `invoke_model` with a JSON body and return the parsed JSON response.
     async fn invoke_model_json(&self, model: &str, body: &Value) -> Result<Value, ProviderError> {
-        match &self.backend {
-            BedrockBackend::Sdk(client) => {
-                let bytes = serde_json::to_vec(body)
-                    .map_err(|e| ProviderError::Serialization(e.to_string()))?;
-                let resp = client
-                    .invoke_model()
-                    .model_id(model)
-                    .body(Blob::new(bytes))
-                    .send()
-                    .await
-                    .map_err(|e| ProviderError::Api {
-                        status: 0,
-                        message: e.to_string(),
-                    })?;
-                serde_json::from_slice(resp.body().as_ref())
-                    .map_err(|e| ProviderError::Serialization(e.to_string()))
-            }
-            BedrockBackend::ApiKey {
-                api_key,
-                region,
-                endpoint_url,
-                http_client,
-            } => {
-                let default_base = format!("https://bedrock-runtime.{}.amazonaws.com", region);
-                let base = endpoint_url.as_deref().unwrap_or(&default_base);
-                // Model IDs contain colons (e.g. "amazon.nova-canvas-v1:0") which must
-                // be percent-encoded in the URL path.
-                let encoded_model = model.replace(':', "%3A");
-                let url = format!(
-                    "{}/model/{}/invoke",
-                    base.trim_end_matches('/'),
-                    encoded_model
-                );
-                let resp = http_client
-                    .post(&url)
-                    .header("Content-Type", "application/json")
-                    .header("Authorization", format!("Bearer {}", api_key))
-                    .json(body)
-                    .send()
-                    .await
-                    .map_err(|e| ProviderError::Network(e.to_string()))?;
-                let status = resp.status().as_u16();
-                let text = resp.text().await.unwrap_or_default();
-                if status != 200 {
-                    return Err(ProviderError::Api {
-                        status,
-                        message: text,
-                    });
-                }
-                serde_json::from_str(&text).map_err(|e| ProviderError::Serialization(e.to_string()))
-            }
-        }
+        let bytes = serde_json::to_vec(body)
+            .map_err(|e| ProviderError::Serialization(e.to_string()))?;
+        let resp = self.client
+            .invoke_model()
+            .model_id(model)
+            .content_type("application/json")
+            .accept("application/json")
+            .body(Blob::new(bytes))
+            .send()
+            .await
+            .map_err(|e| map_bedrock_error(e.into()))?;
+        serde_json::from_slice(resp.body().as_ref())
+            .map_err(|e| ProviderError::Serialization(e.to_string()))
     }
 
     /// Start an async invoke job (Nova Reel) and return the invocation ARN.
@@ -240,87 +178,43 @@ impl BedrockProvider {
         model_input: &Value,
         s3_uri: &str,
     ) -> Result<String, ProviderError> {
-        match &self.backend {
-            BedrockBackend::Sdk(client) => {
-                use aws_sdk_bedrockruntime::types::{
-                    AsyncInvokeOutputDataConfig, AsyncInvokeS3OutputDataConfig,
-                };
-                let s3_config = AsyncInvokeS3OutputDataConfig::builder()
-                    .s3_uri(s3_uri)
-                    .build()
-                    .map_err(|e| ProviderError::Config(e.to_string()))?;
-                let output_config = AsyncInvokeOutputDataConfig::S3OutputDataConfig(s3_config);
-                let resp = client
-                    .start_async_invoke()
-                    .model_id(model)
-                    .model_input(json_to_document(model_input))
-                    .output_data_config(output_config)
-                    .send()
-                    .await
-                    .map_err(|e| ProviderError::Api {
-                        status: 0,
-                        message: e.to_string(),
-                    })?;
-                Ok(resp.invocation_arn().to_string())
-            }
-            BedrockBackend::ApiKey {
-                api_key,
-                region,
-                endpoint_url,
-                http_client,
-            } => {
-                let default_base = format!("https://bedrock-runtime.{}.amazonaws.com", region);
-                let base = endpoint_url.as_deref().unwrap_or(&default_base);
-                let url = format!("{}/async-invoke", base.trim_end_matches('/'));
-                let body = json!({
-                    "modelId": model,
-                    "modelInput": model_input,
-                    "outputDataConfig": {
-                        "s3OutputDataConfig": { "s3Uri": s3_uri }
-                    }
-                });
-                let resp = http_client
-                    .post(&url)
-                    .header("Content-Type", "application/json")
-                    .header("Authorization", format!("Bearer {}", api_key))
-                    .json(&body)
-                    .send()
-                    .await
-                    .map_err(|e| ProviderError::Network(e.to_string()))?;
-                let status = resp.status().as_u16();
-                let text = resp.text().await.unwrap_or_default();
-                if status != 202 && status != 200 {
-                    return Err(ProviderError::Api {
-                        status,
-                        message: text,
-                    });
-                }
-                let json: Value = serde_json::from_str(&text)
-                    .map_err(|e| ProviderError::Serialization(e.to_string()))?;
-                json["invocationArn"]
-                    .as_str()
-                    .map(|s| s.to_string())
-                    .ok_or_else(|| {
-                        ProviderError::Serialization(
-                            "Missing invocationArn in async-invoke response".into(),
-                        )
-                    })
-            }
-        }
+        use aws_sdk_bedrockruntime::types::{
+            AsyncInvokeOutputDataConfig, AsyncInvokeS3OutputDataConfig,
+        };
+        let s3_config = AsyncInvokeS3OutputDataConfig::builder()
+            .s3_uri(s3_uri)
+            .build()
+            .map_err(|e| ProviderError::Config(e.to_string()))?;
+        let output_config = AsyncInvokeOutputDataConfig::S3OutputDataConfig(s3_config);
+        let resp = self.client
+            .start_async_invoke()
+            .model_id(model)
+            .model_input(json_to_document(model_input))
+            .output_data_config(output_config)
+            .send()
+            .await
+            .map_err(|e| map_bedrock_error(e.into()))?;
+        Ok(resp.invocation_arn().to_string())
     }
 
-    /// Poll async invoke status until Completed or Failed.
+    /// Poll async invoke status until Completed or Failed (up to ~10 minutes).
     async fn poll_async_invoke_until_done(
         &self,
         arn: &str,
         s3_output_uri: &str,
     ) -> Result<Vec<GeneratedVideo>, ProviderError> {
+        use aws_sdk_bedrockruntime::types::AsyncInvokeStatus;
         let max_polls = 120; // ~10 minutes at 5s intervals
         for _ in 0..max_polls {
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-            let status = self.get_async_invoke_status(arn).await?;
-            match status.as_str() {
-                "Completed" => {
+            let resp = self.client
+                .get_async_invoke()
+                .invocation_arn(arn)
+                .send()
+                .await
+                .map_err(|e| map_bedrock_error(e.into()))?;
+            match resp.status() {
+                AsyncInvokeStatus::Completed => {
                     return Ok(vec![GeneratedVideo {
                         uri: Some(format!(
                             "{}/output.mp4",
@@ -330,10 +224,14 @@ impl BedrockProvider {
                         duration_secs: None,
                     }]);
                 }
-                "Failed" => {
+                AsyncInvokeStatus::Failed => {
+                    let reason = resp
+                        .failure_message()
+                        .unwrap_or("unknown failure")
+                        .to_string();
                     return Err(ProviderError::Api {
                         status: 0,
-                        message: format!("Bedrock async invoke failed: arn={}", arn),
+                        message: format!("Bedrock async invoke failed (arn={arn}): {reason}"),
                     });
                 }
                 _ => {} // InProgress — keep polling
@@ -342,53 +240,64 @@ impl BedrockProvider {
         Err(ProviderError::Timeout { ms: 600_000 })
     }
 
-    async fn get_async_invoke_status(&self, arn: &str) -> Result<String, ProviderError> {
-        match &self.backend {
-            BedrockBackend::Sdk(client) => {
-                let resp = client
-                    .get_async_invoke()
-                    .invocation_arn(arn)
-                    .send()
-                    .await
-                    .map_err(|e| ProviderError::Api {
-                        status: 0,
-                        message: e.to_string(),
-                    })?;
-                Ok(resp.status().as_str().to_string())
-            }
-            BedrockBackend::ApiKey {
-                api_key,
-                region,
-                endpoint_url,
-                http_client,
-            } => {
-                let default_base = format!("https://bedrock-runtime.{}.amazonaws.com", region);
-                let base = endpoint_url.as_deref().unwrap_or(&default_base);
-                let encoded_arn = arn.replace(':', "%3A").replace('/', "%2F");
-                let url = format!(
-                    "{}/async-invoke/{}",
-                    base.trim_end_matches('/'),
-                    encoded_arn
-                );
-                let resp = http_client
-                    .get(&url)
-                    .header("Authorization", format!("Bearer {}", api_key))
-                    .send()
-                    .await
-                    .map_err(|e| ProviderError::Network(e.to_string()))?;
-                let text = resp.text().await.unwrap_or_default();
-                let json: Value = serde_json::from_str(&text)
-                    .map_err(|e| ProviderError::Serialization(e.to_string()))?;
-                json["status"]
-                    .as_str()
-                    .map(|s| s.to_string())
-                    .ok_or_else(|| {
-                        ProviderError::Serialization(
-                            "Missing status in async-invoke poll response".into(),
-                        )
-                    })
+    /// Run a Nova Sonic bidirectional stream session.
+    ///
+    /// `events` is a list of JSON protocol events (each wrapped in `{"event": {...}}`).
+    /// Returns the list of JSON events received from the model.
+    async fn nova_sonic_session(
+        &self,
+        model: &str,
+        events: Vec<Value>,
+    ) -> Result<Vec<Value>, ProviderError> {
+        // Build all input chunks eagerly (no errors at this stage).
+        let chunks: Vec<InvokeModelWithBidirectionalStreamInput> = events
+            .iter()
+            .map(|e| -> Result<InvokeModelWithBidirectionalStreamInput, ProviderError> {
+                let bytes = serde_json::to_vec(e)
+                    .map_err(|err| ProviderError::Serialization(err.to_string()))?;
+                let chunk = BidirectionalInputPayloadPart::builder()
+                    .bytes(Blob::new(bytes))
+                    .build();
+                Ok(InvokeModelWithBidirectionalStreamInput::Chunk(chunk))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Wrap in a futures stream — each item is already Ok, no stream errors.
+        let input_stream = futures::stream::iter(
+            chunks
+                .into_iter()
+                .map(Ok::<_, InvokeModelWithBidirectionalStreamInputError>),
+        );
+
+        let resp = self.client
+            .invoke_model_with_bidirectional_stream()
+            .model_id(model)
+            .body(EventStreamSender::from(input_stream))
+            .send()
+            .await
+            .map_err(|e| ProviderError::Api {
+                status: 0,
+                message: e.to_string(),
+            })?;
+
+        // Drain output events.
+        let mut output_events: Vec<Value> = Vec::new();
+        let mut body = resp.body;
+        loop {
+            match body.recv().await {
+                Ok(Some(BidiStreamEvent::Chunk(part))) => {
+                    if let Some(bytes) = part.bytes()
+                        && let Ok(json) = serde_json::from_slice::<Value>(bytes.as_ref())
+                    {
+                        output_events.push(json);
+                    }
+                }
+                Ok(None) => break,
+                Err(e) => return Err(ProviderError::Stream(e.to_string())),
+                _ => {} // Unknown variant
             }
         }
+        Ok(output_events)
     }
 }
 
@@ -403,129 +312,75 @@ impl Provider for BedrockProvider {
     }
 
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
-        match &self.backend {
-            BedrockBackend::Sdk(client) => {
-                let client = Arc::clone(client);
-                Box::pin(stream! {
-                    let (bedrock_msgs, sys_blocks) = match build_messages_and_system(&messages, &config) {
-                        Ok(v) => v,
-                        Err(e) => { yield Err(e); return; }
-                    };
+        let client = Arc::clone(&self.client);
+        Box::pin(stream! {
+            let (bedrock_msgs, sys_blocks) = match build_messages_and_system(&messages, &config) {
+                Ok(v) => v,
+                Err(e) => { yield Err(e); return; }
+            };
 
-                    let inf_config = build_inference_config(&config);
-                    let tool_config = match build_tool_config(&config) {
-                        Ok(v) => v,
-                        Err(e) => { yield Err(e); return; }
-                    };
+            let inf_config = build_inference_config(&config);
+            let tool_config = match build_tool_config(&config) {
+                Ok(v) => v,
+                Err(e) => { yield Err(e); return; }
+            };
 
-                    let mut req = client.converse_stream().model_id(&config.model);
-                    for msg in bedrock_msgs { req = req.messages(msg); }
-                    for sys in sys_blocks { req = req.system(sys); }
-                    req = req.inference_config(inf_config);
-                    if let Some(tc) = tool_config { req = req.tool_config(tc); }
-                    let amrf = build_additional_model_request_fields(&config);
-                    if !amrf.is_null() {
-                        req = req.additional_model_request_fields(json_to_document(&amrf));
-                    }
-
-                    let resp = match req.send().await {
-                        Ok(r) => r,
-                        Err(e) => {
-                            let msg = e.to_string();
-                            let err = if msg.to_lowercase().contains("context window")
-                                || msg.to_lowercase().contains("input is too long")
-                            {
-                                ProviderError::ContextWindowExceeded(msg)
-                            } else {
-                                ProviderError::Api { status: 0, message: msg }
-                            };
-                            yield Err(err);
-                            return;
-                        }
-                    };
-
-                    let mut event_stream = resp.stream;
-                    loop {
-                        match event_stream.recv().await {
-                            Ok(Some(event)) => {
-                                match handle_stream_event(event) {
-                                    Some(Ok(ev)) => yield Ok(ev),
-                                    Some(Err(e)) => { yield Err(e); return; }
-                                    None => {}
-                                }
-                            }
-                            Ok(None) => break,
-                            Err(e) => {
-                                yield Err(ProviderError::Stream(e.to_string()));
-                                return;
-                            }
-                        }
-                    }
-                })
+            let mut req = client.converse_stream().model_id(&config.model);
+            for msg in bedrock_msgs { req = req.messages(msg); }
+            for sys in sys_blocks { req = req.system(sys); }
+            req = req.inference_config(inf_config);
+            if let Some(tc) = tool_config { req = req.tool_config(tc); }
+            let amrf = build_additional_model_request_fields(&config);
+            if !amrf.is_null() {
+                req = req.additional_model_request_fields(json_to_document(&amrf));
+            }
+            if let Some(gc) = build_guardrail_stream_config(&config) {
+                req = req.guardrail_config(gc);
+            }
+            if let Some(pc) = build_performance_config(&config) {
+                req = req.performance_config(pc);
+            }
+            if let Some(meta) = build_request_metadata_map(&config) {
+                for (k, v) in meta { req = req.request_metadata(k, v); }
+            }
+            if let Some(pv) = build_prompt_variables_map(&config) {
+                for (k, v) in pv { req = req.prompt_variables(k, v); }
+            }
+            for path in build_amr_paths(&config) {
+                req = req.additional_model_response_field_paths(path);
             }
 
-            BedrockBackend::ApiKey {
-                api_key,
-                region,
-                endpoint_url,
-                http_client,
-            } => {
-                let api_key = api_key.clone();
-                let region = region.clone();
-                let endpoint_url = endpoint_url.clone();
-                let http_client = Arc::clone(http_client);
-                Box::pin(stream! {
-                    let response = match api_key_complete(&http_client, &api_key, &region, endpoint_url.as_deref(), &messages, &config).await {
-                        Ok(r) => r,
-                        Err(e) => { yield Err(e); return; }
-                    };
+            let send_result = if let Some(ms) = config.timeout_ms {
+                tokio::time::timeout(Duration::from_millis(ms), req.send())
+                    .await
+                    .map_err(|_| ProviderError::Timeout { ms })
+                    .and_then(|r| r.map_err(|e| map_bedrock_error(e.into())))
+            } else {
+                req.send().await.map_err(|e| map_bedrock_error(e.into()))
+            };
+            let resp = match send_result {
+                Ok(r) => r,
+                Err(e) => { yield Err(e); return; }
+            };
 
-                    yield Ok(StreamEvent::MessageStart { role: Role::Assistant });
-
-                    for (idx, block) in response.content.iter().enumerate() {
-                        match block {
-                            ContentBlock::Text(t) => {
-                                yield Ok(StreamEvent::ContentBlockStart { index: idx, block: ContentBlockStart::Text });
-                                yield Ok(StreamEvent::ContentBlockDelta {
-                                    index: idx,
-                                    delta: ContentDelta::Text { text: t.clone() },
-                                });
-                                yield Ok(StreamEvent::ContentBlockStop { index: idx });
-                            }
-                            ContentBlock::ToolUse(tu) => {
-                                yield Ok(StreamEvent::ContentBlockStart {
-                                    index: idx,
-                                    block: ContentBlockStart::ToolUse { id: tu.id.clone(), name: tu.name.clone() },
-                                });
-                                yield Ok(StreamEvent::ContentBlockDelta {
-                                    index: idx,
-                                    delta: ContentDelta::ToolInput { partial_json: tu.input.to_string() },
-                                });
-                                yield Ok(StreamEvent::ContentBlockStop { index: idx });
-                            }
-                            ContentBlock::Thinking(th) => {
-                                yield Ok(StreamEvent::ContentBlockStart { index: idx, block: ContentBlockStart::Thinking });
-                                yield Ok(StreamEvent::ContentBlockDelta {
-                                    index: idx,
-                                    delta: ContentDelta::Thinking { thinking: th.thinking.clone() },
-                                });
-                                if let Some(sig) = &th.signature {
-                                    yield Ok(StreamEvent::ContentBlockDelta {
-                                        index: idx,
-                                        delta: ContentDelta::Signature { signature: sig.clone() },
-                                    });
-                                }
-                                yield Ok(StreamEvent::ContentBlockStop { index: idx });
-                            }
-                            _ => {}
+            let mut event_stream = resp.stream;
+            loop {
+                match event_stream.recv().await {
+                    Ok(Some(event)) => {
+                        match handle_stream_event(event, &config.model) {
+                            Some(Ok(ev)) => yield Ok(ev),
+                            Some(Err(e)) => { yield Err(e); return; }
+                            None => {}
                         }
                     }
-
-                    yield Ok(StreamEvent::MessageStop { stop_reason: response.stop_reason.clone() });
-                    yield Ok(StreamEvent::Metadata { usage: response.usage.clone(), model: None, id: None });
-                })
+                    Ok(None) => break,
+                    Err(e) => {
+                        yield Err(ProviderError::Stream(e.to_string()));
+                        return;
+                    }
+                }
             }
-        }
+        })
     }
 
     async fn complete(
@@ -533,129 +388,118 @@ impl Provider for BedrockProvider {
         messages: Vec<Message>,
         config: ProviderConfig,
     ) -> Result<crate::types::Response, ProviderError> {
-        match &self.backend {
-            BedrockBackend::Sdk(client) => {
-                let (bedrock_msgs, sys_blocks) = build_messages_and_system(&messages, &config)?;
-                let inf_config = build_inference_config(&config);
-                let tool_config = build_tool_config(&config)?;
+        let (bedrock_msgs, sys_blocks) = build_messages_and_system(&messages, &config)?;
+        let inf_config = build_inference_config(&config);
+        let tool_config = build_tool_config(&config)?;
 
-                let mut req = client.converse().model_id(&config.model);
-                for msg in bedrock_msgs {
-                    req = req.messages(msg);
-                }
-                for sys in sys_blocks {
-                    req = req.system(sys);
-                }
-                req = req.inference_config(inf_config);
-                if let Some(tc) = tool_config {
-                    req = req.tool_config(tc);
-                }
-                let amrf = build_additional_model_request_fields(&config);
-                if !amrf.is_null() {
-                    req = req.additional_model_request_fields(json_to_document(&amrf));
-                }
-
-                let resp = req.send().await.map_err(|e| {
-                    let msg = e.to_string();
-                    if msg.to_lowercase().contains("context window")
-                        || msg.to_lowercase().contains("input is too long")
-                    {
-                        ProviderError::ContextWindowExceeded(msg)
-                    } else {
-                        ProviderError::Api {
-                            status: 0,
-                            message: msg,
-                        }
-                    }
-                })?;
-
-                let msg = match resp.output() {
-                    Some(ConverseOutput::Message(m)) => m,
-                    _ => {
-                        return Err(ProviderError::Serialization(
-                            "No message in Bedrock response".into(),
-                        ));
-                    }
-                };
-
-                let content: Vec<ContentBlock> = msg
-                    .content()
-                    .iter()
-                    .filter_map(bedrock_content_to_block)
-                    .collect();
-
-                let usage = resp
-                    .usage()
-                    .map(|u| Usage {
-                        input_tokens: u.input_tokens() as u64,
-                        output_tokens: u.output_tokens() as u64,
-                        cache_read_tokens: u.cache_read_input_tokens().unwrap_or(0) as u64,
-                        cache_write_tokens: u.cache_write_input_tokens().unwrap_or(0) as u64,
-                        ..Default::default()
-                    })
-                    .unwrap_or_default();
-
-                let stop_reason = parse_stop_reason(Some(resp.stop_reason()));
-
-                Ok(crate::types::Response {
-                    content,
-                    usage: usage.with_totals(),
-                    stop_reason,
-                    model: None,
-                    id: None,
-                    logprobs: None,
-                    grounding_metadata: None,
-                    warnings: vec![],
-                    request_body: None,
-                })
-            }
-
-            BedrockBackend::ApiKey {
-                api_key,
-                region,
-                endpoint_url,
-                http_client,
-            } => {
-                api_key_complete(
-                    http_client,
-                    api_key,
-                    region,
-                    endpoint_url.as_deref(),
-                    &messages,
-                    &config,
-                )
-                .await
+        let mut req = self.client.converse().model_id(&config.model);
+        for msg in bedrock_msgs {
+            req = req.messages(msg);
+        }
+        for sys in sys_blocks {
+            req = req.system(sys);
+        }
+        req = req.inference_config(inf_config);
+        if let Some(tc) = tool_config {
+            req = req.tool_config(tc);
+        }
+        let amrf = build_additional_model_request_fields(&config);
+        if !amrf.is_null() {
+            req = req.additional_model_request_fields(json_to_document(&amrf));
+        }
+        if let Some(gc) = build_guardrail_config(&config) {
+            req = req.guardrail_config(gc);
+        }
+        if let Some(pc) = build_performance_config(&config) {
+            req = req.performance_config(pc);
+        }
+        if let Some(meta) = build_request_metadata_map(&config) {
+            for (k, v) in meta {
+                req = req.request_metadata(k, v);
             }
         }
+        if let Some(pv) = build_prompt_variables_map(&config) {
+            for (k, v) in pv {
+                req = req.prompt_variables(k, v);
+            }
+        }
+        for path in build_amr_paths(&config) {
+            req = req.additional_model_response_field_paths(path);
+        }
+
+        let resp = if let Some(ms) = config.timeout_ms {
+            tokio::time::timeout(Duration::from_millis(ms), req.send())
+                .await
+                .map_err(|_| ProviderError::Timeout { ms })?
+                .map_err(|e| map_bedrock_error(e.into()))?
+        } else {
+            req.send().await.map_err(|e| map_bedrock_error(e.into()))?
+        };
+
+        let msg = match resp.output() {
+            Some(ConverseOutput::Message(m)) => m,
+            _ => {
+                return Err(ProviderError::Serialization(
+                    "No message in Bedrock response".into(),
+                ));
+            }
+        };
+
+        let content: Vec<ContentBlock> = msg
+            .content()
+            .iter()
+            .filter_map(bedrock_content_to_block)
+            .collect();
+
+        let usage = resp
+            .usage()
+            .map(|u| Usage {
+                input_tokens: u.input_tokens() as u64,
+                output_tokens: u.output_tokens() as u64,
+                cache_read_tokens: u.cache_read_input_tokens().unwrap_or(0) as u64,
+                cache_write_tokens: u.cache_write_input_tokens().unwrap_or(0) as u64,
+                ..Default::default()
+            })
+            .unwrap_or_default();
+
+        let stop_reason = parse_stop_reason(Some(resp.stop_reason()));
+
+        Ok(crate::types::Response {
+            content,
+            usage: usage.with_totals(),
+            stop_reason,
+            model: Some(config.model.clone()),
+            id: None,
+            logprobs: None,
+            grounding_metadata: None,
+            warnings: vec![],
+            request_body: None,
+        })
     }
 
     async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        if let Some(mgmt) = &self.mgmt_client {
-            let resp =
-                mgmt.list_foundation_models()
-                    .send()
-                    .await
-                    .map_err(|e| ProviderError::Api {
-                        status: 0,
-                        message: e.to_string(),
-                    })?;
+        let Some(mgmt) = &self.mgmt_client else {
+            return Err(ProviderError::Unsupported(
+                "list_models requires a management client (unavailable when using from_client())".into(),
+            ));
+        };
+        let resp = mgmt
+            .list_foundation_models()
+            .send()
+            .await
+            .map_err(|e| map_bedrock_mgmt_error(e.into()))?;
 
-            let models = resp
-                .model_summaries()
-                .iter()
-                .map(|m| ModelInfo {
-                    id: m.model_id().to_string(),
-                    display_name: m.model_name().map(|s| s.to_string()),
-                    description: None,
-                    created_at: None,
-                })
-                .collect();
-            Ok(models)
-        } else {
-            Err(ProviderError::Unsupported(
-                "list_models requires SDK credentials; not available for from_client() or with_api_key()".into(),
-            ))
-        }
+        let models = resp
+            .model_summaries()
+            .iter()
+            .map(|m| ModelInfo {
+                id: m.model_id().to_string(),
+                display_name: m.model_name().map(|s| s.to_string()),
+                description: None,
+                created_at: None,
+            })
+            .collect();
+        Ok(models)
     }
 
     async fn embed(
@@ -665,14 +509,28 @@ impl Provider for BedrockProvider {
     ) -> Result<EmbeddingResponse, ProviderError> {
         // Build the invoke_model request body based on the model family
         let body = if model.contains("cohere.embed") {
-            // Cohere Embed on Bedrock
+            // Cohere Embed V3 on Bedrock — fixed 1024 dims, no dimension control
             json!({
                 "texts": request.inputs,
                 "input_type": "search_document",
                 "embedding_types": ["float"],
             })
+        } else if model.contains("titan-embed-image") {
+            // Titan Multimodal Embeddings G1 — uses embeddingConfig.outputEmbeddingLength
+            let mut b = json!({
+                "inputText": request.inputs.first().cloned().unwrap_or_default(),
+            });
+            if let Some(dims) = request.dimensions {
+                b["embeddingConfig"] = json!({ "outputEmbeddingLength": dims });
+            }
+            b
+        } else if model.contains("titan-embed-text-v1") {
+            // Titan Embed Text V1 — fixed 1536 dims, no extra parameters accepted
+            json!({
+                "inputText": request.inputs.first().cloned().unwrap_or_default(),
+            })
         } else {
-            // Titan Embed V2 (default): amazon.titan-embed-text-v2:0
+            // Titan Embed Text V2+ — supports dimensions (256/512/1024) + normalize
             let mut b = json!({
                 "inputText": request.inputs.first().cloned().unwrap_or_default(),
                 "normalize": true,
@@ -748,17 +606,22 @@ impl Provider for BedrockProvider {
             .unwrap_or("standard");
 
         // Nova Canvas and Titan Image Generator share the same request/response format
+        let mut img_config = json!({
+            "numberOfImages": n,
+            "width": width,
+            "height": height,
+            "quality": quality,
+        });
+        if let Some(seed) = request.seed {
+            img_config["seed"] = json!(seed);
+        }
+
         let body = json!({
             "taskType": "TEXT_IMAGE",
             "textToImageParams": {
                 "text": request.prompt,
             },
-            "imageGenerationConfig": {
-                "numberOfImages": n,
-                "width": width,
-                "height": height,
-                "quality": quality,
-            }
+            "imageGenerationConfig": img_config,
         });
 
         let resp_json = self.invoke_model_json(&request.model, &body).await?;
@@ -793,16 +656,21 @@ impl Provider for BedrockProvider {
             _ => "1280x720",
         };
 
+        let mut video_config = json!({
+            "durationSeconds": duration,
+            "fps": 24,
+            "dimension": dimension,
+        });
+        if let Some(seed) = request.seed {
+            video_config["seed"] = json!(seed);
+        }
+
         let model_input = json!({
             "taskType": "TEXT_VIDEO",
             "textToVideoParams": {
                 "text": request.prompt,
             },
-            "videoGenerationConfig": {
-                "durationSeconds": duration,
-                "fps": 24,
-                "dimension": dimension,
-            }
+            "videoGenerationConfig": video_config,
         });
 
         let arn = self
@@ -813,13 +681,166 @@ impl Provider for BedrockProvider {
         let videos = self.poll_async_invoke_until_done(&arn, s3_uri).await?;
         Ok(VideoGenerationResponse { videos })
     }
+
+    async fn count_tokens(
+        &self,
+        messages: Vec<Message>,
+        config: ProviderConfig,
+    ) -> Result<TokenCount, ProviderError> {
+        let (bedrock_msgs, sys_blocks) = build_messages_and_system(&messages, &config)?;
+        let tool_config = build_tool_config(&config)?;
+
+        let converse_req = ConverseTokensRequest::builder()
+            .set_messages(if bedrock_msgs.is_empty() {
+                None
+            } else {
+                Some(bedrock_msgs)
+            })
+            .set_system(if sys_blocks.is_empty() {
+                None
+            } else {
+                Some(sys_blocks)
+            })
+            .set_tool_config(tool_config)
+            .build();
+
+        let fut = self
+            .client
+            .count_tokens()
+            .model_id(&config.model)
+            .input(CountTokensInput::Converse(converse_req))
+            .send();
+        let resp = if let Some(ms) = config.timeout_ms {
+            tokio::time::timeout(Duration::from_millis(ms), fut)
+                .await
+                .map_err(|_| ProviderError::Timeout { ms })?
+                .map_err(|e| map_bedrock_error(e.into()))?
+        } else {
+            fut.await.map_err(|e| map_bedrock_error(e.into()))?
+        };
+
+        Ok(TokenCount {
+            input_tokens: resp.input_tokens() as u64,
+        })
+    }
+
+    /// Generate speech audio from text via Amazon Nova Sonic.
+    ///
+    /// Supported model: `amazon.nova-sonic-v1:0`.
+    /// Returns LPCM audio at 24 kHz (16-bit signed, mono) by default.
+    /// Request `AudioFormat::Mp3` to get compressed audio output.
+    async fn generate_speech(
+        &self,
+        request: SpeechRequest,
+    ) -> Result<SpeechResponse, ProviderError> {
+        // Choose output media type based on requested format.
+        let (media_type, returned_format) = match &request.response_format {
+            Some(CAudioFmt::Mp3) => ("audio/mpeg", CAudioFmt::Mp3),
+            Some(CAudioFmt::Opus) => ("audio/opus", CAudioFmt::Opus),
+            // Default: LPCM 24 kHz. Callers should treat this as raw signed-16 PCM.
+            _ => (
+                "audio/lpcm;rate=24000;encoding=signed-int;bits=16;channels=1;big-endian=false",
+                CAudioFmt::Wav,
+            ),
+        };
+
+        let prompt_name = "prompt_1";
+        let mut prompt_start = json!({
+            "promptName": prompt_name,
+            "audioOutputConfiguration": { "mediaType": media_type },
+        });
+        // Map the voice field to Nova Sonic's voiceConfiguration.
+        if !request.voice.is_empty() {
+            prompt_start["voiceConfiguration"] = json!({ "voiceId": request.voice });
+        }
+
+        let events = vec![
+            json!({"event": {"sessionStart": {"inferenceConfiguration": {"maxTokens": 4096}}}}),
+            json!({"event": {"promptStart": prompt_start}}),
+            json!({"event": {"contentBlockStart": {"promptName": prompt_name, "content": {"text": {}}}}}),
+            json!({"event": {"contentBlockDelta": {"promptName": prompt_name, "content": {"text": {"value": request.input}}}}}),
+            json!({"event": {"contentBlockStop": {"promptName": prompt_name}}}),
+            json!({"event": {"promptEnd": {"promptName": prompt_name}}}),
+            json!({"event": {"sessionEnd": {}}}),
+        ];
+
+        let output_events = self.nova_sonic_session(&request.model, events).await?;
+
+        // Collect raw audio bytes from contentBlockDelta audio events.
+        let mut audio_bytes: Vec<u8> = Vec::new();
+        for ev in &output_events {
+            if let Some(b64) =
+                ev["event"]["contentBlockDelta"]["content"]["audio"]["bytes"].as_str()
+            {
+                use base64::Engine;
+                if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64) {
+                    audio_bytes.extend_from_slice(&bytes);
+                }
+            }
+        }
+
+        Ok(SpeechResponse {
+            audio: audio_bytes,
+            format: returned_format,
+        })
+    }
+
+    /// Transcribe audio to text via Amazon Nova Sonic.
+    ///
+    /// Supported model: `amazon.nova-sonic-v1:0`.
+    /// The audio in `request.audio` must match `request.format`:
+    /// - `Mp3` → `audio/mpeg`
+    /// - `Opus` → `audio/opus`
+    /// - `Wav` / other → LPCM at 16 kHz (signed-16, mono)
+    async fn transcribe(
+        &self,
+        request: TranscriptionRequest,
+    ) -> Result<TranscriptionResponse, ProviderError> {
+        use base64::Engine;
+        let audio_b64 = base64::engine::general_purpose::STANDARD.encode(&request.audio);
+
+        let media_type = match &request.format {
+            CAudioFmt::Mp3 => "audio/mpeg",
+            CAudioFmt::Opus => "audio/opus",
+            _ => "audio/lpcm;rate=16000;encoding=signed-int;bits=16;channels=1;big-endian=false",
+        };
+
+        let prompt_name = "prompt_1";
+        let events = vec![
+            json!({"event": {"sessionStart": {"inferenceConfiguration": {"maxTokens": 4096}}}}),
+            json!({"event": {"promptStart": {"promptName": prompt_name, "audioInputConfiguration": {"mediaType": media_type}}}}),
+            json!({"event": {"contentBlockStart": {"promptName": prompt_name, "content": {"audio": {}}}}}),
+            json!({"event": {"contentBlockDelta": {"promptName": prompt_name, "content": {"audio": {"bytes": audio_b64}}}}}),
+            json!({"event": {"contentBlockStop": {"promptName": prompt_name}}}),
+            json!({"event": {"promptEnd": {"promptName": prompt_name}}}),
+            json!({"event": {"sessionEnd": {}}}),
+        ];
+
+        let output_events = self.nova_sonic_session(&request.model, events).await?;
+
+        // Collect text deltas from contentBlockDelta text events.
+        let mut transcript = String::new();
+        for ev in &output_events {
+            if let Some(text) =
+                ev["event"]["contentBlockDelta"]["content"]["text"]["value"].as_str()
+            {
+                transcript.push_str(text);
+            }
+        }
+
+        Ok(TranscriptionResponse {
+            text: transcript,
+            language: None,
+            duration_secs: None,
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
 // SDK stream event handler
 // ---------------------------------------------------------------------------
 
-fn handle_stream_event(event: ConverseStreamOutput) -> Option<Result<StreamEvent, ProviderError>> {
+fn handle_stream_event(event: ConverseStreamOutput, req_model: &str) -> Option<Result<StreamEvent, ProviderError>> {
     match event {
         ConverseStreamOutput::MessageStart(e) => {
             let role = match e.role() {
@@ -883,7 +904,7 @@ fn handle_stream_event(event: ConverseStreamOutput) -> Option<Result<StreamEvent
                 .unwrap_or_default();
             Some(Ok(StreamEvent::Metadata {
                 usage: usage.with_totals(),
-                model: None,
+                model: Some(req_model.to_string()),
                 id: None,
             }))
         }
@@ -914,6 +935,13 @@ fn build_messages_and_system(
                         sys.push(SystemContentBlock::Text(t.clone()));
                     }
                 }
+                if msg.cache_control.is_some() {
+                    let cpb = CachePointBlock::builder()
+                        .r#type(CachePointType::Default)
+                        .build()
+                        .map_err(|e| ProviderError::Config(e.to_string()))?;
+                    sys.push(SystemContentBlock::CachePoint(cpb));
+                }
             }
             Role::User | Role::Assistant => {
                 let role = if msg.role == Role::User {
@@ -921,11 +949,18 @@ fn build_messages_and_system(
                 } else {
                     ConversationRole::Assistant
                 };
-                let content: Result<Vec<BContent>, _> =
-                    msg.content.iter().map(block_to_bedrock).collect();
+                let mut content: Vec<BContent> =
+                    msg.content.iter().map(block_to_bedrock).collect::<Result<_, _>>()?;
+                if msg.cache_control.is_some() {
+                    let cpb = CachePointBlock::builder()
+                        .r#type(CachePointType::Default)
+                        .build()
+                        .map_err(|e| ProviderError::Config(e.to_string()))?;
+                    content.push(BContent::CachePoint(cpb));
+                }
                 let bmsg = BMessage::builder()
                     .role(role)
-                    .set_content(Some(content?))
+                    .set_content(Some(content))
                     .build()
                     .map_err(|e| ProviderError::Config(e.to_string()))?;
                 bmsgs.push(bmsg);
@@ -995,11 +1030,121 @@ fn build_inference_config(config: &ProviderConfig) -> InferenceConfiguration {
     b.build()
 }
 
+/// Extract the three shared guardrail params from `config.extra`, or return `None` if no guardrail
+/// is configured (`guardrail_id` is the required key).
+fn guardrail_params(config: &ProviderConfig) -> Option<(String, String, GuardrailTrace)> {
+    let id = config.extra.get("guardrail_id")?.as_str()?.to_string();
+    let version = config
+        .extra
+        .get("guardrail_version")
+        .and_then(|v| v.as_str())
+        .unwrap_or("DRAFT")
+        .to_string();
+    let trace = GuardrailTrace::from(
+        config
+            .extra
+            .get("guardrail_trace")
+            .and_then(|v| v.as_str())
+            .unwrap_or("disabled"),
+    );
+    Some((id, version, trace))
+}
+
+fn build_guardrail_config(config: &ProviderConfig) -> Option<GuardrailConfiguration> {
+    let (id, version, trace) = guardrail_params(config)?;
+    Some(
+        GuardrailConfiguration::builder()
+            .guardrail_identifier(id)
+            .guardrail_version(version)
+            .trace(trace)
+            .build(),
+    )
+}
+
+fn build_guardrail_stream_config(config: &ProviderConfig) -> Option<GuardrailStreamConfiguration> {
+    let (id, version, trace) = guardrail_params(config)?;
+    Some(
+        GuardrailStreamConfiguration::builder()
+            .guardrail_identifier(id)
+            .guardrail_version(version)
+            .trace(trace)
+            .build(),
+    )
+}
+
+fn build_performance_config(config: &ProviderConfig) -> Option<PerformanceConfiguration> {
+    let latency_str = config
+        .extra
+        .get("performance_config_latency")
+        .and_then(|v| v.as_str())?;
+    Some(
+        PerformanceConfiguration::builder()
+            .latency(PerformanceConfigLatency::from(latency_str))
+            .build(),
+    )
+}
+
+fn build_request_metadata_map(
+    config: &ProviderConfig,
+) -> Option<std::collections::HashMap<String, String>> {
+    let obj = config.extra.get("request_metadata")?.as_object()?;
+    let map: std::collections::HashMap<String, String> = obj
+        .iter()
+        .map(|(k, v)| {
+            let s = match v {
+                Value::String(s) => s.clone(),
+                other => other.to_string(),
+            };
+            (k.clone(), s)
+        })
+        .collect();
+    if map.is_empty() { None } else { Some(map) }
+}
+
+fn build_prompt_variables_map(
+    config: &ProviderConfig,
+) -> Option<std::collections::HashMap<String, PromptVariableValues>> {
+    let obj = config.extra.get("prompt_variables")?.as_object()?;
+    let map: std::collections::HashMap<String, PromptVariableValues> = obj
+        .iter()
+        .map(|(k, v)| {
+            let text = match v {
+                Value::String(s) => s.clone(),
+                other => other.to_string(),
+            };
+            (k.clone(), PromptVariableValues::Text(text))
+        })
+        .collect();
+    if map.is_empty() { None } else { Some(map) }
+}
+
+fn build_amr_paths(config: &ProviderConfig) -> Vec<String> {
+    config
+        .extra
+        .get("additional_model_response_field_paths")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
+        .unwrap_or_default()
+}
+
 fn build_tool_config(config: &ProviderConfig) -> Result<Option<ToolConfiguration>, ProviderError> {
-    if config.tools.is_empty() {
+    // ToolChoice::None means "send no tool config at all"
+    if matches!(config.tool_choice, Some(ToolChoice::None)) {
         return Ok(None);
     }
-    let tools: Result<Vec<BTool>, ProviderError> = config
+
+    let sys_tool_names: Vec<&str> = config
+        .extra
+        .get("system_tools")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect())
+        .unwrap_or_default();
+
+    if config.tools.is_empty() && sys_tool_names.is_empty() {
+        return Ok(None);
+    }
+
+    let mut tools: Vec<BTool> = config
         .tools
         .iter()
         .map(|t| {
@@ -1011,15 +1156,23 @@ fn build_tool_config(config: &ProviderConfig) -> Result<Option<ToolConfiguration
                 .map_err(|e| ProviderError::Config(e.to_string()))?;
             Ok(BTool::ToolSpec(spec))
         })
-        .collect();
+        .collect::<Result<Vec<_>, ProviderError>>()?;
 
-    let mut builder = ToolConfiguration::builder().set_tools(Some(tools?));
+    for name in sys_tool_names {
+        let sys_tool = SystemTool::builder()
+            .name(name)
+            .build()
+            .map_err(|e| ProviderError::Config(e.to_string()))?;
+        tools.push(BTool::SystemTool(sys_tool));
+    }
+
+    let mut builder = ToolConfiguration::builder().set_tools(Some(tools));
 
     if let Some(choice) = &config.tool_choice {
         let bc = match choice {
             ToolChoice::Auto => BToolChoice::Auto(AutoToolChoice::builder().build()),
             ToolChoice::Any => BToolChoice::Any(AnyToolChoice::builder().build()),
-            ToolChoice::None => return Ok(None),
+            ToolChoice::None => unreachable!("ToolChoice::None handled at top of build_tool_config"),
             ToolChoice::Tool { name } => BToolChoice::Tool(
                 SpecificToolChoice::builder()
                     .name(name)
@@ -1091,9 +1244,18 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                         .map_err(|e| ProviderError::Serialization(e.to_string()))?;
                     DocumentSource::Bytes(Blob::new(bytes))
                 }
+                MediaSource::S3(s3) => {
+                    let s3_loc = S3Location::builder()
+                        .uri(&s3.uri)
+                        .set_bucket_owner(s3.bucket_owner.clone())
+                        .build()
+                        .map_err(|e| ProviderError::Config(e.to_string()))?;
+                    DocumentSource::S3Location(s3_loc)
+                }
+                MediaSource::Text(text) => DocumentSource::Text(text.clone()),
                 _ => {
                     return Err(ProviderError::Unsupported(
-                        "Bedrock documents require base64 source".into(),
+                        "Bedrock documents require base64 bytes, S3, or text source".into(),
                     ));
                 }
             };
@@ -1162,6 +1324,28 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                                 None
                             }
                         }),
+                    ContentBlock::Document(doc) => {
+                        block_to_bedrock(&ContentBlock::Document(doc.clone()))
+                            .ok()
+                            .and_then(|bc| {
+                                if let BContent::Document(db) = bc {
+                                    Some(ToolResultContentBlock::Document(db))
+                                } else {
+                                    None
+                                }
+                            })
+                    }
+                    ContentBlock::Video(video) => {
+                        block_to_bedrock(&ContentBlock::Video(video.clone()))
+                            .ok()
+                            .and_then(|bc| {
+                                if let BContent::Video(vb) = bc {
+                                    Some(ToolResultContentBlock::Video(vb))
+                                } else {
+                                    None
+                                }
+                            })
+                    }
                     _ => None,
                 })
                 .collect();
@@ -1190,9 +1374,36 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
             ))
         }
 
-        ContentBlock::Audio(_) => Err(ProviderError::Unsupported(
-            "Audio via Converse API not supported; use InvokeModel directly".into(),
-        )),
+        ContentBlock::Audio(audio) => {
+            let (fmt, source) = match &audio.source {
+                MediaSource::Base64(b64) => {
+                    use base64::Engine;
+                    let bytes = base64::engine::general_purpose::STANDARD
+                        .decode(&b64.data)
+                        .map_err(|e| ProviderError::Serialization(e.to_string()))?;
+                    (caudio_to_bedrock(&audio.format), BAudioSource::Bytes(Blob::new(bytes)))
+                }
+                MediaSource::S3(s3) => {
+                    let s3_loc = S3Location::builder()
+                        .uri(&s3.uri)
+                        .set_bucket_owner(s3.bucket_owner.clone())
+                        .build()
+                        .map_err(|e| ProviderError::Config(e.to_string()))?;
+                    (caudio_to_bedrock(&audio.format), BAudioSource::S3Location(s3_loc))
+                }
+                _ => {
+                    return Err(ProviderError::Unsupported(
+                        "Bedrock audio requires base64 bytes or S3 source".into(),
+                    ));
+                }
+            };
+            let ab = AudioBlock::builder()
+                .format(fmt)
+                .source(source)
+                .build()
+                .map_err(|e| ProviderError::Config(e.to_string()))?;
+            Ok(BContent::Audio(ab))
+        }
     }
 }
 
@@ -1215,292 +1426,22 @@ fn bedrock_content_to_block(block: &BContent) -> Option<ContentBlock> {
 }
 
 // ---------------------------------------------------------------------------
-// API key HTTP backend
-// ---------------------------------------------------------------------------
-
-async fn api_key_complete(
-    http_client: &HttpClient,
-    api_key: &str,
-    region: &str,
-    endpoint_url: Option<&str>,
-    messages: &[Message],
-    config: &ProviderConfig,
-) -> Result<crate::types::Response, ProviderError> {
-    let url = if let Some(base) = endpoint_url {
-        format!(
-            "{}/model/{}/converse",
-            base.trim_end_matches('/'),
-            config.model
-        )
-    } else {
-        format!(
-            "https://bedrock-runtime.{}.amazonaws.com/model/{}/converse",
-            region, config.model
-        )
-    };
-
-    let body = build_converse_json(messages, config)?;
-
-    let resp = http_client
-        .post(&url)
-        .header("Content-Type", "application/json")
-        .header("Authorization", format!("Bearer {}", api_key))
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| ProviderError::Network(e.to_string()))?;
-
-    let status = resp.status().as_u16();
-    let text = resp.text().await.unwrap_or_default();
-
-    if status == 429 {
-        return Err(ProviderError::TooManyRequests {
-            message: text,
-            retry_after_secs: None,
-        });
-    }
-    if status != 200 {
-        let lower = text.to_lowercase();
-        if lower.contains("context_length_exceeded")
-            || lower.contains("context window")
-            || lower.contains("input is too long")
-        {
-            return Err(ProviderError::ContextWindowExceeded(text));
-        }
-        return Err(ProviderError::Api {
-            status,
-            message: text,
-        });
-    }
-
-    let json: Value =
-        serde_json::from_str(&text).map_err(|e| ProviderError::Serialization(e.to_string()))?;
-    parse_converse_response(&json)
-}
-
-fn build_converse_json(
-    messages: &[Message],
-    config: &ProviderConfig,
-) -> Result<Value, ProviderError> {
-    let mut json_messages: Vec<Value> = Vec::new();
-    let mut system_blocks: Vec<Value> = Vec::new();
-
-    if let Some(s) = &config.system {
-        system_blocks.push(json!({"text": s}));
-    }
-
-    for msg in messages {
-        match msg.role {
-            Role::System => {
-                for block in &msg.content {
-                    if let ContentBlock::Text(t) = block {
-                        system_blocks.push(json!({"text": t}));
-                    }
-                }
-            }
-            Role::User | Role::Assistant => {
-                let role_str = if msg.role == Role::User {
-                    "user"
-                } else {
-                    "assistant"
-                };
-                let content: Result<Vec<Value>, ProviderError> =
-                    msg.content.iter().map(block_to_converse_json).collect();
-                json_messages.push(json!({ "role": role_str, "content": content? }));
-            }
-        }
-    }
-
-    let mut body = json!({ "messages": json_messages });
-
-    if !system_blocks.is_empty() {
-        body["system"] = json!(system_blocks);
-    }
-
-    // inferenceConfig
-    let mut inf = serde_json::Map::new();
-    if let Some(m) = config.max_tokens {
-        inf.insert("maxTokens".into(), json!(m));
-    }
-    if let Some(t) = config.temperature {
-        inf.insert("temperature".into(), json!(t));
-    }
-    if let Some(p) = config.top_p {
-        inf.insert("topP".into(), json!(p));
-    }
-    if !config.stop_sequences.is_empty() {
-        inf.insert("stopSequences".into(), json!(config.stop_sequences));
-    }
-    if !inf.is_empty() {
-        body["inferenceConfig"] = Value::Object(inf);
-    }
-
-    // toolConfig
-    if !config.tools.is_empty() {
-        let tools: Vec<Value> = config
-            .tools
-            .iter()
-            .map(|t| {
-                json!({
-                    "toolSpec": {
-                        "name": t.name,
-                        "description": t.description,
-                        "inputSchema": {"json": t.input_schema}
-                    }
-                })
-            })
-            .collect();
-        let mut tool_config = json!({ "tools": tools });
-        if let Some(choice) = &config.tool_choice {
-            tool_config["toolChoice"] = match choice {
-                ToolChoice::Auto => json!({"auto": {}}),
-                ToolChoice::Any => json!({"any": {}}),
-                ToolChoice::Tool { name } => json!({"tool": {"name": name}}),
-                ToolChoice::None => json!({"auto": {}}),
-            };
-        }
-        body["toolConfig"] = tool_config;
-    }
-
-    // thinking
-    if let Some(budget) = config.thinking_budget {
-        body["additionalModelRequestFields"] = json!({
-            "thinking": {"type": "enabled", "budget_tokens": budget}
-        });
-    }
-
-    Ok(body)
-}
-
-fn block_to_converse_json(block: &ContentBlock) -> Result<Value, ProviderError> {
-    match block {
-        ContentBlock::Text(t) => Ok(json!({"text": t})),
-
-        ContentBlock::Image(img) => {
-            let fmt = img.format.as_ref().map(img_fmt_str).unwrap_or("jpeg");
-            match &img.source {
-                MediaSource::Base64(b64) => Ok(json!({
-                    "image": { "format": fmt, "source": {"bytes": b64.data} }
-                })),
-                MediaSource::S3(s3) => Ok(json!({
-                    "image": { "format": fmt, "source": {"s3Location": {"uri": s3.uri}} }
-                })),
-                _ => Err(ProviderError::Unsupported(
-                    "Bedrock images require base64 or S3".into(),
-                )),
-            }
-        }
-
-        ContentBlock::Document(doc) => match &doc.source {
-            MediaSource::Base64(b64) => Ok(json!({
-                "document": {
-                    "format": doc_fmt_str(&doc.format),
-                    "name": doc.name.as_deref().unwrap_or("document"),
-                    "source": {"bytes": b64.data}
-                }
-            })),
-            _ => Err(ProviderError::Unsupported(
-                "Bedrock documents require base64".into(),
-            )),
-        },
-
-        ContentBlock::ToolUse(tu) => Ok(json!({
-            "toolUse": { "toolUseId": tu.id, "name": tu.name, "input": tu.input }
-        })),
-
-        ContentBlock::ToolResult(tr) => {
-            let content: Vec<Value> = tr
-                .content
-                .iter()
-                .filter_map(|b| match b {
-                    ContentBlock::Text(t) => Some(json!({"text": t})),
-                    _ => None,
-                })
-                .collect();
-            Ok(json!({
-                "toolResult": {
-                    "toolUseId": tr.tool_use_id,
-                    "content": content,
-                    "status": if tr.is_error { "error" } else { "success" }
-                }
-            }))
-        }
-
-        ContentBlock::Thinking(th) => Ok(json!({
-            "reasoningContent": {
-                "reasoningText": { "text": th.thinking, "signature": th.signature }
-            }
-        })),
-
-        ContentBlock::Video(_) | ContentBlock::Audio(_) => Err(ProviderError::Unsupported(
-            "Video/Audio not supported via Bedrock API key".into(),
-        )),
-    }
-}
-
-fn parse_converse_response(body: &Value) -> Result<crate::types::Response, ProviderError> {
-    let content_arr = body["output"]["message"]["content"]
-        .as_array()
-        .ok_or_else(|| ProviderError::Serialization("Missing content array in response".into()))?;
-
-    let content: Vec<ContentBlock> = content_arr
-        .iter()
-        .filter_map(parse_converse_content_block)
-        .collect();
-
-    let usage = Usage {
-        input_tokens: body["usage"]["inputTokens"].as_u64().unwrap_or(0),
-        output_tokens: body["usage"]["outputTokens"].as_u64().unwrap_or(0),
-        ..Default::default()
-    };
-
-    let stop_reason = match body["stopReason"].as_str() {
-        Some("end_turn") | None => StopReason::EndTurn,
-        Some("tool_use") => StopReason::ToolUse,
-        Some("max_tokens") => StopReason::MaxTokens,
-        Some("stop_sequence") => StopReason::StopSequence(String::new()),
-        Some("content_filtered") | Some("guardrail_intervened") => StopReason::ContentFilter,
-        Some(other) => StopReason::Other(other.to_string()),
-    };
-
-    Ok(crate::types::Response {
-        content,
-        usage: usage.with_totals(),
-        stop_reason,
-        model: None,
-        id: None,
-        logprobs: None,
-        grounding_metadata: None,
-        warnings: vec![],
-        request_body: None,
-    })
-}
-
-fn parse_converse_content_block(c: &Value) -> Option<ContentBlock> {
-    if let Some(text) = c["text"].as_str() {
-        return Some(ContentBlock::Text(text.to_string()));
-    }
-    if let Some(tu) = c.get("toolUse") {
-        return Some(ContentBlock::ToolUse(ToolUseBlock {
-            id: tu["toolUseId"].as_str().unwrap_or("").to_string(),
-            name: tu["name"].as_str().unwrap_or("").to_string(),
-            input: tu["input"].clone(),
-        }));
-    }
-    if let Some(rc) = c.get("reasoningContent")
-        && let Some(rt) = rc.get("reasoningText")
-    {
-        return Some(ContentBlock::Thinking(ThinkingBlock {
-            thinking: rt["text"].as_str().unwrap_or("").to_string(),
-            signature: rt["signature"].as_str().map(|s| s.to_string()),
-        }));
-    }
-    None
-}
-
-// ---------------------------------------------------------------------------
 // Format conversions
 // ---------------------------------------------------------------------------
+
+fn caudio_to_bedrock(fmt: &CAudioFmt) -> BAudioFmt {
+    match fmt {
+        CAudioFmt::Mp3 => BAudioFmt::Mp3,
+        CAudioFmt::Wav => BAudioFmt::Wav,
+        CAudioFmt::Aac => BAudioFmt::Aac,
+        CAudioFmt::Flac => BAudioFmt::Flac,
+        CAudioFmt::Ogg => BAudioFmt::Ogg,
+        CAudioFmt::Webm => BAudioFmt::Webm,
+        CAudioFmt::M4a => BAudioFmt::M4A,
+        CAudioFmt::Opus => BAudioFmt::Opus,
+        CAudioFmt::Aiff => BAudioFmt::from("aiff"),
+    }
+}
 
 fn cimg_to_bedrock(fmt: Option<&CImgFmt>) -> ImageFormat {
     match fmt {
@@ -1508,17 +1449,6 @@ fn cimg_to_bedrock(fmt: Option<&CImgFmt>) -> ImageFormat {
         Some(CImgFmt::Gif) => ImageFormat::Gif,
         Some(CImgFmt::Webp) => ImageFormat::Webp,
         Some(CImgFmt::Jpeg) | Some(CImgFmt::Heic) | Some(CImgFmt::Heif) | None => ImageFormat::Jpeg,
-    }
-}
-
-fn img_fmt_str(fmt: &CImgFmt) -> &'static str {
-    match fmt {
-        CImgFmt::Jpeg => "jpeg",
-        CImgFmt::Png => "png",
-        CImgFmt::Gif => "gif",
-        CImgFmt::Webp => "webp",
-        CImgFmt::Heic => "jpeg", // Bedrock doesn't support HEIC, fall back
-        CImgFmt::Heif => "jpeg",
     }
 }
 
@@ -1533,20 +1463,6 @@ fn cdoc_to_bedrock(fmt: &CDocFmt) -> DocumentFormat {
         CDocFmt::Html => DocumentFormat::Html,
         CDocFmt::Txt => DocumentFormat::Txt,
         CDocFmt::Md => DocumentFormat::Md,
-    }
-}
-
-fn doc_fmt_str(fmt: &CDocFmt) -> &'static str {
-    match fmt {
-        CDocFmt::Pdf => "pdf",
-        CDocFmt::Csv => "csv",
-        CDocFmt::Doc => "doc",
-        CDocFmt::Docx => "docx",
-        CDocFmt::Xls => "xls",
-        CDocFmt::Xlsx => "xlsx",
-        CDocFmt::Html => "html",
-        CDocFmt::Txt => "txt",
-        CDocFmt::Md => "md",
     }
 }
 
@@ -1574,6 +1490,87 @@ fn parse_stop_reason(r: Option<&BStopReason>) -> StopReason {
         Some(BStopReason::GuardrailIntervened) => StopReason::ContentFilter,
         Some(other) => StopReason::Other(other.as_str().to_string()),
         None => StopReason::EndTurn,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Error mapping helpers
+// ---------------------------------------------------------------------------
+
+/// Classify an AWS SDK Bedrock runtime error into a [`ProviderError`].
+fn map_bedrock_error(e: aws_sdk_bedrockruntime::Error) -> ProviderError {
+    use aws_sdk_bedrockruntime::Error as BE;
+    match e {
+        BE::ThrottlingException(inner) => ProviderError::TooManyRequests {
+            message: inner.to_string(),
+            retry_after_secs: None,
+        },
+        BE::ModelNotReadyException(inner) => ProviderError::TooManyRequests {
+            message: inner.to_string(),
+            retry_after_secs: None,
+        },
+        BE::ServiceQuotaExceededException(inner) => ProviderError::TooManyRequests {
+            message: inner.to_string(),
+            retry_after_secs: None,
+        },
+        BE::AccessDeniedException(inner) => ProviderError::Auth(inner.to_string()),
+        BE::ResourceNotFoundException(inner) => ProviderError::ModelNotFound {
+            model: inner.to_string(),
+        },
+        BE::ModelTimeoutException(_) => ProviderError::Timeout { ms: 0 },
+        BE::InternalServerException(inner) => ProviderError::Api {
+            status: 500,
+            message: inner.to_string(),
+        },
+        BE::ServiceUnavailableException(inner) => ProviderError::Api {
+            status: 503,
+            message: inner.to_string(),
+        },
+        BE::ModelErrorException(inner) => ProviderError::Api {
+            status: 424,
+            message: inner.to_string(),
+        },
+        BE::ValidationException(inner) => {
+            let msg = inner.to_string();
+            let lower = msg.to_lowercase();
+            if lower.contains("context window")
+                || lower.contains("input is too long")
+                || lower.contains("too many tokens")
+            {
+                ProviderError::ContextWindowExceeded(msg)
+            } else if lower.contains("doesn't support")
+                || lower.contains("does not support")
+                || lower.contains("not supported")
+            {
+                ProviderError::Unsupported(msg)
+            } else {
+                ProviderError::Api { status: 400, message: msg }
+            }
+        }
+        e => {
+            let msg = e.to_string();
+            if msg.to_lowercase().contains("timeout") {
+                ProviderError::Timeout { ms: 0 }
+            } else {
+                ProviderError::Api { status: 0, message: msg }
+            }
+        }
+    }
+}
+
+/// Classify an AWS SDK Bedrock management-plane error into a [`ProviderError`].
+fn map_bedrock_mgmt_error(e: aws_sdk_bedrock::Error) -> ProviderError {
+    use aws_sdk_bedrock::Error as BE;
+    match e {
+        BE::ThrottlingException(inner) => ProviderError::TooManyRequests {
+            message: inner.to_string(),
+            retry_after_secs: None,
+        },
+        BE::AccessDeniedException(inner) => ProviderError::Auth(inner.to_string()),
+        BE::ResourceNotFoundException(inner) => ProviderError::ModelNotFound {
+            model: inner.to_string(),
+        },
+        e => ProviderError::Api { status: 0, message: e.to_string() },
     }
 }
 
@@ -1639,7 +1636,7 @@ mod tests {
         let original = json!({
             "string": "hello",
             "number": 42,
-            "float": 3.14,
+            "float": std::f64::consts::PI,
             "bool": true,
             "null": null,
             "array": [1, 2, 3],
@@ -1656,120 +1653,5 @@ mod tests {
         let doc = json_to_document(&val);
         let back = document_to_json(&doc);
         assert_eq!(val, back);
-    }
-
-    #[test]
-    fn parse_converse_response_text() {
-        let body = json!({
-            "output": {
-                "message": {
-                    "role": "assistant",
-                    "content": [{"text": "Hello world"}]
-                }
-            },
-            "stopReason": "end_turn",
-            "usage": {"inputTokens": 10, "outputTokens": 5}
-        });
-        let resp = parse_converse_response(&body).unwrap();
-        assert_eq!(resp.content.len(), 1);
-        assert!(matches!(&resp.content[0], ContentBlock::Text(t) if t == "Hello world"));
-        assert_eq!(resp.usage.input_tokens, 10);
-        assert_eq!(resp.usage.output_tokens, 5);
-        assert_eq!(resp.stop_reason, StopReason::EndTurn);
-    }
-
-    #[test]
-    fn parse_converse_response_tool_use() {
-        let body = json!({
-            "output": {
-                "message": {
-                    "role": "assistant",
-                    "content": [{
-                        "toolUse": {
-                            "toolUseId": "call_123",
-                            "name": "my_tool",
-                            "input": {"key": "value"}
-                        }
-                    }]
-                }
-            },
-            "stopReason": "tool_use",
-            "usage": {"inputTokens": 20, "outputTokens": 10}
-        });
-        let resp = parse_converse_response(&body).unwrap();
-        assert_eq!(resp.stop_reason, StopReason::ToolUse);
-        let ContentBlock::ToolUse(tu) = &resp.content[0] else {
-            panic!("expected ToolUse")
-        };
-        assert_eq!(tu.id, "call_123");
-        assert_eq!(tu.name, "my_tool");
-        assert_eq!(tu.input["key"], "value");
-    }
-
-    #[test]
-    fn parse_converse_response_thinking() {
-        let body = json!({
-            "output": {
-                "message": {
-                    "role": "assistant",
-                    "content": [{
-                        "reasoningContent": {
-                            "reasoningText": {
-                                "text": "Let me think...",
-                                "signature": "sig123"
-                            }
-                        }
-                    }]
-                }
-            },
-            "stopReason": "end_turn",
-            "usage": {"inputTokens": 5, "outputTokens": 15}
-        });
-        let resp = parse_converse_response(&body).unwrap();
-        let ContentBlock::Thinking(th) = &resp.content[0] else {
-            panic!("expected Thinking")
-        };
-        assert_eq!(th.thinking, "Let me think...");
-        assert_eq!(th.signature.as_deref(), Some("sig123"));
-    }
-
-    #[test]
-    fn build_converse_json_basic() {
-        use crate::types::ProviderConfig;
-        let messages = vec![Message {
-            role: Role::User,
-            content: vec![ContentBlock::Text("Hello".to_string())],
-            name: None,
-            cache_control: None,
-        }];
-        let config = ProviderConfig::new("us.amazon.nova-lite-v1:0").with_max_tokens(100);
-        let body = build_converse_json(&messages, &config).unwrap();
-        assert_eq!(body["messages"][0]["role"], "user");
-        assert_eq!(body["messages"][0]["content"][0]["text"], "Hello");
-        assert_eq!(body["inferenceConfig"]["maxTokens"], 100);
-    }
-
-    #[test]
-    fn build_converse_json_system() {
-        use crate::types::ProviderConfig;
-        let messages = vec![];
-        let mut config = ProviderConfig::new("test-model");
-        config.system = Some("You are a helpful assistant".to_string());
-        let body = build_converse_json(&messages, &config).unwrap();
-        assert_eq!(body["system"][0]["text"], "You are a helpful assistant");
-    }
-
-    #[test]
-    fn build_converse_json_tools() {
-        use crate::types::{ProviderConfig, Tool};
-        let messages = vec![];
-        let mut config = ProviderConfig::new("test-model");
-        config.tools = vec![Tool::new(
-            "search",
-            "Search the web",
-            json!({"type": "object", "properties": {"query": {"type": "string"}}}),
-        )];
-        let body = build_converse_json(&messages, &config).unwrap();
-        assert_eq!(body["toolConfig"]["tools"][0]["toolSpec"]["name"], "search");
     }
 }

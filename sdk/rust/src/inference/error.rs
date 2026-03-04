@@ -76,7 +76,9 @@ impl ProviderError {
     pub fn is_retryable(&self) -> bool {
         match self {
             Self::Network(_) | Self::Timeout { .. } | Self::TooManyRequests { .. } => true,
-            Self::Api { status, .. } => *status >= 500,
+            // 5xx are server errors; 424 (Failed Dependency) is used by Bedrock for
+            // transient infrastructure issues ("try your request again").
+            Self::Api { status, .. } => *status >= 500 || *status == 424,
             _ => false,
         }
     }
