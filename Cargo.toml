@@ -89,6 +89,9 @@ semver = "1.0"
 # AWS SDKs
 aws-sdk-s3 = "1.87"
 aws-sdk-secretsmanager = "1"
+aws-sdk-bedrockruntime = "1"
+aws-sdk-bedrock = "1"
+aws-credential-types = "1"
 aws-config = { version = "1.7", features = ["behavior-version-latest"] }
 
 # Cache (moka for in-memory, deadpool-redis for Redis)
