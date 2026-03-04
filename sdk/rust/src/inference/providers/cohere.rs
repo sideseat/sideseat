@@ -11,8 +11,8 @@ use crate::{
     providers::sse::{check_response, sse_data_stream},
     types::{
         ContentBlock, ContentBlockStart, ContentDelta, EmbeddingRequest, EmbeddingResponse,
-        EmbeddingTaskType, Message, ModelInfo, ProviderConfig, Role, StopReason, StreamEvent, Tool,
-        ToolChoice, ToolUseBlock, Usage,
+        EmbeddingTaskType, ImageContent, MediaSource, Message, ModelInfo, ProviderConfig, Role,
+        StopReason, StreamEvent, TokenCount, Tool, ToolChoice, ToolUseBlock, Usage,
     },
 };
 
@@ -31,6 +31,13 @@ pub struct CohereProvider {
 }
 
 impl CohereProvider {
+    /// Create a provider from the `COHERE_API_KEY` environment variable.
+    pub fn from_env() -> Result<Self, ProviderError> {
+        let key = std::env::var("COHERE_API_KEY")
+            .map_err(|_| ProviderError::Config("COHERE_API_KEY not set".into()))?;
+        Ok(Self::new(key))
+    }
+
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
             api_key: api_key.into(),
@@ -55,6 +62,10 @@ impl CohereProvider {
 
 #[async_trait]
 impl Provider for CohereProvider {
+    fn provider_name(&self) -> &'static str {
+        "cohere"
+    }
+
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         let api_key = self.api_key.clone();
         let client = Arc::clone(&self.client);
@@ -66,13 +77,14 @@ impl Provider for CohereProvider {
                 Err(e) => { yield Err(e); return; }
             };
 
-            let resp = match client
+            let mut req_builder = client
                 .post(&base_url)
                 .bearer_auth(&api_key)
-                .json(&body)
-                .send()
-                .await
-            {
+                .json(&body);
+            if let Some(ms) = config.timeout_ms {
+                req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
+            }
+            let resp = match req_builder.send().await {
                 Ok(r) => r,
                 Err(e) => { yield Err(e.into()); return; }
             };
@@ -220,13 +232,15 @@ impl Provider for CohereProvider {
     ) -> Result<crate::types::Response, ProviderError> {
         let body = build_request(&messages, &config, false)?;
 
-        let resp = self
+        let mut req_builder = self
             .client
             .post(&self.base_url)
             .bearer_auth(&self.api_key)
-            .json(&body)
-            .send()
-            .await?;
+            .json(&body);
+        if let Some(ms) = config.timeout_ms {
+            req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
+        }
+        let resp = req_builder.send().await?;
 
         let resp = check_response(resp).await?;
         let json: Value = resp.json().await?;
@@ -274,18 +288,22 @@ impl Provider for CohereProvider {
                 EmbeddingTaskType::SemanticSimilarity => "semantic_similarity",
                 EmbeddingTaskType::Classification => "classification",
                 EmbeddingTaskType::Clustering => "clustering",
-                // Fall back to search_document for task types not supported by Cohere
-                _ => "search_document",
+                EmbeddingTaskType::QuestionAnswering => "search_query",
+                EmbeddingTaskType::FactVerification => "fact_verification",
+                EmbeddingTaskType::CodeRetrievalQuery => "code",
             })
             .unwrap_or("search_document");
 
-        let body = json!({
+        let mut body = json!({
             "model": model,
             "texts": request.inputs,
             "input_type": input_type,
             "embedding_types": ["float"],
             "truncate": "END",
         });
+        if let Some(dims) = request.dimensions {
+            body["output_dimension"] = json!(dims);
+        }
 
         let resp = self
             .client
@@ -324,6 +342,49 @@ impl Provider for CohereProvider {
             usage,
         })
     }
+
+    async fn count_tokens(
+        &self,
+        messages: Vec<Message>,
+        config: ProviderConfig,
+    ) -> Result<TokenCount, ProviderError> {
+        let url = format!("{}/tokenize", self.api_base);
+
+        // Flatten all message text for tokenization
+        let text: String = messages
+            .iter()
+            .flat_map(|m| &m.content)
+            .filter_map(|b| {
+                if let ContentBlock::Text(t) = b {
+                    Some(t.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        let body = serde_json::json!({
+            "text": text,
+            "model": config.model,
+        });
+
+        let resp = self
+            .client
+            .post(&url)
+            .bearer_auth(&self.api_key)
+            .json(&body)
+            .send()
+            .await?;
+        let resp = check_response(resp).await?;
+        let json: serde_json::Value = resp.json().await?;
+
+        let input_tokens = json["tokens"]
+            .as_array()
+            .map(|a| a.len() as u64)
+            .unwrap_or(0);
+        Ok(TokenCount { input_tokens })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -361,6 +422,12 @@ fn build_request(
     if !config.stop_sequences.is_empty() {
         req["stop_sequences"] = json!(config.stop_sequences);
     }
+    if let Some(penalty) = config.presence_penalty {
+        req["presence_penalty"] = json!(penalty);
+    }
+    if let Some(penalty) = config.frequency_penalty {
+        req["frequency_penalty"] = json!(penalty);
+    }
 
     if !config.tools.is_empty() {
         req["tools"] = format_tools(&config.tools);
@@ -390,7 +457,9 @@ fn format_messages(messages: &[Message], system: Option<&str>) -> Result<Value, 
     for msg in messages {
         let role = match msg.role {
             Role::System => {
-                result.push(json!({"role": "system", "content": format_content_str(&msg.content)}));
+                result.push(
+                    json!({"role": "system", "content": format_content_blocks(&msg.content)}),
+                );
                 continue;
             }
             Role::User => "user",
@@ -497,25 +566,59 @@ fn format_messages(messages: &[Message], system: Option<&str>) -> Result<Value, 
             }
         }
 
-        let content = format_content_str(&msg.content);
+        let content = format_content_blocks(&msg.content);
         result.push(json!({"role": role, "content": content}));
     }
 
     Ok(json!(result))
 }
 
-fn format_content_str(blocks: &[ContentBlock]) -> String {
-    blocks
+/// Format content blocks for Cohere v2 chat.
+/// Returns a JSON string when text-only, or a JSON array when images are present.
+fn format_content_blocks(blocks: &[ContentBlock]) -> serde_json::Value {
+    let has_images = blocks.iter().any(|b| matches!(b, ContentBlock::Image(_)));
+    if !has_images {
+        // Text-only: return plain string (Cohere default)
+        let text: String = blocks
+            .iter()
+            .filter_map(|b| {
+                if let ContentBlock::Text(t) = b {
+                    Some(t.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("");
+        return json!(text);
+    }
+    // Mixed content: return array format
+    let parts: Vec<serde_json::Value> = blocks
         .iter()
-        .filter_map(|b| {
-            if let ContentBlock::Text(t) = b {
-                Some(t.as_str())
-            } else {
-                None
-            }
+        .filter_map(|b| match b {
+            ContentBlock::Text(t) if !t.is_empty() => Some(json!({"type": "text", "text": t})),
+            ContentBlock::Image(img) => format_cohere_image(img),
+            _ => None,
         })
-        .collect::<Vec<_>>()
-        .join("")
+        .collect();
+    json!(parts)
+}
+
+fn format_cohere_image(img: &ImageContent) -> Option<serde_json::Value> {
+    match &img.source {
+        MediaSource::Url(url) => Some(json!({
+            "type": "image_url",
+            "image_url": {"url": url}
+        })),
+        MediaSource::Base64(b64) => {
+            let data_url = format!("data:{};base64,{}", b64.media_type, b64.data);
+            Some(json!({
+                "type": "image_url",
+                "image_url": {"url": data_url}
+            }))
+        }
+        _ => None,
+    }
 }
 
 fn format_tools(tools: &[Tool]) -> Value {
@@ -588,6 +691,10 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
         stop_reason,
         model,
         id: None,
+        logprobs: None,
+        grounding_metadata: None,
+        warnings: vec![],
+        request_body: None,
     })
 }
 

@@ -28,14 +28,11 @@ const VERTEX_ANTHROPIC_VERSION: &str = "vertex-2023-10-16";
 
 /// Selects which backend the `AnthropicProvider` uses to send requests.
 #[derive(Clone)]
-pub enum AnthropicBackend {
+pub(crate) enum AnthropicBackend {
     /// Direct Anthropic API — uses `X-Api-Key` header.
     Direct { api_key: String, base_url: String },
     /// AWS Bedrock — Anthropic Messages API format via `invoke_model_with_response_stream`.
-    Bedrock {
-        client: Arc<BedrockClient>,
-        region: String,
-    },
+    Bedrock { client: Arc<BedrockClient> },
     /// Google Vertex AI — Anthropic Messages API format via SSE to aiplatform.googleapis.com.
     Vertex {
         project_id: String,
@@ -73,6 +70,13 @@ pub struct AnthropicProvider {
 }
 
 impl AnthropicProvider {
+    /// Create a provider from the `ANTHROPIC_API_KEY` environment variable.
+    pub fn from_env() -> Result<Self, ProviderError> {
+        let key = std::env::var("ANTHROPIC_API_KEY")
+            .map_err(|_| ProviderError::Config("ANTHROPIC_API_KEY not set".into()))?;
+        Ok(Self::new(key))
+    }
+
     /// Create a direct Anthropic API provider.
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
@@ -112,12 +116,12 @@ impl AnthropicProvider {
     }
 
     /// Create a provider backed by AWS Bedrock (Anthropic Messages API format).
-    pub fn from_bedrock(client: Arc<BedrockClient>, region: impl Into<String>) -> Self {
+    ///
+    /// The region is determined by the `BedrockClient` configuration — no separate
+    /// `region` parameter is needed.
+    pub fn from_bedrock(client: Arc<BedrockClient>) -> Self {
         Self {
-            backend: AnthropicBackend::Bedrock {
-                client,
-                region: region.into(),
-            },
+            backend: AnthropicBackend::Bedrock { client },
             client: Arc::new(reqwest::Client::new()),
             betas: Vec::new(),
         }
@@ -174,9 +178,13 @@ impl AnthropicProvider {
         base_url: &str,
         betas: &[String],
         body: Value,
+        timeout_ms: Option<u64>,
     ) -> Result<Value, ProviderError> {
-        let req =
+        let mut req =
             Self::add_direct_headers(client.post(format!("{base_url}/messages")), api_key, betas);
+        if let Some(ms) = timeout_ms {
+            req = req.timeout(std::time::Duration::from_millis(ms));
+        }
         let resp = req.json(&body).send().await?;
         let resp = check_response(resp).await?;
         Ok(resp.json().await?)
@@ -189,15 +197,18 @@ impl AnthropicProvider {
         access_token: &str,
         model: &str,
         body: Value,
+        timeout_ms: Option<u64>,
     ) -> Result<Value, ProviderError> {
         let url = Self::vertex_url(project_id, location, model, false);
-        let resp = client
+        let mut req = client
             .post(url)
             .bearer_auth(access_token)
             .header("content-type", "application/json")
-            .json(&body)
-            .send()
-            .await?;
+            .json(&body);
+        if let Some(ms) = timeout_ms {
+            req = req.timeout(std::time::Duration::from_millis(ms));
+        }
+        let resp = req.send().await?;
         let resp = check_response(resp).await?;
         Ok(resp.json().await?)
     }
@@ -209,6 +220,10 @@ impl AnthropicProvider {
 
 #[async_trait]
 impl Provider for AnthropicProvider {
+    fn provider_name(&self) -> &'static str {
+        "anthropic"
+    }
+
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         let backend = self.backend.clone();
         let client = Arc::clone(&self.client);
@@ -228,11 +243,14 @@ impl Provider for AnthropicProvider {
                         Err(e) => { yield Err(e); return; }
                     };
 
-                    let req = AnthropicProvider::add_direct_headers(
+                    let mut req = AnthropicProvider::add_direct_headers(
                         client.post(format!("{base_url}/messages")),
                         api_key,
                         &betas,
                     );
+                    if let Some(ms) = config.timeout_ms {
+                        req = req.timeout(std::time::Duration::from_millis(ms));
+                    }
                     let resp = match req.json(&body).send().await {
                         Ok(r) => r,
                         Err(e) => { yield Err(e.into()); return; }
@@ -311,14 +329,15 @@ impl Provider for AnthropicProvider {
                         Err(e) => { yield Err(e); return; }
                     };
                     let url = AnthropicProvider::vertex_url(project_id, location, &config.model, true);
-                    let resp = match client
+                    let mut vertex_req = client
                         .post(url)
                         .bearer_auth(access_token)
                         .header("content-type", "application/json")
-                        .json(&body)
-                        .send()
-                        .await
-                    {
+                        .json(&body);
+                    if let Some(ms) = config.timeout_ms {
+                        vertex_req = vertex_req.timeout(std::time::Duration::from_millis(ms));
+                    }
+                    let resp = match vertex_req.send().await {
                         Ok(r) => r,
                         Err(e) => { yield Err(e.into()); return; }
                     };
@@ -364,6 +383,7 @@ impl Provider for AnthropicProvider {
                     base_url,
                     &betas,
                     body,
+                    config.timeout_ms,
                 )
                 .await?;
                 parse_response(&json)
@@ -386,7 +406,9 @@ impl Provider for AnthropicProvider {
                     })?;
                 let json: Value = serde_json::from_slice(resp.body.as_ref())
                     .map_err(|e| ProviderError::Serialization(e.to_string()))?;
-                parse_response(&json)
+                let mut response = parse_response(&json)?;
+                add_backend_warnings(&config, &messages, &mut response.warnings);
+                Ok(response)
             }
             AnthropicBackend::Vertex {
                 project_id,
@@ -401,9 +423,12 @@ impl Provider for AnthropicProvider {
                     access_token,
                     &config.model,
                     body,
+                    config.timeout_ms,
                 )
                 .await?;
-                parse_response(&json)
+                let mut response = parse_response(&json)?;
+                add_backend_warnings(&config, &messages, &mut response.warnings);
+                Ok(response)
             }
         }
     }
@@ -506,7 +531,7 @@ fn build_vertex_request(
 
 /// Returns extra beta headers automatically required by the given config.
 /// These are merged with any user-specified betas before sending the request.
-pub(crate) fn compute_auto_betas(config: &ProviderConfig, messages: &[Message]) -> Vec<String> {
+fn compute_auto_betas(config: &ProviderConfig, messages: &[Message]) -> Vec<String> {
     let mut betas: Vec<String> = Vec::new();
 
     // Web search requires its own beta
@@ -652,6 +677,13 @@ fn apply_common_fields(
         req["metadata"] = json!({"user_id": user});
     }
 
+    // Parallel tool calls: Anthropic uses the inverse flag `disable_parallel_tool_use`
+    if let Some(parallel) = config.parallel_tool_calls
+        && !parallel
+    {
+        req["disable_parallel_tool_use"] = json!(true);
+    }
+
     Ok(())
 }
 
@@ -788,6 +820,20 @@ fn parse_sse_events(data: &str) -> Vec<Result<StreamEvent, ProviderError>> {
                 Role::Assistant
             };
             events.push(Ok(StreamEvent::MessageStart { role }));
+            // Emit id from message_start so collect_stream can capture it
+            if let Some(id) = parsed["message"]["id"].as_str() {
+                let input_tokens = parsed["message"]["usage"]["input_tokens"]
+                    .as_u64()
+                    .unwrap_or(0);
+                events.push(Ok(StreamEvent::Metadata {
+                    usage: crate::types::Usage {
+                        input_tokens,
+                        ..Default::default()
+                    },
+                    model: parsed["message"]["model"].as_str().map(|s| s.to_string()),
+                    id: Some(id.to_string()),
+                }));
+            }
         }
         "content_block_start" => {
             let index = parsed["index"].as_u64().unwrap_or(0) as usize;
@@ -872,6 +918,24 @@ fn parse_sse_events(data: &str) -> Vec<Result<StreamEvent, ProviderError>> {
 }
 
 // ---------------------------------------------------------------------------
+// Backend warning helpers
+// ---------------------------------------------------------------------------
+
+/// Populate `warnings` for features that are silently ignored on non-Direct backends.
+fn add_backend_warnings(config: &ProviderConfig, messages: &[Message], warnings: &mut Vec<String>) {
+    if config.parallel_tool_calls.is_some() {
+        warnings.push(
+            "parallel_tool_calls is not supported on Vertex/Bedrock Anthropic and was ignored"
+                .to_string(),
+        );
+    }
+    if messages.iter().any(|m| m.cache_control.is_some()) {
+        warnings
+            .push("cache_control is only supported on direct Anthropic API; ignored".to_string());
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Response parsing
 // ---------------------------------------------------------------------------
 
@@ -897,13 +961,18 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
     };
 
     let model = json["model"].as_str().map(|s| s.to_string());
+    let id = json["id"].as_str().map(|s| s.to_string());
 
     Ok(crate::types::Response {
         content,
         usage: usage.with_totals(),
         stop_reason,
         model,
-        id: None,
+        id,
+        logprobs: None,
+        grounding_metadata: None,
+        warnings: vec![],
+        request_body: None,
     })
 }
 

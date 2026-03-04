@@ -29,6 +29,7 @@ fn user_msg(text: &str) -> Message {
     Message {
         role: Role::User,
         content: vec![ContentBlock::Text(text.to_string())],
+        name: None,
         cache_control: None,
     }
 }

@@ -29,23 +29,56 @@
 //!
 //! See <https://sideseat.ai/docs> for full documentation.
 
+#[path = "inference/error.rs"]
 pub mod error;
+#[path = "inference/mcp.rs"]
+pub mod mcp;
+#[path = "inference/middleware.rs"]
+pub mod middleware;
+#[path = "inference/mock.rs"]
+pub mod mock;
+#[path = "inference/provider.rs"]
 pub mod provider;
+#[path = "inference/providers/mod.rs"]
 pub mod providers;
+#[path = "inference/registry.rs"]
+pub mod registry;
+#[path = "inference/telemetry.rs"]
+pub mod telemetry;
+#[path = "inference/types.rs"]
 pub mod types;
 
 // Convenient re-exports
 pub use error::ProviderError;
-pub use provider::{
-    FallbackProvider, Provider, ProviderExt, ProviderStream, RetryProvider, TextStream,
-    batch_complete, collect_stream, collect_stream_with_events, run_agent_loop,
+pub use middleware::{
+    DefaultSettingsMiddleware, ExtractReasoningMiddleware, ImageModelMiddleware, LoggingMiddleware,
+    Middleware, MiddlewareStack, SimulateStreamingMiddleware, TelemetryMiddleware,
+    TimingMiddleware, WrappedImageModel, wrap_image_model,
 };
+pub use mock::{MockProvider, MockResponse};
+pub use provider::{
+    AgentHooks, DefaultHooks, FallbackProvider, Provider, ProviderExt, ProviderStream, RetryConfig,
+    RetryProvider, TextStream, batch_complete, batch_generate_images, collect_stream,
+    collect_stream_with_events, generate_text, record_stream, run_agent_loop,
+    run_agent_loop_with_hooks, stream_text, wrap_language_model,
+};
+pub use registry::ProviderRegistry;
+pub use telemetry::{InstrumentedProvider, SideSeat, SideSeatGuard, TelemetryConfig};
 pub use types::{
-    AudioContent, AudioFormat, Base64Data, CacheControl, ContentBlock, ContentBlockStart,
-    ContentDelta, ConversationBuilder, CostEstimate, DocumentContent, DocumentFormat,
-    EmbeddingRequest, EmbeddingResponse, EmbeddingTaskType, ImageContent, ImageFormat, MediaSource,
-    Message, ModelInfo, ProviderConfig, ReasoningEffort, Response, ResponseFormat, Role,
-    S3Location, ServiceTier, StopReason, StreamEvent, ThinkingBlock, TokenCount, Tool, ToolChoice,
-    ToolResultBlock, ToolUseBlock, Usage, UsageAccumulator, VideoContent, VideoFormat,
-    WebSearchConfig, estimate_tokens, truncate_messages,
+    AgentResult, AgentStep, AudioContent, AudioFormat, Base64Data, CacheControl, ContentBlock,
+    ContentBlockStart, ContentDelta, ConversationBuilder, CostEstimate, DocumentContent,
+    DocumentFormat, EmbeddingRequest, EmbeddingResponse, EmbeddingTaskType, FallbackStrategy,
+    FallbackTrigger, GeneratedImage, GeneratedVideo, GroundingChunk, GroundingMetadata,
+    ImageContent, ImageFormat, ImageGenerationRequest, ImageGenerationResponse, ImageOutputFormat,
+    ImageQuality, ImageSize, ImageStyle, MediaSource, Message, ModelCapability, ModelInfo,
+    PartialConfig, PromptTemplate, ProviderConfig, ReasoningEffort, RequestMetadata, Response,
+    ResponseFormat, Role, S3Location, SafetyCategory, SafetySetting, SafetyThreshold, ServiceTier,
+    SpeechRequest, SpeechResponse, StopReason, StreamEvent, StreamRecording, ThinkingBlock,
+    TokenCount, TokenLogprob, Tool, ToolChoice, ToolResultBlock, ToolUseBlock, TopLogprob,
+    TranscriptionRequest, TranscriptionResponse, Usage, UsageAccumulator, VideoAspectRatio,
+    VideoContent, VideoFormat, VideoGenerationRequest, VideoGenerationResponse, VideoResolution,
+    WebSearchConfig, cosine_similarity, estimate_tokens, euclidean_distance, model_capabilities,
+    normalize_embedding, should_fallback, supports_audio_input, supports_audio_output,
+    supports_extended_thinking, supports_function_calling, supports_vision, truncate_messages,
+    validate_messages,
 };

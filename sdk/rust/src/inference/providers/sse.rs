@@ -35,11 +35,21 @@ pub(crate) async fn check_response(response: Response) -> Result<Response, Provi
     }
 
     let status_code = status.as_u16();
-    let body = response.text().await.unwrap_or_default();
 
     if status_code == 429 {
-        return Err(ProviderError::RateLimited(body));
+        let retry_after_secs = response
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok());
+        let body = response.text().await.unwrap_or_default();
+        return Err(ProviderError::TooManyRequests {
+            message: body,
+            retry_after_secs,
+        });
     }
+
+    let body = response.text().await.unwrap_or_default();
 
     // Detect context window errors
     let lower = body.to_lowercase();

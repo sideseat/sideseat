@@ -33,6 +33,13 @@ pub struct OpenAIResponsesProvider {
 }
 
 impl OpenAIResponsesProvider {
+    /// Create a provider from the `OPENAI_API_KEY` environment variable.
+    pub fn from_env() -> Result<Self, ProviderError> {
+        let key = std::env::var("OPENAI_API_KEY")
+            .map_err(|_| ProviderError::Config("OPENAI_API_KEY not set".into()))?;
+        Ok(Self::new(key))
+    }
+
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
             api_key: api_key.into(),
@@ -77,6 +84,10 @@ impl OpenAIResponsesProvider {
 
 #[async_trait]
 impl Provider for OpenAIResponsesProvider {
+    fn provider_name(&self) -> &'static str {
+        "openai"
+    }
+
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         let api_key = self.api_key.clone();
         let client = Arc::clone(&self.client);
@@ -89,13 +100,14 @@ impl Provider for OpenAIResponsesProvider {
                 Err(e) => { yield Err(e); return; }
             };
 
-            let resp = match client
+            let mut req_builder = client
                 .post(&base_url)
                 .bearer_auth(&api_key)
-                .json(&body)
-                .send()
-                .await
-            {
+                .json(&body);
+            if let Some(ms) = config.timeout_ms {
+                req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
+            }
+            let resp = match req_builder.send().await {
                 Ok(r) => r,
                 Err(e) => { yield Err(e.into()); return; }
             };
@@ -208,8 +220,9 @@ impl Provider for OpenAIResponsesProvider {
                         };
                         let usage = parse_usage(&response["usage"]);
                         let model = response["model"].as_str().map(|s| s.to_string());
+                        let id = response["id"].as_str().map(|s| s.to_string());
                         yield Ok(StreamEvent::MessageStop { stop_reason });
-                        yield Ok(StreamEvent::Metadata { usage, model, id: None });
+                        yield Ok(StreamEvent::Metadata { usage, model, id });
                         return;
                     }
                     "response.failed" => {
@@ -236,13 +249,15 @@ impl Provider for OpenAIResponsesProvider {
             self.previous_response_id.as_deref(),
         )?;
 
-        let resp = self
+        let mut req_builder = self
             .client
             .post(&self.base_url)
             .bearer_auth(&self.api_key)
-            .json(&body)
-            .send()
-            .await?;
+            .json(&body);
+        if let Some(ms) = config.timeout_ms {
+            req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
+        }
+        let resp = req_builder.send().await?;
 
         let resp = check_response(resp).await?;
         let json: Value = resp.json().await?;
@@ -400,10 +415,20 @@ fn build_request(
     }
 
     // Web search
-    if let Some(_ws) = &config.web_search {
+    if let Some(ws) = &config.web_search {
         let tools = req["tools"].as_array_mut().cloned().unwrap_or_default();
         let mut all_tools = tools;
-        all_tools.push(json!({"type": "web_search_preview"}));
+        let mut ws_tool = json!({"type": "web_search_preview"});
+        if let Some(allowed) = &ws.allowed_domains {
+            ws_tool["search_context_size"] = json!("medium"); // default
+            ws_tool["user_location"] = json!(null);
+            // Pass domains via the search_context config
+            ws_tool["allowed_domains"] = json!(allowed);
+        }
+        if let Some(blocked) = &ws.blocked_domains {
+            ws_tool["blocked_domains"] = json!(blocked);
+        }
+        all_tools.push(ws_tool);
         req["tools"] = json!(all_tools);
     }
 
@@ -426,6 +451,15 @@ fn build_request(
 
     if let Some(user) = &config.user {
         req["user"] = json!(user);
+    }
+    if let Some(penalty) = config.presence_penalty {
+        req["presence_penalty"] = json!(penalty);
+    }
+    if let Some(penalty) = config.frequency_penalty {
+        req["frequency_penalty"] = json!(penalty);
+    }
+    if let Some(n) = config.n {
+        req["n"] = json!(n);
     }
 
     for (k, v) in &config.extra {
@@ -642,6 +676,10 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
         stop_reason,
         model,
         id,
+        logprobs: None,
+        grounding_metadata: None,
+        warnings: vec![],
+        request_body: None,
     })
 }
 

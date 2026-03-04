@@ -14,8 +14,17 @@ pub enum ProviderError {
     #[error("Context window exceeded: {0}")]
     ContextWindowExceeded(String),
 
-    #[error("Rate limited: {0}")]
-    RateLimited(String),
+    #[error("Request timed out after {ms}ms")]
+    Timeout { ms: u64 },
+
+    #[error("Model not found: {model}")]
+    ModelNotFound { model: String },
+
+    #[error("Too many requests: {message}")]
+    TooManyRequests {
+        message: String,
+        retry_after_secs: Option<u64>,
+    },
 
     #[error("Serialization error: {0}")]
     Serialization(String),
@@ -28,14 +37,23 @@ pub enum ProviderError {
 
     #[error("Unsupported feature: {0}")]
     Unsupported(String),
+
+    #[error("Content filtered: {0}")]
+    ContentFilterViolation(String),
 }
 
 impl From<reqwest::Error> for ProviderError {
     fn from(e: reqwest::Error) -> Self {
+        if e.is_timeout() {
+            return ProviderError::Timeout { ms: 0 };
+        }
         if e.is_status() {
             let status = e.status().map(|s| s.as_u16()).unwrap_or(0);
             if status == 429 {
-                return ProviderError::RateLimited(e.to_string());
+                return ProviderError::TooManyRequests {
+                    message: e.to_string(),
+                    retry_after_secs: None,
+                };
             }
             ProviderError::Api {
                 status,
@@ -57,7 +75,7 @@ impl ProviderError {
     /// Returns true for transient errors that may succeed on retry.
     pub fn is_retryable(&self) -> bool {
         match self {
-            Self::Network(_) | Self::RateLimited(_) => true,
+            Self::Network(_) | Self::Timeout { .. } | Self::TooManyRequests { .. } => true,
             Self::Api { status, .. } => *status >= 500,
             _ => false,
         }

@@ -47,6 +47,16 @@ pub struct GeminiInteractionsProvider {
 }
 
 impl GeminiInteractionsProvider {
+    /// Create a provider from the `GEMINI_API_KEY` or `GOOGLE_API_KEY` environment variable.
+    pub fn from_env() -> Result<Self, ProviderError> {
+        let key = std::env::var("GEMINI_API_KEY")
+            .or_else(|_| std::env::var("GOOGLE_API_KEY"))
+            .map_err(|_| {
+                ProviderError::Config("GEMINI_API_KEY or GOOGLE_API_KEY not set".into())
+            })?;
+        Ok(Self::new(key))
+    }
+
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
             api_key: api_key.into(),
@@ -154,6 +164,10 @@ impl GeminiInteractionsProvider {
 
 #[async_trait]
 impl Provider for GeminiInteractionsProvider {
+    fn provider_name(&self) -> &'static str {
+        "google"
+    }
+
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         let client = Arc::clone(&self.client);
         let url = self.build_url(true);
@@ -521,6 +535,10 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
         stop_reason,
         model,
         id,
+        logprobs: None,
+        grounding_metadata: None,
+        warnings: vec![],
+        request_body: None,
     })
 }
 
