@@ -10,9 +10,11 @@ use crate::{
     providers::sse::{check_response, sse_data_stream},
     types::{
         AudioContent, ContentBlock, ContentBlockStart, ContentDelta, DocumentContent,
-        EmbeddingRequest, EmbeddingResponse, EmbeddingTaskType, ImageContent, MediaSource, Message,
-        ModelInfo, ProviderConfig, ResponseFormat, Role, StopReason, StreamEvent, TokenCount,
-        ToolUseBlock, Usage, VideoContent,
+        EmbeddingRequest, EmbeddingResponse, EmbeddingTaskType, GeneratedImage, GeneratedVideo,
+        GroundingChunk, GroundingMetadata, ImageContent, ImageGenerationRequest,
+        ImageGenerationResponse, MediaSource, Message, ModelInfo, ProviderConfig, ResponseFormat,
+        Role, StopReason, StreamEvent, TokenCount, ToolUseBlock, Usage, VideoContent,
+        VideoGenerationRequest, VideoGenerationResponse,
     },
 };
 
@@ -66,6 +68,16 @@ pub struct GeminiProvider {
 }
 
 impl GeminiProvider {
+    /// Create a provider from the `GEMINI_API_KEY` or `GOOGLE_API_KEY` environment variable.
+    pub fn from_env() -> Result<Self, ProviderError> {
+        let key = std::env::var("GEMINI_API_KEY")
+            .or_else(|_| std::env::var("GOOGLE_API_KEY"))
+            .map_err(|_| {
+                ProviderError::Config("GEMINI_API_KEY or GOOGLE_API_KEY not set".into())
+            })?;
+        Ok(Self::new(GeminiAuth::ApiKey(key)))
+    }
+
     pub fn new(auth: GeminiAuth) -> Self {
         Self {
             auth,
@@ -211,7 +223,30 @@ impl GeminiProvider {
             req["generationConfig"] = gen_config;
         }
 
-        // Tools
+        // Generation config: presence/frequency penalty
+        if config.presence_penalty.is_some() || config.frequency_penalty.is_some() {
+            let gen_cfg = req["generationConfig"].as_object_mut();
+            if let Some(gc) = gen_cfg {
+                if let Some(pp) = config.presence_penalty {
+                    gc.insert("presencePenalty".to_string(), json!(pp));
+                }
+                if let Some(fp) = config.frequency_penalty {
+                    gc.insert("frequencyPenalty".to_string(), json!(fp));
+                }
+            } else {
+                let mut gc = serde_json::Map::new();
+                if let Some(pp) = config.presence_penalty {
+                    gc.insert("presencePenalty".to_string(), json!(pp));
+                }
+                if let Some(fp) = config.frequency_penalty {
+                    gc.insert("frequencyPenalty".to_string(), json!(fp));
+                }
+                req["generationConfig"] = Value::Object(gc);
+            }
+        }
+
+        // Tools (function declarations + optional web search)
+        let mut all_tools: Vec<Value> = Vec::new();
         if !config.tools.is_empty() {
             let function_decls: Vec<Value> = config
                 .tools
@@ -224,7 +259,29 @@ impl GeminiProvider {
                     })
                 })
                 .collect();
-            req["tools"] = json!([{"functionDeclarations": function_decls}]);
+            all_tools.push(json!({"functionDeclarations": function_decls}));
+        }
+        // Web search → googleSearch tool
+        if config.web_search.is_some() {
+            all_tools.push(json!({"googleSearch": {}}));
+        }
+        if !all_tools.is_empty() {
+            req["tools"] = json!(all_tools);
+        }
+
+        // Safety settings
+        if !config.safety_settings.is_empty() {
+            let safety: Vec<Value> = config
+                .safety_settings
+                .iter()
+                .map(|s| {
+                    json!({
+                        "category": s.category.as_str(),
+                        "threshold": s.threshold.as_str(),
+                    })
+                })
+                .collect();
+            req["safetySettings"] = json!(safety);
         }
 
         // Tool config
@@ -248,6 +305,10 @@ impl GeminiProvider {
 
 #[async_trait]
 impl Provider for GeminiProvider {
+    fn provider_name(&self) -> &'static str {
+        "google"
+    }
+
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         let auth = self.auth.clone();
         let client = Arc::clone(&self.client);
@@ -263,6 +324,9 @@ impl Provider for GeminiProvider {
             let url = provider.build_url(&config.model, true);
             let mut req_builder = client.post(&url).json(&body);
             req_builder = provider.add_auth_header(req_builder);
+            if let Some(ms) = config.timeout_ms {
+                req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
+            }
 
             let resp = match req_builder.send().await {
                 Ok(r) => r,
@@ -354,6 +418,19 @@ impl Provider for GeminiProvider {
                             delta: ContentDelta::ToolInput { partial_json: args_str },
                         });
                         yield Ok(StreamEvent::ContentBlockStop { index: block_idx });
+                    } else if let Some(inline_data) = part.get("inlineData")
+                        && let (Some(media_type), Some(data)) = (
+                            inline_data["mimeType"].as_str(),
+                            inline_data["data"].as_str(),
+                        )
+                    {
+                        let idx = next_index;
+                        next_index += 1;
+                        yield Ok(StreamEvent::InlineData {
+                            index: idx,
+                            media_type: media_type.to_string(),
+                            b64_data: data.to_string(),
+                        });
                     }
                 }
 
@@ -389,6 +466,9 @@ impl Provider for GeminiProvider {
         let url = self.build_url(&config.model, false);
         let mut req_builder = self.client.post(&url).json(&body);
         req_builder = self.add_auth_header(req_builder);
+        if let Some(ms) = config.timeout_ms {
+            req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
+        }
 
         let resp = req_builder.send().await?;
         let resp = check_response(resp).await?;
@@ -549,6 +629,145 @@ impl Provider for GeminiProvider {
                 model: Some(model.to_string()),
                 usage: Usage::default(),
             })
+        }
+    }
+
+    /// Generate images using the Imagen API (`{model}:predict`).
+    ///
+    /// Supported models: `imagen-3.0-generate-001`, `imagen-3.0-fast-generate-001`.
+    async fn generate_image(
+        &self,
+        request: ImageGenerationRequest,
+    ) -> Result<ImageGenerationResponse, ProviderError> {
+        let url = self.build_model_url(&request.model, "predict");
+
+        let aspect_ratio = request
+            .size
+            .as_ref()
+            .map(|s| s.as_aspect_ratio())
+            .unwrap_or("1:1");
+
+        let mut params = json!({
+            "sampleCount": request.n.unwrap_or(1),
+            "aspectRatio": aspect_ratio,
+        });
+        if let Some(seed) = request.seed {
+            params["seed"] = json!(seed);
+        }
+        let body = json!({
+            "instances": [{"prompt": request.prompt}],
+            "parameters": params,
+        });
+
+        let mut req_builder = self.client.post(&url).json(&body);
+        req_builder = self.add_auth_header(req_builder);
+        let resp = req_builder.send().await?;
+        let resp = check_response(resp).await?;
+        let json: Value = resp.json().await?;
+
+        let images = json["predictions"]
+            .as_array()
+            .unwrap_or(&vec![])
+            .iter()
+            .map(|pred| GeneratedImage {
+                url: None,
+                b64_json: pred["bytesBase64Encoded"].as_str().map(|s| s.to_string()),
+                revised_prompt: None,
+            })
+            .collect();
+
+        Ok(ImageGenerationResponse { images })
+    }
+
+    /// Generate videos using the Veo API (`{model}:predictLongRunning`), with polling.
+    ///
+    /// Supported models: `veo-2.0-generate-001`.
+    /// Polls every 5 seconds for up to 5 minutes.
+    async fn generate_video(
+        &self,
+        request: VideoGenerationRequest,
+    ) -> Result<VideoGenerationResponse, ProviderError> {
+        let url = self.build_model_url(&request.model, "predictLongRunning");
+
+        let mut params = json!({ "sampleCount": request.n.unwrap_or(1) });
+        if let Some(ar) = &request.aspect_ratio {
+            params["aspectRatio"] = json!(ar.as_str());
+        }
+        if let Some(dur) = request.duration_secs {
+            params["durationSeconds"] = json!(dur);
+        }
+        if let Some(res) = &request.resolution {
+            params["resolution"] = json!(res.as_str());
+        }
+
+        let body = json!({
+            "instances": [{"prompt": request.prompt}],
+            "parameters": params,
+        });
+
+        let mut req_builder = self.client.post(&url).json(&body);
+        req_builder = self.add_auth_header(req_builder);
+        let resp = req_builder.send().await?;
+        let resp = check_response(resp).await?;
+        let op_json: Value = resp.json().await?;
+
+        let op_name = op_json["name"].as_str().ok_or_else(|| ProviderError::Api {
+            status: 200,
+            message: "No operation name in predictLongRunning response".into(),
+        })?;
+
+        let poll_url = self.build_operation_url(op_name);
+
+        // Poll up to 60 times at 5-second intervals (5 minutes total).
+        for _ in 0..60 {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+            let mut poll_req = self.client.get(&poll_url);
+            poll_req = self.add_auth_header(poll_req);
+            let resp = poll_req.send().await?;
+            let resp = check_response(resp).await?;
+            let status: Value = resp.json().await?;
+
+            if status["done"].as_bool().unwrap_or(false) {
+                let samples = status["response"]["generateVideoResponse"]["generatedSamples"]
+                    .as_array()
+                    .cloned()
+                    .unwrap_or_default();
+
+                let videos = samples
+                    .iter()
+                    .map(|s| GeneratedVideo {
+                        uri: s["video"]["uri"].as_str().map(|u| u.to_string()),
+                        b64_json: s["video"]["bytesBase64Encoded"]
+                            .as_str()
+                            .map(|b| b.to_string()),
+                        duration_secs: None,
+                    })
+                    .collect();
+
+                return Ok(VideoGenerationResponse { videos });
+            }
+        }
+
+        Err(ProviderError::Timeout { ms: 300_000 })
+    }
+}
+
+impl GeminiProvider {
+    fn build_operation_url(&self, op_name: &str) -> String {
+        match &self.auth {
+            GeminiAuth::ApiKey(key) => {
+                format!(
+                    "https://generativelanguage.googleapis.com/v1beta/{}?key={}",
+                    op_name, key
+                )
+            }
+            GeminiAuth::VertexAI { location, .. } => {
+                format!(
+                    "https://{}-aiplatform.googleapis.com/v1/{}",
+                    location, op_name
+                )
+            }
         }
     }
 }
@@ -748,6 +967,7 @@ fn parse_gemini_response(json: &Value) -> Result<crate::types::Response, Provide
     let stop_reason = parse_gemini_finish_reason(finish_reason);
     let usage = parse_gemini_usage(&json["usageMetadata"]);
     let model = json["modelVersion"].as_str().map(|s| s.to_string());
+    let grounding_metadata = parse_grounding_metadata(&candidate["groundingMetadata"]);
 
     Ok(crate::types::Response {
         content,
@@ -755,6 +975,39 @@ fn parse_gemini_response(json: &Value) -> Result<crate::types::Response, Provide
         stop_reason,
         model,
         id: None,
+        logprobs: None,
+        grounding_metadata,
+        warnings: vec![],
+        request_body: None,
+    })
+}
+
+fn parse_grounding_metadata(val: &Value) -> Option<GroundingMetadata> {
+    if val.is_null() || !val.is_object() {
+        return None;
+    }
+    let chunks = val["groundingChunks"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .map(|c| GroundingChunk {
+                    title: c["web"]["title"].as_str().map(|s| s.to_string()),
+                    uri: c["web"]["uri"].as_str().map(|s| s.to_string()),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let search_queries = val["webSearchQueries"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|q| q.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+    Some(GroundingMetadata {
+        chunks,
+        search_queries,
     })
 }
 

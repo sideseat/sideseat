@@ -34,8 +34,19 @@ aws-smithy-types = "1"
 # SSE streaming parser
 eventsource-stream = "0.2"
 
+tracing = { workspace = true }
+opentelemetry     = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+
 # Pin utilities
 pin-project-lite = "0.2"
+
+rand = { workspace = true }
+parking_lot = { workspace = true }
+
+# MCP client integration
+rmcp = { version = "0.16.0", features = ["client"] }
 
 [dev-dependencies]
 tokio = { workspace = true }

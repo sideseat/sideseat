@@ -31,6 +31,7 @@ reqwest = { version = "0.13", features = [
   "json",
   "stream",
   "rustls",
+  "multipart",
 ], default-features = false }
 async-stream = "0.3"
 async-trait = "0.1"
@@ -59,6 +60,9 @@ uuid = { version = "1.11", features = ["v4"] }
 time = "0.3"
 
 # OpenTelemetry dependencies
+opentelemetry        = { version = "0.28", features = ["trace"] }
+opentelemetry_sdk    = { version = "0.28", features = ["rt-tokio", "trace", "metrics"] }
+opentelemetry-otlp   = { version = "0.28", features = ["trace", "metrics", "http-proto", "reqwest-client"] }
 opentelemetry-proto = { version = "0.28", features = [
   "trace",
   "metrics",
