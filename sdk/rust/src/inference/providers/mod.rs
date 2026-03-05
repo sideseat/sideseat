@@ -1,4 +1,5 @@
 mod sse;
+pub(crate) mod openai_common;
 
 pub mod anthropic;
 pub mod bedrock;

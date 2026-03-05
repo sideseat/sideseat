@@ -10,19 +10,24 @@ use crate::error::ProviderError;
 use crate::types::{
     AgentResult, AgentStep, AudioContent, AudioFormat, ContentBlock, ContentBlockStart,
     ContentDelta, EmbeddingRequest, EmbeddingResponse, FallbackStrategy, ImageContent,
-    ImageGenerationRequest, ImageGenerationResponse, MediaSource, Message, ModelInfo,
-    ProviderConfig, Response, Role, SpeechRequest, SpeechResponse, StopReason, StreamEvent,
-    StreamRecording, ThinkingBlock, TokenCount, ToolUseBlock, TranscriptionRequest,
-    TranscriptionResponse, Usage, VideoGenerationRequest, VideoGenerationResponse, should_fallback,
+    ImageEditRequest, ImageGenerationRequest, ImageGenerationResponse, MediaSource, Message,
+    ModelInfo, ModerationRequest, ModerationResponse, ProviderConfig, Response, Role, SpeechRequest,
+    SpeechResponse, StopReason, StreamEvent, StreamRecording, TextBlock, ThinkingBlock, TokenCount,
+    ToolUseBlock, TranscriptionRequest, TranscriptionResponse, Usage, VideoGenerationRequest,
+    VideoGenerationResponse, should_fallback,
 };
 
 /// Boxed stream of provider events.
 pub type ProviderStream = Pin<Box<dyn Stream<Item = Result<StreamEvent, ProviderError>> + Send>>;
 
-/// Common interface for all LLM providers.
+// ---------------------------------------------------------------------------
+// Base Provider trait
+// ---------------------------------------------------------------------------
+
+/// Base trait shared by all provider capability traits.
 ///
-/// Implement `stream()` — defaults for `complete()`, `list_models()`, `count_tokens()`, and
-/// `embed()` are provided (the latter three return `Unsupported` unless overridden).
+/// Provides identity (`provider_name`) and model enumeration (`list_models`).
+/// All capability-specific traits (`ChatProvider`, `EmbeddingProvider`, etc.) extend this.
 #[async_trait]
 pub trait Provider: Send + Sync {
     /// GenAI OTel `gen_ai.system` attribute value for this provider. Default: `"unknown"`.
@@ -30,7 +35,24 @@ pub trait Provider: Send + Sync {
         "unknown"
     }
 
-    /// Start a streaming conversation. All providers must implement this.
+    /// List available models for this provider.
+    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        Err(ProviderError::Unsupported(
+            "list_models not supported by this provider".into(),
+        ))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ChatProvider trait
+// ---------------------------------------------------------------------------
+
+/// Conversational text generation capability.
+///
+/// Implement `stream()` — defaults for `complete()` and `count_tokens()` are provided.
+#[async_trait]
+pub trait ChatProvider: Provider {
+    /// Start a streaming conversation. All chat providers must implement this.
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream;
 
     /// Run a non-streaming request. Default implementation collects the stream.
@@ -43,13 +65,6 @@ pub trait Provider: Send + Sync {
         collect_stream(stream).await
     }
 
-    /// List available models for this provider.
-    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        Err(ProviderError::Unsupported(
-            "list_models not supported by this provider".into(),
-        ))
-    }
-
     /// Count tokens for a request without generating a response.
     async fn count_tokens(
         &self,
@@ -60,39 +75,63 @@ pub trait Provider: Send + Sync {
             "count_tokens not supported by this provider".into(),
         ))
     }
+}
 
-    /// Generate embeddings for one or more texts.
+// ---------------------------------------------------------------------------
+// EmbeddingProvider trait
+// ---------------------------------------------------------------------------
+
+/// Text embedding capability. Model is specified inside `EmbeddingRequest`.
+#[async_trait]
+pub trait EmbeddingProvider: Provider {
     async fn embed(
         &self,
-        _request: EmbeddingRequest,
-        _model: &str,
-    ) -> Result<EmbeddingResponse, ProviderError> {
-        Err(ProviderError::Unsupported(
-            "embed not supported by this provider".into(),
-        ))
-    }
+        request: EmbeddingRequest,
+    ) -> Result<EmbeddingResponse, ProviderError>;
+}
 
-    /// Generate one or more images from a text prompt (DALL-E, Imagen).
+// ---------------------------------------------------------------------------
+// ImageProvider trait
+// ---------------------------------------------------------------------------
+
+/// Image generation and editing capability.
+#[async_trait]
+pub trait ImageProvider: Provider {
     async fn generate_image(
         &self,
-        _request: ImageGenerationRequest,
+        request: ImageGenerationRequest,
+    ) -> Result<ImageGenerationResponse, ProviderError>;
+
+    async fn edit_image(
+        &self,
+        _request: ImageEditRequest,
     ) -> Result<ImageGenerationResponse, ProviderError> {
         Err(ProviderError::Unsupported(
-            "generate_image not supported by this provider".into(),
+            "Image editing not supported by this provider".into(),
         ))
     }
+}
 
-    /// Generate one or more videos from a text prompt (Veo).
+// ---------------------------------------------------------------------------
+// VideoProvider trait
+// ---------------------------------------------------------------------------
+
+/// Video generation capability.
+#[async_trait]
+pub trait VideoProvider: Provider {
     async fn generate_video(
         &self,
-        _request: VideoGenerationRequest,
-    ) -> Result<VideoGenerationResponse, ProviderError> {
-        Err(ProviderError::Unsupported(
-            "generate_video not supported by this provider".into(),
-        ))
-    }
+        request: VideoGenerationRequest,
+    ) -> Result<VideoGenerationResponse, ProviderError>;
+}
 
-    /// Generate speech audio from text (TTS).
+// ---------------------------------------------------------------------------
+// AudioProvider trait
+// ---------------------------------------------------------------------------
+
+/// Audio generation, transcription, and translation capability.
+#[async_trait]
+pub trait AudioProvider: Provider {
     async fn generate_speech(
         &self,
         _request: SpeechRequest,
@@ -102,7 +141,6 @@ pub trait Provider: Send + Sync {
         ))
     }
 
-    /// Transcribe audio to text (STT).
     async fn transcribe(
         &self,
         _request: TranscriptionRequest,
@@ -111,7 +149,44 @@ pub trait Provider: Send + Sync {
             "Transcription not supported by this provider".into(),
         ))
     }
+
+    async fn translate(
+        &self,
+        _request: TranscriptionRequest,
+    ) -> Result<TranscriptionResponse, ProviderError> {
+        Err(ProviderError::Unsupported(
+            "Audio translation not supported by this provider".into(),
+        ))
+    }
 }
+
+// ---------------------------------------------------------------------------
+// ModerationProvider trait
+// ---------------------------------------------------------------------------
+
+/// Content moderation capability.
+#[async_trait]
+pub trait ModerationProvider: Provider {
+    async fn moderate(
+        &self,
+        request: ModerationRequest,
+    ) -> Result<ModerationResponse, ProviderError>;
+}
+
+// ---------------------------------------------------------------------------
+// StatefulProvider trait
+// ---------------------------------------------------------------------------
+
+/// Stateful response management (retrieve/cancel in-progress or stored responses).
+#[async_trait]
+pub trait StatefulProvider: Provider {
+    async fn retrieve_response(&self, id: &str) -> Result<serde_json::Value, ProviderError>;
+    async fn cancel_response(&self, id: &str) -> Result<serde_json::Value, ProviderError>;
+}
+
+// ---------------------------------------------------------------------------
+// collect_stream
+// ---------------------------------------------------------------------------
 
 /// Collect a `ProviderStream` into a `Response` by assembling content blocks.
 pub async fn collect_stream(stream: ProviderStream) -> Result<Response, ProviderError> {
@@ -226,7 +301,7 @@ pub async fn collect_stream(stream: ProviderStream) -> Result<Response, Provider
         }
         if let Some(text) = text_blocks.remove(&index) {
             if !text.is_empty() {
-                content.push(ContentBlock::Text(text));
+                content.push(ContentBlock::Text(TextBlock::new(text)));
             }
         } else if let Some((id, name, json_buf)) = tool_blocks.remove(&index) {
             let input = if json_buf.is_empty() {
@@ -249,6 +324,7 @@ pub async fn collect_stream(stream: ProviderStream) -> Result<Response, Provider
             content.push(ContentBlock::Image(ImageContent {
                 source: MediaSource::base64(media_type, b64_data),
                 format: None,
+                detail: None,
             }));
         } else if let Some(b64_data) = audio_blocks.remove(&index)
             && !b64_data.is_empty()
@@ -263,7 +339,7 @@ pub async fn collect_stream(stream: ProviderStream) -> Result<Response, Provider
     // Drain any remaining text/tool/thinking that had no explicit start event
     for text in text_blocks.into_values() {
         if !text.is_empty() {
-            content.push(ContentBlock::Text(text));
+            content.push(ContentBlock::Text(TextBlock::new(text)));
         }
     }
     for (id, name, json_buf) in tool_blocks.into_values() {
@@ -289,6 +365,7 @@ pub async fn collect_stream(stream: ProviderStream) -> Result<Response, Provider
         stop_reason,
         model,
         id: response_id,
+        container: None,
         logprobs: None,
         grounding_metadata: None,
         warnings: vec![],
@@ -352,9 +429,9 @@ impl Stream for TextStream {
 // ProviderExt — ergonomic single-message helpers
 // ---------------------------------------------------------------------------
 
-/// Extension trait that adds convenience methods to any `Provider`.
+/// Extension trait that adds convenience methods to any `ChatProvider`.
 #[async_trait]
-pub trait ProviderExt: Provider {
+pub trait ProviderExt: ChatProvider {
     /// Stream a single user message.
     fn ask_stream(
         &self,
@@ -387,7 +464,7 @@ pub trait ProviderExt: Provider {
     }
 }
 
-impl<T: Provider + ?Sized> ProviderExt for T {}
+impl<T: ChatProvider + ?Sized> ProviderExt for T {}
 
 // ---------------------------------------------------------------------------
 // RetryConfig
@@ -434,7 +511,7 @@ impl RetryConfig {
         self
     }
 
-    fn delay_for_attempt(&self, attempt: u32) -> u64 {
+    pub(crate) fn delay_for_attempt(&self, attempt: u32) -> u64 {
         let base = self.base_delay_ms as f64;
         let exp = self
             .backoff_multiplier
@@ -443,6 +520,29 @@ impl RetryConfig {
         let jitter = (rand::random::<f64>() * 2.0 - 1.0) * self.jitter_factor;
         ((delay * (1.0 + jitter)) as u64).min(self.max_delay_ms)
     }
+}
+
+// ---------------------------------------------------------------------------
+// retry_op helper
+// ---------------------------------------------------------------------------
+
+async fn retry_op<T, F, Fut>(config: &RetryConfig, f: F) -> Result<T, ProviderError>
+where
+    F: Fn() -> Fut,
+    Fut: Future<Output = Result<T, ProviderError>>,
+{
+    let mut last_err: Option<ProviderError> = None;
+    for attempt in 0..=config.max_retries {
+        if attempt > 0 {
+            tokio::time::sleep(tokio::time::Duration::from_millis(config.delay_for_attempt(attempt))).await;
+        }
+        match f().await {
+            Ok(r) => return Ok(r),
+            Err(e) if e.is_retryable() => last_err = Some(e),
+            Err(e) => return Err(e),
+        }
+    }
+    Err(last_err.expect("retry loop ran at least once"))
 }
 
 // ---------------------------------------------------------------------------
@@ -481,6 +581,13 @@ impl<P: Provider + Send + Sync> Provider for RetryProvider<P> {
         self.inner.provider_name()
     }
 
+    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        self.inner.list_models().await
+    }
+}
+
+#[async_trait]
+impl<P: ChatProvider + Send + Sync> ChatProvider for RetryProvider<P> {
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         self.inner.stream(messages, config)
     }
@@ -490,23 +597,10 @@ impl<P: Provider + Send + Sync> Provider for RetryProvider<P> {
         messages: Vec<Message>,
         config: ProviderConfig,
     ) -> Result<Response, ProviderError> {
-        let mut last_err: Option<ProviderError> = None;
-        for attempt in 0..=self.config.max_retries {
-            if attempt > 0 {
-                let delay = self.config.delay_for_attempt(attempt);
-                tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
-            }
-            match self.inner.complete(messages.clone(), config.clone()).await {
-                Ok(response) => return Ok(response),
-                Err(e) if e.is_retryable() => last_err = Some(e),
-                Err(e) => return Err(e),
-            }
-        }
-        Err(last_err.unwrap())
-    }
-
-    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        self.inner.list_models().await
+        retry_op(&self.config, || {
+            self.inner.complete(messages.clone(), config.clone())
+        })
+        .await
     }
 
     async fn count_tokens(
@@ -516,89 +610,84 @@ impl<P: Provider + Send + Sync> Provider for RetryProvider<P> {
     ) -> Result<TokenCount, ProviderError> {
         self.inner.count_tokens(messages, config).await
     }
+}
 
-    async fn embed(
-        &self,
-        request: EmbeddingRequest,
-        model: &str,
-    ) -> Result<EmbeddingResponse, ProviderError> {
-        let mut last_err: Option<ProviderError> = None;
-        for attempt in 0..=self.config.max_retries {
-            if attempt > 0 {
-                let delay = self.config.delay_for_attempt(attempt);
-                tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
-            }
-            match self.inner.embed(request.clone(), model).await {
-                Ok(r) => return Ok(r),
-                Err(e) if e.is_retryable() => last_err = Some(e),
-                Err(e) => return Err(e),
-            }
-        }
-        Err(last_err.unwrap())
+#[async_trait]
+impl<P: EmbeddingProvider + Send + Sync> EmbeddingProvider for RetryProvider<P> {
+    async fn embed(&self, request: EmbeddingRequest) -> Result<EmbeddingResponse, ProviderError> {
+        retry_op(&self.config, || self.inner.embed(request.clone())).await
     }
+}
 
+#[async_trait]
+impl<P: ImageProvider + Send + Sync> ImageProvider for RetryProvider<P> {
     async fn generate_image(
         &self,
         request: ImageGenerationRequest,
     ) -> Result<ImageGenerationResponse, ProviderError> {
-        let mut last_err: Option<ProviderError> = None;
-        for attempt in 0..=self.config.max_retries {
-            if attempt > 0 {
-                let delay = self.config.delay_for_attempt(attempt);
-                tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
-            }
-            match self.inner.generate_image(request.clone()).await {
-                Ok(r) => return Ok(r),
-                Err(e) if e.is_retryable() => last_err = Some(e),
-                Err(e) => return Err(e),
-            }
-        }
-        Err(last_err.unwrap())
+        retry_op(&self.config, || self.inner.generate_image(request.clone())).await
     }
 
+    async fn edit_image(
+        &self,
+        request: ImageEditRequest,
+    ) -> Result<ImageGenerationResponse, ProviderError> {
+        retry_op(&self.config, || self.inner.edit_image(request.clone())).await
+    }
+}
+
+#[async_trait]
+impl<P: VideoProvider + Send + Sync> VideoProvider for RetryProvider<P> {
     async fn generate_video(
         &self,
         request: VideoGenerationRequest,
     ) -> Result<VideoGenerationResponse, ProviderError> {
-        self.inner.generate_video(request).await
+        retry_op(&self.config, || self.inner.generate_video(request.clone())).await
     }
+}
 
+#[async_trait]
+impl<P: AudioProvider + Send + Sync> AudioProvider for RetryProvider<P> {
     async fn generate_speech(
         &self,
         request: SpeechRequest,
     ) -> Result<SpeechResponse, ProviderError> {
-        let mut last_err: Option<ProviderError> = None;
-        for attempt in 0..=self.config.max_retries {
-            if attempt > 0 {
-                let delay = self.config.delay_for_attempt(attempt);
-                tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
-            }
-            match self.inner.generate_speech(request.clone()).await {
-                Ok(r) => return Ok(r),
-                Err(e) if e.is_retryable() => last_err = Some(e),
-                Err(e) => return Err(e),
-            }
-        }
-        Err(last_err.unwrap())
+        retry_op(&self.config, || self.inner.generate_speech(request.clone())).await
     }
 
     async fn transcribe(
         &self,
         request: TranscriptionRequest,
     ) -> Result<TranscriptionResponse, ProviderError> {
-        let mut last_err: Option<ProviderError> = None;
-        for attempt in 0..=self.config.max_retries {
-            if attempt > 0 {
-                let delay = self.config.delay_for_attempt(attempt);
-                tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
-            }
-            match self.inner.transcribe(request.clone()).await {
-                Ok(r) => return Ok(r),
-                Err(e) if e.is_retryable() => last_err = Some(e),
-                Err(e) => return Err(e),
-            }
-        }
-        Err(last_err.unwrap())
+        retry_op(&self.config, || self.inner.transcribe(request.clone())).await
+    }
+
+    async fn translate(
+        &self,
+        request: TranscriptionRequest,
+    ) -> Result<TranscriptionResponse, ProviderError> {
+        retry_op(&self.config, || self.inner.translate(request.clone())).await
+    }
+}
+
+#[async_trait]
+impl<P: ModerationProvider + Send + Sync> ModerationProvider for RetryProvider<P> {
+    async fn moderate(
+        &self,
+        request: ModerationRequest,
+    ) -> Result<ModerationResponse, ProviderError> {
+        retry_op(&self.config, || self.inner.moderate(request.clone())).await
+    }
+}
+
+#[async_trait]
+impl<P: StatefulProvider + Send + Sync> StatefulProvider for RetryProvider<P> {
+    async fn retrieve_response(&self, id: &str) -> Result<serde_json::Value, ProviderError> {
+        self.inner.retrieve_response(id).await
+    }
+
+    async fn cancel_response(&self, id: &str) -> Result<serde_json::Value, ProviderError> {
+        self.inner.cancel_response(id).await
     }
 }
 
@@ -606,17 +695,17 @@ impl<P: Provider + Send + Sync> Provider for RetryProvider<P> {
 // FallbackProvider
 // ---------------------------------------------------------------------------
 
-/// Tries each provider in order, returning the first successful response.
+/// Tries each chat provider in order, returning the first successful response.
 ///
 /// Note: `stream()` only uses the first provider — partial output cannot be transparently
 /// replayed on fallback.
 pub struct FallbackProvider {
-    providers: Vec<Box<dyn Provider + Send + Sync>>,
+    providers: Vec<Box<dyn ChatProvider + Send + Sync>>,
     strategy: FallbackStrategy,
 }
 
 impl FallbackProvider {
-    pub fn new(providers: Vec<Box<dyn Provider + Send + Sync>>) -> Self {
+    pub fn new(providers: Vec<Box<dyn ChatProvider + Send + Sync>>) -> Self {
         Self {
             providers,
             strategy: FallbackStrategy::AnyError,
@@ -624,7 +713,7 @@ impl FallbackProvider {
     }
 
     pub fn with_strategy(
-        providers: Vec<Box<dyn Provider + Send + Sync>>,
+        providers: Vec<Box<dyn ChatProvider + Send + Sync>>,
         strategy: FallbackStrategy,
     ) -> Self {
         Self {
@@ -634,7 +723,7 @@ impl FallbackProvider {
     }
 
     /// Add a provider to the fallback chain.
-    pub fn push(&mut self, provider: impl Provider + 'static) {
+    pub fn push(&mut self, provider: impl ChatProvider + 'static) {
         self.providers.push(Box::new(provider));
     }
 }
@@ -648,6 +737,19 @@ impl Provider for FallbackProvider {
             .unwrap_or("unknown")
     }
 
+    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        let mut all = Vec::new();
+        for p in &self.providers {
+            if let Ok(models) = p.list_models().await {
+                all.extend(models);
+            }
+        }
+        Ok(all)
+    }
+}
+
+#[async_trait]
+impl ChatProvider for FallbackProvider {
     /// Note: only uses first provider (streaming cannot fall back mid-stream).
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         if let Some(p) = self.providers.first() {
@@ -668,86 +770,6 @@ impl Provider for FallbackProvider {
         for provider in &self.providers {
             match provider.complete(messages.clone(), config.clone()).await {
                 Ok(response) => return Ok(response),
-                Err(e) => {
-                    if should_fallback(&e, &self.strategy) {
-                        last_err = Some(e);
-                    } else {
-                        return Err(e);
-                    }
-                }
-            }
-        }
-        Err(last_err.unwrap_or_else(|| ProviderError::Config("No providers configured".into())))
-    }
-
-    async fn generate_image(
-        &self,
-        request: ImageGenerationRequest,
-    ) -> Result<ImageGenerationResponse, ProviderError> {
-        let mut last_err: Option<ProviderError> = None;
-        for provider in &self.providers {
-            match provider.generate_image(request.clone()).await {
-                Ok(r) => return Ok(r),
-                Err(e) => {
-                    if should_fallback(&e, &self.strategy) {
-                        last_err = Some(e);
-                    } else {
-                        return Err(e);
-                    }
-                }
-            }
-        }
-        Err(last_err.unwrap_or_else(|| ProviderError::Config("No providers configured".into())))
-    }
-
-    async fn generate_video(
-        &self,
-        request: VideoGenerationRequest,
-    ) -> Result<VideoGenerationResponse, ProviderError> {
-        let mut last_err: Option<ProviderError> = None;
-        for provider in &self.providers {
-            match provider.generate_video(request.clone()).await {
-                Ok(r) => return Ok(r),
-                Err(e) => {
-                    if should_fallback(&e, &self.strategy) {
-                        last_err = Some(e);
-                    } else {
-                        return Err(e);
-                    }
-                }
-            }
-        }
-        Err(last_err.unwrap_or_else(|| ProviderError::Config("No providers configured".into())))
-    }
-
-    async fn generate_speech(
-        &self,
-        request: SpeechRequest,
-    ) -> Result<SpeechResponse, ProviderError> {
-        let mut last_err: Option<ProviderError> = None;
-        for provider in &self.providers {
-            match provider.generate_speech(request.clone()).await {
-                Ok(r) => return Ok(r),
-                Err(e) => {
-                    if should_fallback(&e, &self.strategy) {
-                        last_err = Some(e);
-                    } else {
-                        return Err(e);
-                    }
-                }
-            }
-        }
-        Err(last_err.unwrap_or_else(|| ProviderError::Config("No providers configured".into())))
-    }
-
-    async fn transcribe(
-        &self,
-        request: TranscriptionRequest,
-    ) -> Result<TranscriptionResponse, ProviderError> {
-        let mut last_err: Option<ProviderError> = None;
-        for provider in &self.providers {
-            match provider.transcribe(request.clone()).await {
-                Ok(r) => return Ok(r),
                 Err(e) => {
                     if should_fallback(&e, &self.strategy) {
                         last_err = Some(e);
@@ -794,7 +816,7 @@ pub async fn run_agent_loop_with_hooks<P, F, Fut, H>(
     max_steps: Option<usize>,
 ) -> Result<AgentResult, ProviderError>
 where
-    P: Provider,
+    P: ChatProvider,
     F: Fn(Vec<ToolUseBlock>) -> Fut,
     Fut: Future<Output = Vec<(String, String)>> + Send,
     H: AgentHooks,
@@ -909,7 +931,7 @@ pub async fn run_agent_loop<P, F, Fut>(
     tool_handler: F,
 ) -> Result<Response, ProviderError>
 where
-    P: Provider,
+    P: ChatProvider,
     F: Fn(Vec<ToolUseBlock>) -> Fut,
     Fut: Future<Output = Vec<(String, String)>> + Send,
 {
@@ -930,7 +952,7 @@ where
 // ---------------------------------------------------------------------------
 
 /// Run multiple completion requests concurrently and collect all results.
-pub async fn batch_complete<P: Provider>(
+pub async fn batch_complete<P: ChatProvider>(
     provider: &P,
     requests: Vec<(Vec<Message>, ProviderConfig)>,
 ) -> Vec<Result<Response, ProviderError>> {
@@ -947,7 +969,7 @@ pub async fn batch_complete<P: Provider>(
 // ---------------------------------------------------------------------------
 
 /// Complete a conversation and return the first text block.
-pub async fn generate_text<P: Provider>(
+pub async fn generate_text<P: ChatProvider>(
     provider: &P,
     messages: Vec<Message>,
     config: ProviderConfig,
@@ -960,7 +982,7 @@ pub async fn generate_text<P: Provider>(
 }
 
 /// Stream a conversation, yielding only text delta strings.
-pub fn stream_text<P: Provider>(
+pub fn stream_text<P: ChatProvider>(
     provider: &P,
     messages: Vec<Message>,
     config: ProviderConfig,
@@ -995,7 +1017,7 @@ pub fn record_stream(stream: ProviderStream) -> (ProviderStream, StreamRecording
 // ---------------------------------------------------------------------------
 
 /// Generate multiple images concurrently. Returns one Result per request (in order).
-pub async fn batch_generate_images<P: Provider>(
+pub async fn batch_generate_images<P: ImageProvider>(
     provider: &P,
     requests: Vec<ImageGenerationRequest>,
 ) -> Vec<Result<ImageGenerationResponse, ProviderError>> {
@@ -1007,7 +1029,7 @@ pub async fn batch_generate_images<P: Provider>(
 // ---------------------------------------------------------------------------
 
 /// Wrap a provider in a MiddlewareStack for ergonomic `.with()` chaining.
-pub fn wrap_language_model<P: Provider + Send + Sync + 'static>(
+pub fn wrap_language_model<P: ChatProvider + Send + Sync + 'static>(
     provider: P,
 ) -> crate::middleware::MiddlewareStack<P> {
     crate::middleware::MiddlewareStack::new(provider)

@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 
 use crate::{
     error::ProviderError,
-    provider::{Provider, ProviderStream},
+    provider::{ChatProvider, EmbeddingProvider, Provider, ProviderStream},
     providers::sse::{check_response, sse_data_stream},
     types::{
         ContentBlock, ContentBlockStart, ContentDelta, EmbeddingRequest, EmbeddingResponse,
@@ -33,9 +33,7 @@ pub struct CohereProvider {
 impl CohereProvider {
     /// Create a provider from the `COHERE_API_KEY` environment variable.
     pub fn from_env() -> Result<Self, ProviderError> {
-        let key = std::env::var("COHERE_API_KEY")
-            .map_err(|_| ProviderError::Config("COHERE_API_KEY not set".into()))?;
-        Ok(Self::new(key))
+        Ok(Self::new(crate::env::require(crate::env::keys::COHERE_API_KEY)?))
     }
 
     pub fn new(api_key: impl Into<String>) -> Self {
@@ -66,6 +64,34 @@ impl Provider for CohereProvider {
         "cohere"
     }
 
+    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        let url = format!("{}/models", self.api_base);
+        let resp = self
+            .client
+            .get(&url)
+            .bearer_auth(&self.api_key)
+            .send()
+            .await?;
+        let resp = check_response(resp).await?;
+        let json: Value = resp.json().await?;
+
+        let mut models = Vec::new();
+        if let Some(arr) = json["models"].as_array() {
+            for item in arr {
+                models.push(ModelInfo {
+                    id: item["name"].as_str().unwrap_or("").to_string(),
+                    display_name: item["display_name"].as_str().map(|s| s.to_string()),
+                    description: item["description"].as_str().map(|s| s.to_string()),
+                    created_at: None,
+                });
+            }
+        }
+        Ok(models)
+    }
+}
+
+#[async_trait]
+impl ChatProvider for CohereProvider {
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         let api_key = self.api_key.clone();
         let client = Arc::clone(&self.client);
@@ -247,36 +273,57 @@ impl Provider for CohereProvider {
         parse_response(&json)
     }
 
-    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        let url = format!("{}/models", self.api_base);
+    async fn count_tokens(
+        &self,
+        messages: Vec<Message>,
+        config: ProviderConfig,
+    ) -> Result<TokenCount, ProviderError> {
+        let url = format!("{}/tokenize", self.api_base);
+
+        // Flatten all message text for tokenization
+        let text: String = messages
+            .iter()
+            .flat_map(|m| &m.content)
+            .filter_map(|b| {
+                if let ContentBlock::Text(t) = b {
+                    Some(t.text.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        let body = serde_json::json!({
+            "text": text,
+            "model": config.model,
+        });
+
         let resp = self
             .client
-            .get(&url)
+            .post(&url)
             .bearer_auth(&self.api_key)
+            .json(&body)
             .send()
             .await?;
         let resp = check_response(resp).await?;
-        let json: Value = resp.json().await?;
+        let json: serde_json::Value = resp.json().await?;
 
-        let mut models = Vec::new();
-        if let Some(arr) = json["models"].as_array() {
-            for item in arr {
-                models.push(ModelInfo {
-                    id: item["name"].as_str().unwrap_or("").to_string(),
-                    display_name: item["display_name"].as_str().map(|s| s.to_string()),
-                    description: item["description"].as_str().map(|s| s.to_string()),
-                    created_at: None,
-                });
-            }
-        }
-        Ok(models)
+        let input_tokens = json["tokens"]
+            .as_array()
+            .map(|a| a.len() as u64)
+            .unwrap_or(0);
+        Ok(TokenCount { input_tokens })
     }
+}
 
+#[async_trait]
+impl EmbeddingProvider for CohereProvider {
     async fn embed(
         &self,
         request: EmbeddingRequest,
-        model: &str,
     ) -> Result<EmbeddingResponse, ProviderError> {
+        let model = request.model.as_str();
         let url = format!("{}/embed", self.api_base);
 
         let input_type = request
@@ -341,49 +388,6 @@ impl Provider for CohereProvider {
             model: Some(model.to_string()),
             usage,
         })
-    }
-
-    async fn count_tokens(
-        &self,
-        messages: Vec<Message>,
-        config: ProviderConfig,
-    ) -> Result<TokenCount, ProviderError> {
-        let url = format!("{}/tokenize", self.api_base);
-
-        // Flatten all message text for tokenization
-        let text: String = messages
-            .iter()
-            .flat_map(|m| &m.content)
-            .filter_map(|b| {
-                if let ContentBlock::Text(t) = b {
-                    Some(t.as_str())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(" ");
-
-        let body = serde_json::json!({
-            "text": text,
-            "model": config.model,
-        });
-
-        let resp = self
-            .client
-            .post(&url)
-            .bearer_auth(&self.api_key)
-            .json(&body)
-            .send()
-            .await?;
-        let resp = check_response(resp).await?;
-        let json: serde_json::Value = resp.json().await?;
-
-        let input_tokens = json["tokens"]
-            .as_array()
-            .map(|a| a.len() as u64)
-            .unwrap_or(0);
-        Ok(TokenCount { input_tokens })
     }
 }
 
@@ -479,7 +483,7 @@ fn format_messages(messages: &[Message], system: Option<&str>) -> Result<Value, 
                         .iter()
                         .filter_map(|b| {
                             if let ContentBlock::Text(t) = b {
-                                Some(t.as_str())
+                                Some(t.text.as_str())
                             } else {
                                 None
                             }
@@ -504,7 +508,7 @@ fn format_messages(messages: &[Message], system: Option<&str>) -> Result<Value, 
                     .iter()
                     .filter_map(|b| {
                         if let ContentBlock::Text(t) = b {
-                            Some(t.as_str())
+                            Some(t.text.as_str())
                         } else {
                             None
                         }
@@ -550,7 +554,7 @@ fn format_messages(messages: &[Message], system: Option<&str>) -> Result<Value, 
                     .iter()
                     .filter_map(|b| {
                         if let ContentBlock::Text(t) = b {
-                            Some(t.as_str())
+                            Some(t.text.as_str())
                         } else {
                             None
                         }
@@ -583,7 +587,7 @@ fn format_content_blocks(blocks: &[ContentBlock]) -> serde_json::Value {
             .iter()
             .filter_map(|b| {
                 if let ContentBlock::Text(t) = b {
-                    Some(t.as_str())
+                    Some(t.text.as_str())
                 } else {
                     None
                 }
@@ -596,7 +600,9 @@ fn format_content_blocks(blocks: &[ContentBlock]) -> serde_json::Value {
     let parts: Vec<serde_json::Value> = blocks
         .iter()
         .filter_map(|b| match b {
-            ContentBlock::Text(t) if !t.is_empty() => Some(json!({"type": "text", "text": t})),
+            ContentBlock::Text(t) if !t.text.is_empty() => {
+                Some(json!({"type": "text", "text": t.text}))
+            }
             ContentBlock::Image(img) => format_cohere_image(img),
             _ => None,
         })
@@ -644,7 +650,7 @@ fn format_tool_choice(tc: &ToolChoice) -> Value {
         ToolChoice::None => json!("none"),
         // Cohere v2 does not support forcing a specific named tool via tool_choice;
         // use "required" as the closest equivalent
-        ToolChoice::Tool { .. } => json!("required"),
+        ToolChoice::Tool { .. } | ToolChoice::AllowedTools { .. } => json!("required"),
     }
 }
 
@@ -665,7 +671,7 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
                 && let Some(text) = block["text"].as_str()
                 && !text.is_empty()
             {
-                content.push(ContentBlock::Text(text.to_string()));
+                content.push(ContentBlock::text(text));
             }
         }
     }
@@ -691,6 +697,7 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
         stop_reason,
         model,
         id: None,
+        container: None,
         logprobs: None,
         grounding_metadata: None,
         warnings: vec![],
@@ -724,6 +731,7 @@ fn parse_finish_reason(reason: &str) -> StopReason {
         "COMPLETE" => StopReason::EndTurn,
         "MAX_TOKENS" => StopReason::MaxTokens,
         "TOOL_CALL" => StopReason::ToolUse,
+        "STOP_SEQUENCE" => StopReason::StopSequence(String::new()),
         "ERROR" => StopReason::Other("error".to_string()),
         other => StopReason::Other(other.to_string()),
     }
@@ -840,6 +848,10 @@ mod tests {
             parse_finish_reason("TOOL_CALL"),
             StopReason::ToolUse
         ));
+        assert!(matches!(
+            parse_finish_reason("STOP_SEQUENCE"),
+            StopReason::StopSequence(_)
+        ));
         assert!(matches!(parse_finish_reason("ERROR"), StopReason::Other(s) if s == "error"));
     }
 
@@ -867,7 +879,7 @@ mod tests {
                 Role::User,
                 vec![ContentBlock::ToolResult(ToolResultBlock {
                     tool_use_id: "tc_1".into(),
-                    content: vec![ContentBlock::Text("Results here".into())],
+                    content: vec![ContentBlock::text("Results here")],
                     is_error: false,
                 })],
             ),

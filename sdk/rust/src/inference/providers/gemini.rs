@@ -6,15 +6,16 @@ use serde_json::{Value, json};
 
 use crate::{
     error::ProviderError,
-    provider::{Provider, ProviderStream},
+    provider::{ChatProvider, EmbeddingProvider, ImageProvider, Provider, ProviderStream, VideoProvider},
     providers::sse::{check_response, sse_data_stream},
     types::{
         AudioContent, ContentBlock, ContentBlockStart, ContentDelta, DocumentContent,
         EmbeddingRequest, EmbeddingResponse, EmbeddingTaskType, GeneratedImage, GeneratedVideo,
         GroundingChunk, GroundingMetadata, ImageContent, ImageGenerationRequest,
         ImageGenerationResponse, MediaSource, Message, ModelInfo, ProviderConfig, ResponseFormat,
-        Role, StopReason, StreamEvent, TokenCount, ToolUseBlock, Usage, VideoContent,
-        VideoGenerationRequest, VideoGenerationResponse,
+        Role, StopReason, StreamEvent, TokenCount, ToolUseBlock,
+        Usage, VideoContent, VideoGenerationRequest,
+        VideoGenerationResponse,
     },
 };
 
@@ -70,11 +71,10 @@ pub struct GeminiProvider {
 impl GeminiProvider {
     /// Create a provider from the `GEMINI_API_KEY` or `GOOGLE_API_KEY` environment variable.
     pub fn from_env() -> Result<Self, ProviderError> {
-        let key = std::env::var("GEMINI_API_KEY")
-            .or_else(|_| std::env::var("GOOGLE_API_KEY"))
-            .map_err(|_| {
-                ProviderError::Config("GEMINI_API_KEY or GOOGLE_API_KEY not set".into())
-            })?;
+        let key = crate::env::require_any(&[
+            crate::env::keys::GEMINI_API_KEY,
+            crate::env::keys::GOOGLE_API_KEY,
+        ])?;
         Ok(Self::new(GeminiAuth::ApiKey(key)))
     }
 
@@ -291,6 +291,10 @@ impl GeminiProvider {
                 crate::types::ToolChoice::Any => ("ANY", None),
                 crate::types::ToolChoice::None => ("NONE", None),
                 crate::types::ToolChoice::Tool { name } => ("ANY", Some(vec![name.as_str()])),
+                // AllowedTools maps naturally to Gemini's allowedFunctionNames
+                crate::types::ToolChoice::AllowedTools { tools } => {
+                    ("ANY", Some(tools.iter().map(|s| s.as_str()).collect::<Vec<_>>()))
+                }
             };
             let mut fc_config = json!({"mode": mode});
             if let Some(names) = allowed {
@@ -309,6 +313,37 @@ impl Provider for GeminiProvider {
         "google"
     }
 
+    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        let url = self.build_list_models_url();
+
+        let mut req_builder = self.client.get(&url);
+        req_builder = self.add_auth_header(req_builder);
+        let resp = req_builder.send().await?;
+        let resp = check_response(resp).await?;
+        let json: Value = resp.json().await?;
+
+        let mut models = Vec::new();
+        if let Some(arr) = json["models"].as_array() {
+            for item in arr {
+                let full_name = item["name"].as_str().unwrap_or("");
+                let id = full_name
+                    .strip_prefix("models/")
+                    .unwrap_or(full_name)
+                    .to_string();
+                models.push(ModelInfo {
+                    id,
+                    display_name: item["displayName"].as_str().map(|s| s.to_string()),
+                    description: item["description"].as_str().map(|s| s.to_string()),
+                    created_at: None,
+                });
+            }
+        }
+        Ok(models)
+    }
+}
+
+#[async_trait]
+impl ChatProvider for GeminiProvider {
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         let auth = self.auth.clone();
         let client = Arc::clone(&self.client);
@@ -476,35 +511,6 @@ impl Provider for GeminiProvider {
         parse_gemini_response(&json)
     }
 
-    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        let url = self.build_list_models_url();
-
-        let mut req_builder = self.client.get(&url);
-        req_builder = self.add_auth_header(req_builder);
-        let resp = req_builder.send().await?;
-        let resp = check_response(resp).await?;
-        let json: Value = resp.json().await?;
-
-        let mut models = Vec::new();
-        if let Some(arr) = json["models"].as_array() {
-            for item in arr {
-                // model name is like "models/gemini-2.5-flash" — strip the prefix
-                let full_name = item["name"].as_str().unwrap_or("");
-                let id = full_name
-                    .strip_prefix("models/")
-                    .unwrap_or(full_name)
-                    .to_string();
-                models.push(ModelInfo {
-                    id,
-                    display_name: item["displayName"].as_str().map(|s| s.to_string()),
-                    description: item["description"].as_str().map(|s| s.to_string()),
-                    created_at: None,
-                });
-            }
-        }
-        Ok(models)
-    }
-
     async fn count_tokens(
         &self,
         messages: Vec<Message>,
@@ -525,11 +531,15 @@ impl Provider for GeminiProvider {
         })
     }
 
+}
+
+#[async_trait]
+impl EmbeddingProvider for GeminiProvider {
     async fn embed(
         &self,
         request: EmbeddingRequest,
-        model: &str,
     ) -> Result<EmbeddingResponse, ProviderError> {
+        let model = &request.model;
         if request.inputs.is_empty() {
             return Ok(EmbeddingResponse {
                 embeddings: vec![],
@@ -578,7 +588,7 @@ impl Provider for GeminiProvider {
 
             Ok(EmbeddingResponse {
                 embeddings: vec![embedding],
-                model: Some(model.to_string()),
+                model: Some(model.clone()),
                 usage: Usage::default(),
             })
         } else {
@@ -626,12 +636,15 @@ impl Provider for GeminiProvider {
 
             Ok(EmbeddingResponse {
                 embeddings,
-                model: Some(model.to_string()),
+                model: Some(model.clone()),
                 usage: Usage::default(),
             })
         }
     }
+}
 
+#[async_trait]
+impl ImageProvider for GeminiProvider {
     /// Generate images using the Imagen API (`{model}:predict`).
     ///
     /// Supported models: `imagen-3.0-generate-001`, `imagen-3.0-fast-generate-001`.
@@ -679,6 +692,10 @@ impl Provider for GeminiProvider {
         Ok(ImageGenerationResponse { images })
     }
 
+}
+
+#[async_trait]
+impl VideoProvider for GeminiProvider {
     /// Generate videos using the Veo API (`{model}:predictLongRunning`), with polling.
     ///
     /// Supported models: `veo-2.0-generate-001`.
@@ -800,7 +817,7 @@ fn format_parts(blocks: &[ContentBlock]) -> Result<Value, ProviderError> {
 
 fn format_part(block: &ContentBlock) -> Result<Value, ProviderError> {
     match block {
-        ContentBlock::Text(t) => Ok(json!({"text": t})),
+        ContentBlock::Text(t) => Ok(json!({"text": t.text})),
         ContentBlock::Image(img) => format_image_part(img),
         ContentBlock::Audio(audio) => format_audio_part(audio),
         ContentBlock::Video(video) => format_video_part(video),
@@ -818,7 +835,7 @@ fn format_part(block: &ContentBlock) -> Result<Value, ProviderError> {
                 .iter()
                 .filter_map(|b| {
                     if let ContentBlock::Text(t) = b {
-                        Some(t.as_str())
+                        Some(t.text.as_str())
                     } else {
                         None
                     }
@@ -947,7 +964,7 @@ fn parse_gemini_response(json: &Value) -> Result<crate::types::Response, Provide
                     signature: None,
                 }));
             } else {
-                content.push(ContentBlock::Text(text.to_string()));
+                content.push(ContentBlock::text(text));
             }
         } else if let Some(func_call) = part.get("functionCall") {
             let name = func_call["name"].as_str().unwrap_or("").to_string();
@@ -978,6 +995,7 @@ fn parse_gemini_response(json: &Value) -> Result<crate::types::Response, Provide
         stop_reason,
         model,
         id: None,
+        container: None,
         logprobs: None,
         grounding_metadata,
         warnings: vec![],

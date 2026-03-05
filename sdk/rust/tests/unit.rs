@@ -3,16 +3,17 @@ use std::collections::HashMap;
 
 use futures::StreamExt;
 use sideseat::{
-    AgentHooks, DefaultHooks, DefaultSettingsMiddleware, ExtractReasoningMiddleware,
-    FallbackProvider, FallbackStrategy, FallbackTrigger, ImageGenerationRequest,
-    InstrumentedProvider, LoggingMiddleware, Message, Middleware, MiddlewareStack, MockProvider,
-    MockResponse, ModelCapability, PromptTemplate, Provider, ProviderConfig, ProviderError,
-    ProviderRegistry, RetryConfig, RetryProvider, SideSeat, SimulateStreamingMiddleware,
-    TelemetryConfig, TelemetryMiddleware, Tool, VideoGenerationRequest, batch_complete,
-    cosine_similarity, euclidean_distance, model_capabilities, normalize_embedding, record_stream,
-    run_agent_loop_with_hooks, should_fallback, stream_text, supports_audio_input,
-    supports_audio_output, supports_extended_thinking, supports_function_calling, supports_vision,
-    truncate_messages, validate_messages,
+    AgentHooks, ChatProvider, DefaultHooks, DefaultSettingsMiddleware,
+    ExtractReasoningMiddleware, FallbackProvider, FallbackStrategy, FallbackTrigger,
+    ImageGenerationRequest, ImageProvider, InstrumentedProvider, LoggingMiddleware, Message,
+    Middleware, MiddlewareStack, MockProvider, MockResponse, ModelCapability, PromptTemplate,
+    Provider, ProviderConfig, ProviderError, ProviderRegistry, RetryConfig, RetryProvider,
+    SideSeat, SimulateStreamingMiddleware, TelemetryConfig, TelemetryMiddleware, Tool,
+    VideoGenerationRequest, VideoProvider, batch_complete, cosine_similarity, euclidean_distance,
+    model_capabilities, normalize_embedding, record_stream, run_agent_loop_with_hooks,
+    should_fallback, stream_text, supports_audio_input, supports_audio_output,
+    supports_extended_thinking, supports_function_calling, supports_vision, truncate_messages,
+    validate_messages,
 };
 
 // ---------------------------------------------------------------------------

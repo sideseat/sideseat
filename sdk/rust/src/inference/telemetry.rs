@@ -12,11 +12,15 @@ use opentelemetry::trace::{
 use opentelemetry::{Array, Context, KeyValue, Value};
 
 use crate::error::ProviderError;
-use crate::provider::{Provider, ProviderStream};
+use crate::provider::{
+    AudioProvider, ChatProvider, EmbeddingProvider, ImageProvider, ModerationProvider, Provider,
+    ProviderStream, VideoProvider,
+};
 use crate::types::{
-    EmbeddingRequest, EmbeddingResponse, ImageGenerationRequest, ImageGenerationResponse, Message,
-    ModelInfo, ProviderConfig, Response, Role, SpeechRequest, SpeechResponse, StreamEvent,
-    TokenCount, TranscriptionRequest, TranscriptionResponse, Usage, VideoGenerationRequest,
+    EmbeddingRequest, EmbeddingResponse, ImageEditRequest, ImageGenerationRequest,
+    ImageGenerationResponse, Message, ModelInfo, ModerationRequest, ModerationResponse,
+    ProviderConfig, Response, Role, SpeechRequest, SpeechResponse, StreamEvent, TokenCount,
+    TranscriptionRequest, TranscriptionResponse, Usage, VideoGenerationRequest,
     VideoGenerationResponse,
 };
 
@@ -68,7 +72,7 @@ pub struct InstrumentedProvider<P> {
     duration_hist: Histogram<f64>,
 }
 
-impl<P: Provider + Send + Sync + 'static> InstrumentedProvider<P> {
+impl<P: ChatProvider + Send + Sync + 'static> InstrumentedProvider<P> {
     pub fn new(inner: P) -> Self {
         Self::with_config(inner, TelemetryConfig::default())
     }
@@ -199,11 +203,18 @@ fn add_content_events(span: &SpanRef<'_>, messages: &[Message], response: &Respo
 // ---------------------------------------------------------------------------
 
 #[async_trait]
-impl<P: Provider + Send + Sync + 'static> Provider for InstrumentedProvider<P> {
+impl<P: ChatProvider + Send + Sync + 'static> Provider for InstrumentedProvider<P> {
     fn provider_name(&self) -> &'static str {
         self.inner.provider_name()
     }
 
+    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        self.inner.list_models().await
+    }
+}
+
+#[async_trait]
+impl<P: ChatProvider + Send + Sync + 'static> ChatProvider for InstrumentedProvider<P> {
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         let tracer_name = self.config.tracer_name;
         let system = self.inner.provider_name();
@@ -392,10 +403,6 @@ impl<P: Provider + Send + Sync + 'static> Provider for InstrumentedProvider<P> {
         }
     }
 
-    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        self.inner.list_models().await
-    }
-
     async fn count_tokens(
         &self,
         messages: Vec<Message>,
@@ -403,22 +410,27 @@ impl<P: Provider + Send + Sync + 'static> Provider for InstrumentedProvider<P> {
     ) -> Result<TokenCount, ProviderError> {
         self.inner.count_tokens(messages, config).await
     }
+}
 
+#[async_trait]
+impl<P: ChatProvider + EmbeddingProvider + Send + Sync + 'static> EmbeddingProvider
+    for InstrumentedProvider<P>
+{
     async fn embed(
         &self,
         request: EmbeddingRequest,
-        model: &str,
     ) -> Result<EmbeddingResponse, ProviderError> {
         let started = Instant::now();
+        let model = request.model.clone();
         let mut span = build_span(
             self.config.tracer_name,
             "embeddings",
             self.inner.provider_name(),
-            model,
+            &model,
             None,
         );
 
-        let result = self.inner.embed(request, model).await;
+        let result = self.inner.embed(request).await;
         let elapsed = started.elapsed().as_secs_f64();
 
         match result {
@@ -431,7 +443,7 @@ impl<P: Provider + Send + Sync + 'static> Provider for InstrumentedProvider<P> {
                         &[
                             KeyValue::new(GEN_AI_SYSTEM, self.inner.provider_name()),
                             KeyValue::new(GEN_AI_OPERATION, "embeddings"),
-                            KeyValue::new(GEN_AI_REQUEST_MODEL, model.to_owned()),
+                            KeyValue::new(GEN_AI_REQUEST_MODEL, model),
                         ],
                     );
                 }
@@ -447,7 +459,12 @@ impl<P: Provider + Send + Sync + 'static> Provider for InstrumentedProvider<P> {
             }
         }
     }
+}
 
+#[async_trait]
+impl<P: ChatProvider + ImageProvider + Send + Sync + 'static> ImageProvider
+    for InstrumentedProvider<P>
+{
     async fn generate_image(
         &self,
         request: ImageGenerationRequest,
@@ -492,6 +509,55 @@ impl<P: Provider + Send + Sync + 'static> Provider for InstrumentedProvider<P> {
         }
     }
 
+    async fn edit_image(
+        &self,
+        request: ImageEditRequest,
+    ) -> Result<ImageGenerationResponse, ProviderError> {
+        let started = Instant::now();
+        let model = request.model.clone();
+        let mut span = build_span(
+            self.config.tracer_name,
+            "image_edit",
+            self.inner.provider_name(),
+            &model,
+            None,
+        );
+
+        let result = self.inner.edit_image(request).await;
+        let elapsed = started.elapsed().as_secs_f64();
+
+        match result {
+            Ok(resp) => {
+                span.set_status(Status::Ok);
+                span.end();
+                if self.config.record_metrics {
+                    self.duration_hist.record(
+                        elapsed,
+                        &[
+                            KeyValue::new(GEN_AI_SYSTEM, self.inner.provider_name()),
+                            KeyValue::new(GEN_AI_OPERATION, "image_edit"),
+                            KeyValue::new(GEN_AI_REQUEST_MODEL, model),
+                        ],
+                    );
+                }
+                Ok(resp)
+            }
+            Err(e) => {
+                span.record_error(&e);
+                span.set_status(Status::Error {
+                    description: e.to_string().into(),
+                });
+                span.end();
+                Err(e)
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl<P: ChatProvider + VideoProvider + Send + Sync + 'static> VideoProvider
+    for InstrumentedProvider<P>
+{
     async fn generate_video(
         &self,
         request: VideoGenerationRequest,
@@ -535,7 +601,12 @@ impl<P: Provider + Send + Sync + 'static> Provider for InstrumentedProvider<P> {
             }
         }
     }
+}
 
+#[async_trait]
+impl<P: ChatProvider + AudioProvider + Send + Sync + 'static> AudioProvider
+    for InstrumentedProvider<P>
+{
     async fn generate_speech(
         &self,
         request: SpeechRequest,
@@ -623,6 +694,102 @@ impl<P: Provider + Send + Sync + 'static> Provider for InstrumentedProvider<P> {
             }
         }
     }
+
+    async fn translate(
+        &self,
+        request: TranscriptionRequest,
+    ) -> Result<TranscriptionResponse, ProviderError> {
+        let started = Instant::now();
+        let model = request.model.clone();
+        let mut span = build_span(
+            self.config.tracer_name,
+            "translation",
+            self.inner.provider_name(),
+            &model,
+            None,
+        );
+
+        let result = self.inner.translate(request).await;
+        let elapsed = started.elapsed().as_secs_f64();
+
+        match result {
+            Ok(resp) => {
+                span.set_status(Status::Ok);
+                span.end();
+                if self.config.record_metrics {
+                    self.duration_hist.record(
+                        elapsed,
+                        &[
+                            KeyValue::new(GEN_AI_SYSTEM, self.inner.provider_name()),
+                            KeyValue::new(GEN_AI_OPERATION, "translation"),
+                            KeyValue::new(GEN_AI_REQUEST_MODEL, model),
+                        ],
+                    );
+                }
+                Ok(resp)
+            }
+            Err(e) => {
+                span.record_error(&e);
+                span.set_status(Status::Error {
+                    description: e.to_string().into(),
+                });
+                span.end();
+                Err(e)
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl<P: ChatProvider + ModerationProvider + Send + Sync + 'static> ModerationProvider
+    for InstrumentedProvider<P>
+{
+    async fn moderate(
+        &self,
+        request: ModerationRequest,
+    ) -> Result<ModerationResponse, ProviderError> {
+        let started = Instant::now();
+        let model = request
+            .model
+            .clone()
+            .unwrap_or_else(|| "omni-moderation-latest".to_string());
+        let mut span = build_span(
+            self.config.tracer_name,
+            "moderation",
+            self.inner.provider_name(),
+            &model,
+            None,
+        );
+
+        let result = self.inner.moderate(request).await;
+        let elapsed = started.elapsed().as_secs_f64();
+
+        match result {
+            Ok(resp) => {
+                span.set_status(Status::Ok);
+                span.end();
+                if self.config.record_metrics {
+                    self.duration_hist.record(
+                        elapsed,
+                        &[
+                            KeyValue::new(GEN_AI_SYSTEM, self.inner.provider_name()),
+                            KeyValue::new(GEN_AI_OPERATION, "moderation"),
+                            KeyValue::new(GEN_AI_REQUEST_MODEL, model),
+                        ],
+                    );
+                }
+                Ok(resp)
+            }
+            Err(e) => {
+                span.record_error(&e);
+                span.set_status(Status::Error {
+                    description: e.to_string().into(),
+                });
+                span.end();
+                Err(e)
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -655,10 +822,9 @@ impl SideSeat {
     /// `SIDESEAT_PROJECT_ID` (default: `default`).
     pub fn new() -> Self {
         Self {
-            endpoint: std::env::var("SIDESEAT_ENDPOINT")
-                .unwrap_or_else(|_| "http://localhost:5388".into()),
-            project_id: std::env::var("SIDESEAT_PROJECT_ID").unwrap_or_else(|_| "default".into()),
-            api_key: std::env::var("SIDESEAT_API_KEY").ok(),
+            endpoint: crate::env::optional_or(crate::env::keys::SIDESEAT_ENDPOINT, "http://localhost:5388"),
+            project_id: crate::env::optional_or(crate::env::keys::SIDESEAT_PROJECT_ID, "default"),
+            api_key: crate::env::optional(crate::env::keys::SIDESEAT_API_KEY),
             capture_content: false,
         }
     }
