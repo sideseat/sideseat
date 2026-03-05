@@ -19,7 +19,7 @@
 //! - [`providers::GeminiInteractionsProvider`] — Google Gemini Interactions API (stateful, v2)
 //! - [`providers::CohereProvider`] — Cohere Chat API v2
 //!
-//! All providers implement the same [`Provider`] trait with `stream()` and `complete()` methods.
+//! All providers implement [`ChatProvider`] (via [`Provider`]) with `stream()` and `complete()` methods.
 //!
 //! ## Quick Start
 //!
@@ -29,6 +29,8 @@
 //!
 //! See <https://sideseat.ai/docs> for full documentation.
 
+#[path = "inference/env.rs"]
+pub mod env;
 #[path = "inference/error.rs"]
 pub mod error;
 #[path = "inference/mcp.rs"]
@@ -57,27 +59,31 @@ pub use middleware::{
 };
 pub use mock::{MockProvider, MockResponse};
 pub use provider::{
-    AgentHooks, DefaultHooks, FallbackProvider, Provider, ProviderExt, ProviderStream, RetryConfig,
-    RetryProvider, TextStream, batch_complete, batch_generate_images, collect_stream,
-    collect_stream_with_events, generate_text, record_stream, run_agent_loop,
-    run_agent_loop_with_hooks, stream_text, wrap_language_model,
+    AgentHooks, AudioProvider, ChatProvider, DefaultHooks, EmbeddingProvider, FallbackProvider,
+    ImageProvider, ModerationProvider, Provider, ProviderExt, ProviderStream, RetryConfig,
+    RetryProvider, StatefulProvider, TextStream, VideoProvider, batch_complete,
+    batch_generate_images, collect_stream, collect_stream_with_events, generate_text, record_stream,
+    run_agent_loop, run_agent_loop_with_hooks, stream_text, wrap_language_model,
 };
 pub use registry::ProviderRegistry;
 pub use telemetry::{InstrumentedProvider, SideSeat, SideSeatGuard, TelemetryConfig};
 pub use types::{
-    AgentResult, AgentStep, AudioContent, AudioFormat, Base64Data, CacheControl, ContentBlock,
-    ContentBlockStart, ContentDelta, ConversationBuilder, CostEstimate, DocumentContent,
-    DocumentFormat, EmbeddingRequest, EmbeddingResponse, EmbeddingTaskType, FallbackStrategy,
-    FallbackTrigger, GeneratedImage, GeneratedVideo, GroundingChunk, GroundingMetadata,
-    ImageContent, ImageFormat, ImageGenerationRequest, ImageGenerationResponse, ImageOutputFormat,
-    ImageQuality, ImageSize, ImageStyle, MediaSource, Message, ModelCapability, ModelInfo,
-    PartialConfig, PromptTemplate, ProviderConfig, ReasoningEffort, RequestMetadata, Response,
-    ResponseFormat, Role, S3Location, SafetyCategory, SafetySetting, SafetyThreshold, ServiceTier,
-    SpeechRequest, SpeechResponse, StopReason, StreamEvent, StreamRecording, ThinkingBlock,
-    TokenCount, TokenLogprob, Tool, ToolChoice, ToolResultBlock, ToolUseBlock, TopLogprob,
-    TranscriptionRequest, TranscriptionResponse, Usage, UsageAccumulator, VideoAspectRatio,
-    VideoContent, VideoFormat, VideoGenerationRequest, VideoGenerationResponse, VideoResolution,
-    WebSearchConfig, cosine_similarity, estimate_tokens, euclidean_distance, model_capabilities,
+    AgentResult, AgentStep, AudioContent, AudioFormat, AudioOutputConfig, Base64Data, BuiltinTool, CacheControl, Citation, ContextManagementConfig,
+    ContainerInfo, ContentBlock, ContentBlockStart, ContentDelta, ConversationBuilder, CostEstimate,
+    DocumentContent, DocumentFormat, EmbeddingRequest, EmbeddingResponse, EmbeddingTaskType,
+    FallbackStrategy, FallbackTrigger, GeneratedImage, GeneratedVideo, GroundingChunk,
+    GroundingMetadata, ImageContent, ImageDetail, ImageEditRequest, ImageFormat, ImageGenerationRequest,
+    ImageGenerationResponse, ImageOutputFormat, ImageQuality, ImageSize, ImageStyle, MediaSource, Message, ModelCapability,
+    McpToolConfig, ModelInfo, ModerationCategories, ModerationCategoryScores, ModerationRequest,
+    ModerationResponse, ModerationResult, PartialConfig, PromptTemplate, ProviderConfig,
+    ReasoningEffort, RequestMetadata, Response, ResponseFormat, Role, S3Location, SafetyCategory,
+    SafetySetting, SafetyThreshold, ServiceTier, SpeechRequest, SpeechResponse, StopReason,
+    StreamEvent, StreamRecording, TextBlock, ThinkingBlock, TimestampGranularity, TokenCount,
+    TokenLogprob, Tool, ToolChoice, ToolResultBlock, ToolUseBlock, TopLogprob,
+    TranscriptionRequest, TranscriptionResponse, TranscriptionSegment, TranscriptionWord, Usage,
+    UsageAccumulator, VideoAspectRatio, VideoContent, VideoFormat, VideoGenerationRequest,
+    VideoGenerationResponse, VideoResolution, WebSearchConfig, WebSearchUserLocation,
+    cosine_similarity, estimate_tokens, euclidean_distance, model_capabilities,
     normalize_embedding, should_fallback, supports_audio_input, supports_audio_output,
     supports_extended_thinking, supports_function_calling, supports_vision, truncate_messages,
     validate_messages,

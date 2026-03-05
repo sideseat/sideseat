@@ -8,13 +8,16 @@ use async_trait::async_trait;
 use futures::StreamExt;
 
 use crate::error::ProviderError;
-use crate::provider::{Provider, ProviderStream};
+use crate::provider::{
+    AudioProvider, ChatProvider, EmbeddingProvider, ImageProvider, ModerationProvider, Provider,
+    ProviderStream, StatefulProvider, VideoProvider,
+};
 use crate::types::{
     ContentBlock, ContentBlockStart, ContentDelta, EmbeddingRequest, EmbeddingResponse,
-    ImageGenerationRequest, ImageGenerationResponse, Message, ModelInfo, PartialConfig,
-    ProviderConfig, Response, SpeechRequest, SpeechResponse, StreamEvent, ThinkingBlock,
-    TokenCount, TranscriptionRequest, TranscriptionResponse, VideoGenerationRequest,
-    VideoGenerationResponse,
+    ImageEditRequest, ImageGenerationRequest, ImageGenerationResponse, Message, ModelInfo,
+    ModerationRequest, ModerationResponse, PartialConfig, ProviderConfig, Response, SpeechRequest,
+    SpeechResponse, StreamEvent, ThinkingBlock, TokenCount, TranscriptionRequest,
+    TranscriptionResponse, VideoGenerationRequest, VideoGenerationResponse,
 };
 
 // ---------------------------------------------------------------------------
@@ -84,7 +87,7 @@ pub struct MiddlewareStack<P> {
     middlewares: Vec<Arc<dyn Middleware>>,
 }
 
-impl<P: Provider + 'static> MiddlewareStack<P> {
+impl<P: ChatProvider + 'static> MiddlewareStack<P> {
     pub fn new(provider: P) -> Self {
         Self {
             inner: Arc::new(provider),
@@ -111,11 +114,18 @@ async fn run_before_pipeline(
 }
 
 #[async_trait]
-impl<P: Provider + Send + Sync + 'static> Provider for MiddlewareStack<P> {
+impl<P: ChatProvider + Send + Sync + 'static> Provider for MiddlewareStack<P> {
     fn provider_name(&self) -> &'static str {
         self.inner.provider_name()
     }
 
+    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        self.inner.list_models().await
+    }
+}
+
+#[async_trait]
+impl<P: ChatProvider + Send + Sync + 'static> ChatProvider for MiddlewareStack<P> {
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         let middlewares = self.middlewares.clone();
         let inner = self.inner.clone();
@@ -166,10 +176,6 @@ impl<P: Provider + Send + Sync + 'static> Provider for MiddlewareStack<P> {
         }
     }
 
-    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        self.inner.list_models().await
-    }
-
     async fn count_tokens(
         &self,
         messages: Vec<Message>,
@@ -177,15 +183,22 @@ impl<P: Provider + Send + Sync + 'static> Provider for MiddlewareStack<P> {
     ) -> Result<TokenCount, ProviderError> {
         self.inner.count_tokens(messages, config).await
     }
+}
 
+#[async_trait]
+impl<P: ChatProvider + EmbeddingProvider + Send + Sync + 'static> EmbeddingProvider
+    for MiddlewareStack<P>
+{
     async fn embed(
         &self,
         request: EmbeddingRequest,
-        model: &str,
     ) -> Result<EmbeddingResponse, ProviderError> {
-        self.inner.embed(request, model).await
+        self.inner.embed(request).await
     }
+}
 
+#[async_trait]
+impl<P: ChatProvider + ImageProvider + Send + Sync + 'static> ImageProvider for MiddlewareStack<P> {
     async fn generate_image(
         &self,
         request: ImageGenerationRequest,
@@ -193,13 +206,26 @@ impl<P: Provider + Send + Sync + 'static> Provider for MiddlewareStack<P> {
         self.inner.generate_image(request).await
     }
 
+    async fn edit_image(
+        &self,
+        request: ImageEditRequest,
+    ) -> Result<ImageGenerationResponse, ProviderError> {
+        self.inner.edit_image(request).await
+    }
+}
+
+#[async_trait]
+impl<P: ChatProvider + VideoProvider + Send + Sync + 'static> VideoProvider for MiddlewareStack<P> {
     async fn generate_video(
         &self,
         request: VideoGenerationRequest,
     ) -> Result<VideoGenerationResponse, ProviderError> {
         self.inner.generate_video(request).await
     }
+}
 
+#[async_trait]
+impl<P: ChatProvider + AudioProvider + Send + Sync + 'static> AudioProvider for MiddlewareStack<P> {
     async fn generate_speech(
         &self,
         request: SpeechRequest,
@@ -212,6 +238,38 @@ impl<P: Provider + Send + Sync + 'static> Provider for MiddlewareStack<P> {
         request: TranscriptionRequest,
     ) -> Result<TranscriptionResponse, ProviderError> {
         self.inner.transcribe(request).await
+    }
+
+    async fn translate(
+        &self,
+        request: TranscriptionRequest,
+    ) -> Result<TranscriptionResponse, ProviderError> {
+        self.inner.translate(request).await
+    }
+}
+
+#[async_trait]
+impl<P: ChatProvider + ModerationProvider + Send + Sync + 'static> ModerationProvider
+    for MiddlewareStack<P>
+{
+    async fn moderate(
+        &self,
+        request: ModerationRequest,
+    ) -> Result<ModerationResponse, ProviderError> {
+        self.inner.moderate(request).await
+    }
+}
+
+#[async_trait]
+impl<P: ChatProvider + StatefulProvider + Send + Sync + 'static> StatefulProvider
+    for MiddlewareStack<P>
+{
+    async fn retrieve_response(&self, response_id: &str) -> Result<serde_json::Value, ProviderError> {
+        self.inner.retrieve_response(response_id).await
+    }
+
+    async fn cancel_response(&self, response_id: &str) -> Result<serde_json::Value, ProviderError> {
+        self.inner.cancel_response(response_id).await
     }
 }
 
@@ -387,9 +445,9 @@ impl Middleware for ExtractReasoningMiddleware {
     ) -> Result<Response, ProviderError> {
         let mut new_content: Vec<ContentBlock> = Vec::new();
         for block in response.content {
-            if let ContentBlock::Text(text) = &block {
+            if let ContentBlock::Text(ref tb) = block {
                 let (remaining_text, segments) =
-                    extract_think_segments(text, &self.open_tag, &self.close_tag);
+                    extract_think_segments(&tb.text, &self.open_tag, &self.close_tag);
                 for seg in segments {
                     new_content.push(ContentBlock::Thinking(ThinkingBlock {
                         thinking: seg,
@@ -397,7 +455,7 @@ impl Middleware for ExtractReasoningMiddleware {
                     }));
                 }
                 if !remaining_text.trim().is_empty() {
-                    new_content.push(ContentBlock::Text(remaining_text));
+                    new_content.push(ContentBlock::text(remaining_text));
                 }
             } else {
                 new_content.push(block);
@@ -828,7 +886,7 @@ pub struct WrappedImageModel<P, M> {
 /// Wrap a provider with an `ImageModelMiddleware`.
 pub fn wrap_image_model<P, M>(provider: P, middleware: M) -> WrappedImageModel<P, M>
 where
-    P: Provider + Send + Sync + 'static,
+    P: ImageProvider + ChatProvider + Send + Sync + 'static,
     M: ImageModelMiddleware + 'static,
 {
     WrappedImageModel {
@@ -838,8 +896,21 @@ where
 }
 
 #[async_trait]
-impl<P: Provider + Send + Sync, M: ImageModelMiddleware + Send + Sync> Provider
+impl<P: ImageProvider + ChatProvider + Send + Sync, M: ImageModelMiddleware + Send + Sync> Provider
     for WrappedImageModel<P, M>
+{
+    fn provider_name(&self) -> &'static str {
+        self.inner.provider_name()
+    }
+
+    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        self.inner.list_models().await
+    }
+}
+
+#[async_trait]
+impl<P: ImageProvider + ChatProvider + Send + Sync, M: ImageModelMiddleware + Send + Sync>
+    ChatProvider for WrappedImageModel<P, M>
 {
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         self.inner.stream(messages, config)
@@ -853,10 +924,6 @@ impl<P: Provider + Send + Sync, M: ImageModelMiddleware + Send + Sync> Provider
         self.inner.complete(messages, config).await
     }
 
-    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        self.inner.list_models().await
-    }
-
     async fn count_tokens(
         &self,
         messages: Vec<Message>,
@@ -864,15 +931,12 @@ impl<P: Provider + Send + Sync, M: ImageModelMiddleware + Send + Sync> Provider
     ) -> Result<TokenCount, ProviderError> {
         self.inner.count_tokens(messages, config).await
     }
+}
 
-    async fn embed(
-        &self,
-        request: EmbeddingRequest,
-        model: &str,
-    ) -> Result<EmbeddingResponse, ProviderError> {
-        self.inner.embed(request, model).await
-    }
-
+#[async_trait]
+impl<P: ImageProvider + ChatProvider + Send + Sync, M: ImageModelMiddleware + Send + Sync>
+    ImageProvider for WrappedImageModel<P, M>
+{
     async fn generate_image(
         &self,
         request: ImageGenerationRequest,
@@ -882,24 +946,10 @@ impl<P: Provider + Send + Sync, M: ImageModelMiddleware + Send + Sync> Provider
         Ok(self.middleware.after_generate(response))
     }
 
-    async fn generate_video(
+    async fn edit_image(
         &self,
-        request: crate::types::VideoGenerationRequest,
-    ) -> Result<VideoGenerationResponse, ProviderError> {
-        self.inner.generate_video(request).await
-    }
-
-    async fn generate_speech(
-        &self,
-        request: SpeechRequest,
-    ) -> Result<SpeechResponse, ProviderError> {
-        self.inner.generate_speech(request).await
-    }
-
-    async fn transcribe(
-        &self,
-        request: TranscriptionRequest,
-    ) -> Result<TranscriptionResponse, ProviderError> {
-        self.inner.transcribe(request).await
+        request: ImageEditRequest,
+    ) -> Result<ImageGenerationResponse, ProviderError> {
+        self.inner.edit_image(request).await
     }
 }
