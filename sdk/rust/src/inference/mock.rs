@@ -7,12 +7,11 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use crate::error::ProviderError;
-use crate::provider::{Provider, ProviderStream};
+use crate::provider::{ChatProvider, ImageProvider, Provider, ProviderStream, VideoProvider};
 use crate::types::{
-    ContentBlock, ContentBlockStart, ContentDelta, EmbeddingRequest, EmbeddingResponse,
-    GeneratedImage, GeneratedVideo, ImageGenerationRequest, ImageGenerationResponse, Message,
-    ModelInfo, ProviderConfig, Response, StopReason, StreamEvent, TokenCount, ToolUseBlock, Usage,
-    VideoGenerationRequest, VideoGenerationResponse,
+    ContentBlock, ContentBlockStart, ContentDelta, GeneratedImage, GeneratedVideo,
+    ImageGenerationRequest, ImageGenerationResponse, Message, ProviderConfig, Response,
+    StopReason, StreamEvent, ToolUseBlock, Usage, VideoGenerationRequest, VideoGenerationResponse,
 };
 
 type CallRecord = Arc<Mutex<Vec<(Vec<Message>, ProviderConfig)>>>;
@@ -115,7 +114,10 @@ impl Provider for MockProvider {
     fn provider_name(&self) -> &'static str {
         "mock"
     }
+}
 
+#[async_trait]
+impl ChatProvider for MockProvider {
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         self.calls.lock().push((messages, config.clone()));
 
@@ -188,11 +190,12 @@ impl Provider for MockProvider {
         match self.pop_response() {
             MockResponse::Error(e) => Err(e),
             MockResponse::Text(text, usage) => Ok(Response {
-                content: vec![ContentBlock::Text(text)],
+                content: vec![ContentBlock::text(text)],
                 usage: usage.with_totals(),
                 stop_reason: StopReason::EndTurn,
                 model: Some(config.model),
                 id: None,
+                container: None,
                 logprobs: None,
                 grounding_metadata: None,
                 warnings: vec![],
@@ -204,6 +207,7 @@ impl Provider for MockProvider {
                 stop_reason: StopReason::ToolUse,
                 model: Some(config.model),
                 id: None,
+                container: None,
                 logprobs: None,
                 grounding_metadata: None,
                 warnings: vec![],
@@ -218,6 +222,7 @@ impl Provider for MockProvider {
                     stop_reason: StopReason::EndTurn,
                     model: Some(config.model),
                     id: None,
+                    container: None,
                     logprobs: None,
                     grounding_metadata: None,
                     warnings: vec![],
@@ -227,6 +232,10 @@ impl Provider for MockProvider {
         }
     }
 
+}
+
+#[async_trait]
+impl ImageProvider for MockProvider {
     async fn generate_image(
         &self,
         _request: ImageGenerationRequest,
@@ -237,7 +246,10 @@ impl Provider for MockProvider {
             _ => Ok(ImageGenerationResponse { images: vec![] }),
         }
     }
+}
 
+#[async_trait]
+impl VideoProvider for MockProvider {
     async fn generate_video(
         &self,
         _request: VideoGenerationRequest,
@@ -247,31 +259,5 @@ impl Provider for MockProvider {
             MockResponse::Error(e) => Err(e),
             _ => Ok(VideoGenerationResponse { videos: vec![] }),
         }
-    }
-
-    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        Err(ProviderError::Unsupported(
-            "list_models not supported by MockProvider".into(),
-        ))
-    }
-
-    async fn count_tokens(
-        &self,
-        _messages: Vec<Message>,
-        _config: ProviderConfig,
-    ) -> Result<TokenCount, ProviderError> {
-        Err(ProviderError::Unsupported(
-            "count_tokens not supported by MockProvider".into(),
-        ))
-    }
-
-    async fn embed(
-        &self,
-        _request: EmbeddingRequest,
-        _model: &str,
-    ) -> Result<EmbeddingResponse, ProviderError> {
-        Err(ProviderError::Unsupported(
-            "embed not supported by MockProvider".into(),
-        ))
     }
 }

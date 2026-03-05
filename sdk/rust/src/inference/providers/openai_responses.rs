@@ -6,12 +6,17 @@ use serde_json::{Value, json};
 
 use crate::{
     error::ProviderError,
-    provider::{Provider, ProviderStream},
-    providers::sse::{check_response, sse_data_stream},
+    provider::{ChatProvider, EmbeddingProvider, ImageProvider, AudioProvider, ModerationProvider, Provider, ProviderStream, StatefulProvider},
+    providers::{
+        openai_common::OpenAIInnerClient,
+        sse::{check_response, sse_data_stream},
+    },
     types::{
         ContentBlock, ContentBlockStart, ContentDelta, EmbeddingRequest, EmbeddingResponse,
-        MediaSource, Message, ModelInfo, ProviderConfig, ResponseFormat, Role, StopReason,
-        StreamEvent, ToolUseBlock, Usage,
+        ImageEditRequest, ImageGenerationRequest, ImageGenerationResponse, MediaSource, Message,
+        ModelInfo, ModerationRequest, ModerationResponse, ProviderConfig, ResponseFormat, Role,
+        SpeechRequest, SpeechResponse, StopReason, StreamEvent, TokenCount, ToolUseBlock,
+        TranscriptionRequest, TranscriptionResponse, Usage,
     },
 };
 
@@ -23,11 +28,8 @@ const OPENAI_RESPONSES_API_BASE: &str = "https://api.openai.com/v1";
 /// Supports server-side multi-turn (`previous_response_id`), built-in tools
 /// (web search, file search, computer use), structured outputs, and typed SSE events.
 pub struct OpenAIResponsesProvider {
-    api_key: String,
-    client: Arc<reqwest::Client>,
+    shared: OpenAIInnerClient,
     base_url: String,
-    /// API base URL without the endpoint path, e.g. "https://api.openai.com/v1".
-    api_base: String,
     /// Optional ID of a previous response for server-side multi-turn
     pub previous_response_id: Option<String>,
 }
@@ -35,17 +37,15 @@ pub struct OpenAIResponsesProvider {
 impl OpenAIResponsesProvider {
     /// Create a provider from the `OPENAI_API_KEY` environment variable.
     pub fn from_env() -> Result<Self, ProviderError> {
-        let key = std::env::var("OPENAI_API_KEY")
-            .map_err(|_| ProviderError::Config("OPENAI_API_KEY not set".into()))?;
-        Ok(Self::new(key))
+        Ok(Self::new(crate::env::require(crate::env::keys::OPENAI_API_KEY)?))
     }
 
     pub fn new(api_key: impl Into<String>) -> Self {
+        let api_key = api_key.into();
+        let client = Arc::new(reqwest::Client::new());
         Self {
-            api_key: api_key.into(),
-            client: Arc::new(reqwest::Client::new()),
+            shared: OpenAIInnerClient::new(api_key, client, OPENAI_RESPONSES_API_BASE),
             base_url: OPENAI_RESPONSES_URL.to_string(),
-            api_base: OPENAI_RESPONSES_API_BASE.to_string(),
             previous_response_id: None,
         }
     }
@@ -56,9 +56,9 @@ impl OpenAIResponsesProvider {
     pub fn with_base_url(mut self, base_url: impl Into<String>) -> Self {
         let url = base_url.into();
         if let Some(pos) = url.find("/responses") {
-            self.api_base = url[..pos].to_string();
+            self.shared.api_base = url[..pos].to_string();
         } else {
-            self.api_base = url.clone();
+            self.shared.api_base = url.clone();
         }
         self.base_url = url;
         self
@@ -72,7 +72,7 @@ impl OpenAIResponsesProvider {
     pub fn with_api_base(mut self, api_base: impl Into<String>) -> Self {
         let base = api_base.into();
         self.base_url = format!("{}/responses", base);
-        self.api_base = base;
+        self.shared.api_base = base;
         self
     }
 
@@ -80,6 +80,35 @@ impl OpenAIResponsesProvider {
         self.previous_response_id = Some(id.into());
         self
     }
+
+    /// [Amazon Bedrock OpenAI-compatible API](https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html) —
+    /// OpenAI-compatible Responses API endpoints backed by Amazon Bedrock.
+    ///
+    /// `region`: AWS region, e.g. `"us-east-1"`.
+    /// `api_key`: a Bedrock API key (bearer token).
+    ///
+    /// Use `openai.` prefixed model names, e.g. `"openai.gpt-oss-120b"`.
+    pub fn for_bedrock_openai(region: impl Into<String>, api_key: impl Into<String>) -> Self {
+        let region = region.into();
+        Self::new(api_key)
+            .with_api_base(format!("https://bedrock-mantle.{region}.api.aws/v1"))
+    }
+
+    /// Create an Amazon Bedrock OpenAI-compatible API provider from environment variables.
+    ///
+    /// Reads `BEDROCK_API_KEY` (or `AWS_BEARER_TOKEN_BEDROCK`) for the API key
+    /// and `BEDROCK_REGION` / `AWS_REGION` / `AWS_DEFAULT_REGION` for the region
+    /// (defaulting to `"us-east-1"`).
+    pub fn for_bedrock_openai_from_env() -> Result<Self, ProviderError> {
+        let api_key = crate::env::require(crate::env::keys::BEDROCK_API_KEY)
+            .or_else(|_| crate::env::require("AWS_BEARER_TOKEN_BEDROCK"))?;
+        let region = crate::env::optional("BEDROCK_REGION")
+            .or_else(|| crate::env::optional("AWS_REGION"))
+            .or_else(|| crate::env::optional("AWS_DEFAULT_REGION"))
+            .unwrap_or_else(|| "us-east-1".to_string());
+        Ok(Self::for_bedrock_openai(region, api_key))
+    }
+
 }
 
 #[async_trait]
@@ -88,9 +117,16 @@ impl Provider for OpenAIResponsesProvider {
         "openai"
     }
 
+    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        self.shared.list_models().await
+    }
+}
+
+#[async_trait]
+impl ChatProvider for OpenAIResponsesProvider {
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
-        let api_key = self.api_key.clone();
-        let client = Arc::clone(&self.client);
+        let api_key = self.shared.api_key.clone();
+        let client = Arc::clone(&self.shared.client);
         let base_url = self.base_url.clone();
         let previous_response_id = self.previous_response_id.clone();
 
@@ -206,7 +242,18 @@ impl Provider for OpenAIResponsesProvider {
                             yield Ok(StreamEvent::ContentBlockStop { index: idx });
                         }
                     }
-                    "response.output_text.done" => {
+                    "response.refusal.delta" => {
+                        // Model refused the request — stream refusal text as a text delta
+                        let output_idx = parsed["output_index"].as_u64().unwrap_or(0) as usize;
+                        let delta = parsed["delta"].as_str().unwrap_or("");
+                        if !delta.is_empty() {
+                            yield Ok(StreamEvent::ContentBlockDelta {
+                                index: output_idx,
+                                delta: ContentDelta::Text { text: delta.to_string() },
+                            });
+                        }
+                    }
+                    "response.refusal.done" | "response.output_text.done" => {
                         // ContentBlockStop is handled by response.output_item.done to avoid
                         // double-stopping text blocks.
                     }
@@ -250,9 +297,10 @@ impl Provider for OpenAIResponsesProvider {
         )?;
 
         let mut req_builder = self
+            .shared
             .client
             .post(&self.base_url)
-            .bearer_auth(&self.api_key)
+            .bearer_auth(&self.shared.api_key)
             .json(&body);
         if let Some(ms) = config.timeout_ms {
             req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
@@ -264,77 +312,112 @@ impl Provider for OpenAIResponsesProvider {
         parse_response(&json)
     }
 
-    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        let url = format!("{}/models", self.api_base);
-        let resp = self
-            .client
-            .get(&url)
-            .bearer_auth(&self.api_key)
-            .send()
-            .await?;
+    async fn count_tokens(
+        &self,
+        messages: Vec<Message>,
+        config: ProviderConfig,
+    ) -> Result<TokenCount, ProviderError> {
+        let url = format!("{}/responses/input_tokens", self.shared.api_base);
+        let body = build_request(&messages, &config, false, self.previous_response_id.as_deref())?;
+
+        let mut req_builder = self.shared.client.post(&url).bearer_auth(&self.shared.api_key).json(&body);
+        if let Some(ms) = config.timeout_ms {
+            req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
+        }
+        let resp = req_builder.send().await?;
         let resp = check_response(resp).await?;
         let json: Value = resp.json().await?;
 
-        let mut models = Vec::new();
-        if let Some(arr) = json["data"].as_array() {
-            for item in arr {
-                models.push(ModelInfo {
-                    id: item["id"].as_str().unwrap_or("").to_string(),
-                    display_name: None,
-                    description: None,
-                    created_at: item["created"].as_u64(),
-                });
-            }
-        }
-        Ok(models)
+        let input_tokens = json["input_tokens"].as_u64().unwrap_or(0);
+        Ok(TokenCount { input_tokens })
+    }
+}
+
+#[async_trait]
+impl EmbeddingProvider for OpenAIResponsesProvider {
+    async fn embed(&self, request: EmbeddingRequest) -> Result<EmbeddingResponse, ProviderError> {
+        self.shared.embed(request).await
+    }
+}
+
+#[async_trait]
+impl ImageProvider for OpenAIResponsesProvider {
+    async fn generate_image(
+        &self,
+        request: ImageGenerationRequest,
+    ) -> Result<ImageGenerationResponse, ProviderError> {
+        self.shared.generate_image(request).await
     }
 
-    async fn embed(
+    async fn edit_image(
         &self,
-        request: EmbeddingRequest,
-        model: &str,
-    ) -> Result<EmbeddingResponse, ProviderError> {
-        use crate::providers::openai_chat::parse_usage;
-        let url = format!("{}/embeddings", self.api_base);
-        let mut body = json!({
-            "model": model,
-            "input": request.inputs,
-        });
-        if let Some(dims) = request.dimensions {
-            body["dimensions"] = json!(dims);
-        }
+        request: ImageEditRequest,
+    ) -> Result<ImageGenerationResponse, ProviderError> {
+        self.shared.edit_image(request).await
+    }
+}
 
+#[async_trait]
+impl AudioProvider for OpenAIResponsesProvider {
+    async fn generate_speech(
+        &self,
+        request: SpeechRequest,
+    ) -> Result<SpeechResponse, ProviderError> {
+        self.shared.generate_speech(request).await
+    }
+
+    async fn transcribe(
+        &self,
+        request: TranscriptionRequest,
+    ) -> Result<TranscriptionResponse, ProviderError> {
+        self.shared.transcribe(request).await
+    }
+
+    async fn translate(
+        &self,
+        request: TranscriptionRequest,
+    ) -> Result<TranscriptionResponse, ProviderError> {
+        self.shared.translate(request).await
+    }
+}
+
+#[async_trait]
+impl ModerationProvider for OpenAIResponsesProvider {
+    async fn moderate(
+        &self,
+        request: ModerationRequest,
+    ) -> Result<ModerationResponse, ProviderError> {
+        self.shared.moderate(request).await
+    }
+}
+
+#[async_trait]
+impl StatefulProvider for OpenAIResponsesProvider {
+    async fn retrieve_response(&self, id: &str) -> Result<serde_json::Value, ProviderError> {
+        let url = format!("{}/responses/{}", self.shared.api_base, id);
         let resp = self
+            .shared
             .client
-            .post(&url)
-            .bearer_auth(&self.api_key)
-            .json(&body)
+            .get(&url)
+            .bearer_auth(&self.shared.api_key)
             .send()
             .await?;
         let resp = check_response(resp).await?;
-        let json: Value = resp.json().await?;
+        Ok(resp.json::<Value>().await?)
+    }
 
-        let mut embeddings: Vec<Vec<f32>> = Vec::new();
-        if let Some(arr) = json["data"].as_array() {
-            for item in arr {
-                if let Some(vec_arr) = item["embedding"].as_array() {
-                    let vec: Vec<f32> = vec_arr
-                        .iter()
-                        .filter_map(|v| v.as_f64().map(|f| f as f32))
-                        .collect();
-                    embeddings.push(vec);
-                }
-            }
-        }
-
-        let usage = parse_usage(&json["usage"]);
-        let returned_model = json["model"].as_str().map(|s| s.to_string());
-
-        Ok(EmbeddingResponse {
-            embeddings,
-            model: returned_model,
-            usage,
-        })
+    async fn cancel_response(&self, id: &str) -> Result<serde_json::Value, ProviderError> {
+        let url = format!("{}/responses/{}/cancel", self.shared.api_base, id);
+        let resp = self
+            .shared
+            .client
+            .post(&url)
+            .bearer_auth(&self.shared.api_key)
+            .header("content-length", "0")
+            .send()
+            .await?;
+        let resp = check_response(resp).await?;
+        Ok(resp.json::<Value>().await?)
     }
 }
 
@@ -389,7 +472,10 @@ fn build_request(
         })
         .collect();
 
-    // Built-in tools from extra config (web_search_preview, file_search, etc.)
+    // Typed built-in tools (file_search, code_interpreter, mcp, etc.)
+    tools.extend(config.built_in_tools.iter().map(|t| t.0.clone()));
+
+    // Legacy: extra["builtin_tools"] raw JSON array (kept for backwards compatibility)
     if let Some(bt) = config.extra.get("builtin_tools")
         && let Some(arr) = bt.as_array()
     {
@@ -420,13 +506,17 @@ fn build_request(
         let mut all_tools = tools;
         let mut ws_tool = json!({"type": "web_search_preview"});
         if let Some(allowed) = &ws.allowed_domains {
-            ws_tool["search_context_size"] = json!("medium"); // default
-            ws_tool["user_location"] = json!(null);
-            // Pass domains via the search_context config
             ws_tool["allowed_domains"] = json!(allowed);
         }
         if let Some(blocked) = &ws.blocked_domains {
             ws_tool["blocked_domains"] = json!(blocked);
+        }
+        if let Some(ctx_size) = &ws.search_context_size {
+            ws_tool["search_context_size"] = json!(ctx_size);
+        }
+        if let Some(loc) = &ws.user_location {
+            ws_tool["user_location"] =
+                serde_json::to_value(loc).unwrap_or(serde_json::Value::Null);
         }
         all_tools.push(ws_tool);
         req["tools"] = json!(all_tools);
@@ -458,8 +548,23 @@ fn build_request(
     if let Some(penalty) = config.frequency_penalty {
         req["frequency_penalty"] = json!(penalty);
     }
-    if let Some(n) = config.n {
-        req["n"] = json!(n);
+    // `n` is not supported by the Responses API (removed from spec)
+
+    if let Some(background) = config.background {
+        req["background"] = json!(background);
+    }
+    if let Some(cm) = &config.context_management {
+        req["context_management"] =
+            serde_json::to_value(cm).unwrap_or_else(|_| json!({}));
+    }
+    if let Some(truncation) = &config.truncation {
+        req["truncation"] = json!(truncation);
+    }
+    if let Some(retention) = &config.prompt_cache_retention {
+        req["prompt_cache_retention"] = json!(retention);
+    }
+    if let Some(cache_key) = &config.prompt_cache_key {
+        req["prompt_cache_key"] = json!(cache_key);
     }
 
     for (k, v) in &config.extra {
@@ -502,7 +607,7 @@ fn format_input(messages: &[Message]) -> Result<Value, ProviderError> {
                         .iter()
                         .filter_map(|b| {
                             if let ContentBlock::Text(t) = b {
-                                Some(t.as_str())
+                                Some(t.text.as_str())
                             } else {
                                 None
                             }
@@ -544,21 +649,29 @@ fn format_input(messages: &[Message]) -> Result<Value, ProviderError> {
 
 fn format_content_part(block: &ContentBlock) -> Result<Value, ProviderError> {
     match block {
-        ContentBlock::Text(t) => Ok(json!({"type": "input_text", "text": t})),
-        ContentBlock::Image(img) => match &img.source {
+        ContentBlock::Text(t) => Ok(json!({"type": "input_text", "text": t.text})),
+        ContentBlock::Image(img) => {
+            use crate::types::ImageDetail;
+            let detail = match img.detail.as_ref().unwrap_or(&ImageDetail::Auto) {
+                ImageDetail::Auto => "auto",
+                ImageDetail::Low => "low",
+                ImageDetail::High => "high",
+            };
+            match &img.source {
             MediaSource::Url(url) => Ok(json!({
                 "type": "input_image",
                 "image_url": url,
-                "detail": "auto",
+                "detail": detail,
             })),
             MediaSource::Base64(b64) => Ok(json!({
                 "type": "input_image",
                 "image_url": format!("data:{};base64,{}", b64.media_type, b64.data),
-                "detail": "auto",
+                "detail": detail,
             })),
             _ => Err(ProviderError::Unsupported(
                 "Responses API images require URL or base64 source".into(),
             )),
+            }
         },
         ContentBlock::Document(doc) => match &doc.source {
             MediaSource::Base64(b64) => Ok(json!({
@@ -605,6 +718,11 @@ fn format_tool_choice(tc: &crate::types::ToolChoice) -> Value {
         crate::types::ToolChoice::Any => json!("required"),
         crate::types::ToolChoice::None => json!("none"),
         crate::types::ToolChoice::Tool { name } => json!({"type": "function", "name": name}),
+        crate::types::ToolChoice::AllowedTools { tools } => json!({
+            "type": "allowed_tools",
+            "mode": "auto",
+            "tools": tools.iter().map(|n| json!({"type": "function", "name": n})).collect::<Vec<_>>(),
+        }),
     }
 }
 
@@ -627,7 +745,7 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
                         if part["type"].as_str() == Some("output_text")
                             && let Some(text) = part["text"].as_str()
                         {
-                            content.push(ContentBlock::Text(text.to_string()));
+                            content.push(ContentBlock::text(text));
                         }
                     }
                 }
@@ -676,6 +794,7 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
         stop_reason,
         model,
         id,
+        container: None,
         logprobs: None,
         grounding_metadata: None,
         warnings: vec![],
@@ -704,7 +823,129 @@ fn parse_usage(usage: &Value) -> Usage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::{BuiltinTool, McpToolConfig, WebSearchConfig, WebSearchUserLocation};
     use serde_json::json;
+
+    #[test]
+    fn test_builtin_tool_file_search() {
+        let config = ProviderConfig::new("gpt-4.1")
+            .with_built_in_tool(BuiltinTool::file_search());
+        let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
+        assert_eq!(req["tools"][0]["type"], "file_search");
+    }
+
+    #[test]
+    fn test_builtin_tool_file_search_with_ids() {
+        let config = ProviderConfig::new("gpt-4.1")
+            .with_built_in_tool(BuiltinTool::file_search_with_ids(["vs_abc", "vs_def"]));
+        let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
+        assert_eq!(req["tools"][0]["type"], "file_search");
+        assert_eq!(req["tools"][0]["vector_store_ids"][0], "vs_abc");
+    }
+
+    #[test]
+    fn test_builtin_tool_code_interpreter() {
+        let config = ProviderConfig::new("gpt-4.1")
+            .with_built_in_tool(BuiltinTool::code_interpreter());
+        let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
+        assert_eq!(req["tools"][0]["type"], "code_interpreter");
+        assert_eq!(req["tools"][0]["container"]["type"], "auto");
+    }
+
+    #[test]
+    fn test_builtin_tool_code_interpreter_with_files() {
+        let config = ProviderConfig::new("gpt-4.1")
+            .with_built_in_tool(BuiltinTool::code_interpreter_with_files(["file-123"]));
+        let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
+        assert_eq!(req["tools"][0]["container"]["file_ids"][0], "file-123");
+    }
+
+    #[test]
+    fn test_builtin_tool_image_generation() {
+        let config = ProviderConfig::new("gpt-4.1")
+            .with_built_in_tool(BuiltinTool::image_generation());
+        let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
+        assert_eq!(req["tools"][0]["type"], "image_generation");
+    }
+
+    #[test]
+    fn test_builtin_tool_computer_use() {
+        let config = ProviderConfig::new("computer-use-preview")
+            .with_built_in_tool(BuiltinTool::computer_use(1024, 768, "browser"));
+        let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
+        assert_eq!(req["tools"][0]["type"], "computer_use_preview");
+        assert_eq!(req["tools"][0]["display_width"], 1024);
+        assert_eq!(req["tools"][0]["display_height"], 768);
+        assert_eq!(req["tools"][0]["environment"], "browser");
+    }
+
+    #[test]
+    fn test_builtin_tool_mcp() {
+        let config = ProviderConfig::new("gpt-4.1").with_built_in_tool(BuiltinTool::mcp(
+            McpToolConfig::new("my-server", "https://mcp.example.com/sse")
+                .with_require_approval("never")
+                .with_allowed_tools(vec!["search".to_string()]),
+        ));
+        let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
+        assert_eq!(req["tools"][0]["type"], "mcp");
+        assert_eq!(req["tools"][0]["server_label"], "my-server");
+        assert_eq!(req["tools"][0]["server_url"], "https://mcp.example.com/sse");
+        assert_eq!(req["tools"][0]["require_approval"], "never");
+        assert_eq!(req["tools"][0]["allowed_tools"][0], "search");
+    }
+
+    #[test]
+    fn test_builtin_tool_local_shell() {
+        let config = ProviderConfig::new("codex-mini-latest")
+            .with_built_in_tool(BuiltinTool::local_shell());
+        let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
+        assert_eq!(req["tools"][0]["type"], "local_shell");
+    }
+
+    #[test]
+    fn test_builtin_tool_apply_patch() {
+        let config = ProviderConfig::new("gpt-5.1")
+            .with_built_in_tool(BuiltinTool::apply_patch());
+        let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
+        assert_eq!(req["tools"][0]["type"], "apply_patch");
+    }
+
+    #[test]
+    fn test_builtin_tools_combined_with_functions() {
+        // Function tools and built-in tools should appear together in tools array
+        let config = ProviderConfig::new("gpt-4.1")
+            .with_tools(vec![crate::types::Tool::new("search", "Search", json!({"type":"object"}))])
+            .with_built_in_tool(BuiltinTool::file_search());
+        let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
+        assert_eq!(req["tools"].as_array().unwrap().len(), 2);
+        assert_eq!(req["tools"][0]["type"], "function");
+        assert_eq!(req["tools"][1]["type"], "file_search");
+    }
+
+    #[test]
+    fn test_web_search_with_user_location() {
+        let loc = WebSearchUserLocation::new()
+            .with_country("GB")
+            .with_city("London")
+            .with_timezone("Europe/London");
+        let config = ProviderConfig::new("gpt-4.1")
+            .with_web_search(WebSearchConfig::new().with_user_location(loc));
+        let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
+        let ws = &req["tools"][0];
+        assert_eq!(ws["type"], "web_search_preview");
+        assert_eq!(ws["user_location"]["country"], "GB");
+        assert_eq!(ws["user_location"]["city"], "London");
+        assert_eq!(ws["user_location"]["timezone"], "Europe/London");
+    }
+
+    #[test]
+    fn test_web_search_context_size() {
+        let config = ProviderConfig::new("gpt-4.1").with_web_search(
+            WebSearchConfig::new().with_search_context_size("high"),
+        );
+        let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
+        assert_eq!(req["tools"][0]["search_context_size"], "high");
+    }
 
     #[test]
     fn test_build_request_basic() {
