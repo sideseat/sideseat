@@ -33,7 +33,7 @@ use serde_json::{Value, json};
 
 use crate::{
     error::ProviderError,
-    provider::{Provider, ProviderStream},
+    provider::{AudioProvider, ChatProvider, EmbeddingProvider, ImageProvider, Provider, ProviderStream, VideoProvider},
     types::{
         AudioFormat as CAudioFmt, ContentBlock, ContentBlockStart, ContentDelta,
         DocumentFormat as CDocFmt,
@@ -311,6 +311,34 @@ impl Provider for BedrockProvider {
         "aws_bedrock"
     }
 
+    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        let Some(mgmt) = &self.mgmt_client else {
+            return Err(ProviderError::Unsupported(
+                "list_models requires a management client (unavailable when using from_client())".into(),
+            ));
+        };
+        let resp = mgmt
+            .list_foundation_models()
+            .send()
+            .await
+            .map_err(|e| map_bedrock_mgmt_error(e.into()))?;
+
+        let models = resp
+            .model_summaries()
+            .iter()
+            .map(|m| ModelInfo {
+                id: m.model_id().to_string(),
+                display_name: m.model_name().map(|s| s.to_string()),
+                description: None,
+                created_at: None,
+            })
+            .collect();
+        Ok(models)
+    }
+}
+
+#[async_trait]
+impl ChatProvider for BedrockProvider {
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         let client = Arc::clone(&self.client);
         Box::pin(stream! {
@@ -470,6 +498,7 @@ impl Provider for BedrockProvider {
             stop_reason,
             model: Some(config.model.clone()),
             id: None,
+            container: None,
             logprobs: None,
             grounding_metadata: None,
             warnings: vec![],
@@ -477,36 +506,56 @@ impl Provider for BedrockProvider {
         })
     }
 
-    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        let Some(mgmt) = &self.mgmt_client else {
-            return Err(ProviderError::Unsupported(
-                "list_models requires a management client (unavailable when using from_client())".into(),
-            ));
-        };
-        let resp = mgmt
-            .list_foundation_models()
-            .send()
-            .await
-            .map_err(|e| map_bedrock_mgmt_error(e.into()))?;
+    async fn count_tokens(
+        &self,
+        messages: Vec<Message>,
+        config: ProviderConfig,
+    ) -> Result<TokenCount, ProviderError> {
+        let (bedrock_msgs, sys_blocks) = build_messages_and_system(&messages, &config)?;
+        let tool_config = build_tool_config(&config)?;
 
-        let models = resp
-            .model_summaries()
-            .iter()
-            .map(|m| ModelInfo {
-                id: m.model_id().to_string(),
-                display_name: m.model_name().map(|s| s.to_string()),
-                description: None,
-                created_at: None,
+        let converse_req = ConverseTokensRequest::builder()
+            .set_messages(if bedrock_msgs.is_empty() {
+                None
+            } else {
+                Some(bedrock_msgs)
             })
-            .collect();
-        Ok(models)
-    }
+            .set_system(if sys_blocks.is_empty() {
+                None
+            } else {
+                Some(sys_blocks)
+            })
+            .set_tool_config(tool_config)
+            .build();
 
+        let fut = self
+            .client
+            .count_tokens()
+            .model_id(&config.model)
+            .input(CountTokensInput::Converse(converse_req))
+            .send();
+        let resp = if let Some(ms) = config.timeout_ms {
+            tokio::time::timeout(Duration::from_millis(ms), fut)
+                .await
+                .map_err(|_| ProviderError::Timeout { ms })?
+                .map_err(|e| map_bedrock_error(e.into()))?
+        } else {
+            fut.await.map_err(|e| map_bedrock_error(e.into()))?
+        };
+
+        Ok(TokenCount {
+            input_tokens: resp.input_tokens() as u64,
+        })
+    }
+}
+
+#[async_trait]
+impl EmbeddingProvider for BedrockProvider {
     async fn embed(
         &self,
         request: EmbeddingRequest,
-        model: &str,
     ) -> Result<EmbeddingResponse, ProviderError> {
+        let model = request.model.as_str();
         // Build the invoke_model request body based on the model family
         let body = if model.contains("cohere.embed") {
             // Cohere Embed V3 on Bedrock — fixed 1024 dims, no dimension control
@@ -579,7 +628,10 @@ impl Provider for BedrockProvider {
             },
         })
     }
+}
 
+#[async_trait]
+impl ImageProvider for BedrockProvider {
     async fn generate_image(
         &self,
         request: ImageGenerationRequest,
@@ -639,7 +691,10 @@ impl Provider for BedrockProvider {
 
         Ok(ImageGenerationResponse { images })
     }
+}
 
+#[async_trait]
+impl VideoProvider for BedrockProvider {
     async fn generate_video(
         &self,
         request: VideoGenerationRequest,
@@ -681,49 +736,10 @@ impl Provider for BedrockProvider {
         let videos = self.poll_async_invoke_until_done(&arn, s3_uri).await?;
         Ok(VideoGenerationResponse { videos })
     }
+}
 
-    async fn count_tokens(
-        &self,
-        messages: Vec<Message>,
-        config: ProviderConfig,
-    ) -> Result<TokenCount, ProviderError> {
-        let (bedrock_msgs, sys_blocks) = build_messages_and_system(&messages, &config)?;
-        let tool_config = build_tool_config(&config)?;
-
-        let converse_req = ConverseTokensRequest::builder()
-            .set_messages(if bedrock_msgs.is_empty() {
-                None
-            } else {
-                Some(bedrock_msgs)
-            })
-            .set_system(if sys_blocks.is_empty() {
-                None
-            } else {
-                Some(sys_blocks)
-            })
-            .set_tool_config(tool_config)
-            .build();
-
-        let fut = self
-            .client
-            .count_tokens()
-            .model_id(&config.model)
-            .input(CountTokensInput::Converse(converse_req))
-            .send();
-        let resp = if let Some(ms) = config.timeout_ms {
-            tokio::time::timeout(Duration::from_millis(ms), fut)
-                .await
-                .map_err(|_| ProviderError::Timeout { ms })?
-                .map_err(|e| map_bedrock_error(e.into()))?
-        } else {
-            fut.await.map_err(|e| map_bedrock_error(e.into()))?
-        };
-
-        Ok(TokenCount {
-            input_tokens: resp.input_tokens() as u64,
-        })
-    }
-
+#[async_trait]
+impl AudioProvider for BedrockProvider {
     /// Generate speech audio from text via Amazon Nova Sonic.
     ///
     /// Supported model: `amazon.nova-sonic-v1:0`.
@@ -832,6 +848,8 @@ impl Provider for BedrockProvider {
             text: transcript,
             language: None,
             duration_secs: None,
+            words: vec![],
+            segments: vec![],
         })
     }
 }
@@ -932,7 +950,7 @@ fn build_messages_and_system(
             Role::System => {
                 for block in &msg.content {
                     if let ContentBlock::Text(t) = block {
-                        sys.push(SystemContentBlock::Text(t.clone()));
+                        sys.push(SystemContentBlock::Text(t.text.clone()));
                     }
                 }
                 if msg.cache_control.is_some() {
@@ -1179,6 +1197,8 @@ fn build_tool_config(config: &ProviderConfig) -> Result<Option<ToolConfiguration
                     .build()
                     .map_err(|e| ProviderError::Config(e.to_string()))?,
             ),
+            // Bedrock has no subset restriction; fall back to auto
+            ToolChoice::AllowedTools { .. } => BToolChoice::Auto(AutoToolChoice::builder().build()),
         };
         builder = builder.tool_choice(bc);
     }
@@ -1196,7 +1216,7 @@ fn build_tool_config(config: &ProviderConfig) -> Result<Option<ToolConfiguration
 
 fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
     match block {
-        ContentBlock::Text(t) => Ok(BContent::Text(t.clone())),
+        ContentBlock::Text(t) => Ok(BContent::Text(t.text.clone())),
 
         ContentBlock::Image(img) => {
             let (fmt, source) = match &img.source {
@@ -1314,7 +1334,7 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                 .content
                 .iter()
                 .filter_map(|b| match b {
-                    ContentBlock::Text(t) => Some(ToolResultContentBlock::Text(t.clone())),
+                    ContentBlock::Text(t) => Some(ToolResultContentBlock::Text(t.text.clone())),
                     ContentBlock::Image(img) => block_to_bedrock(&ContentBlock::Image(img.clone()))
                         .ok()
                         .and_then(|bc| {
@@ -1409,7 +1429,7 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
 
 fn bedrock_content_to_block(block: &BContent) -> Option<ContentBlock> {
     match block {
-        BContent::Text(t) => Some(ContentBlock::Text(t.clone())),
+        BContent::Text(t) => Some(ContentBlock::text(t.as_str())),
         BContent::ToolUse(tu) => Some(ContentBlock::ToolUse(ToolUseBlock {
             id: tu.tool_use_id().to_string(),
             name: tu.name().to_string(),
@@ -1440,6 +1460,7 @@ fn caudio_to_bedrock(fmt: &CAudioFmt) -> BAudioFmt {
         CAudioFmt::M4a => BAudioFmt::M4A,
         CAudioFmt::Opus => BAudioFmt::Opus,
         CAudioFmt::Aiff => BAudioFmt::from("aiff"),
+        CAudioFmt::Pcm16 => BAudioFmt::from("pcm16"),
     }
 }
 
@@ -1541,6 +1562,7 @@ fn map_bedrock_error(e: aws_sdk_bedrockruntime::Error) -> ProviderError {
             } else if lower.contains("doesn't support")
                 || lower.contains("does not support")
                 || lower.contains("not supported")
+                || lower.contains("must set one of the following keys")
             {
                 ProviderError::Unsupported(msg)
             } else {

@@ -7,13 +7,13 @@ use serde_json::{Value, json};
 
 use crate::{
     error::ProviderError,
-    provider::{Provider, ProviderStream},
+    provider::{ChatProvider, Provider, ProviderStream},
     providers::sse::{check_response, sse_data_stream},
     types::{
-        ContentBlock, ContentBlockStart, ContentDelta, DocumentContent, EmbeddingRequest,
-        EmbeddingResponse, ImageContent, MediaSource, Message, ModelInfo, ProviderConfig,
-        ResponseFormat, Role, StopReason, StreamEvent, ThinkingBlock, TokenCount, ToolChoice,
-        ToolUseBlock, Usage,
+        Base64Data, Citation, ContainerInfo, ContentBlock, ContentBlockStart, ContentDelta,
+        DocumentContent, ImageContent, MediaSource, Message, ModelInfo, ProviderConfig,
+        ResponseFormat, Role, StopReason, StreamEvent, TextBlock, ThinkingBlock, TokenCount,
+        ToolChoice, ToolUseBlock, Usage,
     },
 };
 
@@ -72,9 +72,7 @@ pub struct AnthropicProvider {
 impl AnthropicProvider {
     /// Create a provider from the `ANTHROPIC_API_KEY` environment variable.
     pub fn from_env() -> Result<Self, ProviderError> {
-        let key = std::env::var("ANTHROPIC_API_KEY")
-            .map_err(|_| ProviderError::Config("ANTHROPIC_API_KEY not set".into()))?;
-        Ok(Self::new(key))
+        Ok(Self::new(crate::env::require(crate::env::keys::ANTHROPIC_API_KEY)?))
     }
 
     /// Create a direct Anthropic API provider.
@@ -109,9 +107,24 @@ impl AnthropicProvider {
         self
     }
 
-    /// Add beta feature names. These are sent as `anthropic-beta: b1,b2,...`.
+    /// Replace the full list of beta feature names.  These are sent as `anthropic-beta: b1,b2,…`.
+    ///
+    /// See [`betas`] for named constants of all known Anthropic beta strings.
     pub fn with_betas(mut self, betas: Vec<String>) -> Self {
         self.betas = betas;
+        self
+    }
+
+    /// Append a single beta feature name.  See [`betas`] for named constants.
+    ///
+    /// ```no_run
+    /// use sideseat::providers::{AnthropicProvider, anthropic::betas};
+    /// let provider = AnthropicProvider::new("key")
+    ///     .with_beta(betas::FILES_API)
+    ///     .with_beta(betas::INTERLEAVED_THINKING);
+    /// ```
+    pub fn with_beta(mut self, beta: impl Into<String>) -> Self {
+        self.betas.push(beta.into());
         self
     }
 
@@ -224,6 +237,24 @@ impl Provider for AnthropicProvider {
         "anthropic"
     }
 
+    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        match &self.backend {
+            AnthropicBackend::Direct { api_key, base_url } => {
+                list_models_direct(&self.client, api_key, base_url, &self.betas).await
+            }
+            AnthropicBackend::Bedrock { .. } => Err(ProviderError::Unsupported(
+                "list_models not available for Bedrock backend; use BedrockProvider::list_models()"
+                    .into(),
+            )),
+            AnthropicBackend::Vertex { .. } => Err(ProviderError::Unsupported(
+                "list_models not available for Vertex backend".into(),
+            )),
+        }
+    }
+}
+
+#[async_trait]
+impl ChatProvider for AnthropicProvider {
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         let backend = self.backend.clone();
         let client = Arc::clone(&self.client);
@@ -285,17 +316,25 @@ impl Provider for AnthropicProvider {
                         Err(e) => { yield Err(ProviderError::Serialization(e.to_string())); return; }
                     };
 
-                    let mut event_stream = match bedrock_client
+                    let send_fut = bedrock_client
                         .invoke_model_with_response_stream()
                         .model_id(&config.model)
                         .content_type("application/json")
                         .accept("application/json")
                         .body(aws_sdk_bedrockruntime::primitives::Blob::new(body_bytes))
-                        .send()
-                        .await
-                    {
-                        Ok(r) => r.body,
-                        Err(e) => { yield Err(ProviderError::Api { status: 0, message: e.to_string() }); return; }
+                        .send();
+
+                    let mut event_stream = if let Some(ms) = config.timeout_ms {
+                        match tokio::time::timeout(std::time::Duration::from_millis(ms), send_fut).await {
+                            Ok(Ok(r)) => r.body,
+                            Ok(Err(e)) => { yield Err(classify_bedrock_sdk_error(format!("{e:?}"))); return; }
+                            Err(_) => { yield Err(ProviderError::Timeout { ms }); return; }
+                        }
+                    } else {
+                        match send_fut.await {
+                            Ok(r) => r.body,
+                            Err(e) => { yield Err(classify_bedrock_sdk_error(format!("{e:?}"))); return; }
+                        }
                     };
 
                     use aws_sdk_bedrockruntime::types::ResponseStream;
@@ -316,7 +355,7 @@ impl Provider for AnthropicProvider {
                             Ok(None) => break,
                             Ok(_) => continue,
                             Err(e) => {
-                                yield Err(ProviderError::Api { status: 0, message: e.to_string() });
+                                yield Err(classify_bedrock_sdk_error(format!("{e:?}")));
                                 break;
                             }
                         }
@@ -392,23 +431,24 @@ impl Provider for AnthropicProvider {
                 let body = build_bedrock_request(&messages, &config)?;
                 let body_bytes = serde_json::to_vec(&body)
                     .map_err(|e| ProviderError::Serialization(e.to_string()))?;
-                let resp = client
+                let fut = client
                     .invoke_model()
                     .model_id(&config.model)
                     .content_type("application/json")
                     .accept("application/json")
                     .body(aws_sdk_bedrockruntime::primitives::Blob::new(body_bytes))
-                    .send()
-                    .await
-                    .map_err(|e| ProviderError::Api {
-                        status: 0,
-                        message: e.to_string(),
-                    })?;
+                    .send();
+                let resp = if let Some(ms) = config.timeout_ms {
+                    tokio::time::timeout(std::time::Duration::from_millis(ms), fut)
+                        .await
+                        .map_err(|_| ProviderError::Timeout { ms })?
+                        .map_err(|e| classify_bedrock_sdk_error(format!("{e:?}")))?
+                } else {
+                    fut.await.map_err(|e| classify_bedrock_sdk_error(format!("{e:?}")))?
+                };
                 let json: Value = serde_json::from_slice(resp.body.as_ref())
                     .map_err(|e| ProviderError::Serialization(e.to_string()))?;
-                let mut response = parse_response(&json)?;
-                add_backend_warnings(&config, &messages, &mut response.warnings);
-                Ok(response)
+                parse_response(&json)
             }
             AnthropicBackend::Vertex {
                 project_id,
@@ -426,25 +466,8 @@ impl Provider for AnthropicProvider {
                     config.timeout_ms,
                 )
                 .await?;
-                let mut response = parse_response(&json)?;
-                add_backend_warnings(&config, &messages, &mut response.warnings);
-                Ok(response)
+                parse_response(&json)
             }
-        }
-    }
-
-    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        match &self.backend {
-            AnthropicBackend::Direct { api_key, base_url } => {
-                list_models_direct(&self.client, api_key, base_url, &self.betas).await
-            }
-            AnthropicBackend::Bedrock { .. } => Err(ProviderError::Unsupported(
-                "list_models not available for Bedrock backend; use BedrockProvider::list_models()"
-                    .into(),
-            )),
-            AnthropicBackend::Vertex { .. } => Err(ProviderError::Unsupported(
-                "list_models not available for Vertex backend".into(),
-            )),
         }
     }
 
@@ -470,16 +493,6 @@ impl Provider for AnthropicProvider {
             )),
         }
     }
-
-    async fn embed(
-        &self,
-        _request: EmbeddingRequest,
-        _model: &str,
-    ) -> Result<EmbeddingResponse, ProviderError> {
-        Err(ProviderError::Unsupported(
-            "Anthropic does not offer an embeddings API".into(),
-        ))
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -498,6 +511,15 @@ fn build_messages_request(
         "stream": stream,
     });
     apply_common_fields(&mut req, messages, config)?;
+    if let Some(tier) = &config.service_tier {
+        req["service_tier"] = json!(tier.as_str());
+    }
+    if let Some(id) = &config.container_id {
+        req["container"] = json!(id);
+    }
+    if let Some(geo) = &config.inference_geo {
+        req["inference_geo"] = json!(geo);
+    }
     Ok(req)
 }
 
@@ -511,6 +533,14 @@ fn build_bedrock_request(
         "max_tokens": config.max_tokens.unwrap_or(1024),
     });
     apply_common_fields(&mut req, messages, config)?;
+    // Bedrock: temperature and top_p cannot both be specified — drop top_p when temperature is set
+    if req.get("temperature").is_some() {
+        req.as_object_mut().map(|o| o.remove("top_p"));
+    }
+    // Bedrock invoke_model does not accept disable_parallel_tool_use (anywhere)
+    if let Some(tc) = req.get_mut("tool_choice").and_then(|v| v.as_object_mut()) {
+        tc.remove("disable_parallel_tool_use");
+    }
     Ok(req)
 }
 
@@ -531,22 +561,18 @@ fn build_vertex_request(
 
 /// Returns extra beta headers automatically required by the given config.
 /// These are merged with any user-specified betas before sending the request.
-fn compute_auto_betas(config: &ProviderConfig, messages: &[Message]) -> Vec<String> {
-    let mut betas: Vec<String> = Vec::new();
+fn compute_auto_betas(config: &ProviderConfig, _messages: &[Message]) -> Vec<String> {
+    let mut result: Vec<String> = Vec::new();
 
     // Web search requires its own beta
     if config.web_search.is_some() {
-        betas.push("web-search-2025-03-05".to_string());
+        result.push(betas::WEB_SEARCH.to_string());
     }
 
-    // Check if any message or the system prompt uses cache control
-    let has_cache = messages.iter().any(|m| m.cache_control.is_some());
     // Note: basic ephemeral (5-min) cache is now GA (no beta needed).
-    // Extended TTL (1h) would need extended-cache-ttl-2025-04-30, but we only
-    // expose CacheControl::Ephemeral (5-min) for now.
-    let _ = has_cache; // reserved for future use
+    // Extended TTL (1h) needs betas::EXTENDED_CACHE_TTL; add it manually via with_beta().
 
-    betas
+    result
 }
 
 /// Apply fields common to all backends: system, messages, temperature, tools, thinking…
@@ -565,7 +591,7 @@ fn apply_common_fields(
             if msg.role == Role::System {
                 for block in &msg.content {
                     if let ContentBlock::Text(t) = block {
-                        system_blocks.push(json!({"type": "text", "text": t}));
+                        system_blocks.push(json!({"type": "text", "text": t.text}));
                     }
                 }
             }
@@ -665,6 +691,8 @@ fn apply_common_fields(
                 ToolChoice::Any => json!({"type": "any"}),
                 ToolChoice::None => json!({"type": "none"}),
                 ToolChoice::Tool { name } => json!({"type": "tool", "name": name}),
+                // Anthropic has no subset restriction; fall back to auto
+                ToolChoice::AllowedTools { .. } => json!({"type": "auto"}),
             };
         }
     }
@@ -677,11 +705,17 @@ fn apply_common_fields(
         req["metadata"] = json!({"user_id": user});
     }
 
-    // Parallel tool calls: Anthropic uses the inverse flag `disable_parallel_tool_use`
+    // Parallel tool calls: `disable_parallel_tool_use` lives inside `tool_choice`, not at
+    // the top level. If no tool_choice was set, default to {"type":"auto"}.
     if let Some(parallel) = config.parallel_tool_calls
         && !parallel
+        && req.get("tools").is_some()
     {
-        req["disable_parallel_tool_use"] = json!(true);
+        if let Some(obj) = req.get_mut("tool_choice").and_then(|v| v.as_object_mut()) {
+            obj.insert("disable_parallel_tool_use".to_string(), json!(true));
+        } else {
+            req["tool_choice"] = json!({"type": "auto", "disable_parallel_tool_use": true});
+        }
     }
 
     Ok(())
@@ -717,7 +751,7 @@ fn format_content_blocks(blocks: &[ContentBlock]) -> Result<Value, ProviderError
     // Anthropic rejects empty text blocks with a 400 error — filter them out
     let filtered: Vec<&ContentBlock> = blocks
         .iter()
-        .filter(|b| !matches!(b, ContentBlock::Text(t) if t.is_empty()))
+        .filter(|b| !matches!(b, ContentBlock::Text(t) if t.text.is_empty()))
         .collect();
     let parts: Result<Vec<Value>, _> = filtered.iter().map(|b| format_content_block(b)).collect();
     Ok(json!(parts?))
@@ -725,7 +759,7 @@ fn format_content_blocks(blocks: &[ContentBlock]) -> Result<Value, ProviderError
 
 fn format_content_block(block: &ContentBlock) -> Result<Value, ProviderError> {
     match block {
-        ContentBlock::Text(text) => Ok(json!({"type": "text", "text": text})),
+        ContentBlock::Text(text) => Ok(json!({"type": "text", "text": text.text})),
         ContentBlock::Image(img) => format_image_block(img),
         ContentBlock::Document(doc) => format_document_block(doc),
         ContentBlock::ToolUse(tu) => Ok(json!({
@@ -792,8 +826,16 @@ fn format_document_block(doc: &DocumentContent) -> Result<Value, ProviderError> 
                 "data": b64.data,
             }
         })),
+        MediaSource::Url(url) => Ok(json!({
+            "type": "document",
+            "source": {"type": "url", "url": url}
+        })),
+        MediaSource::Text(text) => Ok(json!({
+            "type": "document",
+            "source": {"type": "text", "media_type": "text/plain", "data": text}
+        })),
         _ => Err(ProviderError::Unsupported(
-            "Anthropic documents require base64 source".into(),
+            "Anthropic documents require base64, URL, or text source".into(),
         )),
     }
 }
@@ -888,7 +930,13 @@ fn parse_sse_events(data: &str) -> Vec<Result<StreamEvent, ProviderError>> {
             let stop_reason_str = parsed["delta"]["stop_reason"]
                 .as_str()
                 .unwrap_or("end_turn");
-            let stop_reason = parse_stop_reason(stop_reason_str);
+            let stop_reason = if stop_reason_str == "stop_sequence" {
+                StopReason::StopSequence(
+                    parsed["delta"]["stop_sequence"].as_str().unwrap_or("").to_string(),
+                )
+            } else {
+                parse_stop_reason(stop_reason_str)
+            };
             let output_tokens = parsed["usage"]["output_tokens"].as_u64().unwrap_or(0);
             events.push(Ok(StreamEvent::MessageStop { stop_reason }));
             events.push(Ok(StreamEvent::Metadata {
@@ -918,20 +966,16 @@ fn parse_sse_events(data: &str) -> Vec<Result<StreamEvent, ProviderError>> {
 }
 
 // ---------------------------------------------------------------------------
-// Backend warning helpers
+// Bedrock error classification
 // ---------------------------------------------------------------------------
 
-/// Populate `warnings` for features that are silently ignored on non-Direct backends.
-fn add_backend_warnings(config: &ProviderConfig, messages: &[Message], warnings: &mut Vec<String>) {
-    if config.parallel_tool_calls.is_some() {
-        warnings.push(
-            "parallel_tool_calls is not supported on Vertex/Bedrock Anthropic and was ignored"
-                .to_string(),
-        );
-    }
-    if messages.iter().any(|m| m.cache_control.is_some()) {
-        warnings
-            .push("cache_control is only supported on direct Anthropic API; ignored".to_string());
+fn classify_bedrock_sdk_error(msg: String) -> ProviderError {
+    if msg.contains("ThrottlingException") || msg.to_lowercase().contains("throttl") {
+        ProviderError::TooManyRequests { message: msg, retry_after_secs: None }
+    } else if msg.contains("ModelTimeoutException") {
+        ProviderError::Timeout { ms: 0 }
+    } else {
+        ProviderError::Api { status: 0, message: msg }
     }
 }
 
@@ -946,7 +990,14 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
 
     let content: Vec<ContentBlock> = content_arr.iter().filter_map(parse_content_block).collect();
 
-    let stop_reason = parse_stop_reason(json["stop_reason"].as_str().unwrap_or("end_turn"));
+    let stop_reason = {
+        let reason = json["stop_reason"].as_str().unwrap_or("end_turn");
+        if reason == "stop_sequence" {
+            StopReason::StopSequence(json["stop_sequence"].as_str().unwrap_or("").to_string())
+        } else {
+            parse_stop_reason(reason)
+        }
+    };
 
     let usage = Usage {
         input_tokens: json["usage"]["input_tokens"].as_u64().unwrap_or(0),
@@ -962,6 +1013,9 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
 
     let model = json["model"].as_str().map(|s| s.to_string());
     let id = json["id"].as_str().map(|s| s.to_string());
+    let container = json.get("container").and_then(|c| {
+        serde_json::from_value::<ContainerInfo>(c.clone()).ok()
+    });
 
     Ok(crate::types::Response {
         content,
@@ -969,6 +1023,7 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
         stop_reason,
         model,
         id,
+        container,
         logprobs: None,
         grounding_metadata: None,
         warnings: vec![],
@@ -978,7 +1033,14 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
 
 fn parse_content_block(block: &Value) -> Option<ContentBlock> {
     match block["type"].as_str()? {
-        "text" => Some(ContentBlock::Text(block["text"].as_str()?.to_string())),
+        "text" => {
+            let text = block["text"].as_str()?.to_string();
+            let citations = block
+                .get("citations")
+                .and_then(|c| serde_json::from_value::<Vec<Citation>>(c.clone()).ok())
+                .unwrap_or_default();
+            Some(ContentBlock::Text(TextBlock { text, citations }))
+        }
         "tool_use" => Some(ContentBlock::ToolUse(ToolUseBlock {
             id: block["id"].as_str()?.to_string(),
             name: block["name"].as_str()?.to_string(),
@@ -988,6 +1050,18 @@ fn parse_content_block(block: &Value) -> Option<ContentBlock> {
             thinking: block["thinking"].as_str()?.to_string(),
             signature: block["signature"].as_str().map(|s| s.to_string()),
         })),
+        "image" => {
+            let source = &block["source"];
+            let src = match source["type"].as_str()? {
+                "base64" => MediaSource::Base64(Base64Data {
+                    media_type: source["media_type"].as_str()?.to_string(),
+                    data: source["data"].as_str()?.to_string(),
+                }),
+                "url" => MediaSource::Url(source["url"].as_str()?.to_string()),
+                _ => return None,
+            };
+            Some(ContentBlock::Image(ImageContent { source: src, format: None, detail: None }))
+        }
         _ => None,
     }
 }
@@ -1050,8 +1124,16 @@ async fn count_tokens_direct(
     config: ProviderConfig,
 ) -> Result<TokenCount, ProviderError> {
     let mut body = build_messages_request(&messages, &config, false)?;
-    // count_tokens doesn't use stream field
-    body.as_object_mut().map(|m| m.remove("stream"));
+    // count_tokens only accepts: model, messages, system, tools, tool_choice, thinking.
+    // Use an allowlist so any future fields added to build_messages_request don't leak in.
+    if let Some(obj) = body.as_object_mut() {
+        obj.retain(|k, _| {
+            matches!(
+                k.as_str(),
+                "model" | "messages" | "system" | "tools" | "tool_choice" | "thinking"
+            )
+        });
+    }
 
     // Always include the token-counting beta
     let mut all_betas = betas.to_vec();
@@ -1074,6 +1156,61 @@ async fn count_tokens_direct(
     Ok(TokenCount {
         input_tokens: json["input_tokens"].as_u64().unwrap_or(0),
     })
+}
+
+// ---------------------------------------------------------------------------
+// Beta feature constants
+// ---------------------------------------------------------------------------
+
+/// Named constants for Anthropic beta feature strings.
+///
+/// Pass to [`AnthropicProvider::with_beta`] or [`AnthropicProvider::with_betas`]:
+///
+/// ```no_run
+/// use sideseat::providers::{AnthropicProvider, anthropic::betas};
+/// let provider = AnthropicProvider::new("key")
+///     .with_beta(betas::FILES_API)
+///     .with_beta(betas::INTERLEAVED_THINKING);
+/// ```
+pub mod betas {
+    /// Up to 128 000 output tokens (claude-3-7-sonnet, claude-3-5-sonnet-20241022).
+    pub const OUTPUT_128K: &str = "output-128k-2025-02-19";
+    /// Extended prompt-cache TTL: 1 hour instead of the default 5 minutes.
+    pub const EXTENDED_CACHE_TTL: &str = "extended-cache-ttl-2025-04-11";
+    /// Interleaved thinking — `thinking` blocks interspersed with text responses.
+    pub const INTERLEAVED_THINKING: &str = "interleaved-thinking-2025-05-14";
+    /// Files API — upload files and reference them by ID in messages.
+    pub const FILES_API: &str = "files-api-2025-04-14";
+    /// MCP client support.
+    pub const MCP_CLIENT: &str = "mcp-client-2025-11-20";
+    /// Token-efficient tool-use encoding (reduces input tokens for tool calls).
+    pub const TOKEN_EFFICIENT_TOOLS: &str = "token-efficient-tools-2025-02-19";
+    /// Fast mode — lower latency at the cost of some quality.
+    pub const FAST_MODE: &str = "fast-mode-2026-02-01";
+    /// Sandboxed code-execution tool.
+    pub const CODE_EXECUTION: &str = "code-execution-2025-05-22";
+    /// 1 million token context window.
+    pub const CONTEXT_1M: &str = "context-1m-2025-08-07";
+    /// Context management — per-request token limits and priority controls.
+    pub const CONTEXT_MANAGEMENT: &str = "context-management-2025-06-27";
+    /// Full thinking output with extended budget tokens (dev accounts only).
+    pub const DEV_FULL_THINKING: &str = "dev-full-thinking-2025-05-14";
+    /// Prompt caching (GA on most models; required for older API versions).
+    pub const PROMPT_CACHING: &str = "prompt-caching-2024-07-31";
+    /// Server-side token-counting endpoint.
+    pub const TOKEN_COUNTING: &str = "token-counting-2024-11-01";
+    /// Computer-use tool (stable 2025 version).
+    pub const COMPUTER_USE: &str = "computer-use-2025-01-24";
+    /// Native PDF document support.
+    pub const PDFS: &str = "pdfs-2024-09-25";
+    /// Message Batches API.
+    pub const MESSAGE_BATCHES: &str = "message-batches-2024-09-24";
+    /// Skills — custom model capability definitions.
+    pub const SKILLS: &str = "skills-2025-10-02";
+    /// Streaming events when the model context window is exceeded.
+    pub const MODEL_CONTEXT_WINDOW_EXCEEDED: &str = "model-context-window-exceeded-2025-08-26";
+    /// Web search tool integration.
+    pub const WEB_SEARCH: &str = "web-search-2025-03-05";
 }
 
 // ---------------------------------------------------------------------------
@@ -1194,6 +1331,7 @@ mod tests {
         let img = crate::types::ImageContent {
             source: MediaSource::base64("image/png", "iVBORw0KGgo="),
             format: Some(crate::types::ImageFormat::Png),
+            detail: None,
         };
         let v = format_image_block(&img).unwrap();
         assert_eq!(v["type"], "image");

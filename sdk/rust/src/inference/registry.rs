@@ -3,12 +3,8 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 
 use crate::error::ProviderError;
-use crate::provider::{Provider, ProviderStream};
-use crate::types::{
-    EmbeddingRequest, EmbeddingResponse, ImageGenerationRequest, ImageGenerationResponse, Message,
-    ModelInfo, ProviderConfig, Response, SpeechRequest, SpeechResponse, TokenCount,
-    TranscriptionRequest, TranscriptionResponse, VideoGenerationRequest, VideoGenerationResponse,
-};
+use crate::provider::{ChatProvider, Provider, ProviderStream};
+use crate::types::{Message, ModelInfo, ProviderConfig, Response, TokenCount};
 
 /// A registry of named providers that routes requests by model prefix.
 ///
@@ -19,7 +15,7 @@ use crate::types::{
 /// # Example
 ///
 /// ```no_run
-/// use sideseat::{registry::ProviderRegistry, ProviderConfig, Provider};
+/// use sideseat::{registry::ProviderRegistry, ProviderConfig, ChatProvider};
 ///
 /// let mut reg = ProviderRegistry::new();
 /// // reg.register("openai", OpenAIChatProvider::from_env().unwrap());
@@ -27,7 +23,7 @@ use crate::types::{
 /// // let response = reg.complete(messages, config).await?;
 /// ```
 pub struct ProviderRegistry {
-    providers: HashMap<String, Box<dyn Provider + Send + Sync>>,
+    providers: HashMap<String, Box<dyn ChatProvider + Send + Sync>>,
 }
 
 impl Default for ProviderRegistry {
@@ -47,7 +43,7 @@ impl ProviderRegistry {
     pub fn register(
         &mut self,
         prefix: impl Into<String>,
-        provider: impl Provider + 'static,
+        provider: impl ChatProvider + 'static,
     ) -> &mut Self {
         self.providers.insert(prefix.into(), Box::new(provider));
         self
@@ -63,7 +59,7 @@ impl ProviderRegistry {
         self.resolve_prefix(model_id).is_some()
     }
 
-    fn resolve_prefix<'a>(&'a self, model_id: &str) -> Option<(&'a dyn Provider, String)> {
+    fn resolve_prefix<'a>(&'a self, model_id: &str) -> Option<(&'a dyn ChatProvider, String)> {
         if let Some(colon) = model_id.find(':') {
             let prefix = &model_id[..colon];
             let model = model_id[colon + 1..].to_string();
@@ -78,7 +74,10 @@ impl ProviderRegistry {
         None
     }
 
-    fn resolve<'a>(&'a self, model_id: &str) -> Result<(&'a dyn Provider, String), ProviderError> {
+    fn resolve<'a>(
+        &'a self,
+        model_id: &str,
+    ) -> Result<(&'a dyn ChatProvider, String), ProviderError> {
         self.resolve_prefix(model_id)
             .ok_or_else(|| ProviderError::ModelNotFound {
                 model: model_id.to_string(),
@@ -92,6 +91,19 @@ impl Provider for ProviderRegistry {
         "registry"
     }
 
+    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        let mut all = Vec::new();
+        for p in self.providers.values() {
+            if let Ok(models) = p.list_models().await {
+                all.extend(models);
+            }
+        }
+        Ok(all)
+    }
+}
+
+#[async_trait]
+impl ChatProvider for ProviderRegistry {
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         let (provider, model) = match self.resolve(&config.model) {
             Ok(r) => r,
@@ -111,16 +123,6 @@ impl Provider for ProviderRegistry {
         provider.complete(messages, config).await
     }
 
-    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        let mut all = Vec::new();
-        for p in self.providers.values() {
-            if let Ok(models) = p.list_models().await {
-                all.extend(models);
-            }
-        }
-        Ok(all)
-    }
-
     async fn count_tokens(
         &self,
         messages: Vec<Message>,
@@ -129,50 +131,5 @@ impl Provider for ProviderRegistry {
         let (provider, model) = self.resolve(&config.model)?;
         let config = ProviderConfig { model, ..config };
         provider.count_tokens(messages, config).await
-    }
-
-    async fn embed(
-        &self,
-        request: EmbeddingRequest,
-        model: &str,
-    ) -> Result<EmbeddingResponse, ProviderError> {
-        let (provider, resolved_model) = self.resolve(model)?;
-        provider.embed(request, &resolved_model).await
-    }
-
-    async fn generate_image(
-        &self,
-        mut request: ImageGenerationRequest,
-    ) -> Result<ImageGenerationResponse, ProviderError> {
-        let (provider, model) = self.resolve(&request.model)?;
-        request.model = model;
-        provider.generate_image(request).await
-    }
-
-    async fn generate_video(
-        &self,
-        mut request: VideoGenerationRequest,
-    ) -> Result<VideoGenerationResponse, ProviderError> {
-        let (provider, model) = self.resolve(&request.model)?;
-        request.model = model;
-        provider.generate_video(request).await
-    }
-
-    async fn generate_speech(
-        &self,
-        mut request: SpeechRequest,
-    ) -> Result<SpeechResponse, ProviderError> {
-        let (provider, model) = self.resolve(&request.model)?;
-        request.model = model;
-        provider.generate_speech(request).await
-    }
-
-    async fn transcribe(
-        &self,
-        mut request: TranscriptionRequest,
-    ) -> Result<TranscriptionResponse, ProviderError> {
-        let (provider, model) = self.resolve(&request.model)?;
-        request.model = model;
-        provider.transcribe(request).await
     }
 }

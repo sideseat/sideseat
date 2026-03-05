@@ -6,12 +6,11 @@ use serde_json::{Value, json};
 
 use crate::{
     error::ProviderError,
-    provider::{Provider, ProviderStream},
+    provider::{ChatProvider, Provider, ProviderStream},
     providers::sse::{check_response, sse_data_stream},
     types::{
-        ContentBlock, ContentBlockStart, ContentDelta, EmbeddingRequest, EmbeddingResponse,
-        Message, ModelInfo, ProviderConfig, ResponseFormat, Role, StopReason, StreamEvent,
-        TokenCount, ToolUseBlock, Usage,
+        ContentBlock, ContentBlockStart, ContentDelta, Message, ModelInfo, ProviderConfig,
+        ResponseFormat, Role, StopReason, StreamEvent, TokenCount, ToolUseBlock, Usage,
     },
 };
 
@@ -49,11 +48,10 @@ pub struct GeminiInteractionsProvider {
 impl GeminiInteractionsProvider {
     /// Create a provider from the `GEMINI_API_KEY` or `GOOGLE_API_KEY` environment variable.
     pub fn from_env() -> Result<Self, ProviderError> {
-        let key = std::env::var("GEMINI_API_KEY")
-            .or_else(|_| std::env::var("GOOGLE_API_KEY"))
-            .map_err(|_| {
-                ProviderError::Config("GEMINI_API_KEY or GOOGLE_API_KEY not set".into())
-            })?;
+        let key = crate::env::require_any(&[
+            crate::env::keys::GEMINI_API_KEY,
+            crate::env::keys::GOOGLE_API_KEY,
+        ])?;
         Ok(Self::new(key))
     }
 
@@ -168,6 +166,34 @@ impl Provider for GeminiInteractionsProvider {
         "google"
     }
 
+    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        let url = self.build_models_url();
+        let resp = self.client.get(&url).send().await?;
+        let resp = check_response(resp).await?;
+        let json: Value = resp.json().await?;
+
+        let mut models = Vec::new();
+        if let Some(arr) = json["models"].as_array() {
+            for item in arr {
+                let id = item["name"]
+                    .as_str()
+                    .unwrap_or("")
+                    .trim_start_matches("models/")
+                    .to_string();
+                models.push(ModelInfo {
+                    id,
+                    display_name: item["displayName"].as_str().map(|s| s.to_string()),
+                    description: item["description"].as_str().map(|s| s.to_string()),
+                    created_at: None,
+                });
+            }
+        }
+        Ok(models)
+    }
+}
+
+#[async_trait]
+impl ChatProvider for GeminiInteractionsProvider {
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
         let client = Arc::clone(&self.client);
         let url = self.build_url(true);
@@ -353,31 +379,6 @@ impl Provider for GeminiInteractionsProvider {
         parse_response(&json)
     }
 
-    async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        let url = self.build_models_url();
-        let resp = self.client.get(&url).send().await?;
-        let resp = check_response(resp).await?;
-        let json: Value = resp.json().await?;
-
-        let mut models = Vec::new();
-        if let Some(arr) = json["models"].as_array() {
-            for item in arr {
-                let id = item["name"]
-                    .as_str()
-                    .unwrap_or("")
-                    .trim_start_matches("models/")
-                    .to_string();
-                models.push(ModelInfo {
-                    id,
-                    display_name: item["displayName"].as_str().map(|s| s.to_string()),
-                    description: item["description"].as_str().map(|s| s.to_string()),
-                    created_at: None,
-                });
-            }
-        }
-        Ok(models)
-    }
-
     async fn count_tokens(
         &self,
         _messages: Vec<Message>,
@@ -385,16 +386,6 @@ impl Provider for GeminiInteractionsProvider {
     ) -> Result<TokenCount, ProviderError> {
         Err(ProviderError::Unsupported(
             "count_tokens is not available for the Interactions API; use GeminiProvider".into(),
-        ))
-    }
-
-    async fn embed(
-        &self,
-        _request: EmbeddingRequest,
-        _model: &str,
-    ) -> Result<EmbeddingResponse, ProviderError> {
-        Err(ProviderError::Unsupported(
-            "embed is not available for the Interactions API; use GeminiProvider".into(),
         ))
     }
 }
@@ -418,7 +409,7 @@ fn format_input(messages: &[Message]) -> Result<Value, ProviderError> {
                 .iter()
                 .filter_map(|b| {
                     if let ContentBlock::Text(t) = b {
-                        Some(t.as_str())
+                        Some(t.text.as_str())
                     } else {
                         None
                     }
@@ -455,7 +446,7 @@ fn format_turn(msg: &Message) -> Result<Value, ProviderError> {
 
 fn format_part(block: &ContentBlock) -> Result<Value, ProviderError> {
     match block {
-        ContentBlock::Text(t) => Ok(json!({"text": t})),
+        ContentBlock::Text(t) => Ok(json!({"text": t.text})),
         ContentBlock::ToolUse(tu) => Ok(json!({
             "function_call": {"name": tu.name, "args": tu.input}
         })),
@@ -465,7 +456,7 @@ fn format_part(block: &ContentBlock) -> Result<Value, ProviderError> {
                 .iter()
                 .filter_map(|b| {
                     if let ContentBlock::Text(t) = b {
-                        Some(t.as_str())
+                        Some(t.text.as_str())
                     } else {
                         None
                     }
@@ -501,7 +492,7 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
                     if let Some(text) = output["text"].as_str()
                         && !text.is_empty()
                     {
-                        content.push(ContentBlock::Text(text.to_string()));
+                        content.push(ContentBlock::text(text));
                     }
                 }
                 "thought" => {
@@ -535,6 +526,7 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
         stop_reason,
         model,
         id,
+        container: None,
         logprobs: None,
         grounding_metadata: None,
         warnings: vec![],

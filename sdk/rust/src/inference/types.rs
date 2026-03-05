@@ -202,6 +202,9 @@ pub enum AudioFormat {
     M4a,
     Opus,
     Aiff,
+    /// Raw 16-bit PCM audio — OpenAI audio output only.
+    #[serde(rename = "pcm16")]
+    Pcm16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -232,6 +235,22 @@ pub enum DocumentFormat {
     Md,
 }
 
+/// Image detail level — controls how much processing OpenAI applies to an image.
+///
+/// Sent as the `detail` field in `image_url` content parts.
+/// `None` defaults to `Auto` (provider decides based on image size).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ImageDetail {
+    /// Provider chooses based on image size.
+    #[default]
+    Auto,
+    /// Low-fidelity mode: 85 tokens, image resized to 512×512.
+    Low,
+    /// High-fidelity mode: full resolution, higher token cost.
+    High,
+}
+
 // ---------------------------------------------------------------------------
 // Media content structs
 // ---------------------------------------------------------------------------
@@ -240,6 +259,32 @@ pub enum DocumentFormat {
 pub struct ImageContent {
     pub source: MediaSource,
     pub format: Option<ImageFormat>,
+    /// Image detail level forwarded to OpenAI-compatible providers. `None` = `Auto`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<ImageDetail>,
+}
+
+/// Request audio output from the model (OpenAI gpt-4o-audio-preview and o-series).
+///
+/// Setting this on [`ProviderConfig`] causes the Chat Completions request to include
+/// `modalities: ["text", "audio"]` and the `audio` config object automatically.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AudioOutputConfig {
+    /// Voice to use for audio output (e.g. `"alloy"`, `"nova"`, `"shimmer"`, `"echo"`,
+    /// `"fable"`, `"onyx"`, `"ash"`, `"ballad"`, `"coral"`, `"sage"`, `"verse"`).
+    pub voice: String,
+    /// Audio encoding format. Defaults to `mp3` if `None`.
+    pub format: Option<AudioFormat>,
+}
+
+impl AudioOutputConfig {
+    pub fn new(voice: impl Into<String>) -> Self {
+        Self { voice: voice.into(), format: None }
+    }
+    pub fn with_format(mut self, format: AudioFormat) -> Self {
+        self.format = Some(format);
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -293,13 +338,129 @@ pub struct ThinkingBlock {
 }
 
 // ---------------------------------------------------------------------------
+// Citation types (Anthropic citations API)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Citation {
+    CharLocation {
+        cited_text: String,
+        document_index: u32,
+        document_title: Option<String>,
+        start_char_index: u32,
+        end_char_index: u32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        file_id: Option<String>,
+    },
+    PageLocation {
+        cited_text: String,
+        document_index: u32,
+        document_title: Option<String>,
+        start_page_number: u32,
+        end_page_number: u32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        file_id: Option<String>,
+    },
+    ContentBlockLocation {
+        cited_text: String,
+        document_index: u32,
+        document_title: Option<String>,
+        start_block_index: u32,
+        end_block_index: u32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        file_id: Option<String>,
+    },
+    WebSearchResultLocation {
+        cited_text: String,
+        url: String,
+        title: Option<String>,
+        encrypted_index: String,
+    },
+}
+
+/// A text content block, optionally annotated with citations.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TextBlock {
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub citations: Vec<Citation>,
+}
+
+impl TextBlock {
+    pub fn new(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            citations: Vec::new(),
+        }
+    }
+}
+
+impl std::ops::Deref for TextBlock {
+    type Target = str;
+    fn deref(&self) -> &str {
+        &self.text
+    }
+}
+
+impl PartialEq<str> for TextBlock {
+    fn eq(&self, other: &str) -> bool {
+        self.text == other
+    }
+}
+
+impl PartialEq<String> for TextBlock {
+    fn eq(&self, other: &String) -> bool {
+        &self.text == other
+    }
+}
+
+impl PartialEq for TextBlock {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+    }
+}
+
+impl Eq for TextBlock {}
+
+impl std::fmt::Display for TextBlock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.text)
+    }
+}
+
+impl From<String> for TextBlock {
+    fn from(s: String) -> Self {
+        Self::new(s)
+    }
+}
+
+impl From<&str> for TextBlock {
+    fn from(s: &str) -> Self {
+        Self::new(s)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Container info (Anthropic code execution sandboxes)
+// ---------------------------------------------------------------------------
+
+/// Information about a code execution container returned by Anthropic.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContainerInfo {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
 // Content block — the union of all content types
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlock {
-    Text(String),
+    Text(TextBlock),
     Image(ImageContent),
     Audio(AudioContent),
     Video(VideoContent),
@@ -311,7 +472,7 @@ pub enum ContentBlock {
 
 impl ContentBlock {
     pub fn text(t: impl Into<String>) -> Self {
-        Self::Text(t.into())
+        ContentBlock::Text(TextBlock::new(t))
     }
 
     pub fn tool_use(
@@ -357,7 +518,7 @@ impl ContentBlock {
 
     pub fn as_text(&self) -> Option<&str> {
         if let Self::Text(t) = self {
-            Some(t)
+            Some(&t.text)
         } else {
             None
         }
@@ -524,6 +685,10 @@ pub enum ToolChoice {
     None,
     /// Force a specific tool by name
     Tool { name: String },
+    /// Allow the model to choose from a named subset of the defined tools.
+    ///
+    /// Maps to OpenAI `{"type": "allowed_tools", "mode": "auto", "tools": [...]}`.
+    AllowedTools { tools: Vec<String> },
 }
 
 // ---------------------------------------------------------------------------
@@ -597,17 +762,28 @@ impl ResponseFormat {
 }
 
 // ---------------------------------------------------------------------------
-// Service tier (OpenAI)
+// Service tier
 // ---------------------------------------------------------------------------
 
-/// Processing tier for OpenAI requests.
+/// Processing tier sent to the provider.
+///
+/// | Variant | OpenAI | Anthropic |
+/// |---|---|---|
+/// | `Auto` | `"auto"` | `"auto"` |
+/// | `Default` | `"default"` | — |
+/// | `Flex` | `"flex"` | — |
+/// | `StandardOnly` | — | `"standard_only"` |
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum ServiceTier {
+    /// Use priority capacity, falling back to standard (both OpenAI and Anthropic).
     Auto,
+    /// Standard capacity only (OpenAI).
     Default,
-    /// Flex — lower cost, potentially slower
+    /// Lower cost, potentially slower (OpenAI).
     Flex,
+    /// Standard capacity only, no priority fallback (Anthropic).
+    StandardOnly,
 }
 
 impl ServiceTier {
@@ -616,6 +792,7 @@ impl ServiceTier {
             Self::Auto => "auto",
             Self::Default => "default",
             Self::Flex => "flex",
+            Self::StandardOnly => "standard_only",
         }
     }
 }
@@ -641,6 +818,228 @@ pub enum CacheControl {
 // Web search configuration
 // ---------------------------------------------------------------------------
 
+/// Approximate geographic context for web search results (OpenAI).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct WebSearchUserLocation {
+    /// Always `"approximate"`.
+    #[serde(rename = "type")]
+    pub location_type: String,
+    /// ISO 3166-1 alpha-2 country code (e.g. `"US"`, `"GB"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub country: Option<String>,
+    /// City name (e.g. `"London"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub city: Option<String>,
+    /// State or region name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub region: Option<String>,
+    /// IANA timezone (e.g. `"America/Chicago"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timezone: Option<String>,
+}
+
+impl WebSearchUserLocation {
+    pub fn new() -> Self {
+        Self { location_type: "approximate".into(), ..Default::default() }
+    }
+    pub fn with_country(mut self, c: impl Into<String>) -> Self {
+        self.country = Some(c.into());
+        self
+    }
+    pub fn with_city(mut self, c: impl Into<String>) -> Self {
+        self.city = Some(c.into());
+        self
+    }
+    pub fn with_region(mut self, r: impl Into<String>) -> Self {
+        self.region = Some(r.into());
+        self
+    }
+    pub fn with_timezone(mut self, tz: impl Into<String>) -> Self {
+        self.timezone = Some(tz.into());
+        self
+    }
+}
+
+/// Remote MCP server configuration for [`BuiltinTool::mcp`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpToolConfig {
+    /// Always `"mcp"` — set automatically by [`BuiltinTool::mcp`].
+    #[serde(rename = "type")]
+    pub tool_type: String,
+    /// Human-readable label for the server (used in tool names and logs).
+    pub server_label: String,
+    /// MCP server URL (for remote servers). Mutually exclusive with `connector_id`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_url: Option<String>,
+    /// OpenAI-maintained connector ID (e.g. `"connector_dropbox"`). Mutually exclusive with `server_url`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connector_id: Option<String>,
+    /// Human-readable description of the server's capabilities.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_description: Option<String>,
+    /// When to require user approval: `"never"`, `"always"`, or an object specifying individual tools.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub require_approval: Option<serde_json::Value>,
+    /// Restrict which MCP tools the model may call. `None` means all tools are allowed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_tools: Option<Vec<String>>,
+    /// Bearer token or OAuth access token for server authentication.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authorization: Option<String>,
+}
+
+impl McpToolConfig {
+    /// Remote MCP server accessible via URL.
+    pub fn new(server_label: impl Into<String>, server_url: impl Into<String>) -> Self {
+        Self {
+            tool_type: "mcp".into(),
+            server_label: server_label.into(),
+            server_url: Some(server_url.into()),
+            connector_id: None,
+            server_description: None,
+            require_approval: None,
+            allowed_tools: None,
+            authorization: None,
+        }
+    }
+    /// OpenAI-maintained connector (e.g. Dropbox, Gmail).
+    pub fn connector(server_label: impl Into<String>, connector_id: impl Into<String>) -> Self {
+        Self {
+            tool_type: "mcp".into(),
+            server_label: server_label.into(),
+            server_url: None,
+            connector_id: Some(connector_id.into()),
+            server_description: None,
+            require_approval: None,
+            allowed_tools: None,
+            authorization: None,
+        }
+    }
+    pub fn with_description(mut self, d: impl Into<String>) -> Self {
+        self.server_description = Some(d.into());
+        self
+    }
+    /// Set `require_approval` to `"never"` or `"always"`.
+    pub fn with_require_approval(mut self, v: impl Into<String>) -> Self {
+        self.require_approval = Some(serde_json::json!(v.into()));
+        self
+    }
+    pub fn with_allowed_tools(mut self, tools: Vec<impl Into<String>>) -> Self {
+        self.allowed_tools = Some(tools.into_iter().map(Into::into).collect());
+        self
+    }
+    pub fn with_authorization(mut self, token: impl Into<String>) -> Self {
+        self.authorization = Some(token.into());
+        self
+    }
+}
+
+/// A built-in OpenAI tool for the Responses API (and where noted, Chat Completions).
+///
+/// Use the typed constructors ([`BuiltinTool::file_search`], [`BuiltinTool::mcp`], etc.)
+/// or [`BuiltinTool::raw`] for custom tool configurations.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuiltinTool(pub serde_json::Value);
+
+/// Server-side context compaction configuration for the Responses API.
+///
+/// When the accumulated context exceeds `compact_threshold` tokens, the server
+/// automatically compacts the conversation before generating the next response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextManagementConfig {
+    /// Token count that triggers automatic server-side compaction.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compact_threshold: Option<u32>,
+}
+
+impl ContextManagementConfig {
+    pub fn with_compact_threshold(compact_threshold: u32) -> Self {
+        Self { compact_threshold: Some(compact_threshold) }
+    }
+}
+
+impl BuiltinTool {
+    /// Search over uploaded files. Uses OpenAI's vector stores.
+    pub fn file_search() -> Self {
+        Self(serde_json::json!({"type": "file_search"}))
+    }
+
+    /// File search restricted to specific vector store IDs.
+    pub fn file_search_with_ids(ids: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        let ids: Vec<String> = ids.into_iter().map(Into::into).collect();
+        Self(serde_json::json!({"type": "file_search", "vector_store_ids": ids}))
+    }
+
+    /// Code interpreter running in an auto-provisioned OpenAI container.
+    pub fn code_interpreter() -> Self {
+        Self(serde_json::json!({"type": "code_interpreter", "container": {"type": "auto"}}))
+    }
+
+    /// Code interpreter with pre-uploaded file IDs available in the container.
+    pub fn code_interpreter_with_files(file_ids: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        let ids: Vec<String> = file_ids.into_iter().map(Into::into).collect();
+        Self(serde_json::json!({
+            "type": "code_interpreter",
+            "container": {"type": "auto", "file_ids": ids}
+        }))
+    }
+
+    /// GPT Image generation tool. The model generates images inline during the conversation.
+    pub fn image_generation() -> Self {
+        Self(serde_json::json!({"type": "image_generation"}))
+    }
+
+    /// Computer use (browser/desktop automation).
+    ///
+    /// `environment`: `"browser"`, `"mac"`, `"windows"`, or `"ubuntu"`.
+    pub fn computer_use(
+        display_width: u32,
+        display_height: u32,
+        environment: impl Into<String>,
+    ) -> Self {
+        Self(serde_json::json!({
+            "type": "computer_use_preview",
+            "display_width": display_width,
+            "display_height": display_height,
+            "environment": environment.into(),
+        }))
+    }
+
+    /// Remote MCP server or OpenAI-maintained connector.
+    pub fn mcp(config: McpToolConfig) -> Self {
+        Self(serde_json::to_value(config).unwrap_or_else(|_| serde_json::json!({"type": "mcp"})))
+    }
+
+    /// Shell tool in an auto-provisioned OpenAI container.
+    pub fn shell_auto() -> Self {
+        Self(serde_json::json!({"type": "shell", "environment": {"type": "container_auto"}}))
+    }
+
+    /// Shell tool running in your own local runtime.
+    pub fn shell_local() -> Self {
+        Self(serde_json::json!({"type": "shell", "environment": {"type": "local"}}))
+    }
+
+    /// Local shell (`codex-mini-latest` only). Execution runs entirely in your runtime.
+    pub fn local_shell() -> Self {
+        Self(serde_json::json!({"type": "local_shell"}))
+    }
+
+    /// Apply-patch tool for structured file diffs (`gpt-5.1` only).
+    pub fn apply_patch() -> Self {
+        Self(serde_json::json!({"type": "apply_patch"}))
+    }
+
+    /// Escape hatch — provide a raw JSON tool object for custom or future tool types.
+    pub fn raw(v: serde_json::Value) -> Self {
+        Self(v)
+    }
+
+    pub fn as_value(&self) -> &serde_json::Value {
+        &self.0
+    }
+}
+
 /// Built-in web search tool configuration (Anthropic, OpenAI).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebSearchConfig {
@@ -650,6 +1049,11 @@ pub struct WebSearchConfig {
     pub allowed_domains: Option<Vec<String>>,
     /// Domain blacklist — these domains are excluded from results
     pub blocked_domains: Option<Vec<String>>,
+    /// Approximate user location for geographically relevant results (OpenAI only).
+    pub user_location: Option<WebSearchUserLocation>,
+    /// Controls how much web context is fetched per search. One of `"low"`, `"medium"`, `"high"`.
+    /// Higher values improve accuracy at greater latency and cost (OpenAI only).
+    pub search_context_size: Option<String>,
 }
 
 impl WebSearchConfig {
@@ -658,6 +1062,8 @@ impl WebSearchConfig {
             max_uses: None,
             allowed_domains: None,
             blocked_domains: None,
+            user_location: None,
+            search_context_size: None,
         }
     }
 
@@ -673,6 +1079,18 @@ impl WebSearchConfig {
 
     pub fn with_blocked_domains(mut self, domains: Vec<impl Into<String>>) -> Self {
         self.blocked_domains = Some(domains.into_iter().map(|s| s.into()).collect());
+        self
+    }
+
+    /// Set approximate user location for geographically relevant results (OpenAI only).
+    pub fn with_user_location(mut self, loc: WebSearchUserLocation) -> Self {
+        self.user_location = Some(loc);
+        self
+    }
+
+    /// Set search context size: `"low"`, `"medium"`, or `"high"` (OpenAI only).
+    pub fn with_search_context_size(mut self, size: impl Into<String>) -> Self {
+        self.search_context_size = Some(size.into());
         self
     }
 }
@@ -718,7 +1136,7 @@ pub struct ProviderConfig {
     pub reasoning_effort: Option<ReasoningEffort>,
     /// Desired response format (plain text, JSON mode, or structured JSON schema)
     pub response_format: Option<ResponseFormat>,
-    /// OpenAI service processing tier
+    /// Service processing tier. Valid variants differ per provider — see [`ServiceTier`].
     pub service_tier: Option<ServiceTier>,
     /// Enable built-in web search (Anthropic, OpenAI)
     pub web_search: Option<WebSearchConfig>,
@@ -756,6 +1174,36 @@ pub struct ProviderConfig {
     /// Unknown names in this list are silently ignored.
     /// `None` means all tools in `tools` are active (default).
     pub active_tools: Option<Vec<String>>,
+    /// Container ID to reuse a code execution sandbox from a previous response.
+    pub container_id: Option<String>,
+    /// Geographic region hint for inference (e.g. "eu", "us"). For data residency.
+    pub inference_geo: Option<String>,
+    /// Request spoken audio output from the model (OpenAI).
+    /// Sets `modalities: ["text", "audio"]` and `audio: {voice, format}` automatically.
+    pub audio_output: Option<AudioOutputConfig>,
+    /// Built-in OpenAI tools (file_search, code_interpreter, image_generation, mcp, etc.).
+    /// Appended to the `tools` array in the Responses API request alongside any function tools.
+    pub built_in_tools: Vec<BuiltinTool>,
+    /// Run this request asynchronously in the background (Responses API only).
+    /// Requires `store: Some(true)`. Poll the response by ID to check status.
+    pub background: Option<bool>,
+    /// Server-side context compaction settings (Responses API only).
+    pub context_management: Option<ContextManagementConfig>,
+    /// Input truncation strategy when the context window is exceeded (Responses API).
+    /// Use `"auto"` to enable automatic truncation (required for computer_use).
+    pub truncation: Option<String>,
+    /// How long to retain prompt cache entries. `"in_memory"` (5–60 min) or `"24h"` (OpenAI only).
+    pub prompt_cache_retention: Option<String>,
+    /// Cache routing key — requests sharing the same key are more likely to hit the same cache.
+    pub prompt_cache_key: Option<String>,
+    /// Request token-level log probabilities in the response. OpenAI Chat only.
+    pub logprobs: Option<bool>,
+    /// Number of top log-probability tokens to return per output token (0–20).
+    /// Requires `logprobs: Some(true)`. OpenAI Chat only.
+    pub top_logprobs: Option<u8>,
+    /// Whether to store this conversation in OpenAI's dashboard for evals / fine-tuning.
+    /// Defaults to the project setting when `None`. OpenAI only.
+    pub store: Option<bool>,
 }
 
 impl ProviderConfig {
@@ -789,6 +1237,18 @@ impl ProviderConfig {
             safety_settings: Vec::new(),
             metadata: None,
             active_tools: None,
+            container_id: None,
+            inference_geo: None,
+            audio_output: None,
+            logprobs: None,
+            top_logprobs: None,
+            store: None,
+            built_in_tools: Vec::new(),
+            background: None,
+            context_management: None,
+            truncation: None,
+            prompt_cache_retention: None,
+            prompt_cache_key: None,
         }
     }
 
@@ -936,6 +1396,84 @@ impl ProviderConfig {
         self.active_tools = Some(names);
         self
     }
+
+    /// Reuse an existing code execution container from a previous response (Anthropic).
+    pub fn with_container_id(mut self, id: impl Into<String>) -> Self {
+        self.container_id = Some(id.into());
+        self
+    }
+
+    /// Set a geographic region hint for inference (e.g. "eu", "us"). For data residency.
+    pub fn with_inference_geo(mut self, geo: impl Into<String>) -> Self {
+        self.inference_geo = Some(geo.into());
+        self
+    }
+
+    /// Request spoken audio output (OpenAI). Automatically sets `modalities: ["text", "audio"]`.
+    pub fn with_audio_output(mut self, config: AudioOutputConfig) -> Self {
+        self.audio_output = Some(config);
+        self
+    }
+
+    /// Request token-level log probabilities in the response (OpenAI Chat only).
+    pub fn with_logprobs(mut self, enabled: bool) -> Self {
+        self.logprobs = Some(enabled);
+        self
+    }
+
+    /// Number of top log-probability tokens per output token (0–20). Implies `logprobs: true`.
+    pub fn with_top_logprobs(mut self, n: u8) -> Self {
+        self.top_logprobs = Some(n);
+        self
+    }
+
+    /// Control whether this conversation is stored in OpenAI's dashboard (OpenAI only).
+    pub fn with_store(mut self, store: bool) -> Self {
+        self.store = Some(store);
+        self
+    }
+
+    /// Add a single built-in tool (Responses API).
+    pub fn with_built_in_tool(mut self, tool: BuiltinTool) -> Self {
+        self.built_in_tools.push(tool);
+        self
+    }
+
+    /// Replace the entire built-in tools list (Responses API).
+    pub fn with_built_in_tools(mut self, tools: Vec<BuiltinTool>) -> Self {
+        self.built_in_tools = tools;
+        self
+    }
+
+    /// Run this request asynchronously in the background (Responses API only). Requires `store`.
+    pub fn with_background(mut self, background: bool) -> Self {
+        self.background = Some(background);
+        self
+    }
+
+    /// Enable server-side context compaction (Responses API only).
+    pub fn with_context_management(mut self, config: ContextManagementConfig) -> Self {
+        self.context_management = Some(config);
+        self
+    }
+
+    /// Set input truncation strategy, e.g. `"auto"` (Responses API only).
+    pub fn with_truncation(mut self, strategy: impl Into<String>) -> Self {
+        self.truncation = Some(strategy.into());
+        self
+    }
+
+    /// Set prompt cache retention policy: `"in_memory"` (default, 5–60 min) or `"24h"`.
+    pub fn with_prompt_cache_retention(mut self, retention: impl Into<String>) -> Self {
+        self.prompt_cache_retention = Some(retention.into());
+        self
+    }
+
+    /// Set a cache routing key to improve cache hit rates for requests sharing a common prefix.
+    pub fn with_prompt_cache_key(mut self, key: impl Into<String>) -> Self {
+        self.prompt_cache_key = Some(key.into());
+        self
+    }
 }
 
 impl Default for ProviderConfig {
@@ -1071,6 +1609,9 @@ pub struct Response {
     pub model: Option<String>,
     /// Provider-assigned response/interaction ID (Gemini Interactions, OpenAI Responses, etc.)
     pub id: Option<String>,
+    /// Container info for code execution sandbox reuse (Anthropic).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub container: Option<ContainerInfo>,
     /// Token-level log probabilities (OpenAI, when requested via logprobs=true)
     pub logprobs: Option<Vec<TokenLogprob>>,
     /// Grounding metadata from Gemini web search
@@ -1090,7 +1631,7 @@ impl Response {
             .iter()
             .filter_map(|b| {
                 if let ContentBlock::Text(t) = b {
-                    Some(t.as_str())
+                    Some(t.text.as_str())
                 } else {
                     None
                 }
@@ -1174,6 +1715,8 @@ pub enum EmbeddingTaskType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddingRequest {
+    /// Model to use for embedding
+    pub model: String,
     /// Texts to embed
     pub inputs: Vec<String>,
     /// Desired output dimension (provider-dependent, optional)
@@ -1183,16 +1726,17 @@ pub struct EmbeddingRequest {
 }
 
 impl EmbeddingRequest {
-    pub fn new(inputs: Vec<impl Into<String>>) -> Self {
+    pub fn new(model: impl Into<String>, inputs: Vec<impl Into<String>>) -> Self {
         Self {
+            model: model.into(),
             inputs: inputs.into_iter().map(|s| s.into()).collect(),
             dimensions: None,
             task_type: None,
         }
     }
 
-    pub fn single(input: impl Into<String>) -> Self {
-        Self::new(vec![input.into()])
+    pub fn single(model: impl Into<String>, input: impl Into<String>) -> Self {
+        Self::new(model, vec![input.into()])
     }
 
     pub fn with_dimensions(mut self, dimensions: u32) -> Self {
@@ -2056,6 +2600,69 @@ pub struct ImageGenerationResponse {
     pub images: Vec<GeneratedImage>,
 }
 
+/// Request to edit an existing image (DALL-E 2, gpt-image-1 inpainting).
+#[derive(Debug, Clone)]
+pub struct ImageEditRequest {
+    pub model: String,
+    /// Image to edit as raw bytes.
+    pub image: Vec<u8>,
+    /// Format of the image file (used for the multipart filename).
+    pub image_format: ImageFormat,
+    /// Optional mask (transparent areas indicate what to edit). PNG only. DALL-E 2 only.
+    pub mask: Option<Vec<u8>>,
+    pub prompt: String,
+    pub n: Option<u32>,
+    pub size: Option<ImageSize>,
+    pub output_format: ImageOutputFormat,
+    pub user: Option<String>,
+}
+
+impl ImageEditRequest {
+    pub fn new(
+        model: impl Into<String>,
+        image: Vec<u8>,
+        image_format: ImageFormat,
+        prompt: impl Into<String>,
+    ) -> Self {
+        Self {
+            model: model.into(),
+            image,
+            image_format,
+            mask: None,
+            prompt: prompt.into(),
+            n: None,
+            size: None,
+            output_format: ImageOutputFormat::Url,
+            user: None,
+        }
+    }
+
+    pub fn with_mask(mut self, mask: Vec<u8>) -> Self {
+        self.mask = Some(mask);
+        self
+    }
+
+    pub fn with_n(mut self, n: u32) -> Self {
+        self.n = Some(n);
+        self
+    }
+
+    pub fn with_size(mut self, size: ImageSize) -> Self {
+        self.size = Some(size);
+        self
+    }
+
+    pub fn with_output_format(mut self, format: ImageOutputFormat) -> Self {
+        self.output_format = format;
+        self
+    }
+
+    pub fn with_user(mut self, user: impl Into<String>) -> Self {
+        self.user = Some(user.into());
+        self
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Video generation types
 // ---------------------------------------------------------------------------
@@ -2203,6 +2810,8 @@ pub struct SpeechRequest {
     pub response_format: Option<AudioFormat>,
     /// Playback speed multiplier (0.25–4.0).
     pub speed: Option<f64>,
+    /// Speaking style instructions (supported by `gpt-4o-mini-tts`).
+    pub instructions: Option<String>,
 }
 
 impl SpeechRequest {
@@ -2217,6 +2826,7 @@ impl SpeechRequest {
             voice: voice.into(),
             response_format: None,
             speed: None,
+            instructions: None,
         }
     }
 
@@ -2229,6 +2839,11 @@ impl SpeechRequest {
         self.speed = Some(s);
         self
     }
+
+    pub fn with_instructions(mut self, instructions: impl Into<String>) -> Self {
+        self.instructions = Some(instructions.into());
+        self
+    }
 }
 
 /// Text-to-speech response.
@@ -2237,6 +2852,44 @@ pub struct SpeechResponse {
     pub audio: Vec<u8>,
     /// Actual format returned (mp3 if None was passed in request).
     pub format: AudioFormat,
+}
+
+/// Granularity level for transcription timestamps.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TimestampGranularity {
+    /// Per-word timestamps in the response `words` array.
+    Word,
+    /// Per-segment timestamps in the response `segments` array.
+    Segment,
+}
+
+impl TimestampGranularity {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Word => "word",
+            Self::Segment => "segment",
+        }
+    }
+}
+
+/// Word-level timestamp from a transcription.
+#[derive(Debug, Clone)]
+pub struct TranscriptionWord {
+    pub word: String,
+    pub start: f64,
+    pub end: f64,
+}
+
+/// Segment-level detail from a transcription (Whisper verbose_json).
+#[derive(Debug, Clone)]
+pub struct TranscriptionSegment {
+    pub id: u32,
+    pub start: f64,
+    pub end: f64,
+    pub text: String,
+    pub temperature: f64,
+    pub avg_logprob: f64,
+    pub no_speech_prob: f64,
 }
 
 /// Speech-to-text transcription request.
@@ -2248,6 +2901,8 @@ pub struct TranscriptionRequest {
     pub language: Option<String>,
     pub prompt: Option<String>,
     pub temperature: Option<f64>,
+    /// Request word- and/or segment-level timestamps. Requires `verbose_json` response format.
+    pub timestamp_granularities: Option<Vec<TimestampGranularity>>,
 }
 
 impl TranscriptionRequest {
@@ -2259,6 +2914,7 @@ impl TranscriptionRequest {
             language: None,
             prompt: None,
             temperature: None,
+            timestamp_granularities: None,
         }
     }
 
@@ -2276,6 +2932,11 @@ impl TranscriptionRequest {
         self.temperature = Some(t);
         self
     }
+
+    pub fn with_timestamp_granularities(mut self, g: Vec<TimestampGranularity>) -> Self {
+        self.timestamp_granularities = Some(g);
+        self
+    }
 }
 
 /// Speech-to-text transcription response.
@@ -2284,6 +2945,90 @@ pub struct TranscriptionResponse {
     pub text: String,
     pub language: Option<String>,
     pub duration_secs: Option<f64>,
+    /// Per-word timestamps (populated when `TimestampGranularity::Word` is requested).
+    pub words: Vec<TranscriptionWord>,
+    /// Per-segment details (populated when `TimestampGranularity::Segment` is requested).
+    pub segments: Vec<TranscriptionSegment>,
+}
+
+// ---------------------------------------------------------------------------
+// Content moderation
+// ---------------------------------------------------------------------------
+
+/// Request to check whether text or images violate OpenAI usage policies.
+#[derive(Debug, Clone)]
+pub struct ModerationRequest {
+    /// One or more text strings to classify.
+    pub input: Vec<String>,
+    /// Model to use. Default (`None`) → `"omni-moderation-latest"`.
+    pub model: Option<String>,
+}
+
+impl ModerationRequest {
+    pub fn new(input: impl Into<String>) -> Self {
+        Self { input: vec![input.into()], model: None }
+    }
+
+    pub fn new_batch(inputs: Vec<String>) -> Self {
+        Self { input: inputs, model: None }
+    }
+
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
+        self
+    }
+}
+
+/// Boolean category flags from a moderation result.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ModerationCategories {
+    #[serde(default)] pub harassment: bool,
+    #[serde(default, rename = "harassment/threatening")] pub harassment_threatening: bool,
+    #[serde(default)] pub hate: bool,
+    #[serde(default, rename = "hate/threatening")] pub hate_threatening: bool,
+    #[serde(default)] pub illicit: bool,
+    #[serde(default, rename = "illicit/violent")] pub illicit_violent: bool,
+    #[serde(default, rename = "self-harm")] pub self_harm: bool,
+    #[serde(default, rename = "self-harm/instructions")] pub self_harm_instructions: bool,
+    #[serde(default, rename = "self-harm/intent")] pub self_harm_intent: bool,
+    #[serde(default)] pub sexual: bool,
+    #[serde(default, rename = "sexual/minors")] pub sexual_minors: bool,
+    #[serde(default)] pub violence: bool,
+    #[serde(default, rename = "violence/graphic")] pub violence_graphic: bool,
+}
+
+/// Confidence scores (0–1) for each moderation category.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ModerationCategoryScores {
+    #[serde(default)] pub harassment: f64,
+    #[serde(default, rename = "harassment/threatening")] pub harassment_threatening: f64,
+    #[serde(default)] pub hate: f64,
+    #[serde(default, rename = "hate/threatening")] pub hate_threatening: f64,
+    #[serde(default)] pub illicit: f64,
+    #[serde(default, rename = "illicit/violent")] pub illicit_violent: f64,
+    #[serde(default, rename = "self-harm")] pub self_harm: f64,
+    #[serde(default, rename = "self-harm/instructions")] pub self_harm_instructions: f64,
+    #[serde(default, rename = "self-harm/intent")] pub self_harm_intent: f64,
+    #[serde(default)] pub sexual: f64,
+    #[serde(default, rename = "sexual/minors")] pub sexual_minors: f64,
+    #[serde(default)] pub violence: f64,
+    #[serde(default, rename = "violence/graphic")] pub violence_graphic: f64,
+}
+
+/// Moderation result for a single input.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModerationResult {
+    pub flagged: bool,
+    pub categories: ModerationCategories,
+    pub category_scores: ModerationCategoryScores,
+}
+
+/// Response from a moderation request.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModerationResponse {
+    pub id: String,
+    pub model: String,
+    pub results: Vec<ModerationResult>,
 }
 
 // ---------------------------------------------------------------------------
