@@ -190,8 +190,7 @@ async fn test_mistral_bedrock_complete() {
     match resp {
         Ok(r) => {
             assert!(!r.text().is_empty(), "expected non-empty text response");
-            assert!(r.usage.input_tokens > 0, "expected input tokens > 0");
-            assert!(r.usage.output_tokens > 0, "expected output tokens > 0");
+            // Bedrock Mistral does not return usage in its response body.
         }
         Err(e) if bedrock_model_not_available(&e) => {
             println!("Skipping: model not available in {region}: {e}");
