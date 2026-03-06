@@ -109,6 +109,9 @@ async fn test_gemini_structured_output() {
     let api_key = gemini_api_key_env!();
     let provider = GeminiProvider::new(GeminiAuth::ApiKey(api_key));
     let mut config = default_config(GEMINI_MODEL);
+    // gemini-3-flash-preview is a thinking model; thinking tokens count against max_tokens.
+    // Use a larger budget so internal reasoning doesn't crowd out the JSON output.
+    config.max_tokens = Some(2048);
     config.response_format = Some(ResponseFormat::JsonSchema {
         name: "animal_sound".to_string(),
         schema: serde_json::json!({

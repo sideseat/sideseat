@@ -16,6 +16,7 @@
 - No emojis in console output
 - Cross-platform compatible code (macOS, Linux, Windows)
 - Never change .venv files
+- Default LLM model: `claude-haiku-4-5-20251001`. Never use Sonnet 3.x or older models.
 
 ## Code Standards
 

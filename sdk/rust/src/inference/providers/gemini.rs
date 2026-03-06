@@ -975,9 +975,11 @@ fn parse_gemini_response(json: &Value) -> Result<crate::types::Response, Provide
     }
 
     let candidate = &candidates[0];
-    let parts = candidate["content"]["parts"].as_array().ok_or_else(|| {
-        ProviderError::Serialization("Missing 'parts' in Gemini candidate".into())
-    })?;
+    // `content.parts` may be absent for SAFETY blocks, MAX_TOKENS hit before any output, or
+    // recitation stops. Treat as empty rather than erroring — the caller gets an empty Response
+    // with the correct stop_reason (Safety, Length, etc.).
+    let empty = vec![];
+    let parts = candidate["content"]["parts"].as_array().unwrap_or(&empty);
 
     let mut content: Vec<ContentBlock> = Vec::new();
     for part in parts {
