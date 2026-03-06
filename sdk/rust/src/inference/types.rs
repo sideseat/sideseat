@@ -351,11 +351,26 @@ pub struct DocumentContent {
 // Tool blocks
 // ---------------------------------------------------------------------------
 
+/// A tool-call block emitted by the model.
+///
+/// `input` is always a JSON object per the LLM tool-calling spec. While the field
+/// type is `serde_json::Value` for compatibility with all providers, callers can
+/// rely on `input.as_object()` returning `Some` in all well-formed responses.
+/// Use [`ToolUseBlock::input_object`] for a checked accessor.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolUseBlock {
     pub id: String,
     pub name: String,
     pub input: serde_json::Value,
+}
+
+impl ToolUseBlock {
+    /// Returns the input as an object map.
+    ///
+    /// Returns `None` if the provider sent a malformed non-object input.
+    pub fn input_object(&self) -> Option<&serde_json::Map<String, serde_json::Value>> {
+        self.input.as_object()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -463,6 +478,12 @@ impl PartialEq for TextBlock {
 
 impl Eq for TextBlock {}
 
+impl std::hash::Hash for TextBlock {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.text.hash(state);
+    }
+}
+
 impl std::fmt::Display for TextBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.text)
@@ -515,6 +536,11 @@ impl ContentBlock {
         ContentBlock::Text(TextBlock::new(t))
     }
 
+    /// Construct a tool-use block representing a model's request to call a tool.
+    ///
+    /// - `id` — unique call identifier (echo it back in the matching [`Self::tool_result`])
+    /// - `name` — name of the tool being called
+    /// - `input` — parsed JSON arguments (should be an object matching the tool's schema)
     pub fn tool_use(
         id: impl Into<String>,
         name: impl Into<String>,
@@ -527,6 +553,19 @@ impl ContentBlock {
         })
     }
 
+    /// Construct an `Image` block from a URL.
+    pub fn image_url(url: impl Into<String>) -> Self {
+        Self::Image(ImageContent {
+            source: MediaSource::Url(url.into()),
+            format: None,
+            detail: None,
+        })
+    }
+
+    /// Construct a successful tool-result block.
+    ///
+    /// `tool_use_id` must match the `id` from the corresponding [`Self::tool_use`] block.
+    /// For text-only results, prefer the higher-level [`Message::with_tool_results`].
     pub fn tool_result(tool_use_id: impl Into<String>, content: Vec<ContentBlock>) -> Self {
         Self::ToolResult(ToolResultBlock {
             tool_use_id: tool_use_id.into(),
@@ -535,6 +574,9 @@ impl ContentBlock {
         })
     }
 
+    /// Construct a tool-result block signalling that the tool call failed.
+    ///
+    /// Sets `is_error: true`; the provider will include this in context as an error outcome.
     pub fn tool_error(tool_use_id: impl Into<String>, error: impl Into<String>) -> Self {
         Self::ToolResult(ToolResultBlock {
             tool_use_id: tool_use_id.into(),
@@ -564,6 +606,13 @@ impl ContentBlock {
         }
     }
 
+    /// Returns the `TextBlock` (with citations) if this is a text block.
+    ///
+    /// Use `as_text()` for plain string access; use this when you need citations.
+    pub fn as_text_block(&self) -> Option<&TextBlock> {
+        if let Self::Text(t) = self { Some(t) } else { None }
+    }
+
     pub fn as_tool_use(&self) -> Option<&ToolUseBlock> {
         if let Self::ToolUse(t) = self {
             Some(t)
@@ -588,28 +637,36 @@ impl ContentBlock {
         }
     }
 
+    /// Returns `true` if this block is an [`ImageContent`].
     pub fn is_image(&self) -> bool {
         matches!(self, Self::Image(_))
     }
+    /// Returns `true` if this block is an [`AudioContent`].
     pub fn is_audio(&self) -> bool {
         matches!(self, Self::Audio(_))
     }
+    /// Returns `true` if this block is a [`VideoContent`].
     pub fn is_video(&self) -> bool {
         matches!(self, Self::Video(_))
     }
+    /// Returns `true` if this block is a [`DocumentContent`].
     pub fn is_document(&self) -> bool {
         matches!(self, Self::Document(_))
     }
 
+    /// Returns the inner [`ImageContent`] if this is an `Image` block, otherwise `None`.
     pub fn as_image(&self) -> Option<&ImageContent> {
         if let Self::Image(i) = self { Some(i) } else { None }
     }
+    /// Returns the inner [`AudioContent`] if this is an `Audio` block, otherwise `None`.
     pub fn as_audio(&self) -> Option<&AudioContent> {
         if let Self::Audio(a) = self { Some(a) } else { None }
     }
+    /// Returns the inner [`VideoContent`] if this is a `Video` block, otherwise `None`.
     pub fn as_video(&self) -> Option<&VideoContent> {
         if let Self::Video(v) = self { Some(v) } else { None }
     }
+    /// Returns the inner [`DocumentContent`] if this is a `Document` block, otherwise `None`.
     pub fn as_document(&self) -> Option<&DocumentContent> {
         if let Self::Document(d) = self { Some(d) } else { None }
     }
@@ -623,7 +680,11 @@ impl ContentBlock {
 pub struct Message {
     pub role: Role,
     pub content: Vec<ContentBlock>,
-    /// Optional name to distinguish participants with the same role (OpenAI).
+    /// Participant name for multi-agent / multi-user conversations (OpenAI-compatible providers).
+    ///
+    /// When multiple participants share the same role (e.g. two `user` turns from different
+    /// people), set `name` to tell the model who said what. Forwarded verbatim to the API;
+    /// ignored by providers that don't support it (Anthropic, Gemini, Bedrock, Cohere).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     /// Anthropic prompt caching: marks this message for caching.
@@ -660,10 +721,23 @@ impl Message {
         }
     }
 
+    /// Create a message with any role and an arbitrary list of content blocks.
     pub fn with_content(role: Role, content: Vec<ContentBlock>) -> Self {
         Self {
             role,
             content,
+            name: None,
+            cache_control: None,
+        }
+    }
+
+    /// Build a tool result message with rich content blocks for a single tool call.
+    ///
+    /// For multiple tool results in one message use [`Message::with_tool_result_blocks`].
+    pub fn tool(tool_use_id: impl Into<String>, content: Vec<ContentBlock>) -> Self {
+        Self {
+            role: Role::Tool,
+            content: vec![ContentBlock::tool_result(tool_use_id.into(), content)],
             name: None,
             cache_control: None,
         }
@@ -681,7 +755,19 @@ impl Message {
         self
     }
 
-    /// Build a tool result message from (tool_use_id, result_text) pairs.
+    /// Build a tool result message from `(tool_use_id, result_text)` pairs (text only).
+    ///
+    /// Use this for the common case where each tool returns a plain string.
+    /// For a single tool result, prefer [`Message::tool`].
+    /// For results with images, documents, or structured data, use [`Message::with_tool_result_blocks`].
+    ///
+    /// ```rust
+    /// # use sideseat::Message;
+    /// let msg = Message::with_tool_results(vec![
+    ///     ("toolu_01".to_string(), "Paris".to_string()),
+    ///     ("toolu_02".to_string(), "22°C".to_string()),
+    /// ]);
+    /// ```
     pub fn with_tool_results(results: Vec<(String, String)>) -> Self {
         let content = results
             .into_iter()
@@ -695,8 +781,20 @@ impl Message {
         }
     }
 
-    /// Build a tool result message from (tool_use_id, content_blocks) pairs.
-    /// Use when tool results contain non-text content (images, documents, etc.).
+    /// Build a tool result message from `(tool_use_id, content_blocks)` pairs (rich content).
+    ///
+    /// Use when any tool result contains non-text content (images, documents, etc.).
+    /// For text-only results, prefer the simpler [`Message::with_tool_results`].
+    ///
+    /// ```rust
+    /// # use sideseat::{Message, ContentBlock};
+    /// let msg = Message::with_tool_result_blocks(vec![
+    ///     ("toolu_01".to_string(), vec![
+    ///         ContentBlock::text("Here is the chart:"),
+    ///         ContentBlock::image_url("https://example.com/chart.png"),
+    ///     ]),
+    /// ]);
+    /// ```
     pub fn with_tool_result_blocks(results: Vec<(String, Vec<ContentBlock>)>) -> Self {
         let content = results
             .into_iter()
@@ -732,6 +830,14 @@ pub struct Tool {
 }
 
 impl Tool {
+    /// Create a tool definition.
+    ///
+    /// - `name` — identifier used by the model to call the tool (no spaces)
+    /// - `description` — natural-language description of what the tool does (shown to the model)
+    /// - `input_schema` — JSON Schema object describing the expected arguments
+    ///
+    /// Use [`Self::with_strict`] to enable strict schema validation (OpenAI),
+    /// and [`Self::with_input_examples`] to provide few-shot examples.
     pub fn new(
         name: impl Into<String>,
         description: impl Into<String>,
@@ -1205,7 +1311,10 @@ impl BuiltinTool {
 
     /// Remote MCP server or OpenAI-maintained connector.
     pub fn mcp(config: McpToolConfig) -> Self {
-        Self(serde_json::to_value(config).unwrap_or_else(|_| serde_json::json!({"type": "mcp"})))
+        Self(serde_json::to_value(config).unwrap_or_else(|e| {
+            tracing::debug!("BuiltinTool::mcp: failed to serialize McpToolConfig: {e}");
+            serde_json::json!({"type": "mcp"})
+        }))
     }
 
     /// Shell tool in an auto-provisioned OpenAI container.
@@ -1303,6 +1412,21 @@ impl Default for WebSearchConfig {
 // Provider configuration
 // ---------------------------------------------------------------------------
 
+/// Per-request configuration: model selection, sampling parameters, tools, and provider-specific options.
+///
+/// Create with [`ProviderConfig::new(model)`](Self::new) and customize using builder methods:
+///
+/// ```
+/// use sideseat::ProviderConfig;
+///
+/// let config = ProviderConfig::new("claude-haiku-4-5-20251001")
+///     .with_max_tokens(1024)
+///     .with_temperature(0.7)
+///     .with_system("You are a helpful assistant.");
+/// ```
+///
+/// Not all providers support every field — call [`validate()`](Self::validate) with the
+/// provider name to surface unsupported settings. Unrecognized fields are silently ignored.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderConfig {
     /// Model identifier (provider-specific). Must be set before use.
@@ -1887,17 +2011,30 @@ impl UsageAccumulator {
     }
 }
 
+/// The reason a provider stopped generating tokens.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum StopReason {
+    /// The model finished naturally (most common outcome).
     #[default]
     EndTurn,
+    /// Generation was cut short by the `max_tokens` limit.
     MaxTokens,
+    /// The model emitted one of the requested `stop_sequences`.
     StopSequence(String),
+    /// The model requested one or more tool calls.
     ToolUse,
+    /// Output was blocked by the provider's content filter.
     ContentFilter,
+    /// A provider-specific stop reason not covered by the variants above.
     Other(String),
 }
 
+/// A completed provider response.
+///
+/// Core payload is in [`content`](Self::content) — a `Vec` of [`ContentBlock`]s (text, tool calls,
+/// thinking, audio, etc.). Use the helper methods [`first_text()`](Self::first_text),
+/// [`tool_uses()`](Self::tool_uses), and [`thinking_content()`](Self::thinking_content)
+/// for common access patterns.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Response {
     pub content: Vec<ContentBlock>,
@@ -1977,6 +2114,14 @@ impl Response {
                 }
             })
             .collect()
+    }
+
+    /// Append a warning (e.g. a silently truncated parameter).
+    ///
+    /// Used internally by providers and middleware. Callers can inspect `response.warnings`
+    /// to surface non-fatal issues to the user.
+    pub fn add_warning(&mut self, msg: impl Into<String>) {
+        self.warnings.push(msg.into());
     }
 
     /// Estimate cost based on per-million-token prices.
@@ -2232,6 +2377,14 @@ pub fn validate_messages(messages: &[Message]) -> Vec<String> {
 // ---------------------------------------------------------------------------
 
 /// Fluent builder for assembling conversation message lists.
+///
+/// Three ways to finalize a conversation:
+/// - [`build()`](ConversationBuilder::build) — prepends system as `Message::system()`, returns `Vec<Message>`
+/// - [`build_messages()`](ConversationBuilder::build_messages) — raw messages only (system prompt omitted)
+/// - [`build_with_config()`](ConversationBuilder::build_with_config) — injects system into `ProviderConfig.system`
+///
+/// `build_with_config()` is the most portable option — it works with all providers and avoids
+/// the need to choose between per-message and config-level system prompt handling.
 #[derive(Debug, Default)]
 pub struct ConversationBuilder {
     messages: Vec<Message>,
@@ -2311,33 +2464,48 @@ impl ConversationBuilder {
 // ---------------------------------------------------------------------------
 
 /// Events emitted by the streaming provider.
+///
+/// A well-formed stream emits them in this order:
+/// `MessageStart` → (`ContentBlockStart` → `ContentBlockDelta`* → `ContentBlockStop`)* →
+/// `Metadata` → `MessageStop`.
+///
+/// `InlineData` may appear in place of a `ContentBlock*` group for non-incremental media.
+/// `collect_stream` tolerates missing `ContentBlockStart` events (auto-initializes the block).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StreamEvent {
+    /// Signals the start of a new assistant response.
     MessageStart {
         role: Role,
     },
+    /// Opens a new content block at `index`. Must precede `ContentBlockDelta` for that index.
     ContentBlockStart {
         index: usize,
         block: ContentBlockStart,
     },
+    /// Incremental content for the block at `index`.
     ContentBlockDelta {
         index: usize,
         delta: ContentDelta,
     },
+    /// Closes the content block at `index`. No further deltas for that index will follow.
     ContentBlockStop {
         index: usize,
     },
+    /// Signals the end of the response and the reason generation stopped.
     MessageStop {
         stop_reason: StopReason,
     },
+    /// Token usage, model name, and response ID. May arrive before or after `MessageStop`;
+    /// some providers (Anthropic) send it split across two events which are merged by `collect_stream`.
     Metadata {
         usage: Usage,
         model: Option<String>,
         /// Provider-assigned response ID (Gemini Interactions, OpenAI Responses, etc.)
         id: Option<String>,
     },
-    /// Complete inline media block (e.g. Gemini image output in chat). Not streamed incrementally.
+    /// Complete inline media block emitted as a single event (e.g. Gemini image output in chat).
+    /// Not streamed incrementally — the full base64 payload arrives at once.
     InlineData {
         index: usize,
         media_type: String,

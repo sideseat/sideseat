@@ -72,15 +72,18 @@ pub struct InstrumentedProvider<P> {
     duration_hist: Histogram<f64>,
 }
 
-impl<P: ChatProvider + Send + Sync + 'static> InstrumentedProvider<P> {
+impl<P: Provider + Send + Sync + 'static> InstrumentedProvider<P> {
+    /// Wrap a provider with OTel instrumentation using default [`TelemetryConfig`].
     pub fn new(inner: P) -> Self {
         Self::with_config(inner, TelemetryConfig::default())
     }
 
+    /// Returns a reference to the wrapped provider.
     pub fn inner(&self) -> &P {
         &self.inner
     }
 
+    /// Wrap a provider with a custom [`TelemetryConfig`].
     pub fn with_config(inner: P, config: TelemetryConfig) -> Self {
         let meter = opentelemetry::global::meter(config.tracer_name);
         let token_counter = meter
@@ -207,7 +210,7 @@ fn add_content_events(span: &SpanRef<'_>, messages: &[Message], response: &Respo
 // ---------------------------------------------------------------------------
 
 #[async_trait]
-impl<P: ChatProvider + Send + Sync + 'static> Provider for InstrumentedProvider<P> {
+impl<P: Provider + Send + Sync + 'static> Provider for InstrumentedProvider<P> {
     fn provider_name(&self) -> &'static str {
         self.inner.provider_name()
     }
@@ -417,7 +420,7 @@ impl<P: ChatProvider + Send + Sync + 'static> ChatProvider for InstrumentedProvi
 }
 
 #[async_trait]
-impl<P: ChatProvider + EmbeddingProvider + Send + Sync + 'static> EmbeddingProvider
+impl<P: Provider + EmbeddingProvider + Send + Sync + 'static> EmbeddingProvider
     for InstrumentedProvider<P>
 {
     async fn embed(
@@ -466,7 +469,7 @@ impl<P: ChatProvider + EmbeddingProvider + Send + Sync + 'static> EmbeddingProvi
 }
 
 #[async_trait]
-impl<P: ChatProvider + ImageProvider + Send + Sync + 'static> ImageProvider
+impl<P: Provider + ImageProvider + Send + Sync + 'static> ImageProvider
     for InstrumentedProvider<P>
 {
     async fn generate_image(
@@ -559,7 +562,7 @@ impl<P: ChatProvider + ImageProvider + Send + Sync + 'static> ImageProvider
 }
 
 #[async_trait]
-impl<P: ChatProvider + VideoProvider + Send + Sync + 'static> VideoProvider
+impl<P: Provider + VideoProvider + Send + Sync + 'static> VideoProvider
     for InstrumentedProvider<P>
 {
     async fn generate_video(
@@ -608,7 +611,7 @@ impl<P: ChatProvider + VideoProvider + Send + Sync + 'static> VideoProvider
 }
 
 #[async_trait]
-impl<P: ChatProvider + AudioProvider + Send + Sync + 'static> AudioProvider
+impl<P: Provider + AudioProvider + Send + Sync + 'static> AudioProvider
     for InstrumentedProvider<P>
 {
     async fn generate_speech(
@@ -745,7 +748,7 @@ impl<P: ChatProvider + AudioProvider + Send + Sync + 'static> AudioProvider
 }
 
 #[async_trait]
-impl<P: ChatProvider + ModerationProvider + Send + Sync + 'static> ModerationProvider
+impl<P: Provider + ModerationProvider + Send + Sync + 'static> ModerationProvider
     for InstrumentedProvider<P>
 {
     async fn moderate(

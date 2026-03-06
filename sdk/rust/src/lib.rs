@@ -23,6 +23,52 @@
 //!
 //! All providers implement [`ChatProvider`] (via [`Provider`]) with `stream()` and `complete()` methods.
 //!
+//! ## Composition
+//!
+//! Providers are plain values — compose them with wrappers for resilience and observability:
+//!
+//! ```rust,no_run
+//! # use sideseat::{providers::AnthropicProvider, RetryProvider, FallbackProvider,
+//! #     middleware::MiddlewareStack, LoggingMiddleware, TimingMiddleware};
+//! # async fn example() {
+//! // Retry transient errors up to 3 times with exponential backoff
+//! let retrying = RetryProvider::new(
+//!     AnthropicProvider::from_env().unwrap(),
+//!     3,
+//! );
+//!
+//! // Fall back to a second provider if the first fails
+//! let with_fallback = FallbackProvider::new(vec![
+//!     Box::new(AnthropicProvider::from_env().unwrap()),
+//!     Box::new(AnthropicProvider::from_env().unwrap()), // e.g. different model/region
+//! ]);
+//!
+//! // Intercept calls with middleware (logging, timing, rate limiting, custom hooks)
+//! let instrumented = MiddlewareStack::new(AnthropicProvider::from_env().unwrap())
+//!     .with(LoggingMiddleware)
+//!     .with(TimingMiddleware::new());
+//! # }
+//! ```
+//!
+//! Recommended stacking order (outermost first):
+//! 1. [`MiddlewareStack`] — logging, timing, rate limiting
+//! 2. [`RetryProvider`] — retry transient errors
+//! 3. [`FallbackProvider`] — switch providers on persistent failure
+//!
+//! ## Observability
+//!
+//! Wrap any provider with [`InstrumentedProvider`] to emit OpenTelemetry spans and metrics
+//! automatically. Use [`SideSeat::new()`] to initialize the OTel pipeline pointed at
+//! the SideSeat server:
+//!
+//! ```rust,no_run
+//! # use sideseat::{providers::AnthropicProvider, telemetry::{InstrumentedProvider, SideSeat}};
+//! # async fn example() {
+//! let _guard = SideSeat::new().init();
+//! let provider = InstrumentedProvider::new(AnthropicProvider::from_env().unwrap());
+//! # }
+//! ```
+//!
 //! ## Quick Start
 //!
 //! ```bash
@@ -71,6 +117,25 @@ pub use provider::{
 };
 pub use registry::ProviderRegistry;
 pub use telemetry::{InstrumentedProvider, SideSeat, SideSeatGuard, TelemetryConfig};
+/// Convenience re-exports for glob imports: `use sideseat::prelude::*`.
+///
+/// Includes the most frequently used traits, types, and builders. Import specific
+/// items from their respective modules when you need something not listed here.
+pub mod prelude {
+    pub use crate::error::ProviderError;
+    pub use crate::provider::{
+        ChatProvider, EmbeddingProvider, ImageProvider, AudioProvider, VideoProvider,
+        ModerationProvider, StatefulProvider, Provider, ProviderExt, ProviderStream,
+        RetryProvider, FallbackProvider, TextStream, run_agent_loop, run_agent_loop_with_hooks,
+        collect_stream, stream_text, generate_text,
+    };
+    pub use crate::middleware::{Middleware, MiddlewareStack, LoggingMiddleware, TimingMiddleware};
+    pub use crate::types::{
+        Message, Role, Response, ContentBlock, ProviderConfig, Tool, ToolUseBlock, ToolResultBlock,
+        ConversationBuilder, StreamEvent, StopReason, Usage, TokenCount,
+    };
+}
+
 pub use types::{
     AgentResult, AgentStep, AudioContent, AudioFormat, AudioOutputConfig, Base64Data, BuiltinTool,
     CacheControl, Citation, ContextManagementConfig, ContainerInfo, ContentBlock,

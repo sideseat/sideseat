@@ -13,7 +13,7 @@ use crate::{
         EmbeddingRequest, EmbeddingResponse, EmbeddingTaskType, GeneratedImage, GeneratedVideo,
         GroundingChunk, GroundingMetadata, ImageContent, ImageGenerationRequest,
         ImageGenerationResponse, MediaSource, Message, ModelInfo, ProviderConfig, ResponseFormat,
-        Role, StopReason, StreamEvent, TokenCount, ToolUseBlock,
+        Role, StaticTokenProvider, StopReason, StreamEvent, TokenCount, TokenProvider, ToolUseBlock,
         Usage, VideoContent, VideoGenerationRequest,
         VideoGenerationResponse,
     },
@@ -23,15 +23,19 @@ const GEMINI_BASE_URL: &str = "https://generativelanguage.googleapis.com/v1beta/
 const VERTEX_BASE_URL: &str = "https://{location}-aiplatform.googleapis.com/v1/projects/{project}/locations/{location}/publishers/google/models";
 
 /// Authentication and endpoint variant for the Gemini provider.
-#[derive(Debug, Clone)]
+///
+/// Note: the `VertexAI` variant holds an `Arc<dyn TokenProvider>` — Clone is cheap (ref-count bump).
+#[derive(Clone)]
 pub enum GeminiAuth {
     /// Google AI Studio: API key passed as query param `?key=...`
     ApiKey(String),
-    /// Vertex AI: OAuth2 Bearer token with project + location
+    /// Vertex AI: OAuth2 Bearer token with project + location.
+    /// Use [`GeminiProvider::from_vertex`] or [`GeminiProvider::from_vertex_with_token_provider`]
+    /// to construct; the token is fetched per-request to support rotation.
     VertexAI {
         project_id: String,
         location: String,
-        access_token: String,
+        token_provider: Arc<dyn TokenProvider>,
     },
 }
 
@@ -52,14 +56,9 @@ pub enum GeminiAuth {
 ///
 /// ## Vertex AI
 /// ```no_run
-/// use sideseat::{providers::{GeminiProvider, GeminiAuth}, ProviderConfig, Provider, Message};
+/// use sideseat::providers::GeminiProvider;
 ///
-/// let provider = GeminiProvider::new(GeminiAuth::VertexAI {
-///     project_id: "my-project".into(),
-///     location: "us-central1".into(),
-///     access_token: "ya29.xxx".into(),
-/// });
-/// let config = ProviderConfig::new("gemini-2.5-flash").with_max_tokens(1024);
+/// let provider = GeminiProvider::from_vertex("my-project", "us-central1", "ya29.xxx");
 /// ```
 pub struct GeminiProvider {
     auth: GeminiAuth,
@@ -84,6 +83,35 @@ impl GeminiProvider {
             client: Arc::new(reqwest::Client::new()),
             api_base: None,
         }
+    }
+
+    /// Create a Vertex AI provider using a static OAuth2 access token.
+    ///
+    /// The token is wrapped in a [`StaticTokenProvider`]. For automatic token rotation,
+    /// use [`from_vertex_with_token_provider`](Self::from_vertex_with_token_provider) instead.
+    pub fn from_vertex(
+        project_id: impl Into<String>,
+        location: impl Into<String>,
+        access_token: impl Into<String>,
+    ) -> Self {
+        Self::from_vertex_with_token_provider(
+            project_id,
+            location,
+            Arc::new(StaticTokenProvider::new(access_token.into())),
+        )
+    }
+
+    /// Create a Vertex AI provider with a custom [`TokenProvider`] for token rotation.
+    pub fn from_vertex_with_token_provider(
+        project_id: impl Into<String>,
+        location: impl Into<String>,
+        token_provider: Arc<dyn TokenProvider>,
+    ) -> Self {
+        Self::new(GeminiAuth::VertexAI {
+            project_id: project_id.into(),
+            location: location.into(),
+            token_provider,
+        })
     }
 
     /// Replace the HTTP client. Useful for custom TLS, proxies, or testing.
@@ -156,7 +184,7 @@ impl GeminiProvider {
     /// Respects the custom `api_base` if set.
     fn build_list_models_url(&self) -> String {
         if let Some(base) = &self.api_base {
-            return base.trim_end_matches('/').to_string();
+            return format!("{}/models", base.trim_end_matches('/'));
         }
         match &self.auth {
             GeminiAuth::ApiKey(key) => format!("{}?key={}", GEMINI_BASE_URL, key),
@@ -170,10 +198,16 @@ impl GeminiProvider {
         }
     }
 
-    fn add_auth_header(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+    async fn add_auth_header(
+        &self,
+        builder: reqwest::RequestBuilder,
+    ) -> Result<reqwest::RequestBuilder, ProviderError> {
         match &self.auth {
-            GeminiAuth::ApiKey(_) => builder, // API key in URL
-            GeminiAuth::VertexAI { access_token, .. } => builder.bearer_auth(access_token),
+            GeminiAuth::ApiKey(_) => Ok(builder), // API key in URL
+            GeminiAuth::VertexAI { token_provider, .. } => {
+                let token = token_provider.get_token().await?;
+                Ok(builder.bearer_auth(token))
+            }
         }
     }
 
@@ -335,7 +369,7 @@ impl Provider for GeminiProvider {
         let url = self.build_list_models_url();
 
         let mut req_builder = self.client.get(&url);
-        req_builder = self.add_auth_header(req_builder);
+        req_builder = self.add_auth_header(req_builder).await?;
         let resp = req_builder.send().await?;
         let resp = check_response(resp).await?;
         let json: Value = resp.json().await?;
@@ -376,7 +410,10 @@ impl ChatProvider for GeminiProvider {
 
             let url = provider.build_url(&config.model, true);
             let mut req_builder = client.post(&url).json(&body);
-            req_builder = provider.add_auth_header(req_builder);
+            req_builder = match provider.add_auth_header(req_builder).await {
+                Ok(b) => b,
+                Err(e) => { yield Err(e); return; }
+            };
             if let Some(ms) = config.timeout_ms {
                 req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
             }
@@ -518,7 +555,7 @@ impl ChatProvider for GeminiProvider {
         let body = self.build_request(&messages, &config)?;
         let url = self.build_url(&config.model, false);
         let mut req_builder = self.client.post(&url).json(&body);
-        req_builder = self.add_auth_header(req_builder);
+        req_builder = self.add_auth_header(req_builder).await?;
         if let Some(ms) = config.timeout_ms {
             req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
         }
@@ -545,7 +582,7 @@ impl ChatProvider for GeminiProvider {
         let url = self.build_model_url(&config.model, "countTokens");
 
         let mut req_builder = self.client.post(&url).json(&count_body);
-        req_builder = self.add_auth_header(req_builder);
+        req_builder = self.add_auth_header(req_builder).await?;
         let resp = req_builder.send().await?;
         let resp = check_response(resp).await?;
         let json: Value = resp.json().await?;
@@ -598,7 +635,7 @@ impl EmbeddingProvider for GeminiProvider {
             let url = self.build_model_url(model, "embedContent");
 
             let mut req_builder = self.client.post(&url).json(&body);
-            req_builder = self.add_auth_header(req_builder);
+            req_builder = self.add_auth_header(req_builder).await?;
             let resp = req_builder.send().await?;
             let resp = check_response(resp).await?;
             let json: Value = resp.json().await?;
@@ -640,7 +677,7 @@ impl EmbeddingProvider for GeminiProvider {
             let url = self.build_model_url(model, "batchEmbedContents");
 
             let mut req_builder = self.client.post(&url).json(&body);
-            req_builder = self.add_auth_header(req_builder);
+            req_builder = self.add_auth_header(req_builder).await?;
             let resp = req_builder.send().await?;
             let resp = check_response(resp).await?;
             let json: Value = resp.json().await?;
@@ -697,7 +734,7 @@ impl ImageProvider for GeminiProvider {
         });
 
         let mut req_builder = self.client.post(&url).json(&body);
-        req_builder = self.add_auth_header(req_builder);
+        req_builder = self.add_auth_header(req_builder).await?;
         let resp = req_builder.send().await?;
         let resp = check_response(resp).await?;
         let json: Value = resp.json().await?;
@@ -747,7 +784,7 @@ impl VideoProvider for GeminiProvider {
         });
 
         let mut req_builder = self.client.post(&url).json(&body);
-        req_builder = self.add_auth_header(req_builder);
+        req_builder = self.add_auth_header(req_builder).await?;
         let resp = req_builder.send().await?;
         let resp = check_response(resp).await?;
         let op_json: Value = resp.json().await?;
@@ -764,7 +801,7 @@ impl VideoProvider for GeminiProvider {
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
             let mut poll_req = self.client.get(&poll_url);
-            poll_req = self.add_auth_header(poll_req);
+            poll_req = self.add_auth_header(poll_req).await?;
             let resp = poll_req.send().await?;
             let resp = check_response(resp).await?;
             let status: Value = resp.json().await?;
@@ -1102,11 +1139,7 @@ mod tests {
 
     #[test]
     fn test_build_vertex_url() {
-        let provider = GeminiProvider::new(GeminiAuth::VertexAI {
-            project_id: "my-project".into(),
-            location: "us-central1".into(),
-            access_token: "token".into(),
-        });
+        let provider = GeminiProvider::from_vertex("my-project", "us-central1", "token");
         let url = provider.build_url("gemini-2.5-flash", true);
         assert!(url.contains("aiplatform.googleapis.com"));
         assert!(url.contains("us-central1"));

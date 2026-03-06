@@ -1,8 +1,4 @@
 //! Integration tests for Bedrock OpenAI-compatible API (Chat Completions + Responses via AWS Bedrock).
-//!
-//! ```bash
-//! BEDROCK_API_KEY=... BEDROCK_REGION=us-east-1 cargo test -p sideseat -- --nocapture bedrock_openai
-//! ```
 
 #[macro_use]
 mod common;
@@ -11,40 +7,25 @@ use common::*;
 const BEDROCK_OPENAI_MODEL: &str = "openai.gpt-oss-120b";
 const BEDROCK_OPENAI_SMALL_MODEL: &str = "openai.gpt-oss-20b";
 
-/// Returns `(api_key, region)` for Bedrock OpenAI-compatible API tests, skipping if no API key is set.
-macro_rules! bedrock_openai_env {
-    () => {{
-        let api_key = match std::env::var("BEDROCK_API_KEY")
-            .or_else(|_| std::env::var("AWS_BEARER_TOKEN_BEDROCK"))
-        {
-            Ok(k) => k,
-            Err(_) => return,
-        };
-        (api_key, bedrock_region())
-    }};
-}
-
 // ── Chat Completions API ────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn test_bedrock_openai_chat_complete() {
-    let (api_key, region) = bedrock_openai_env!();
-    let provider = OpenAIChatProvider::for_bedrock_openai(region, api_key);
+    let (server, provider) = mock_bedrock_openai_chat();
+    mock_json(&server, POST, "/chat/completions", OPENAI_COMPLETE_JSON);
     let config = default_config(BEDROCK_OPENAI_MODEL);
 
-    let resp = retry(|| provider.complete(vec![user_msg("Say 'hello' in one word")], config.clone()))
-        .await
-        .unwrap();
+    let resp = provider.complete(vec![user_msg("Say 'hello' in one word")], config).await.unwrap();
 
-    assert!(!resp.text().is_empty(), "expected non-empty response");
+    assert!(!resp.text().is_empty());
     assert!(resp.usage.input_tokens > 0);
     assert!(resp.usage.output_tokens > 0);
 }
 
 #[tokio::test]
 async fn test_bedrock_openai_chat_stream() {
-    let (api_key, region) = bedrock_openai_env!();
-    let provider = OpenAIChatProvider::for_bedrock_openai(region, api_key);
+    let (server, provider) = mock_bedrock_openai_chat();
+    mock_sse(&server, POST, "/chat/completions", OPENAI_STREAM_EVENTS);
     let config = default_config(BEDROCK_OPENAI_MODEL);
 
     let stream = provider.stream(vec![user_msg("Count from 1 to 3")], config);
@@ -56,14 +37,16 @@ async fn test_bedrock_openai_chat_stream() {
 
 #[tokio::test]
 async fn test_bedrock_openai_chat_system_prompt() {
-    let (api_key, region) = bedrock_openai_env!();
-    let provider = OpenAIChatProvider::for_bedrock_openai(region, api_key);
+    let (server, provider) = mock_bedrock_openai_chat();
+    let pirate_json = r#"{"id":"chatcmpl-test","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"Arrr! Hello there!"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}"#;
+    server.mock(|when, then| {
+        when.method(POST).path_includes("/chat/completions");
+        then.status(200).header("content-type", "application/json").body(pirate_json);
+    });
     let mut config = default_config(BEDROCK_OPENAI_MODEL);
     config.system = Some("You are a pirate. Always respond with 'Arrr!'".to_string());
 
-    let resp = retry(|| provider.complete(vec![user_msg("Hello")], config.clone()))
-        .await
-        .unwrap();
+    let resp = provider.complete(vec![user_msg("Hello")], config).await.unwrap();
 
     let text = resp.text().to_lowercase();
     assert!(text.contains("arr"), "expected pirate response, got: {text}");
@@ -71,8 +54,12 @@ async fn test_bedrock_openai_chat_system_prompt() {
 
 #[tokio::test]
 async fn test_bedrock_openai_chat_multi_turn() {
-    let (api_key, region) = bedrock_openai_env!();
-    let provider = OpenAIChatProvider::for_bedrock_openai(region, api_key);
+    let (server, provider) = mock_bedrock_openai_chat();
+    let alex_json = r#"{"id":"chatcmpl-test","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"Your name is Alex."},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}"#;
+    server.mock(|when, then| {
+        when.method(POST).path_includes("/chat/completions");
+        then.status(200).header("content-type", "application/json").body(alex_json);
+    });
     let config = default_config(BEDROCK_OPENAI_MODEL);
 
     let messages = vec![
@@ -85,7 +72,7 @@ async fn test_bedrock_openai_chat_multi_turn() {
         },
         user_msg("What is my name?"),
     ];
-    let resp = retry(|| provider.complete(messages.clone(), config.clone())).await.unwrap();
+    let resp = provider.complete(messages, config).await.unwrap();
 
     let text = resp.text().to_lowercase();
     assert!(text.contains("alex"), "expected name recall, got: {text}");
@@ -93,15 +80,12 @@ async fn test_bedrock_openai_chat_multi_turn() {
 
 #[tokio::test]
 async fn test_bedrock_openai_chat_tools() {
-    let (api_key, region) = bedrock_openai_env!();
-    let provider = OpenAIChatProvider::for_bedrock_openai(region, api_key);
+    let (server, provider) = mock_bedrock_openai_chat();
+    mock_json(&server, POST, "/chat/completions", OPENAI_TOOL_JSON);
     let mut config = default_config(BEDROCK_OPENAI_MODEL);
     config.tools = vec![echo_tool()];
 
-    let resp = provider
-        .complete(vec![user_msg("Please echo the word 'mango'")], config)
-        .await
-        .unwrap();
+    let resp = provider.complete(vec![user_msg("Please echo the word 'mango'")], config).await.unwrap();
 
     let has_tool = resp.content.iter().any(|b| matches!(b, ContentBlock::ToolUse(_)));
     assert!(has_tool, "expected tool_use block, got: {:?}", resp.content);
@@ -109,8 +93,8 @@ async fn test_bedrock_openai_chat_tools() {
 
 #[tokio::test]
 async fn test_bedrock_openai_chat_streaming_tools() {
-    let (api_key, region) = bedrock_openai_env!();
-    let provider = OpenAIChatProvider::for_bedrock_openai(region, api_key);
+    let (server, provider) = mock_bedrock_openai_chat();
+    mock_sse(&server, POST, "/chat/completions", OPENAI_STREAM_TOOL_EVENTS);
     let mut config = default_config(BEDROCK_OPENAI_MODEL);
     config.tools = vec![echo_tool()];
 
@@ -123,16 +107,22 @@ async fn test_bedrock_openai_chat_streaming_tools() {
 
 #[tokio::test]
 async fn test_bedrock_openai_chat_tool_use_loop() {
-    // Full two-turn cycle: user → tool_use → tool_result → final text.
-    let (api_key, region) = bedrock_openai_env!();
-    let provider = OpenAIChatProvider::for_bedrock_openai(region, api_key);
+    let (server, provider) = mock_bedrock_openai_chat();
+    // Turn 2: body has tool_call_id (tool result) → return complete (checked first = FIFO priority)
+    server.mock(|when, then| {
+        when.method(POST).path_includes("/chat/completions").body_includes("tool_call_id");
+        then.status(200).header("content-type", "application/json").body(OPENAI_COMPLETE_JSON);
+    });
+    // Turn 1 fallback: no restriction → tool call (checked second)
+    server.mock(|when, then| {
+        when.method(POST).path_includes("/chat/completions");
+        then.status(200).header("content-type", "application/json").body(OPENAI_TOOL_JSON);
+    });
     let mut config = default_config(BEDROCK_OPENAI_MODEL);
     config.tools = vec![echo_tool()];
 
     // Turn 1: model calls the tool
-    let resp1 = retry(|| provider.complete(vec![user_msg("Echo 'jackfruit'")], config.clone()))
-        .await
-        .unwrap();
+    let resp1 = provider.complete(vec![user_msg("Echo 'jackfruit'")], config.clone()).await.unwrap();
 
     let tool_use = resp1.content.iter().find_map(|b| {
         if let ContentBlock::ToolUse(t) = b { Some(t.clone()) } else { None }
@@ -150,30 +140,27 @@ async fn test_bedrock_openai_chat_tool_use_loop() {
         },
         Message::with_tool_results(vec![(tool_use.id.clone(), "jackfruit".to_string())]),
     ];
-    let resp2 = retry(|| provider.complete(messages.clone(), config.clone())).await.unwrap();
+    let resp2 = provider.complete(messages, config).await.unwrap();
 
-    assert!(!resp2.text().is_empty(), "expected text in turn 2");
+    assert!(!resp2.text().is_empty());
 }
-
 
 #[tokio::test]
 async fn test_bedrock_openai_chat_small_model() {
-    let (api_key, region) = bedrock_openai_env!();
-    let provider = OpenAIChatProvider::for_bedrock_openai(region, api_key);
+    let (server, provider) = mock_bedrock_openai_chat();
+    mock_json(&server, POST, "/chat/completions", OPENAI_COMPLETE_JSON);
     let config = default_config(BEDROCK_OPENAI_SMALL_MODEL);
 
-    let resp = retry(|| provider.complete(vec![user_msg("Say 'hello' in one word")], config.clone()))
-        .await
-        .unwrap();
+    let resp = provider.complete(vec![user_msg("Say 'hello' in one word")], config).await.unwrap();
 
-    assert!(!resp.text().is_empty(), "expected non-empty response from small model");
+    assert!(!resp.text().is_empty());
     assert!(resp.usage.input_tokens > 0);
 }
 
 #[tokio::test]
 async fn test_bedrock_openai_chat_small_model_stream() {
-    let (api_key, region) = bedrock_openai_env!();
-    let provider = OpenAIChatProvider::for_bedrock_openai(region, api_key);
+    let (server, provider) = mock_bedrock_openai_chat();
+    mock_sse(&server, POST, "/chat/completions", OPENAI_STREAM_EVENTS);
     let config = default_config(BEDROCK_OPENAI_SMALL_MODEL);
 
     let stream = provider.stream(vec![user_msg("Count from 1 to 3")], config);
@@ -185,28 +172,31 @@ async fn test_bedrock_openai_chat_small_model_stream() {
 
 #[tokio::test]
 async fn test_bedrock_openai_chat_count_tokens() {
-    let (api_key, region) = bedrock_openai_env!();
-    let provider = OpenAIChatProvider::for_bedrock_openai(region, api_key);
+    let (server, provider) = mock_bedrock_openai_chat();
+    mock_json(&server, POST, "/chat/completions", OPENAI_COMPLETE_JSON);
     let config = default_config(BEDROCK_OPENAI_MODEL);
 
     match provider.count_tokens(vec![user_msg("Hello, world!")], config).await {
-        Ok(count) => assert!(count.input_tokens > 0, "expected > 0 input tokens"),
+        Ok(count) => assert!(count.input_tokens > 0),
         Err(sideseat::ProviderError::Unsupported(_)) => {
-            eprintln!("SKIP: count_tokens not supported by this endpoint");
+            // count_tokens may not be supported by this endpoint
         }
         Err(e) => panic!("count_tokens failed: {e:?}"),
     }
 }
 
-
 #[tokio::test]
 async fn test_bedrock_openai_chat_list_models() {
-    let (api_key, region) = bedrock_openai_env!();
-    let provider = OpenAIChatProvider::for_bedrock_openai(region, api_key);
+    let (server, provider) = mock_bedrock_openai_chat();
+    let openai_models = r#"{"object":"list","data":[{"id":"openai.gpt-oss-120b","object":"model","created":1234567890,"owned_by":"openai"},{"id":"openai.gpt-oss-20b","object":"model","created":1234567890,"owned_by":"openai"}]}"#;
+    server.mock(|when, then| {
+        when.method(GET).path_includes("/models");
+        then.status(200).header("content-type", "application/json").body(openai_models);
+    });
 
     let models = provider.list_models().await.unwrap();
 
-    assert!(!models.is_empty(), "expected at least one model");
+    assert!(!models.is_empty());
     let ids: Vec<&str> = models.iter().map(|m| m.id.as_str()).collect();
     assert!(
         ids.iter().any(|id| id.starts_with("openai.")),
@@ -214,12 +204,16 @@ async fn test_bedrock_openai_chat_list_models() {
     );
 }
 
-// ── Responses API ───────────────────────────────────────────────────────────
+// ── Responses API ────────────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn test_bedrock_openai_responses_multi_turn() {
-    let (api_key, region) = bedrock_openai_env!();
-    let provider = OpenAIResponsesProvider::for_bedrock_openai(region, api_key);
+    let (server, provider) = mock_bedrock_openai_responses();
+    let alex_json = r#"{"id":"resp_test","object":"response","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Your name is Alex."}]}],"usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}"#;
+    server.mock(|when, then| {
+        when.method(POST).path_includes("/responses");
+        then.status(200).header("content-type", "application/json").body(alex_json);
+    });
     let config = default_config(BEDROCK_OPENAI_MODEL);
 
     let messages = vec![
@@ -232,7 +226,7 @@ async fn test_bedrock_openai_responses_multi_turn() {
         },
         user_msg("What is my name?"),
     ];
-    let resp = retry(|| provider.complete(messages.clone(), config.clone())).await.unwrap();
+    let resp = provider.complete(messages, config).await.unwrap();
 
     let text = resp.text().to_lowercase();
     assert!(text.contains("alex"), "expected name recall, got: {text}");
@@ -240,15 +234,12 @@ async fn test_bedrock_openai_responses_multi_turn() {
 
 #[tokio::test]
 async fn test_bedrock_openai_responses_tools() {
-    let (api_key, region) = bedrock_openai_env!();
-    let provider = OpenAIResponsesProvider::for_bedrock_openai(region, api_key);
+    let (server, provider) = mock_bedrock_openai_responses();
+    mock_json(&server, POST, "/responses", OPENAI_RESPONSES_TOOL_JSON);
     let mut config = default_config(BEDROCK_OPENAI_MODEL);
     config.tools = vec![echo_tool()];
 
-    let resp = provider
-        .complete(vec![user_msg("Please echo the word 'papaya'")], config)
-        .await
-        .unwrap();
+    let resp = provider.complete(vec![user_msg("Please echo the word 'papaya'")], config).await.unwrap();
 
     let has_tool = resp.content.iter().any(|b| matches!(b, ContentBlock::ToolUse(_)));
     assert!(has_tool, "expected tool_use block, got: {:?}", resp.content);
@@ -256,8 +247,8 @@ async fn test_bedrock_openai_responses_tools() {
 
 #[tokio::test]
 async fn test_bedrock_openai_responses_streaming_tools() {
-    let (api_key, region) = bedrock_openai_env!();
-    let provider = OpenAIResponsesProvider::for_bedrock_openai(region, api_key);
+    let (server, provider) = mock_bedrock_openai_responses();
+    mock_sse(&server, POST, "/responses", OPENAI_RESPONSES_STREAM_TOOL_EVENTS);
     let mut config = default_config(BEDROCK_OPENAI_MODEL);
     config.tools = vec![echo_tool()];
 
@@ -270,12 +261,16 @@ async fn test_bedrock_openai_responses_streaming_tools() {
 
 #[tokio::test]
 async fn test_bedrock_openai_responses_list_models() {
-    let (api_key, region) = bedrock_openai_env!();
-    let provider = OpenAIResponsesProvider::for_bedrock_openai(region, api_key);
+    let (server, provider) = mock_bedrock_openai_responses();
+    let openai_models = r#"{"object":"list","data":[{"id":"openai.gpt-oss-120b","object":"model","created":1234567890,"owned_by":"openai"}]}"#;
+    server.mock(|when, then| {
+        when.method(GET).path_includes("/models");
+        then.status(200).header("content-type", "application/json").body(openai_models);
+    });
 
     let models = provider.list_models().await.unwrap();
 
-    assert!(!models.is_empty(), "expected at least one model");
+    assert!(!models.is_empty());
     assert!(
         models.iter().any(|m| m.id.starts_with("openai.")),
         "expected at least one openai.* model"
