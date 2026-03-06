@@ -86,6 +86,12 @@ impl GeminiProvider {
         }
     }
 
+    /// Replace the HTTP client. Useful for custom TLS, proxies, or testing.
+    pub fn with_client(mut self, client: reqwest::Client) -> Self {
+        self.client = Arc::new(client);
+        self
+    }
+
     /// Override the base URL for use with LiteLLM or other Gemini-compatible proxies.
     ///
     /// The model name and method suffix (`:generateContent`, `:streamGenerateContent`) are
@@ -108,7 +114,19 @@ impl GeminiProvider {
         } else {
             "generateContent"
         };
-        self.build_model_url(model, method)
+        let url = self.build_model_url(model, method);
+        if streaming {
+            // Gemini streamGenerateContent requires alt=sse to return Server-Sent Events
+            // format. Without it, the response is a raw JSON array that eventsource_stream
+            // cannot parse.
+            if url.contains('?') {
+                format!("{}&alt=sse", url)
+            } else {
+                format!("{}?alt=sse", url)
+            }
+        } else {
+            url
+        }
     }
 
     /// Builds a URL for any model-specific method (countTokens, embedContent, etc.).
@@ -518,9 +536,15 @@ impl ChatProvider for GeminiProvider {
     ) -> Result<TokenCount, ProviderError> {
         let body = self.build_request(&messages, &config)?;
 
+        // countTokens only accepts "contents" (and optionally "tools"); generationConfig is rejected
+        let mut count_body = json!({"contents": body["contents"]});
+        if let Some(tools) = body.get("tools") {
+            count_body["tools"] = tools.clone();
+        }
+
         let url = self.build_model_url(&config.model, "countTokens");
 
-        let mut req_builder = self.client.post(&url).json(&body);
+        let mut req_builder = self.client.post(&url).json(&count_body);
         req_builder = self.add_auth_header(req_builder);
         let resp = req_builder.send().await?;
         let resp = check_response(resp).await?;
@@ -766,7 +790,7 @@ impl VideoProvider for GeminiProvider {
             }
         }
 
-        Err(ProviderError::Timeout { ms: 300_000 })
+        Err(ProviderError::Timeout { ms: Some(300_000) })
     }
 }
 
@@ -797,10 +821,11 @@ fn format_contents(messages: &[Message]) -> Result<Value, ProviderError> {
     let mut result: Vec<Value> = Vec::new();
 
     for msg in messages {
-        let role = match msg.role {
+        let role = match &msg.role {
             Role::System => continue, // System handled via systemInstruction
-            Role::User => "user",
+            Role::User | Role::Tool => "user",
             Role::Assistant => "model",
+            Role::Other(s) => s.as_str(),
         };
 
         let parts = format_parts(&msg.content)?;

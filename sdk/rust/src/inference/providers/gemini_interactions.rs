@@ -63,6 +63,12 @@ impl GeminiInteractionsProvider {
         }
     }
 
+    /// Replace the HTTP client. Useful for custom TLS, proxies, or testing.
+    pub fn with_client(mut self, client: reqwest::Client) -> Self {
+        self.client = Arc::new(client);
+        self
+    }
+
     /// Continue a previous interaction. Pass the `id` returned in the last response.
     pub fn with_previous_interaction_id(mut self, id: impl Into<String>) -> Self {
         self.previous_interaction_id = Some(id.into());
@@ -136,20 +142,21 @@ impl GeminiInteractionsProvider {
             req["generation_config"] = gen_config;
         }
 
-        // Tools
+        // Tools — Interactions API: [{type: "function", name, description, parameters}] (flat, not nested)
         if !config.tools.is_empty() {
-            let fn_decls: Vec<Value> = config
+            let tools: Vec<Value> = config
                 .tools
                 .iter()
                 .map(|t| {
                     json!({
+                        "type": "function",
                         "name": t.name,
                         "description": t.description,
                         "parameters": t.input_schema,
                     })
                 })
                 .collect();
-            req["tools"] = json!([{"function_declarations": fn_decls}]);
+            req["tools"] = json!(tools);
         }
 
         for (k, v) in &config.extra {
@@ -395,53 +402,34 @@ impl ChatProvider for GeminiInteractionsProvider {
 // ---------------------------------------------------------------------------
 
 fn format_input(messages: &[Message]) -> Result<Value, ProviderError> {
-    // Single user message with text → send as string for simplicity
-    let non_system: Vec<&Message> = messages.iter().filter(|m| m.role != Role::System).collect();
+    // The Interactions API manages conversation history server-side via previous_interaction_id.
+    // Client-side history is not supported; extract only the last user message.
+    let last_user = messages
+        .iter()
+        .filter(|m| m.role == Role::User)
+        .next_back()
+        .ok_or_else(|| ProviderError::InvalidRequest("No user message in input".into()))?;
 
-    if non_system.len() == 1 && non_system[0].role == Role::User {
-        let all_text = non_system[0]
+    let all_text = last_user.content.iter().all(|b| matches!(b, ContentBlock::Text(_)));
+    if all_text {
+        let text = last_user
             .content
             .iter()
-            .all(|b| matches!(b, ContentBlock::Text(_)));
-        if all_text {
-            let text: String = non_system[0]
-                .content
-                .iter()
-                .filter_map(|b| {
-                    if let ContentBlock::Text(t) = b {
-                        Some(t.text.as_str())
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join("");
-            return Ok(json!(text));
-        }
+            .filter_map(|b| {
+                if let ContentBlock::Text(t) = b {
+                    Some(t.text.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("");
+        return Ok(json!(text));
     }
 
-    // Multi-turn: format as array of turns
-    let turns: Result<Vec<Value>, _> = messages
-        .iter()
-        .filter(|m| m.role != Role::System)
-        .map(format_turn)
-        .collect();
-    Ok(json!(turns?))
-}
-
-fn format_turn(msg: &Message) -> Result<Value, ProviderError> {
-    let role = match msg.role {
-        Role::User => "user",
-        Role::Assistant => "model",
-        Role::System => {
-            return Err(ProviderError::Unsupported(
-                "System messages must be passed via ProviderConfig.system".into(),
-            ));
-        }
-    };
-
-    let parts: Result<Vec<Value>, _> = msg.content.iter().map(format_part).collect();
-    Ok(json!({"role": role, "parts": parts?}))
+    // Multi-modal: format as Content object
+    let parts: Result<Vec<Value>, _> = last_user.content.iter().map(format_part).collect();
+    Ok(json!({"role": "user", "parts": parts?}))
 }
 
 fn format_part(block: &ContentBlock) -> Result<Value, ProviderError> {
@@ -577,7 +565,8 @@ mod tests {
     }
 
     #[test]
-    fn test_multi_turn_as_array() {
+    fn test_multi_turn_uses_last_user_message() {
+        // The Interactions API manages history server-side; only the last user message is sent.
         let provider = GeminiInteractionsProvider::new("key");
         let messages = vec![
             Message::user("Hi"),
@@ -586,11 +575,7 @@ mod tests {
         ];
         let config = ProviderConfig::new("gemini-2.5-flash");
         let req = provider.build_request(&messages, &config, false).unwrap();
-        let input = req["input"].as_array().unwrap();
-        assert_eq!(input.len(), 3);
-        assert_eq!(input[0]["role"], "user");
-        assert_eq!(input[1]["role"], "model");
-        assert_eq!(input[2]["role"], "user");
+        assert_eq!(req["input"], "How are you?");
     }
 
     #[test]

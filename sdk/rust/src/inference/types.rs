@@ -112,12 +112,52 @@ pub struct GroundingMetadata {
 // Role
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Role {
     System,
     User,
     Assistant,
+    Tool,
+    /// Any role string not recognized by the SDK (e.g. "developer", "ipython", "data").
+    /// Round-trips through serialization unchanged.
+    Other(String),
+}
+
+impl Role {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::System => "system",
+            Self::User => "user",
+            Self::Assistant => "assistant",
+            Self::Tool => "tool",
+            Self::Other(s) => s.as_str(),
+        }
+    }
+}
+
+impl std::fmt::Display for Role {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl serde::Serialize for Role {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Role {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        Ok(match s.as_str() {
+            "system" => Self::System,
+            "user" => Self::User,
+            "assistant" => Self::Assistant,
+            "tool" => Self::Tool,
+            _ => Self::Other(s),
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -539,6 +579,40 @@ impl ContentBlock {
             None
         }
     }
+
+    pub fn as_thinking(&self) -> Option<&ThinkingBlock> {
+        if let Self::Thinking(t) = self {
+            Some(t)
+        } else {
+            None
+        }
+    }
+
+    pub fn is_image(&self) -> bool {
+        matches!(self, Self::Image(_))
+    }
+    pub fn is_audio(&self) -> bool {
+        matches!(self, Self::Audio(_))
+    }
+    pub fn is_video(&self) -> bool {
+        matches!(self, Self::Video(_))
+    }
+    pub fn is_document(&self) -> bool {
+        matches!(self, Self::Document(_))
+    }
+
+    pub fn as_image(&self) -> Option<&ImageContent> {
+        if let Self::Image(i) = self { Some(i) } else { None }
+    }
+    pub fn as_audio(&self) -> Option<&AudioContent> {
+        if let Self::Audio(a) = self { Some(a) } else { None }
+    }
+    pub fn as_video(&self) -> Option<&VideoContent> {
+        if let Self::Video(v) = self { Some(v) } else { None }
+    }
+    pub fn as_document(&self) -> Option<&DocumentContent> {
+        if let Self::Document(d) = self { Some(d) } else { None }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -614,7 +688,22 @@ impl Message {
             .map(|(id, text)| ContentBlock::tool_result(id, vec![ContentBlock::text(text)]))
             .collect();
         Self {
-            role: Role::User,
+            role: Role::Tool,
+            content,
+            name: None,
+            cache_control: None,
+        }
+    }
+
+    /// Build a tool result message from (tool_use_id, content_blocks) pairs.
+    /// Use when tool results contain non-text content (images, documents, etc.).
+    pub fn with_tool_result_blocks(results: Vec<(String, Vec<ContentBlock>)>) -> Self {
+        let content = results
+            .into_iter()
+            .map(|(id, blocks)| ContentBlock::tool_result(id, blocks))
+            .collect();
+        Self {
+            role: Role::Tool,
             content,
             name: None,
             cache_control: None,
@@ -744,8 +833,9 @@ pub enum ResponseFormat {
         name: String,
         /// JSON Schema object describing the expected structure
         schema: serde_json::Value,
-        /// Strict validation (default: true). Automatically adds
-        /// `additionalProperties: false` to the schema.
+        /// Strict schema validation. Honored by OpenAI Chat, OpenAI Responses, Mistral, and xAI.
+        /// Ignored by Anthropic, Gemini, Gemini Interactions, Cohere, and Bedrock.
+        /// When `true`, automatically adds `additionalProperties: false` to the schema.
         strict: bool,
     },
 }
@@ -758,6 +848,111 @@ impl ResponseFormat {
             schema,
             strict: true,
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// JsonSchema builder
+// ---------------------------------------------------------------------------
+
+/// Fluent builder for constructing JSON Schema objects.
+///
+/// # Example
+///
+/// ```
+/// use sideseat::types::{JsonSchema, Tool};
+///
+/// let schema = JsonSchema::object()
+///     .required_field("city", JsonSchema::string().description("City name"))
+///     .field("units", JsonSchema::string().enum_values(["celsius", "fahrenheit"]))
+///     .build();
+///
+/// let _tool = Tool::new("get_weather", "Get current weather", schema);
+/// ```
+pub struct JsonSchema {
+    schema: serde_json::Value,
+}
+
+impl JsonSchema {
+    pub fn object() -> Self {
+        Self {
+            schema: serde_json::json!({"type": "object", "properties": {}, "required": []}),
+        }
+    }
+
+    pub fn string() -> Self {
+        Self { schema: serde_json::json!({"type": "string"}) }
+    }
+
+    pub fn number() -> Self {
+        Self { schema: serde_json::json!({"type": "number"}) }
+    }
+
+    pub fn integer() -> Self {
+        Self { schema: serde_json::json!({"type": "integer"}) }
+    }
+
+    pub fn boolean() -> Self {
+        Self { schema: serde_json::json!({"type": "boolean"}) }
+    }
+
+    pub fn null() -> Self {
+        Self { schema: serde_json::json!({"type": "null"}) }
+    }
+
+    pub fn array(items: Self) -> Self {
+        Self {
+            schema: serde_json::json!({"type": "array", "items": items.schema}),
+        }
+    }
+
+    pub fn description(mut self, desc: &str) -> Self {
+        self.schema["description"] = serde_json::Value::String(desc.to_string());
+        self
+    }
+
+    /// Add an optional property to an object schema.
+    pub fn field(mut self, name: &str, schema: Self) -> Self {
+        if let Some(props) = self.schema.get_mut("properties").and_then(|v| v.as_object_mut()) {
+            props.insert(name.to_string(), schema.schema);
+        }
+        self
+    }
+
+    /// Add a required property to an object schema.
+    pub fn required_field(mut self, name: &str, schema: Self) -> Self {
+        if let Some(props) = self.schema.get_mut("properties").and_then(|v| v.as_object_mut()) {
+            props.insert(name.to_string(), schema.schema);
+        }
+        if let Some(req) = self.schema.get_mut("required").and_then(|v| v.as_array_mut()) {
+            req.push(serde_json::Value::String(name.to_string()));
+        }
+        self
+    }
+
+    pub fn enum_values<S: AsRef<str>>(mut self, values: impl IntoIterator<Item = S>) -> Self {
+        self.schema["enum"] = serde_json::Value::Array(
+            values.into_iter().map(|v| serde_json::Value::String(v.as_ref().to_string())).collect(),
+        );
+        self
+    }
+
+    /// Allow null in addition to the current type.
+    pub fn nullable(mut self) -> Self {
+        if let Some(t) = self.schema.get("type").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+            self.schema["type"] = serde_json::json!([t, "null"]);
+        }
+        self
+    }
+
+    pub fn build(self) -> serde_json::Value {
+        self.schema
+    }
+}
+
+impl From<JsonSchema> for serde_json::Value {
+    fn from(s: JsonSchema) -> Self {
+        s.build()
     }
 }
 
@@ -808,6 +1003,9 @@ impl std::fmt::Display for ServiceTier {
 // ---------------------------------------------------------------------------
 
 /// Anthropic prompt cache control — marks a message or system prompt for caching.
+///
+/// Single-variant enum kept as enum for forward compatibility; future variants may add
+/// `Persistent` or `Ttl(Duration)`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CacheControl {
     /// Ephemeral cache (5-minute TTL, 1.25× token cost for cache writes)
@@ -939,7 +1137,7 @@ impl McpToolConfig {
 /// Use the typed constructors ([`BuiltinTool::file_search`], [`BuiltinTool::mcp`], etc.)
 /// or [`BuiltinTool::raw`] for custom tool configurations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BuiltinTool(pub serde_json::Value);
+pub struct BuiltinTool(pub(crate) serde_json::Value);
 
 /// Server-side context compaction configuration for the Responses API.
 ///
@@ -1107,7 +1305,10 @@ impl Default for WebSearchConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderConfig {
-    /// Model identifier (provider-specific)
+    /// Model identifier (provider-specific). Must be set before use.
+    /// `ProviderConfig::new(model)` is the preferred constructor.
+    /// `Default::default()` yields an empty model and is only intended for
+    /// `..Default::default()` struct-update syntax in tests.
     pub model: String,
     /// System prompt (passed separately from conversation messages)
     pub system: Option<String>,
@@ -1121,18 +1322,21 @@ pub struct ProviderConfig {
     pub top_k: Option<u32>,
     /// Random seed for reproducibility
     pub seed: Option<u64>,
-    /// Stop sequences
+    /// Stop sequences. Maps to `stop` (OpenAI, xAI, Mistral) or `stop_sequences` (Anthropic, Cohere, Gemini).
     pub stop_sequences: Vec<String>,
     /// Available tools for the model to call
     pub tools: Vec<Tool>,
     /// How the model should choose tools
     pub tool_choice: Option<ToolChoice>,
     /// Extended thinking / reasoning token budget.
-    /// Anthropic: minimum 1024. Gemini: `thinkingBudget`. Bedrock: via additionalModelRequestFields.
+    /// Anthropic: minimum 1024.
     pub thinking_budget: Option<u32>,
-    /// Whether to return thinking content in the response (Gemini: includeThoughts)
+    /// Whether to return thinking content in the response (Gemini: includeThoughts).
+    /// Anthropic only.
     pub include_thinking: bool,
     /// Reasoning effort for o-series and reasoning-capable models.
+    /// OpenAI o-series: `reasoning_effort`. xAI grok-3-mini: reasoning level.
+    /// Gemini: `thinkingBudget` scaling. Bedrock: `additionalModelRequestFields`.
     pub reasoning_effort: Option<ReasoningEffort>,
     /// Desired response format (plain text, JSON mode, or structured JSON schema)
     pub response_format: Option<ResponseFormat>,
@@ -1154,17 +1358,20 @@ pub struct ProviderConfig {
     /// Range: -2.0 to 2.0 (OpenAI), supported by Gemini and Cohere as well.
     pub frequency_penalty: Option<f64>,
     /// Modify the likelihood of specified tokens — map of token ID to bias (-100 to 100).
-    /// OpenAI only.
+    /// OpenAI Chat / OpenAI Responses only.
     pub logit_bias: Option<HashMap<String, i32>>,
     /// Whether to allow parallel tool calls in a single response.
     /// OpenAI: `parallel_tool_calls`. Anthropic: inverse as `disable_parallel_tool_use`.
     pub parallel_tool_calls: Option<bool>,
-    /// Number of completions to generate. OpenAI only.
+    /// Number of completions to generate.
+    /// OpenAI Chat / OpenAI Responses only.
     pub n: Option<u32>,
     /// When true, system messages are converted to user messages wrapped in `<system>` tags.
-    /// Use for models/providers that don't support a dedicated system role.
+    /// OpenAI-compatible providers only (OpenAI Chat, xAI, Mistral, etc.).
+    /// Converts the system message to a user message for providers without a system role.
     pub inject_system_as_user_message: bool,
     /// Gemini safety settings — one per harm category.
+    /// Gemini only.
     pub safety_settings: Vec<SafetySetting>,
     /// Application-level metadata — NOT forwarded to providers.
     /// Use `user` for provider-facing user tracking.
@@ -1175,35 +1382,51 @@ pub struct ProviderConfig {
     /// `None` means all tools in `tools` are active (default).
     pub active_tools: Option<Vec<String>>,
     /// Container ID to reuse a code execution sandbox from a previous response.
+    /// Anthropic only.
     pub container_id: Option<String>,
     /// Geographic region hint for inference (e.g. "eu", "us"). For data residency.
     pub inference_geo: Option<String>,
-    /// Request spoken audio output from the model (OpenAI).
+    /// Request spoken audio output from the model.
+    /// OpenAI Chat / OpenAI Responses only.
     /// Sets `modalities: ["text", "audio"]` and `audio: {voice, format}` automatically.
     pub audio_output: Option<AudioOutputConfig>,
     /// Built-in OpenAI tools (file_search, code_interpreter, image_generation, mcp, etc.).
+    /// OpenAI Chat / OpenAI Responses only.
     /// Appended to the `tools` array in the Responses API request alongside any function tools.
     pub built_in_tools: Vec<BuiltinTool>,
-    /// Run this request asynchronously in the background (Responses API only).
-    /// Requires `store: Some(true)`. Poll the response by ID to check status.
+    /// Run this request asynchronously in the background.
+    /// OpenAI Chat / OpenAI Responses only. Requires `store: Some(true)`.
+    /// Poll the response by ID to check status.
     pub background: Option<bool>,
-    /// Server-side context compaction settings (Responses API only).
+    /// Server-side context compaction settings.
+    /// OpenAI Chat / OpenAI Responses only.
     pub context_management: Option<ContextManagementConfig>,
-    /// Input truncation strategy when the context window is exceeded (Responses API).
-    /// Use `"auto"` to enable automatic truncation (required for computer_use).
+    /// Input truncation strategy when the context window is exceeded.
+    /// OpenAI Chat / OpenAI Responses only. Use `"auto"` (required for computer_use).
     pub truncation: Option<String>,
-    /// How long to retain prompt cache entries. `"in_memory"` (5–60 min) or `"24h"` (OpenAI only).
+    /// How long to retain prompt cache entries. `"in_memory"` (5–60 min) or `"24h"`.
+    /// OpenAI Chat / OpenAI Responses only.
     pub prompt_cache_retention: Option<String>,
     /// Cache routing key — requests sharing the same key are more likely to hit the same cache.
+    /// OpenAI Chat / OpenAI Responses only.
     pub prompt_cache_key: Option<String>,
-    /// Request token-level log probabilities in the response. OpenAI Chat only.
+    /// Request token-level log probabilities in the response.
+    /// OpenAI Chat / OpenAI Responses only.
     pub logprobs: Option<bool>,
     /// Number of top log-probability tokens to return per output token (0–20).
-    /// Requires `logprobs: Some(true)`. OpenAI Chat only.
+    /// Requires `logprobs: Some(true)`.
+    /// OpenAI Chat / OpenAI Responses only.
     pub top_logprobs: Option<u8>,
     /// Whether to store this conversation in OpenAI's dashboard for evals / fine-tuning.
-    /// Defaults to the project setting when `None`. OpenAI only.
+    /// Defaults to the project setting when `None`.
+    /// OpenAI Chat / OpenAI Responses only.
     pub store: Option<bool>,
+}
+
+impl Default for ProviderConfig {
+    fn default() -> Self {
+        Self::new("")
+    }
 }
 
 impl ProviderConfig {
@@ -1474,17 +1697,92 @@ impl ProviderConfig {
         self.prompt_cache_key = Some(key.into());
         self
     }
-}
 
-impl Default for ProviderConfig {
-    /// Creates a `ProviderConfig` with an empty model string.
+    /// Return warnings for config fields that are not supported by `provider_name`.
     ///
-    /// Note: the `model` field must be set before use; an empty model string
-    /// will cause providers to return an error. Prefer `ProviderConfig::new("model-id")`.
-    fn default() -> Self {
-        Self::new("")
+    /// Provider name values: `"anthropic"`, `"openai"`, `"openai-responses"`, `"bedrock"`,
+    /// `"gemini"`, `"cohere"`, `"mistral"`, `"xai"`, `"registry"`, `"mock"`, `"unknown"`.
+    ///
+    /// Does not validate the `model` field — the provider is responsible for that.
+    pub fn validate(&self, provider_name: &str) -> Vec<String> {
+        let mut warnings = Vec::new();
+        let openai_only = matches!(provider_name, "openai" | "openai-responses");
+        let gemini_only = provider_name == "gemini";
+        let anthropic_only = provider_name == "anthropic";
+
+        if !openai_only {
+            if !self.built_in_tools.is_empty() {
+                warnings.push(format!(
+                    "built_in_tools is only supported by openai/openai-responses (provider: {provider_name})"
+                ));
+            }
+            if self.background.is_some() {
+                warnings.push(format!(
+                    "background is only supported by openai/openai-responses (provider: {provider_name})"
+                ));
+            }
+            if self.context_management.is_some() {
+                warnings.push(format!(
+                    "context_management is only supported by openai/openai-responses (provider: {provider_name})"
+                ));
+            }
+            if self.truncation.is_some() {
+                warnings.push(format!(
+                    "truncation is only supported by openai/openai-responses (provider: {provider_name})"
+                ));
+            }
+            if self.logprobs.is_some() {
+                warnings.push(format!(
+                    "logprobs is only supported by openai/openai-responses (provider: {provider_name})"
+                ));
+            }
+            if self.top_logprobs.is_some() {
+                warnings.push(format!(
+                    "top_logprobs is only supported by openai/openai-responses (provider: {provider_name})"
+                ));
+            }
+            if self.n.is_some_and(|n| n > 1) {
+                warnings.push(format!(
+                    "n > 1 is only supported by openai/openai-responses (provider: {provider_name})"
+                ));
+            }
+            if self.inject_system_as_user_message {
+                warnings.push(format!(
+                    "inject_system_as_user_message is only supported by openai/openai-responses (provider: {provider_name})"
+                ));
+            }
+            if self.audio_output.is_some() {
+                warnings.push(format!(
+                    "audio_output is only supported by openai/openai-responses (provider: {provider_name})"
+                ));
+            }
+            if self.logit_bias.as_ref().is_some_and(|b| !b.is_empty()) {
+                warnings.push(format!(
+                    "logit_bias is only supported by openai/openai-responses (provider: {provider_name})"
+                ));
+            }
+        }
+        if !gemini_only && !self.safety_settings.is_empty() {
+            warnings.push(format!(
+                "safety_settings is only supported by gemini (provider: {provider_name})"
+            ));
+        }
+        if !anthropic_only && self.container_id.is_some() {
+            warnings.push(format!(
+                "container_id is only supported by anthropic (provider: {provider_name})"
+            ));
+        }
+        if self.thinking_budget.is_some() && self.reasoning_effort.is_some() {
+            warnings.push(
+                "thinking_budget and reasoning_effort are mutually exclusive; \
+                 only one should be set"
+                    .into(),
+            );
+        }
+        warnings
     }
 }
+
 
 // ---------------------------------------------------------------------------
 // Cost estimation
@@ -1620,13 +1918,14 @@ pub struct Response {
     #[serde(default)]
     pub warnings: Vec<String>,
     /// Raw request body sent to the provider (debug use; populated by some providers).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Skipped during serialization to avoid logging potential credentials.
+    #[serde(skip)]
     pub request_body: Option<serde_json::Value>,
 }
 
 impl Response {
     /// Concatenates all `Text` content blocks into a single string.
-    pub fn text_content(&self) -> String {
+    pub fn text(&self) -> String {
         self.content
             .iter()
             .filter_map(|b| {
@@ -1658,6 +1957,14 @@ impl Response {
         self.content.iter().any(|b| b.is_tool_use())
     }
 
+    /// Returns the first tool use block with the given name, if present.
+    pub fn find_tool_use(&self, name: &str) -> Option<&ToolUseBlock> {
+        self.content.iter().find_map(|b| match b {
+            ContentBlock::ToolUse(tu) if tu.name == name => Some(tu),
+            _ => None,
+        })
+    }
+
     /// Returns all thinking blocks.
     pub fn thinking_content(&self) -> Vec<&ThinkingBlock> {
         self.content
@@ -1670,6 +1977,13 @@ impl Response {
                 }
             })
             .collect()
+    }
+
+    /// Estimate cost based on per-million-token prices.
+    ///
+    /// Shorthand for `response.usage.estimate_cost(input_per_1m, output_per_1m)`.
+    pub fn estimate_cost(&self, input_per_1m: f64, output_per_1m: f64) -> CostEstimate {
+        self.usage.estimate_cost(input_per_1m, output_per_1m)
     }
 }
 
@@ -1721,8 +2035,12 @@ pub struct EmbeddingRequest {
     pub inputs: Vec<String>,
     /// Desired output dimension (provider-dependent, optional)
     pub dimensions: Option<u32>,
-    /// Task type hint for optimization (Gemini)
+    /// Task type hint for optimization (Gemini, Cohere)
     pub task_type: Option<EmbeddingTaskType>,
+    /// Embedding output types to return (Cohere: `"float"`, `"int8"`, `"uint8"`, `"binary"`, `"ubinary"`)
+    pub embedding_types: Option<Vec<String>>,
+    /// Truncation strategy when input exceeds model context (Cohere: `"NONE"`, `"START"`, `"END"`)
+    pub truncate: Option<String>,
 }
 
 impl EmbeddingRequest {
@@ -1732,6 +2050,8 @@ impl EmbeddingRequest {
             inputs: inputs.into_iter().map(|s| s.into()).collect(),
             dimensions: None,
             task_type: None,
+            embedding_types: None,
+            truncate: None,
         }
     }
 
@@ -1746,6 +2066,16 @@ impl EmbeddingRequest {
 
     pub fn with_task_type(mut self, task_type: EmbeddingTaskType) -> Self {
         self.task_type = Some(task_type);
+        self
+    }
+
+    pub fn with_embedding_types(mut self, types: Vec<impl Into<String>>) -> Self {
+        self.embedding_types = Some(types.into_iter().map(|s| s.into()).collect());
+        self
+    }
+
+    pub fn with_truncate(mut self, truncate: impl Into<String>) -> Self {
+        self.truncate = Some(truncate.into());
         self
     }
 }
@@ -1816,7 +2146,15 @@ pub fn truncate_messages(mut messages: Vec<Message>, max_tokens: usize) -> Vec<M
         let total: usize = messages
             .iter()
             .flat_map(|m| &m.content)
-            .map(|b| estimate_tokens(b.as_text().unwrap_or("")))
+            .map(|b| match b {
+                ContentBlock::Text(t) => estimate_tokens(&t.text),
+                ContentBlock::ToolUse(tu) => 15 + tu.input.to_string().len() / 4,
+                ContentBlock::ToolResult(tr) => {
+                    10 + tr.content.iter().filter_map(|c| c.as_text()).map(|t| t.len()).sum::<usize>() / 4
+                }
+                ContentBlock::Thinking(t) => 5 + t.thinking.len() / 4,
+                _ => 5,
+            })
             .sum();
         if total <= max_tokens {
             break;
@@ -1926,15 +2264,38 @@ impl ConversationBuilder {
         self
     }
 
-    /// Returns only the message list.
+    /// Returns only the message list, without the system prompt.
     ///
     /// Note: the system prompt set via `.system()` is NOT included in the returned list.
-    /// Use `build_with_config()` to inject the system prompt into a `ProviderConfig`.
+    ///
+    /// Use when passing messages to a provider that accepts a separate `system` field
+    /// (e.g. via `config.with_system()`), or when you want system-less raw messages.
     pub fn build_messages(self) -> Vec<Message> {
         self.messages
     }
 
+    /// Returns all messages with the system prompt prepended as `Message::system(...)` when set.
+    ///
+    /// Unlike `build_messages()`, the system prompt is included as the first message.
+    /// Unlike `build_with_config()`, the system prompt stays in the message list (not in config).
+    ///
+    /// Use when the provider reads system from the message list (Anthropic, Gemini).
+    /// Avoids setting `config.system` separately.
+    pub fn build(self) -> Vec<Message> {
+        if let Some(system) = self.system {
+            let mut msgs = Vec::with_capacity(self.messages.len() + 1);
+            msgs.push(Message::system(system));
+            msgs.extend(self.messages);
+            msgs
+        } else {
+            self.messages
+        }
+    }
+
     /// Returns `(messages, config)` with the system prompt injected into config.
+    ///
+    /// Use when you want system in `ProviderConfig.system` without touching the message list.
+    /// Compatible with all providers.
     pub fn build_with_config(self, config: ProviderConfig) -> (Vec<Message>, ProviderConfig) {
         let config = if let Some(system) = self.system {
             config.with_system(system)
@@ -1982,6 +2343,19 @@ pub enum StreamEvent {
         media_type: String,
         b64_data: String,
     },
+}
+
+// ---------------------------------------------------------------------------
+// StreamMeta — metadata captured after a stream completes
+// ---------------------------------------------------------------------------
+
+/// Metadata available after a provider stream completes.
+#[derive(Debug, Clone, Default)]
+pub struct StreamMeta {
+    pub usage: Usage,
+    pub model: Option<String>,
+    pub id: Option<String>,
+    pub stop_reason: StopReason,
 }
 
 // ---------------------------------------------------------------------------
@@ -2041,11 +2415,11 @@ impl PromptTemplate {
             let open = pos + open_rel;
             let close_rel = result[open..]
                 .find("}}")
-                .ok_or_else(|| ProviderError::Config("Unclosed '{{' in template".into()))?;
+                .ok_or_else(|| ProviderError::InvalidRequest("Unclosed '{{' in template".into()))?;
             let close = open + close_rel;
             let key = result[open + 2..close].to_string();
             let value = vars.get(key.as_str()).ok_or_else(|| {
-                ProviderError::Config(format!("Template variable '{}' not provided", key))
+                ProviderError::InvalidRequest(format!("Template variable '{}' not provided", key))
             })?;
             result = format!("{}{}{}", &result[..open], value, &result[close + 2..]);
             pos = open + value.len();
@@ -2053,7 +2427,10 @@ impl PromptTemplate {
         Ok(result)
     }
 
-    /// Convenience: replaces `{{input}}` with the given value.
+    /// Convenience: replaces `{{input}}` with the given value using simple string substitution.
+    ///
+    /// This is a plain `str::replace("{{input}}", ...)` — no error is returned for unclosed
+    /// braces or missing variables. For strict multi-variable templates use [`render`](Self::render).
     pub fn render_input(&self, input: &str) -> String {
         self.template.replace("{{input}}", input)
     }
@@ -2375,6 +2752,36 @@ pub fn model_capabilities(model: &str) -> Vec<ModelCapability> {
         ("command-r-plus", &[FunctionCalling, Streaming, WebSearch]),
         ("command-r", &[FunctionCalling, Streaming, WebSearch]),
         ("command", &[Streaming]),
+        // c4ai-aya variants
+        ("c4ai-aya-vision", &[Vision, Streaming]),
+        ("c4ai-aya", &[Streaming]),
+        // ── xAI Grok ─────────────────────────────────────────────────────────
+        // grok-4 supports vision
+        ("grok-4", &[Vision, FunctionCalling, Streaming, StructuredOutput]),
+        // grok-3-mini has reasoning (reasoning_effort parameter)
+        ("grok-3-mini", &[FunctionCalling, Streaming, StructuredOutput, ExtendedThinking]),
+        ("grok-3", &[FunctionCalling, Streaming, StructuredOutput]),
+        // grok-2-vision models support image input
+        ("grok-2-vision", &[Vision, FunctionCalling, Streaming]),
+        ("grok-2", &[FunctionCalling, Streaming]),
+        // Legacy grok-1 (open-weights)
+        ("grok-1", &[Streaming]),
+        // xAI embedding models
+        ("grok-embed", &[Embeddings]),
+        // ── Mistral ──────────────────────────────────────────────────────────
+        // pixtral has vision; must be before mistral-large
+        ("pixtral", &[Vision, FunctionCalling, Streaming, StructuredOutput]),
+        ("mistral-large", &[Vision, FunctionCalling, Streaming, StructuredOutput]),
+        ("mistral-small", &[FunctionCalling, Streaming, StructuredOutput]),
+        ("mistral-medium", &[FunctionCalling, Streaming]),
+        ("mistral-saba", &[FunctionCalling, Streaming]),
+        ("codestral", &[FunctionCalling, Streaming]),
+        ("open-mistral-nemo", &[FunctionCalling, Streaming]),
+        ("open-mistral", &[FunctionCalling, Streaming]),
+        ("open-mixtral", &[FunctionCalling, Streaming]),
+        ("mixtral", &[FunctionCalling, Streaming]),
+        ("mistral-embed", &[Embeddings]),
+        ("mistral-moderation", &[]),
         // ── Embedding models ─────────────────────────────────────────────────
         ("text-embedding-gecko", &[Embeddings]), // Vertex AI legacy
         ("text-embedding-", &[Embeddings]),
@@ -3032,6 +3439,34 @@ pub struct ModerationResponse {
 }
 
 // ---------------------------------------------------------------------------
+// TokenProvider — dynamic bearer token supply
+// ---------------------------------------------------------------------------
+
+use async_trait::async_trait;
+
+/// Dynamic bearer token provider (e.g. for Vertex AI rotating credentials).
+#[async_trait]
+pub trait TokenProvider: Send + Sync {
+    async fn get_token(&self) -> Result<String, crate::error::ProviderError>;
+}
+
+/// A `TokenProvider` backed by a static string.
+pub struct StaticTokenProvider(String);
+
+impl StaticTokenProvider {
+    pub fn new(token: impl Into<String>) -> Self {
+        Self(token.into())
+    }
+}
+
+#[async_trait]
+impl TokenProvider for StaticTokenProvider {
+    async fn get_token(&self) -> Result<String, crate::error::ProviderError> {
+        Ok(self.0.clone())
+    }
+}
+
+// ---------------------------------------------------------------------------
 // FallbackStrategy / FallbackTrigger
 // ---------------------------------------------------------------------------
 
@@ -3058,6 +3493,7 @@ pub enum FallbackTrigger {
     Timeout,
     TooManyRequests,
     Auth,
+    Network,
 }
 
 impl FallbackTrigger {
@@ -3068,17 +3504,11 @@ impl FallbackTrigger {
             Self::Timeout => matches!(err, PE::Timeout { .. }),
             Self::TooManyRequests => matches!(err, PE::TooManyRequests { .. }),
             Self::Auth => err.is_auth_error(),
+            Self::Network => matches!(err, PE::Network(_)),
         }
     }
 }
 
-/// Returns true if the error should trigger a fallback given `strategy`.
-pub fn should_fallback(err: &PE, strategy: &FallbackStrategy) -> bool {
-    match strategy {
-        FallbackStrategy::AnyError => true,
-        FallbackStrategy::OnTriggers(triggers) => triggers.iter().any(|t| t.matches(err)),
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Agent loop types
@@ -3090,8 +3520,8 @@ pub struct AgentStep {
     pub step_number: usize,
     pub response: Response,
     pub tool_uses: Vec<ToolUseBlock>,
-    /// (tool_use_id, result_text) pairs returned by the tool handler.
-    pub tool_results: Vec<(String, String)>,
+    /// (tool_use_id, content_blocks) pairs returned by the tool handler.
+    pub tool_results: Vec<(String, Vec<ContentBlock>)>,
 }
 
 /// Result of running the agent loop to completion.

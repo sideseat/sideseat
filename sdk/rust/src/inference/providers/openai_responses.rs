@@ -50,6 +50,12 @@ impl OpenAIResponsesProvider {
         }
     }
 
+    /// Replace the HTTP client. Useful for custom TLS, proxies, or testing.
+    pub fn with_client(mut self, client: reqwest::Client) -> Self {
+        self.shared.client = Arc::new(client);
+        self
+    }
+
     /// Override the responses endpoint URL.  If the URL contains `/responses`
     /// the api_base is derived by stripping that suffix; otherwise the URL
     /// itself is used as the api_base.
@@ -393,7 +399,7 @@ impl ModerationProvider for OpenAIResponsesProvider {
 
 #[async_trait]
 impl StatefulProvider for OpenAIResponsesProvider {
-    async fn retrieve_response(&self, id: &str) -> Result<serde_json::Value, ProviderError> {
+    async fn retrieve_response(&self, id: &str) -> Result<crate::types::Response, ProviderError> {
         let url = format!("{}/responses/{}", self.shared.api_base, id);
         let resp = self
             .shared
@@ -403,10 +409,11 @@ impl StatefulProvider for OpenAIResponsesProvider {
             .send()
             .await?;
         let resp = check_response(resp).await?;
-        Ok(resp.json::<Value>().await?)
+        let json: Value = resp.json().await?;
+        parse_response(&json)
     }
 
-    async fn cancel_response(&self, id: &str) -> Result<serde_json::Value, ProviderError> {
+    async fn cancel_response(&self, id: &str) -> Result<crate::types::Response, ProviderError> {
         let url = format!("{}/responses/{}/cancel", self.shared.api_base, id);
         let resp = self
             .shared
@@ -417,7 +424,8 @@ impl StatefulProvider for OpenAIResponsesProvider {
             .send()
             .await?;
         let resp = check_response(resp).await?;
-        Ok(resp.json::<Value>().await?)
+        let json: Value = resp.json().await?;
+        parse_response(&json)
     }
 }
 
@@ -525,14 +533,16 @@ fn build_request(
     // Response / text format
     if let Some(fmt) = &config.response_format {
         req["text"] = json!({"format": format_text_format(fmt)});
-    } else if let Some(schema) = config.extra.get("output_schema") {
-        // Legacy extra["output_schema"]
+    } else if let Some(schema_val) = config.extra.get("output_schema") {
+        // Legacy extra["output_schema"]: accepts raw schema or { name, schema } envelope.
+        let name = schema_val["name"].as_str().unwrap_or("structured_output");
+        let inner_schema = schema_val.get("schema").unwrap_or(schema_val);
         req["text"] = json!({
             "format": {
                 "type": "json_schema",
                 "json_schema": {
-                    "name": "structured_output",
-                    "schema": schema,
+                    "name": name,
+                    "schema": inner_schema,
                     "strict": true,
                 }
             }
@@ -588,10 +598,12 @@ fn format_input(messages: &[Message]) -> Result<Value, ProviderError> {
     let mut items: Vec<Value> = Vec::new();
 
     for msg in messages {
-        let role = match msg.role {
+        let role = match &msg.role {
             Role::System => "system",
             Role::User => "user",
+            Role::Tool => "tool",
             Role::Assistant => "assistant",
+            Role::Other(s) => s.as_str(),
         };
 
         // Tool results → function_call_output items

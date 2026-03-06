@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum ProviderError {
     #[error("Authentication error: {0}")]
     Auth(String),
@@ -14,8 +14,13 @@ pub enum ProviderError {
     #[error("Context window exceeded: {0}")]
     ContextWindowExceeded(String),
 
-    #[error("Request timed out after {ms}ms")]
-    Timeout { ms: u64 },
+    /// Request timed out.
+    ///
+    /// - `ms: None` — timeout reported by `reqwest` (no explicit duration available).
+    /// - `ms: Some(n)` — explicit timeout set via [`ProviderConfig::timeout_ms`]; the
+    ///   request was cancelled after `n` milliseconds.
+    #[error("Request timed out")]
+    Timeout { ms: Option<u64> },
 
     #[error("Model not found: {model}")]
     ModelNotFound { model: String },
@@ -32,8 +37,11 @@ pub enum ProviderError {
     #[error("Stream error: {0}")]
     Stream(String),
 
-    #[error("Invalid configuration: {0}")]
-    Config(String),
+    #[error("Missing configuration: {0}")]
+    MissingConfig(String),
+
+    #[error("Invalid request: {0}")]
+    InvalidRequest(String),
 
     #[error("Unsupported feature: {0}")]
     Unsupported(String),
@@ -45,7 +53,7 @@ pub enum ProviderError {
 impl From<reqwest::Error> for ProviderError {
     fn from(e: reqwest::Error) -> Self {
         if e.is_timeout() {
-            return ProviderError::Timeout { ms: 0 };
+            return ProviderError::Timeout { ms: None };
         }
         if e.is_status() {
             let status = e.status().map(|s| s.as_u16()).unwrap_or(0);
@@ -95,6 +103,11 @@ impl ProviderError {
             Self::Api { status, .. } => *status == 401 || *status == 403,
             _ => false,
         }
+    }
+
+    /// Returns true when this error indicates an operation is not supported by the provider.
+    pub fn is_unsupported(&self) -> bool {
+        matches!(self, Self::Unsupported(_))
     }
 
     /// Returns the HTTP status code for API errors.
