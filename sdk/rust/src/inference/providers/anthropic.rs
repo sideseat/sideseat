@@ -12,8 +12,8 @@ use crate::{
     types::{
         Base64Data, Citation, ContainerInfo, ContentBlock, ContentBlockStart, ContentDelta,
         DocumentContent, ImageContent, MediaSource, Message, ModelInfo, ProviderConfig,
-        ResponseFormat, Role, StopReason, StreamEvent, TextBlock, ThinkingBlock, TokenCount,
-        ToolChoice, ToolUseBlock, Usage,
+        ResponseFormat, Role, StaticTokenProvider, StopReason, StreamEvent, TextBlock,
+        ThinkingBlock, TokenCount, TokenProvider, ToolChoice, ToolUseBlock, Usage,
     },
 };
 
@@ -27,6 +27,8 @@ const VERTEX_ANTHROPIC_VERSION: &str = "vertex-2023-10-16";
 // ---------------------------------------------------------------------------
 
 /// Selects which backend the `AnthropicProvider` uses to send requests.
+///
+/// Note: the `Vertex` variant holds an `Arc<dyn TokenProvider>` — Clone is cheap (ref-count bump).
 #[derive(Clone)]
 pub(crate) enum AnthropicBackend {
     /// Direct Anthropic API — uses `X-Api-Key` header.
@@ -37,7 +39,7 @@ pub(crate) enum AnthropicBackend {
     Vertex {
         project_id: String,
         location: String,
-        access_token: String,
+        token_provider: Arc<dyn TokenProvider>,
     },
 }
 
@@ -85,6 +87,12 @@ impl AnthropicProvider {
             client: Arc::new(reqwest::Client::new()),
             betas: Vec::new(),
         }
+    }
+
+    /// Replace the HTTP client. Useful for custom TLS, proxies, or testing.
+    pub fn with_client(mut self, client: reqwest::Client) -> Self {
+        self.client = Arc::new(client);
+        self
     }
 
     /// Override the API base URL.  Only applies to the `Direct` backend.
@@ -146,11 +154,24 @@ impl AnthropicProvider {
         location: impl Into<String>,
         access_token: impl Into<String>,
     ) -> Self {
+        Self::from_vertex_with_token_provider(
+            project_id,
+            location,
+            Arc::new(StaticTokenProvider::new(access_token.into())),
+        )
+    }
+
+    /// Create a Vertex AI provider with a dynamic token provider (e.g. for rotating credentials).
+    pub fn from_vertex_with_token_provider(
+        project_id: impl Into<String>,
+        location: impl Into<String>,
+        token_provider: Arc<dyn TokenProvider>,
+    ) -> Self {
         Self {
             backend: AnthropicBackend::Vertex {
                 project_id: project_id.into(),
                 location: location.into(),
-                access_token: access_token.into(),
+                token_provider,
             },
             client: Arc::new(reqwest::Client::new()),
             betas: Vec::new(),
@@ -207,7 +228,7 @@ impl AnthropicProvider {
         client: &reqwest::Client,
         project_id: &str,
         location: &str,
-        access_token: &str,
+        token: &str,
         model: &str,
         body: Value,
         timeout_ms: Option<u64>,
@@ -215,7 +236,7 @@ impl AnthropicProvider {
         let url = Self::vertex_url(project_id, location, model, false);
         let mut req = client
             .post(url)
-            .bearer_auth(access_token)
+            .bearer_auth(token)
             .header("content-type", "application/json")
             .json(&body);
         if let Some(ms) = timeout_ms {
@@ -328,7 +349,7 @@ impl ChatProvider for AnthropicProvider {
                         match tokio::time::timeout(std::time::Duration::from_millis(ms), send_fut).await {
                             Ok(Ok(r)) => r.body,
                             Ok(Err(e)) => { yield Err(classify_bedrock_sdk_error(format!("{e:?}"))); return; }
-                            Err(_) => { yield Err(ProviderError::Timeout { ms }); return; }
+                            Err(_) => { yield Err(ProviderError::Timeout { ms: Some(ms) }); return; }
                         }
                     } else {
                         match send_fut.await {
@@ -362,7 +383,11 @@ impl ChatProvider for AnthropicProvider {
                     }
                 }
 
-                AnthropicBackend::Vertex { project_id, location, access_token } => {
+                AnthropicBackend::Vertex { project_id, location, token_provider } => {
+                    let token = match token_provider.get_token().await {
+                        Ok(t) => t,
+                        Err(e) => { yield Err(e); return; }
+                    };
                     let body = match build_vertex_request(&messages, &config, true) {
                         Ok(b) => b,
                         Err(e) => { yield Err(e); return; }
@@ -370,7 +395,7 @@ impl ChatProvider for AnthropicProvider {
                     let url = AnthropicProvider::vertex_url(project_id, location, &config.model, true);
                     let mut vertex_req = client
                         .post(url)
-                        .bearer_auth(access_token)
+                        .bearer_auth(&token)
                         .header("content-type", "application/json")
                         .json(&body);
                     if let Some(ms) = config.timeout_ms {
@@ -441,7 +466,7 @@ impl ChatProvider for AnthropicProvider {
                 let resp = if let Some(ms) = config.timeout_ms {
                     tokio::time::timeout(std::time::Duration::from_millis(ms), fut)
                         .await
-                        .map_err(|_| ProviderError::Timeout { ms })?
+                        .map_err(|_| ProviderError::Timeout { ms: Some(ms) })?
                         .map_err(|e| classify_bedrock_sdk_error(format!("{e:?}")))?
                 } else {
                     fut.await.map_err(|e| classify_bedrock_sdk_error(format!("{e:?}")))?
@@ -453,14 +478,15 @@ impl ChatProvider for AnthropicProvider {
             AnthropicBackend::Vertex {
                 project_id,
                 location,
-                access_token,
+                token_provider,
             } => {
+                let token = token_provider.get_token().await?;
                 let body = build_vertex_request(&messages, &config, false)?;
                 let json = AnthropicProvider::vertex_complete(
                     &self.client,
                     project_id,
                     location,
-                    access_token,
+                    &token,
                     &config.model,
                     body,
                     config.timeout_ms,
@@ -728,10 +754,11 @@ fn apply_common_fields(
 fn format_messages(messages: &[Message]) -> Result<Value, ProviderError> {
     let mut result = Vec::new();
     for msg in messages {
-        let role = match msg.role {
-            Role::User => "user",
+        let role = match &msg.role {
+            Role::User | Role::Tool => "user",
             Role::Assistant => "assistant",
             Role::System => continue,
+            Role::Other(s) => s.as_str(),
         };
         let mut content = format_content_blocks(&msg.content)?;
         // Apply per-message cache control to the last content block
@@ -973,7 +1000,7 @@ fn classify_bedrock_sdk_error(msg: String) -> ProviderError {
     if msg.contains("ThrottlingException") || msg.to_lowercase().contains("throttl") {
         ProviderError::TooManyRequests { message: msg, retry_after_secs: None }
     } else if msg.contains("ModelTimeoutException") {
-        ProviderError::Timeout { ms: 0 }
+        ProviderError::Timeout { ms: None }
     } else {
         ProviderError::Api { status: 0, message: msg }
     }

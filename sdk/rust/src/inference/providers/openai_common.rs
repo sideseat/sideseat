@@ -187,7 +187,7 @@ impl OpenAIInnerClient {
         let image_part = reqwest::multipart::Part::bytes(request.image)
             .file_name(format!("image.{img_ext}"))
             .mime_str("application/octet-stream")
-            .map_err(|e| ProviderError::Config(e.to_string()))?;
+            .map_err(|e| ProviderError::Serialization(e.to_string()))?;
 
         let mut form = reqwest::multipart::Form::new()
             .part("image", image_part)
@@ -199,7 +199,7 @@ impl OpenAIInnerClient {
             let mask_part = reqwest::multipart::Part::bytes(mask)
                 .file_name("mask.png")
                 .mime_str("application/octet-stream")
-                .map_err(|e| ProviderError::Config(e.to_string()))?;
+                .map_err(|e| ProviderError::Serialization(e.to_string()))?;
             form = form.part("mask", mask_part);
         }
         if let Some(n) = request.n {
@@ -302,7 +302,7 @@ impl OpenAIInnerClient {
         let part = reqwest::multipart::Part::bytes(request.audio)
             .file_name(filename)
             .mime_str("application/octet-stream")
-            .map_err(|e| ProviderError::Config(e.to_string()))?;
+            .map_err(|e| ProviderError::Serialization(e.to_string()))?;
 
         let mut form = reqwest::multipart::Form::new()
             .part("file", part)
@@ -353,7 +353,7 @@ impl OpenAIInnerClient {
         let part = reqwest::multipart::Part::bytes(request.audio)
             .file_name(filename)
             .mime_str("application/octet-stream")
-            .map_err(|e| ProviderError::Config(e.to_string()))?;
+            .map_err(|e| ProviderError::Serialization(e.to_string()))?;
 
         let mut form = reqwest::multipart::Form::new()
             .part("file", part)

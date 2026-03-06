@@ -77,6 +77,10 @@ impl<P: ChatProvider + Send + Sync + 'static> InstrumentedProvider<P> {
         Self::with_config(inner, TelemetryConfig::default())
     }
 
+    pub fn inner(&self) -> &P {
+        &self.inner
+    }
+
     pub fn with_config(inner: P, config: TelemetryConfig) -> Self {
         let meter = opentelemetry::global::meter(config.tracer_name);
         let token_counter = meter
@@ -167,7 +171,7 @@ fn record_metrics(
 
 fn add_content_events(span: &SpanRef<'_>, messages: &[Message], response: &Response) {
     for msg in messages {
-        let event_name = match msg.role {
+        let event_name = match &msg.role {
             Role::User => GEN_AI_USER_MESSAGE,
             _ => GEN_AI_ASSISTANT_MESSAGE,
         };
@@ -900,7 +904,7 @@ impl SideSeat {
             .with_endpoint(traces_url)
             .with_headers(headers.clone())
             .build()
-            .map_err(|e| ProviderError::Config(format!("OTLP trace exporter: {e}")))?;
+            .map_err(|e| ProviderError::MissingConfig(format!("OTLP trace exporter: {e}")))?;
 
         let tracer_provider = SdkTracerProvider::builder()
             .with_resource(resource.clone())
@@ -913,7 +917,7 @@ impl SideSeat {
             .with_endpoint(metrics_url)
             .with_headers(headers)
             .build()
-            .map_err(|e| ProviderError::Config(format!("OTLP metrics exporter: {e}")))?;
+            .map_err(|e| ProviderError::MissingConfig(format!("OTLP metrics exporter: {e}")))?;
 
         let meter_provider = SdkMeterProvider::builder()
             .with_resource(resource)

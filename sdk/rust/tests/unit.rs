@@ -8,10 +8,10 @@ use sideseat::{
     ImageGenerationRequest, ImageProvider, InstrumentedProvider, LoggingMiddleware, Message,
     Middleware, MiddlewareStack, MockProvider, MockResponse, ModelCapability, PromptTemplate,
     Provider, ProviderConfig, ProviderError, ProviderRegistry, RetryConfig, RetryProvider,
-    SideSeat, SimulateStreamingMiddleware, TelemetryConfig, TelemetryMiddleware, Tool,
+    SideSeat, SimulateStreamingMiddleware, TelemetryConfig, Tool,
     VideoGenerationRequest, VideoProvider, batch_complete, cosine_similarity, euclidean_distance,
     model_capabilities, normalize_embedding, record_stream, run_agent_loop_with_hooks,
-    should_fallback, stream_text, supports_audio_input, supports_audio_output,
+    stream_text, supports_audio_input, supports_audio_output,
     supports_extended_thinking, supports_function_calling, supports_vision, truncate_messages,
     validate_messages,
 };
@@ -70,17 +70,12 @@ async fn mock_error() {
 }
 
 #[tokio::test]
+#[should_panic(expected = "exhausted")]
 async fn mock_empty_queue_default() {
-    // Empty queue should return empty text response, not panic
+    // Empty queue should panic with an actionable message
     let provider = MockProvider::new();
     let config = ProviderConfig::new("mock-model");
-    let response = provider
-        .complete(vec![Message::user("hi")], config)
-        .await
-        .unwrap();
-    // Empty text — first_text returns None for empty string (Text("") filtered in collect_stream)
-    // But complete() returns Text("") directly
-    let _ = response; // should not panic
+    let _ = provider.complete(vec![Message::user("hi")], config).await;
 }
 
 #[tokio::test]
@@ -170,6 +165,25 @@ async fn fallback_provider_uses_second() {
     assert_eq!(response.first_text(), Some("fallback response"));
 }
 
+#[tokio::test]
+async fn fallback_any_error_skips_unsupported() {
+    // AnyError strategy must NOT fall back when the error is Unsupported —
+    // that is a programming error (wrong provider for the task), not transient.
+    let first = MockProvider::new()
+        .with_response(MockResponse::Error(ProviderError::Unsupported("no audio".into())));
+    let second = MockProvider::new().with_text("should not be reached");
+
+    let provider = FallbackProvider::new(vec![Box::new(first), Box::new(second)]);
+    let config = ProviderConfig::new("mock-model");
+    let result = provider
+        .complete(vec![Message::user("hi")], config)
+        .await;
+    assert!(
+        matches!(result, Err(ProviderError::Unsupported(_))),
+        "expected Unsupported to propagate without fallback, got: {result:?}"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // TextStream test
 // ---------------------------------------------------------------------------
@@ -241,7 +255,7 @@ fn validate_messages_consecutive() {
 fn validate_messages_tool_no_use() {
     use sideseat::{ContentBlock, Role};
     let msgs = vec![sideseat::Message {
-        role: Role::User,
+        role: Role::Tool,
         content: vec![ContentBlock::ToolResult(sideseat::ToolResultBlock {
             tool_use_id: "nonexistent".into(),
             content: vec![],
@@ -305,7 +319,7 @@ fn prompt_template_missing_var() {
     let tmpl = PromptTemplate::new("Hello, {{name}}!");
     let vars = HashMap::new();
     let err = tmpl.render(&vars).unwrap_err();
-    assert!(matches!(err, ProviderError::Config(_)));
+    assert!(matches!(err, ProviderError::InvalidRequest(_)));
 }
 
 // ---------------------------------------------------------------------------
@@ -408,7 +422,7 @@ async fn middleware_stack_stream_applies_before() {
 
 #[test]
 fn error_is_retryable() {
-    assert!(ProviderError::Timeout { ms: 5000 }.is_retryable());
+    assert!(ProviderError::Timeout { ms: Some(5000) }.is_retryable());
     assert!(
         ProviderError::TooManyRequests {
             message: "limit".into(),
@@ -425,7 +439,7 @@ fn error_is_retryable() {
         .is_retryable()
     );
     assert!(!ProviderError::Auth("bad key".into()).is_retryable());
-    assert!(!ProviderError::Config("bad config".into()).is_retryable());
+    assert!(!ProviderError::InvalidRequest("bad config".into()).is_retryable());
     assert!(
         !ProviderError::Api {
             status: 400,
@@ -466,12 +480,16 @@ async fn mock_video_generation() {
 
 #[tokio::test]
 async fn provider_image_generation_unsupported_by_default() {
-    // Providers that don't override generate_image return Unsupported
-    let provider = MockProvider::new(); // empty queue → falls through
-    let request = ImageGenerationRequest::new("dall-e-3", "test");
-    // With empty queue, pop_response returns Text("", ..) → falls through to empty ImageResponse
-    let response = provider.generate_image(request).await.unwrap();
-    assert!(response.images.is_empty());
+    // MockProvider doesn't override edit_image, so the default returns Unsupported
+    let provider = MockProvider::new();
+    let request = sideseat::ImageEditRequest::new(
+        "dall-e-2",
+        vec![0u8; 4],
+        sideseat::ImageFormat::Png,
+        "make it blue",
+    );
+    let result = provider.edit_image(request).await;
+    assert!(matches!(result, Err(sideseat::ProviderError::Unsupported(_))));
 }
 
 #[test]
@@ -639,32 +657,52 @@ async fn record_stream_replay_from_offset() {
 // FallbackStrategy
 // ---------------------------------------------------------------------------
 
-#[test]
-fn fallback_any_error_always_falls_back() {
-    let err = ProviderError::Auth("bad".into());
-    assert!(should_fallback(&err, &FallbackStrategy::AnyError));
+#[tokio::test]
+async fn fallback_any_error_always_falls_back() {
+    // AnyError: any error triggers fallback to secondary provider
+    let primary =
+        MockProvider::new().with_response(MockResponse::Error(ProviderError::Auth("bad".into())));
+    let secondary = MockProvider::new().with_text("from secondary");
+    let mut provider = FallbackProvider::new(vec![Box::new(primary)]);
+    provider.push(secondary);
+    let resp = provider
+        .complete(vec![Message::user("hi")], ProviderConfig::new("m"))
+        .await
+        .unwrap();
+    assert_eq!(resp.first_text(), Some("from secondary"));
 }
 
-#[test]
-fn fallback_on_triggers_context_window() {
+#[tokio::test]
+async fn fallback_on_triggers_context_window() {
+    // OnTriggers: ContextWindowExceeded triggers fallback; Auth does not
+    let primary1 = MockProvider::new().with_response(MockResponse::Error(
+        ProviderError::ContextWindowExceeded("too long".into()),
+    ));
+    let secondary1 = MockProvider::new().with_text("fallback ok");
     let strategy = FallbackStrategy::OnTriggers(vec![FallbackTrigger::ContextWindowExceeded]);
-    assert!(should_fallback(
-        &ProviderError::ContextWindowExceeded("too long".into()),
-        &strategy
-    ));
-    assert!(!should_fallback(
-        &ProviderError::Auth("bad".into()),
-        &strategy
-    ));
+    let mut p1 = FallbackProvider::with_strategy(vec![Box::new(primary1)], strategy);
+    p1.push(secondary1);
+    let resp = p1
+        .complete(vec![Message::user("hi")], ProviderConfig::new("m"))
+        .await
+        .unwrap();
+    assert_eq!(resp.first_text(), Some("fallback ok"));
 }
 
-#[test]
-fn fallback_on_triggers_auth_no_fallback() {
+#[tokio::test]
+async fn fallback_on_triggers_auth_no_fallback() {
+    // Auth error does not match ContextWindowExceeded trigger — no fallback
+    let primary =
+        MockProvider::new().with_response(MockResponse::Error(ProviderError::Auth("bad".into())));
+    let secondary = MockProvider::new().with_text("should not reach");
     let strategy = FallbackStrategy::OnTriggers(vec![FallbackTrigger::ContextWindowExceeded]);
-    assert!(!should_fallback(
-        &ProviderError::Auth("bad".into()),
-        &strategy
-    ));
+    let mut p = FallbackProvider::with_strategy(vec![Box::new(primary)], strategy);
+    p.push(secondary);
+    let err = p
+        .complete(vec![Message::user("hi")], ProviderConfig::new("m"))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, ProviderError::Auth(_)));
 }
 
 // ---------------------------------------------------------------------------
@@ -808,22 +846,6 @@ async fn simulate_streaming_yields_events() {
 }
 
 // ---------------------------------------------------------------------------
-// TelemetryMiddleware
-// ---------------------------------------------------------------------------
-
-#[tokio::test]
-async fn telemetry_does_not_block_complete() {
-    let provider = MockProvider::new().with_text("ok");
-    let stack =
-        sideseat::provider::wrap_language_model(provider).with(TelemetryMiddleware::new("test-fn"));
-    let response = stack
-        .complete(vec![Message::user("hi")], ProviderConfig::new("mock"))
-        .await
-        .unwrap();
-    assert_eq!(response.first_text(), Some("ok"));
-}
-
-// ---------------------------------------------------------------------------
 // AgentHooks
 // ---------------------------------------------------------------------------
 
@@ -854,7 +876,7 @@ async fn agent_loop_active_tools_filter() {
         |tools| async move {
             tools
                 .into_iter()
-                .map(|t| (t.id, "ok".to_string()))
+                .map(|t| (t.id, vec![sideseat::ContentBlock::text("ok")]))
                 .collect()
         },
         &DefaultHooks,
@@ -899,7 +921,7 @@ async fn agent_loop_max_steps_exceeded() {
         |tools| async move {
             tools
                 .into_iter()
-                .map(|t| (t.id, "result".to_string()))
+                .map(|t| (t.id, vec![sideseat::ContentBlock::text("result")]))
                 .collect()
         },
         &DefaultHooks,
@@ -907,7 +929,7 @@ async fn agent_loop_max_steps_exceeded() {
     )
     .await
     .unwrap_err();
-    assert!(matches!(err, ProviderError::Config(_)));
+    assert!(matches!(err, ProviderError::InvalidRequest(_)));
 }
 
 #[tokio::test]
@@ -998,7 +1020,7 @@ async fn agent_loop_with_hooks_step_count() {
         |tools| async move {
             tools
                 .into_iter()
-                .map(|t| (t.id, "ok".to_string()))
+                .map(|t| (t.id, vec![sideseat::ContentBlock::text("ok")]))
                 .collect()
         },
         &hooks,
@@ -1044,9 +1066,9 @@ async fn agent_loop_needs_approval_blocks_tool() {
         vec![Message::user("go")],
         config,
         |tools| {
-            let results: Vec<(String, String)> = tools
+            let results: Vec<(String, Vec<sideseat::ContentBlock>)> = tools
                 .into_iter()
-                .map(|t| (t.id, "should_not_run".to_string()))
+                .map(|t| (t.id, vec![sideseat::ContentBlock::text("should_not_run")]))
                 .collect();
             async move { results }
         },
@@ -1062,7 +1084,7 @@ async fn agent_loop_needs_approval_blocks_tool() {
     assert!(
         step.tool_results
             .iter()
-            .any(|(_, r)| r.contains("approval"))
+            .any(|(_, blocks)| blocks.iter().any(|b| b.as_text().is_some_and(|t| t.contains("approval"))))
     );
 }
 
@@ -1079,7 +1101,7 @@ async fn default_hooks_are_noops() {
         |tools| async move {
             tools
                 .into_iter()
-                .map(|t| (t.id, "ok".to_string()))
+                .map(|t| (t.id, vec![sideseat::ContentBlock::text("ok")]))
                 .collect()
         },
         &DefaultHooks,
@@ -1216,15 +1238,22 @@ fn image_video_enums_partial_eq() {
     );
 }
 
-#[test]
-fn fallback_trigger_no_any_error_variant() {
+#[tokio::test]
+async fn fallback_trigger_no_any_error_variant() {
     // FallbackTrigger::AnyError was removed; use FallbackStrategy::AnyError instead
+    // Timeout triggers fallback; Auth does not
     use sideseat::{FallbackStrategy, FallbackTrigger};
     let strategy = FallbackStrategy::OnTriggers(vec![FallbackTrigger::Timeout]);
-    let err = ProviderError::Timeout { ms: 5000 };
-    assert!(should_fallback(&err, &strategy));
-    let other_err = ProviderError::Auth("bad".into());
-    assert!(!should_fallback(&other_err, &strategy));
+    let primary = MockProvider::new()
+        .with_response(MockResponse::Error(ProviderError::Timeout { ms: Some(5000) }));
+    let secondary = MockProvider::new().with_text("recovered");
+    let mut p = FallbackProvider::with_strategy(vec![Box::new(primary)], strategy);
+    p.push(secondary);
+    let resp = p
+        .complete(vec![Message::user("hi")], ProviderConfig::new("m"))
+        .await
+        .unwrap();
+    assert_eq!(resp.first_text(), Some("recovered"));
 }
 
 // ---------------------------------------------------------------------------

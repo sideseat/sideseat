@@ -18,6 +18,8 @@
 //! - [`providers::GeminiProvider`] — Google Gemini generateContent API / Vertex AI
 //! - [`providers::GeminiInteractionsProvider`] — Google Gemini Interactions API (stateful, v2)
 //! - [`providers::CohereProvider`] — Cohere Chat API v2
+//! - [`providers::MistralProvider`] — Mistral AI API (direct and via Bedrock)
+//! - [`providers::XAIProvider`] — xAI Grok API (vision, reasoning, Live Search)
 //!
 //! All providers implement [`ChatProvider`] (via [`Provider`]) with `stream()` and `complete()` methods.
 //!
@@ -54,37 +56,41 @@ pub mod types;
 pub use error::ProviderError;
 pub use middleware::{
     DefaultSettingsMiddleware, ExtractReasoningMiddleware, ImageModelMiddleware, LoggingMiddleware,
-    Middleware, MiddlewareStack, SimulateStreamingMiddleware, TelemetryMiddleware,
-    TimingMiddleware, WrappedImageModel, wrap_image_model,
+    Middleware, MiddlewareStack, RateLimitMiddleware, SimulateStreamingMiddleware, TimingMiddleware,
+    WrappedImageModel, wrap_image_model,
 };
 pub use mock::{MockProvider, MockResponse};
 pub use provider::{
     AgentHooks, AudioProvider, ChatProvider, DefaultHooks, EmbeddingProvider, FallbackProvider,
-    ImageProvider, ModerationProvider, Provider, ProviderExt, ProviderStream, RetryConfig,
-    RetryProvider, StatefulProvider, TextStream, VideoProvider, batch_complete,
-    batch_generate_images, collect_stream, collect_stream_with_events, generate_text, record_stream,
-    run_agent_loop, run_agent_loop_with_hooks, stream_text, wrap_language_model,
+    ImageProvider, ModerationProvider, Provider, ProviderExt, ProviderHealthStatus, ProviderStream,
+    RetryConfig, RetryProvider, StatefulProvider, TextStream, TextStreamWithMeta, VideoProvider,
+    batch_complete, batch_embed,
+    batch_generate_images, collect_stream, collect_stream_with_config, collect_stream_with_events,
+    generate_text, record_stream, response_to_stream, run_agent_loop, run_agent_loop_with_hooks,
+    stream_text, with_chunk_timeout, wrap_language_model,
 };
 pub use registry::ProviderRegistry;
 pub use telemetry::{InstrumentedProvider, SideSeat, SideSeatGuard, TelemetryConfig};
 pub use types::{
-    AgentResult, AgentStep, AudioContent, AudioFormat, AudioOutputConfig, Base64Data, BuiltinTool, CacheControl, Citation, ContextManagementConfig,
-    ContainerInfo, ContentBlock, ContentBlockStart, ContentDelta, ConversationBuilder, CostEstimate,
-    DocumentContent, DocumentFormat, EmbeddingRequest, EmbeddingResponse, EmbeddingTaskType,
-    FallbackStrategy, FallbackTrigger, GeneratedImage, GeneratedVideo, GroundingChunk,
-    GroundingMetadata, ImageContent, ImageDetail, ImageEditRequest, ImageFormat, ImageGenerationRequest,
-    ImageGenerationResponse, ImageOutputFormat, ImageQuality, ImageSize, ImageStyle, MediaSource, Message, ModelCapability,
-    McpToolConfig, ModelInfo, ModerationCategories, ModerationCategoryScores, ModerationRequest,
-    ModerationResponse, ModerationResult, PartialConfig, PromptTemplate, ProviderConfig,
-    ReasoningEffort, RequestMetadata, Response, ResponseFormat, Role, S3Location, SafetyCategory,
-    SafetySetting, SafetyThreshold, ServiceTier, SpeechRequest, SpeechResponse, StopReason,
-    StreamEvent, StreamRecording, TextBlock, ThinkingBlock, TimestampGranularity, TokenCount,
-    TokenLogprob, Tool, ToolChoice, ToolResultBlock, ToolUseBlock, TopLogprob,
-    TranscriptionRequest, TranscriptionResponse, TranscriptionSegment, TranscriptionWord, Usage,
-    UsageAccumulator, VideoAspectRatio, VideoContent, VideoFormat, VideoGenerationRequest,
-    VideoGenerationResponse, VideoResolution, WebSearchConfig, WebSearchUserLocation,
-    cosine_similarity, estimate_tokens, euclidean_distance, model_capabilities,
-    normalize_embedding, should_fallback, supports_audio_input, supports_audio_output,
-    supports_extended_thinking, supports_function_calling, supports_vision, truncate_messages,
-    validate_messages,
+    AgentResult, AgentStep, AudioContent, AudioFormat, AudioOutputConfig, Base64Data, BuiltinTool,
+    CacheControl, Citation, ContextManagementConfig, ContainerInfo, ContentBlock,
+    ContentBlockStart, ContentDelta, ConversationBuilder, CostEstimate, DocumentContent,
+    DocumentFormat, EmbeddingRequest, EmbeddingResponse, EmbeddingTaskType, FallbackStrategy,
+    FallbackTrigger, GeneratedImage, GeneratedVideo, GroundingChunk, GroundingMetadata,
+    ImageContent, ImageDetail, ImageEditRequest, ImageFormat, ImageGenerationRequest, JsonSchema,
+    ImageGenerationResponse, ImageOutputFormat, ImageQuality, ImageSize, ImageStyle, MediaSource,
+    McpToolConfig, Message, ModelCapability, ModelInfo, ModerationCategories,
+    ModerationCategoryScores, ModerationRequest, ModerationResponse, ModerationResult,
+    PartialConfig, PromptTemplate, ProviderConfig, ReasoningEffort, RequestMetadata, Response,
+    ResponseFormat, Role, S3Location, SafetyCategory, SafetySetting, SafetyThreshold, ServiceTier,
+    SpeechRequest, SpeechResponse, StaticTokenProvider, StopReason, StreamEvent, StreamMeta,
+    StreamRecording,
+    TextBlock, ThinkingBlock, TimestampGranularity, TokenCount, TokenLogprob, TokenProvider, Tool,
+    ToolChoice, ToolResultBlock, ToolUseBlock, TopLogprob, TranscriptionRequest,
+    TranscriptionResponse, TranscriptionSegment, TranscriptionWord, Usage, UsageAccumulator,
+    VideoAspectRatio, VideoContent, VideoFormat, VideoGenerationRequest, VideoGenerationResponse,
+    VideoResolution, WebSearchConfig, WebSearchUserLocation, cosine_similarity, estimate_tokens,
+    euclidean_distance, model_capabilities, normalize_embedding, supports_audio_input,
+    supports_audio_output, supports_extended_thinking, supports_function_calling, supports_vision,
+    truncate_messages, validate_messages,
 };
