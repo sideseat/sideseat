@@ -27,10 +27,16 @@ use crate::types::{
 
 /// Intercepts provider calls before and after execution.
 ///
-/// Implement any subset of the hooks; defaults are pass-through.
+/// Implement any subset of the hooks; all default to pass-through.
 ///
-/// Note: `after_complete` and `on_error` do NOT apply to `stream()` calls —
-/// only `before_complete` is applied to streaming requests.
+/// ## Lifecycle
+///
+/// **`complete()` calls:** `before_complete` → provider → `after_complete` (success) **or** `on_error` (failure)
+///
+/// **`stream()` calls:** `before_complete` → stream events via `transform_stream` → `after_stream` (success) **or** `on_stream_error` (failure)
+///
+/// `after_stream` and `on_stream_error` are mutually exclusive — exactly one fires per stream.
+/// `after_complete` and `on_error` are never called for streaming requests.
 #[async_trait]
 pub trait Middleware: Send + Sync {
     /// Called before forwarding to the provider. Return modified (messages, config).
@@ -57,6 +63,19 @@ pub trait Middleware: Send + Sync {
     ///
     /// Note: recovery (returning `Ok(Response)`) is handled by `FallbackProvider`, not this hook.
     async fn on_error(
+        &self,
+        error: ProviderError,
+        _messages: &[Message],
+        _config: &ProviderConfig,
+    ) -> ProviderError {
+        error
+    }
+
+    /// Called when a stream completes successfully. Runs LIFO (same order as `after_complete`).
+    async fn after_stream(&self, _messages: &[Message], _config: &ProviderConfig) {}
+
+    /// Called when a stream terminates with an error. Runs FIFO (same order as `on_error`).
+    async fn on_stream_error(
         &self,
         error: ProviderError,
         _messages: &[Message],
@@ -187,7 +206,13 @@ pub struct MiddlewareStack<P> {
     middlewares: Vec<Arc<dyn Middleware>>,
 }
 
-impl<P: ChatProvider + 'static> MiddlewareStack<P> {
+impl<P: Provider + Default + 'static> Default for MiddlewareStack<P> {
+    fn default() -> Self {
+        Self::new(P::default())
+    }
+}
+
+impl<P: Provider + 'static> MiddlewareStack<P> {
     pub fn new(provider: P) -> Self {
         Self {
             inner: Arc::new(provider),
@@ -206,6 +231,18 @@ impl<P: ChatProvider + 'static> MiddlewareStack<P> {
     }
 }
 
+/// Propagate an error through all `on_error` hooks (FIFO).
+async fn propagate_error(
+    middlewares: &[Arc<dyn Middleware>],
+    e: ProviderError,
+) -> ProviderError {
+    let mut err = e;
+    for mw in middlewares {
+        err = mw.on_error(err, &[], &ProviderConfig::default()).await;
+    }
+    err
+}
+
 async fn run_before_pipeline(
     middlewares: &[Arc<dyn Middleware>],
     mut messages: Vec<Message>,
@@ -218,7 +255,7 @@ async fn run_before_pipeline(
 }
 
 #[async_trait]
-impl<P: ChatProvider + Send + Sync + 'static> Provider for MiddlewareStack<P> {
+impl<P: Provider + Send + Sync + 'static> Provider for MiddlewareStack<P> {
     fn provider_name(&self) -> &'static str {
         self.inner.provider_name()
     }
@@ -236,14 +273,36 @@ impl<P: ChatProvider + Send + Sync + 'static> ChatProvider for MiddlewareStack<P
 
         Box::pin(async_stream::try_stream! {
             let (messages, config) = run_before_pipeline(&middlewares, messages, config).await?;
-            let mut s: ProviderStream = inner.stream(messages, config);
+
+            for w in config.validate(inner.provider_name()) {
+                tracing::warn!("ProviderConfig: {w}");
+            }
+
+            // Strip internal middleware keys before forwarding to the inner provider.
+            let mut inner_config = config.clone();
+            inner_config.extra.retain(|k, _| !k.starts_with('_'));
+
+            let mut s: ProviderStream = inner.stream(messages.clone(), inner_config);
             // Apply transform_stream in LIFO order (outer middleware wraps inner — onion model)
             for mw in middlewares.iter().rev() {
                 s = mw.transform_stream(s);
             }
             futures::pin_mut!(s);
             while let Some(item) = s.next().await {
-                yield item?;
+                match item {
+                    Ok(event) => yield event,
+                    Err(e) => {
+                        let mut err = e;
+                        for mw in middlewares.iter() {
+                            err = mw.on_stream_error(err, &messages, &config).await;
+                        }
+                        Err(err)?;
+                    }
+                }
+            }
+            // Stream completed successfully — fire after_stream in LIFO order.
+            for mw in middlewares.iter().rev() {
+                mw.after_stream(&messages, &config).await;
             }
         })
     }
@@ -256,7 +315,16 @@ impl<P: ChatProvider + Send + Sync + 'static> ChatProvider for MiddlewareStack<P
         let (messages, config) =
             run_before_pipeline(&self.middlewares, messages.clone(), config.clone()).await?;
 
-        let result = self.inner.complete(messages.clone(), config.clone()).await;
+        for w in config.validate(self.inner.provider_name()) {
+            tracing::warn!("ProviderConfig: {w}");
+        }
+
+        // Strip internal middleware keys (e.g. "_tm" from TimingMiddleware) before
+        // forwarding to the provider — providers must not receive unknown extra fields.
+        let mut inner_config = config.clone();
+        inner_config.extra.retain(|k, _| !k.starts_with('_'));
+
+        let result = self.inner.complete(messages.clone(), inner_config).await;
 
         match result {
             Ok(mut response) => {
@@ -281,12 +349,16 @@ impl<P: ChatProvider + Send + Sync + 'static> ChatProvider for MiddlewareStack<P
         messages: Vec<Message>,
         config: ProviderConfig,
     ) -> Result<TokenCount, ProviderError> {
-        self.inner.count_tokens(messages, config).await
+        let (messages, config) =
+            run_before_pipeline(&self.middlewares, messages, config).await?;
+        let mut inner_config = config.clone();
+        inner_config.extra.retain(|k, _| !k.starts_with('_'));
+        self.inner.count_tokens(messages, inner_config).await
     }
 }
 
 #[async_trait]
-impl<P: ChatProvider + EmbeddingProvider + Send + Sync + 'static> EmbeddingProvider
+impl<P: Provider + EmbeddingProvider + Send + Sync + 'static> EmbeddingProvider
     for MiddlewareStack<P>
 {
     async fn embed(
@@ -296,7 +368,10 @@ impl<P: ChatProvider + EmbeddingProvider + Send + Sync + 'static> EmbeddingProvi
         for mw in &self.middlewares {
             request = mw.before_embed(request).await?;
         }
-        let mut response = self.inner.embed(request).await?;
+        let mut response = match self.inner.embed(request).await {
+            Ok(r) => r,
+            Err(e) => return Err(propagate_error(&self.middlewares, e).await),
+        };
         for mw in self.middlewares.iter().rev() {
             response = mw.after_embed(response).await?;
         }
@@ -305,7 +380,7 @@ impl<P: ChatProvider + EmbeddingProvider + Send + Sync + 'static> EmbeddingProvi
 }
 
 #[async_trait]
-impl<P: ChatProvider + ImageProvider + Send + Sync + 'static> ImageProvider for MiddlewareStack<P> {
+impl<P: Provider + ImageProvider + Send + Sync + 'static> ImageProvider for MiddlewareStack<P> {
     async fn generate_image(
         &self,
         mut request: ImageGenerationRequest,
@@ -313,7 +388,10 @@ impl<P: ChatProvider + ImageProvider + Send + Sync + 'static> ImageProvider for 
         for mw in &self.middlewares {
             request = mw.before_generate_image(request).await?;
         }
-        let mut response = self.inner.generate_image(request).await?;
+        let mut response = match self.inner.generate_image(request).await {
+            Ok(r) => r,
+            Err(e) => return Err(propagate_error(&self.middlewares, e).await),
+        };
         for mw in self.middlewares.iter().rev() {
             response = mw.after_generate_image(response).await?;
         }
@@ -325,14 +403,17 @@ impl<P: ChatProvider + ImageProvider + Send + Sync + 'static> ImageProvider for 
         mut request: ImageEditRequest,
     ) -> Result<ImageGenerationResponse, ProviderError> {
         for mw in &self.middlewares { request = mw.before_edit_image(request).await?; }
-        let mut response = self.inner.edit_image(request).await?;
+        let mut response = match self.inner.edit_image(request).await {
+            Ok(r) => r,
+            Err(e) => return Err(propagate_error(&self.middlewares, e).await),
+        };
         for mw in self.middlewares.iter().rev() { response = mw.after_edit_image(response).await?; }
         Ok(response)
     }
 }
 
 #[async_trait]
-impl<P: ChatProvider + VideoProvider + Send + Sync + 'static> VideoProvider for MiddlewareStack<P> {
+impl<P: Provider + VideoProvider + Send + Sync + 'static> VideoProvider for MiddlewareStack<P> {
     async fn generate_video(
         &self,
         mut request: VideoGenerationRequest,
@@ -340,7 +421,10 @@ impl<P: ChatProvider + VideoProvider + Send + Sync + 'static> VideoProvider for 
         for mw in &self.middlewares {
             request = mw.before_generate_video(request).await?;
         }
-        let mut response = self.inner.generate_video(request).await?;
+        let mut response = match self.inner.generate_video(request).await {
+            Ok(r) => r,
+            Err(e) => return Err(propagate_error(&self.middlewares, e).await),
+        };
         for mw in self.middlewares.iter().rev() {
             response = mw.after_generate_video(response).await?;
         }
@@ -349,7 +433,7 @@ impl<P: ChatProvider + VideoProvider + Send + Sync + 'static> VideoProvider for 
 }
 
 #[async_trait]
-impl<P: ChatProvider + AudioProvider + Send + Sync + 'static> AudioProvider for MiddlewareStack<P> {
+impl<P: Provider + AudioProvider + Send + Sync + 'static> AudioProvider for MiddlewareStack<P> {
     async fn generate_speech(
         &self,
         mut request: SpeechRequest,
@@ -357,7 +441,10 @@ impl<P: ChatProvider + AudioProvider + Send + Sync + 'static> AudioProvider for 
         for mw in &self.middlewares {
             request = mw.before_generate_speech(request).await?;
         }
-        let mut response = self.inner.generate_speech(request).await?;
+        let mut response = match self.inner.generate_speech(request).await {
+            Ok(r) => r,
+            Err(e) => return Err(propagate_error(&self.middlewares, e).await),
+        };
         for mw in self.middlewares.iter().rev() {
             response = mw.after_generate_speech(response).await?;
         }
@@ -371,7 +458,10 @@ impl<P: ChatProvider + AudioProvider + Send + Sync + 'static> AudioProvider for 
         for mw in &self.middlewares {
             request = mw.before_transcribe(request).await?;
         }
-        let mut response = self.inner.transcribe(request).await?;
+        let mut response = match self.inner.transcribe(request).await {
+            Ok(r) => r,
+            Err(e) => return Err(propagate_error(&self.middlewares, e).await),
+        };
         for mw in self.middlewares.iter().rev() {
             response = mw.after_transcribe(response).await?;
         }
@@ -380,14 +470,24 @@ impl<P: ChatProvider + AudioProvider + Send + Sync + 'static> AudioProvider for 
 
     async fn translate(
         &self,
-        request: TranscriptionRequest,
+        mut request: TranscriptionRequest,
     ) -> Result<TranscriptionResponse, ProviderError> {
-        self.inner.translate(request).await
+        for mw in &self.middlewares {
+            request = mw.before_transcribe(request).await?;
+        }
+        let mut response = match self.inner.translate(request).await {
+            Ok(r) => r,
+            Err(e) => return Err(propagate_error(&self.middlewares, e).await),
+        };
+        for mw in self.middlewares.iter().rev() {
+            response = mw.after_transcribe(response).await?;
+        }
+        Ok(response)
     }
 }
 
 #[async_trait]
-impl<P: ChatProvider + ModerationProvider + Send + Sync + 'static> ModerationProvider
+impl<P: Provider + ModerationProvider + Send + Sync + 'static> ModerationProvider
     for MiddlewareStack<P>
 {
     async fn moderate(
@@ -397,7 +497,10 @@ impl<P: ChatProvider + ModerationProvider + Send + Sync + 'static> ModerationPro
         for mw in &self.middlewares {
             request = mw.before_moderate(request).await?;
         }
-        let mut response = self.inner.moderate(request).await?;
+        let mut response = match self.inner.moderate(request).await {
+            Ok(r) => r,
+            Err(e) => return Err(propagate_error(&self.middlewares, e).await),
+        };
         for mw in self.middlewares.iter().rev() {
             response = mw.after_moderate(response).await?;
         }
@@ -406,7 +509,7 @@ impl<P: ChatProvider + ModerationProvider + Send + Sync + 'static> ModerationPro
 }
 
 #[async_trait]
-impl<P: ChatProvider + StatefulProvider + Send + Sync + 'static> StatefulProvider
+impl<P: Provider + StatefulProvider + Send + Sync + 'static> StatefulProvider
     for MiddlewareStack<P>
 {
     async fn retrieve_response(&self, response_id: &str) -> Result<crate::types::Response, ProviderError> {
@@ -462,6 +565,20 @@ impl Middleware for LoggingMiddleware {
         _config: &ProviderConfig,
     ) -> ProviderError {
         tracing::debug!("<- provider error: {}", error);
+        error
+    }
+
+    async fn after_stream(&self, _messages: &[Message], _config: &ProviderConfig) {
+        tracing::debug!("<- stream completed");
+    }
+
+    async fn on_stream_error(
+        &self,
+        error: ProviderError,
+        _messages: &[Message],
+        _config: &ProviderConfig,
+    ) -> ProviderError {
+        tracing::debug!("<- stream error: {}", error);
         error
     }
 }
@@ -531,26 +648,26 @@ impl Middleware for TimingMiddleware {
         error
     }
 
-    /// Clean up orphaned entries from stream calls.
-    ///
-    /// `before_complete` runs for both `complete()` and `stream()` calls, but
-    /// `after_complete`/`on_error` never fire for streams, so stream entries
-    /// accumulate. This hook sweeps entries older than 5 minutes on each stream
-    /// completion.
-    fn transform_stream(&self, stream: ProviderStream) -> ProviderStream {
-        let starts = Arc::clone(&self.starts);
-        let start = Instant::now();
-        Box::pin(async_stream::try_stream! {
-            futures::pin_mut!(stream);
-            while let Some(item) = stream.next().await {
-                yield item?;
-            }
+    async fn after_stream(&self, _messages: &[Message], config: &ProviderConfig) {
+        if let Some(id) = config.extra.get("_tm").and_then(|v| v.as_u64())
+            && let Some(start) = self.starts.lock().remove(&id)
+        {
             tracing::debug!("stream completed in {}ms", start.elapsed().as_millis());
-            // Sweep entries orphaned by stream calls (before_complete ran but
-            // after_complete/on_error never fires for streams).
-            let now = Instant::now();
-            starts.lock().retain(|_, t| now.duration_since(*t) < std::time::Duration::from_secs(300));
-        })
+        }
+    }
+
+    async fn on_stream_error(
+        &self,
+        error: ProviderError,
+        _messages: &[Message],
+        config: &ProviderConfig,
+    ) -> ProviderError {
+        if let Some(id) = config.extra.get("_tm").and_then(|v| v.as_u64())
+            && let Some(start) = self.starts.lock().remove(&id)
+        {
+            tracing::debug!("stream failed in {}ms", start.elapsed().as_millis());
+        }
+        error
     }
 }
 
@@ -566,9 +683,10 @@ impl Middleware for TimingMiddleware {
 /// # Example
 /// ```
 /// use sideseat::middleware::{MiddlewareStack, RateLimitMiddleware};
+/// use sideseat::mock::MockProvider;
 ///
 /// // Allow at most 60 requests per minute
-/// let stack = MiddlewareStack::new(provider)
+/// let stack = MiddlewareStack::new(MockProvider::new())
 ///     .with(RateLimitMiddleware::per_minute(60));
 /// ```
 pub struct RateLimitMiddleware {
@@ -703,6 +821,7 @@ pub struct ExtractReasoningMiddleware {
 }
 
 impl ExtractReasoningMiddleware {
+    /// Create with default `<think>` / `</think>` tags.
     pub fn new() -> Self {
         Self {
             open_tag: "<think>".into(),
@@ -710,6 +829,7 @@ impl ExtractReasoningMiddleware {
         }
     }
 
+    /// Create with custom open and close tags (e.g. `"<reasoning>"`, `"</reasoning>"`).
     pub fn with_tags(open: &str, close: &str) -> Self {
         Self {
             open_tag: open.into(),
@@ -808,9 +928,8 @@ impl Middleware for ExtractReasoningMiddleware {
                         if text_block_index == Some(index) =>
                     {
                         // Feed into state machine
-                        if think_buf.is_some() {
+                        if let Some(mut buf) = think_buf.take() {
                             // inside a think block
-                            let mut buf = think_buf.take().unwrap();
                             buf.push_str(&text);
                             // Check for close tag
                             if let Some(pos) = buf.find(&close_tag) {
