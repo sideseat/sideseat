@@ -17,8 +17,8 @@ pub enum ProviderError {
     /// Request timed out.
     ///
     /// - `ms: None` — timeout reported by `reqwest` (no explicit duration available).
-    /// - `ms: Some(n)` — explicit timeout set via [`ProviderConfig::timeout_ms`]; the
-    ///   request was cancelled after `n` milliseconds.
+    /// - `ms: Some(n)` — explicit timeout set via [`crate::ProviderConfig`]'s `timeout_ms` field;
+    ///   the request was cancelled after `n` milliseconds.
     #[error("Request timed out")]
     Timeout { ms: Option<u64> },
 
@@ -48,6 +48,11 @@ pub enum ProviderError {
 
     #[error("Content filtered: {0}")]
     ContentFilterViolation(String),
+
+    /// The provider returned a response with no usable content of the expected type.
+    /// This is a logical error (not a network failure) and is not retryable.
+    #[error("Empty response: {0}")]
+    EmptyResponse(String),
 }
 
 impl From<reqwest::Error> for ProviderError {

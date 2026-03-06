@@ -1402,7 +1402,10 @@ fn parse_finish_reason(reason: &str) -> StopReason {
         "STOP_SEQUENCE" => StopReason::StopSequence(String::new()),
         "ERROR" => StopReason::Other("error".to_string()),
         "TIMEOUT" => StopReason::Other("timeout".to_string()),
-        other => StopReason::Other(other.to_string()),
+        other => {
+            tracing::debug!("Cohere: unknown finish_reason {:?}, mapping to Other", other);
+            StopReason::Other(other.to_string())
+        }
     }
 }
 

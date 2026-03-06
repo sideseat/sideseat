@@ -166,6 +166,7 @@ impl MockProvider {
         self.non_chat_calls.lock().clone()
     }
 
+    #[track_caller]
     fn pop_response(&self) -> MockResponse {
         self.responses
             .lock()
@@ -210,7 +211,10 @@ impl ChatProvider for MockProvider {
                 }),
             ],
             MockResponse::ToolCall { id, name, input } => {
-                let input_json = serde_json::to_string(&input).unwrap_or_default();
+                let input_json = serde_json::to_string(&input).unwrap_or_else(|e| {
+                    tracing::warn!("MockProvider: failed to serialize tool input for '{}': {}", name, e);
+                    String::new()
+                });
                 vec![
                     Ok(StreamEvent::ContentBlockStart {
                         index: 0,
