@@ -1,47 +1,28 @@
 //! Integration tests for Google Gemini provider.
-//!
-//! ```bash
-//! GEMINI_API_KEY=AIza... cargo test -p sideseat --test gemini -- --nocapture
-//! ```
 
 #[macro_use]
 mod common;
 use common::*;
 
-macro_rules! gemini_api_key_env {
-    () => {{
-        match std::env::var("GEMINI_API_KEY").or_else(|_| std::env::var("GOOGLE_API_KEY")) {
-            Ok(k) => k,
-            Err(_) => {
-                println!("Skipping: GEMINI_API_KEY / GOOGLE_API_KEY not set");
-                return;
-            }
-        }
-    }};
-}
-
-// Latest Gemini model with free-tier quota
-const GEMINI_MODEL: &str = "gemini-3-flash-preview";
+const GEMINI_MODEL: &str = "gemini-2.5-flash-lite";
 const GEMINI_EMBED_MODEL: &str = "gemini-embedding-001";
 
 #[tokio::test]
 async fn test_gemini_complete() {
-    let api_key = gemini_api_key_env!();
-    let provider = GeminiProvider::new(GeminiAuth::ApiKey(api_key));
+    let (server, provider) = mock_gemini();
+    mock_json(&server, POST, ":generateContent", GEMINI_COMPLETE_JSON);
     let config = default_config(GEMINI_MODEL);
 
-    let resp = retry(|| provider.complete(vec![user_msg("Say 'hello' in one word")], config.clone()))
-        .await
-        .unwrap();
+    let resp = provider.complete(vec![user_msg("Say 'hello' in one word")], config).await.unwrap();
 
-    assert!(!resp.text().is_empty(), "expected non-empty response");
+    assert!(!resp.text().is_empty());
     assert!(resp.usage.input_tokens > 0);
 }
 
 #[tokio::test]
 async fn test_gemini_stream() {
-    let api_key = gemini_api_key_env!();
-    let provider = GeminiProvider::new(GeminiAuth::ApiKey(api_key));
+    let (server, provider) = mock_gemini();
+    mock_sse(&server, POST, ":streamGenerateContent", GEMINI_STREAM_EVENTS);
     let config = default_config(GEMINI_MODEL);
 
     let stream = provider.stream(vec![user_msg("Count from 1 to 3")], config);
@@ -53,22 +34,20 @@ async fn test_gemini_stream() {
 
 #[tokio::test]
 async fn test_gemini_system_prompt() {
-    let api_key = gemini_api_key_env!();
-    let provider = GeminiProvider::new(GeminiAuth::ApiKey(api_key));
+    let (server, provider) = mock_gemini();
+    mock_json(&server, POST, ":generateContent", GEMINI_COMPLETE_JSON);
     let mut config = default_config(GEMINI_MODEL);
     config.system = Some("You are a pirate. Respond only in pirate speak.".to_string());
 
-    let resp = retry(|| provider.complete(vec![user_msg("Hello!")], config.clone()))
-        .await
-        .unwrap();
+    let resp = provider.complete(vec![user_msg("Hello!")], config).await.unwrap();
 
     assert!(!resp.text().is_empty());
 }
 
 #[tokio::test]
 async fn test_gemini_multi_turn() {
-    let api_key = gemini_api_key_env!();
-    let provider = GeminiProvider::new(GeminiAuth::ApiKey(api_key));
+    let (server, provider) = mock_gemini();
+    mock_json(&server, POST, ":generateContent", GEMINI_COMPLETE_JSON);
     let config = default_config(GEMINI_MODEL);
 
     let messages = vec![
@@ -77,26 +56,18 @@ async fn test_gemini_multi_turn() {
         user_msg("What is my name?"),
     ];
 
-    let resp = retry(|| provider.complete(messages.clone(), config.clone()))
-        .await
-        .unwrap();
-
-    let text = resp.text().to_lowercase();
-    assert!(text.contains("alice"), "expected model to recall name, got: {text}");
+    let resp = provider.complete(messages, config).await.unwrap();
+    assert!(!resp.text().is_empty());
 }
 
 #[tokio::test]
 async fn test_gemini_tools() {
-    let api_key = gemini_api_key_env!();
-    let provider = GeminiProvider::new(GeminiAuth::ApiKey(api_key));
+    let (server, provider) = mock_gemini();
+    mock_json(&server, POST, ":generateContent", GEMINI_TOOL_JSON);
     let mut config = default_config(GEMINI_MODEL);
     config.tools = vec![echo_tool()];
 
-    let resp = retry(|| {
-        provider.complete(vec![user_msg("Please echo the word 'papaya'")], config.clone())
-    })
-    .await
-    .unwrap();
+    let resp = provider.complete(vec![user_msg("Please echo the word 'papaya'")], config).await.unwrap();
 
     let has_tool = resp.content.iter().any(|b| matches!(b, ContentBlock::ToolUse(_)));
     assert!(has_tool, "expected tool_use block, got: {:?}", resp.content);
@@ -105,12 +76,13 @@ async fn test_gemini_tools() {
 #[tokio::test]
 async fn test_gemini_structured_output() {
     use sideseat::types::ResponseFormat;
-
-    let api_key = gemini_api_key_env!();
-    let provider = GeminiProvider::new(GeminiAuth::ApiKey(api_key));
+    let structured_json = r#"{"candidates":[{"content":{"role":"model","parts":[{"text":"{\"animal\":\"cat\",\"sound\":\"meow\"}"}]},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":5}}"#;
+    let (server, provider) = mock_gemini();
+    server.mock(|when, then| {
+        when.method(POST).path_includes(":generateContent");
+        then.status(200).header("content-type", "application/json").body(structured_json);
+    });
     let mut config = default_config(GEMINI_MODEL);
-    // gemini-3-flash-preview is a thinking model; thinking tokens count against max_tokens.
-    // Use a larger budget so internal reasoning doesn't crowd out the JSON output.
     config.max_tokens = Some(2048);
     config.response_format = Some(ResponseFormat::JsonSchema {
         name: "animal_sound".to_string(),
@@ -125,11 +97,7 @@ async fn test_gemini_structured_output() {
         strict: false,
     });
 
-    let resp = retry(|| {
-        provider.complete(vec![user_msg("Name an animal and the sound it makes.")], config.clone())
-    })
-    .await
-    .unwrap();
+    let resp = provider.complete(vec![user_msg("Name an animal and the sound it makes.")], config).await.unwrap();
 
     let text = resp.text();
     let parsed: serde_json::Value = serde_json::from_str(&text).expect("response should be valid JSON");
@@ -139,30 +107,29 @@ async fn test_gemini_structured_output() {
 
 #[tokio::test]
 async fn test_gemini_count_tokens() {
-    let api_key = gemini_api_key_env!();
-    let provider = GeminiProvider::new(GeminiAuth::ApiKey(api_key));
+    let (server, provider) = mock_gemini();
+    mock_json(&server, POST, ":countTokens", GEMINI_COUNT_TOKENS_JSON);
     let config = default_config(GEMINI_MODEL);
-    let count = provider
-        .count_tokens(vec![user_msg("Hello, how are you?")], config)
-        .await
-        .unwrap();
-    assert!(count.input_tokens > 0, "should report non-zero token count");
+
+    let count = provider.count_tokens(vec![user_msg("Hello, how are you?")], config).await.unwrap();
+    assert!(count.input_tokens > 0);
 }
 
 #[tokio::test]
 async fn test_gemini_embed() {
-    let api_key = gemini_api_key_env!();
-    let provider = GeminiProvider::new(GeminiAuth::ApiKey(api_key));
+    let (server, provider) = mock_gemini();
+    mock_json(&server, POST, ":embedContent", GEMINI_EMBED_JSON);
+
     let req = EmbeddingRequest::new(GEMINI_EMBED_MODEL, vec!["Hello world"]);
     let resp = provider.embed(req).await.unwrap();
     assert_eq!(resp.embeddings.len(), 1);
-    assert!(!resp.embeddings[0].is_empty(), "embedding vector should not be empty");
+    assert!(!resp.embeddings[0].is_empty());
 }
 
 #[tokio::test]
 async fn test_gemini_vision() {
-    let api_key = gemini_api_key_env!();
-    let provider = GeminiProvider::new(GeminiAuth::ApiKey(api_key));
+    let (server, provider) = mock_gemini();
+    mock_json(&server, POST, ":generateContent", GEMINI_COMPLETE_JSON);
     let mut config = default_config(GEMINI_MODEL);
     config.max_tokens = Some(128);
 
@@ -182,20 +149,20 @@ async fn test_gemini_vision() {
         cache_control: None,
     }];
 
-    let resp = retry(|| provider.complete(messages.clone(), config.clone()))
-        .await
-        .unwrap();
-    assert!(!resp.text().is_empty(), "expected non-empty response");
+    let resp = provider.complete(messages, config).await.unwrap();
+    assert!(!resp.text().is_empty());
 }
 
 #[tokio::test]
 async fn test_gemini_list_models() {
-    let api_key = gemini_api_key_env!();
-    let provider = GeminiProvider::new(GeminiAuth::ApiKey(api_key));
+    let (server, provider) = mock_gemini();
+    // Register models mock specifically (not for generateContent paths)
+    server.mock(|when, then| {
+        when.method(GET).path_includes("/models");
+        then.status(200).header("content-type", "application/json").body(GEMINI_LIST_MODELS_JSON);
+    });
+
     let models = provider.list_models().await.unwrap();
-    assert!(!models.is_empty(), "should return at least one model");
-    assert!(
-        models.iter().any(|m| m.id.contains("gemini")),
-        "expected a gemini model"
-    );
+    assert!(!models.is_empty());
+    assert!(models.iter().any(|m| m.id.contains("gemini")));
 }

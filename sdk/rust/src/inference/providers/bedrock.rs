@@ -127,6 +127,14 @@ impl BedrockProvider {
         }
     }
 
+    /// Create from an existing runtime client and management client (for testing).
+    pub fn from_clients(client: Client, mgmt_client: BedrockMgmtClient) -> Self {
+        Self {
+            client: Arc::new(client),
+            mgmt_client: Some(Arc::new(mgmt_client)),
+        }
+    }
+
     /// Create using a Bedrock API key.
     ///
     /// Configures the AWS SDK client with bearer-token authentication

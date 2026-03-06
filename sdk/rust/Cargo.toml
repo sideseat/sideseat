@@ -51,3 +51,6 @@ rmcp = { version = "0.16.0", features = ["client"] }
 
 [dev-dependencies]
 tokio = { workspace = true }
+httpmock = "0.8.3"
+crc32fast = "1"
+base64 = { workspace = true }

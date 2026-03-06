@@ -30,7 +30,12 @@ pub type ProviderStream = Pin<Box<dyn Stream<Item = Result<StreamEvent, Provider
 /// All capability-specific traits (`ChatProvider`, `EmbeddingProvider`, etc.) extend this.
 #[async_trait]
 pub trait Provider: Send + Sync {
-    /// GenAI OTel `gen_ai.system` attribute value for this provider. Default: `"unknown"`.
+    /// Short identifier used as the OTel `gen_ai.system` attribute and in debug logs.
+    ///
+    /// Appears in every span emitted by [`InstrumentedProvider`] — override this in
+    /// custom providers so traces are labeled correctly. Defaults to `"unknown"`.
+    ///
+    /// [`InstrumentedProvider`]: crate::telemetry::InstrumentedProvider
     fn provider_name(&self) -> &'static str {
         "unknown"
     }
@@ -52,7 +57,10 @@ pub trait Provider: Send + Sync {
 /// Implement `stream()` — defaults for `complete()` and `count_tokens()` are provided.
 #[async_trait]
 pub trait ChatProvider: Provider {
-    /// Start a streaming conversation. All chat providers must implement this.
+    /// Start a streaming conversation. **All providers must implement this method.**
+    ///
+    /// Returns a [`ProviderStream`] emitting [`StreamEvent`]s. See the [`crate::providers`]
+    /// module doc for the expected event ordering and `collect_stream` for how to consume it.
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream;
 
     /// Run a non-streaming request. Default implementation collects the stream.
@@ -181,8 +189,17 @@ pub trait ModerationProvider: Provider {
 /// Stateful response management (retrieve/cancel in-progress or stored responses).
 #[async_trait]
 pub trait StatefulProvider: Provider {
-    async fn retrieve_response(&self, id: &str) -> Result<Response, ProviderError>;
-    async fn cancel_response(&self, id: &str) -> Result<Response, ProviderError>;
+    async fn retrieve_response(&self, _id: &str) -> Result<Response, ProviderError> {
+        Err(ProviderError::Unsupported(
+            "Response retrieval not supported by this provider".into(),
+        ))
+    }
+
+    async fn cancel_response(&self, _id: &str) -> Result<Response, ProviderError> {
+        Err(ProviderError::Unsupported(
+            "Response cancellation not supported by this provider".into(),
+        ))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -190,6 +207,8 @@ pub trait StatefulProvider: Provider {
 // ---------------------------------------------------------------------------
 
 /// Collect a `ProviderStream` into a `Response`, using the audio format from config when available.
+///
+/// See also [`collect_stream_with_events`] to capture raw events alongside the response.
 pub async fn collect_stream_with_config(
     stream: ProviderStream,
     config: Option<&ProviderConfig>,
@@ -201,6 +220,8 @@ pub async fn collect_stream_with_config(
 }
 
 /// Collect a `ProviderStream` into a `Response` by assembling content blocks.
+///
+/// See also [`collect_stream_with_events`] to capture raw events alongside the response.
 pub async fn collect_stream(stream: ProviderStream) -> Result<Response, ProviderError> {
     collect_stream_with_audio_format(stream, None).await
 }
@@ -215,6 +236,7 @@ async fn collect_stream_with_audio_format(
     let mut stop_reason = StopReason::EndTurn;
     let mut model: Option<String> = None;
     let mut response_id: Option<String> = None;
+    let mut received_metadata = false;
 
     // Accumulate per-block state
     let mut text_blocks: HashMap<usize, String> = HashMap::new();
@@ -225,10 +247,13 @@ async fn collect_stream_with_audio_format(
 
     // Ordered block indices so we preserve output order
     let mut block_order: Vec<usize> = Vec::new();
+    // O(1) membership test for orphan delta auto-init (avoids O(n²) with many blocks)
+    let mut block_seen: std::collections::HashSet<usize> = std::collections::HashSet::new();
 
     while let Some(result) = stream.next().await {
         match result? {
             StreamEvent::ContentBlockStart { index, block } => {
+                block_seen.insert(index);
                 block_order.push(index);
                 match block {
                     ContentBlockStart::Text => {
@@ -250,7 +275,7 @@ async fn collect_stream_with_audio_format(
                     // Some providers (e.g. Bedrock converse-stream) omit ContentBlockStart
                     // for text blocks; auto-initialize on first delta.
                     let entry = text_blocks.entry(index).or_insert_with(|| {
-                        if !block_order.contains(&index) {
+                        if block_seen.insert(index) {
                             block_order.push(index);
                         }
                         String::new()
@@ -258,24 +283,41 @@ async fn collect_stream_with_audio_format(
                     entry.push_str(&text);
                 }
                 ContentDelta::ToolInput { partial_json } => {
-                    if let Some((_, _, buf)) = tool_blocks.get_mut(&index) {
-                        buf.push_str(&partial_json);
-                    }
+                    // Auto-initialize on orphan delta (id/name unknown, use empty strings).
+                    let entry = tool_blocks.entry(index).or_insert_with(|| {
+                        if block_seen.insert(index) {
+                            block_order.push(index);
+                        }
+                        (String::new(), String::new(), String::new())
+                    });
+                    entry.2.push_str(&partial_json);
                 }
                 ContentDelta::Thinking { thinking } => {
-                    if let Some((t, _)) = thinking_blocks.get_mut(&index) {
-                        t.push_str(&thinking);
-                    }
+                    let entry = thinking_blocks.entry(index).or_insert_with(|| {
+                        if block_seen.insert(index) {
+                            block_order.push(index);
+                        }
+                        (String::new(), None)
+                    });
+                    entry.0.push_str(&thinking);
                 }
                 ContentDelta::Signature { signature } => {
-                    if let Some((_, sig)) = thinking_blocks.get_mut(&index) {
-                        *sig = Some(signature);
-                    }
+                    let entry = thinking_blocks.entry(index).or_insert_with(|| {
+                        if block_seen.insert(index) {
+                            block_order.push(index);
+                        }
+                        (String::new(), None)
+                    });
+                    entry.1 = Some(signature);
                 }
                 ContentDelta::AudioData { b64_data } => {
-                    if let Some(buf) = audio_blocks.get_mut(&index) {
-                        buf.push_str(&b64_data);
-                    }
+                    let entry = audio_blocks.entry(index).or_insert_with(|| {
+                        if block_seen.insert(index) {
+                            block_order.push(index);
+                        }
+                        String::new()
+                    });
+                    entry.push_str(&b64_data);
                 }
             },
             StreamEvent::ContentBlockStop { .. } => {
@@ -291,6 +333,7 @@ async fn collect_stream_with_audio_format(
                 model: m,
                 id,
             } => {
+                received_metadata = true;
                 usage += u;
                 if m.is_some() {
                     model = m;
@@ -305,10 +348,16 @@ async fn collect_stream_with_audio_format(
                 media_type,
                 b64_data,
             } => {
-                block_order.push(index);
+                if block_seen.insert(index) {
+                    block_order.push(index);
+                }
                 image_blocks.insert(index, (media_type, b64_data));
             }
         }
+    }
+
+    if !received_metadata {
+        tracing::debug!("collect_stream: no Metadata event received — usage will be zero");
     }
 
     // Assemble content blocks in original order (dedup by index)
@@ -513,6 +562,7 @@ pub async fn collect_stream_with_events(
 pub struct TextStream(ProviderStream);
 
 impl TextStream {
+    /// Create a [`TextStream`] from a raw provider stream.
     pub fn new(stream: ProviderStream) -> Self {
         Self(stream)
     }
@@ -666,7 +716,7 @@ pub trait ProviderExt: ChatProvider {
         response
             .first_text()
             .map(|s| s.to_string())
-            .ok_or_else(|| ProviderError::Stream("No text content in response".into()))
+            .ok_or_else(|| ProviderError::EmptyResponse("No text content in response".into()))
     }
 
     /// Stream a single user message and capture metadata after completion.
@@ -734,16 +784,22 @@ impl RetryConfig {
         self
     }
 
+    /// Set the initial delay before the first retry. Default: 1000 ms.
     pub fn with_base_delay_ms(mut self, ms: u64) -> Self {
         self.base_delay_ms = ms;
         self
     }
 
+    /// Set the random jitter factor applied to each delay (0.0–1.0). Default: 0.25.
+    ///
+    /// A factor of `0.25` means each delay is ±25% of the calculated backoff value.
+    /// Set to `0.0` to disable jitter.
     pub fn with_jitter_factor(mut self, f: f64) -> Self {
         self.jitter_factor = f;
         self
     }
 
+    /// Cap the maximum delay between retries. Default: 30 000 ms (30 s).
     pub fn with_max_delay_ms(mut self, ms: u64) -> Self {
         self.max_delay_ms = ms;
         self
@@ -780,7 +836,7 @@ where
             Err(e) => return Err(e),
         }
     }
-    Err(last_err.expect("retry loop ran at least once"))
+    Err(last_err.unwrap_or_else(|| ProviderError::Stream("All retry attempts exhausted".into())))
 }
 
 // ---------------------------------------------------------------------------
@@ -804,10 +860,12 @@ impl<P> RetryProvider<P> {
         }
     }
 
+    /// Create a [`RetryProvider`] with a fully-customized [`RetryConfig`].
     pub fn from_config(inner: P, config: RetryConfig) -> Self {
         Self { inner: std::sync::Arc::new(inner), config }
     }
 
+    /// Set the initial delay before the first retry. Default: 1000 ms.
     pub fn with_base_delay_ms(mut self, ms: u64) -> Self {
         self.config.base_delay_ms = ms;
         self
@@ -1026,6 +1084,7 @@ impl FallbackProvider {
         self.health.lock().push(ProviderHealth::default());
     }
 
+    /// Returns a slice of all providers in the fallback chain.
     pub fn providers(&self) -> &[Box<dyn ChatProvider + Send + Sync>] {
         &self.providers
     }
@@ -1093,14 +1152,25 @@ impl Provider for FallbackProvider {
 
 #[async_trait]
 impl ChatProvider for FallbackProvider {
-    /// Note: only uses first provider (streaming cannot fall back mid-stream).
+    /// Uses the first healthy provider (respects circuit-breaker cooldown).
+    /// Falls back to index 0 if all providers are unhealthy (preserves best-effort behavior).
+    /// Streaming cannot fall back mid-stream — use `stream_with_fallback()` for that.
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
-        if let Some(p) = self.providers.first() {
-            p.stream(messages, config)
-        } else {
-            Box::pin(futures::stream::once(async {
-                Err(ProviderError::MissingConfig("No providers configured".into()))
-            }))
+        let now = std::time::Instant::now();
+        let idx = {
+            let h = self.health.lock();
+            (0..self.providers.len()).find(|&i| {
+                h.get(i)
+                    .map(|health| health.unhealthy_until.map(|t| t <= now).unwrap_or(true))
+                    .unwrap_or(true)
+            })
+            .or(if self.providers.is_empty() { None } else { Some(0) })
+        };
+        match idx {
+            Some(i) => self.providers[i].stream(messages, config),
+            None => Box::pin(futures::stream::once(async {
+                Err(ProviderError::InvalidRequest("No providers available — FallbackProvider is empty or all providers are unhealthy".into()))
+            })),
         }
     }
 
@@ -1131,6 +1201,12 @@ impl ChatProvider for FallbackProvider {
                 }
                 Err(e) => {
                     if should_fallback(&e, &self.strategy) {
+                        tracing::debug!(
+                            "FallbackProvider: provider[{}] ({}) failed with `{}`, trying next",
+                            i,
+                            provider.provider_name(),
+                            e
+                        );
                         // Track consecutive errors for circuit breaker
                         if let Some(h) = self.health.lock().get_mut(i) {
                             h.consecutive_errors += 1;
@@ -1148,7 +1224,7 @@ impl ChatProvider for FallbackProvider {
                 }
             }
         }
-        Err(last_err.unwrap_or_else(|| ProviderError::MissingConfig("No providers configured".into())))
+        Err(last_err.unwrap_or_else(|| ProviderError::InvalidRequest("No providers available — FallbackProvider is empty or all providers are unhealthy".into())))
     }
 }
 
@@ -1159,13 +1235,16 @@ impl ChatProvider for FallbackProvider {
 /// Hook callbacks for the agent loop.
 #[async_trait]
 pub trait AgentHooks: Send + Sync {
-    /// Called before each step to optionally modify the config.
+    /// Called before each step to inspect or modify the config (e.g. adjust temperature,
+    /// filter active tools, or inject step-specific context).
     async fn prepare_step(&self, _step: usize, _config: &mut ProviderConfig) {}
-    /// Return true to block a tool call and replace its result with an approval message.
+    /// Return `true` to block a tool call — its result will be replaced with an
+    /// "approval required" message and the agent will be asked again.
     async fn needs_approval(&self, _tool: &ToolUseBlock) -> bool {
         false
     }
-    /// Called after each step completes (including tool results).
+    /// Called after each step completes (including all tool results for that step).
+    /// Use for logging, metrics, or updating external state.
     async fn on_step_finish(&self, _step: &AgentStep) {}
 }
 
@@ -1175,7 +1254,13 @@ pub struct DefaultHooks;
 #[async_trait]
 impl AgentHooks for DefaultHooks {}
 
-/// Run an enhanced agent loop with hooks, step tracking, and max_steps support.
+/// Run an agent loop with hooks, step recording, and a `max_steps` limit.
+///
+/// Like [`run_agent_loop`], but:
+/// - Returns [`AgentResult`] containing all intermediate [`AgentStep`]s, not just the final response.
+/// - Calls [`AgentHooks`] callbacks on every step (`prepare_step`, `needs_approval`, `on_step_finish`).
+/// - Stops after `max_steps` iterations and returns an error if exceeded.
+/// - `tool_handler` returns `Vec<(id, Vec<ContentBlock>)>` — supports rich (image, audio) results.
 pub async fn run_agent_loop_with_hooks<P, F, Fut, H>(
     provider: &P,
     mut messages: Vec<Message>,
@@ -1291,9 +1376,31 @@ where
 
 /// Run an agentic tool-call loop until the model stops requesting tools.
 ///
-/// Calls `complete`, appends the assistant turn, invokes `tool_handler` with
-/// all tool-use blocks, appends the tool results, and repeats until
-/// `stop_reason != ToolUse` or no tool-use blocks are present.
+/// Loop: `complete` → append assistant turn → call `tool_handler` with all
+/// [`ToolUseBlock`]s → append tool results → repeat until `stop_reason != ToolUse`.
+///
+/// Returns the final [`Response`] (the one that didn't request more tools).
+/// For step-by-step tracing, approval gates, or rich (non-text) tool results,
+/// use [`run_agent_loop_with_hooks`] instead.
+///
+/// # Example
+/// ```no_run
+/// # use sideseat::{ChatProvider, ProviderConfig, Message, ToolUseBlock, run_agent_loop};
+/// # async fn example() -> Result<(), sideseat::ProviderError> {
+/// # let provider = sideseat::mock::MockProvider::new();
+/// let response = run_agent_loop(
+///     &provider,
+///     vec![Message::user("Search for Rust async tutorials")],
+///     ProviderConfig::new("claude-haiku-4-5-20251001"),
+///     |tools: Vec<ToolUseBlock>| async move {
+///         tools.into_iter()
+///             .map(|tu| (tu.id, format!("Result for {}", tu.name)))
+///             .collect()
+///     },
+/// ).await?;
+/// println!("{}", response.first_text().unwrap_or(""));
+/// # Ok(()) }
+/// ```
 pub async fn run_agent_loop<P, F, Fut>(
     provider: &P,
     messages: Vec<Message>,
@@ -1371,7 +1478,7 @@ pub async fn generate_text<P: ChatProvider>(
     response
         .first_text()
         .map(str::to_string)
-        .ok_or_else(|| ProviderError::Stream("No text content in response".into()))
+        .ok_or_else(|| ProviderError::EmptyResponse("No text content in response".into()))
 }
 
 /// Stream a conversation, yielding only text delta strings.

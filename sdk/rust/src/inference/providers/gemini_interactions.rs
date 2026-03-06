@@ -14,8 +14,9 @@ use crate::{
     },
 };
 
-const INTERACTIONS_URL: &str = "https://generativelanguage.googleapis.com/v1beta/interactions";
-const MODELS_URL: &str = "https://generativelanguage.googleapis.com/v1beta/models";
+const DEFAULT_BASE_URL: &str = "https://generativelanguage.googleapis.com";
+const INTERACTIONS_PATH: &str = "/v1beta/interactions";
+const MODELS_PATH: &str = "/v1beta/models";
 
 /// Google Gemini Interactions API provider.
 ///
@@ -43,6 +44,7 @@ pub struct GeminiInteractionsProvider {
     client: Arc<reqwest::Client>,
     /// Interaction ID from a previous call — enables server-side conversation history.
     pub previous_interaction_id: Option<String>,
+    base_url: String,
 }
 
 impl GeminiInteractionsProvider {
@@ -60,7 +62,14 @@ impl GeminiInteractionsProvider {
             api_key: api_key.into(),
             client: Arc::new(reqwest::Client::new()),
             previous_interaction_id: None,
+            base_url: DEFAULT_BASE_URL.to_string(),
         }
+    }
+
+    /// Override the API base URL (for testing with a mock server).
+    pub fn with_api_base(mut self, base_url: impl Into<String>) -> Self {
+        self.base_url = base_url.into().trim_end_matches('/').to_string();
+        self
     }
 
     /// Replace the HTTP client. Useful for custom TLS, proxies, or testing.
@@ -77,14 +86,14 @@ impl GeminiInteractionsProvider {
 
     fn build_url(&self, stream: bool) -> String {
         if stream {
-            format!("{}?key={}&alt=sse", INTERACTIONS_URL, self.api_key)
+            format!("{}{}?key={}&alt=sse", self.base_url, INTERACTIONS_PATH, self.api_key)
         } else {
-            format!("{}?key={}", INTERACTIONS_URL, self.api_key)
+            format!("{}{}?key={}", self.base_url, INTERACTIONS_PATH, self.api_key)
         }
     }
 
     fn build_models_url(&self) -> String {
-        format!("{}?key={}", MODELS_URL, self.api_key)
+        format!("{}{}?key={}", self.base_url, MODELS_PATH, self.api_key)
     }
 
     fn build_request(
