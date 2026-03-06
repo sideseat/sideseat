@@ -22,17 +22,28 @@ pub use sideseat::{
     },
 };
 
-/// Retries an async operation up to 3 times when `ProviderError::is_retryable()` is true,
+/// Retries an async operation up to 5 times when `ProviderError::is_retryable()` is true,
 /// or when the response has empty content (Bedrock can return 200 with empty content under load).
+///
+/// Rate-limit errors (`TooManyRequests`) wait 15 s by default (or `retry_after_secs` if present)
+/// to respect free-tier quotas (e.g. Gemini 5 RPM). Other retryable errors use 1 s / 2 s
+/// exponential backoff.
 pub async fn retry<F, Fut>(mut f: F) -> Result<Response, ProviderError>
 where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = Result<Response, ProviderError>>,
 {
     let mut last = None;
-    for attempt in 0..3u32 {
+    for attempt in 0..5u32 {
         if attempt > 0 {
-            tokio::time::sleep(tokio::time::Duration::from_millis(500 * (1 << attempt))).await;
+            let wait_ms = match &last {
+                Some(Err(ProviderError::TooManyRequests { retry_after_secs: Some(s), .. })) => {
+                    s.saturating_mul(1000)
+                }
+                Some(Err(ProviderError::TooManyRequests { .. })) => 15_000,
+                _ => 1_000u64 << (attempt - 1).min(3),
+            };
+            tokio::time::sleep(tokio::time::Duration::from_millis(wait_ms)).await;
         }
         match f().await {
             Ok(r) if !r.content.is_empty() => return Ok(r),

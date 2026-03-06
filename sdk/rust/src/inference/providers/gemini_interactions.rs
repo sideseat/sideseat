@@ -249,16 +249,21 @@ impl ChatProvider for GeminiInteractionsProvider {
                     Err(_) => continue,
                 };
 
-                let event_type = parsed["type"].as_str().unwrap_or("");
+                // Interactions API uses "event_type" (not "type") for SSE events.
+                let event_type = parsed["event_type"].as_str()
+                    .or_else(|| parsed["type"].as_str())
+                    .unwrap_or("");
 
                 match event_type {
                     "interaction.start" => {
-                        interaction_id = parsed["id"].as_str().map(|s| s.to_string());
+                        // ID is nested: {"interaction": {"id": "..."}, "event_type": "..."}
+                        interaction_id = parsed["interaction"]["id"].as_str().map(|s| s.to_string());
                     }
 
                     "content.start" => {
                         let index = parsed["index"].as_u64().unwrap_or(0) as usize;
-                        let content_type = parsed["content_type"].as_str().unwrap_or("text");
+                        // content type is nested: {"content": {"type": "text"}, ...}
+                        let content_type = parsed["content"]["type"].as_str().unwrap_or("text");
                         match content_type {
                             "text" => {
                                 text_index = index;
@@ -340,9 +345,11 @@ impl ChatProvider for GeminiInteractionsProvider {
                         if text_started {
                             yield Ok(StreamEvent::ContentBlockStop { index: text_index });
                         }
-                        let usage = parse_usage(&parsed["usage"]);
-                        let stop_reason = parse_status(parsed["status"].as_str().unwrap_or("completed"));
-                        let id = parsed["id"].as_str()
+                        // All data nested: {"interaction": {"usage": ..., "status": ..., "id": ...}}
+                        let interaction = &parsed["interaction"];
+                        let usage = parse_usage(&interaction["usage"]);
+                        let stop_reason = parse_status(interaction["status"].as_str().unwrap_or("completed"));
+                        let id = interaction["id"].as_str()
                             .map(|s| s.to_string())
                             .or(interaction_id.take());
                         yield Ok(StreamEvent::MessageStop { stop_reason });
@@ -351,11 +358,17 @@ impl ChatProvider for GeminiInteractionsProvider {
                     }
 
                     "error" => {
+                        let code = parsed["error"]["code"].as_str().unwrap_or("");
                         let msg = parsed["error"]["message"]
                             .as_str()
                             .unwrap_or("unknown error")
                             .to_string();
-                        yield Err(ProviderError::Api { status: 0, message: msg });
+                        let err = if code == "too_many_requests" {
+                            ProviderError::TooManyRequests { message: msg, retry_after_secs: None }
+                        } else {
+                            ProviderError::Api { status: 0, message: msg }
+                        };
+                        yield Err(err);
                         return;
                     }
 
@@ -524,12 +537,14 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
 
 fn parse_usage(usage: &Value) -> Usage {
     Usage {
-        input_tokens: usage["prompt_tokens"]
+        input_tokens: usage["total_input_tokens"]
             .as_u64()
+            .or_else(|| usage["prompt_tokens"].as_u64())
             .or_else(|| usage["input_tokens"].as_u64())
             .unwrap_or(0),
-        output_tokens: usage["candidates_tokens"]
+        output_tokens: usage["total_output_tokens"]
             .as_u64()
+            .or_else(|| usage["candidates_tokens"].as_u64())
             .or_else(|| usage["output_tokens"].as_u64())
             .unwrap_or(0),
         ..Default::default()
@@ -599,18 +614,35 @@ mod tests {
 
     #[test]
     fn test_parse_response() {
+        // Test with real Interactions API v2 usage field names.
         let json = json!({
             "id": "interaction-abc123",
             "status": "completed",
             "outputs": [{"type": "text", "text": "Hello world"}],
-            "usage": {"prompt_tokens": 10, "candidates_tokens": 5},
+            "usage": {"total_input_tokens": 7, "total_output_tokens": 2, "total_tokens": 9},
             "model": "models/gemini-2.5-flash"
         });
         let resp = parse_response(&json).unwrap();
         assert!(matches!(&resp.content[0], ContentBlock::Text(t) if t == "Hello world"));
         assert_eq!(resp.id.as_deref(), Some("interaction-abc123"));
         assert_eq!(resp.model.as_deref(), Some("gemini-2.5-flash"));
+        assert_eq!(resp.usage.input_tokens, 7);
+        assert_eq!(resp.usage.output_tokens, 2);
+    }
+
+    #[test]
+    fn test_parse_response_legacy_usage_fields() {
+        // Legacy fallback: older field names still parsed correctly.
+        let json = json!({
+            "id": "interaction-legacy",
+            "status": "completed",
+            "outputs": [{"type": "text", "text": "Hi"}],
+            "usage": {"prompt_tokens": 10, "candidates_tokens": 5},
+            "model": "models/gemini-2.5-flash"
+        });
+        let resp = parse_response(&json).unwrap();
         assert_eq!(resp.usage.input_tokens, 10);
+        assert_eq!(resp.usage.output_tokens, 5);
     }
 
     #[test]
