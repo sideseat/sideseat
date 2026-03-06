@@ -25,8 +25,9 @@ macro_rules! gemini_api_key_env {
     }};
 }
 
-// Latest Gemini model with free-tier quota
-const INTERACTIONS_MODEL: &str = "gemini-3-flash-preview";
+// Use gemini-2.5-flash-lite for free-tier quota availability.
+// gemini-3-flash-preview has lower free-tier limits and exhausts quickly.
+const INTERACTIONS_MODEL: &str = "gemini-2.5-flash-lite";
 
 // ---------------------------------------------------------------------------
 // Basic chat
