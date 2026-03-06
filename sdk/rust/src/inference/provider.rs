@@ -14,7 +14,7 @@ use crate::types::{
     ModelInfo, ModerationRequest, ModerationResponse, ProviderConfig, Response, Role, SpeechRequest,
     SpeechResponse, StopReason, StreamEvent, StreamRecording, TextBlock, ThinkingBlock, TokenCount,
     ToolUseBlock, TranscriptionRequest, TranscriptionResponse, Usage, VideoGenerationRequest,
-    VideoGenerationResponse, should_fallback,
+    VideoGenerationResponse,
 };
 
 /// Boxed stream of provider events.
@@ -61,8 +61,9 @@ pub trait ChatProvider: Provider {
         messages: Vec<Message>,
         config: ProviderConfig,
     ) -> Result<Response, ProviderError> {
+        let audio_fmt = config.audio_output.as_ref().and_then(|a| a.format.clone());
         let stream = self.stream(messages, config);
-        collect_stream(stream).await
+        collect_stream_with_audio_format(stream, audio_fmt).await
     }
 
     /// Count tokens for a request without generating a response.
@@ -180,16 +181,34 @@ pub trait ModerationProvider: Provider {
 /// Stateful response management (retrieve/cancel in-progress or stored responses).
 #[async_trait]
 pub trait StatefulProvider: Provider {
-    async fn retrieve_response(&self, id: &str) -> Result<serde_json::Value, ProviderError>;
-    async fn cancel_response(&self, id: &str) -> Result<serde_json::Value, ProviderError>;
+    async fn retrieve_response(&self, id: &str) -> Result<Response, ProviderError>;
+    async fn cancel_response(&self, id: &str) -> Result<Response, ProviderError>;
 }
 
 // ---------------------------------------------------------------------------
-// collect_stream
+// Streaming Utilities
 // ---------------------------------------------------------------------------
+
+/// Collect a `ProviderStream` into a `Response`, using the audio format from config when available.
+pub async fn collect_stream_with_config(
+    stream: ProviderStream,
+    config: Option<&ProviderConfig>,
+) -> Result<Response, ProviderError> {
+    let audio_fmt = config
+        .and_then(|c| c.audio_output.as_ref())
+        .and_then(|a| a.format.clone());
+    collect_stream_with_audio_format(stream, audio_fmt).await
+}
 
 /// Collect a `ProviderStream` into a `Response` by assembling content blocks.
 pub async fn collect_stream(stream: ProviderStream) -> Result<Response, ProviderError> {
+    collect_stream_with_audio_format(stream, None).await
+}
+
+async fn collect_stream_with_audio_format(
+    stream: ProviderStream,
+    audio_format: Option<AudioFormat>,
+) -> Result<Response, ProviderError> {
     pin_mut!(stream);
 
     let mut usage = Usage::default();
@@ -329,9 +348,22 @@ pub async fn collect_stream(stream: ProviderStream) -> Result<Response, Provider
         } else if let Some(b64_data) = audio_blocks.remove(&index)
             && !b64_data.is_empty()
         {
+            let fmt = audio_format.clone().unwrap_or(AudioFormat::Mp3);
+            let mime = match &fmt {
+                AudioFormat::Mp3 => "audio/mpeg",
+                AudioFormat::Wav => "audio/wav",
+                AudioFormat::Aac => "audio/aac",
+                AudioFormat::Flac => "audio/flac",
+                AudioFormat::Ogg => "audio/ogg",
+                AudioFormat::Webm => "audio/webm",
+                AudioFormat::M4a => "audio/mp4",
+                AudioFormat::Opus => "audio/opus",
+                AudioFormat::Aiff => "audio/aiff",
+                AudioFormat::Pcm16 => "audio/pcm",
+            };
             content.push(ContentBlock::Audio(AudioContent {
-                source: MediaSource::base64("audio/mpeg", b64_data),
-                format: AudioFormat::Mp3,
+                source: MediaSource::base64(mime, b64_data),
+                format: fmt,
             }));
         }
     }
@@ -370,6 +402,86 @@ pub async fn collect_stream(stream: ProviderStream) -> Result<Response, Provider
         grounding_metadata: None,
         warnings: vec![],
         request_body: None,
+    })
+}
+
+/// Convert a `Response` into a `ProviderStream` emitting the corresponding events.
+///
+/// Emits: MessageStart → ContentBlockStart × N → ContentBlockDelta × N →
+/// ContentBlockStop × N → Metadata → MessageStop.
+pub fn response_to_stream(response: Response) -> ProviderStream {
+    Box::pin(futures::stream::once(async move {
+        Ok::<StreamEvent, ProviderError>(StreamEvent::MessageStart {
+            role: Role::Assistant,
+        })
+    }).chain(futures::stream::iter({
+        let mut events: Vec<Result<StreamEvent, ProviderError>> = Vec::new();
+        for (i, block) in response.content.iter().enumerate() {
+            match block {
+                ContentBlock::Text(t) => {
+                    events.push(Ok(StreamEvent::ContentBlockStart { index: i, block: crate::types::ContentBlockStart::Text }));
+                    events.push(Ok(StreamEvent::ContentBlockDelta { index: i, delta: crate::types::ContentDelta::Text { text: t.text.clone() } }));
+                    events.push(Ok(StreamEvent::ContentBlockStop { index: i }));
+                }
+                ContentBlock::ToolUse(tu) => {
+                    events.push(Ok(StreamEvent::ContentBlockStart { index: i, block: crate::types::ContentBlockStart::ToolUse { id: tu.id.clone(), name: tu.name.clone() } }));
+                    events.push(Ok(StreamEvent::ContentBlockDelta { index: i, delta: crate::types::ContentDelta::ToolInput { partial_json: tu.input.to_string() } }));
+                    events.push(Ok(StreamEvent::ContentBlockStop { index: i }));
+                }
+                ContentBlock::Thinking(t) => {
+                    events.push(Ok(StreamEvent::ContentBlockStart { index: i, block: crate::types::ContentBlockStart::Thinking }));
+                    events.push(Ok(StreamEvent::ContentBlockDelta { index: i, delta: crate::types::ContentDelta::Thinking { thinking: t.thinking.clone() } }));
+                    events.push(Ok(StreamEvent::ContentBlockStop { index: i }));
+                }
+                ContentBlock::Audio(audio) => {
+                    if let MediaSource::Base64(b64) = &audio.source {
+                        events.push(Ok(StreamEvent::ContentBlockStart { index: i, block: crate::types::ContentBlockStart::Audio }));
+                        events.push(Ok(StreamEvent::ContentBlockDelta { index: i, delta: crate::types::ContentDelta::AudioData { b64_data: b64.data.clone() } }));
+                        events.push(Ok(StreamEvent::ContentBlockStop { index: i }));
+                    }
+                    // URL-sourced audio has no inline payload to stream
+                }
+                ContentBlock::Image(img) => {
+                    if let MediaSource::Base64(b64) = &img.source {
+                        events.push(Ok(StreamEvent::InlineData { index: i, media_type: b64.media_type.clone(), b64_data: b64.data.clone() }));
+                    }
+                    // URL-sourced images have no inline payload to stream
+                }
+                // Document, Video, ToolResult are inputs, not outputs
+                _ => {}
+            }
+        }
+        events.push(Ok(StreamEvent::Metadata {
+            usage: response.usage.clone(),
+            model: response.model.clone(),
+            id: response.id.clone(),
+        }));
+        events.push(Ok(StreamEvent::MessageStop { stop_reason: response.stop_reason.clone() }));
+        events
+    })))
+}
+
+/// Wraps a `ProviderStream` with a per-chunk timeout.
+///
+/// Returns `ProviderError::Timeout { ms: Some(timeout_ms) }` if no event arrives
+/// within `timeout_ms` milliseconds between chunks.
+///
+/// Unlike `ProviderConfig::timeout_ms` (which governs the initial HTTP connection),
+/// this timeout fires if the server stalls after the stream has started.
+pub fn with_chunk_timeout(stream: ProviderStream, timeout_ms: u64) -> ProviderStream {
+    let duration = tokio::time::Duration::from_millis(timeout_ms);
+    Box::pin(async_stream::try_stream! {
+        futures::pin_mut!(stream);
+        loop {
+            match tokio::time::timeout(duration, stream.next()).await {
+                Ok(Some(item)) => yield item?,
+                Ok(None) => break,
+                Err(_elapsed) => {
+                    Err(ProviderError::Timeout { ms: Some(timeout_ms) })?;
+                    break;
+                }
+            }
+        }
     })
 }
 
@@ -426,6 +538,100 @@ impl Stream for TextStream {
 }
 
 // ---------------------------------------------------------------------------
+// TextStreamWithMeta — text stream that captures response metadata
+// ---------------------------------------------------------------------------
+
+/// A streaming text adapter that also captures response metadata.
+///
+/// Implements [`Stream<Item = Result<String, ProviderError>>`] yielding text deltas.
+/// After the stream is exhausted, call [`meta`](Self::meta) to retrieve usage,
+/// model, stop reason, and response ID.
+///
+/// # Example
+///
+/// ```no_run
+/// use futures::StreamExt;
+/// use sideseat::{ChatProvider, ProviderConfig, Message};
+///
+/// # async fn example(provider: impl ChatProvider) -> Result<(), sideseat::ProviderError> {
+/// let stream = provider.stream(vec![Message::user("hi")], ProviderConfig::new("model"));
+/// let mut meta_stream = sideseat::TextStreamWithMeta::new(stream);
+/// while let Some(chunk) = meta_stream.next().await {
+///     print!("{}", chunk?);
+/// }
+/// let meta = meta_stream.meta().unwrap();
+/// println!("\n[{} tokens]", meta.usage.total_tokens);
+/// # Ok(())
+/// # }
+/// ```
+pub struct TextStreamWithMeta {
+    inner: ProviderStream,
+    meta: Option<crate::types::StreamMeta>,
+    usage: crate::types::Usage,
+    model: Option<String>,
+    id: Option<String>,
+    stop_reason: StopReason,
+}
+
+impl TextStreamWithMeta {
+    pub fn new(stream: ProviderStream) -> Self {
+        Self {
+            inner: stream,
+            meta: None,
+            usage: crate::types::Usage::default(),
+            model: None,
+            id: None,
+            stop_reason: StopReason::EndTurn,
+        }
+    }
+
+    /// Returns response metadata once the stream has been fully consumed, `None` otherwise.
+    pub fn meta(&self) -> Option<&crate::types::StreamMeta> {
+        self.meta.as_ref()
+    }
+}
+
+impl Stream for TextStreamWithMeta {
+    type Item = Result<String, ProviderError>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        loop {
+            match self.inner.as_mut().poll_next(cx) {
+                Poll::Ready(Some(Ok(StreamEvent::ContentBlockDelta {
+                    delta: crate::types::ContentDelta::Text { text },
+                    ..
+                }))) => return Poll::Ready(Some(Ok(text))),
+                Poll::Ready(Some(Ok(StreamEvent::Metadata { usage, model, id }))) => {
+                    self.usage += usage;
+                    if model.is_some() {
+                        self.model = model;
+                    }
+                    if id.is_some() {
+                        self.id = id;
+                    }
+                }
+                Poll::Ready(Some(Ok(StreamEvent::MessageStop { stop_reason }))) => {
+                    self.stop_reason = stop_reason;
+                }
+                Poll::Ready(Some(Ok(_))) => {}
+                Poll::Ready(Some(Err(e))) => return Poll::Ready(Some(Err(e))),
+                Poll::Ready(None) => {
+                    let meta = crate::types::StreamMeta {
+                        usage: std::mem::take(&mut self.usage).with_totals(),
+                        model: self.model.clone(),
+                        id: self.id.clone(),
+                        stop_reason: self.stop_reason.clone(),
+                    };
+                    self.meta = Some(meta);
+                    return Poll::Ready(None);
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // ProviderExt — ergonomic single-message helpers
 // ---------------------------------------------------------------------------
 
@@ -462,6 +668,28 @@ pub trait ProviderExt: ChatProvider {
             .map(|s| s.to_string())
             .ok_or_else(|| ProviderError::Stream("No text content in response".into()))
     }
+
+    /// Stream a single user message and capture metadata after completion.
+    fn ask_stream_with_meta(
+        &self,
+        content: impl Into<String> + Send,
+        config: ProviderConfig,
+    ) -> TextStreamWithMeta {
+        TextStreamWithMeta::new(self.stream(vec![Message::user(content)], config))
+    }
+
+    /// Wrap this provider's stream with a per-chunk timeout.
+    ///
+    /// Returns `ProviderError::Timeout { ms: Some(timeout_ms) }` if no event
+    /// arrives within `timeout_ms` milliseconds between chunks.
+    fn stream_with_chunk_timeout(
+        &self,
+        messages: Vec<Message>,
+        config: ProviderConfig,
+        timeout_ms: u64,
+    ) -> ProviderStream {
+        with_chunk_timeout(self.stream(messages, config), timeout_ms)
+    }
 }
 
 impl<T: ChatProvider + ?Sized> ProviderExt for T {}
@@ -483,6 +711,9 @@ pub struct RetryConfig {
     pub jitter_factor: f64,
     /// Maximum delay cap in milliseconds.
     pub max_delay_ms: u64,
+    /// When true, `stream()` calls are retried by collecting into a full response
+    /// and re-emitting as a single-pass stream. Default: false.
+    pub retry_stream: bool,
 }
 
 impl RetryConfig {
@@ -493,7 +724,14 @@ impl RetryConfig {
             backoff_multiplier: 2.0,
             jitter_factor: 0.25,
             max_delay_ms: 30_000,
+            retry_stream: false,
         }
+    }
+
+    /// Enable stream retry (collects response then re-emits as events).
+    pub fn with_stream_retry(mut self) -> Self {
+        self.retry_stream = true;
+        self
     }
 
     pub fn with_base_delay_ms(mut self, ms: u64) -> Self {
@@ -523,7 +761,7 @@ impl RetryConfig {
 }
 
 // ---------------------------------------------------------------------------
-// retry_op helper
+// Retry
 // ---------------------------------------------------------------------------
 
 async fn retry_op<T, F, Fut>(config: &RetryConfig, f: F) -> Result<T, ProviderError>
@@ -551,27 +789,32 @@ where
 
 /// Wraps a provider with automatic retry on transient errors using exponential backoff with jitter.
 ///
-/// Note: `stream()` is NOT retried — partial output cannot be transparently replayed.
+/// `stream()` is not retried by default. Enable via `RetryConfig::with_stream_retry()` —
+/// this buffers the full response before yielding events (no partial-output replay).
 pub struct RetryProvider<P> {
-    inner: P,
+    inner: std::sync::Arc<P>,
     config: RetryConfig,
 }
 
 impl<P> RetryProvider<P> {
     pub fn new(inner: P, max_retries: u32) -> Self {
         Self {
-            inner,
+            inner: std::sync::Arc::new(inner),
             config: RetryConfig::new(max_retries),
         }
     }
 
     pub fn from_config(inner: P, config: RetryConfig) -> Self {
-        Self { inner, config }
+        Self { inner: std::sync::Arc::new(inner), config }
     }
 
     pub fn with_base_delay_ms(mut self, ms: u64) -> Self {
         self.config.base_delay_ms = ms;
         self
+    }
+
+    pub fn inner(&self) -> &P {
+        &self.inner
     }
 }
 
@@ -582,14 +825,31 @@ impl<P: Provider + Send + Sync> Provider for RetryProvider<P> {
     }
 
     async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        self.inner.list_models().await
+        retry_op(&self.config, || self.inner.list_models()).await
     }
 }
 
 #[async_trait]
-impl<P: ChatProvider + Send + Sync> ChatProvider for RetryProvider<P> {
+impl<P: ChatProvider + Send + Sync + 'static> ChatProvider for RetryProvider<P> {
+    /// When `retry_stream` is false (default): delegates directly to the inner provider.
+    ///
+    /// When `retry_stream` is true: calls `complete()` with retry logic, then converts
+    /// the full response to a stream. Partial output cannot be transparently replayed,
+    /// so `retry_stream` buffers the entire response before yielding any events.
     fn stream(&self, messages: Vec<Message>, config: ProviderConfig) -> ProviderStream {
-        self.inner.stream(messages, config)
+        if !self.config.retry_stream {
+            return self.inner.stream(messages, config);
+        }
+        let inner = self.inner.clone();
+        let rc = self.config.clone();
+        Box::pin(async_stream::try_stream! {
+            let resp = retry_op(&rc, || inner.complete(messages.clone(), config.clone())).await?;
+            let s = response_to_stream(resp);
+            futures::pin_mut!(s);
+            while let Some(item) = s.next().await {
+                yield item?;
+            }
+        })
     }
 
     async fn complete(
@@ -682,18 +942,51 @@ impl<P: ModerationProvider + Send + Sync> ModerationProvider for RetryProvider<P
 
 #[async_trait]
 impl<P: StatefulProvider + Send + Sync> StatefulProvider for RetryProvider<P> {
-    async fn retrieve_response(&self, id: &str) -> Result<serde_json::Value, ProviderError> {
+    async fn retrieve_response(&self, id: &str) -> Result<Response, ProviderError> {
         self.inner.retrieve_response(id).await
     }
 
-    async fn cancel_response(&self, id: &str) -> Result<serde_json::Value, ProviderError> {
+    async fn cancel_response(&self, id: &str) -> Result<Response, ProviderError> {
         self.inner.cancel_response(id).await
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Fallback helpers
+// ---------------------------------------------------------------------------
+
+fn should_fallback(err: &ProviderError, strategy: &FallbackStrategy) -> bool {
+    match strategy {
+        // Unsupported is a programming error (wrong provider for the task), not a
+        // transient failure — never fall back on it regardless of strategy.
+        FallbackStrategy::AnyError => !matches!(err, ProviderError::Unsupported(_)),
+        FallbackStrategy::OnTriggers(triggers) => triggers.iter().any(|t| t.matches(err)),
     }
 }
 
 // ---------------------------------------------------------------------------
 // FallbackProvider
 // ---------------------------------------------------------------------------
+
+/// Observable health snapshot for a single provider in a [`FallbackProvider`] chain.
+#[derive(Debug, Clone)]
+pub struct ProviderHealthStatus {
+    /// The `provider_name()` of the provider at this position.
+    pub provider_name: String,
+    /// Number of consecutive errors since the last success.
+    pub consecutive_errors: u32,
+    /// `false` when the provider is in a circuit-breaker cooldown.
+    pub is_healthy: bool,
+    /// Seconds remaining in the cooldown window, or `None` if the provider is healthy.
+    pub cooldown_remaining_secs: Option<u64>,
+}
+
+/// Per-provider health state for circuit-breaker style skipping.
+#[derive(Default)]
+struct ProviderHealth {
+    consecutive_errors: u32,
+    unhealthy_until: Option<std::time::Instant>,
+}
 
 /// Tries each chat provider in order, returning the first successful response.
 ///
@@ -702,13 +995,16 @@ impl<P: StatefulProvider + Send + Sync> StatefulProvider for RetryProvider<P> {
 pub struct FallbackProvider {
     providers: Vec<Box<dyn ChatProvider + Send + Sync>>,
     strategy: FallbackStrategy,
+    health: parking_lot::Mutex<Vec<ProviderHealth>>,
 }
 
 impl FallbackProvider {
     pub fn new(providers: Vec<Box<dyn ChatProvider + Send + Sync>>) -> Self {
+        let n = providers.len();
         Self {
             providers,
             strategy: FallbackStrategy::AnyError,
+            health: parking_lot::Mutex::new((0..n).map(|_| ProviderHealth::default()).collect()),
         }
     }
 
@@ -716,15 +1012,62 @@ impl FallbackProvider {
         providers: Vec<Box<dyn ChatProvider + Send + Sync>>,
         strategy: FallbackStrategy,
     ) -> Self {
+        let n = providers.len();
         Self {
             providers,
             strategy,
+            health: parking_lot::Mutex::new((0..n).map(|_| ProviderHealth::default()).collect()),
         }
     }
 
     /// Add a provider to the fallback chain.
     pub fn push(&mut self, provider: impl ChatProvider + 'static) {
         self.providers.push(Box::new(provider));
+        self.health.lock().push(ProviderHealth::default());
+    }
+
+    pub fn providers(&self) -> &[Box<dyn ChatProvider + Send + Sync>] {
+        &self.providers
+    }
+
+    /// Return the current health state for each provider in the fallback chain.
+    pub fn health_status(&self) -> Vec<ProviderHealthStatus> {
+        let health = self.health.lock();
+        self.providers
+            .iter()
+            .enumerate()
+            .map(|(i, p)| {
+                let h = health.get(i);
+                let now = std::time::Instant::now();
+                let unhealthy_until = h.and_then(|h| h.unhealthy_until);
+                let cooldown_remaining_secs = unhealthy_until
+                    .and_then(|t| t.checked_duration_since(now))
+                    .map(|d| d.as_secs());
+                let is_healthy = cooldown_remaining_secs.is_none();
+                ProviderHealthStatus {
+                    provider_name: p.provider_name().to_string(),
+                    consecutive_errors: h.map(|h| h.consecutive_errors).unwrap_or(0),
+                    is_healthy,
+                    cooldown_remaining_secs,
+                }
+            })
+            .collect()
+    }
+
+    /// Stream with fallback: calls `complete()` across all providers in order,
+    /// then converts the successful response to a stream.
+    ///
+    /// Unlike `stream()`, this supports fallback across providers because it
+    /// buffers the full response before yielding events.
+    pub async fn stream_with_fallback(
+        &self,
+        messages: Vec<Message>,
+        config: ProviderConfig,
+    ) -> ProviderStream {
+        match self.complete(messages, config).await {
+            Ok(resp) => response_to_stream(resp),
+            Err(e) => Box::pin(futures::stream::once(async move { Err(e) })),
+        }
     }
 }
 
@@ -756,7 +1099,7 @@ impl ChatProvider for FallbackProvider {
             p.stream(messages, config)
         } else {
             Box::pin(futures::stream::once(async {
-                Err(ProviderError::Config("No providers configured".into()))
+                Err(ProviderError::MissingConfig("No providers configured".into()))
             }))
         }
     }
@@ -767,11 +1110,37 @@ impl ChatProvider for FallbackProvider {
         config: ProviderConfig,
     ) -> Result<Response, ProviderError> {
         let mut last_err: Option<ProviderError> = None;
-        for provider in &self.providers {
+        for (i, provider) in self.providers.iter().enumerate() {
+            // Skip providers that are in a circuit-breaker cooldown
+            {
+                let h = self.health.lock();
+                if let Some(h) = h.get(i)
+                    && h.unhealthy_until.is_some_and(|t| std::time::Instant::now() < t)
+                {
+                    continue;
+                }
+            }
+
             match provider.complete(messages.clone(), config.clone()).await {
-                Ok(response) => return Ok(response),
+                Ok(response) => {
+                    // Reset health on success
+                    if let Some(h) = self.health.lock().get_mut(i) {
+                        *h = ProviderHealth::default();
+                    }
+                    return Ok(response);
+                }
                 Err(e) => {
                     if should_fallback(&e, &self.strategy) {
+                        // Track consecutive errors for circuit breaker
+                        if let Some(h) = self.health.lock().get_mut(i) {
+                            h.consecutive_errors += 1;
+                            if h.consecutive_errors >= 3 {
+                                h.unhealthy_until = Some(
+                                    std::time::Instant::now()
+                                        + std::time::Duration::from_secs(30),
+                                );
+                            }
+                        }
                         last_err = Some(e);
                     } else {
                         return Err(e);
@@ -779,12 +1148,12 @@ impl ChatProvider for FallbackProvider {
                 }
             }
         }
-        Err(last_err.unwrap_or_else(|| ProviderError::Config("No providers configured".into())))
+        Err(last_err.unwrap_or_else(|| ProviderError::MissingConfig("No providers configured".into())))
     }
 }
 
 // ---------------------------------------------------------------------------
-// Agent loop
+// Agent Loop
 // ---------------------------------------------------------------------------
 
 /// Hook callbacks for the agent loop.
@@ -810,7 +1179,7 @@ impl AgentHooks for DefaultHooks {}
 pub async fn run_agent_loop_with_hooks<P, F, Fut, H>(
     provider: &P,
     mut messages: Vec<Message>,
-    mut config: ProviderConfig,
+    config: ProviderConfig,
     tool_handler: F,
     hooks: &H,
     max_steps: Option<usize>,
@@ -818,7 +1187,7 @@ pub async fn run_agent_loop_with_hooks<P, F, Fut, H>(
 where
     P: ChatProvider,
     F: Fn(Vec<ToolUseBlock>) -> Fut,
-    Fut: Future<Output = Vec<(String, String)>> + Send,
+    Fut: Future<Output = Vec<(String, Vec<ContentBlock>)>> + Send,
     H: AgentHooks,
 {
     let mut steps: Vec<AgentStep> = Vec::new();
@@ -828,20 +1197,21 @@ where
         if let Some(max) = max_steps
             && step_n >= max
         {
-            return Err(ProviderError::Config(format!(
+            return Err(ProviderError::InvalidRequest(format!(
                 "max_steps ({max}) exceeded without reaching EndTurn"
             )));
         }
 
-        hooks.prepare_step(step_n, &mut config).await;
+        let mut step_config = config.clone();
+        hooks.prepare_step(step_n, &mut step_config).await;
 
-        // Apply active_tools filter
-        let effective_config = if let Some(ref names) = config.active_tools.clone() {
-            let mut c = config.clone();
+        // Apply active_tools filter to step_config (not config)
+        let effective_config = if let Some(ref names) = step_config.active_tools.clone() {
+            let mut c = step_config.clone();
             c.tools.retain(|t| names.contains(&t.name));
             c
         } else {
-            config.clone()
+            step_config
         };
 
         let response = provider
@@ -860,13 +1230,13 @@ where
 
         // Apply approval hook
         let approved_tool_uses = tool_uses.clone();
-        let mut precomputed_results: Vec<Option<(String, String)>> =
+        let mut precomputed_results: Vec<Option<(String, Vec<ContentBlock>)>> =
             vec![None; approved_tool_uses.len()];
         for (i, tu) in approved_tool_uses.iter().enumerate() {
             if hooks.needs_approval(tu).await {
                 precomputed_results[i] = Some((
                     tu.id.clone(),
-                    "Tool call requires human approval".to_string(),
+                    vec![ContentBlock::text("Tool call requires human approval")],
                 ));
             }
         }
@@ -887,7 +1257,7 @@ where
 
         // Merge results in original order
         let mut handler_iter = handler_results.into_iter();
-        let tool_results: Vec<(String, String)> = approved_tool_uses
+        let tool_results: Vec<(String, Vec<ContentBlock>)> = approved_tool_uses
             .iter()
             .zip(precomputed_results.iter())
             .map(|(tu, precomputed)| {
@@ -896,7 +1266,7 @@ where
                 } else {
                     handler_iter
                         .next()
-                        .unwrap_or_else(|| (tu.id.clone(), String::new()))
+                        .unwrap_or_else(|| (tu.id.clone(), vec![]))
                 }
             })
             .collect();
@@ -905,7 +1275,7 @@ where
             Role::Assistant,
             response.content.clone(),
         ));
-        messages.push(Message::with_tool_results(tool_results.clone()));
+        messages.push(Message::with_tool_result_blocks(tool_results.clone()));
 
         let step = AgentStep {
             step_number: step_n,
@@ -939,7 +1309,15 @@ where
         provider,
         messages,
         config,
-        tool_handler,
+        move |tools| {
+            let fut = tool_handler(tools);
+            async move {
+                fut.await
+                    .into_iter()
+                    .map(|(id, text)| (id, vec![ContentBlock::text(text)]))
+                    .collect()
+            }
+        },
         &DefaultHooks,
         None,
     )
@@ -948,10 +1326,13 @@ where
 }
 
 // ---------------------------------------------------------------------------
-// Batch completion
+// Batch
 // ---------------------------------------------------------------------------
 
 /// Run multiple completion requests concurrently and collect all results.
+///
+/// Results are returned in the same order as the input requests.
+/// An error at index N does not affect other requests.
 pub async fn batch_complete<P: ChatProvider>(
     provider: &P,
     requests: Vec<(Vec<Message>, ProviderConfig)>,
@@ -962,6 +1343,18 @@ pub async fn batch_complete<P: ChatProvider>(
             .map(|(msgs, cfg)| provider.complete(msgs, cfg)),
     )
     .await
+}
+
+/// Run embedding requests concurrently and collect all results.
+///
+/// Results are in the same order as `requests`.
+pub async fn batch_embed<P: EmbeddingProvider + Sync>(
+    provider: &P,
+    requests: Vec<EmbeddingRequest>,
+) -> Vec<Result<EmbeddingResponse, ProviderError>> {
+    use futures::future::join_all;
+    let futs: Vec<_> = requests.into_iter().map(|req| provider.embed(req)).collect();
+    join_all(futs).await
 }
 
 // ---------------------------------------------------------------------------

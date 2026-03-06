@@ -68,15 +68,15 @@ pub struct BedrockProvider {
 
 impl BedrockProvider {
     /// Create using the default AWS credential chain.
-    pub async fn from_env(region: impl Into<String>) -> Self {
+    pub async fn from_env(region: impl Into<String>) -> Result<Self, ProviderError> {
         let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
             .region(aws_config::Region::new(region.into()))
             .load()
             .await;
-        Self {
+        Ok(Self {
             client: Arc::new(Client::new(&config)),
             mgmt_client: Some(Arc::new(BedrockMgmtClient::new(&config))),
-        }
+        })
     }
 
     /// Create with explicit static credentials.
@@ -85,7 +85,7 @@ impl BedrockProvider {
         secret_access_key: impl Into<String>,
         session_token: Option<String>,
         region: impl Into<String>,
-    ) -> Self {
+    ) -> Result<Self, ProviderError> {
         use aws_credential_types::Credentials;
         let creds = Credentials::new(
             access_key_id,
@@ -99,23 +99,23 @@ impl BedrockProvider {
             .credentials_provider(creds)
             .load()
             .await;
-        Self {
+        Ok(Self {
             client: Arc::new(Client::new(&config)),
             mgmt_client: Some(Arc::new(BedrockMgmtClient::new(&config))),
-        }
+        })
     }
 
     /// Create using a named AWS profile.
-    pub async fn with_profile(profile_name: impl Into<String>, region: impl Into<String>) -> Self {
+    pub async fn with_profile(profile_name: impl Into<String>, region: impl Into<String>) -> Result<Self, ProviderError> {
         let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
             .region(aws_config::Region::new(region.into()))
             .profile_name(profile_name)
             .load()
             .await;
-        Self {
+        Ok(Self {
             client: Arc::new(Client::new(&config)),
             mgmt_client: Some(Arc::new(BedrockMgmtClient::new(&config))),
-        }
+        })
     }
 
     /// Wrap an existing `aws_sdk_bedrockruntime::Client`.
@@ -184,7 +184,7 @@ impl BedrockProvider {
         let s3_config = AsyncInvokeS3OutputDataConfig::builder()
             .s3_uri(s3_uri)
             .build()
-            .map_err(|e| ProviderError::Config(e.to_string()))?;
+            .map_err(|e| ProviderError::Serialization(e.to_string()))?;
         let output_config = AsyncInvokeOutputDataConfig::S3OutputDataConfig(s3_config);
         let resp = self.client
             .start_async_invoke()
@@ -237,7 +237,7 @@ impl BedrockProvider {
                 _ => {} // InProgress — keep polling
             }
         }
-        Err(ProviderError::Timeout { ms: 600_000 })
+        Err(ProviderError::Timeout { ms: Some(600_000) })
     }
 
     /// Run a Nova Sonic bidirectional stream session.
@@ -381,7 +381,7 @@ impl ChatProvider for BedrockProvider {
             let send_result = if let Some(ms) = config.timeout_ms {
                 tokio::time::timeout(Duration::from_millis(ms), req.send())
                     .await
-                    .map_err(|_| ProviderError::Timeout { ms })
+                    .map_err(|_| ProviderError::Timeout { ms: Some(ms) })
                     .and_then(|r| r.map_err(|e| map_bedrock_error(e.into())))
             } else {
                 req.send().await.map_err(|e| map_bedrock_error(e.into()))
@@ -458,7 +458,7 @@ impl ChatProvider for BedrockProvider {
         let resp = if let Some(ms) = config.timeout_ms {
             tokio::time::timeout(Duration::from_millis(ms), req.send())
                 .await
-                .map_err(|_| ProviderError::Timeout { ms })?
+                .map_err(|_| ProviderError::Timeout { ms: Some(ms) })?
                 .map_err(|e| map_bedrock_error(e.into()))?
         } else {
             req.send().await.map_err(|e| map_bedrock_error(e.into()))?
@@ -537,7 +537,7 @@ impl ChatProvider for BedrockProvider {
         let resp = if let Some(ms) = config.timeout_ms {
             tokio::time::timeout(Duration::from_millis(ms), fut)
                 .await
-                .map_err(|_| ProviderError::Timeout { ms })?
+                .map_err(|_| ProviderError::Timeout { ms: Some(ms) })?
                 .map_err(|e| map_bedrock_error(e.into()))?
         } else {
             fut.await.map_err(|e| map_bedrock_error(e.into()))?
@@ -700,7 +700,7 @@ impl VideoProvider for BedrockProvider {
         request: VideoGenerationRequest,
     ) -> Result<VideoGenerationResponse, ProviderError> {
         let s3_uri = request.output_storage_uri.as_deref().ok_or_else(|| {
-            ProviderError::Config(
+            ProviderError::InvalidRequest(
                 "Bedrock Nova Reel requires output_storage_uri (s3://bucket/prefix)".into(),
             )
         })?;
@@ -946,7 +946,7 @@ fn build_messages_and_system(
     }
 
     for msg in messages {
-        match msg.role {
+        match &msg.role {
             Role::System => {
                 for block in &msg.content {
                     if let ContentBlock::Text(t) = block {
@@ -957,12 +957,12 @@ fn build_messages_and_system(
                     let cpb = CachePointBlock::builder()
                         .r#type(CachePointType::Default)
                         .build()
-                        .map_err(|e| ProviderError::Config(e.to_string()))?;
+                        .map_err(|e| ProviderError::Serialization(e.to_string()))?;
                     sys.push(SystemContentBlock::CachePoint(cpb));
                 }
             }
-            Role::User | Role::Assistant => {
-                let role = if msg.role == Role::User {
+            Role::User | Role::Tool | Role::Assistant | Role::Other(_) => {
+                let role = if msg.role == Role::User || msg.role == Role::Tool {
                     ConversationRole::User
                 } else {
                     ConversationRole::Assistant
@@ -973,14 +973,14 @@ fn build_messages_and_system(
                     let cpb = CachePointBlock::builder()
                         .r#type(CachePointType::Default)
                         .build()
-                        .map_err(|e| ProviderError::Config(e.to_string()))?;
+                        .map_err(|e| ProviderError::Serialization(e.to_string()))?;
                     content.push(BContent::CachePoint(cpb));
                 }
                 let bmsg = BMessage::builder()
                     .role(role)
                     .set_content(Some(content))
                     .build()
-                    .map_err(|e| ProviderError::Config(e.to_string()))?;
+                    .map_err(|e| ProviderError::Serialization(e.to_string()))?;
                 bmsgs.push(bmsg);
             }
         }
@@ -1171,7 +1171,7 @@ fn build_tool_config(config: &ProviderConfig) -> Result<Option<ToolConfiguration
                 .description(&t.description)
                 .input_schema(ToolInputSchema::Json(json_to_document(&t.input_schema)))
                 .build()
-                .map_err(|e| ProviderError::Config(e.to_string()))?;
+                .map_err(|e| ProviderError::Serialization(e.to_string()))?;
             Ok(BTool::ToolSpec(spec))
         })
         .collect::<Result<Vec<_>, ProviderError>>()?;
@@ -1180,7 +1180,7 @@ fn build_tool_config(config: &ProviderConfig) -> Result<Option<ToolConfiguration
         let sys_tool = SystemTool::builder()
             .name(name)
             .build()
-            .map_err(|e| ProviderError::Config(e.to_string()))?;
+            .map_err(|e| ProviderError::Serialization(e.to_string()))?;
         tools.push(BTool::SystemTool(sys_tool));
     }
 
@@ -1195,7 +1195,7 @@ fn build_tool_config(config: &ProviderConfig) -> Result<Option<ToolConfiguration
                 SpecificToolChoice::builder()
                     .name(name)
                     .build()
-                    .map_err(|e| ProviderError::Config(e.to_string()))?,
+                    .map_err(|e| ProviderError::Serialization(e.to_string()))?,
             ),
             // Bedrock has no subset restriction; fall back to auto
             ToolChoice::AllowedTools { .. } => BToolChoice::Auto(AutoToolChoice::builder().build()),
@@ -1206,7 +1206,7 @@ fn build_tool_config(config: &ProviderConfig) -> Result<Option<ToolConfiguration
     Ok(Some(
         builder
             .build()
-            .map_err(|e| ProviderError::Config(e.to_string()))?,
+            .map_err(|e| ProviderError::Serialization(e.to_string()))?,
     ))
 }
 
@@ -1235,7 +1235,7 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                         .uri(&s3.uri)
                         .set_bucket_owner(s3.bucket_owner.clone())
                         .build()
-                        .map_err(|e| ProviderError::Config(e.to_string()))?;
+                        .map_err(|e| ProviderError::Serialization(e.to_string()))?;
                     (
                         cimg_to_bedrock(img.format.as_ref()),
                         ImageSource::S3Location(s3_loc),
@@ -1251,7 +1251,7 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                 .format(fmt)
                 .source(source)
                 .build()
-                .map_err(|e| ProviderError::Config(e.to_string()))?;
+                .map_err(|e| ProviderError::Serialization(e.to_string()))?;
             Ok(BContent::Image(ib))
         }
 
@@ -1269,7 +1269,7 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                         .uri(&s3.uri)
                         .set_bucket_owner(s3.bucket_owner.clone())
                         .build()
-                        .map_err(|e| ProviderError::Config(e.to_string()))?;
+                        .map_err(|e| ProviderError::Serialization(e.to_string()))?;
                     DocumentSource::S3Location(s3_loc)
                 }
                 MediaSource::Text(text) => DocumentSource::Text(text.clone()),
@@ -1284,7 +1284,7 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                 .name(doc.name.as_deref().unwrap_or("document"))
                 .source(source)
                 .build()
-                .map_err(|e| ProviderError::Config(e.to_string()))?;
+                .map_err(|e| ProviderError::Serialization(e.to_string()))?;
             Ok(BContent::Document(db))
         }
 
@@ -1302,7 +1302,7 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                         .uri(&s3.uri)
                         .set_bucket_owner(s3.bucket_owner.clone())
                         .build()
-                        .map_err(|e| ProviderError::Config(e.to_string()))?;
+                        .map_err(|e| ProviderError::Serialization(e.to_string()))?;
                     VideoSource::S3Location(s3_loc)
                 }
                 _ => {
@@ -1315,7 +1315,7 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                 .format(cvid_to_bedrock(&video.format))
                 .source(source)
                 .build()
-                .map_err(|e| ProviderError::Config(e.to_string()))?;
+                .map_err(|e| ProviderError::Serialization(e.to_string()))?;
             Ok(BContent::Video(vb))
         }
 
@@ -1325,7 +1325,7 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                 .name(&tu.name)
                 .input(json_to_document(&tu.input))
                 .build()
-                .map_err(|e| ProviderError::Config(e.to_string()))?;
+                .map_err(|e| ProviderError::Serialization(e.to_string()))?;
             Ok(BContent::ToolUse(btu))
         }
 
@@ -1379,7 +1379,7 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                 .set_content(Some(result_content))
                 .status(status)
                 .build()
-                .map_err(|e| ProviderError::Config(e.to_string()))?;
+                .map_err(|e| ProviderError::Serialization(e.to_string()))?;
             Ok(BContent::ToolResult(btr))
         }
 
@@ -1388,7 +1388,7 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                 .text(&th.thinking)
                 .set_signature(th.signature.clone())
                 .build()
-                .map_err(|e| ProviderError::Config(e.to_string()))?;
+                .map_err(|e| ProviderError::Serialization(e.to_string()))?;
             Ok(BContent::ReasoningContent(
                 ReasoningContentBlock::ReasoningText(rt),
             ))
@@ -1408,7 +1408,7 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                         .uri(&s3.uri)
                         .set_bucket_owner(s3.bucket_owner.clone())
                         .build()
-                        .map_err(|e| ProviderError::Config(e.to_string()))?;
+                        .map_err(|e| ProviderError::Serialization(e.to_string()))?;
                     (caudio_to_bedrock(&audio.format), BAudioSource::S3Location(s3_loc))
                 }
                 _ => {
@@ -1421,7 +1421,7 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                 .format(fmt)
                 .source(source)
                 .build()
-                .map_err(|e| ProviderError::Config(e.to_string()))?;
+                .map_err(|e| ProviderError::Serialization(e.to_string()))?;
             Ok(BContent::Audio(ab))
         }
     }
@@ -1538,7 +1538,7 @@ fn map_bedrock_error(e: aws_sdk_bedrockruntime::Error) -> ProviderError {
         BE::ResourceNotFoundException(inner) => ProviderError::ModelNotFound {
             model: inner.to_string(),
         },
-        BE::ModelTimeoutException(_) => ProviderError::Timeout { ms: 0 },
+        BE::ModelTimeoutException(_) => ProviderError::Timeout { ms: None },
         BE::InternalServerException(inner) => ProviderError::Api {
             status: 500,
             message: inner.to_string(),
@@ -1572,7 +1572,7 @@ fn map_bedrock_error(e: aws_sdk_bedrockruntime::Error) -> ProviderError {
         e => {
             let msg = e.to_string();
             if msg.to_lowercase().contains("timeout") {
-                ProviderError::Timeout { ms: 0 }
+                ProviderError::Timeout { ms: None }
             } else {
                 ProviderError::Api { status: 0, message: msg }
             }
