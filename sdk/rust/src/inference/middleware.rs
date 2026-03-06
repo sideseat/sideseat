@@ -1,5 +1,6 @@
-use std::collections::VecDeque;
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use parking_lot::Mutex;
@@ -26,7 +27,7 @@ use crate::types::{
 
 /// Intercepts provider calls before and after execution.
 ///
-/// Implement any subset of the three hooks; defaults are pass-through.
+/// Implement any subset of the hooks; defaults are pass-through.
 ///
 /// Note: `after_complete` and `on_error` do NOT apply to `stream()` calls —
 /// only `before_complete` is applied to streaming requests.
@@ -51,23 +52,124 @@ pub trait Middleware: Send + Sync {
         Ok(response)
     }
 
-    /// Called on error. Return `Ok` to recover, `Err` to propagate.
+    /// Called when the provider returns an error. May transform the error (e.g. add context or
+    /// re-classify). Return a different error to substitute, or the same error to propagate.
+    ///
+    /// Note: recovery (returning `Ok(Response)`) is handled by `FallbackProvider`, not this hook.
     async fn on_error(
         &self,
         error: ProviderError,
         _messages: &[Message],
         _config: &ProviderConfig,
-    ) -> Result<Response, ProviderError> {
-        Err(error)
+    ) -> ProviderError {
+        error
     }
 
-    /// Transform the output stream. Applied FIFO after `before_complete`.
+    /// Transform the output stream. Applied LIFO (same as `after_complete`) for onion semantics.
     /// Default: pass stream through unchanged.
     ///
     /// Implementations must clone any data from `&self` into the returned stream —
     /// no borrows from `self` may escape into the returned stream.
     fn transform_stream(&self, stream: ProviderStream) -> ProviderStream {
         stream
+    }
+
+    async fn before_embed(
+        &self,
+        request: EmbeddingRequest,
+    ) -> Result<EmbeddingRequest, ProviderError> {
+        Ok(request)
+    }
+
+    async fn after_embed(
+        &self,
+        response: EmbeddingResponse,
+    ) -> Result<EmbeddingResponse, ProviderError> {
+        Ok(response)
+    }
+
+    async fn before_generate_image(
+        &self,
+        request: ImageGenerationRequest,
+    ) -> Result<ImageGenerationRequest, ProviderError> {
+        Ok(request)
+    }
+
+    async fn after_generate_image(
+        &self,
+        response: ImageGenerationResponse,
+    ) -> Result<ImageGenerationResponse, ProviderError> {
+        Ok(response)
+    }
+
+    async fn before_edit_image(
+        &self,
+        request: ImageEditRequest,
+    ) -> Result<ImageEditRequest, ProviderError> {
+        Ok(request)
+    }
+
+    async fn after_edit_image(
+        &self,
+        response: ImageGenerationResponse,
+    ) -> Result<ImageGenerationResponse, ProviderError> {
+        Ok(response)
+    }
+
+    async fn before_generate_video(
+        &self,
+        request: VideoGenerationRequest,
+    ) -> Result<VideoGenerationRequest, ProviderError> {
+        Ok(request)
+    }
+
+    async fn after_generate_video(
+        &self,
+        response: VideoGenerationResponse,
+    ) -> Result<VideoGenerationResponse, ProviderError> {
+        Ok(response)
+    }
+
+    async fn before_generate_speech(
+        &self,
+        request: SpeechRequest,
+    ) -> Result<SpeechRequest, ProviderError> {
+        Ok(request)
+    }
+
+    async fn after_generate_speech(
+        &self,
+        response: SpeechResponse,
+    ) -> Result<SpeechResponse, ProviderError> {
+        Ok(response)
+    }
+
+    async fn before_transcribe(
+        &self,
+        request: TranscriptionRequest,
+    ) -> Result<TranscriptionRequest, ProviderError> {
+        Ok(request)
+    }
+
+    async fn after_transcribe(
+        &self,
+        response: TranscriptionResponse,
+    ) -> Result<TranscriptionResponse, ProviderError> {
+        Ok(response)
+    }
+
+    async fn before_moderate(
+        &self,
+        request: ModerationRequest,
+    ) -> Result<ModerationRequest, ProviderError> {
+        Ok(request)
+    }
+
+    async fn after_moderate(
+        &self,
+        response: ModerationResponse,
+    ) -> Result<ModerationResponse, ProviderError> {
+        Ok(response)
     }
 }
 
@@ -78,10 +180,8 @@ pub trait Middleware: Send + Sync {
 /// Wraps a provider with an ordered list of middlewares (onion model).
 ///
 /// - `before_complete` runs FIFO (first added = outermost).
-/// - `after_complete` runs LIFO (last added = innermost runs first).
-/// - `on_error` runs FIFO; first middleware to return `Ok` wins.
-///
-/// For `stream()`, only `before_complete` is applied.
+/// - `after_complete` / `transform_stream` run LIFO (last added = innermost runs first).
+/// - `on_error` runs FIFO; each middleware may transform the error.
 pub struct MiddlewareStack<P> {
     inner: Arc<P>,
     middlewares: Vec<Arc<dyn Middleware>>,
@@ -99,6 +199,10 @@ impl<P: ChatProvider + 'static> MiddlewareStack<P> {
     pub fn with(mut self, mw: impl Middleware + 'static) -> Self {
         self.middlewares.push(Arc::new(mw));
         self
+    }
+
+    pub fn inner(&self) -> &P {
+        &self.inner
     }
 }
 
@@ -133,8 +237,8 @@ impl<P: ChatProvider + Send + Sync + 'static> ChatProvider for MiddlewareStack<P
         Box::pin(async_stream::try_stream! {
             let (messages, config) = run_before_pipeline(&middlewares, messages, config).await?;
             let mut s: ProviderStream = inner.stream(messages, config);
-            // Apply transform_stream in FIFO order
-            for mw in &middlewares {
+            // Apply transform_stream in LIFO order (outer middleware wraps inner — onion model)
+            for mw in middlewares.iter().rev() {
                 s = mw.transform_stream(s);
             }
             futures::pin_mut!(s);
@@ -163,13 +267,9 @@ impl<P: ChatProvider + Send + Sync + 'static> ChatProvider for MiddlewareStack<P
                 Ok(response)
             }
             Err(e) => {
-                // on_error in order; first Ok wins
                 let mut err = e;
                 for mw in &self.middlewares {
-                    match mw.on_error(err, &messages, &config).await {
-                        Ok(response) => return Ok(response),
-                        Err(e) => err = e,
-                    }
+                    err = mw.on_error(err, &messages, &config).await;
                 }
                 Err(err)
             }
@@ -191,9 +291,16 @@ impl<P: ChatProvider + EmbeddingProvider + Send + Sync + 'static> EmbeddingProvi
 {
     async fn embed(
         &self,
-        request: EmbeddingRequest,
+        mut request: EmbeddingRequest,
     ) -> Result<EmbeddingResponse, ProviderError> {
-        self.inner.embed(request).await
+        for mw in &self.middlewares {
+            request = mw.before_embed(request).await?;
+        }
+        let mut response = self.inner.embed(request).await?;
+        for mw in self.middlewares.iter().rev() {
+            response = mw.after_embed(response).await?;
+        }
+        Ok(response)
     }
 }
 
@@ -201,16 +308,26 @@ impl<P: ChatProvider + EmbeddingProvider + Send + Sync + 'static> EmbeddingProvi
 impl<P: ChatProvider + ImageProvider + Send + Sync + 'static> ImageProvider for MiddlewareStack<P> {
     async fn generate_image(
         &self,
-        request: ImageGenerationRequest,
+        mut request: ImageGenerationRequest,
     ) -> Result<ImageGenerationResponse, ProviderError> {
-        self.inner.generate_image(request).await
+        for mw in &self.middlewares {
+            request = mw.before_generate_image(request).await?;
+        }
+        let mut response = self.inner.generate_image(request).await?;
+        for mw in self.middlewares.iter().rev() {
+            response = mw.after_generate_image(response).await?;
+        }
+        Ok(response)
     }
 
     async fn edit_image(
         &self,
-        request: ImageEditRequest,
+        mut request: ImageEditRequest,
     ) -> Result<ImageGenerationResponse, ProviderError> {
-        self.inner.edit_image(request).await
+        for mw in &self.middlewares { request = mw.before_edit_image(request).await?; }
+        let mut response = self.inner.edit_image(request).await?;
+        for mw in self.middlewares.iter().rev() { response = mw.after_edit_image(response).await?; }
+        Ok(response)
     }
 }
 
@@ -218,9 +335,16 @@ impl<P: ChatProvider + ImageProvider + Send + Sync + 'static> ImageProvider for 
 impl<P: ChatProvider + VideoProvider + Send + Sync + 'static> VideoProvider for MiddlewareStack<P> {
     async fn generate_video(
         &self,
-        request: VideoGenerationRequest,
+        mut request: VideoGenerationRequest,
     ) -> Result<VideoGenerationResponse, ProviderError> {
-        self.inner.generate_video(request).await
+        for mw in &self.middlewares {
+            request = mw.before_generate_video(request).await?;
+        }
+        let mut response = self.inner.generate_video(request).await?;
+        for mw in self.middlewares.iter().rev() {
+            response = mw.after_generate_video(response).await?;
+        }
+        Ok(response)
     }
 }
 
@@ -228,16 +352,30 @@ impl<P: ChatProvider + VideoProvider + Send + Sync + 'static> VideoProvider for 
 impl<P: ChatProvider + AudioProvider + Send + Sync + 'static> AudioProvider for MiddlewareStack<P> {
     async fn generate_speech(
         &self,
-        request: SpeechRequest,
+        mut request: SpeechRequest,
     ) -> Result<SpeechResponse, ProviderError> {
-        self.inner.generate_speech(request).await
+        for mw in &self.middlewares {
+            request = mw.before_generate_speech(request).await?;
+        }
+        let mut response = self.inner.generate_speech(request).await?;
+        for mw in self.middlewares.iter().rev() {
+            response = mw.after_generate_speech(response).await?;
+        }
+        Ok(response)
     }
 
     async fn transcribe(
         &self,
-        request: TranscriptionRequest,
+        mut request: TranscriptionRequest,
     ) -> Result<TranscriptionResponse, ProviderError> {
-        self.inner.transcribe(request).await
+        for mw in &self.middlewares {
+            request = mw.before_transcribe(request).await?;
+        }
+        let mut response = self.inner.transcribe(request).await?;
+        for mw in self.middlewares.iter().rev() {
+            response = mw.after_transcribe(response).await?;
+        }
+        Ok(response)
     }
 
     async fn translate(
@@ -254,9 +392,16 @@ impl<P: ChatProvider + ModerationProvider + Send + Sync + 'static> ModerationPro
 {
     async fn moderate(
         &self,
-        request: ModerationRequest,
+        mut request: ModerationRequest,
     ) -> Result<ModerationResponse, ProviderError> {
-        self.inner.moderate(request).await
+        for mw in &self.middlewares {
+            request = mw.before_moderate(request).await?;
+        }
+        let mut response = self.inner.moderate(request).await?;
+        for mw in self.middlewares.iter().rev() {
+            response = mw.after_moderate(response).await?;
+        }
+        Ok(response)
     }
 }
 
@@ -264,11 +409,11 @@ impl<P: ChatProvider + ModerationProvider + Send + Sync + 'static> ModerationPro
 impl<P: ChatProvider + StatefulProvider + Send + Sync + 'static> StatefulProvider
     for MiddlewareStack<P>
 {
-    async fn retrieve_response(&self, response_id: &str) -> Result<serde_json::Value, ProviderError> {
+    async fn retrieve_response(&self, response_id: &str) -> Result<crate::types::Response, ProviderError> {
         self.inner.retrieve_response(response_id).await
     }
 
-    async fn cancel_response(&self, response_id: &str) -> Result<serde_json::Value, ProviderError> {
+    async fn cancel_response(&self, response_id: &str) -> Result<crate::types::Response, ProviderError> {
         self.inner.cancel_response(response_id).await
     }
 }
@@ -315,17 +460,19 @@ impl Middleware for LoggingMiddleware {
         error: ProviderError,
         _messages: &[Message],
         _config: &ProviderConfig,
-    ) -> Result<Response, ProviderError> {
+    ) -> ProviderError {
         tracing::debug!("<- provider error: {}", error);
-        Err(error)
+        error
     }
 }
 
 /// Logs the elapsed time of each `complete()` call via `tracing::debug!`.
 ///
-/// Uses a FIFO queue of start times to handle concurrent calls correctly.
+/// Uses a counter + HashMap to correctly match start/end times for concurrent calls.
+/// The request ID is injected into `config.extra["_tm"]` and read back in after/error hooks.
 pub struct TimingMiddleware {
-    starts: Arc<Mutex<VecDeque<Instant>>>,
+    counter: Arc<AtomicU64>,
+    starts: Arc<Mutex<HashMap<u64, Instant>>>,
 }
 
 impl Default for TimingMiddleware {
@@ -337,7 +484,8 @@ impl Default for TimingMiddleware {
 impl TimingMiddleware {
     pub fn new() -> Self {
         Self {
-            starts: Arc::new(Mutex::new(VecDeque::new())),
+            counter: Arc::new(AtomicU64::new(0)),
+            starts: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -347,9 +495,11 @@ impl Middleware for TimingMiddleware {
     async fn before_complete(
         &self,
         messages: Vec<Message>,
-        config: ProviderConfig,
+        mut config: ProviderConfig,
     ) -> Result<(Vec<Message>, ProviderConfig), ProviderError> {
-        self.starts.lock().push_back(Instant::now());
+        let id = self.counter.fetch_add(1, Ordering::Relaxed);
+        self.starts.lock().insert(id, Instant::now());
+        config.extra.insert("_tm".into(), serde_json::Value::from(id));
         Ok((messages, config))
     }
 
@@ -357,9 +507,11 @@ impl Middleware for TimingMiddleware {
         &self,
         response: Response,
         _messages: &[Message],
-        _config: &ProviderConfig,
+        config: &ProviderConfig,
     ) -> Result<Response, ProviderError> {
-        if let Some(start) = self.starts.lock().pop_front() {
+        if let Some(id) = config.extra.get("_tm").and_then(|v| v.as_u64())
+            && let Some(start) = self.starts.lock().remove(&id)
+        {
             tracing::debug!("request completed in {}ms", start.elapsed().as_millis());
         }
         Ok(response)
@@ -369,12 +521,173 @@ impl Middleware for TimingMiddleware {
         &self,
         error: ProviderError,
         _messages: &[Message],
-        _config: &ProviderConfig,
-    ) -> Result<Response, ProviderError> {
-        if let Some(start) = self.starts.lock().pop_front() {
+        config: &ProviderConfig,
+    ) -> ProviderError {
+        if let Some(id) = config.extra.get("_tm").and_then(|v| v.as_u64())
+            && let Some(start) = self.starts.lock().remove(&id)
+        {
             tracing::debug!("request failed in {}ms", start.elapsed().as_millis());
         }
-        Err(error)
+        error
+    }
+
+    /// Clean up orphaned entries from stream calls.
+    ///
+    /// `before_complete` runs for both `complete()` and `stream()` calls, but
+    /// `after_complete`/`on_error` never fire for streams, so stream entries
+    /// accumulate. This hook sweeps entries older than 5 minutes on each stream
+    /// completion.
+    fn transform_stream(&self, stream: ProviderStream) -> ProviderStream {
+        let starts = Arc::clone(&self.starts);
+        let start = Instant::now();
+        Box::pin(async_stream::try_stream! {
+            futures::pin_mut!(stream);
+            while let Some(item) = stream.next().await {
+                yield item?;
+            }
+            tracing::debug!("stream completed in {}ms", start.elapsed().as_millis());
+            // Sweep entries orphaned by stream calls (before_complete ran but
+            // after_complete/on_error never fires for streams).
+            let now = Instant::now();
+            starts.lock().retain(|_, t| now.duration_since(*t) < std::time::Duration::from_secs(300));
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// RateLimitMiddleware
+// ---------------------------------------------------------------------------
+
+/// Limits provider requests to a maximum rate using a sliding window algorithm.
+///
+/// When the limit is reached, requests are delayed (not rejected) until the
+/// window resets. Thread-safe — safe to share across concurrent callers.
+///
+/// # Example
+/// ```
+/// use sideseat::middleware::{MiddlewareStack, RateLimitMiddleware};
+///
+/// // Allow at most 60 requests per minute
+/// let stack = MiddlewareStack::new(provider)
+///     .with(RateLimitMiddleware::per_minute(60));
+/// ```
+pub struct RateLimitMiddleware {
+    max_per_window: u32,
+    window_ms: u64,
+    state: Arc<Mutex<RateLimiterState>>,
+}
+
+struct RateLimiterState {
+    window_start: std::time::Instant,
+    count: u32,
+}
+
+impl RateLimitMiddleware {
+    /// Create a rate limiter with `max_requests` allowed per `window_ms` milliseconds.
+    pub fn new(max_requests: u32, window_ms: u64) -> Self {
+        Self {
+            max_per_window: max_requests,
+            window_ms,
+            state: Arc::new(Mutex::new(RateLimiterState {
+                window_start: std::time::Instant::now(),
+                count: 0,
+            })),
+        }
+    }
+
+    /// Limit to `n` requests per minute.
+    pub fn per_minute(n: u32) -> Self {
+        Self::new(n, 60_000)
+    }
+
+    /// Limit to `n` requests per second.
+    pub fn per_second(n: u32) -> Self {
+        Self::new(n, 1_000)
+    }
+
+    async fn acquire(&self) {
+        loop {
+            let sleep_ms = {
+                let mut s = self.state.lock();
+                let elapsed = s.window_start.elapsed().as_millis() as u64;
+                if elapsed >= self.window_ms {
+                    // New window
+                    s.window_start = std::time::Instant::now();
+                    s.count = 1;
+                    0
+                } else if s.count < self.max_per_window {
+                    s.count += 1;
+                    0
+                } else {
+                    // Window full — sleep until it resets
+                    self.window_ms - elapsed
+                }
+            };
+            if sleep_ms == 0 {
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(sleep_ms)).await;
+        }
+    }
+}
+
+#[async_trait]
+impl Middleware for RateLimitMiddleware {
+    async fn before_complete(
+        &self,
+        messages: Vec<Message>,
+        config: ProviderConfig,
+    ) -> Result<(Vec<Message>, ProviderConfig), ProviderError> {
+        self.acquire().await;
+        Ok((messages, config))
+    }
+
+    async fn before_embed(
+        &self,
+        request: EmbeddingRequest,
+    ) -> Result<EmbeddingRequest, ProviderError> {
+        self.acquire().await;
+        Ok(request)
+    }
+
+    async fn before_generate_image(
+        &self,
+        request: ImageGenerationRequest,
+    ) -> Result<ImageGenerationRequest, ProviderError> {
+        self.acquire().await;
+        Ok(request)
+    }
+
+    async fn before_generate_video(
+        &self,
+        request: VideoGenerationRequest,
+    ) -> Result<VideoGenerationRequest, ProviderError> {
+        self.acquire().await;
+        Ok(request)
+    }
+
+    async fn before_generate_speech(
+        &self,
+        request: SpeechRequest,
+    ) -> Result<SpeechRequest, ProviderError> {
+        self.acquire().await;
+        Ok(request)
+    }
+
+    async fn before_transcribe(
+        &self,
+        request: TranscriptionRequest,
+    ) -> Result<TranscriptionRequest, ProviderError> {
+        self.acquire().await;
+        Ok(request)
+    }
+
+    async fn before_moderate(
+        &self,
+        request: ModerationRequest,
+    ) -> Result<ModerationRequest, ProviderError> {
+        self.acquire().await;
+        Ok(request)
     }
 }
 
@@ -774,95 +1087,6 @@ impl Middleware for DefaultSettingsMiddleware {
 }
 
 // ---------------------------------------------------------------------------
-// TelemetryMiddleware
-// ---------------------------------------------------------------------------
-
-/// Emits `tracing` events for LLM requests, responses, and errors.
-pub struct TelemetryMiddleware {
-    function_id: String,
-}
-
-impl TelemetryMiddleware {
-    pub fn new(function_id: impl Into<String>) -> Self {
-        Self {
-            function_id: function_id.into(),
-        }
-    }
-}
-
-#[async_trait]
-impl Middleware for TelemetryMiddleware {
-    async fn before_complete(
-        &self,
-        messages: Vec<Message>,
-        config: ProviderConfig,
-    ) -> Result<(Vec<Message>, ProviderConfig), ProviderError> {
-        tracing::info!(
-            function_id = %self.function_id,
-            model = %config.model,
-            message_count = messages.len(),
-            "llm.request"
-        );
-        Ok((messages, config))
-    }
-
-    async fn after_complete(
-        &self,
-        response: Response,
-        _messages: &[Message],
-        _config: &ProviderConfig,
-    ) -> Result<Response, ProviderError> {
-        tracing::info!(
-            function_id = %self.function_id,
-            input_tokens = response.usage.input_tokens,
-            output_tokens = response.usage.output_tokens,
-            stop_reason = ?response.stop_reason,
-            "llm.response"
-        );
-        Ok(response)
-    }
-
-    async fn on_error(
-        &self,
-        err: ProviderError,
-        _messages: &[Message],
-        _config: &ProviderConfig,
-    ) -> Result<Response, ProviderError> {
-        tracing::warn!(function_id = %self.function_id, error = %err, "llm.error");
-        Err(err)
-    }
-
-    fn transform_stream(&self, stream: ProviderStream) -> ProviderStream {
-        let function_id = self.function_id.clone();
-        Box::pin(async_stream::try_stream! {
-            futures::pin_mut!(stream);
-            while let Some(item) = stream.next().await {
-                let event = item?;
-                match &event {
-                    StreamEvent::MessageStop { stop_reason } => {
-                        tracing::info!(
-                            function_id = %function_id,
-                            stop_reason = ?stop_reason,
-                            "llm.stream.complete"
-                        );
-                    }
-                    StreamEvent::Metadata { usage, .. } => {
-                        tracing::info!(
-                            function_id = %function_id,
-                            input_tokens = usage.input_tokens,
-                            output_tokens = usage.output_tokens,
-                            "llm.stream.usage"
-                        );
-                    }
-                    _ => {}
-                }
-                yield event;
-            }
-        })
-    }
-}
-
-// ---------------------------------------------------------------------------
 // ImageModelMiddleware
 // ---------------------------------------------------------------------------
 
@@ -873,6 +1097,14 @@ pub trait ImageModelMiddleware: Send + Sync {
     }
 
     fn after_generate(&self, response: ImageGenerationResponse) -> ImageGenerationResponse {
+        response
+    }
+
+    fn before_edit(&self, request: ImageEditRequest) -> ImageEditRequest {
+        request
+    }
+
+    fn after_edit(&self, response: ImageGenerationResponse) -> ImageGenerationResponse {
         response
     }
 }
@@ -950,6 +1182,8 @@ impl<P: ImageProvider + ChatProvider + Send + Sync, M: ImageModelMiddleware + Se
         &self,
         request: ImageEditRequest,
     ) -> Result<ImageGenerationResponse, ProviderError> {
-        self.inner.edit_image(request).await
+        let request = self.middleware.before_edit(request);
+        let response = self.inner.edit_image(request).await?;
+        Ok(self.middleware.after_edit(response))
     }
 }

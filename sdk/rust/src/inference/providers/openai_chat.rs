@@ -81,6 +81,12 @@ impl OpenAIChatProvider {
         }
     }
 
+    /// Replace the HTTP client. Useful for custom TLS, proxies, or testing.
+    pub fn with_client(mut self, client: reqwest::Client) -> Self {
+        self.shared.client = Arc::new(client);
+        self
+    }
+
     /// Set the full chat completions endpoint URL.
     /// The API base for models/embeddings is derived by stripping `/chat/completions`.
     /// For Ollama or other OpenAI-compatible proxies prefer `with_api_base()`.
@@ -613,13 +619,17 @@ fn build_request(
     // Response format
     if let Some(fmt) = &config.response_format {
         req["response_format"] = format_response_format(fmt);
-    } else if let Some(schema) = config.extra.get("output_schema") {
-        // Legacy: support extra["output_schema"] for backward compat
+    } else if let Some(schema_val) = config.extra.get("output_schema") {
+        // Legacy: support extra["output_schema"] for backward compat.
+        // Accepts either a raw schema { "type": "object", ... } or an envelope
+        // { "name": "...", "schema": { "type": "object", ... } }.
+        let name = schema_val["name"].as_str().unwrap_or("structured_output");
+        let inner_schema = schema_val.get("schema").unwrap_or(schema_val);
         req["response_format"] = json!({
             "type": "json_schema",
             "json_schema": {
-                "name": "structured_output",
-                "schema": schema,
+                "name": name,
+                "schema": inner_schema,
                 "strict": true,
             }
         });
@@ -748,7 +758,7 @@ fn format_messages(
     }
 
     for msg in messages {
-        let role = match msg.role {
+        let role = match &msg.role {
             Role::System => {
                 let sys_content = format_content(&msg.content)?;
                 if inject_system_as_user {
@@ -762,7 +772,9 @@ fn format_messages(
                 continue;
             }
             Role::User => "user",
+            Role::Tool => "tool",
             Role::Assistant => "assistant",
+            Role::Other(s) => s.as_str(),
         };
 
         // Tool results → role=tool messages
@@ -770,7 +782,7 @@ fn format_messages(
             .content
             .iter()
             .any(|b| matches!(b, ContentBlock::ToolResult(_)));
-        if role == "user" && has_tool_results {
+        if (role == "user" || role == "tool") && has_tool_results {
             let mut other_content: Vec<&ContentBlock> = Vec::new();
             for block in &msg.content {
                 match block {

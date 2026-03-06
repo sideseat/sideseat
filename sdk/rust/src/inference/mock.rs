@@ -7,11 +7,17 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use crate::error::ProviderError;
-use crate::provider::{ChatProvider, ImageProvider, Provider, ProviderStream, VideoProvider};
+use crate::provider::{
+    AudioProvider, ChatProvider, EmbeddingProvider, ImageProvider, ModerationProvider, Provider,
+    ProviderStream, VideoProvider,
+};
 use crate::types::{
-    ContentBlock, ContentBlockStart, ContentDelta, GeneratedImage, GeneratedVideo,
-    ImageGenerationRequest, ImageGenerationResponse, Message, ProviderConfig, Response,
-    StopReason, StreamEvent, ToolUseBlock, Usage, VideoGenerationRequest, VideoGenerationResponse,
+    AudioFormat, ContentBlock, ContentBlockStart, ContentDelta, EmbeddingRequest, EmbeddingResponse,
+    GeneratedImage, GeneratedVideo, ImageGenerationRequest, ImageGenerationResponse, Message,
+    ModerationCategories, ModerationCategoryScores, ModerationRequest, ModerationResponse,
+    ModerationResult, ProviderConfig, Response, SpeechRequest, SpeechResponse, StopReason,
+    StreamEvent, ToolUseBlock, TranscriptionRequest, TranscriptionResponse, Usage,
+    VideoGenerationRequest, VideoGenerationResponse,
 };
 
 type CallRecord = Arc<Mutex<Vec<(Vec<Message>, ProviderConfig)>>>;
@@ -33,6 +39,25 @@ pub enum MockResponse {
     Image(ImageGenerationResponse),
     /// Return a video generation response.
     Video(VideoGenerationResponse),
+    /// Return an embedding response.
+    Embedding(EmbeddingResponse),
+    /// Return a speech synthesis response.
+    Speech(SpeechResponse),
+    /// Return a transcription response.
+    Transcription(TranscriptionResponse),
+    /// Return a moderation response.
+    Moderation(ModerationResponse),
+}
+
+/// A captured call from any non-chat operation on MockProvider.
+#[derive(Debug, Clone)]
+pub enum NonChatCall {
+    GenerateImage(ImageGenerationRequest),
+    GenerateVideo(VideoGenerationRequest),
+    Embed(EmbeddingRequest),
+    GenerateSpeech(SpeechRequest),
+    Transcribe(TranscriptionRequest),
+    Moderate(ModerationRequest),
 }
 
 /// A deterministic provider for unit testing — no API keys required.
@@ -42,6 +67,7 @@ pub enum MockResponse {
 pub struct MockProvider {
     responses: Arc<Mutex<VecDeque<MockResponse>>>,
     calls: CallRecord,
+    non_chat_calls: Arc<Mutex<Vec<NonChatCall>>>,
 }
 
 impl Default for MockProvider {
@@ -55,6 +81,7 @@ impl MockProvider {
         Self {
             responses: Arc::new(Mutex::new(VecDeque::new())),
             calls: Arc::new(Mutex::new(Vec::new())),
+            non_chat_calls: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -91,6 +118,39 @@ impl MockProvider {
         }))
     }
 
+    /// Shorthand: queue an embedding response with a single vector.
+    pub fn with_embedding(self, embedding: Vec<f32>) -> Self {
+        self.with_response(MockResponse::Embedding(EmbeddingResponse {
+            embeddings: vec![embedding],
+            usage: Usage::default(),
+            model: None,
+        }))
+    }
+
+    /// Shorthand: queue a transcription response with the given text.
+    pub fn with_transcription(self, text: impl Into<String>) -> Self {
+        self.with_response(MockResponse::Transcription(TranscriptionResponse {
+            text: text.into(),
+            language: None,
+            duration_secs: None,
+            words: vec![],
+            segments: vec![],
+        }))
+    }
+
+    /// Shorthand: queue a moderation response with the given flagged status.
+    pub fn with_moderation(self, flagged: bool) -> Self {
+        self.with_response(MockResponse::Moderation(ModerationResponse {
+            id: String::new(),
+            model: String::new(),
+            results: vec![ModerationResult {
+                flagged,
+                categories: ModerationCategories::default(),
+                category_scores: ModerationCategoryScores::default(),
+            }],
+        }))
+    }
+
     /// Number of calls made so far.
     pub fn call_count(&self) -> usize {
         self.calls.lock().len()
@@ -101,11 +161,16 @@ impl MockProvider {
         self.calls.lock().clone()
     }
 
+    /// All non-chat calls captured (embed, generate_image, generate_video, etc.).
+    pub fn captured_non_chat_calls(&self) -> Vec<NonChatCall> {
+        self.non_chat_calls.lock().clone()
+    }
+
     fn pop_response(&self) -> MockResponse {
         self.responses
             .lock()
             .pop_front()
-            .unwrap_or_else(|| MockResponse::Text(String::new(), Usage::default()))
+            .unwrap_or_else(|| panic!("MockProvider response queue exhausted — queue more responses with .with_response() or .with_text()"))
     }
 }
 
@@ -171,10 +236,21 @@ impl ChatProvider for MockProvider {
                     }),
                 ]
             }
-            // Image/Video responses are not meaningful over the stream interface
-            MockResponse::Image(_) | MockResponse::Video(_) => vec![Ok(StreamEvent::MessageStop {
-                stop_reason: StopReason::EndTurn,
-            })],
+            MockResponse::Image(_) | MockResponse::Video(_) => {
+                panic!(
+                    "MockProvider: Image/Video response dequeued in stream() — \
+                     use generate_image()/generate_video() to consume image/video responses"
+                )
+            }
+            MockResponse::Embedding(_)
+            | MockResponse::Speech(_)
+            | MockResponse::Transcription(_)
+            | MockResponse::Moderation(_) => {
+                panic!(
+                    "MockProvider: non-chat response dequeued in stream() — \
+                     use the appropriate non-chat method to consume this response"
+                )
+            }
         };
 
         Box::pin(futures::stream::iter(events))
@@ -214,20 +290,19 @@ impl ChatProvider for MockProvider {
                 request_body: None,
             }),
             MockResponse::Image(_) | MockResponse::Video(_) => {
-                // Image/Video responses are returned via generate_image/generate_video
-                // If accidentally dequeued in complete(), return empty text.
-                Ok(Response {
-                    content: vec![],
-                    usage: Usage::default().with_totals(),
-                    stop_reason: StopReason::EndTurn,
-                    model: Some(config.model),
-                    id: None,
-                    container: None,
-                    logprobs: None,
-                    grounding_metadata: None,
-                    warnings: vec![],
-                    request_body: None,
-                })
+                panic!(
+                    "MockProvider: Image/Video response dequeued in complete() — \
+                     use generate_image()/generate_video() to consume image/video responses"
+                )
+            }
+            MockResponse::Embedding(_)
+            | MockResponse::Speech(_)
+            | MockResponse::Transcription(_)
+            | MockResponse::Moderation(_) => {
+                panic!(
+                    "MockProvider: non-chat response dequeued in complete() — \
+                     use the appropriate non-chat method to consume this response"
+                )
             }
         }
     }
@@ -238,8 +313,9 @@ impl ChatProvider for MockProvider {
 impl ImageProvider for MockProvider {
     async fn generate_image(
         &self,
-        _request: ImageGenerationRequest,
+        request: ImageGenerationRequest,
     ) -> Result<ImageGenerationResponse, ProviderError> {
+        self.non_chat_calls.lock().push(NonChatCall::GenerateImage(request));
         match self.pop_response() {
             MockResponse::Image(r) => Ok(r),
             MockResponse::Error(e) => Err(e),
@@ -252,12 +328,73 @@ impl ImageProvider for MockProvider {
 impl VideoProvider for MockProvider {
     async fn generate_video(
         &self,
-        _request: VideoGenerationRequest,
+        request: VideoGenerationRequest,
     ) -> Result<VideoGenerationResponse, ProviderError> {
+        self.non_chat_calls.lock().push(NonChatCall::GenerateVideo(request));
         match self.pop_response() {
             MockResponse::Video(r) => Ok(r),
             MockResponse::Error(e) => Err(e),
             _ => Ok(VideoGenerationResponse { videos: vec![] }),
+        }
+    }
+}
+
+#[async_trait]
+impl EmbeddingProvider for MockProvider {
+    async fn embed(&self, request: EmbeddingRequest) -> Result<EmbeddingResponse, ProviderError> {
+        self.non_chat_calls.lock().push(NonChatCall::Embed(request));
+        match self.pop_response() {
+            MockResponse::Embedding(r) => Ok(r),
+            MockResponse::Error(e) => Err(e),
+            _ => Ok(EmbeddingResponse { embeddings: vec![], usage: Usage::default(), model: None }),
+        }
+    }
+}
+
+#[async_trait]
+impl AudioProvider for MockProvider {
+    async fn generate_speech(
+        &self,
+        request: SpeechRequest,
+    ) -> Result<SpeechResponse, ProviderError> {
+        self.non_chat_calls.lock().push(NonChatCall::GenerateSpeech(request));
+        match self.pop_response() {
+            MockResponse::Speech(r) => Ok(r),
+            MockResponse::Error(e) => Err(e),
+            _ => Ok(SpeechResponse { audio: vec![], format: AudioFormat::Mp3 }),
+        }
+    }
+
+    async fn transcribe(
+        &self,
+        request: TranscriptionRequest,
+    ) -> Result<TranscriptionResponse, ProviderError> {
+        self.non_chat_calls.lock().push(NonChatCall::Transcribe(request.clone()));
+        match self.pop_response() {
+            MockResponse::Transcription(r) => Ok(r),
+            MockResponse::Error(e) => Err(e),
+            _ => Ok(TranscriptionResponse {
+                text: String::new(),
+                language: None,
+                duration_secs: None,
+                words: vec![],
+                segments: vec![],
+            }),
+        }
+    }
+}
+
+#[async_trait]
+impl ModerationProvider for MockProvider {
+    async fn moderate(
+        &self,
+        request: ModerationRequest,
+    ) -> Result<ModerationResponse, ProviderError> {
+        self.non_chat_calls.lock().push(NonChatCall::Moderate(request));
+        match self.pop_response() {
+            MockResponse::Moderation(r) => Ok(r),
+            MockResponse::Error(e) => Err(e),
+            _ => Ok(ModerationResponse { id: String::new(), model: String::new(), results: vec![] }),
         }
     }
 }

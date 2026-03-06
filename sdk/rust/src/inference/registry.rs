@@ -24,6 +24,7 @@ use crate::types::{Message, ModelInfo, ProviderConfig, Response, TokenCount};
 /// ```
 pub struct ProviderRegistry {
     providers: HashMap<String, Box<dyn ChatProvider + Send + Sync>>,
+    default_models: HashMap<String, String>,
 }
 
 impl Default for ProviderRegistry {
@@ -36,6 +37,7 @@ impl ProviderRegistry {
     pub fn new() -> Self {
         Self {
             providers: HashMap::new(),
+            default_models: HashMap::new(),
         }
     }
 
@@ -46,6 +48,22 @@ impl ProviderRegistry {
         provider: impl ChatProvider + 'static,
     ) -> &mut Self {
         self.providers.insert(prefix.into(), Box::new(provider));
+        self
+    }
+
+    /// Register a provider with a default model.
+    ///
+    /// When the registry is called with just the prefix (no `:model` suffix), the
+    /// `default_model` string is forwarded to the provider as the model name.
+    pub fn register_with_default(
+        &mut self,
+        prefix: impl Into<String>,
+        default_model: impl Into<String>,
+        provider: impl ChatProvider + 'static,
+    ) -> &mut Self {
+        let prefix = prefix.into();
+        self.default_models.insert(prefix.clone(), default_model.into());
+        self.providers.insert(prefix, Box::new(provider));
         self
     }
 
@@ -67,9 +85,11 @@ impl ProviderRegistry {
                 return Some((p.as_ref(), model));
             }
         }
-        // Fallback: try the whole string as prefix with empty model
+        // Fallback: model_id itself is a registered prefix (e.g. "openai" with no colon).
+        // Use the registered default model when available; otherwise send empty string.
         if let Some(p) = self.providers.get(model_id) {
-            return Some((p.as_ref(), String::new()));
+            let model = self.default_models.get(model_id).cloned().unwrap_or_default();
+            return Some((p.as_ref(), model));
         }
         None
     }
