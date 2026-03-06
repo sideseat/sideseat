@@ -316,10 +316,13 @@ impl ChatProvider for MistralProvider {
                 }
 
                 MistralBackend::Bedrock { client: bedrock_client } => {
-                    let body = match build_request(&messages, &config, false) {
+                    let mut body = match build_request(&messages, &config, false) {
                         Ok(b) => b,
                         Err(e) => { yield Err(e); return; }
                     };
+                    // Bedrock invoke_model specifies the model via .model_id(); the body
+                    // must not include a "model" field (ValidationException otherwise).
+                    body.as_object_mut().map(|o| o.remove("model"));
                     let body_bytes = match serde_json::to_vec(&body) {
                         Ok(b) => b,
                         Err(e) => { yield Err(ProviderError::Serialization(e.to_string())); return; }
@@ -382,9 +385,13 @@ impl ChatProvider for MistralProvider {
                                     };
                                     let choice = &choices[0];
                                     let delta = &choice["delta"];
-                                    let finish_reason = choice["finish_reason"].as_str();
+                                    // Bedrock wraps the full response in a single chunk (not deltas);
+                                    // fall back to choice["message"]["content"] when delta is absent.
+                                    let message_content = choice["message"]["content"].as_str();
+                                    let finish_reason = choice["finish_reason"].as_str()
+                                        .or_else(|| choice["stop_reason"].as_str());
 
-                                    if let Some(text) = delta["content"].as_str() {
+                                    if let Some(text) = delta["content"].as_str().or(message_content) {
                                         if !text_started {
                                             yield Ok(StreamEvent::ContentBlockStart {
                                                 index: text_index,
@@ -495,7 +502,10 @@ impl ChatProvider for MistralProvider {
             }
 
             MistralBackend::Bedrock { client } => {
-                let body = build_request(&messages, &config, false)?;
+                let mut body = build_request(&messages, &config, false)?;
+                // Bedrock invoke_model specifies the model via .model_id(); the body
+                // must not include a "model" field (ValidationException otherwise).
+                body.as_object_mut().map(|o| o.remove("model"));
                 let body_bytes = serde_json::to_vec(&body)
                     .map_err(|e| ProviderError::Serialization(e.to_string()))?;
 
@@ -811,7 +821,10 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
     }
 
     let message = &choices[0]["message"];
-    let finish_reason = choices[0]["finish_reason"].as_str().unwrap_or("stop");
+    let finish_reason = choices[0]["finish_reason"]
+        .as_str()
+        .or_else(|| choices[0]["stop_reason"].as_str())
+        .unwrap_or("stop");
     let mut content: Vec<ContentBlock> = Vec::new();
 
     if let Some(text) = message["content"].as_str()
