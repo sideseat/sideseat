@@ -896,7 +896,7 @@ fn handle_stream_event(event: ConverseStreamOutput, req_model: &str) -> Option<R
                     use aws_sdk_bedrockruntime::types::ReasoningContentBlockDelta;
                     match rc {
                         ReasoningContentBlockDelta::Text(t) => ContentDelta::Thinking {
-                            thinking: t.clone(),
+                            text: t.clone(),
                         },
                         ReasoningContentBlockDelta::Signature(s) => ContentDelta::Signature {
                             signature: s.clone(),
@@ -1392,7 +1392,7 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
 
         ContentBlock::Thinking(th) => {
             let rt = ReasoningTextBlock::builder()
-                .text(&th.thinking)
+                .text(&th.text)
                 .set_signature(th.signature.clone())
                 .build()
                 .map_err(|e| ProviderError::Serialization(e.to_string()))?;
@@ -1444,7 +1444,7 @@ fn bedrock_content_to_block(block: &BContent) -> Option<ContentBlock> {
         })),
         BContent::ReasoningContent(ReasoningContentBlock::ReasoningText(rt)) => {
             Some(ContentBlock::Thinking(ThinkingBlock {
-                thinking: rt.text().to_string(),
+                text: rt.text().to_string(),
                 signature: rt.signature().map(|s| s.to_string()),
             }))
         }

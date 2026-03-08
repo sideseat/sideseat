@@ -473,7 +473,7 @@ impl ChatProvider for GeminiProvider {
                                 });
                                 yield Ok(StreamEvent::ContentBlockDelta {
                                     index: idx,
-                                    delta: ContentDelta::Thinking { thinking: text.to_string() },
+                                    delta: ContentDelta::Thinking { text: text.to_string() },
                                 });
                                 yield Ok(StreamEvent::ContentBlockStop { index: idx });
                             }
@@ -911,7 +911,7 @@ fn format_part(block: &ContentBlock) -> Result<Value, ProviderError> {
                 }
             }))
         }
-        ContentBlock::Thinking(th) => Ok(json!({"text": th.thinking, "thought": true})),
+        ContentBlock::Thinking(th) => Ok(json!({"text": th.text, "thought": true})),
     }
 }
 
@@ -1024,7 +1024,7 @@ fn parse_gemini_response(json: &Value) -> Result<crate::types::Response, Provide
             let is_thought = part["thought"].as_bool().unwrap_or(false);
             if is_thought {
                 content.push(ContentBlock::Thinking(crate::types::ThinkingBlock {
-                    thinking: text.to_string(),
+                    text: text.to_string(),
                     signature: None,
                 }));
             } else {
