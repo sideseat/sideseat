@@ -807,7 +807,7 @@ fn format_content_block(block: &ContentBlock) -> Result<Value, ProviderError> {
         ContentBlock::Thinking(th) => {
             let mut v = json!({
                 "type": "thinking",
-                "thinking": th.thinking,
+                "thinking": th.text,
             });
             if let Some(sig) = &th.signature {
                 v["signature"] = json!(sig);
@@ -939,7 +939,7 @@ fn parse_sse_events(data: &str) -> Vec<Result<StreamEvent, ProviderError>> {
                 }
                 "thinking_delta" => {
                     let thinking = delta["thinking"].as_str().unwrap_or("").to_string();
-                    ContentDelta::Thinking { thinking }
+                    ContentDelta::Thinking { text: thinking }
                 }
                 "signature_delta" => {
                     let signature = delta["signature"].as_str().unwrap_or("").to_string();
@@ -1073,7 +1073,7 @@ fn parse_content_block(block: &Value) -> Option<ContentBlock> {
             input: block["input"].clone(),
         })),
         "thinking" => Some(ContentBlock::Thinking(ThinkingBlock {
-            thinking: block["thinking"].as_str()?.to_string(),
+            text: block["thinking"].as_str()?.to_string(),
             signature: block["signature"].as_str().map(|s| s.to_string()),
         })),
         "image" => {

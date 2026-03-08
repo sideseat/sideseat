@@ -200,7 +200,7 @@ async fn test_anthropic_thinking() {
         let thinking = resp.content.iter().find_map(|b| {
             if let ContentBlock::Thinking(t) = b { Some(t) } else { None }
         }).unwrap();
-        assert!(!thinking.thinking.is_empty());
+        assert!(!thinking.text.is_empty());
     }
 }
 
