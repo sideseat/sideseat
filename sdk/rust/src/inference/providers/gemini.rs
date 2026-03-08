@@ -1063,7 +1063,6 @@ fn parse_gemini_response(json: &Value) -> Result<crate::types::Response, Provide
         logprobs: None,
         grounding_metadata,
         warnings: vec![],
-        request_body: None,
     })
 }
 

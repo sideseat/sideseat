@@ -681,7 +681,6 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
         logprobs,
         grounding_metadata: None,
         warnings: vec![],
-        request_body: None,
     })
 }
 
