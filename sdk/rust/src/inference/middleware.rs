@@ -883,7 +883,7 @@ impl Middleware for ExtractReasoningMiddleware {
                     extract_think_segments(&tb.text, &self.open_tag, &self.close_tag);
                 for seg in segments {
                     new_content.push(ContentBlock::Thinking(ThinkingBlock {
-                        thinking: seg,
+                        text: seg,
                         signature: None,
                     }));
                 }
@@ -940,7 +940,7 @@ impl Middleware for ExtractReasoningMiddleware {
                                     if !thinking_content.is_empty() {
                                         yield StreamEvent::ContentBlockDelta {
                                             index: inject_index,
-                                            delta: ContentDelta::Thinking { thinking: thinking_content },
+                                            delta: ContentDelta::Thinking { text: thinking_content },
                                         };
                                     }
                                     yield StreamEvent::ContentBlockStop { index: inject_index };
@@ -963,7 +963,7 @@ impl Middleware for ExtractReasoningMiddleware {
                                     }
                                     yield StreamEvent::ContentBlockDelta {
                                         index: inject_index,
-                                        delta: ContentDelta::Thinking { thinking: safe },
+                                        delta: ContentDelta::Thinking { text: safe },
                                     };
                                     think_buf = Some(buf[safe_len..].to_string());
                                 } else {
@@ -1032,7 +1032,7 @@ impl Middleware for ExtractReasoningMiddleware {
                                 }
                                 yield StreamEvent::ContentBlockDelta {
                                     index: inject_index,
-                                    delta: ContentDelta::Thinking { thinking: buf },
+                                    delta: ContentDelta::Thinking { text: buf },
                                 };
                             }
                             if in_think_block {

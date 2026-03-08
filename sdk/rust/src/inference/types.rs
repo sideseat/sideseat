@@ -386,7 +386,7 @@ pub struct ToolResultBlock {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThinkingBlock {
-    pub thinking: String,
+    pub text: String,
     /// Cryptographic signature (Anthropic / Bedrock). Must be passed back
     /// unmodified in multi-turn conversations.
     pub signature: Option<String>,
@@ -2259,7 +2259,7 @@ pub enum ContentDelta {
         partial_json: String,
     },
     Thinking {
-        thinking: String,
+        text: String,
     },
     /// Cryptographic signature emitted at the end of a thinking block.
     Signature {
@@ -2293,7 +2293,7 @@ pub fn truncate_messages(mut messages: Vec<Message>, max_tokens: usize) -> Vec<M
                 ContentBlock::ToolResult(tr) => {
                     10 + tr.content.iter().filter_map(|c| c.as_text()).map(|t| t.len()).sum::<usize>() / 4
                 }
-                ContentBlock::Thinking(t) => 5 + t.thinking.len() / 4,
+                ContentBlock::Thinking(t) => 5 + t.text.len() / 4,
                 _ => 5,
             })
             .sum();
