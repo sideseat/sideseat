@@ -2054,10 +2054,6 @@ pub struct Response {
     /// Parameters that were silently dropped or truncated by the provider.
     #[serde(default)]
     pub warnings: Vec<String>,
-    /// Raw request body sent to the provider (debug use; populated by some providers).
-    /// Skipped during serialization to avoid logging potential credentials.
-    #[serde(skip)]
-    pub request_body: Option<serde_json::Value>,
 }
 
 impl Response {
