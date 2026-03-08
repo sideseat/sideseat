@@ -510,7 +510,6 @@ impl ChatProvider for BedrockProvider {
             logprobs: None,
             grounding_metadata: None,
             warnings: vec![],
-            request_body: None,
         })
     }
 

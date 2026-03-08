@@ -450,7 +450,6 @@ async fn collect_stream_with_audio_format(
         logprobs: None,
         grounding_metadata: None,
         warnings: vec![],
-        request_body: None,
     })
 }
 
