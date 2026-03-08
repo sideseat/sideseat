@@ -180,7 +180,7 @@ impl ChatProvider for XAIProvider {
                     }
                     yield Ok(StreamEvent::ContentBlockDelta {
                         index: reasoning_index,
-                        delta: ContentDelta::Thinking { thinking: thinking.to_string() },
+                        delta: ContentDelta::Thinking { text: thinking.to_string() },
                     });
                 }
 
@@ -644,7 +644,7 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
         && !thinking.is_empty()
     {
         content.push(ContentBlock::Thinking(ThinkingBlock {
-            thinking: thinking.to_string(),
+            text: thinking.to_string(),
             signature: None,
         }));
     }

@@ -313,7 +313,7 @@ impl ChatProvider for OpenAIChatProvider {
                     }
                     yield Ok(StreamEvent::ContentBlockDelta {
                         index: reasoning_index,
-                        delta: ContentDelta::Thinking { thinking: thinking.to_string() },
+                        delta: ContentDelta::Thinking { text: thinking.to_string() },
                     });
                 }
 
@@ -998,7 +998,7 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
     {
         use crate::types::ThinkingBlock;
         content.push(ContentBlock::Thinking(ThinkingBlock {
-            thinking: thinking.to_string(),
+            text: thinking.to_string(),
             signature: None,
         }));
     }

@@ -292,14 +292,14 @@ async fn collect_stream_with_audio_format(
                     });
                     entry.2.push_str(&partial_json);
                 }
-                ContentDelta::Thinking { thinking } => {
+                ContentDelta::Thinking { text } => {
                     let entry = thinking_blocks.entry(index).or_insert_with(|| {
                         if block_seen.insert(index) {
                             block_order.push(index);
                         }
                         (String::new(), None)
                     });
-                    entry.0.push_str(&thinking);
+                    entry.0.push_str(&text);
                 }
                 ContentDelta::Signature { signature } => {
                     let entry = thinking_blocks.entry(index).or_insert_with(|| {
@@ -385,7 +385,7 @@ async fn collect_stream_with_audio_format(
             content.push(ContentBlock::ToolUse(ToolUseBlock { id, name, input }));
         } else if let Some((thinking, signature)) = thinking_blocks.remove(&index) {
             content.push(ContentBlock::Thinking(ThinkingBlock {
-                thinking,
+                text: thinking,
                 signature,
             }));
         } else if let Some((media_type, b64_data)) = image_blocks.remove(&index) {
@@ -435,7 +435,7 @@ async fn collect_stream_with_audio_format(
     }
     for (thinking, signature) in thinking_blocks.into_values() {
         content.push(ContentBlock::Thinking(ThinkingBlock {
-            thinking,
+            text: thinking,
             signature,
         }));
     }
@@ -478,7 +478,7 @@ pub fn response_to_stream(response: Response) -> ProviderStream {
                 }
                 ContentBlock::Thinking(t) => {
                     events.push(Ok(StreamEvent::ContentBlockStart { index: i, block: crate::types::ContentBlockStart::Thinking }));
-                    events.push(Ok(StreamEvent::ContentBlockDelta { index: i, delta: crate::types::ContentDelta::Thinking { thinking: t.thinking.clone() } }));
+                    events.push(Ok(StreamEvent::ContentBlockDelta { index: i, delta: crate::types::ContentDelta::Thinking { text: t.text.clone() } }));
                     events.push(Ok(StreamEvent::ContentBlockStop { index: i }));
                 }
                 ContentBlock::Audio(audio) => {

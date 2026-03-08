@@ -311,7 +311,7 @@ impl ChatProvider for GeminiInteractionsProvider {
                                 if let Some(thinking) = delta["thought"].as_str() && !thinking.is_empty() {
                                     yield Ok(StreamEvent::ContentBlockDelta {
                                         index,
-                                        delta: ContentDelta::Thinking { thinking: thinking.to_string() },
+                                        delta: ContentDelta::Thinking { text: thinking.to_string() },
                                     });
                                 }
                             }
@@ -509,7 +509,7 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
                     if let Some(thinking) = output["thought"].as_str() {
                         use crate::types::ThinkingBlock;
                         content.push(ContentBlock::Thinking(ThinkingBlock {
-                            thinking: thinking.to_string(),
+                            text: thinking.to_string(),
                             signature: None,
                         }));
                     }
