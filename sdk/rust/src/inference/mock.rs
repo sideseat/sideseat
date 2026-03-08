@@ -279,7 +279,6 @@ impl ChatProvider for MockProvider {
                 logprobs: None,
                 grounding_metadata: None,
                 warnings: vec![],
-                request_body: None,
             }),
             MockResponse::ToolCall { id, name, input } => Ok(Response {
                 content: vec![ContentBlock::ToolUse(ToolUseBlock { id, name, input })],
@@ -291,7 +290,6 @@ impl ChatProvider for MockProvider {
                 logprobs: None,
                 grounding_metadata: None,
                 warnings: vec![],
-                request_body: None,
             }),
             MockResponse::Image(_) | MockResponse::Video(_) => {
                 panic!(
