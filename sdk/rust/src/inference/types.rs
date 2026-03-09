@@ -432,6 +432,18 @@ pub enum Citation {
         title: Option<String>,
         encrypted_index: String,
     },
+    SourceLocation {
+        cited_text: String,
+        source_id: String,
+        source_name: String,
+        chunk_index: u32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        start_char: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        end_char: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        page: Option<u32>,
+    },
 }
 
 /// A text content block, optionally annotated with citations.
