@@ -77,6 +77,8 @@
 //!
 //! See <https://sideseat.ai/docs> for full documentation.
 
+#[path = "inference/context/mod.rs"]
+pub mod context;
 #[path = "inference/env.rs"]
 pub mod env;
 #[path = "inference/history/mod.rs"]

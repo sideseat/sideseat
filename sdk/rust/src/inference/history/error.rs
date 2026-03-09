@@ -1,8 +1,6 @@
 use thiserror::Error;
 
-use super::types::{
-    ArtifactSetId, BranchId, CanvasId, ConversationId, NodeId, SourceId,
-};
+use super::types::{ArtifactSetId, BranchId, CanvasId, ConversationId, NodeId, SourceId};
 
 #[derive(Debug, Clone, Error)]
 pub enum HistoryError {
@@ -60,6 +58,9 @@ pub enum HistoryError {
 
     #[error("Filesystem error: {0}")]
     FsError(String),
+
+    #[error("VFS extension is not registered on this History instance")]
+    VfsNotConfigured,
 }
 
 impl From<serde_json::Error> for HistoryError {
