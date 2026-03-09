@@ -45,6 +45,8 @@ pin-project-lite = "0.2"
 
 rand = { workspace = true }
 parking_lot = { workspace = true }
+uuid = { version = "1.11", features = ["v7"] }
+yrs = "0.21"
 
 # MCP client integration
 rmcp = { version = "0.16.0", features = ["client"] }
@@ -52,5 +54,6 @@ rmcp = { version = "0.16.0", features = ["client"] }
 [dev-dependencies]
 tokio = { workspace = true }
 httpmock = "0.8.3"
+tempfile = "3"
 crc32fast = "1"
 base64 = { workspace = true }
