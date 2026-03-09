@@ -3,7 +3,7 @@ use thiserror::Error;
 use super::types::{ArtifactSetId, BranchId, CanvasId, ConversationId, NodeId, SourceId};
 
 #[derive(Debug, Clone, Error)]
-pub enum HistoryError {
+pub enum CmError {
     #[error("Node not found: {0}")]
     NodeNotFound(NodeId),
 
@@ -24,6 +24,9 @@ pub enum HistoryError {
 
     #[error("Storage error: {0}")]
     Storage(String),
+
+    #[error("Backend error: {0}")]
+    BackendError(String),
 
     #[error("Serialization error: {0}")]
     Serialization(String),
@@ -59,12 +62,15 @@ pub enum HistoryError {
     #[error("Filesystem error: {0}")]
     FsError(String),
 
-    #[error("VFS extension is not registered on this History instance")]
+    #[error("VFS extension is not registered on this ContextManager instance")]
     VfsNotConfigured,
+
+    #[error("No nodes in conversation — add at least one node before spawning an agent")]
+    NoNodes,
 }
 
-impl From<serde_json::Error> for HistoryError {
+impl From<serde_json::Error> for CmError {
     fn from(e: serde_json::Error) -> Self {
-        HistoryError::Serialization(e.to_string())
+        CmError::Serialization(e.to_string())
     }
 }
