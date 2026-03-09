@@ -1,11 +1,17 @@
+pub mod vfs;
+
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use async_trait::async_trait;
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::crdt::CrdtDoc;
 use super::error::HistoryError;
-use super::types::{ConversationId, SourceId};
+use super::types::{BranchId, ConversationId, SourceId, StorageRef};
+use super::HistoryExtension;
 
 // ---------------------------------------------------------------------------
 // Source
@@ -260,6 +266,232 @@ fn chunk_paragraph(text: &str, max_tokens: u32) -> Vec<(String, ChunkLocation)> 
     }
 
     chunks
+}
+
+// ---------------------------------------------------------------------------
+// VfsExtension — pluggable virtual filesystem extension for History
+//
+// Holds a `Vfs` directly. `Vfs` is `Send + Sync` because its mutable state
+// (`branch_index`, `active_branch`) is protected by `Arc<parking_lot::RwLock>`.
+// `fork_branch` / `checkout_branch` take `&self` and use only the internal locks,
+// so all lifecycle hooks are safe to call concurrently.
+// ---------------------------------------------------------------------------
+
+/// Extension that equips a `History` with a branch-aware copy-on-write
+/// virtual filesystem and an embedded CRDT doc for collaborative files.
+/// Register with `History::with_extension`.
+pub struct VfsExtension {
+    pub(crate) vfs: vfs::Vfs,
+    crdt: Mutex<CrdtDoc>,
+}
+
+impl VfsExtension {
+    /// Default in-memory VFS.
+    pub fn new() -> Self {
+        Self {
+            vfs: vfs::Vfs::new(Arc::new(vfs::MemoryFsProvider::new())),
+            crdt: Mutex::new(CrdtDoc::new()),
+        }
+    }
+
+    /// Custom VFS with pre-configured mounts / providers.
+    pub fn with_vfs(vfs: vfs::Vfs) -> Self {
+        Self { vfs, crdt: Mutex::new(CrdtDoc::new()) }
+    }
+
+    /// Add a mount point. Must be called before registering with `History`.
+    pub fn mount(
+        &mut self,
+        prefix: impl Into<String>,
+        provider: Arc<dyn vfs::FsProvider>,
+    ) -> &mut Self {
+        self.vfs.mount(prefix, provider);
+        self
+    }
+
+    // -----------------------------------------------------------------------
+    // Filesystem operations (delegate to inner Vfs)
+    // -----------------------------------------------------------------------
+
+    pub async fn write(
+        &self,
+        path: &str,
+        data: &[u8],
+        mime_type: &str,
+    ) -> Result<vfs::FileMeta, HistoryError> {
+        self.vfs.write(path, data, mime_type).await
+    }
+
+    pub async fn read(&self, path: &str) -> Result<Vec<u8>, HistoryError> {
+        self.vfs.read(path).await
+    }
+
+    pub async fn delete(&self, path: &str) -> Result<(), HistoryError> {
+        self.vfs.delete(path).await
+    }
+
+    pub async fn exists(&self, path: &str) -> Result<bool, HistoryError> {
+        self.vfs.exists(path).await
+    }
+
+    pub async fn metadata(&self, path: &str) -> Result<vfs::FileMeta, HistoryError> {
+        self.vfs.metadata(path).await
+    }
+
+    pub async fn list(&self, prefix: &str) -> Result<Vec<vfs::FileEntry>, HistoryError> {
+        self.vfs.list(prefix).await
+    }
+
+    pub fn to_storage_ref(&self, path: &str, meta: &vfs::FileMeta) -> StorageRef {
+        self.vfs.to_storage_ref(path, meta)
+    }
+
+    // -----------------------------------------------------------------------
+    // Branch-scoped operations (for extensions that manage their own versioned
+    // namespaces, e.g. ArtifactExtension)
+    // -----------------------------------------------------------------------
+
+    /// Ensure a named branch exists without switching the active branch.
+    pub fn ensure_branch(&self, branch: &str) {
+        self.vfs.ensure_branch(branch);
+    }
+
+    /// COW-fork a named branch: `child` inherits all of `parent`'s index
+    /// entries without copying physical data.
+    pub fn fork_named_branch(&self, parent: &str, child: &str) {
+        self.vfs.fork_branch(parent, child);
+    }
+
+    /// Write a file to a specific named branch without affecting the active branch.
+    pub async fn write_on(
+        &self,
+        branch: &str,
+        path: &str,
+        data: &[u8],
+        mime_type: &str,
+    ) -> Result<vfs::FileMeta, HistoryError> {
+        self.vfs.write_on_branch(branch, path, data, mime_type).await
+    }
+
+    /// Read a file from a specific named branch (COW-aware).
+    pub async fn read_on(
+        &self,
+        branch: &str,
+        path: &str,
+    ) -> Result<Vec<u8>, HistoryError> {
+        self.vfs.read_on_branch(branch, path).await
+    }
+
+    /// Check existence in a specific named branch.
+    pub async fn exists_on(&self, branch: &str, path: &str) -> Result<bool, HistoryError> {
+        self.vfs.exists_on_branch(branch, path).await
+    }
+
+    pub async fn read_storage_ref(
+        &self,
+        storage_ref: &StorageRef,
+    ) -> Result<Vec<u8>, HistoryError> {
+        self.vfs.read_storage_ref(storage_ref).await
+    }
+
+    // -----------------------------------------------------------------------
+    // VFS index helpers
+    // -----------------------------------------------------------------------
+
+    /// Serialize the active branch's logical→physical index to JSON bytes.
+    /// Returns `None` if the branch has no recorded entries yet.
+    pub fn serialize_active_branch_index(&self) -> Option<Vec<u8>> {
+        let branch = self.vfs.active_branch_str();
+        self.vfs.serialize_branch_index(&branch)
+    }
+
+    // -----------------------------------------------------------------------
+    // CRDT operations — collaborative text and map files
+    //
+    // Text files use the VFS path as the Y.Text name.
+    // Map files use the VFS path as the ext_map name.
+    // Both are stored inside a single CrdtDoc embedded in VfsExtension,
+    // separate from the conversation-level CrdtDoc in History<S>.
+    // -----------------------------------------------------------------------
+
+    /// Insert `content` at `index` in a CRDT text file at `path`.
+    /// Returns the Yjs v1 delta that encodes this change.
+    pub fn crdt_text_insert(&self, path: &str, index: u32, content: &str) -> Vec<u8> {
+        self.crdt.lock().text_insert(path, index, content)
+    }
+
+    /// Remove `len` characters at `index` in a CRDT text file at `path`.
+    /// Returns the Yjs v1 delta.
+    pub fn crdt_text_remove(&self, path: &str, index: u32, len: u32) -> Vec<u8> {
+        self.crdt.lock().text_remove(path, index, len)
+    }
+
+    /// Return the current string content of a CRDT text file at `path`.
+    pub fn crdt_read_text(&self, path: &str) -> String {
+        self.crdt.lock().text_read(path)
+    }
+
+    /// Return the current character length of a CRDT text file at `path`.
+    pub fn crdt_text_len(&self, path: &str) -> u32 {
+        self.crdt.lock().text_len(path)
+    }
+
+    /// Set `key` → `value` in a CRDT map file at `path`.
+    /// Returns the Yjs v1 delta.
+    pub fn crdt_map_set(&self, path: &str, key: &str, value: &Value) -> Vec<u8> {
+        self.crdt.lock().map_set(path, key, value)
+    }
+
+    /// Delete `key` from a CRDT map file at `path`.
+    /// Returns the Yjs v1 delta.
+    pub fn crdt_map_delete(&self, path: &str, key: &str) -> Vec<u8> {
+        self.crdt.lock().map_delete(path, key)
+    }
+
+    /// Return the value for `key` in a CRDT map file at `path`.
+    pub fn crdt_map_get(&self, path: &str, key: &str) -> Option<Value> {
+        self.crdt.lock().map_get(path, key)
+    }
+
+    /// Return all entries in a CRDT map file at `path`.
+    pub fn crdt_map_entries(&self, path: &str) -> HashMap<String, Value> {
+        self.crdt.lock().map_entries(path)
+    }
+
+    /// Return the full Yjs state of the VFS CRDT doc (for sync / persistence).
+    pub fn crdt_full_state(&self) -> Vec<u8> {
+        self.crdt.lock().full_state()
+    }
+
+    /// Return the Yjs state vector of the VFS CRDT doc (for differential sync).
+    pub fn crdt_state_vector(&self) -> Vec<u8> {
+        self.crdt.lock().state_vector()
+    }
+
+    /// Merge a Yjs v1 delta from a remote peer into the VFS CRDT doc.
+    pub fn crdt_merge_delta(&self, delta: &[u8]) -> Result<(), HistoryError> {
+        self.crdt.lock().merge_delta(delta)
+    }
+}
+
+impl Default for VfsExtension {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl HistoryExtension for VfsExtension {
+    fn id(&self) -> &str {
+        "vfs"
+    }
+
+    fn on_branch_forked(&self, parent: &BranchId, child: &BranchId) {
+        self.vfs.fork_branch(parent.as_str(), child.as_str());
+    }
+
+    fn on_branch_checked_out(&self, branch: &BranchId) {
+        self.vfs.checkout_branch(branch.as_str());
+    }
 }
 
 // ---------------------------------------------------------------------------

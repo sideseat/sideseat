@@ -351,6 +351,10 @@ mod tests {
             is_final: true,
             streaming: None,
             deleted: false,
+            agent_id: None,
+            correlation_id: None,
+            reply_to: None,
+            eval_scores: Vec::new(),
             metadata: HashMap::new(),
         }
     }
