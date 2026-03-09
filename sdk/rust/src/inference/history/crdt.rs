@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde_json::Value;
 use yrs::updates::decoder::Decode;
 use yrs::updates::encoder::Encode;
-use yrs::{Doc, Map, ReadTxn, StateVector, Transact, Update, WriteTxn};
+use yrs::{Doc, GetString, Map, ReadTxn, StateVector, Text, Transact, Update, WriteTxn};
 
 use super::canvas::CanvasItem;
 use super::error::HistoryError;
@@ -234,6 +234,41 @@ impl CrdtDoc {
         };
         serde_json::from_str::<HashMap<String, Value>>(&s).unwrap_or_default()
     }
+
+    // -----------------------------------------------------------------------
+    // Text (Y.Text) operations — for CRDT text files
+    // -----------------------------------------------------------------------
+
+    /// Insert `content` at `index` into a named Y.Text field. Returns the delta.
+    pub fn text_insert(&mut self, name: &str, index: u32, content: &str) -> Vec<u8> {
+        let mut txn = self.doc.transact_mut();
+        let text = txn.get_or_insert_text(name);
+        text.insert(&mut txn, index, content);
+        txn.encode_update_v1()
+    }
+
+    /// Remove `len` characters starting at `index` from a named Y.Text field. Returns the delta.
+    pub fn text_remove(&mut self, name: &str, index: u32, len: u32) -> Vec<u8> {
+        let mut txn = self.doc.transact_mut();
+        let text = txn.get_or_insert_text(name);
+        text.remove_range(&mut txn, index, len);
+        txn.encode_update_v1()
+    }
+
+    /// Return the current string content of a named Y.Text field.
+    pub fn text_read(&self, name: &str) -> String {
+        let txn = self.doc.transact();
+        match txn.get_text(name) {
+            Some(t) => t.get_string(&txn),
+            None => String::new(),
+        }
+    }
+
+    /// Return the length (in Unicode chars) of a named Y.Text field.
+    pub fn text_len(&self, name: &str) -> u32 {
+        let txn = self.doc.transact();
+        txn.get_text(name).map(|t| t.len(&txn)).unwrap_or(0)
+    }
 }
 
 impl Default for CrdtDoc {
@@ -272,6 +307,10 @@ mod tests {
             is_final: true,
             streaming: None,
             deleted: false,
+            agent_id: None,
+            correlation_id: None,
+            reply_to: None,
+            eval_scores: Vec::new(),
             metadata: std::collections::HashMap::new(),
         }
     }

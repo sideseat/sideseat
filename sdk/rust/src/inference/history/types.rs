@@ -68,6 +68,8 @@ define_id!(CanvasId);
 define_id!(ArtifactSetId);
 define_id!(SourceId);
 define_id!(ProjectId);
+define_id!(AgentId);
+define_id!(KanbanBoardId);
 
 // ---------------------------------------------------------------------------
 // Time helper
@@ -133,6 +135,10 @@ pub struct Conversation {
     pub workspace: Workspace,
     #[serde(default)]
     pub metadata: HashMap<String, Value>,
+    #[serde(default)]
+    pub title_generated: bool,
+    #[serde(default)]
+    pub icon_generated: bool,
 }
 
 impl Conversation {
@@ -151,6 +157,8 @@ impl Conversation {
             mode: ConversationMode::default(),
             workspace: Workspace::default(),
             metadata: HashMap::new(),
+            title_generated: false,
+            icon_generated: false,
         }
     }
 }
@@ -165,7 +173,7 @@ pub struct Workspace {
     pub canvases: Vec<CanvasId>,
     #[serde(default)]
     pub artifact_sets: Vec<ArtifactSetId>,
-    pub kanban_id: Option<String>,
+    pub kanban_id: Option<KanbanBoardId>,
     pub plan_id: Option<String>,
     #[serde(default)]
     pub skills: Vec<SkillRef>,
@@ -236,6 +244,11 @@ pub struct Node {
     pub is_final: bool,
     pub streaming: Option<StreamingState>,
     pub deleted: bool,
+    pub agent_id: Option<AgentId>,
+    pub correlation_id: Option<String>,
+    pub reply_to: Option<NodeId>,
+    #[serde(default)]
+    pub eval_scores: Vec<EvalScore>,
     #[serde(default)]
     pub metadata: HashMap<String, Value>,
 }
@@ -262,6 +275,11 @@ impl Node {
             NodeContent::ModeSwitch { .. } => "mode_switch",
             NodeContent::Annotation { .. } => "annotation",
             NodeContent::SourceRef { .. } => "source_ref",
+            NodeContent::EvalResult { .. } => "eval_result",
+            NodeContent::ApprovalRequest { .. } => "approval_request",
+            NodeContent::ApprovalResponse { .. } => "approval_response",
+            NodeContent::WorkflowStep { .. } => "workflow_step",
+            NodeContent::VfsChange { .. } => "vfs_change",
             NodeContent::Unknown { .. } => "unknown",
         }
     }
@@ -433,11 +451,66 @@ pub enum NodeContent {
         summary: Option<String>,
     },
 
+    // Eval
+    EvalResult {
+        target_node_id: NodeId,
+        eval_name: String,
+        scores: Vec<EvalScore>,
+        grader_model: Option<String>,
+    },
+
+    // Human-in-the-loop
+    ApprovalRequest {
+        question: String,
+        options: Vec<String>,
+        timeout_ms: Option<u64>,
+        context: Option<Value>,
+    },
+    ApprovalResponse {
+        request_node_id: NodeId,
+        selected: String,
+        comment: Option<String>,
+        responded_by: Option<UserId>,
+    },
+
+    // Workflow
+    WorkflowStep {
+        step_name: String,
+        step_index: u32,
+        total_steps: Option<u32>,
+        status: TaskStatus,
+        inputs: Value,
+        outputs: Option<Value>,
+        workflow_id: Option<String>,
+    },
+
+    // VFS file system changes
+    VfsChange {
+        path: String,
+        operation: VfsOperation,
+    },
+
     // Forward compat
     Unknown {
         kind: String,
         data: Value,
     },
+}
+
+/// The kind of change recorded in a [`NodeContent::VfsChange`] node.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "op", rename_all = "snake_case")]
+pub enum VfsOperation {
+    /// A new file was created or first written.
+    Create { mime_type: String, size_bytes: u64 },
+    /// An existing file's content was updated.
+    Modify { size_bytes: u64 },
+    /// A file was deleted.
+    Delete,
+    /// A file was moved/renamed.
+    Rename { from: String },
+    /// A CRDT delta was applied to an existing CRDT file.
+    CrdtUpdate { size_bytes: u64 },
 }
 
 // Custom Deserialize for forward compat: unknown "type" → Unknown variant
@@ -565,6 +638,37 @@ impl<'de> Deserialize<'de> for NodeContent {
                 source_name: String,
                 mime_type: String,
                 summary: Option<String>,
+            },
+            EvalResult {
+                target_node_id: NodeId,
+                eval_name: String,
+                scores: Vec<EvalScore>,
+                grader_model: Option<String>,
+            },
+            ApprovalRequest {
+                question: String,
+                options: Vec<String>,
+                timeout_ms: Option<u64>,
+                context: Option<Value>,
+            },
+            ApprovalResponse {
+                request_node_id: NodeId,
+                selected: String,
+                comment: Option<String>,
+                responded_by: Option<UserId>,
+            },
+            WorkflowStep {
+                step_name: String,
+                step_index: u32,
+                total_steps: Option<u32>,
+                status: TaskStatus,
+                inputs: Value,
+                outputs: Option<Value>,
+                workflow_id: Option<String>,
+            },
+            VfsChange {
+                path: String,
+                operation: VfsOperation,
             },
         }
 
@@ -757,6 +861,57 @@ impl<'de> Deserialize<'de> for NodeContent {
                     mime_type,
                     summary,
                 },
+                Inner::EvalResult {
+                    target_node_id,
+                    eval_name,
+                    scores,
+                    grader_model,
+                } => NodeContent::EvalResult {
+                    target_node_id,
+                    eval_name,
+                    scores,
+                    grader_model,
+                },
+                Inner::ApprovalRequest {
+                    question,
+                    options,
+                    timeout_ms,
+                    context,
+                } => NodeContent::ApprovalRequest {
+                    question,
+                    options,
+                    timeout_ms,
+                    context,
+                },
+                Inner::ApprovalResponse {
+                    request_node_id,
+                    selected,
+                    comment,
+                    responded_by,
+                } => NodeContent::ApprovalResponse {
+                    request_node_id,
+                    selected,
+                    comment,
+                    responded_by,
+                },
+                Inner::WorkflowStep {
+                    step_name,
+                    step_index,
+                    total_steps,
+                    status,
+                    inputs,
+                    outputs,
+                    workflow_id,
+                } => NodeContent::WorkflowStep {
+                    step_name,
+                    step_index,
+                    total_steps,
+                    status,
+                    inputs,
+                    outputs,
+                    workflow_id,
+                },
+                Inner::VfsChange { path, operation } => NodeContent::VfsChange { path, operation },
             }),
             Err(_) => Ok(NodeContent::Unknown {
                 kind: type_str.to_string(),
@@ -777,6 +932,9 @@ pub struct NodeParams {
     pub provider: Option<String>,
     pub usage: Option<Usage>,
     pub metadata: HashMap<String, Value>,
+    pub agent_id: Option<AgentId>,
+    pub correlation_id: Option<String>,
+    pub reply_to: Option<NodeId>,
 }
 
 // ---------------------------------------------------------------------------
@@ -835,6 +993,8 @@ pub enum AnnotationType {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StorageBackend {
+    /// Stored in the registered `VfsExtension` under the given URI path.
+    Vfs,
     Local,
     S3,
     Gcs,
@@ -921,6 +1081,99 @@ pub enum ReactionType {
     Star,
     Flag,
     Custom(String),
+}
+
+// ---------------------------------------------------------------------------
+// EvalScore
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EvalScore {
+    pub name: String,
+    pub score: f64,
+    pub rationale: Option<String>,
+    pub grader: Option<String>,
+    pub created_at: i64,
+    #[serde(default)]
+    pub metadata: HashMap<String, Value>,
+}
+
+
+// ---------------------------------------------------------------------------
+// PromptVersion
+// ---------------------------------------------------------------------------
+
+define_id!(PromptId);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromptVersion {
+    pub id: PromptId,
+    pub name: String,
+    pub content: Vec<crate::types::ContentBlock>,
+    pub version: u32,
+    pub project_id: Option<ProjectId>,
+    pub created_at: i64,
+    pub created_by: Option<UserId>,
+    #[serde(default)]
+    pub metadata: HashMap<String, Value>,
+}
+
+// ---------------------------------------------------------------------------
+// Dataset types
+// ---------------------------------------------------------------------------
+
+define_id!(DatasetEntryId);
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DatasetSplit {
+    Train,
+    Test,
+    Eval,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatasetEntry {
+    pub id: DatasetEntryId,
+    pub conversation_id: ConversationId,
+    pub dataset_name: String,
+    pub input_node_ids: Vec<NodeId>,
+    pub output_node_id: NodeId,
+    pub expected_output: Option<String>,
+    pub split: DatasetSplit,
+    pub created_at: i64,
+    #[serde(default)]
+    pub metadata: HashMap<String, Value>,
+}
+
+// ---------------------------------------------------------------------------
+// UserMemory types
+// ---------------------------------------------------------------------------
+
+define_id!(UserMemoryId);
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UserMemoryType {
+    Fact,
+    Preference,
+    Goal,
+    Skill,
+    Custom(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserMemoryEntry {
+    pub id: UserMemoryId,
+    pub user_id: UserId,
+    pub content: String,
+    pub memory_type: UserMemoryType,
+    pub source_conversation_id: Option<ConversationId>,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub expires_at: Option<i64>,
+    #[serde(default)]
+    pub metadata: HashMap<String, Value>,
 }
 
 // ---------------------------------------------------------------------------
@@ -1051,6 +1304,84 @@ mod tests {
     }
 
     #[test]
+    fn eval_score_serde_round_trip() {
+        let score = EvalScore {
+            name: "factuality".into(),
+            score: 0.95,
+            rationale: Some("well-grounded".into()),
+            grader: Some("claude-haiku-4-5-20251001".into()),
+            created_at: 1_000_000,
+            metadata: HashMap::new(),
+        };
+        let json = serde_json::to_string(&score).unwrap();
+        let parsed: EvalScore = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.name, "factuality");
+        assert!((parsed.score - 0.95).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn node_content_eval_result_round_trip() {
+        let content = NodeContent::EvalResult {
+            target_node_id: NodeId::from_string("n1"),
+            eval_name: "safety".into(),
+            scores: vec![EvalScore {
+                name: "safety".into(),
+                score: 1.0,
+                rationale: None,
+                grader: None,
+                created_at: 0,
+                metadata: HashMap::new(),
+            }],
+            grader_model: Some("claude-haiku-4-5-20251001".into()),
+        };
+        let json = serde_json::to_string(&content).unwrap();
+        let parsed: NodeContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.content_type_str(), "eval_result");
+    }
+
+    #[test]
+    fn node_content_approval_request_round_trip() {
+        let content = NodeContent::ApprovalRequest {
+            question: "Proceed?".into(),
+            options: vec!["yes".into(), "no".into()],
+            timeout_ms: Some(30_000),
+            context: None,
+        };
+        let json = serde_json::to_string(&content).unwrap();
+        let parsed: NodeContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.content_type_str(), "approval_request");
+    }
+
+    #[test]
+    fn node_content_approval_response_round_trip() {
+        let content = NodeContent::ApprovalResponse {
+            request_node_id: NodeId::from_string("req1"),
+            selected: "yes".into(),
+            comment: None,
+            responded_by: None,
+        };
+        let json = serde_json::to_string(&content).unwrap();
+        let parsed: NodeContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.content_type_str(), "approval_response");
+    }
+
+    #[test]
+    fn node_content_workflow_step_round_trip() {
+        let content = NodeContent::WorkflowStep {
+            step_name: "fetch_data".into(),
+            step_index: 0,
+            total_steps: Some(3),
+            status: TaskStatus::Completed,
+            inputs: serde_json::json!({"url": "https://example.com"}),
+            outputs: Some(serde_json::json!({"data": [1, 2, 3]})),
+            workflow_id: Some("wf-123".into()),
+        };
+        let json = serde_json::to_string(&content).unwrap();
+        let parsed: NodeContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.content_type_str(), "workflow_step");
+    }
+
+    #[test]
     fn node_header_from_node() {
         let node = Node {
             id: NodeId::new(),
@@ -1071,6 +1402,10 @@ mod tests {
             is_final: true,
             streaming: None,
             deleted: false,
+            agent_id: None,
+            correlation_id: None,
+            reply_to: None,
+            eval_scores: Vec::new(),
             metadata: HashMap::new(),
         };
 
@@ -1104,6 +1439,11 @@ impl NodeContent {
             NodeContent::ModeSwitch { .. } => "mode_switch",
             NodeContent::Annotation { .. } => "annotation",
             NodeContent::SourceRef { .. } => "source_ref",
+            NodeContent::EvalResult { .. } => "eval_result",
+            NodeContent::ApprovalRequest { .. } => "approval_request",
+            NodeContent::ApprovalResponse { .. } => "approval_response",
+            NodeContent::WorkflowStep { .. } => "workflow_step",
+            NodeContent::VfsChange { .. } => "vfs_change",
             NodeContent::Unknown { .. } => "unknown",
         }
     }

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use async_trait::async_trait;
 use parking_lot::Mutex;
@@ -7,11 +8,14 @@ use serde_json::Value;
 use super::artifact::{ArtifactSet, ArtifactVersion};
 use super::canvas::{Canvas, CanvasItem, Viewport};
 use super::error::HistoryError;
+use super::kanban::{KanbanBoard, KanbanCard, KanbanCardId, KanbanColumn, KanbanColumnId};
 use super::source::{Source, SourceChunk};
+use super::sync::CrdtDelta;
 use super::types::{
-    ArtifactSetId, BranchId, BranchMeta, CanvasId, Conversation, ConversationId, Node,
-    NodeContent, NodeHeader, NodeId, Project, ProjectId, Reaction, ReactionType,
-    SourceId, StreamingState, UserId,
+    ArtifactSetId, BranchId, BranchMeta, CanvasId, Conversation, ConversationId,
+    DatasetEntry, DatasetEntryId, DatasetSplit, EvalScore, KanbanBoardId, Node, NodeContent,
+    NodeHeader, NodeId, Project, ProjectId, PromptId, PromptVersion, Reaction, ReactionType,
+    SourceId, StreamingState, UserId, UserMemoryEntry, UserMemoryId,
 };
 use crate::types::Usage;
 
@@ -63,6 +67,7 @@ pub struct NodePatch {
     pub streaming: Option<Option<StreamingState>>,
     pub usage: Option<Usage>,
     pub metadata: Option<HashMap<String, Value>>,
+    pub eval_scores: Option<Vec<EvalScore>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -179,6 +184,83 @@ pub trait HistoryStorage: Send + Sync {
         query: &str,
         limit: u32,
     ) -> Result<Vec<SourceChunk>, HistoryError>;
+
+    // Kanban
+    async fn save_kanban_board(&self, board: &KanbanBoard) -> Result<(), HistoryError>;
+    async fn get_kanban_board(
+        &self,
+        id: &KanbanBoardId,
+    ) -> Result<Option<KanbanBoard>, HistoryError>;
+    async fn save_kanban_column(&self, column: &KanbanColumn) -> Result<(), HistoryError>;
+    async fn list_kanban_columns(
+        &self,
+        board_id: &KanbanBoardId,
+    ) -> Result<Vec<KanbanColumn>, HistoryError>;
+    async fn delete_kanban_column(&self, id: &KanbanColumnId) -> Result<(), HistoryError>;
+    async fn save_kanban_card(&self, card: &KanbanCard) -> Result<(), HistoryError>;
+    async fn get_kanban_card(
+        &self,
+        id: &KanbanCardId,
+    ) -> Result<Option<KanbanCard>, HistoryError>;
+    async fn list_kanban_cards(
+        &self,
+        column_id: &KanbanColumnId,
+    ) -> Result<Vec<KanbanCard>, HistoryError>;
+    async fn delete_kanban_card(&self, id: &KanbanCardId) -> Result<(), HistoryError>;
+
+    // CRDT delta log (used by StorageSyncBackend for distributed sync)
+    /// Persist a CRDT delta and return the storage-assigned global sequence number.
+    async fn append_crdt_delta(&self, delta: &CrdtDelta) -> Result<u64, HistoryError>;
+    /// Return all deltas for the given conversation where `global_seq > after_seq`.
+    async fn fetch_crdt_deltas(
+        &self,
+        conv_id: &ConversationId,
+        after_seq: u64,
+    ) -> Result<Vec<CrdtDelta>, HistoryError>;
+
+    // VFS branch index (persisted for stateless/distributed deployments)
+    /// Persist the serialized branch index for `branch_id`.
+    async fn save_vfs_index(&self, branch_id: &BranchId, data: &[u8]) -> Result<(), HistoryError>;
+    /// Return the last persisted branch index for `branch_id`, or `None` if never saved.
+    async fn load_vfs_index(&self, branch_id: &BranchId) -> Result<Option<Vec<u8>>, HistoryError>;
+
+    // Prompt versioning
+    async fn save_prompt_version(&self, prompt: &PromptVersion) -> Result<(), HistoryError>;
+    async fn get_prompt_version(
+        &self,
+        id: &PromptId,
+        version: u32,
+    ) -> Result<Option<PromptVersion>, HistoryError>;
+    async fn list_prompt_versions(&self, name: &str) -> Result<Vec<PromptVersion>, HistoryError>;
+    async fn get_latest_prompt(&self, name: &str) -> Result<Option<PromptVersion>, HistoryError>;
+
+    // Dataset entries
+    async fn save_dataset_entry(&self, entry: &DatasetEntry) -> Result<(), HistoryError>;
+    async fn list_dataset_entries(
+        &self,
+        dataset_name: &str,
+        split: Option<&DatasetSplit>,
+    ) -> Result<Vec<DatasetEntry>, HistoryError>;
+    async fn delete_dataset_entry(&self, id: &DatasetEntryId) -> Result<(), HistoryError>;
+
+    // User memory
+    async fn save_user_memory(&self, entry: &UserMemoryEntry) -> Result<(), HistoryError>;
+    async fn get_user_memory(
+        &self,
+        id: &UserMemoryId,
+    ) -> Result<Option<UserMemoryEntry>, HistoryError>;
+    async fn list_user_memories(
+        &self,
+        user_id: &UserId,
+        limit: Option<u32>,
+    ) -> Result<Vec<UserMemoryEntry>, HistoryError>;
+    async fn delete_user_memory(&self, id: &UserMemoryId) -> Result<(), HistoryError>;
+    async fn search_user_memories(
+        &self,
+        user_id: &UserId,
+        query: &str,
+        limit: u32,
+    ) -> Result<Vec<UserMemoryEntry>, HistoryError>;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,6 +279,15 @@ pub struct InMemoryStorage {
     artifact_versions: Mutex<Vec<ArtifactVersion>>,
     sources: Mutex<HashMap<SourceId, Source>>,
     source_chunks: Mutex<Vec<SourceChunk>>,
+    kanban_boards: Mutex<HashMap<KanbanBoardId, KanbanBoard>>,
+    kanban_columns: Mutex<HashMap<KanbanColumnId, KanbanColumn>>,
+    kanban_cards: Mutex<HashMap<KanbanCardId, KanbanCard>>,
+    crdt_deltas: Mutex<Vec<CrdtDelta>>,
+    crdt_next_seq: AtomicU64,
+    vfs_indexes: Mutex<HashMap<BranchId, Vec<u8>>>,
+    prompt_versions: Mutex<Vec<PromptVersion>>,
+    dataset_entries: Mutex<Vec<DatasetEntry>>,
+    user_memories: Mutex<HashMap<UserMemoryId, UserMemoryEntry>>,
 }
 
 impl InMemoryStorage {
@@ -213,6 +304,15 @@ impl InMemoryStorage {
             artifact_versions: Mutex::new(Vec::new()),
             sources: Mutex::new(HashMap::new()),
             source_chunks: Mutex::new(Vec::new()),
+            kanban_boards: Mutex::new(HashMap::new()),
+            kanban_columns: Mutex::new(HashMap::new()),
+            kanban_cards: Mutex::new(HashMap::new()),
+            crdt_deltas: Mutex::new(Vec::new()),
+            crdt_next_seq: AtomicU64::new(1),
+            vfs_indexes: Mutex::new(HashMap::new()),
+            prompt_versions: Mutex::new(Vec::new()),
+            dataset_entries: Mutex::new(Vec::new()),
+            user_memories: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -376,6 +476,11 @@ impl HistoryStorage for InMemoryStorage {
             .lock()
             .retain(|c| !source_ids.contains(&c.source_id));
 
+        // Cascade: delete dataset entries
+        self.dataset_entries
+            .lock()
+            .retain(|e| e.conversation_id != *id);
+
         Ok(())
     }
 
@@ -490,6 +595,9 @@ impl HistoryStorage for InMemoryStorage {
         }
         if let Some(metadata) = &patch.metadata {
             node.metadata = metadata.clone();
+        }
+        if let Some(scores) = &patch.eval_scores {
+            node.eval_scores.extend(scores.iter().cloned());
         }
 
         node.version += 1;
@@ -775,6 +883,235 @@ impl HistoryStorage for InMemoryStorage {
             .collect();
         Ok(results)
     }
+
+    // Prompt versioning
+
+    // Kanban
+
+    async fn save_kanban_board(&self, board: &KanbanBoard) -> Result<(), HistoryError> {
+        self.kanban_boards.lock().insert(board.id.clone(), board.clone());
+        Ok(())
+    }
+
+    async fn get_kanban_board(
+        &self,
+        id: &KanbanBoardId,
+    ) -> Result<Option<KanbanBoard>, HistoryError> {
+        Ok(self.kanban_boards.lock().get(id).cloned())
+    }
+
+    async fn save_kanban_column(&self, column: &KanbanColumn) -> Result<(), HistoryError> {
+        self.kanban_columns.lock().insert(column.id.clone(), column.clone());
+        Ok(())
+    }
+
+    async fn list_kanban_columns(
+        &self,
+        board_id: &KanbanBoardId,
+    ) -> Result<Vec<KanbanColumn>, HistoryError> {
+        let mut cols: Vec<KanbanColumn> = self
+            .kanban_columns
+            .lock()
+            .values()
+            .filter(|c| &c.board_id == board_id)
+            .cloned()
+            .collect();
+        cols.sort_by_key(|c| c.position);
+        Ok(cols)
+    }
+
+    async fn delete_kanban_column(&self, id: &KanbanColumnId) -> Result<(), HistoryError> {
+        self.kanban_columns.lock().remove(id);
+        // Cascade: delete cards in this column
+        self.kanban_cards.lock().retain(|_, c| &c.column_id != id);
+        Ok(())
+    }
+
+    async fn save_kanban_card(&self, card: &KanbanCard) -> Result<(), HistoryError> {
+        self.kanban_cards.lock().insert(card.id.clone(), card.clone());
+        Ok(())
+    }
+
+    async fn get_kanban_card(
+        &self,
+        id: &KanbanCardId,
+    ) -> Result<Option<KanbanCard>, HistoryError> {
+        Ok(self.kanban_cards.lock().get(id).cloned())
+    }
+
+    async fn list_kanban_cards(
+        &self,
+        column_id: &KanbanColumnId,
+    ) -> Result<Vec<KanbanCard>, HistoryError> {
+        let mut cards: Vec<KanbanCard> = self
+            .kanban_cards
+            .lock()
+            .values()
+            .filter(|c| &c.column_id == column_id && !c.deleted)
+            .cloned()
+            .collect();
+        cards.sort_by_key(|c| c.position);
+        Ok(cards)
+    }
+
+    async fn delete_kanban_card(&self, id: &KanbanCardId) -> Result<(), HistoryError> {
+        self.kanban_cards.lock().remove(id);
+        Ok(())
+    }
+
+    // CRDT delta log
+
+    async fn append_crdt_delta(&self, delta: &CrdtDelta) -> Result<u64, HistoryError> {
+        let seq = self.crdt_next_seq.fetch_add(1, Ordering::SeqCst);
+        let mut stored = delta.clone();
+        stored.global_seq = seq;
+        self.crdt_deltas.lock().push(stored);
+        Ok(seq)
+    }
+
+    async fn fetch_crdt_deltas(
+        &self,
+        conv_id: &ConversationId,
+        after_seq: u64,
+    ) -> Result<Vec<CrdtDelta>, HistoryError> {
+        Ok(self
+            .crdt_deltas
+            .lock()
+            .iter()
+            .filter(|d| d.conversation_id == *conv_id && d.global_seq > after_seq)
+            .cloned()
+            .collect())
+    }
+
+    async fn save_vfs_index(&self, branch_id: &BranchId, data: &[u8]) -> Result<(), HistoryError> {
+        self.vfs_indexes.lock().insert(branch_id.clone(), data.to_vec());
+        Ok(())
+    }
+
+    async fn load_vfs_index(&self, branch_id: &BranchId) -> Result<Option<Vec<u8>>, HistoryError> {
+        Ok(self.vfs_indexes.lock().get(branch_id).cloned())
+    }
+
+    async fn save_prompt_version(&self, prompt: &PromptVersion) -> Result<(), HistoryError> {
+        self.prompt_versions.lock().push(prompt.clone());
+        Ok(())
+    }
+
+    async fn get_prompt_version(
+        &self,
+        id: &PromptId,
+        version: u32,
+    ) -> Result<Option<PromptVersion>, HistoryError> {
+        Ok(self
+            .prompt_versions
+            .lock()
+            .iter()
+            .find(|p| p.id == *id && p.version == version)
+            .cloned())
+    }
+
+    async fn list_prompt_versions(&self, name: &str) -> Result<Vec<PromptVersion>, HistoryError> {
+        let mut versions: Vec<PromptVersion> = self
+            .prompt_versions
+            .lock()
+            .iter()
+            .filter(|p| p.name == name)
+            .cloned()
+            .collect();
+        versions.sort_by_key(|p| p.version);
+        Ok(versions)
+    }
+
+    async fn get_latest_prompt(&self, name: &str) -> Result<Option<PromptVersion>, HistoryError> {
+        Ok(self
+            .prompt_versions
+            .lock()
+            .iter()
+            .filter(|p| p.name == name)
+            .max_by_key(|p| p.version)
+            .cloned())
+    }
+
+    async fn save_dataset_entry(&self, entry: &DatasetEntry) -> Result<(), HistoryError> {
+        self.dataset_entries.lock().push(entry.clone());
+        Ok(())
+    }
+
+    async fn list_dataset_entries(
+        &self,
+        dataset_name: &str,
+        split: Option<&DatasetSplit>,
+    ) -> Result<Vec<DatasetEntry>, HistoryError> {
+        Ok(self
+            .dataset_entries
+            .lock()
+            .iter()
+            .filter(|e| e.dataset_name == dataset_name)
+            .filter(|e| split.is_none_or(|s| &e.split == s))
+            .cloned()
+            .collect())
+    }
+
+    async fn delete_dataset_entry(&self, id: &DatasetEntryId) -> Result<(), HistoryError> {
+        self.dataset_entries.lock().retain(|e| &e.id != id);
+        Ok(())
+    }
+
+    async fn save_user_memory(&self, entry: &UserMemoryEntry) -> Result<(), HistoryError> {
+        self.user_memories.lock().insert(entry.id.clone(), entry.clone());
+        Ok(())
+    }
+
+    async fn get_user_memory(
+        &self,
+        id: &UserMemoryId,
+    ) -> Result<Option<UserMemoryEntry>, HistoryError> {
+        Ok(self.user_memories.lock().get(id).cloned())
+    }
+
+    async fn list_user_memories(
+        &self,
+        user_id: &UserId,
+        limit: Option<u32>,
+    ) -> Result<Vec<UserMemoryEntry>, HistoryError> {
+        let mut entries: Vec<UserMemoryEntry> = self
+            .user_memories
+            .lock()
+            .values()
+            .filter(|e| &e.user_id == user_id)
+            .cloned()
+            .collect();
+        entries.sort_by_key(|e| e.created_at);
+        if let Some(n) = limit {
+            entries.truncate(n as usize);
+        }
+        Ok(entries)
+    }
+
+    async fn delete_user_memory(&self, id: &UserMemoryId) -> Result<(), HistoryError> {
+        self.user_memories.lock().remove(id);
+        Ok(())
+    }
+
+    async fn search_user_memories(
+        &self,
+        user_id: &UserId,
+        query: &str,
+        limit: u32,
+    ) -> Result<Vec<UserMemoryEntry>, HistoryError> {
+        let query_lower = query.to_lowercase();
+        let mut entries: Vec<UserMemoryEntry> = self
+            .user_memories
+            .lock()
+            .values()
+            .filter(|e| &e.user_id == user_id)
+            .filter(|e| e.content.to_lowercase().contains(&query_lower))
+            .cloned()
+            .collect();
+        entries.sort_by_key(|e| e.created_at);
+        entries.truncate(limit as usize);
+        Ok(entries)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -807,6 +1144,10 @@ mod tests {
             is_final: true,
             streaming: None,
             deleted: false,
+            agent_id: None,
+            correlation_id: None,
+            reply_to: None,
+            eval_scores: Vec::new(),
             metadata: HashMap::new(),
         }
     }
@@ -1110,6 +1451,208 @@ mod tests {
 
         let results = s.search_chunks(&conv_id, "lazy", 10).await.unwrap();
         assert_eq!(results.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn prompt_version_crud() {
+        use crate::types::ContentBlock;
+
+        let s = InMemoryStorage::new();
+        let id = PromptId::new();
+        let p1 = PromptVersion {
+            id: id.clone(),
+            name: "system".into(),
+            content: vec![ContentBlock::text("v1")],
+            version: 1,
+            project_id: None,
+            created_at: 0,
+            created_by: None,
+            metadata: Default::default(),
+        };
+        let p2 = PromptVersion {
+            version: 2,
+            content: vec![ContentBlock::text("v2")],
+            ..p1.clone()
+        };
+
+        s.save_prompt_version(&p1).await.unwrap();
+        s.save_prompt_version(&p2).await.unwrap();
+
+        let loaded = s.get_prompt_version(&id, 1).await.unwrap().unwrap();
+        assert_eq!(loaded.version, 1);
+
+        let all = s.list_prompt_versions("system").await.unwrap();
+        assert_eq!(all.len(), 2);
+        assert_eq!(all[0].version, 1);
+
+        let latest = s.get_latest_prompt("system").await.unwrap().unwrap();
+        assert_eq!(latest.version, 2);
+
+        assert!(s.get_latest_prompt("nonexistent").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn dataset_entry_crud() {
+
+        let s = InMemoryStorage::new();
+        let conv_id = ConversationId::new();
+
+        let e1 = DatasetEntry {
+            id: DatasetEntryId::new(),
+            conversation_id: conv_id.clone(),
+            dataset_name: "sft".into(),
+            input_node_ids: vec![],
+            output_node_id: NodeId::new(),
+            expected_output: Some("answer".into()),
+            split: DatasetSplit::Train,
+            created_at: 0,
+            metadata: Default::default(),
+        };
+        let e2 = DatasetEntry {
+            id: DatasetEntryId::new(),
+            split: DatasetSplit::Test,
+            ..e1.clone()
+        };
+
+        s.save_dataset_entry(&e1).await.unwrap();
+        s.save_dataset_entry(&e2).await.unwrap();
+
+        let all = s.list_dataset_entries("sft", None).await.unwrap();
+        assert_eq!(all.len(), 2);
+
+        let train_only = s
+            .list_dataset_entries("sft", Some(&DatasetSplit::Train))
+            .await
+            .unwrap();
+        assert_eq!(train_only.len(), 1);
+        assert_eq!(train_only[0].split, DatasetSplit::Train);
+
+        s.delete_dataset_entry(&e1.id).await.unwrap();
+        let after_delete = s.list_dataset_entries("sft", None).await.unwrap();
+        assert_eq!(after_delete.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn user_memory_crud_and_search() {
+        use super::super::types::UserMemoryType;
+
+        let s = InMemoryStorage::new();
+        let user_id = UserId::from_string("user1");
+        let other_user = UserId::from_string("user2");
+
+        let e = UserMemoryEntry {
+            id: UserMemoryId::new(),
+            user_id: user_id.clone(),
+            content: "User prefers dark mode".into(),
+            memory_type: UserMemoryType::Preference,
+            source_conversation_id: None,
+            created_at: 1000,
+            updated_at: 1000,
+            expires_at: None,
+            metadata: Default::default(),
+        };
+
+        s.save_user_memory(&e).await.unwrap();
+        let loaded = s.get_user_memory(&e.id).await.unwrap().unwrap();
+        assert_eq!(loaded.content, "User prefers dark mode");
+
+        let list = s.list_user_memories(&user_id, None).await.unwrap();
+        assert_eq!(list.len(), 1);
+
+        let empty = s.list_user_memories(&other_user, None).await.unwrap();
+        assert!(empty.is_empty());
+
+        let results = s
+            .search_user_memories(&user_id, "dark mode", 10)
+            .await
+            .unwrap();
+        assert_eq!(results.len(), 1);
+
+        let no_results = s
+            .search_user_memories(&user_id, "light mode", 10)
+            .await
+            .unwrap();
+        assert!(no_results.is_empty());
+
+        s.delete_user_memory(&e.id).await.unwrap();
+        assert!(s.get_user_memory(&e.id).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn node_patch_eval_scores_merge() {
+        use super::super::types::EvalScore;
+
+        let s = InMemoryStorage::new();
+        let conv_id = ConversationId::new();
+        let branch_id = BranchId::new();
+        let node = make_test_node(&conv_id, &branch_id, 0);
+        s.append_nodes(&[node.clone()]).await.unwrap();
+
+        let score1 = EvalScore {
+            name: "safety".into(),
+            score: 1.0,
+            rationale: None,
+            grader: None,
+            created_at: 0,
+            metadata: Default::default(),
+        };
+        let score2 = EvalScore {
+            name: "helpfulness".into(),
+            score: 0.8,
+            ..score1.clone()
+        };
+
+        s.update_node(
+            &node.id,
+            &NodePatch {
+                eval_scores: Some(vec![score1]),
+                ..Default::default()
+            },
+            0,
+        )
+        .await
+        .unwrap();
+
+        s.update_node(
+            &node.id,
+            &NodePatch {
+                eval_scores: Some(vec![score2]),
+                ..Default::default()
+            },
+            1,
+        )
+        .await
+        .unwrap();
+
+        let loaded = s.get_node(&node.id).await.unwrap().unwrap();
+        assert_eq!(loaded.eval_scores.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn delete_conversation_cascades_dataset_entries() {
+
+        let s = InMemoryStorage::new();
+        let conv = Conversation::new("cascade ds test");
+        let conv_id = conv.id.clone();
+        s.save_conversation(&conv).await.unwrap();
+
+        let entry = DatasetEntry {
+            id: DatasetEntryId::new(),
+            conversation_id: conv_id.clone(),
+            dataset_name: "sft".into(),
+            input_node_ids: vec![],
+            output_node_id: NodeId::new(),
+            expected_output: None,
+            split: DatasetSplit::Train,
+            created_at: 0,
+            metadata: Default::default(),
+        };
+        s.save_dataset_entry(&entry).await.unwrap();
+
+        s.delete_conversation(&conv_id).await.unwrap();
+
+        let remaining = s.list_dataset_entries("sft", None).await.unwrap();
+        assert!(remaining.is_empty());
     }
 
     #[tokio::test]
