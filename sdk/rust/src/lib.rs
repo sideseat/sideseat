@@ -79,6 +79,8 @@
 
 #[path = "inference/env.rs"]
 pub mod env;
+#[path = "inference/history/mod.rs"]
+pub mod history;
 #[path = "inference/error.rs"]
 pub mod error;
 #[path = "inference/mcp.rs"]
