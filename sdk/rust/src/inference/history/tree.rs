@@ -391,7 +391,7 @@ mod tests {
         tree.register(&n0).unwrap();
 
         let n1 = make_node(&conv_id, &main, Some(n0_id.clone()), 1);
-        let n1_id = n1.id.clone();
+        let _n1_id = n1.id.clone();
         tree.register(&n1).unwrap();
 
         let fork_branch = tree.fork(&n0_id, Some("alt".into())).unwrap();
