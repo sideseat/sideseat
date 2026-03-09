@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
-use super::error::HistoryError;
-use super::types::{
-    BranchId, BranchMeta, ConversationId, Node, NodeHeader, NodeId, UserId, now_micros,
-};
+use super::error::CmError;
+use super::types::{BranchId, BranchMeta, ConversationId, Node, NodeHeader, NodeId, UserId, now_micros};
 
 // ---------------------------------------------------------------------------
 // BranchDiff
@@ -41,11 +39,11 @@ impl ConversationTree {
             BranchMeta {
                 id: main_branch.clone(),
                 conversation_id: conversation_id.clone(),
-                parent_branch_id: None,
+                parent_id: None,
                 fork_node_id: None,
+                crdt_seq_watermark: 0,
+                name: "main".into(),
                 created_at: now_micros(),
-                created_by: None,
-                name: Some("main".into()),
             },
         );
         let mut next_sequence = HashMap::new();
@@ -62,7 +60,7 @@ impl ConversationTree {
         }
     }
 
-    pub fn register(&mut self, node: &Node) -> Result<NodeHeader, HistoryError> {
+    pub fn register(&mut self, node: &Node) -> Result<NodeHeader, CmError> {
         let header = NodeHeader::from(node);
         self.headers.insert(node.id.clone(), header.clone());
 
@@ -73,11 +71,36 @@ impl ConversationTree {
             .map(|h| h.sequence)
             .unwrap_or(0);
 
-        if node.sequence >= current_tip_seq || !self.tips.contains_key(&node.branch_id) {
+        if node.sequence >= current_tip_seq {
             self.tips.insert(node.branch_id.clone(), node.id.clone());
         }
 
         Ok(header)
+    }
+
+    /// Registers a node header without requiring the full node.
+    /// Used by `load()` to reconstruct the tree from persisted headers.
+    pub fn register_header(&mut self, header: NodeHeader) -> Result<(), CmError> {
+        let current_tip_seq = self
+            .tips
+            .get(&header.branch_id)
+            .and_then(|tip_id| self.headers.get(tip_id))
+            .map(|h| h.sequence)
+            .unwrap_or(0);
+
+        if header.sequence >= current_tip_seq {
+            self.tips.insert(header.branch_id.clone(), header.id.clone());
+        }
+
+        // Advance next_sequence so new nodes appended after load() get a unique,
+        // monotonically increasing sequence number on this branch.
+        let next = self.next_sequence.entry(header.branch_id.clone()).or_insert(0);
+        if header.sequence + 1 > *next {
+            *next = header.sequence + 1;
+        }
+
+        self.headers.insert(header.id.clone(), header);
+        Ok(())
     }
 
     pub fn next_seq(&mut self, branch_id: &BranchId) -> u64 {
@@ -94,8 +117,8 @@ impl ConversationTree {
     pub fn fork(
         &mut self,
         from_node_id: &NodeId,
-        name: Option<String>,
-    ) -> Result<BranchId, HistoryError> {
+        name: String,
+    ) -> Result<BranchId, CmError> {
         self.fork_with_id(from_node_id, BranchId::new(), name)
     }
 
@@ -103,24 +126,25 @@ impl ConversationTree {
         &mut self,
         from_node_id: &NodeId,
         new_branch: BranchId,
-        name: Option<String>,
-    ) -> Result<BranchId, HistoryError> {
+        name: String,
+    ) -> Result<BranchId, CmError> {
         if !self.headers.contains_key(from_node_id) {
-            return Err(HistoryError::NodeNotFound(from_node_id.clone()));
+            return Err(CmError::NodeNotFound(from_node_id.clone()));
         }
 
         let header = &self.headers[from_node_id];
         let parent_branch_id = header.branch_id.clone();
+        let crdt_watermark = header.crdt_seq_watermark.unwrap_or(0);
         self.branches.insert(
             new_branch.clone(),
             BranchMeta {
                 id: new_branch.clone(),
                 conversation_id: self.conversation_id.clone(),
-                parent_branch_id: Some(parent_branch_id),
+                parent_id: Some(parent_branch_id),
                 fork_node_id: Some(from_node_id.clone()),
-                created_at: now_micros(),
-                created_by: None,
+                crdt_seq_watermark: crdt_watermark,
                 name,
+                created_at: now_micros(),
             },
         );
 
@@ -133,11 +157,11 @@ impl ConversationTree {
 
     /// Moves the branch tip backward to `to_node_id`. Returns the IDs of nodes
     /// removed from the active path (they remain in the tree for future forking).
-    pub fn rewind(&mut self, to_node_id: &NodeId) -> Result<Vec<NodeId>, HistoryError> {
+    pub fn rewind(&mut self, to_node_id: &NodeId) -> Result<Vec<NodeId>, CmError> {
         let header = self
             .headers
             .get(to_node_id)
-            .ok_or_else(|| HistoryError::NodeNotFound(to_node_id.clone()))?;
+            .ok_or_else(|| CmError::NodeNotFound(to_node_id.clone()))?;
 
         let branch_id = header.branch_id.clone();
         let target_seq = header.sequence;
@@ -160,9 +184,9 @@ impl ConversationTree {
         Ok(pruned)
     }
 
-    pub fn checkout(&mut self, branch_id: &BranchId) -> Result<(), HistoryError> {
+    pub fn checkout(&mut self, branch_id: &BranchId) -> Result<(), CmError> {
         if !self.branches.contains_key(branch_id) {
-            return Err(HistoryError::BranchNotFound(branch_id.clone()));
+            return Err(CmError::BranchNotFound(branch_id.clone()));
         }
         self.active_branch = branch_id.clone();
         Ok(())
@@ -172,7 +196,7 @@ impl ConversationTree {
         &self,
         branch_a: &BranchId,
         branch_b: &BranchId,
-    ) -> Result<BranchDiff, HistoryError> {
+    ) -> Result<BranchDiff, CmError> {
         let path_a = self.linearize_ids(branch_a)?;
         let path_b = self.linearize_ids(branch_b)?;
 
@@ -212,9 +236,9 @@ impl ConversationTree {
     // Queries
     // -----------------------------------------------------------------------
 
-    pub fn linearize(&self, branch_id: &BranchId) -> Result<Vec<&NodeHeader>, HistoryError> {
+    pub fn linearize(&self, branch_id: &BranchId) -> Result<Vec<&NodeHeader>, CmError> {
         if !self.branches.contains_key(branch_id) {
-            return Err(HistoryError::BranchNotFound(branch_id.clone()));
+            return Err(CmError::BranchNotFound(branch_id.clone()));
         }
 
         let tip_id = match self.tips.get(branch_id) {
@@ -224,8 +248,15 @@ impl ConversationTree {
 
         let mut path = Vec::new();
         let mut current = Some(tip_id.clone());
+        let mut visited = std::collections::HashSet::new();
 
         while let Some(id) = current {
+            if !visited.insert(id.clone()) {
+                return Err(CmError::CycleDetected(format!(
+                    "node {} in conversation tree",
+                    id.as_str()
+                )));
+            }
             let header = match self.headers.get(&id) {
                 Some(h) => h,
                 None => break,
@@ -238,7 +269,7 @@ impl ConversationTree {
         Ok(path)
     }
 
-    pub fn linearize_ids(&self, branch_id: &BranchId) -> Result<Vec<NodeId>, HistoryError> {
+    pub fn linearize_ids(&self, branch_id: &BranchId) -> Result<Vec<NodeId>, CmError> {
         Ok(self
             .linearize(branch_id)?
             .into_iter()
@@ -256,13 +287,12 @@ impl ConversationTree {
     pub fn agent_subtree(
         &self,
         agent_spawn_id: &NodeId,
-    ) -> Result<Vec<&NodeHeader>, HistoryError> {
+    ) -> Result<Vec<&NodeHeader>, CmError> {
         let spawn_header = self
             .headers
             .get(agent_spawn_id)
-            .ok_or_else(|| HistoryError::NodeNotFound(agent_spawn_id.clone()))?;
+            .ok_or_else(|| CmError::NodeNotFound(agent_spawn_id.clone()))?;
 
-        // Find branch forked from this spawn node
         let sub_branch = self
             .branches
             .values()
@@ -290,8 +320,16 @@ impl ConversationTree {
         self.tips.get(branch_id)
     }
 
-    pub fn get_header(&self, id: &NodeId) -> Option<&NodeHeader> {
-        self.headers.get(id)
+    /// Returns a reference to the header or `CmError::NodeNotFound`.
+    pub fn get_header(&self, id: &NodeId) -> Result<&NodeHeader, CmError> {
+        self.headers
+            .get(id)
+            .ok_or_else(|| CmError::NodeNotFound(id.clone()))
+    }
+
+    /// Returns the branch that owns `node_id`, or `None` if not registered.
+    pub fn branch_of(&self, node_id: &NodeId) -> Option<BranchId> {
+        self.headers.get(node_id).map(|h| h.branch_id.clone())
     }
 
     pub fn cursor(&self, user_id: &UserId) -> Option<&NodeId> {
@@ -356,6 +394,7 @@ mod tests {
             reply_to: None,
             eval_scores: Vec::new(),
             metadata: HashMap::new(),
+            crdt_seq_watermark: None,
         }
     }
 
@@ -395,10 +434,9 @@ mod tests {
         tree.register(&n0).unwrap();
 
         let n1 = make_node(&conv_id, &main, Some(n0_id.clone()), 1);
-        let _n1_id = n1.id.clone();
         tree.register(&n1).unwrap();
 
-        let fork_branch = tree.fork(&n0_id, Some("alt".into())).unwrap();
+        let fork_branch = tree.fork(&n0_id, "alt".into()).unwrap();
 
         let n2 = make_node(&conv_id, &fork_branch, Some(n0_id.clone()), 1);
         tree.register(&n2).unwrap();
@@ -452,7 +490,7 @@ mod tests {
         let n1 = make_node(&conv_id, &main, Some(n0_id.clone()), 1);
         tree.register(&n1).unwrap();
 
-        let fork_branch = tree.fork(&n0_id, None).unwrap();
+        let fork_branch = tree.fork(&n0_id, "alt".into()).unwrap();
 
         let n2 = make_node(&conv_id, &fork_branch, Some(n0_id.clone()), 1);
         tree.register(&n2).unwrap();
@@ -473,7 +511,6 @@ mod tests {
         let n0_id = n0.id.clone();
         tree.register(&n0).unwrap();
 
-        // Two children with same parent (variant siblings)
         let n1 = make_node(&conv_id, &branch, Some(n0_id.clone()), 1);
         tree.register(&n1).unwrap();
 
@@ -505,13 +542,11 @@ mod tests {
         let n0_id = n0.id.clone();
         tree.register(&n0).unwrap();
 
-        // Spawn node
         let spawn = make_node(&conv_id, &main, Some(n0_id.clone()), 1);
         let spawn_id = spawn.id.clone();
         tree.register(&spawn).unwrap();
 
-        // Fork for agent
-        let agent_branch = tree.fork(&spawn_id, Some("agent/search".into())).unwrap();
+        let agent_branch = tree.fork(&spawn_id, "agent/search".into()).unwrap();
 
         let a1 = make_node(&conv_id, &agent_branch, Some(spawn_id.clone()), 2);
         tree.register(&a1).unwrap();
@@ -522,5 +557,92 @@ mod tests {
         let subtree = tree.agent_subtree(&spawn_id).unwrap();
         // Linearize follows parent chain from tip: a2 → a1 → spawn → n0
         assert_eq!(subtree.len(), 4);
+    }
+
+    #[test]
+    fn register_header_roundtrip() {
+        let conv_id = ConversationId::new();
+        let mut tree = ConversationTree::new(conv_id.clone());
+        let branch = tree.active_branch().clone();
+
+        // Build a node and its header directly
+        let node = make_node(&conv_id, &branch, None, 0);
+        let header = NodeHeader::from(&node);
+        let node_id = header.id.clone();
+
+        tree.register_header(header).unwrap();
+
+        let retrieved = tree.get_header(&node_id).unwrap();
+        assert_eq!(retrieved.id, node_id);
+        assert_eq!(retrieved.branch_id, branch);
+        assert_eq!(retrieved.sequence, 0);
+        assert_eq!(retrieved.crdt_seq_watermark, None);
+    }
+
+    #[test]
+    fn register_header_with_watermark() {
+        let conv_id = ConversationId::new();
+        let mut tree = ConversationTree::new(conv_id.clone());
+        let branch = tree.active_branch().clone();
+
+        let mut node = make_node(&conv_id, &branch, None, 0);
+        node.crdt_seq_watermark = Some(42);
+        let header = NodeHeader::from(&node);
+        let node_id = header.id.clone();
+
+        tree.register_header(header).unwrap();
+
+        let h = tree.get_header(&node_id).unwrap();
+        assert_eq!(h.crdt_seq_watermark, Some(42));
+    }
+
+    #[test]
+    fn branch_of_returns_correct_branch() {
+        let conv_id = ConversationId::new();
+        let mut tree = ConversationTree::new(conv_id.clone());
+        let main = tree.active_branch().clone();
+
+        let n0 = make_node(&conv_id, &main, None, 0);
+        let n0_id = n0.id.clone();
+        tree.register(&n0).unwrap();
+
+        let fork_branch = tree.fork(&n0_id, "fork".into()).unwrap();
+        let n1 = make_node(&conv_id, &fork_branch, Some(n0_id.clone()), 1);
+        let n1_id = n1.id.clone();
+        tree.register(&n1).unwrap();
+
+        assert_eq!(tree.branch_of(&n0_id), Some(main));
+        assert_eq!(tree.branch_of(&n1_id), Some(fork_branch));
+        assert_eq!(tree.branch_of(&NodeId::new()), None);
+    }
+
+    #[test]
+    fn get_header_returns_error_when_missing() {
+        let conv_id = ConversationId::new();
+        let tree = ConversationTree::new(conv_id);
+        let missing = NodeId::new();
+        assert!(tree.get_header(&missing).is_err());
+    }
+
+    #[test]
+    fn register_header_updates_next_sequence() {
+        // After load(), new nodes must not collide with loaded sequences.
+        let conv_id = ConversationId::new();
+        let mut tree = ConversationTree::new(conv_id.clone());
+        let branch = tree.active_branch().clone();
+
+        // Simulate loading headers that already occupy seqs 0..=4.
+        for seq in 0u64..=4 {
+            let node = make_node(&conv_id, &branch, None, seq);
+            let header = NodeHeader::from(&node);
+            tree.register_header(header).unwrap();
+        }
+
+        // next_seq must yield 5, not 0.
+        assert_eq!(
+            tree.next_seq(&branch),
+            5,
+            "next_sequence must be max_loaded_seq + 1 after register_header"
+        );
     }
 }
