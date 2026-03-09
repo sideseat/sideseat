@@ -1,21 +1,24 @@
 pub mod artifact;
 pub mod canvas;
-pub mod context;
 pub mod crdt;
 pub mod error;
+pub mod kanban;
 pub mod migrate;
 pub mod source;
 pub mod storage;
+pub mod sync;
 pub mod tree;
 pub mod types;
-pub mod vfs;
 
+use std::any::Any;
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 
-use self::context::{
-    ContextManager, ContextResult, ContextStrategy, MemorySource, Summarizer,
+use crate::context::{
+    ContextManager, ContextResult, ContextStrategy, MemoryItem, MemorySource, Summarizer,
     project_node_to_message,
 };
 use self::crdt::CrdtDoc;
@@ -25,10 +28,118 @@ use self::source::{
     SourceChunk, SourceStatus, SourceType, chunk_text,
 };
 use self::storage::{HistoryStorage, NodePatch};
+use self::sync::HistorySyncBackend;
 use self::tree::{BranchDiff, ConversationTree};
 use self::types::*;
-use self::vfs::Vfs;
 use crate::types::{ContentBlock, Message, Response, Role, Usage};
+
+// ---------------------------------------------------------------------------
+// Traits
+// ---------------------------------------------------------------------------
+
+/// Lifecycle hook interface for pluggable History extensions.
+///
+/// Implement this trait to react to branch lifecycle events. Stateless
+/// extensions (Canvas, Kanban, Artifact) hold no internal state and receive
+/// storage via method parameters. Stateful extensions (VFS) hold state
+/// internally behind interior mutability and use the lifecycle hooks to stay
+/// in sync with the active branch.
+///
+/// Multiple extensions of the same concrete type may be registered under
+/// different IDs (e.g. a "vfs-local" and a "vfs-s3"). Lookup is by both
+/// ID string and concrete type — see [`History::extension`] and
+/// [`History::extension_by_id`].
+///
+/// Register with [`History::with_extension`].
+pub trait HistoryExtension: Send + Sync + 'static {
+    /// Stable identifier used for named lookup.
+    fn id(&self) -> &str;
+    fn on_branch_forked(&self, _parent: &BranchId, _child: &BranchId) {}
+    fn on_branch_checked_out(&self, _branch: &BranchId) {}
+}
+
+// ---------------------------------------------------------------------------
+// ExtensionSet — dependency-injection container for extensions
+// ---------------------------------------------------------------------------
+
+/// A registry of [`HistoryExtension`] instances that can be borrowed by
+/// extension methods needing to call peer extensions.
+///
+/// `History<S>` owns an `ExtensionSet` and exposes it via
+/// [`History::extensions`]. Extension methods that depend on other extensions
+/// accept `&ExtensionSet` as an explicit parameter, keeping the coupling
+/// visible and breaking cycles.
+///
+/// ```text
+/// let artifact = history.extension::<ArtifactExtension>().unwrap();
+/// artifact.write_file(history.extensions(), set_id, 1, "src/main.rs", code, "text/x-rust").await?;
+/// ```
+pub struct ExtensionSet {
+    /// Registration order (for deterministic `extension<T>()` scanning).
+    hooks: RwLock<Vec<Arc<dyn HistoryExtension>>>,
+    /// Named lookup: `ext.id()` → `Arc<dyn Any + Send + Sync>`.
+    store: RwLock<HashMap<String, Arc<dyn Any + Send + Sync>>>,
+}
+
+impl ExtensionSet {
+    pub fn new() -> Self {
+        Self {
+            hooks: RwLock::new(Vec::new()),
+            store: RwLock::new(HashMap::new()),
+        }
+    }
+
+    pub(crate) fn register<T: HistoryExtension>(&self, ext: Arc<T>) {
+        let id = ext.id().to_string();
+        self.store
+            .write()
+            .insert(id, ext.clone() as Arc<dyn Any + Send + Sync>);
+        self.hooks.write().push(ext as Arc<dyn HistoryExtension>);
+    }
+
+    /// Return the first registered extension whose concrete type is `T`.
+    pub fn extension<T: HistoryExtension>(&self) -> Option<Arc<T>> {
+        let ids: Vec<String> = self
+            .hooks
+            .read()
+            .iter()
+            .map(|h| h.id().to_string())
+            .collect();
+        let store = self.store.read();
+        for id in &ids {
+            if let Some(arc) = store.get(id.as_str())
+                && let Ok(typed) = arc.clone().downcast::<T>()
+            {
+                return Some(typed);
+            }
+        }
+        None
+    }
+
+    /// Return a registered extension by its string ID and cast to `T`.
+    pub fn extension_by_id<T: HistoryExtension>(&self, id: &str) -> Option<Arc<T>> {
+        self.store
+            .read()
+            .get(id)
+            .and_then(|arc| arc.clone().downcast::<T>().ok())
+    }
+
+    pub(crate) fn fire_branch_forked(&self, parent: &BranchId, child: &BranchId) {
+        for ext in self.hooks.read().iter() {
+            ext.on_branch_forked(parent, child);
+        }
+    }
+
+    pub(crate) fn fire_branch_checked_out(&self, branch: &BranchId) {
+        for ext in self.hooks.read().iter() {
+            ext.on_branch_checked_out(branch);
+        }
+    }
+}
+
+impl Default for ExtensionSet {
+    fn default() -> Self { Self::new() }
+}
 
 // ---------------------------------------------------------------------------
 // History facade
@@ -37,9 +148,17 @@ use crate::types::{ContentBlock, Message, Response, Role, Usage};
 pub struct History<S: HistoryStorage> {
     storage: S,
     tree: Mutex<ConversationTree>,
-    crdt: Mutex<Option<CrdtDoc>>,
+    crdt: Mutex<CrdtDoc>,
     conversation: Mutex<Conversation>,
-    vfs: Mutex<Option<Vfs>>,
+    extensions: ExtensionSet,
+    /// Optional sync backend for cross-instance CRDT exchange.
+    sync: Option<Arc<dyn HistorySyncBackend>>,
+    /// Unique client identifier used to tag outgoing deltas.
+    client_id: String,
+    /// Highest global_seq seen from the sync backend; 0 = never pulled.
+    last_seen_global_seq: AtomicU64,
+    /// Yjs state vector of what was last pushed; empty = never pushed.
+    pushed_sv: Mutex<Vec<u8>>,
 }
 
 impl<S: HistoryStorage> History<S> {
@@ -48,23 +167,126 @@ impl<S: HistoryStorage> History<S> {
         Self {
             storage,
             tree: Mutex::new(tree),
-            crdt: Mutex::new(None),
+            crdt: Mutex::new(CrdtDoc::new()),
             conversation: Mutex::new(conversation),
-            vfs: Mutex::new(None),
+            extensions: ExtensionSet::new(),
+            sync: None,
+            client_id: uuid::Uuid::now_v7().to_string(),
+            last_seen_global_seq: AtomicU64::new(0),
+            pushed_sv: Mutex::new(Vec::new()),
         }
     }
 
-    pub fn with_vfs(self, vfs: Vfs) -> Self {
-        *self.vfs.lock() = Some(vfs);
+    /// Register a pluggable extension. The extension is immediately notified
+    /// of the current active branch so stateful extensions (e.g. VFS) can
+    /// initialize correctly.
+    pub fn with_extension<T: HistoryExtension>(self, ext: Arc<T>) -> Self {
+        let current_branch = self.tree.lock().active_branch().clone();
+        ext.on_branch_checked_out(&current_branch);
+        self.extensions.register(ext);
         self
     }
 
-    pub fn vfs(&self) -> parking_lot::MappedMutexGuard<'_, Vfs> {
-        parking_lot::MutexGuard::map(self.vfs.lock(), |v| {
-            v.get_or_insert_with(|| {
-                Vfs::new(Arc::new(vfs::MemoryFsProvider::new()))
-            })
-        })
+    /// Return the first registered extension whose concrete type is `T`.
+    ///
+    /// Delegates to [`ExtensionSet::extension`]. For named multi-instance
+    /// extensions use [`extension_by_id`](History::extension_by_id).
+    pub fn extension<T: HistoryExtension>(&self) -> Option<Arc<T>> {
+        self.extensions.extension::<T>()
+    }
+
+    /// Return a registered extension by its string ID and cast to `T`.
+    pub fn extension_by_id<T: HistoryExtension>(&self, id: &str) -> Option<Arc<T>> {
+        self.extensions.extension_by_id::<T>(id)
+    }
+
+    /// Borrow the extension registry. Pass to extension methods that depend
+    /// on peer extensions (e.g. `ArtifactExtension::write_file`).
+    pub fn extensions(&self) -> &ExtensionSet {
+        &self.extensions
+    }
+
+    /// Access the underlying storage directly (e.g. to pass to extension methods).
+    pub fn storage(&self) -> &S {
+        &self.storage
+    }
+
+    /// Attach a sync backend for cross-instance CRDT exchange.
+    ///
+    /// - **Local**: share one `Arc<LocalSyncBackend>` across all `History`
+    ///   instances in the process.
+    /// - **Distributed**: use `Arc<StorageSyncBackend>` backed by the shared
+    ///   database; instances in different processes sync via `push_crdt`/`pull_crdt`.
+    pub fn with_sync(mut self, backend: Arc<dyn HistorySyncBackend>) -> Self {
+        self.sync = Some(backend);
+        self
+    }
+
+    /// Override the client identifier used to tag outgoing CRDT deltas.
+    ///
+    /// Defaults to a freshly generated UUIDv7. Set this to a stable value
+    /// (e.g. a server node ID) so `pull_crdt` can skip self-authored deltas.
+    pub fn with_client_id(mut self, id: impl Into<String>) -> Self {
+        self.client_id = id.into();
+        self
+    }
+
+    /// Push accumulated CRDT changes to the sync backend.
+    ///
+    /// Encodes only the diff since the last push, so successive calls are
+    /// cheap. Returns the assigned global sequence number, or `0` if no sync
+    /// backend is configured or the delta is empty.
+    pub async fn push_crdt(&self) -> Result<u64, HistoryError> {
+        let Some(sync) = &self.sync else { return Ok(0); };
+
+        let (delta, new_sv) = {
+            let crdt = self.crdt.lock();
+            let pushed_sv = self.pushed_sv.lock();
+            let delta = crdt.encode_diff(&pushed_sv);
+            let new_sv = crdt.state_vector();
+            (delta, new_sv)
+        };
+
+        if delta.is_empty() {
+            return Ok(self.last_seen_global_seq.load(Ordering::Relaxed));
+        }
+
+        let conv_id = self.conversation.lock().id.clone();
+        let seq = sync.push_delta(&conv_id, &self.client_id, &delta).await?;
+        *self.pushed_sv.lock() = new_sv;
+        Ok(seq)
+    }
+
+    /// Pull CRDT deltas from the sync backend and merge them into the local doc.
+    ///
+    /// Only merges deltas produced by other clients (skips own `client_id`).
+    /// Returns the number of deltas applied.
+    pub async fn pull_crdt(&self) -> Result<usize, HistoryError> {
+        let Some(sync) = &self.sync else { return Ok(0); };
+
+        let conv_id = self.conversation.lock().id.clone();
+        let after_seq = self.last_seen_global_seq.load(Ordering::Relaxed);
+        let deltas = sync.fetch_deltas(&conv_id, after_seq).await?;
+
+        if deltas.is_empty() {
+            return Ok(0);
+        }
+
+        let max_seq = deltas.iter().map(|d| d.global_seq).max().unwrap_or(after_seq);
+        let count = deltas.len();
+
+        {
+            let mut crdt = self.crdt.lock();
+            for d in &deltas {
+                // Skip deltas we produced — they're already in the local doc.
+                if d.client_id != self.client_id {
+                    crdt.merge_delta(&d.delta)?;
+                }
+            }
+        }
+
+        self.last_seen_global_seq.store(max_seq, Ordering::Relaxed);
+        Ok(count)
     }
 
     pub async fn load(storage: S, id: &ConversationId) -> Result<Self, HistoryError> {
@@ -75,16 +297,12 @@ impl<S: HistoryStorage> History<S> {
 
         let mut tree = ConversationTree::new(id.clone());
 
-        // Load branches
         let branches = storage.list_branches(id).await?;
         for branch in branches {
             tree.add_branch(branch);
         }
 
-        // Load all node headers and register them
         let headers = storage.list_node_headers(id).await?;
-        // We need full nodes to register (headers don't have enough info for tree)
-        // But we can reconstruct headers from the stored data
         let node_ids: Vec<NodeId> = headers.iter().map(|h| h.id.clone()).collect();
         let nodes = storage.get_nodes(&node_ids).await?;
         for node in &nodes {
@@ -94,10 +312,41 @@ impl<S: HistoryStorage> History<S> {
         Ok(Self {
             storage,
             tree: Mutex::new(tree),
-            crdt: Mutex::new(None),
+            crdt: Mutex::new(CrdtDoc::new()),
             conversation: Mutex::new(conversation),
-            vfs: Mutex::new(None),
+            extensions: ExtensionSet::new(),
+            sync: None,
+            client_id: uuid::Uuid::now_v7().to_string(),
+            last_seen_global_seq: AtomicU64::new(0),
+            pushed_sv: Mutex::new(Vec::new()),
         })
+    }
+
+    /// Load VFS branch indexes from storage into a registered `VfsExtension`.
+    ///
+    /// Call this after `History::load` + `with_extension(vfs_ext)` when
+    /// restoring an existing conversation that had VFS activity:
+    /// ```rust,ignore
+    /// let history = History::load(storage, &id).await?.with_extension(vfs_ext);
+    /// history.preload_vfs_indexes().await?;
+    /// ```
+    pub async fn preload_vfs_indexes(&self) -> Result<(), HistoryError> {
+        let Some(vfs) = self.extensions.extension::<source::VfsExtension>() else {
+            return Ok(());
+        };
+        let branch_ids: Vec<BranchId> = self
+            .tree
+            .lock()
+            .branches()
+            .keys()
+            .cloned()
+            .collect();
+        for branch_id in &branch_ids {
+            if let Some(data) = self.storage.load_vfs_index(branch_id).await? {
+                vfs.vfs.load_branch_index(branch_id.as_str(), &data);
+            }
+        }
+        Ok(())
     }
 
     // -----------------------------------------------------------------------
@@ -125,7 +374,9 @@ impl<S: HistoryStorage> History<S> {
     }
 
     pub fn checkout(&self, branch: &BranchId) -> Result<(), HistoryError> {
-        self.tree.lock().checkout(branch)
+        self.tree.lock().checkout(branch)?;
+        self.extensions.fire_branch_checked_out(branch);
+        Ok(())
     }
 
     pub fn diff(&self, a: &BranchId, b: &BranchId) -> Result<BranchDiff, HistoryError> {
@@ -224,6 +475,10 @@ impl<S: HistoryStorage> History<S> {
                 is_final: true,
                 streaming: None,
                 deleted: false,
+                agent_id: node_params.agent_id,
+                correlation_id: node_params.correlation_id,
+                reply_to: node_params.reply_to,
+                eval_scores: Vec::new(),
                 metadata: node_params.metadata,
             }
         };
@@ -231,9 +486,7 @@ impl<S: HistoryStorage> History<S> {
         self.storage.append_nodes(std::slice::from_ref(&node)).await?;
 
         self.tree.lock().register(&node)?;
-        if let Some(crdt) = self.crdt.lock().as_mut() {
-            crdt.record_node(&node);
-        }
+        self.crdt.lock().record_node(&node);
 
         Ok(node.id)
     }
@@ -280,14 +533,25 @@ impl<S: HistoryStorage> History<S> {
             .await?;
 
         // Fork a sub-branch using the same ID stored in the AgentSpawn content
-        {
+        let parent_branch = {
             let mut tree = self.tree.lock();
+            let parent = tree.active_branch().clone();
             tree.fork_with_id(&spawn_id, sub_branch_id.clone(), Some(format!("agent/{name}")))?;
-        }
+            parent
+        };
+
+        self.extensions.fire_branch_forked(&parent_branch, &sub_branch_id);
 
         // Persist the branch
         let branch_meta = self.tree.lock().branches()[&sub_branch_id].clone();
         self.storage.save_branch(&branch_meta).await?;
+
+        // Persist VFS index for the agent sub-branch (COW snapshot at fork point).
+        if let Some(vfs) = self.extensions.extension::<source::VfsExtension>()
+            && let Some(data) = vfs.vfs.serialize_branch_index(sub_branch_id.as_str())
+        {
+            self.storage.save_vfs_index(&sub_branch_id, &data).await?;
+        }
 
         Ok((spawn_id, sub_branch_id))
     }
@@ -395,10 +659,24 @@ impl<S: HistoryStorage> History<S> {
         from: &NodeId,
         name: Option<String>,
     ) -> Result<BranchId, HistoryError> {
-        let branch_id = self.tree.lock().fork(from, name)?;
+        let (parent_branch, branch_id) = {
+            let mut tree = self.tree.lock();
+            let parent = tree.active_branch().clone();
+            let id = tree.fork(from, name)?;
+            (parent, id)
+        };
+
+        self.extensions.fire_branch_forked(&parent_branch, &branch_id);
 
         let branch_meta = self.tree.lock().branches()[&branch_id].clone();
         self.storage.save_branch(&branch_meta).await?;
+
+        // Persist VFS index for the forked branch (COW snapshot at fork point).
+        if let Some(vfs) = self.extensions.extension::<source::VfsExtension>()
+            && let Some(data) = vfs.vfs.serialize_branch_index(branch_id.as_str())
+        {
+            self.storage.save_vfs_index(&branch_id, &data).await?;
+        }
 
         Ok(branch_id)
     }
@@ -451,6 +729,10 @@ impl<S: HistoryStorage> History<S> {
                     status: StreamStatus::Active,
                 }),
                 deleted: false,
+                agent_id: params.agent_id,
+                correlation_id: params.correlation_id,
+                reply_to: params.reply_to,
+                eval_scores: Vec::new(),
                 metadata: params.metadata,
             }
         };
@@ -512,12 +794,8 @@ impl<S: HistoryStorage> History<S> {
             )
             .await?;
 
-        let has_crdt = self.crdt.lock().is_some();
-        if has_crdt
-            && let Some(node) = self.storage.get_node(node_id).await?
-            && let Some(crdt) = self.crdt.lock().as_mut()
-        {
-            crdt.record_node(&node);
+        if let Some(node) = self.storage.get_node(node_id).await? {
+            self.crdt.lock().record_node(&node);
         }
 
         Ok(())
@@ -634,6 +912,75 @@ impl<S: HistoryStorage> History<S> {
     }
 
     // -----------------------------------------------------------------------
+    // Eval scoring
+    // -----------------------------------------------------------------------
+
+    pub async fn add_eval_score(
+        &self,
+        node_id: &NodeId,
+        score: EvalScore,
+    ) -> Result<(), HistoryError> {
+        let current_version = self
+            .storage
+            .get_node(node_id)
+            .await?
+            .ok_or_else(|| HistoryError::NodeNotFound(node_id.clone()))?
+            .version;
+        self.storage
+            .update_node(
+                node_id,
+                &NodePatch {
+                    eval_scores: Some(vec![score]),
+                    ..Default::default()
+                },
+                current_version,
+            )
+            .await
+    }
+
+    // -----------------------------------------------------------------------
+    // Dataset
+    // -----------------------------------------------------------------------
+
+    pub async fn mark_dataset_entry(
+        &self,
+        entry: DatasetEntry,
+    ) -> Result<DatasetEntryId, HistoryError> {
+        let id = entry.id.clone();
+        self.storage.save_dataset_entry(&entry).await?;
+        Ok(id)
+    }
+
+    pub async fn export_sft_jsonl(&self, dataset_name: &str) -> Result<String, HistoryError> {
+        let entries = self
+            .storage
+            .list_dataset_entries(dataset_name, None)
+            .await?;
+        let mut lines = Vec::new();
+        for entry in entries {
+            let node_ids: Vec<NodeId> = entry
+                .input_node_ids
+                .iter()
+                .chain(std::iter::once(&entry.output_node_id))
+                .cloned()
+                .collect();
+            let nodes = self.storage.get_nodes(&node_ids).await?;
+            let messages: Vec<Message> = nodes
+                .iter()
+                .filter_map(project_node_to_message)
+                .collect();
+            let record = serde_json::json!({
+                "messages": messages,
+                "expected": entry.expected_output,
+                "dataset": dataset_name,
+                "split": entry.split,
+            });
+            lines.push(serde_json::to_string(&record)?);
+        }
+        Ok(lines.join("\n"))
+    }
+
+    // -----------------------------------------------------------------------
     // Context
     // -----------------------------------------------------------------------
 
@@ -681,10 +1028,9 @@ impl<S: HistoryStorage> History<S> {
         let conv_id = self.conversation.lock().id.clone();
         let now = now_micros();
 
-        // Write raw file to VFS
+        // Write raw file to VFS if a VfsExtension is registered
         let raw_path = format!("sources/{}/raw", source_id);
-        {
-            let vfs = self.vfs();
+        if let Some(vfs) = self.extensions.extension::<source::VfsExtension>() {
             vfs.write(&raw_path, data, mime_type).await?;
         }
 
@@ -730,8 +1076,7 @@ impl<S: HistoryStorage> History<S> {
         // Write extracted text and chunk
         if let Some(content) = extracted {
             let extracted_path = format!("sources/{}/extracted.txt", source_id);
-            {
-                let vfs = self.vfs();
+            if let Some(vfs) = self.extensions.extension::<source::VfsExtension>() {
                 vfs.write(&extracted_path, content.text.as_bytes(), "text/plain")
                     .await?;
             }
@@ -799,9 +1144,8 @@ impl<S: HistoryStorage> History<S> {
             .await?
             .ok_or_else(|| HistoryError::SourceNotFound(source_id.clone()))?;
 
-        // Delete VFS files
-        {
-            let vfs = self.vfs();
+        // Delete VFS files if extension is registered
+        if let Some(vfs) = self.extensions.extension::<source::VfsExtension>() {
             let _ = vfs.delete(&source.raw_path).await;
             if let Some(extracted) = &source.extracted_path {
                 let _ = vfs.delete(extracted).await;
@@ -877,9 +1221,9 @@ impl<S: HistoryStorage> History<S> {
             if let Some(q) = query {
                 let chunks = self.storage.search_chunks(&conv_id, &q, 5).await?;
                 if !chunks.is_empty() {
-                    let memory_items: Vec<context::MemoryItem> = chunks
+                    let memory_items: Vec<MemoryItem> = chunks
                         .into_iter()
-                        .map(|c| context::MemoryItem {
+                        .map(|c| MemoryItem {
                             content: c.text,
                             source: format!("source:{}", c.source_id),
                             relevance_score: None,
@@ -909,28 +1253,135 @@ impl<S: HistoryStorage> History<S> {
     }
 
     // -----------------------------------------------------------------------
-    // CRDT
+    // CRDT — low-level access and sync
     // -----------------------------------------------------------------------
 
-    pub fn enable_crdt(&self) {
-        let mut crdt = self.crdt.lock();
-        if crdt.is_none() {
-            *crdt = Some(CrdtDoc::new());
-        }
+    /// Return the full Yjs state as a binary delta (v1 format).
+    pub fn crdt_delta(&self) -> Vec<u8> {
+        self.crdt.lock().full_state()
     }
 
-    pub fn crdt_delta(&self) -> Option<Vec<u8>> {
-        self.crdt.lock().as_ref().map(CrdtDoc::full_state)
-    }
-
+    /// Merge a raw Yjs delta into the local CRDT doc.
+    ///
+    /// For cross-instance sync prefer `push_crdt`/`pull_crdt` with a
+    /// configured [`HistorySyncBackend`].
     pub fn apply_crdt_delta(&self, delta: &[u8]) -> Result<(), HistoryError> {
-        let mut crdt = self.crdt.lock();
-        match crdt.as_mut() {
-            Some(doc) => doc.merge_delta(delta),
-            None => Err(HistoryError::Crdt(
-                "CRDT not enabled; call enable_crdt() first".into(),
-            )),
+        self.crdt.lock().merge_delta(delta)
+    }
+
+    // -----------------------------------------------------------------------
+    // VFS facade — write/read/delete with history recording
+    //
+    // All write operations record a `NodeContent::VfsChange` node so the
+    // file timeline is integrated into the conversation history.
+    // Requires a `VfsExtension` to be registered via `with_extension`.
+    // -----------------------------------------------------------------------
+
+    /// Write `data` to `path` in the VFS and record a `VfsChange` node.
+    ///
+    /// Returns the `NodeId` of the recorded change node.
+    pub async fn write_file(
+        &self,
+        path: &str,
+        data: &[u8],
+        mime_type: &str,
+    ) -> Result<NodeId, HistoryError> {
+        let vfs = self
+            .extensions
+            .extension::<source::VfsExtension>()
+            .ok_or(HistoryError::VfsNotConfigured)?;
+
+        let exists = vfs.exists(path).await.unwrap_or(false);
+        vfs.write(path, data, mime_type).await?;
+        self.persist_vfs_index(&vfs).await?;
+
+        let operation = if exists {
+            VfsOperation::Modify { size_bytes: data.len() as u64 }
+        } else {
+            VfsOperation::Create {
+                mime_type: mime_type.to_string(),
+                size_bytes: data.len() as u64,
+            }
+        };
+        self.append_node(
+            NodeContent::VfsChange { path: path.to_string(), operation },
+            NodeParams::default(),
+        )
+        .await
+    }
+
+    /// Delete `path` from the VFS and record a `VfsChange` node.
+    pub async fn delete_file(&self, path: &str) -> Result<NodeId, HistoryError> {
+        let vfs = self
+            .extensions
+            .extension::<source::VfsExtension>()
+            .ok_or(HistoryError::VfsNotConfigured)?;
+
+        vfs.delete(path).await?;
+        self.persist_vfs_index(&vfs).await?;
+
+        self.append_node(
+            NodeContent::VfsChange {
+                path: path.to_string(),
+                operation: VfsOperation::Delete,
+            },
+            NodeParams::default(),
+        )
+        .await
+    }
+
+    /// Read `path` from the VFS. Does not record a history node.
+    pub async fn read_file(&self, path: &str) -> Result<Vec<u8>, HistoryError> {
+        self.extensions
+            .extension::<source::VfsExtension>()
+            .ok_or(HistoryError::VfsNotConfigured)?
+            .read(path)
+            .await
+    }
+
+    /// List files under `prefix` in the VFS. Does not record a history node.
+    pub async fn list_files(
+        &self,
+        prefix: &str,
+    ) -> Result<Vec<source::vfs::FileEntry>, HistoryError> {
+        self.extensions
+            .extension::<source::VfsExtension>()
+            .ok_or(HistoryError::VfsNotConfigured)?
+            .list(prefix)
+            .await
+    }
+
+    /// Merge a Yjs v1 delta into the VFS CRDT doc at `path` and record a
+    /// `VfsChange { CrdtUpdate }` node.
+    pub async fn apply_crdt_file_update(
+        &self,
+        path: &str,
+        delta: &[u8],
+    ) -> Result<NodeId, HistoryError> {
+        let vfs = self
+            .extensions
+            .extension::<source::VfsExtension>()
+            .ok_or(HistoryError::VfsNotConfigured)?;
+
+        vfs.crdt_merge_delta(delta)?;
+        let size_bytes = vfs.crdt_text_len(path) as u64;
+
+        self.append_node(
+            NodeContent::VfsChange {
+                path: path.to_string(),
+                operation: VfsOperation::CrdtUpdate { size_bytes },
+            },
+            NodeParams::default(),
+        )
+        .await
+    }
+
+    async fn persist_vfs_index(&self, vfs: &source::VfsExtension) -> Result<(), HistoryError> {
+        let branch_id = self.tree.lock().active_branch().clone();
+        if let Some(data) = vfs.serialize_active_branch_index() {
+            self.storage.save_vfs_index(&branch_id, &data).await?;
         }
+        Ok(())
     }
 
     // -----------------------------------------------------------------------
@@ -964,6 +1415,10 @@ impl<S: HistoryStorage> History<S> {
                 is_final: true,
                 streaming: None,
                 deleted: false,
+                agent_id: params.agent_id,
+                correlation_id: params.correlation_id,
+                reply_to: params.reply_to,
+                eval_scores: Vec::new(),
                 metadata: params.metadata,
             }
         };
@@ -973,9 +1428,7 @@ impl<S: HistoryStorage> History<S> {
 
         // Phase 3: short lock to register
         self.tree.lock().register(&node)?;
-        if let Some(crdt) = self.crdt.lock().as_mut() {
-            crdt.record_node(&node);
-        }
+        self.crdt.lock().record_node(&node);
 
         Ok(node.id)
     }
@@ -983,24 +1436,24 @@ impl<S: HistoryStorage> History<S> {
 
 // Helper: a MemorySource that returns pre-computed items
 struct StaticMemorySource {
-    items: Mutex<Vec<context::MemoryItem>>,
+    items: Mutex<Vec<MemoryItem>>,
 }
 
 #[async_trait::async_trait]
-impl context::MemorySource for StaticMemorySource {
+impl MemorySource for StaticMemorySource {
     async fn retrieve(
         &self,
         _query: &str,
         _conversation_id: &ConversationId,
         _limit: u32,
-    ) -> Result<Vec<context::MemoryItem>, HistoryError> {
+    ) -> Result<Vec<MemoryItem>, HistoryError> {
         Ok(self.items.lock().clone())
     }
 
     async fn store(
         &self,
         _conversation_id: &ConversationId,
-        _item: &context::MemoryItem,
+        _item: &MemoryItem,
     ) -> Result<(), HistoryError> {
         Ok(())
     }
@@ -1267,6 +1720,77 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn add_eval_score_appends() {
+        let storage = InMemoryStorage::new();
+        let conv = Conversation::new("eval test");
+        let history = History::new(storage, conv);
+
+        let node_id = history
+            .add_user_message(vec![ContentBlock::text("hello")], NodeParams::default())
+            .await
+            .unwrap();
+
+        let score = EvalScore {
+            name: "safety".into(),
+            score: 1.0,
+            rationale: None,
+            grader: None,
+            created_at: now_micros(),
+            metadata: Default::default(),
+        };
+        history.add_eval_score(&node_id, score).await.unwrap();
+
+        let node = history.storage.get_node(&node_id).await.unwrap().unwrap();
+        assert_eq!(node.eval_scores.len(), 1);
+        assert_eq!(node.eval_scores[0].name, "safety");
+    }
+
+    #[tokio::test]
+    async fn export_sft_jsonl_produces_valid_jsonl() {
+        let storage = InMemoryStorage::new();
+        let conv = Conversation::new("sft");
+        let history = History::new(storage, conv);
+
+        let user_id = history
+            .add_user_message(vec![ContentBlock::text("question")], NodeParams::default())
+            .await
+            .unwrap();
+
+        let resp = crate::types::Response {
+            content: vec![ContentBlock::text("answer")],
+            usage: Usage::default(),
+            stop_reason: crate::types::StopReason::EndTurn,
+            model: None,
+            id: None,
+            container: None,
+            logprobs: None,
+            grounding_metadata: None,
+            warnings: vec![],
+        };
+        let resp_id = history.add_response(&resp, NodeParams::default()).await.unwrap();
+
+        let entry = DatasetEntry {
+            id: DatasetEntryId::new(),
+            conversation_id: history.conversation().id,
+            dataset_name: "test-sft".into(),
+            input_node_ids: vec![user_id],
+            output_node_id: resp_id,
+            expected_output: Some("answer".into()),
+            split: DatasetSplit::Train,
+            created_at: now_micros(),
+            metadata: Default::default(),
+        };
+        history.mark_dataset_entry(entry).await.unwrap();
+
+        let jsonl = history.export_sft_jsonl("test-sft").await.unwrap();
+        assert!(!jsonl.is_empty());
+
+        let parsed: serde_json::Value = serde_json::from_str(&jsonl).unwrap();
+        assert!(parsed["messages"].is_array());
+        assert_eq!(parsed["expected"], "answer");
+    }
+
+    #[tokio::test]
     async fn stale_stream_cleanup() {
         let storage = InMemoryStorage::new();
         let conv = Conversation::new("test");
@@ -1430,7 +1954,8 @@ mod tests {
     async fn add_source_lifecycle() {
         let storage = InMemoryStorage::new();
         let conv = Conversation::new("source test");
-        let history = History::new(storage, conv);
+        let history = History::new(storage, conv)
+            .with_extension(Arc::new(source::VfsExtension::new()));
 
         let source_id = history
             .add_source(
@@ -1460,7 +1985,7 @@ mod tests {
 
         // VFS should have raw file
         {
-            let vfs = history.vfs();
+            let vfs = history.extensions.extension::<source::VfsExtension>().unwrap();
             assert!(vfs.exists(&source.raw_path).await.unwrap());
         }
     }
@@ -1469,7 +1994,8 @@ mod tests {
     async fn remove_source_cleanup() {
         let storage = InMemoryStorage::new();
         let conv = Conversation::new("source remove test");
-        let history = History::new(storage, conv);
+        let history = History::new(storage, conv)
+            .with_extension(Arc::new(source::VfsExtension::new()));
 
         let source_id = history
             .add_source(
@@ -1493,7 +2019,7 @@ mod tests {
 
         // VFS file should be gone
         {
-            let vfs = history.vfs();
+            let vfs = history.extensions.extension::<source::VfsExtension>().unwrap();
             assert!(!vfs.exists(&raw_path).await.unwrap());
         }
 
@@ -1570,5 +2096,150 @@ mod tests {
 
         let conv = history.conversation();
         assert_eq!(conv.workspace.sources.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn vfs_write_and_read_file() {
+        let storage = InMemoryStorage::new();
+        let conv = Conversation::new("vfs test");
+        let vfs_ext = Arc::new(source::VfsExtension::new());
+        let history = History::new(storage, conv).with_extension(vfs_ext);
+
+        let node_id = history
+            .write_file("docs/hello.txt", b"Hello, VFS!", "text/plain")
+            .await
+            .unwrap();
+
+        let data = history.read_file("docs/hello.txt").await.unwrap();
+        assert_eq!(data, b"Hello, VFS!");
+
+        // Verify a VfsChange node was recorded
+        let node = history.storage.get_node(&node_id).await.unwrap().unwrap();
+        assert!(matches!(node.content, NodeContent::VfsChange { .. }));
+        if let NodeContent::VfsChange { path, operation } = &node.content {
+            assert_eq!(path, "docs/hello.txt");
+            assert!(matches!(operation, VfsOperation::Create { .. }));
+        }
+    }
+
+    #[tokio::test]
+    async fn vfs_overwrite_records_modify() {
+        let storage = InMemoryStorage::new();
+        let conv = Conversation::new("vfs mod");
+        let vfs_ext = Arc::new(source::VfsExtension::new());
+        let history = History::new(storage, conv).with_extension(vfs_ext);
+
+        history.write_file("f.txt", b"v1", "text/plain").await.unwrap();
+        let node_id = history.write_file("f.txt", b"v2", "text/plain").await.unwrap();
+
+        let node = history.storage.get_node(&node_id).await.unwrap().unwrap();
+        if let NodeContent::VfsChange { operation, .. } = &node.content {
+            assert!(matches!(operation, VfsOperation::Modify { .. }));
+        } else {
+            panic!("expected VfsChange node");
+        }
+    }
+
+    #[tokio::test]
+    async fn vfs_delete_file() {
+        let storage = InMemoryStorage::new();
+        let conv = Conversation::new("vfs del");
+        let vfs_ext = Arc::new(source::VfsExtension::new());
+        let history = History::new(storage, conv).with_extension(vfs_ext);
+
+        history.write_file("tmp.txt", b"data", "text/plain").await.unwrap();
+        let node_id = history.delete_file("tmp.txt").await.unwrap();
+
+        let node = history.storage.get_node(&node_id).await.unwrap().unwrap();
+        if let NodeContent::VfsChange { operation, .. } = &node.content {
+            assert!(matches!(operation, VfsOperation::Delete));
+        } else {
+            panic!("expected VfsChange Delete node");
+        }
+    }
+
+    #[tokio::test]
+    async fn vfs_list_files() {
+        let storage = InMemoryStorage::new();
+        let conv = Conversation::new("vfs list");
+        let vfs_ext = Arc::new(source::VfsExtension::new());
+        let history = History::new(storage, conv).with_extension(vfs_ext);
+
+        history.write_file("src/a.rs", b"fn a(){}", "text/x-rust").await.unwrap();
+        history.write_file("src/b.rs", b"fn b(){}", "text/x-rust").await.unwrap();
+
+        let entries = history.list_files("src").await.unwrap();
+        assert_eq!(entries.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn vfs_crdt_text_operations() {
+        let storage = InMemoryStorage::new();
+        let conv = Conversation::new("vfs crdt");
+        let vfs_ext = Arc::new(source::VfsExtension::new());
+        let history = History::new(storage, conv).with_extension(vfs_ext);
+
+        let vfs = history.extension::<source::VfsExtension>().unwrap();
+
+        // Build text via CRDT
+        vfs.crdt_text_insert("notes.md", 0, "Hello");
+        vfs.crdt_text_insert("notes.md", 5, " World");
+
+        assert_eq!(vfs.crdt_read_text("notes.md"), "Hello World");
+        assert_eq!(vfs.crdt_text_len("notes.md"), 11);
+
+        // Apply a delta from a remote peer
+        let delta = vfs.crdt_text_insert("notes.md", 11, "!");
+        let node_id = history.apply_crdt_file_update("notes.md", &delta).await.unwrap();
+
+        let node = history.storage.get_node(&node_id).await.unwrap().unwrap();
+        assert!(matches!(
+            node.content,
+            NodeContent::VfsChange { operation: VfsOperation::CrdtUpdate { .. }, .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn vfs_crdt_map_operations() {
+        let storage = InMemoryStorage::new();
+        let conv = Conversation::new("vfs crdt map");
+        let vfs_ext = Arc::new(source::VfsExtension::new());
+        let history = History::new(storage, conv).with_extension(vfs_ext);
+
+        let vfs = history.extension::<source::VfsExtension>().unwrap();
+
+        vfs.crdt_map_set("config.json", "theme", &serde_json::json!("dark"));
+        vfs.crdt_map_set("config.json", "lang", &serde_json::json!("en"));
+
+        assert_eq!(
+            vfs.crdt_map_get("config.json", "theme"),
+            Some(serde_json::json!("dark"))
+        );
+
+        let entries = vfs.crdt_map_entries("config.json");
+        assert_eq!(entries.len(), 2);
+
+        vfs.crdt_map_delete("config.json", "lang");
+        assert!(vfs.crdt_map_get("config.json", "lang").is_none());
+    }
+
+    #[tokio::test]
+    async fn vfs_index_persisted_on_write() {
+        let storage = InMemoryStorage::new();
+        let conv = Conversation::new("vfs persist");
+        let vfs_ext = Arc::new(source::VfsExtension::new());
+        let history = History::new(storage, conv).with_extension(vfs_ext);
+
+        let branch_id = history.active_branch();
+
+        // Before any write, no index persisted
+        let before = history.storage.load_vfs_index(&branch_id).await.unwrap();
+        assert!(before.is_none());
+
+        history.write_file("x.txt", b"hi", "text/plain").await.unwrap();
+
+        // After write, index is persisted
+        let after = history.storage.load_vfs_index(&branch_id).await.unwrap();
+        assert!(after.is_some());
     }
 }

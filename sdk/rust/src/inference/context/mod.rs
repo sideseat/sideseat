@@ -6,11 +6,11 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::error::HistoryError;
-use super::storage::HistoryStorage;
-use super::tree::ConversationTree;
-use super::types::{
-    BranchId, Conversation, ConversationId, Node, NodeContent, NodeId,
+use crate::history::error::HistoryError;
+use crate::history::storage::HistoryStorage;
+use crate::history::tree::ConversationTree;
+use crate::history::types::{
+    BranchId, Conversation, ConversationId, Node, NodeContent, NodeId, UserId,
 };
 use crate::types::{ContentBlock, Message, Role, estimate_tokens};
 
@@ -545,16 +545,75 @@ impl MemorySource for SourceMemory {
 }
 
 // ---------------------------------------------------------------------------
+// UserMemorySource
+// ---------------------------------------------------------------------------
+
+pub struct UserMemorySource {
+    storage: Arc<dyn HistoryStorage>,
+    user_id: UserId,
+}
+
+impl UserMemorySource {
+    pub fn new(storage: Arc<dyn HistoryStorage>, user_id: UserId) -> Self {
+        Self { storage, user_id }
+    }
+}
+
+#[async_trait]
+impl MemorySource for UserMemorySource {
+    async fn retrieve(
+        &self,
+        query: &str,
+        _conversation_id: &ConversationId,
+        limit: u32,
+    ) -> Result<Vec<MemoryItem>, HistoryError> {
+        let entries = self
+            .storage
+            .search_user_memories(&self.user_id, query, limit)
+            .await?;
+        Ok(entries
+            .into_iter()
+            .map(|e| MemoryItem {
+                content: e.content,
+                source: format!("user_memory:{}", e.id),
+                relevance_score: None,
+                metadata: [
+                    (
+                        "memory_type".into(),
+                        serde_json::json!(format!("{:?}", e.memory_type)),
+                    ),
+                    ("user_id".into(), serde_json::json!(e.user_id.as_str())),
+                ]
+                .into(),
+            })
+            .collect())
+    }
+
+    async fn store(
+        &self,
+        _conversation_id: &ConversationId,
+        _item: &MemoryItem,
+    ) -> Result<(), HistoryError> {
+        Ok(())
+    }
+
+    fn name(&self) -> &str {
+        "user_memory"
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::tree::ConversationTree;
-    use super::super::types::{ConversationId, NodeContent};
+    use crate::history::tree::ConversationTree;
+    use crate::history::types::{BranchId, ConversationId, NodeContent};
+    use crate::history::types::{UserMemoryEntry, UserMemoryId, UserMemoryType};
 
-    fn make_nodes(conv_id: &ConversationId, branch_id: &super::super::types::BranchId) -> Vec<Node> {
+    fn make_nodes(conv_id: &ConversationId, branch_id: &BranchId) -> Vec<Node> {
         vec![
             Node {
                 id: NodeId::from_string("n0"),
@@ -574,6 +633,10 @@ mod tests {
                 is_final: true,
                 streaming: None,
                 deleted: false,
+                agent_id: None,
+                correlation_id: None,
+                reply_to: None,
+                eval_scores: Vec::new(),
                 metadata: HashMap::new(),
             },
             Node {
@@ -595,6 +658,10 @@ mod tests {
                 is_final: true,
                 streaming: None,
                 deleted: false,
+                agent_id: None,
+                correlation_id: None,
+                reply_to: None,
+                eval_scores: Vec::new(),
                 metadata: HashMap::new(),
             },
             Node {
@@ -617,6 +684,10 @@ mod tests {
                 is_final: true,
                 streaming: None,
                 deleted: false,
+                agent_id: None,
+                correlation_id: None,
+                reply_to: None,
+                eval_scores: Vec::new(),
                 metadata: HashMap::new(),
             },
         ]
@@ -624,7 +695,7 @@ mod tests {
 
     #[tokio::test]
     async fn truncate_overflow() {
-        let conv = Conversation::new("test");
+        let conv = crate::history::types::Conversation::new("test");
         let conv_id = conv.id.clone();
         let mut tree = ConversationTree::new(conv_id.clone());
         let branch = tree.active_branch().clone();
@@ -648,7 +719,7 @@ mod tests {
 
     #[tokio::test]
     async fn fail_overflow() {
-        let conv = Conversation::new("test");
+        let conv = crate::history::types::Conversation::new("test");
         let conv_id = conv.id.clone();
         let mut tree = ConversationTree::new(conv_id.clone());
         let branch = tree.active_branch().clone();
@@ -671,7 +742,7 @@ mod tests {
 
     #[tokio::test]
     async fn system_mode_none() {
-        let conv = Conversation::new("test");
+        let conv = crate::history::types::Conversation::new("test");
         let conv_id = conv.id.clone();
         let mut tree = ConversationTree::new(conv_id.clone());
         let branch = tree.active_branch().clone();
@@ -696,7 +767,7 @@ mod tests {
 
     #[tokio::test]
     async fn sliding_window_overflow() {
-        let conv = Conversation::new("test");
+        let conv = crate::history::types::Conversation::new("test");
         let conv_id = conv.id.clone();
         let mut tree = ConversationTree::new(conv_id.clone());
         let branch = tree.active_branch().clone();
@@ -723,6 +794,10 @@ mod tests {
                 is_final: true,
                 streaming: None,
                 deleted: false,
+                agent_id: None,
+                correlation_id: None,
+                reply_to: None,
+                eval_scores: Vec::new(),
                 metadata: HashMap::new(),
             };
             tree.register(&node).unwrap();
@@ -758,9 +833,9 @@ mod tests {
 
     #[tokio::test]
     async fn source_memory_retrieve() {
-        use super::super::storage::InMemoryStorage;
-        use super::super::source::{Source, SourceChunk, SourceStatus, SourceType, ChunkLocation};
-        use super::super::types::{SourceId, now_micros};
+        use crate::history::source::{ChunkLocation, Source, SourceChunk, SourceStatus, SourceType};
+        use crate::history::storage::InMemoryStorage;
+        use crate::history::types::{SourceId, now_micros};
 
         let storage = Arc::new(InMemoryStorage::new());
         let conv_id = ConversationId::new();
@@ -802,13 +877,71 @@ mod tests {
 
     #[tokio::test]
     async fn source_memory_empty_query() {
-        use super::super::storage::InMemoryStorage;
+        use crate::history::storage::InMemoryStorage;
 
         let storage = Arc::new(InMemoryStorage::new());
         let conv_id = ConversationId::new();
 
         let mem = SourceMemory::new(storage);
         let items = mem.retrieve("anything", &conv_id, 10).await.unwrap();
+        assert!(items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn user_memory_source_retrieve() {
+        use crate::history::storage::InMemoryStorage;
+        use crate::history::types::now_micros;
+
+        let storage = Arc::new(InMemoryStorage::new());
+        let user_id = UserId::from_string("alice");
+        let conv_id = ConversationId::new();
+
+        let entry = UserMemoryEntry {
+            id: UserMemoryId::new(),
+            user_id: user_id.clone(),
+            content: "Alice loves Rust programming".into(),
+            memory_type: UserMemoryType::Fact,
+            source_conversation_id: None,
+            created_at: now_micros(),
+            updated_at: now_micros(),
+            expires_at: None,
+            metadata: Default::default(),
+        };
+        storage.save_user_memory(&entry).await.unwrap();
+
+        let source = UserMemorySource::new(storage.clone(), user_id.clone());
+        let items = source.retrieve("Rust", &conv_id, 10).await.unwrap();
+        assert_eq!(items.len(), 1);
+        assert!(items[0].content.contains("Rust"));
+        assert!(items[0].source.starts_with("user_memory:"));
+        assert_eq!(source.name(), "user_memory");
+    }
+
+    #[tokio::test]
+    async fn user_memory_source_empty_for_other_user() {
+        use crate::history::storage::InMemoryStorage;
+        use crate::history::types::now_micros;
+
+        let storage = Arc::new(InMemoryStorage::new());
+        let user_id = UserId::from_string("bob");
+        let other_user = UserId::from_string("carol");
+        let conv_id = ConversationId::new();
+
+        let entry = UserMemoryEntry {
+            id: UserMemoryId::new(),
+            user_id: user_id.clone(),
+            content: "Bob likes Python".into(),
+            memory_type: UserMemoryType::Fact,
+            source_conversation_id: None,
+            created_at: now_micros(),
+            updated_at: now_micros(),
+            expires_at: None,
+            metadata: Default::default(),
+        };
+        storage.save_user_memory(&entry).await.unwrap();
+
+        let source = UserMemorySource::new(storage, other_user);
+        let items = source.retrieve("Python", &conv_id, 10).await.unwrap();
         assert!(items.is_empty());
     }
 }
