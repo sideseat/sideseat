@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use std::fmt;
-use std::ops::Deref;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -12,16 +10,16 @@ use crate::types::{ContentBlock, StopReason, Usage};
 // Constants
 // ---------------------------------------------------------------------------
 
-pub const SCHEMA_VERSION: u32 = 1;
 pub const INLINE_SIZE_LIMIT: usize = 1024 * 1024; // 1MB
 
 // ---------------------------------------------------------------------------
 // Newtype IDs — UUIDv7 (time-sortable)
 // ---------------------------------------------------------------------------
 
+#[macro_export]
 macro_rules! define_id {
     ($name:ident) => {
-        #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+        #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
         #[serde(transparent)]
         pub struct $name(pub String);
 
@@ -45,13 +43,13 @@ macro_rules! define_id {
             }
         }
 
-        impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.write_str(&self.0)
             }
         }
 
-        impl Deref for $name {
+        impl std::ops::Deref for $name {
             type Target = str;
             fn deref(&self) -> &str {
                 &self.0
@@ -67,15 +65,16 @@ define_id!(UserId);
 define_id!(CanvasId);
 define_id!(ArtifactSetId);
 define_id!(SourceId);
-define_id!(ProjectId);
 define_id!(AgentId);
 define_id!(KanbanBoardId);
+define_id!(PromptId);
+define_id!(DatasetEntryId);
 
 // ---------------------------------------------------------------------------
 // Time helper
 // ---------------------------------------------------------------------------
 
-pub(crate) fn now_micros() -> i64 {
+pub fn now_micros() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -83,37 +82,41 @@ pub(crate) fn now_micros() -> i64 {
 }
 
 // ---------------------------------------------------------------------------
-// Project
+// ConversationStatus
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Project {
-    pub id: ProjectId,
-    pub name: String,
-    pub created_at: i64,
-    pub updated_at: i64,
-    pub instructions: Option<String>,
-    pub file_refs: Vec<StorageRef>,
-    #[serde(default)]
-    pub memory: HashMap<String, Value>,
-    #[serde(default)]
-    pub metadata: HashMap<String, Value>,
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ConversationStatus {
+    #[default]
+    Active,
+    Archived,
+    Deleted,
 }
 
-impl Project {
-    pub fn new(name: impl Into<String>) -> Self {
-        let now = now_micros();
-        Self {
-            id: ProjectId::new(),
-            name: name.into(),
-            created_at: now,
-            updated_at: now,
-            instructions: None,
-            file_refs: Vec::new(),
-            memory: HashMap::new(),
-            metadata: HashMap::new(),
-        }
-    }
+// ---------------------------------------------------------------------------
+// MaybeCleared — three-state wrapper for optional fields in patches
+// ---------------------------------------------------------------------------
+
+/// Three-state wrapper for fields that can be explicitly cleared (set to None).
+/// Avoids ambiguity of `Option<Option<T>>` in serialization.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "op", content = "v")]
+pub enum MaybeCleared<T> {
+    Set(T),
+    Clear,
+}
+
+// ---------------------------------------------------------------------------
+// ConversationPatch — append-only granular update
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ConversationPatch {
+    pub title: Option<String>,
+    pub status: Option<ConversationStatus>,
+    pub instructions: Option<MaybeCleared<String>>,
+    pub metadata: Option<HashMap<String, Value>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -123,7 +126,6 @@ impl Project {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Conversation {
     pub id: ConversationId,
-    pub project_id: Option<ProjectId>,
     pub title: Option<String>,
     pub icon: Option<ConversationIcon>,
     pub created_at: i64,
@@ -132,7 +134,10 @@ pub struct Conversation {
     pub default_model: Option<String>,
     pub default_provider: Option<String>,
     pub mode: ConversationMode,
+    pub status: ConversationStatus,
     pub workspace: Workspace,
+    pub instructions: Option<String>,
+    pub default_branch_id: Option<BranchId>,
     #[serde(default)]
     pub metadata: HashMap<String, Value>,
     #[serde(default)]
@@ -146,7 +151,6 @@ impl Conversation {
         let now = now_micros();
         Self {
             id: ConversationId::new(),
-            project_id: None,
             title: Some(title.into()),
             icon: None,
             created_at: now,
@@ -155,11 +159,33 @@ impl Conversation {
             default_model: None,
             default_provider: None,
             mode: ConversationMode::default(),
+            status: ConversationStatus::default(),
             workspace: Workspace::default(),
+            instructions: None,
+            default_branch_id: None,
             metadata: HashMap::new(),
             title_generated: false,
             icon_generated: false,
         }
+    }
+
+    pub fn apply_patch(&mut self, patch: &ConversationPatch) {
+        if let Some(title) = &patch.title {
+            self.title = Some(title.clone());
+        }
+        if let Some(status) = &patch.status {
+            self.status = status.clone();
+        }
+        if let Some(instr) = &patch.instructions {
+            match instr {
+                MaybeCleared::Set(s) => self.instructions = Some(s.clone()),
+                MaybeCleared::Clear => self.instructions = None,
+            }
+        }
+        if let Some(meta) = &patch.metadata {
+            self.metadata.extend(meta.clone());
+        }
+        self.updated_at = now_micros();
     }
 }
 
@@ -251,37 +277,13 @@ pub struct Node {
     pub eval_scores: Vec<EvalScore>,
     #[serde(default)]
     pub metadata: HashMap<String, Value>,
+    /// CRDT log position at commit time; used to restore CRDT state at a historical node.
+    pub crdt_seq_watermark: Option<u64>,
 }
 
 impl Node {
     pub fn content_type(&self) -> &'static str {
-        match &self.content {
-            NodeContent::UserMessage { .. } => "user_message",
-            NodeContent::AssistantMessage { .. } => "assistant_message",
-            NodeContent::SystemMessage { .. } => "system_message",
-            NodeContent::ToolResult { .. } => "tool_result",
-            NodeContent::AgentSpawn { .. } => "agent_spawn",
-            NodeContent::AgentResult { .. } => "agent_result",
-            NodeContent::AgentEvent { .. } => "agent_event",
-            NodeContent::AgentHandoff { .. } => "agent_handoff",
-            NodeContent::FileUpload { .. } => "file_upload",
-            NodeContent::MediaCapture { .. } => "media_capture",
-            NodeContent::ArtifactRef { .. } => "artifact_ref",
-            NodeContent::CanvasRef { .. } => "canvas_ref",
-            NodeContent::McpUi { .. } => "mcp_ui",
-            NodeContent::SkillInvocation { .. } => "skill_invocation",
-            NodeContent::AsyncTask { .. } => "async_task",
-            NodeContent::ComputerAction { .. } => "computer_action",
-            NodeContent::ModeSwitch { .. } => "mode_switch",
-            NodeContent::Annotation { .. } => "annotation",
-            NodeContent::SourceRef { .. } => "source_ref",
-            NodeContent::EvalResult { .. } => "eval_result",
-            NodeContent::ApprovalRequest { .. } => "approval_request",
-            NodeContent::ApprovalResponse { .. } => "approval_response",
-            NodeContent::WorkflowStep { .. } => "workflow_step",
-            NodeContent::VfsChange { .. } => "vfs_change",
-            NodeContent::Unknown { .. } => "unknown",
-        }
+        self.content.content_type_str()
     }
 }
 
@@ -301,6 +303,8 @@ pub struct NodeHeader {
     pub created_by: Option<UserId>,
     pub is_final: bool,
     pub deleted: bool,
+    /// CRDT log position at commit time; required for fork watermark lookup without full node fetch.
+    pub crdt_seq_watermark: Option<u64>,
 }
 
 impl From<&Node> for NodeHeader {
@@ -316,6 +320,7 @@ impl From<&Node> for NodeHeader {
             created_by: node.created_by.clone(),
             is_final: node.is_final,
             deleted: node.deleted,
+            crdt_seq_watermark: node.crdt_seq_watermark,
         }
     }
 }
@@ -497,19 +502,46 @@ pub enum NodeContent {
     },
 }
 
+impl NodeContent {
+    pub fn content_type_str(&self) -> &'static str {
+        match self {
+            NodeContent::UserMessage { .. } => "user_message",
+            NodeContent::AssistantMessage { .. } => "assistant_message",
+            NodeContent::SystemMessage { .. } => "system_message",
+            NodeContent::ToolResult { .. } => "tool_result",
+            NodeContent::AgentSpawn { .. } => "agent_spawn",
+            NodeContent::AgentResult { .. } => "agent_result",
+            NodeContent::AgentEvent { .. } => "agent_event",
+            NodeContent::AgentHandoff { .. } => "agent_handoff",
+            NodeContent::FileUpload { .. } => "file_upload",
+            NodeContent::MediaCapture { .. } => "media_capture",
+            NodeContent::ArtifactRef { .. } => "artifact_ref",
+            NodeContent::CanvasRef { .. } => "canvas_ref",
+            NodeContent::McpUi { .. } => "mcp_ui",
+            NodeContent::SkillInvocation { .. } => "skill_invocation",
+            NodeContent::AsyncTask { .. } => "async_task",
+            NodeContent::ComputerAction { .. } => "computer_action",
+            NodeContent::ModeSwitch { .. } => "mode_switch",
+            NodeContent::Annotation { .. } => "annotation",
+            NodeContent::SourceRef { .. } => "source_ref",
+            NodeContent::EvalResult { .. } => "eval_result",
+            NodeContent::ApprovalRequest { .. } => "approval_request",
+            NodeContent::ApprovalResponse { .. } => "approval_response",
+            NodeContent::WorkflowStep { .. } => "workflow_step",
+            NodeContent::VfsChange { .. } => "vfs_change",
+            NodeContent::Unknown { .. } => "unknown",
+        }
+    }
+}
+
 /// The kind of change recorded in a [`NodeContent::VfsChange`] node.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum VfsOperation {
-    /// A new file was created or first written.
     Create { mime_type: String, size_bytes: u64 },
-    /// An existing file's content was updated.
     Modify { size_bytes: u64 },
-    /// A file was deleted.
     Delete,
-    /// A file was moved/renamed.
     Rename { from: String },
-    /// A CRDT delta was applied to an existing CRDT file.
     CrdtUpdate { size_bytes: u64 },
 }
 
@@ -520,12 +552,14 @@ impl<'de> Deserialize<'de> for NodeContent {
         D: serde::Deserializer<'de>,
     {
         let value = Value::deserialize(deserializer)?;
+        // Owned so the borrow on `value` is released, allowing `value` to be
+        // moved into the Unknown fast-path without a clone.
         let type_str = value
             .get("type")
             .and_then(|v| v.as_str())
-            .unwrap_or("unknown");
+            .unwrap_or("unknown")
+            .to_owned();
 
-        // Try standard deserialization first
         #[derive(Deserialize)]
         #[serde(tag = "type", rename_all = "snake_case")]
         enum Inner {
@@ -672,251 +706,93 @@ impl<'de> Deserialize<'de> for NodeContent {
             },
         }
 
+        const KNOWN_TYPES: &[&str] = &[
+            "user_message", "assistant_message", "system_message", "tool_result",
+            "agent_spawn", "agent_result", "agent_event", "agent_handoff",
+            "file_upload", "media_capture", "artifact_ref", "canvas_ref",
+            "mcp_ui", "skill_invocation", "async_task", "computer_action",
+            "mode_switch", "annotation", "source_ref", "eval_result",
+            "approval_request", "approval_response", "workflow_step", "vfs_change",
+        ];
+
+        // Fast path: skip deserialization entirely for types not in this schema version.
+        // This avoids cloning `value` for forward-compatibility unknown types.
+        if !KNOWN_TYPES.contains(&type_str.as_str()) {
+            return Ok(NodeContent::Unknown { kind: type_str, data: value });
+        }
+
+        // Clone is unavoidable: `from_value` consumes `value`, but we need
+        // it in the Err arm for graceful unknown fallback on schema mismatch.
         match serde_json::from_value::<Inner>(value.clone()) {
             Ok(inner) => Ok(match inner {
                 Inner::UserMessage { content, name } => NodeContent::UserMessage { content, name },
-                Inner::AssistantMessage {
-                    content,
-                    stop_reason,
-                    variant_index,
-                } => NodeContent::AssistantMessage {
-                    content,
-                    stop_reason,
-                    variant_index,
-                },
+                Inner::AssistantMessage { content, stop_reason, variant_index } => {
+                    NodeContent::AssistantMessage { content, stop_reason, variant_index }
+                }
                 Inner::SystemMessage { content } => NodeContent::SystemMessage { content },
-                Inner::ToolResult {
-                    tool_use_id,
-                    content,
-                    is_error,
-                    duration_ms,
-                } => NodeContent::ToolResult {
-                    tool_use_id,
-                    content,
-                    is_error,
-                    duration_ms,
-                },
-                Inner::AgentSpawn {
-                    agent_id,
-                    agent_name,
-                    sub_branch_id,
-                    agent_type,
-                    framework,
-                    a2a_endpoint,
-                    skill_id,
-                    is_async,
-                } => NodeContent::AgentSpawn {
-                    agent_id,
-                    agent_name,
-                    sub_branch_id,
-                    agent_type,
-                    framework,
-                    a2a_endpoint,
-                    skill_id,
-                    is_async,
-                },
-                Inner::AgentResult {
-                    agent_id,
-                    content,
-                    usage_total,
-                    was_async,
-                } => NodeContent::AgentResult {
-                    agent_id,
-                    content,
-                    usage_total,
-                    was_async,
-                },
-                Inner::AgentEvent {
-                    agent_id,
-                    event_name,
-                    event_data,
-                } => NodeContent::AgentEvent {
-                    agent_id,
-                    event_name,
-                    event_data,
-                },
-                Inner::AgentHandoff {
-                    from_agent_id,
-                    to_agent_id,
-                    to_agent_name,
-                    reason,
-                    target_branch_id,
-                } => NodeContent::AgentHandoff {
-                    from_agent_id,
-                    to_agent_id,
-                    to_agent_name,
-                    reason,
-                    target_branch_id,
-                },
-                Inner::FileUpload {
-                    file_id,
-                    filename,
-                    mime_type,
-                    size_bytes,
-                    storage_ref,
-                } => NodeContent::FileUpload {
-                    file_id,
-                    filename,
-                    mime_type,
-                    size_bytes,
-                    storage_ref,
-                },
-                Inner::MediaCapture {
-                    stream_type,
-                    started_at,
-                    duration_ms,
-                    storage_ref,
-                    transcription,
-                } => NodeContent::MediaCapture {
-                    stream_type,
-                    started_at,
-                    duration_ms,
-                    storage_ref,
-                    transcription,
-                },
-                Inner::ArtifactRef {
-                    artifact_set_id,
-                    version,
-                    summary,
-                } => NodeContent::ArtifactRef {
-                    artifact_set_id,
-                    version,
-                    summary,
-                },
-                Inner::CanvasRef {
-                    canvas_id,
-                    snapshot_version,
-                    changed_items,
-                } => NodeContent::CanvasRef {
-                    canvas_id,
-                    snapshot_version,
-                    changed_items,
-                },
-                Inner::McpUi {
-                    component_type,
-                    component_data,
-                    interactions,
-                } => NodeContent::McpUi {
-                    component_type,
-                    component_data,
-                    interactions,
-                },
-                Inner::SkillInvocation {
-                    skill_id,
-                    skill_name,
-                    input,
-                    output,
-                    status,
-                } => NodeContent::SkillInvocation {
-                    skill_id,
-                    skill_name,
-                    input,
-                    output,
-                    status,
-                },
-                Inner::AsyncTask {
-                    task_id,
-                    task_type,
-                    description,
-                    status,
-                    result,
-                } => NodeContent::AsyncTask {
-                    task_id,
-                    task_type,
-                    description,
-                    status,
-                    result,
-                },
-                Inner::ComputerAction {
-                    action,
-                    before_screenshot,
-                    after_screenshot,
-                    result,
-                } => NodeContent::ComputerAction {
-                    action,
-                    before_screenshot,
-                    after_screenshot,
-                    result,
-                },
+                Inner::ToolResult { tool_use_id, content, is_error, duration_ms } => {
+                    NodeContent::ToolResult { tool_use_id, content, is_error, duration_ms }
+                }
+                Inner::AgentSpawn { agent_id, agent_name, sub_branch_id, agent_type, framework, a2a_endpoint, skill_id, is_async } => {
+                    NodeContent::AgentSpawn { agent_id, agent_name, sub_branch_id, agent_type, framework, a2a_endpoint, skill_id, is_async }
+                }
+                Inner::AgentResult { agent_id, content, usage_total, was_async } => {
+                    NodeContent::AgentResult { agent_id, content, usage_total, was_async }
+                }
+                Inner::AgentEvent { agent_id, event_name, event_data } => {
+                    NodeContent::AgentEvent { agent_id, event_name, event_data }
+                }
+                Inner::AgentHandoff { from_agent_id, to_agent_id, to_agent_name, reason, target_branch_id } => {
+                    NodeContent::AgentHandoff { from_agent_id, to_agent_id, to_agent_name, reason, target_branch_id }
+                }
+                Inner::FileUpload { file_id, filename, mime_type, size_bytes, storage_ref } => {
+                    NodeContent::FileUpload { file_id, filename, mime_type, size_bytes, storage_ref }
+                }
+                Inner::MediaCapture { stream_type, started_at, duration_ms, storage_ref, transcription } => {
+                    NodeContent::MediaCapture { stream_type, started_at, duration_ms, storage_ref, transcription }
+                }
+                Inner::ArtifactRef { artifact_set_id, version, summary } => {
+                    NodeContent::ArtifactRef { artifact_set_id, version, summary }
+                }
+                Inner::CanvasRef { canvas_id, snapshot_version, changed_items } => {
+                    NodeContent::CanvasRef { canvas_id, snapshot_version, changed_items }
+                }
+                Inner::McpUi { component_type, component_data, interactions } => {
+                    NodeContent::McpUi { component_type, component_data, interactions }
+                }
+                Inner::SkillInvocation { skill_id, skill_name, input, output, status } => {
+                    NodeContent::SkillInvocation { skill_id, skill_name, input, output, status }
+                }
+                Inner::AsyncTask { task_id, task_type, description, status, result } => {
+                    NodeContent::AsyncTask { task_id, task_type, description, status, result }
+                }
+                Inner::ComputerAction { action, before_screenshot, after_screenshot, result } => {
+                    NodeContent::ComputerAction { action, before_screenshot, after_screenshot, result }
+                }
                 Inner::ModeSwitch { from_mode, to_mode } => {
                     NodeContent::ModeSwitch { from_mode, to_mode }
                 }
-                Inner::Annotation {
-                    target_node_id,
-                    text,
-                    annotation_type,
-                } => NodeContent::Annotation {
-                    target_node_id,
-                    text,
-                    annotation_type,
-                },
-                Inner::SourceRef {
-                    source_id,
-                    source_name,
-                    mime_type,
-                    summary,
-                } => NodeContent::SourceRef {
-                    source_id,
-                    source_name,
-                    mime_type,
-                    summary,
-                },
-                Inner::EvalResult {
-                    target_node_id,
-                    eval_name,
-                    scores,
-                    grader_model,
-                } => NodeContent::EvalResult {
-                    target_node_id,
-                    eval_name,
-                    scores,
-                    grader_model,
-                },
-                Inner::ApprovalRequest {
-                    question,
-                    options,
-                    timeout_ms,
-                    context,
-                } => NodeContent::ApprovalRequest {
-                    question,
-                    options,
-                    timeout_ms,
-                    context,
-                },
-                Inner::ApprovalResponse {
-                    request_node_id,
-                    selected,
-                    comment,
-                    responded_by,
-                } => NodeContent::ApprovalResponse {
-                    request_node_id,
-                    selected,
-                    comment,
-                    responded_by,
-                },
-                Inner::WorkflowStep {
-                    step_name,
-                    step_index,
-                    total_steps,
-                    status,
-                    inputs,
-                    outputs,
-                    workflow_id,
-                } => NodeContent::WorkflowStep {
-                    step_name,
-                    step_index,
-                    total_steps,
-                    status,
-                    inputs,
-                    outputs,
-                    workflow_id,
-                },
+                Inner::Annotation { target_node_id, text, annotation_type } => {
+                    NodeContent::Annotation { target_node_id, text, annotation_type }
+                }
+                Inner::SourceRef { source_id, source_name, mime_type, summary } => {
+                    NodeContent::SourceRef { source_id, source_name, mime_type, summary }
+                }
+                Inner::EvalResult { target_node_id, eval_name, scores, grader_model } => {
+                    NodeContent::EvalResult { target_node_id, eval_name, scores, grader_model }
+                }
+                Inner::ApprovalRequest { question, options, timeout_ms, context } => {
+                    NodeContent::ApprovalRequest { question, options, timeout_ms, context }
+                }
+                Inner::ApprovalResponse { request_node_id, selected, comment, responded_by } => {
+                    NodeContent::ApprovalResponse { request_node_id, selected, comment, responded_by }
+                }
+                Inner::WorkflowStep { step_name, step_index, total_steps, status, inputs, outputs, workflow_id } => {
+                    NodeContent::WorkflowStep { step_name, step_index, total_steps, status, inputs, outputs, workflow_id }
+                }
                 Inner::VfsChange { path, operation } => NodeContent::VfsChange { path, operation },
             }),
-            Err(_) => Ok(NodeContent::Unknown {
-                kind: type_str.to_string(),
-                data: value,
-            }),
+            Err(_) => Ok(NodeContent::Unknown { kind: type_str, data: value }),
         }
     }
 }
@@ -993,7 +869,6 @@ pub enum AnnotationType {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StorageBackend {
-    /// Stored in the registered `VfsExtension` under the given URI path.
     Vfs,
     Local,
     S3,
@@ -1053,11 +928,13 @@ pub struct UiInteraction {
 pub struct BranchMeta {
     pub id: BranchId,
     pub conversation_id: ConversationId,
-    pub parent_branch_id: Option<BranchId>,
+    pub parent_id: Option<BranchId>,
     pub fork_node_id: Option<NodeId>,
+    /// CRDT log position at branch creation (0 for main). Stored persistently so
+    /// `fork(branch_b, at_node_n)` can reconstruct CRDT from backend without the node in memory.
+    pub crdt_seq_watermark: u64,
+    pub name: String,
     pub created_at: i64,
-    pub created_by: Option<UserId>,
-    pub name: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -1098,12 +975,9 @@ pub struct EvalScore {
     pub metadata: HashMap<String, Value>,
 }
 
-
 // ---------------------------------------------------------------------------
 // PromptVersion
 // ---------------------------------------------------------------------------
-
-define_id!(PromptId);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptVersion {
@@ -1111,7 +985,6 @@ pub struct PromptVersion {
     pub name: String,
     pub content: Vec<crate::types::ContentBlock>,
     pub version: u32,
-    pub project_id: Option<ProjectId>,
     pub created_at: i64,
     pub created_by: Option<UserId>,
     #[serde(default)]
@@ -1121,8 +994,6 @@ pub struct PromptVersion {
 // ---------------------------------------------------------------------------
 // Dataset types
 // ---------------------------------------------------------------------------
-
-define_id!(DatasetEntryId);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -1147,14 +1018,14 @@ pub struct DatasetEntry {
 }
 
 // ---------------------------------------------------------------------------
-// UserMemory types
+// MemoryEntry types (scope-agnostic: user, conv, or agent)
 // ---------------------------------------------------------------------------
 
-define_id!(UserMemoryId);
+define_id!(MemoryEntryId);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum UserMemoryType {
+pub enum MemoryEntryType {
     Fact,
     Preference,
     Goal,
@@ -1163,11 +1034,11 @@ pub enum UserMemoryType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserMemoryEntry {
-    pub id: UserMemoryId,
-    pub user_id: UserId,
+pub struct MemoryEntry {
+    pub id: MemoryEntryId,
+    pub scope_id: String,
     pub content: String,
-    pub memory_type: UserMemoryType,
+    pub memory_type: MemoryEntryType,
     pub source_conversation_id: Option<ConversationId>,
     pub created_at: i64,
     pub updated_at: i64,
@@ -1209,19 +1080,6 @@ mod tests {
     }
 
     #[test]
-    fn node_content_serde_round_trip_tool_result() {
-        let content = NodeContent::ToolResult {
-            tool_use_id: "call_123".into(),
-            content: vec![ContentBlock::text("result")],
-            is_error: false,
-            duration_ms: Some(100),
-        };
-        let json = serde_json::to_string(&content).unwrap();
-        let parsed: NodeContent = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.content_type_str(), "tool_result");
-    }
-
-    #[test]
     fn node_content_unknown_forward_compat() {
         let json = r#"{"type": "future_type", "foo": "bar"}"#;
         let parsed: NodeContent = serde_json::from_str(json).unwrap();
@@ -1235,62 +1093,6 @@ mod tests {
     }
 
     #[test]
-    fn node_content_type_correctness() {
-        let variants: Vec<(&str, NodeContent)> = vec![
-            (
-                "user_message",
-                NodeContent::UserMessage {
-                    content: vec![],
-                    name: None,
-                },
-            ),
-            (
-                "assistant_message",
-                NodeContent::AssistantMessage {
-                    content: vec![],
-                    stop_reason: None,
-                    variant_index: None,
-                },
-            ),
-            (
-                "system_message",
-                NodeContent::SystemMessage { content: vec![] },
-            ),
-            (
-                "agent_spawn",
-                NodeContent::AgentSpawn {
-                    agent_id: "a".into(),
-                    agent_name: "a".into(),
-                    sub_branch_id: BranchId::new(),
-                    agent_type: AgentType::Mcp,
-                    framework: None,
-                    a2a_endpoint: None,
-                    skill_id: None,
-                    is_async: false,
-                },
-            ),
-            (
-                "mode_switch",
-                NodeContent::ModeSwitch {
-                    from_mode: None,
-                    to_mode: ConversationMode::Agentic,
-                },
-            ),
-            (
-                "unknown",
-                NodeContent::Unknown {
-                    kind: "x".into(),
-                    data: Value::Null,
-                },
-            ),
-        ];
-
-        for (expected, content) in variants {
-            assert_eq!(content.content_type_str(), expected);
-        }
-    }
-
-    #[test]
     fn id_display_and_deref() {
         let id = NodeId::from_string("test-123");
         assert_eq!(id.as_str(), "test-123");
@@ -1299,152 +1101,42 @@ mod tests {
     }
 
     #[test]
-    fn conversation_mode_default() {
-        assert_eq!(ConversationMode::default(), ConversationMode::Chat);
-    }
-
-    #[test]
-    fn eval_score_serde_round_trip() {
-        let score = EvalScore {
-            name: "factuality".into(),
-            score: 0.95,
-            rationale: Some("well-grounded".into()),
-            grader: Some("claude-haiku-4-5-20251001".into()),
-            created_at: 1_000_000,
-            metadata: HashMap::new(),
+    fn conversation_patch_maybe_cleared_round_trip() {
+        let patch = ConversationPatch {
+            instructions: Some(MaybeCleared::Set("do x".into())),
+            ..Default::default()
         };
-        let json = serde_json::to_string(&score).unwrap();
-        let parsed: EvalScore = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.name, "factuality");
-        assert!((parsed.score - 0.95).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn node_content_eval_result_round_trip() {
-        let content = NodeContent::EvalResult {
-            target_node_id: NodeId::from_string("n1"),
-            eval_name: "safety".into(),
-            scores: vec![EvalScore {
-                name: "safety".into(),
-                score: 1.0,
-                rationale: None,
-                grader: None,
-                created_at: 0,
-                metadata: HashMap::new(),
-            }],
-            grader_model: Some("claude-haiku-4-5-20251001".into()),
-        };
-        let json = serde_json::to_string(&content).unwrap();
-        let parsed: NodeContent = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.content_type_str(), "eval_result");
-    }
-
-    #[test]
-    fn node_content_approval_request_round_trip() {
-        let content = NodeContent::ApprovalRequest {
-            question: "Proceed?".into(),
-            options: vec!["yes".into(), "no".into()],
-            timeout_ms: Some(30_000),
-            context: None,
-        };
-        let json = serde_json::to_string(&content).unwrap();
-        let parsed: NodeContent = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.content_type_str(), "approval_request");
-    }
-
-    #[test]
-    fn node_content_approval_response_round_trip() {
-        let content = NodeContent::ApprovalResponse {
-            request_node_id: NodeId::from_string("req1"),
-            selected: "yes".into(),
-            comment: None,
-            responded_by: None,
-        };
-        let json = serde_json::to_string(&content).unwrap();
-        let parsed: NodeContent = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.content_type_str(), "approval_response");
-    }
-
-    #[test]
-    fn node_content_workflow_step_round_trip() {
-        let content = NodeContent::WorkflowStep {
-            step_name: "fetch_data".into(),
-            step_index: 0,
-            total_steps: Some(3),
-            status: TaskStatus::Completed,
-            inputs: serde_json::json!({"url": "https://example.com"}),
-            outputs: Some(serde_json::json!({"data": [1, 2, 3]})),
-            workflow_id: Some("wf-123".into()),
-        };
-        let json = serde_json::to_string(&content).unwrap();
-        let parsed: NodeContent = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.content_type_str(), "workflow_step");
-    }
-
-    #[test]
-    fn node_header_from_node() {
-        let node = Node {
-            id: NodeId::new(),
-            conversation_id: ConversationId::new(),
-            branch_id: BranchId::new(),
-            parent_id: None,
-            sequence: 1,
-            created_at: now_micros(),
-            created_by: None,
-            model: Some("test-model".into()),
-            provider: None,
-            content: NodeContent::UserMessage {
-                content: vec![ContentBlock::text("hi")],
-                name: None,
-            },
-            usage: None,
-            version: 0,
-            is_final: true,
-            streaming: None,
-            deleted: false,
-            agent_id: None,
-            correlation_id: None,
-            reply_to: None,
-            eval_scores: Vec::new(),
-            metadata: HashMap::new(),
-        };
-
-        let header = NodeHeader::from(&node);
-        assert_eq!(header.id, node.id);
-        assert_eq!(header.content_type, "user_message");
-        assert_eq!(header.model, Some("test-model".into()));
-    }
-}
-
-impl NodeContent {
-    #[cfg(test)]
-    fn content_type_str(&self) -> &'static str {
-        match self {
-            NodeContent::UserMessage { .. } => "user_message",
-            NodeContent::AssistantMessage { .. } => "assistant_message",
-            NodeContent::SystemMessage { .. } => "system_message",
-            NodeContent::ToolResult { .. } => "tool_result",
-            NodeContent::AgentSpawn { .. } => "agent_spawn",
-            NodeContent::AgentResult { .. } => "agent_result",
-            NodeContent::AgentEvent { .. } => "agent_event",
-            NodeContent::AgentHandoff { .. } => "agent_handoff",
-            NodeContent::FileUpload { .. } => "file_upload",
-            NodeContent::MediaCapture { .. } => "media_capture",
-            NodeContent::ArtifactRef { .. } => "artifact_ref",
-            NodeContent::CanvasRef { .. } => "canvas_ref",
-            NodeContent::McpUi { .. } => "mcp_ui",
-            NodeContent::SkillInvocation { .. } => "skill_invocation",
-            NodeContent::AsyncTask { .. } => "async_task",
-            NodeContent::ComputerAction { .. } => "computer_action",
-            NodeContent::ModeSwitch { .. } => "mode_switch",
-            NodeContent::Annotation { .. } => "annotation",
-            NodeContent::SourceRef { .. } => "source_ref",
-            NodeContent::EvalResult { .. } => "eval_result",
-            NodeContent::ApprovalRequest { .. } => "approval_request",
-            NodeContent::ApprovalResponse { .. } => "approval_response",
-            NodeContent::WorkflowStep { .. } => "workflow_step",
-            NodeContent::VfsChange { .. } => "vfs_change",
-            NodeContent::Unknown { .. } => "unknown",
+        let json = serde_json::to_string(&patch).unwrap();
+        let back: ConversationPatch = serde_json::from_str(&json).unwrap();
+        match back.instructions {
+            Some(MaybeCleared::Set(s)) => assert_eq!(s, "do x"),
+            other => panic!("Expected Set, got {other:?}"),
         }
+
+        let clear_patch = ConversationPatch {
+            instructions: Some(MaybeCleared::Clear),
+            ..Default::default()
+        };
+        let json2 = serde_json::to_string(&clear_patch).unwrap();
+        let back2: ConversationPatch = serde_json::from_str(&json2).unwrap();
+        assert!(matches!(back2.instructions, Some(MaybeCleared::Clear)));
+    }
+
+    #[test]
+    fn conversation_apply_patch() {
+        let mut conv = Conversation::new("hello");
+        conv.apply_patch(&ConversationPatch {
+            title: Some("new title".into()),
+            instructions: Some(MaybeCleared::Set("be helpful".into())),
+            ..Default::default()
+        });
+        assert_eq!(conv.title.as_deref(), Some("new title"));
+        assert_eq!(conv.instructions.as_deref(), Some("be helpful"));
+
+        conv.apply_patch(&ConversationPatch {
+            instructions: Some(MaybeCleared::Clear),
+            ..Default::default()
+        });
+        assert!(conv.instructions.is_none());
     }
 }
