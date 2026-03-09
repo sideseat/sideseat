@@ -244,9 +244,7 @@ pub const OPENAI_RESPONSES_STREAM_TOOL_EVENTS: &str = concat!(
 // ── Gemini ────────────────────────────────────────────────────────────────
 pub const GEMINI_COMPLETE_JSON: &str = r#"{"candidates":[{"content":{"role":"model","parts":[{"text":"hello"}]},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":5}}"#;
 pub const GEMINI_TOOL_JSON: &str = r#"{"candidates":[{"content":{"role":"model","parts":[{"functionCall":{"name":"echo","args":{"message":"hi"}}}]},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":5}}"#;
-pub const GEMINI_STREAM_EVENTS: &str = concat!(
-    "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"hello\"}]},\"finishReason\":\"STOP\",\"index\":0}],\"usageMetadata\":{\"promptTokenCount\":10,\"candidatesTokenCount\":5}}\n\n",
-);
+pub const GEMINI_STREAM_EVENTS: &str = "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"hello\"}]},\"finishReason\":\"STOP\",\"index\":0}],\"usageMetadata\":{\"promptTokenCount\":10,\"candidatesTokenCount\":5}}\n\n";
 pub const GEMINI_EMBED_JSON: &str = r#"{"embedding":{"values":[0.1,0.2,0.3]}}"#;
 pub const GEMINI_COUNT_TOKENS_JSON: &str = r#"{"totalTokens":42}"#;
 pub const GEMINI_LIST_MODELS_JSON: &str = r#"{"models":[{"name":"models/gemini-2.5-flash-lite","displayName":"Gemini 2.5 Flash Lite","supportedGenerationMethods":["generateContent"]}]}"#;
