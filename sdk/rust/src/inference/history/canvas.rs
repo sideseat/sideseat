@@ -138,7 +138,6 @@ impl Viewport {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::types::StorageBackend;
 
     #[test]
     fn viewport_contains_item() {

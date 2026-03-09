@@ -1026,13 +1026,13 @@ mod tests {
         let history = History::new(storage, conv);
 
         // Add system message
-        let sys_id = history
+        let _sys_id = history
             .add_system_message(vec![ContentBlock::text("You are helpful.")])
             .await
             .unwrap();
 
         // Add user message
-        let user_id = history
+        let _user_id = history
             .add_user_message(
                 vec![ContentBlock::text("Hello!")],
                 NodeParams::default(),
@@ -1052,7 +1052,7 @@ mod tests {
             grounding_metadata: None,
             warnings: vec![],
         };
-        let resp_id = history
+        let _resp_id = history
             .add_response(&response, NodeParams::default())
             .await
             .unwrap();
