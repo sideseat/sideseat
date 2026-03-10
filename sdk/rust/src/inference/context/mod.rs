@@ -223,6 +223,9 @@ pub struct ContextResult {
 // ContextManager<B>
 // ---------------------------------------------------------------------------
 
+/// Auto-compact CRDT delta log when delta count since last compaction exceeds this threshold.
+const CRDT_COMPACT_THRESHOLD: u64 = 500;
+
 pub struct ContextManager<B: ContextBackend> {
     backend: Arc<B>,
     tree: RwLock<ConversationTree>,
@@ -233,6 +236,8 @@ pub struct ContextManager<B: ContextBackend> {
     client_id: String,
     /// Monotonic counter for patch_conversation key uniqueness within a microsecond burst.
     patch_seq: AtomicU64,
+    /// Global seq at which we last compacted the CRDT delta log.
+    last_compact_seq: AtomicU64,
 }
 
 impl<B: ContextBackend> ContextManager<B> {
@@ -241,6 +246,13 @@ impl<B: ContextBackend> ContextManager<B> {
     // -----------------------------------------------------------------------
 
     /// Create a new conversation, persisting it and a default branch to the backend.
+    ///
+    /// **Production note**: pass a stable identity to `CrdtExtension::new(stable_id)` when
+    /// registering the CRDT extension. The default is a random UUID generated at construction
+    /// time; each restart creates a new entry in the Yjs state vector, causing unbounded SV
+    /// growth across worker restarts. Use a stable identity (e.g. worker name, pod ID, or a
+    /// UUID persisted alongside the conversation). `ContextManager::with_client_id` does NOT
+    /// affect CRDT — it only scopes `patch_conversation` keys.
     pub async fn new(backend: Arc<B>, conversation: Conversation) -> Result<Self, CmError> {
         let conv_id = conversation.id.clone();
 
@@ -285,6 +297,7 @@ impl<B: ContextBackend> ContextManager<B> {
             memory_sources: Vec::new(),
             client_id: uuid::Uuid::now_v7().to_string(),
             patch_seq: AtomicU64::new(0),
+            last_compact_seq: AtomicU64::new(0),
         })
     }
 
@@ -293,6 +306,9 @@ impl<B: ContextBackend> ContextManager<B> {
     /// After loading, register stateful extensions with [`with_extension`] and then call
     /// [`checkout`] on the active branch to restore CRDT and VFS state from KV storage.
     /// Skipping `checkout` leaves those subsystems in their default (empty) state.
+    ///
+    /// **Production note**: pass a stable identity to `CrdtExtension::new(stable_id)` to
+    /// prevent unbounded Yjs state-vector growth across worker restarts (see `new()`).
     pub async fn load(backend: Arc<B>, id: &ConversationId) -> Result<Self, CmError> {
         // 1. Load conversation base + apply patches in lex order.
         let conv_ns = format!("conv:{}", id.as_str());
@@ -322,6 +338,9 @@ impl<B: ContextBackend> ContextManager<B> {
         for header in headers {
             tree.register_header(header)?;
         }
+        // Branches loaded before their fork-node headers (the common ordering
+        // above) have no tip yet. Resolve them now that all headers are known.
+        tree.initialize_fork_branch_tips();
 
         // 3. Checkout active branch.
         let active_branch = conversation
@@ -339,6 +358,7 @@ impl<B: ContextBackend> ContextManager<B> {
             memory_sources: Vec::new(),
             client_id: uuid::Uuid::now_v7().to_string(),
             patch_seq: AtomicU64::new(0),
+            last_compact_seq: AtomicU64::new(0),
         })
     }
 
@@ -371,6 +391,16 @@ impl<B: ContextBackend> ContextManager<B> {
     // -----------------------------------------------------------------------
     // Accessors
     // -----------------------------------------------------------------------
+
+    /// Per-instance UUID assigned at construction time.
+    ///
+    /// Stable for the lifetime of this `ContextManager`. Useful for correlating
+    /// log lines, backend-side temp files, and `patch_conversation` key scoping.
+    /// Override with [`with_client_id`] when a deterministic identity is preferred
+    /// (e.g. a worker pod name persisted alongside the conversation).
+    pub fn instance_id(&self) -> &str {
+        &self.client_id
+    }
 
     pub fn backend(&self) -> &Arc<B> {
         &self.backend
@@ -490,40 +520,25 @@ impl<B: ContextBackend> ContextManager<B> {
         self.backend.save_branch(&branch_meta).await?;
 
         // Build CRDT snapshot for the new branch from the parent snapshot + incremental deltas.
-        let parent_snapshot = self
-            .backend
-            .kv_get("crdt_snapshot", parent_branch_id.as_str())
-            .await?;
-
-        // Determine parent snapshot base (seq, bytes). If no snapshot exists yet, start
-        // from seq=0 with empty bytes — we'll fetch all deltas from the beginning.
-        let (parent_seq, parent_bytes) = if let Some(data) = parent_snapshot {
-            serde_json::from_slice::<(u64, Vec<u8>)>(&data)?
-        } else {
-            (0, Vec::new())
-        };
+        // If no snapshot exists yet (push-only branch), parent_seq=0 and we fetch from the start.
+        let (parent_seq, parent_bytes, _) =
+            self.backend.crdt_load_snapshot(&parent_branch_id).await?;
 
         // Fetch incremental deltas from parent since its snapshot, up to the fork watermark.
         let deltas = self
             .backend
             .crdt_fetch(&fork_conv_id, &parent_branch_id, parent_seq)
             .await?;
-        let temp_ext = CrdtExtension::new("fork-temp");
-        temp_ext.load_snapshot(&parent_bytes, parent_seq)?;
+        let mut tmp_doc = self::crdt::CrdtDoc::from_state(&parent_bytes)?;
         for delta in &deltas {
             if delta.global_seq <= crdt_watermark {
-                temp_ext.merge_raw(&delta.delta)?;
+                tmp_doc.merge_delta(&delta.delta)?;
             }
         }
-        let (_, full_state) = temp_ext.to_snapshot();
-        let snapshot_bytes = serde_json::to_vec(&(crdt_watermark, full_state))?;
-
+        let full_state = tmp_doc.full_state();
+        let full_sv = tmp_doc.state_vector();
         self.backend
-            .kv_put(
-                "crdt_snapshot",
-                branch_meta.id.as_str(),
-                &snapshot_bytes,
-            )
+            .crdt_save_snapshot(&branch_meta.id, crdt_watermark, &full_state, &full_sv)
             .await?;
 
         // Persist VFS index for the new branch BEFORE in-memory mutations.
@@ -550,21 +565,12 @@ impl<B: ContextBackend> ContextManager<B> {
     }
 
     /// Checkout a branch: atomically restore CRDT + VFS + tree to branch state.
-    /// Fail-safe: all I/O done first; mutations applied only after all loads succeed.
+    /// Fail-safe: VFS state is pre-loaded before any mutations; CRDT is reset then
+    /// synced via pull() which loads snapshot + deltas in a single pass.
     pub async fn checkout(&self, branch_id: &BranchId) -> Result<(), CmError> {
         let conv_id = self.conversation.lock().id.clone();
 
-        // 1. Load all state FIRST (before mutating anything).
-        let crdt_data = self
-            .backend
-            .kv_get("crdt_snapshot", branch_id.as_str())
-            .await?;
-        let (snapshot_seq, snapshot_bytes) = if let Some(data) = crdt_data {
-            serde_json::from_slice::<(u64, Vec<u8>)>(&data)?
-        } else {
-            (0, Vec::new())
-        };
-
+        // 1. Pre-load VFS state (I/O before mutation).
         let vfs_data = self
             .backend
             .kv_get("vfs_index", branch_id.as_str())
@@ -577,7 +583,10 @@ impl<B: ContextBackend> ContextManager<B> {
         }
 
         if let Some(crdt_ext) = self.extensions.extension::<CrdtExtension>() {
-            crdt_ext.load_snapshot(&snapshot_bytes, snapshot_seq)?;
+            // Reset to empty so pull() builds the doc from scratch (snapshot + deltas)
+            // in a single backend pass. Without the reset, stale ops from the previous
+            // branch would remain in the doc and pull()'s merge would be additive only.
+            crdt_ext.load_snapshot(&[])?;
             crdt_ext
                 .pull(&conv_id, branch_id, self.backend.as_ref())
                 .await?;
@@ -624,9 +633,29 @@ impl<B: ContextBackend> ContextManager<B> {
             if let Some(crdt) = self.extensions.extension::<CrdtExtension>() {
                 let conv_id = self.conversation.lock().id.clone();
                 let branch_id = self.tree.read().active_branch().clone();
-                crdt.push(&conv_id, &branch_id, self.backend.as_ref())
+                let seq = crdt
+                    .push(&conv_id, &branch_id, self.backend.as_ref())
                     .await?;
-                Some(crdt.current_seq())
+
+                // Auto-compact delta log when enough new deltas have accumulated.
+                // pull() must run first to advance the snapshot (push does not save one),
+                // so that compact() has a complete snapshot baseline to prune against.
+                let last = self.last_compact_seq.load(Ordering::Acquire);
+                if seq.saturating_sub(last) > CRDT_COMPACT_THRESHOLD {
+                    // Advance last_compact_seq first so a transient backend error doesn't
+                    // retry compact on every subsequent push (retries resume after another
+                    // CRDT_COMPACT_THRESHOLD gap).
+                    self.last_compact_seq.store(seq, Ordering::Release);
+                    if let Err(e) = crdt.pull(&conv_id, &branch_id, self.backend.as_ref()).await {
+                        tracing::warn!(error = %e, "CRDT auto-compact: pull failed, skipping compact");
+                    } else if let Err(e) =
+                        crdt.compact(&conv_id, &branch_id, self.backend.as_ref()).await
+                    {
+                        tracing::warn!(error = %e, "CRDT auto-compact: compact failed");
+                    }
+                }
+
+                Some(seq)
             } else {
                 None
             }
@@ -695,12 +724,25 @@ impl<B: ContextBackend> ContextManager<B> {
     }
 
     /// Finalize a streaming node. Last-write-wins — no OCC failure possible.
+    ///
+    /// Pushes any pending CRDT changes to the backend and records the resulting
+    /// `crdt_seq_watermark` on the node so that later forks from this node
+    /// reconstruct the correct CRDT state at finalization time.
     pub async fn finalize_streaming_node(
         &self,
         id: &NodeId,
         content: NodeContent,
         usage: Option<Usage>,
     ) -> Result<(), CmError> {
+        // Push CRDT changes made during the streaming window.
+        let crdt_seq_watermark = if let Some(crdt) = self.extensions.extension::<CrdtExtension>() {
+            let conv_id = self.conversation.lock().id.clone();
+            let branch_id = self.tree.read().active_branch().clone();
+            Some(crdt.push(&conv_id, &branch_id, self.backend.as_ref()).await?)
+        } else {
+            None
+        };
+
         self.backend
             .update_node(
                 id,
@@ -709,11 +751,46 @@ impl<B: ContextBackend> ContextManager<B> {
                     is_final: Some(true),
                     streaming: Some(None),
                     usage,
+                    crdt_seq_watermark: crdt_seq_watermark.map(Some),
                     ..Default::default()
                 },
                 u64::MAX, // skip version check
             )
             .await
+    }
+
+    /// Merge CRDT state (canvas, kanban, VFS text) from another branch into the
+    /// current context's in-memory doc.
+    ///
+    /// The canonical use case: a sub-agent completes work on its own branch and
+    /// the parent calls `merge_from_branch(&child_branch_id)` to incorporate the
+    /// agent's canvas/kanban updates.  The merge is purely in-memory; the next
+    /// `add_node` (which auto-pushes) or an explicit `crdt.push()` persists the
+    /// merged state to the parent's branch.
+    ///
+    /// Does nothing if no `CrdtExtension` is registered on this manager.
+    pub async fn merge_from_branch(&self, from_branch: &BranchId) -> Result<(), CmError> {
+        let Some(crdt) = self.extensions.extension::<CrdtExtension>() else {
+            return Ok(());
+        };
+        let conv_id = self.conversation.lock().id.clone();
+
+        // Load the child's committed snapshot and any incremental deltas after it.
+        let (snap_seq, snap_bytes, _) = self.backend.crdt_load_snapshot(from_branch).await?;
+        let deltas = self.backend.crdt_fetch(&conv_id, from_branch, snap_seq).await?;
+
+        // Nothing from that branch yet.
+        if snap_bytes.is_empty() && deltas.is_empty() {
+            return Ok(());
+        }
+
+        if !snap_bytes.is_empty() {
+            crdt.merge_raw(&snap_bytes)?;
+        }
+        for delta in &deltas {
+            crdt.merge_raw(&delta.delta)?;
+        }
+        Ok(())
     }
 
     /// Convenience: record a complete provider response as an AssistantMessage node.
@@ -886,23 +963,43 @@ impl<B: ContextBackend> ContextManager<B> {
                     let keep = *keep_last;
                     if messages.len() > keep {
                         let split = messages.len() - keep;
-                        let old = messages[..split].to_vec();
+                        // Separate the dropped prefix into pinned and non-pinned.
+                        // Pinned messages in the dropped prefix are preserved regardless
+                        // of the window, consistent with Truncate behaviour.
+                        let mut pinned_from_old: Vec<Message> = Vec::new();
+                        let mut old_unpinned: Vec<Message> = Vec::new();
+                        for (msg, is_pinned) in messages[..split].iter().zip(pinned[..split].iter()) {
+                            if *is_pinned {
+                                pinned_from_old.push(msg.clone());
+                            } else {
+                                old_unpinned.push(msg.clone());
+                            }
+                        }
                         let recent = messages[split..].to_vec();
+                        let recent_pinned = pinned[split..].to_vec();
 
                         if let Some(summarizer) = &self.compression.summarizer {
-                            let summ = summarizer.summarize(&old).await?;
+                            let summ = summarizer.summarize(&old_unpinned).await?;
                             summary = Some(summ.clone());
-                            messages = vec![Message {
+                            // pinned_from_old: all true; summary msg: false; recent: carry over
+                            pinned = vec![true; pinned_from_old.len()];
+                            messages = pinned_from_old;
+                            messages.push(Message {
                                 role: Role::User,
                                 content: vec![ContentBlock::text(format!(
                                     "[Summary of earlier conversation]: {summ}"
                                 ))],
                                 name: Some("summary".into()),
                                 cache_control: None,
-                            }];
+                            });
+                            pinned.push(false);
                             messages.extend(recent);
+                            pinned.extend(recent_pinned);
                         } else {
-                            messages = recent;
+                            pinned = vec![true; pinned_from_old.len()];
+                            messages = pinned_from_old;
+                            messages.extend(recent);
+                            pinned.extend(recent_pinned);
                         }
                     }
                 }
@@ -934,9 +1031,23 @@ impl<B: ContextBackend> ContextManager<B> {
     // spawn_agent
     // -----------------------------------------------------------------------
 
-    /// Fork a new branch from the current HEAD and return a new ContextManager
+    /// Fork a new branch from the current HEAD and return a new `ContextManager`
     /// scoped to that branch. Returns `CmError::NoNodes` if the conversation
     /// has no nodes yet.
+    ///
+    /// The child starts with an empty extension registry. To give the agent its
+    /// own CRDT or VFS, register extensions on the returned child before use:
+    ///
+    /// ```ignore
+    /// let child = parent.spawn_agent(agent_id, system).await?
+    ///     .with_extension(Arc::new(CrdtExtension::new(stable_agent_id)))
+    ///     .with_extension(Arc::new(VfsExtension::new()));
+    /// child.checkout(&child.active_branch()).await?; // loads CRDT + VFS state
+    /// ```
+    ///
+    /// When the agent completes, call `parent.merge_from_branch(&child.active_branch())`
+    /// to incorporate any kanban/canvas updates the agent made, then add an
+    /// `AgentResult` node to the parent to make the work visible in `build_context`.
     pub async fn spawn_agent(
         &self,
         agent_id: AgentId,
@@ -959,12 +1070,16 @@ impl<B: ContextBackend> ContextManager<B> {
             extensions: ExtensionRegistry::new(),
             compression: self.compression.clone(),
             memory_sources: self.memory_sources.clone(),
+            // Each spawned agent is a new context instance and gets its own UUID
+            // so its patch_conversation keys and instance_id() are distinct from
+            // the parent's.
             client_id: uuid::Uuid::now_v7().to_string(),
             patch_seq: AtomicU64::new(0),
+            last_compact_seq: AtomicU64::new(0),
         };
 
-        // Point the child tree at the new branch directly — no extensions are
-        // registered on the child, so no CRDT/VFS I/O is needed.
+        // Point the child tree at the new branch. Extensions are empty; the caller
+        // adds CrdtExtension / VfsExtension and calls checkout() to hydrate them.
         child.tree.write().checkout(&new_branch_id)?;
 
         // If a system override is given, add a system node.
@@ -1121,10 +1236,13 @@ impl<B: ContextBackend> ContextManager<B> {
             node_ids.push(entry.output_node_id.clone());
             let nodes = self.backend.get_nodes(&node_ids).await?;
 
-            let input_set: HashSet<&NodeId> = entry.input_node_ids.iter().collect();
-            let prompt_msgs: Vec<serde_json::Value> = nodes
+            // Build a lookup so we can iterate in input_node_ids declared order,
+            // which is required for deterministic ML training data.
+            let node_map: HashMap<&NodeId, &Node> = nodes.iter().map(|n| (&n.id, n)).collect();
+            let prompt_msgs: Vec<serde_json::Value> = entry
+                .input_node_ids
                 .iter()
-                .filter(|n| input_set.contains(&n.id))
+                .filter_map(|nid| node_map.get(nid).copied())
                 .filter_map(project_node_to_message)
                 .map(|m| {
                     serde_json::json!({
@@ -2088,5 +2206,105 @@ mod tests {
         let line: serde_json::Value = serde_json::from_slice(&buf[..buf.len() - 1]).unwrap();
         assert_eq!(line["completion"], "4");
         assert_eq!(line["split"], "train");
+    }
+
+    /// Sub-agent spawned from a child can immediately spawn its own sub-agent
+    /// (branch tip is initialized from the fork node).
+    #[tokio::test]
+    async fn sub_agent_can_spawn_sub_agent() {
+        let backend = make_backend();
+        let conv = Conversation::new("nested-agents");
+
+        let root = ContextManager::new(backend, conv).await.unwrap();
+
+        // Root needs at least one node before spawn_agent can fork.
+        root.add_user_message(vec![ContentBlock::text("start")], NodeParams::default())
+            .await
+            .unwrap();
+
+        // First level sub-agent.
+        let child = root.spawn_agent(AgentId::new(), None).await.unwrap();
+        child
+            .add_user_message(vec![ContentBlock::text("child work")], NodeParams::default())
+            .await
+            .unwrap();
+
+        // Second level: child spawns its own sub-agent — must not return NoNodes.
+        let grandchild = child.spawn_agent(AgentId::new(), None).await;
+        assert!(
+            grandchild.is_ok(),
+            "sub-agent must be able to spawn its own sub-agents; got: {:?}",
+            grandchild.err()
+        );
+    }
+
+    /// Sub-agent kanban/canvas updates are visible to the parent after merge_from_branch.
+    #[tokio::test]
+    async fn merge_from_branch_propagates_crdt() {
+        let backend = make_backend();
+        let conv = Conversation::new("merge-test");
+
+        let parent = ContextManager::new(Arc::clone(&backend), conv)
+            .await
+            .unwrap()
+            .with_extension(Arc::new(CrdtExtension::new("parent")));
+
+        parent
+            .add_user_message(vec![ContentBlock::text("task")], NodeParams::default())
+            .await
+            .unwrap();
+
+        // Spawn child and equip it with its own CRDT extension.
+        let child_branch = parent.active_branch();
+        let child = parent.spawn_agent(AgentId::new(), None).await.unwrap()
+            .with_extension(Arc::new(CrdtExtension::new("agent")));
+        child.checkout(&child.active_branch()).await.unwrap();
+
+        // Agent writes a kanban update on its own branch.
+        if let Some(crdt) = child.extension::<CrdtExtension>() {
+            crdt.map_set("kanban:board1:cpos", "card-1", r#"{"column_id":"done","position":0}"#);
+        }
+        // Persist agent's CRDT to backend.
+        if let Some(crdt) = child.extension::<CrdtExtension>() {
+            let conv_id = child.conversation().id.clone();
+            let branch_id = child.active_branch();
+            crdt.push(&conv_id, &branch_id, child.backend().as_ref()).await.unwrap();
+        }
+
+        let agent_branch = child.active_branch();
+
+        // Parent merges agent's branch — no parent push needed to read in-memory.
+        parent.merge_from_branch(&agent_branch).await.unwrap();
+
+        let parent_crdt = parent.extension::<CrdtExtension>().unwrap();
+        let entries = parent_crdt.map_entries("kanban:board1:cpos");
+        assert!(
+            entries.contains_key("card-1"),
+            "parent must see agent's kanban update after merge_from_branch"
+        );
+        let _ = child_branch; // suppress unused warning
+    }
+
+    /// Workspace supports multiple kanban boards.
+    #[test]
+    fn workspace_multiple_kanban_boards() {
+        use super::types::{KanbanBoardId, Workspace};
+
+        let mut ws = Workspace::default();
+        assert!(ws.kanban_ids.is_empty());
+
+        let b1 = KanbanBoardId::new();
+        let b2 = KanbanBoardId::new();
+        ws.kanban_ids.push(b1.clone());
+        ws.kanban_ids.push(b2.clone());
+
+        assert_eq!(ws.kanban_ids.len(), 2);
+
+        // Roundtrip through JSON (serde).
+        let json = serde_json::to_string(&ws).unwrap();
+        let ws2: Workspace = serde_json::from_str(&json).unwrap();
+        assert_eq!(ws2.kanban_ids.len(), 2);
+        assert!(ws2.kanban_ids.contains(&b1));
+        assert!(ws2.kanban_ids.contains(&b2));
     }
 }
