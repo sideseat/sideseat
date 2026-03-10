@@ -346,10 +346,44 @@ impl ConversationTree {
 
     /// Adds a branch directly (used during load to restore persisted branches).
     pub fn add_branch(&mut self, branch: BranchMeta) {
-        self.next_sequence
-            .entry(branch.id.clone())
-            .or_insert(0);
+        // If the fork node header is already registered (live fork path), initialise
+        // the branch tip and next_sequence immediately so that sub-agents can call
+        // `spawn_agent` on a freshly forked child without first adding a node.
+        if let Some(fork_node) = &branch.fork_node_id
+            && let Some(h) = self.headers.get(fork_node)
+        {
+            self.tips.entry(branch.id.clone()).or_insert_with(|| fork_node.clone());
+            self.next_sequence.entry(branch.id.clone()).or_insert(h.sequence + 1);
+        } else {
+            self.next_sequence.entry(branch.id.clone()).or_insert(0);
+        }
         self.branches.insert(branch.id.clone(), branch);
+    }
+
+    /// For fork branches loaded from the backend before their fork node header was
+    /// registered, set the branch tip and next_sequence retroactively.
+    ///
+    /// Call once at the end of `ContextManager::load()` after all node headers have
+    /// been registered.
+    pub fn initialize_fork_branch_tips(&mut self) {
+        let branch_ids: Vec<BranchId> = self.branches.keys().cloned().collect();
+        for branch_id in branch_ids {
+            if self.tips.contains_key(&branch_id) {
+                continue;
+            }
+            let fork_node = self.branches[&branch_id].fork_node_id.clone();
+            if let Some(fork_node) = fork_node
+                && let Some(h) = self.headers.get(&fork_node)
+            {
+                let seq = h.sequence;
+                self.tips.insert(branch_id.clone(), fork_node);
+                self.next_sequence.entry(branch_id).and_modify(|s| {
+                    if *s == 0 {
+                        *s = seq + 1;
+                    }
+                });
+            }
+        }
     }
 }
 

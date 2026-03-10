@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use parking_lot::Mutex;
+use tokio::sync::broadcast;
 use yrs::updates::decoder::Decode;
 use yrs::updates::encoder::Encode;
 use yrs::{Doc, GetString, Map, ReadTxn, StateVector, Text, Transact, Update, WriteTxn};
@@ -12,19 +12,19 @@ use super::sync::CrdtDelta;
 use super::types::{BranchId, ConversationId, now_micros};
 
 // ---------------------------------------------------------------------------
-// CrdtDoc (private)
+// CrdtDoc (pub(super) for use in mod.rs fork())
 // ---------------------------------------------------------------------------
 
-struct CrdtDoc {
+pub(super) struct CrdtDoc {
     doc: Doc,
 }
 
 impl CrdtDoc {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self { doc: Doc::new() }
     }
 
-    fn from_state(state: &[u8]) -> Result<Self, CmError> {
+    pub(super) fn from_state(state: &[u8]) -> Result<Self, CmError> {
         // Empty bytes = fresh doc (branches created before any CRDT writes).
         if state.is_empty() {
             return Ok(Self::new());
@@ -44,7 +44,7 @@ impl CrdtDoc {
     // Sync primitives
     // -----------------------------------------------------------------------
 
-    fn merge_delta(&mut self, delta: &[u8]) -> Result<(), CmError> {
+    pub(super) fn merge_delta(&mut self, delta: &[u8]) -> Result<(), CmError> {
         let update =
             Update::decode_v1(delta).map_err(|e| CmError::Crdt(e.to_string()))?;
         let mut txn = self.doc.transact_mut();
@@ -52,7 +52,7 @@ impl CrdtDoc {
             .map_err(|e| CmError::Crdt(e.to_string()))
     }
 
-    fn state_vector(&self) -> Vec<u8> {
+    pub(super) fn state_vector(&self) -> Vec<u8> {
         let txn = self.doc.transact();
         txn.state_vector().encode_v1()
     }
@@ -63,39 +63,30 @@ impl CrdtDoc {
         txn.encode_diff_v1(&sv)
     }
 
-    fn full_state(&self) -> Vec<u8> {
+    pub(super) fn full_state(&self) -> Vec<u8> {
         let txn = self.doc.transact();
         txn.encode_diff_v1(&StateVector::default())
     }
 
     // -----------------------------------------------------------------------
-    // Generic named maps — each item is stored as a flat composite key
-    // "{name}\x1F{key}" in a single CRDT map called "ext_maps".
+    // Generic named maps — each logical namespace gets its own named yrs Map,
+    // e.g. "canvas:abc:geo", "kanban:xyz:cpos". This gives O(namespace_size)
+    // iteration instead of scanning all entries across all namespaces.
     // Using separate keys per item ensures concurrent inserts converge
     // correctly (no read-modify-write race on a shared JSON blob).
     // -----------------------------------------------------------------------
 
     fn map_set(&mut self, name: &str, key: &str, value: &str) -> Vec<u8> {
         let mut txn = self.doc.transact_mut();
-        let ext_maps = txn.get_or_insert_map("ext_maps");
-        let composite = format!("{name}\x1F{key}");
-        ext_maps.insert(&mut txn, composite.as_str(), value);
-        txn.encode_update_v1()
-    }
-
-    fn map_delete(&mut self, name: &str, key: &str) -> Vec<u8> {
-        let mut txn = self.doc.transact_mut();
-        let ext_maps = txn.get_or_insert_map("ext_maps");
-        let composite = format!("{name}\x1F{key}");
-        ext_maps.remove(&mut txn, composite.as_str());
+        let map = txn.get_or_insert_map(name);
+        map.insert(&mut txn, key, value);
         txn.encode_update_v1()
     }
 
     fn map_get(&self, name: &str, key: &str) -> Option<String> {
         let txn = self.doc.transact();
-        let ext_maps = txn.get_map("ext_maps")?;
-        let composite = format!("{name}\x1F{key}");
-        match ext_maps.get(&txn, composite.as_str()) {
+        let map = txn.get_map(name)?;
+        match map.get(&txn, key) {
             Some(yrs::Out::Any(yrs::Any::String(s))) => Some(s.to_string()),
             _ => None,
         }
@@ -103,16 +94,13 @@ impl CrdtDoc {
 
     fn map_entries(&self, name: &str) -> HashMap<String, String> {
         let txn = self.doc.transact();
-        let Some(ext_maps) = txn.get_map("ext_maps") else {
+        let Some(map) = txn.get_map(name) else {
             return HashMap::new();
         };
-        let prefix = format!("{name}\x1F");
-        ext_maps
-            .iter(&txn)
+        map.iter(&txn)
             .filter_map(|(k, v)| {
-                let item_key = k.strip_prefix(prefix.as_str())?;
                 if let yrs::Out::Any(yrs::Any::String(s)) = v {
-                    Some((item_key.to_string(), s.to_string()))
+                    Some((k.to_string(), s.to_string()))
                 } else {
                     None
                 }
@@ -159,43 +147,100 @@ impl Default for CrdtDoc {
 }
 
 // ---------------------------------------------------------------------------
+// Snapshot / SV helpers
+// ---------------------------------------------------------------------------
+
+/// Element-wise max merge of an encoded baseline SV with the SVs of committed deltas.
+///
+/// Each `delta.sv` is the **cumulative** state vector stored by `push()`:
+/// `SV(snap + all_pending_at_push_time + new_ops)`.  Taking the element-wise max
+/// of all delta SVs (plus snap_sv) yields the committed baseline SV without
+/// replaying full state:
+/// `O(N × decode_sv)` instead of `O(snap_size + N × delta_size)`.
+fn merge_svs<'a>(base: &[u8], others: impl Iterator<Item = &'a [u8]>) -> Vec<u8> {
+    let mut result = StateVector::decode_v1(base).unwrap_or_default();
+    for sv_bytes in others {
+        if sv_bytes.is_empty() {
+            continue;
+        }
+        if let Ok(other) = StateVector::decode_v1(sv_bytes) {
+            result.merge(other);
+        }
+    }
+    result.encode_v1()
+}
+
+/// Semantic equality check for encoded `StateVector`s.
+///
+/// `Vec<u8>` comparison is unreliable: yrs serialises `StateVector` from a
+/// `HashMap`, so two semantically equal SVs may encode to different bytes due
+/// to non-deterministic iteration order.
+fn svs_equal(a: &[u8], b: &[u8]) -> bool {
+    match (StateVector::decode_v1(a), StateVector::decode_v1(b)) {
+        (Ok(sv_a), Ok(sv_b)) => sv_a == sv_b,
+        _ => a == b, // fallback for malformed bytes
+    }
+}
+
+/// Fallback for legacy deltas without a cached SV: builds the committed
+/// baseline SV by replaying the full snapshot + all pending deltas.
+/// `O(snap_size + N × delta_size)` — only taken when `delta.sv` is empty.
+fn build_sv_from_snapshot_and_deltas(
+    snap_bytes: &[u8],
+    deltas: &[CrdtDelta],
+) -> Result<Vec<u8>, CmError> {
+    let mut tmp = CrdtDoc::from_state(snap_bytes)?;
+    for d in deltas {
+        tmp.merge_delta(&d.delta)?;
+    }
+    Ok(tmp.state_vector())
+}
+
+// ---------------------------------------------------------------------------
 // CrdtExtension (public)
 // ---------------------------------------------------------------------------
 
 /// Public wrapper around [`CrdtDoc`] that integrates with [`ContextBackend`]
 /// for push/pull and exposes all doc operations via `&self` (Mutex inside).
+///
+/// Sync state is **stateless**: the push/pull cursor is derived from the
+/// backend snapshot on every call, eliminating stale in-memory cursors.
 pub struct CrdtExtension {
     doc: Mutex<CrdtDoc>,
-    /// State vector at the time of the last successful push.
-    last_sync_sv: Mutex<Vec<u8>>,
-    /// Global seq of the last delta we pushed — used for node watermarking.
-    last_sync_seq: AtomicU64,
-    /// Max global seq seen via pull — used as after_seq for incremental fetch.
-    /// Tracked separately from last_sync_seq so concurrent clients don't miss
-    /// each other's earlier deltas (push seq != pull-frontier seq).
-    last_pull_seq: AtomicU64,
-    /// This client's identity — used to skip own deltas on pull.
+    /// This client's identity — used to tag outgoing deltas in push().
     client_id: String,
+    /// Optional broadcast channel for change notifications.
+    /// Subscribers receive the `global_seq` of the latest pulled delta.
+    delta_tx: Option<broadcast::Sender<u64>>,
 }
 
 impl CrdtExtension {
     pub fn new(client_id: impl Into<String>) -> Self {
         Self {
             doc: Mutex::new(CrdtDoc::new()),
-            last_sync_sv: Mutex::new(Vec::new()),
-            last_sync_seq: AtomicU64::new(0),
-            last_pull_seq: AtomicU64::new(0),
             client_id: client_id.into(),
+            delta_tx: None,
         }
+    }
+
+    /// Enable change notifications. Returns `self` for builder chaining.
+    ///
+    /// After this, [`subscribe`] returns a live receiver that fires the
+    /// `global_seq` of each pull that advances the committed baseline.
+    pub fn with_notifications(mut self, capacity: usize) -> Self {
+        let (tx, _) = broadcast::channel(capacity);
+        self.delta_tx = Some(tx);
+        self
     }
 
     pub fn client_id(&self) -> &str {
         &self.client_id
     }
 
-    /// Global seq of the last synced delta; used as CRDT watermark for nodes.
-    pub fn current_seq(&self) -> u64 {
-        self.last_sync_seq.load(Ordering::Acquire)
+    /// Subscribe to change notifications. Returns `None` if notifications
+    /// were not enabled via [`with_notifications`].
+    pub fn subscribe(&self) -> Option<broadcast::Receiver<u64>> {
+        self.delta_tx.as_ref().map(|tx| tx.subscribe())
     }
 
     // -----------------------------------------------------------------------
@@ -206,16 +251,22 @@ impl CrdtExtension {
         self.doc.lock().map_set(name, key, value);
     }
 
-    pub fn map_delete(&self, name: &str, key: &str) {
-        self.doc.lock().map_delete(name, key);
-    }
-
     pub fn map_get(&self, name: &str, key: &str) -> Option<String> {
         self.doc.lock().map_get(name, key)
     }
 
     pub fn map_entries(&self, name: &str) -> HashMap<String, String> {
         self.doc.lock().map_entries(name)
+    }
+
+    /// Read multiple named maps in a single lock acquisition (atomic snapshot).
+    ///
+    /// Prevents torn reads when callers need a consistent view across several
+    /// maps (e.g. `list_items()` joining geo + prop + cnt in one logical read).
+    /// Returned `Vec` is in the same order as `names`.
+    pub fn map_entries_batch(&self, names: &[&str]) -> Vec<HashMap<String, String>> {
+        let doc = self.doc.lock();
+        names.iter().map(|name| doc.map_entries(name)).collect()
     }
 
     pub fn text_insert(&self, name: &str, index: u32, content: &str) {
@@ -250,19 +301,13 @@ impl CrdtExtension {
     // Snapshot
     // -----------------------------------------------------------------------
 
-    /// Replace the entire doc with `bytes` and reset sync state.
+    /// Replace the in-memory doc with `bytes`.
     ///
-    /// Both args must be supplied together: `bytes` is the serialized CRDT state
-    /// and `snapshot_seq` is the CRDT log position it represents.
-    /// After this call, `push` will only send NEW changes, and `pull` will start
-    /// from `snapshot_seq` so no delta is applied twice.
-    pub fn load_snapshot(&self, bytes: &[u8], snapshot_seq: u64) -> Result<(), CmError> {
-        let new_doc = CrdtDoc::from_state(bytes)?;
-        let new_sv = new_doc.state_vector();
-        *self.doc.lock() = new_doc;
-        *self.last_sync_sv.lock() = new_sv;
-        self.last_sync_seq.store(snapshot_seq, Ordering::Release);
-        self.last_pull_seq.store(snapshot_seq, Ordering::Release);
+    /// The sync cursor (seq) lives entirely in the backend KV store — this
+    /// call only updates the working copy. Call `pull()` afterwards to merge
+    /// any deltas committed since the snapshot was taken.
+    pub fn load_snapshot(&self, bytes: &[u8]) -> Result<(), CmError> {
+        *self.doc.lock() = CrdtDoc::from_state(bytes)?;
         Ok(())
     }
 
@@ -272,104 +317,188 @@ impl CrdtExtension {
         self.doc.lock().merge_delta(delta)
     }
 
-    /// Returns `(snapshot_seq, full_state_bytes)` for persistence.
-    /// snapshot_seq is the max of push and pull seqs so that loading this
-    /// snapshot + pulling after that seq never double-applies any delta.
-    pub fn to_snapshot(&self) -> (u64, Vec<u8>) {
-        let seq = self
-            .last_sync_seq
-            .load(Ordering::Acquire)
-            .max(self.last_pull_seq.load(Ordering::Acquire));
-        let state = self.doc.lock().full_state();
-        (seq, state)
+    /// Return the full serialized state of the current doc.
+    /// Useful for seeding child branches or checkpointing.
+    pub fn to_snapshot(&self) -> Vec<u8> {
+        self.doc.lock().full_state()
     }
 
     // -----------------------------------------------------------------------
-    // Push / pull
+    // Push / pull (stateless — cursor derived from backend snapshot)
     // -----------------------------------------------------------------------
 
-    /// Compute the diff since the last push, append it to the backend delta log,
-    /// and advance `last_sync_sv` / `last_sync_seq`.
+    /// Compute the diff above the committed baseline, append it to the backend
+    /// delta log, and advance the backend snapshot.
     ///
-    /// Idempotent: if there are no local changes, this is a no-op.
+    /// Returns the assigned `global_seq` so callers (e.g. `add_node_internal`)
+    /// can record it as a CRDT watermark on nodes.
+    ///
+    /// Idempotent: if there are no local changes above the committed baseline,
+    /// returns the current frontier seq without writing.
     pub async fn push<B: ContextBackend>(
         &self,
         conv_id: &ConversationId,
         branch_id: &BranchId,
         backend: &B,
-    ) -> Result<(), CmError> {
-        // 1. Snapshot sv + diff while holding both locks together.
-        // Compare state vectors to detect no-op: yrs encodes a non-empty
-        // header even for an empty diff, so is_empty() check is unreliable.
-        let (delta, new_sv) = {
-            let doc = self.doc.lock();
-            let sv = self.last_sync_sv.lock();
-            let new_sv = doc.state_vector();
-            if new_sv == *sv {
-                return Ok(());
+    ) -> Result<u64, CmError> {
+        // 1. Load committed baseline from backend (seq, state, cached sv).
+        let (snap_seq, snap_bytes, snap_sv) = backend.crdt_load_snapshot(branch_id).await?;
+
+        // 2. Fetch all deltas committed since the snapshot.
+        let pending = backend.crdt_fetch(conv_id, branch_id, snap_seq).await?;
+
+        // 3. Compute committed baseline sv BEFORE acquiring the doc lock.
+        //    Fast path (P1): element-wise max of snap_sv + each delta's cached SV —
+        //    O(N × decode_sv) vs O(snap_size + N × delta_size) for the fallback.
+        //    Falls back to full reconstruction for legacy deltas without a cached SV.
+        let committed_sv = if pending.is_empty() {
+            snap_sv
+        } else if pending.iter().all(|d| !d.sv.is_empty()) {
+            merge_svs(&snap_sv, pending.iter().map(|d| d.sv.as_slice()))
+        } else {
+            build_sv_from_snapshot_and_deltas(&snap_bytes, &pending)?
+        };
+
+        // 4. Single lock: merge pending ops, check no-op, compute diff.
+        //    Capture our_sv (cumulative SV = snap + pending + our new ops) to store
+        //    alongside the delta.  Future push() calls on other workers use this SV
+        //    for the O(N × decode_sv) fast path in merge_svs, avoiding full state replay.
+        //    Unconditional merge — CRDT is idempotent; skipping own ops by
+        //    client_id breaks stateless workers sharing an application-level id.
+        let (no_op, delta, our_sv) = {
+            let mut doc = self.doc.lock();
+            for d in &pending {
+                doc.merge_delta(&d.delta)?;
             }
-            let delta = doc.encode_diff(&sv);
-            (delta, new_sv)
+            let our_sv = doc.state_vector();
+            // C2: Use semantic SV comparison — Vec<u8> equality is unreliable
+            // because yrs serialises StateVector from a HashMap with non-deterministic
+            // iteration order, so two equal SVs may encode to different bytes.
+            if svs_equal(&our_sv, &committed_sv) {
+                (true, Vec::new(), our_sv)
+            } else {
+                let delta = doc.encode_diff(&committed_sv);
+                (false, delta, our_sv)
+            }
         };
 
-        // 2. Persist (async, no locks held).
-        let crdt_delta = CrdtDelta {
-            global_seq: 0, // assigned by backend
-            client_id: self.client_id.clone(),
-            branch_id: branch_id.clone(),
-            conversation_id: conv_id.clone(),
-            delta,
-            created_at: now_micros(),
-        };
-        let global_seq = backend.crdt_append(&crdt_delta).await?;
+        if no_op {
+            let max_pending = pending.last().map(|d| d.global_seq).unwrap_or(snap_seq);
+            return Ok(max_pending);
+        }
 
-        // 3. Advance sync state.
-        *self.last_sync_sv.lock() = new_sv;
-        self.last_sync_seq.store(global_seq, Ordering::Release);
+        // 5. Append delta to log and return the assigned seq.
+        //    our_sv = cumulative SV at push time (snap + pending + new ops).
+        //    Stored as delta.sv so merge_svs() can compute the committed baseline in
+        //    O(N × decode_sv) instead of replaying full state for each push().
+        //    push() deliberately does NOT save a snapshot here — a snapshot built
+        //    from the delta set captured in step 2 would be incomplete if concurrent
+        //    clients appended between steps 2 and 5. Only pull() builds snapshots,
+        //    because it fetches the complete delta set in one shot under one seq cursor.
+        let global_seq = backend
+            .crdt_append(&CrdtDelta {
+                global_seq: 0, // assigned by backend
+                client_id: self.client_id.clone(),
+                branch_id: branch_id.clone(),
+                conversation_id: conv_id.clone(),
+                delta,
+                sv: our_sv,
+                created_at: now_micros(),
+            })
+            .await?;
 
-        Ok(())
+        Ok(global_seq)
     }
 
-    /// Fetch deltas from the backend after `last_sync_seq`, merge all that were
-    /// not produced by this client.
+    /// Bring the in-memory doc up-to-date with the backend:
+    ///
+    /// 1. Load the committed snapshot and merge it into the doc (idempotent).
+    /// 2. Fetch and merge all incremental deltas committed after the snapshot
+    ///    (unconditional: CRDT merge is idempotent; own ops are safe to re-apply).
+    /// 3. Advance the backend snapshot to cover the incremental deltas.
+    /// 4. Notify subscribers if the doc changed.
     pub async fn pull<B: ContextBackend>(
         &self,
         conv_id: &ConversationId,
         branch_id: &BranchId,
         backend: &B,
     ) -> Result<(), CmError> {
-        let after = self.last_pull_seq.load(Ordering::Acquire);
-        let deltas = backend.crdt_fetch(conv_id, branch_id, after).await?;
+        // 1. Load committed baseline (seq, state, cached sv — sv unused in pull).
+        let (snap_seq, snap_bytes, _snap_sv) = backend.crdt_load_snapshot(branch_id).await?;
 
-        if deltas.is_empty() {
+        // 2. Fetch incremental deltas committed after the snapshot.
+        let deltas = backend.crdt_fetch(conv_id, branch_id, snap_seq).await?;
+
+        // Nothing on this branch at all.
+        if snap_seq == 0 && snap_bytes.is_empty() && deltas.is_empty() {
             return Ok(());
         }
 
-        let mut max_seq = after;
-        // Compute the new state vector inside the doc lock to avoid a race
-        // where a concurrent map_set between the lock release and re-acquisition
-        // would produce a stale sv (causing the next push to re-send known deltas).
-        let new_sv = {
+        // 3. Merge snapshot + deltas into our doc (lock held only for the merges).
+        //    Unconditional — CRDT merge is idempotent; skipping own ops by client_id
+        //    breaks stateless workers that share an application-level client_id but do
+        //    not share in-memory doc state.
+        let (max_seq, changed) = {
             let mut doc = self.doc.lock();
+            let sv_before = doc.state_vector();
+
+            if !snap_bytes.is_empty() {
+                doc.merge_delta(&snap_bytes)?;
+            }
+            let mut max_seq = snap_seq;
             for d in &deltas {
                 if d.global_seq > max_seq {
                     max_seq = d.global_seq;
                 }
-                if d.client_id == self.client_id {
-                    // Skip own deltas — already applied locally.
-                    continue;
-                }
                 doc.merge_delta(&d.delta)?;
             }
-            if max_seq > after { doc.state_vector() } else { Vec::new() }
-        };
 
-        if max_seq > after {
-            self.last_pull_seq.store(max_seq, Ordering::Release);
-            *self.last_sync_sv.lock() = new_sv;
+            let sv_after = doc.state_vector();
+            // C2: semantic SV comparison — same fix as push(); Vec<u8> equality is
+            // unreliable for yrs StateVector (HashMap iteration order is non-deterministic).
+            (max_seq, !svs_equal(&sv_after, &sv_before))
+        };
+        // Lock released — snap_doc is constructed outside the lock to avoid blocking
+        // concurrent doc reads/writes during O(snap+pending) snapshot construction.
+
+        // 4. Advance snapshot in backend if new incremental deltas were present.
+        //    Snapshot is built from snap_bytes + deltas only (excludes local writes).
+        //    crdt_save_snapshot uses seq-monotonic CAS: a concurrent pull at a higher
+        //    seq wins harmlessly (CRDT convergence guarantees identical state).
+        if !deltas.is_empty() {
+            let mut snap_doc = CrdtDoc::from_state(&snap_bytes)?;
+            for d in &deltas {
+                snap_doc.merge_delta(&d.delta)?;
+            }
+            let new_sv = snap_doc.state_vector();
+            let new_state = snap_doc.full_state();
+            backend.crdt_save_snapshot(branch_id, max_seq, &new_state, &new_sv).await?;
+        }
+
+        // 5. Notify subscribers if the local doc changed.
+        if changed && let Some(tx) = &self.delta_tx {
+            tx.send(max_seq).ok();
         }
 
         Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // Compaction
+    // -----------------------------------------------------------------------
+
+    /// Prune delta log entries that are already covered by the stored snapshot.
+    ///
+    /// Safe to call at any time: the snapshot is always the authoritative
+    /// baseline and deltas covered by it are redundant.
+    pub async fn compact<B: ContextBackend>(
+        &self,
+        conv_id: &ConversationId,
+        branch_id: &BranchId,
+        backend: &B,
+    ) -> Result<(), CmError> {
+        let (snap_seq, _, _) = backend.crdt_load_snapshot(branch_id).await?;
+        backend.crdt_compact(conv_id, branch_id, snap_seq).await
     }
 }
 
@@ -414,13 +543,20 @@ mod tests {
     }
 
     #[test]
-    fn map_delete_removes_entry() {
+    fn map_tombstone_removes_entry_from_entries() {
+        // Application-level tombstone: map_set with a sentinel value that
+        // callers filter. map_entries still sees the key, but the entity is
+        // logically deleted. This is the correct pattern — yrs map removals
+        // can be resurrected by a concurrent insert with a later clock.
         let mut doc = CrdtDoc::new();
-        doc.map_set("items", "a", r#"{"id":"a"}"#);
-        doc.map_delete("items", "a");
+        doc.map_set("items", "a", r#"{"id":"a","deleted":true}"#);
 
-        assert!(doc.map_get("items", "a").is_none());
-        assert!(doc.map_entries("items").is_empty());
+        // Key is present (tombstone) but carries the deleted flag.
+        assert!(doc.map_get("items", "a").is_some());
+        // Callers filter by deserialising and checking deleted == true.
+        let entries = doc.map_entries("items");
+        assert_eq!(entries.len(), 1);
+        assert!(entries["a"].contains("\"deleted\":true"));
     }
 
     #[test]
@@ -479,23 +615,44 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn pull_skips_own_client() {
+    async fn push_returns_seq_for_watermark() {
+        let backend = make_backend();
+        let conv = ConversationId::new();
+        let branch = BranchId::new();
+
+        let ext = CrdtExtension::new("client-a");
+        ext.map_set("items", "a", r#"{"id":"a"}"#);
+        let seq = ext.push(&conv, &branch, backend.as_ref()).await.unwrap();
+
+        assert!(seq > 0, "push must return assigned seq");
+
+        // push() does NOT save a snapshot (prevents lost-update race).
+        // Verify the returned seq matches the delta appended to the log.
+        let deltas = backend.crdt_fetch(&conv, &branch, 0).await.unwrap();
+        assert_eq!(deltas.len(), 1);
+        assert_eq!(deltas[0].global_seq, seq, "push must return the assigned global_seq");
+    }
+
+    #[tokio::test]
+    async fn pull_idempotent_on_own_ops() {
+        // pull() merges all deltas unconditionally. CRDT merge is idempotent, so
+        // re-applying ops the doc already contains is a safe no-op. This test
+        // verifies that a client pulling its own previously-pushed delta does not
+        // produce duplicate entries (idempotency guarantee in practice).
         let backend = make_backend();
         let conv = ConversationId::new();
         let branch = BranchId::new();
 
         let writer = CrdtExtension::new("writer");
-        let reader = CrdtExtension::new("writer"); // same client_id
-
         writer.map_set("items", "a", r#"{"id":"a"}"#);
         writer.push(&conv, &branch, backend.as_ref()).await.unwrap();
 
-        // reader shares client_id with writer → pull should skip the delta.
-        reader.pull(&conv, &branch, backend.as_ref()).await.unwrap();
-        assert!(
-            reader.map_get("items", "a").is_none(),
-            "own delta must be skipped"
-        );
+        // Writer pulls its own branch — "a" was already in the doc before push.
+        // After pull it should still be there exactly once (idempotent re-apply).
+        writer.pull(&conv, &branch, backend.as_ref()).await.unwrap();
+        let entries = writer.map_entries("items");
+        assert_eq!(entries.len(), 1, "own data must not be duplicated after pull");
+        assert_eq!(entries["a"], r#"{"id":"a"}"#);
     }
 
     #[tokio::test]
@@ -518,6 +675,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn pull_advances_snapshot_seq() {
+        let backend = make_backend();
+        let conv = ConversationId::new();
+        let branch = BranchId::new();
+
+        // Writer pushes two deltas independently.
+        let writer = CrdtExtension::new("writer");
+        writer.map_set("items", "a", r#"{"id":"a"}"#);
+        let seq1 = writer.push(&conv, &branch, backend.as_ref()).await.unwrap();
+
+        let writer2 = CrdtExtension::new("writer2");
+        writer2.map_set("items", "b", r#"{"id":"b"}"#);
+        let seq2 = writer2.push(&conv, &branch, backend.as_ref()).await.unwrap();
+        assert!(seq2 > seq1);
+
+        // Fresh reader with no snapshot — pull must advance snapshot to max delta seq.
+        let reader = CrdtExtension::new("reader");
+        reader.pull(&conv, &branch, backend.as_ref()).await.unwrap();
+
+        let (snap_seq, _, _) = backend.crdt_load_snapshot(&branch).await.unwrap();
+        assert!(snap_seq >= seq2, "snapshot seq must be >= max delta seq after pull");
+    }
+
+    #[tokio::test]
     async fn load_snapshot_then_pull_no_double_apply() {
         let backend = make_backend();
         let conv = ConversationId::new();
@@ -527,15 +708,39 @@ mod tests {
         writer.map_set("items", "a", r#"{"id":"a"}"#);
         writer.push(&conv, &branch, backend.as_ref()).await.unwrap();
 
-        let (snapshot_seq, snapshot_bytes) = writer.to_snapshot();
+        let snapshot_bytes = writer.to_snapshot();
 
         // New extension loads snapshot then pulls — must not double-apply.
         let reader = CrdtExtension::new("reader");
-        reader.load_snapshot(&snapshot_bytes, snapshot_seq).unwrap();
+        reader.load_snapshot(&snapshot_bytes).unwrap();
         reader.pull(&conv, &branch, backend.as_ref()).await.unwrap();
 
         // Data is present exactly once.
         assert_eq!(reader.map_get("items", "a"), Some(r#"{"id":"a"}"#.into()));
+    }
+
+    #[tokio::test]
+    async fn load_snapshot_only_updates_doc() {
+        // After load_snapshot(), push should only send NEW ops, not resend snapshot.
+        let backend = make_backend();
+        let conv = ConversationId::new();
+        let branch = BranchId::new();
+
+        // Another client establishes the baseline snapshot.
+        let baseline = CrdtExtension::new("baseline");
+        baseline.map_set("items", "existing", r#"{"id":"existing"}"#);
+        baseline.push(&conv, &branch, backend.as_ref()).await.unwrap();
+
+        // New client loads snapshot, adds one new item, pushes.
+        let client = CrdtExtension::new("client");
+        let snap = baseline.to_snapshot();
+        client.load_snapshot(&snap).unwrap();
+        client.map_set("items", "new", r#"{"id":"new"}"#);
+        client.push(&conv, &branch, backend.as_ref()).await.unwrap();
+
+        // Only 2 deltas total: baseline's push + client's push (not a full resend).
+        let all_deltas = backend.crdt_fetch(&conv, &branch, 0).await.unwrap();
+        assert_eq!(all_deltas.len(), 2, "push after load_snapshot must send only new ops");
     }
 
     #[tokio::test]
@@ -563,10 +768,122 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn push_derives_cursor_from_backend() {
+        // After checkout (load_snapshot + pull), a subsequent push must send
+        // ONLY the new ops added after checkout, not the full snapshot state.
+        let backend = make_backend();
+        let conv = ConversationId::new();
+        let branch = BranchId::new();
+
+        // Step 1: Establish some baseline state on the branch.
+        let init = CrdtExtension::new("init");
+        init.map_set("items", "base", r#"{"id":"base"}"#);
+        init.push(&conv, &branch, backend.as_ref()).await.unwrap();
+
+        // Step 2: New client checks out (simulates checkout flow).
+        // push() does not save a snapshot, so crdt_load_snapshot returns (0, [], []).
+        // load_snapshot([]) is a no-op; pull() fetches init's delta and populates the doc.
+        let (_, snap_bytes, _) = backend.crdt_load_snapshot(&branch).await.unwrap();
+        let client = CrdtExtension::new("client");
+        client.load_snapshot(&snap_bytes).unwrap();
+        client.pull(&conv, &branch, backend.as_ref()).await.unwrap();
+
+        // Step 3: Client adds new data and pushes.
+        client.map_set("items", "new", r#"{"id":"new"}"#);
+        client.push(&conv, &branch, backend.as_ref()).await.unwrap();
+
+        // Only 2 deltas: init's push + client's push.
+        let all = backend.crdt_fetch(&conv, &branch, 0).await.unwrap();
+        assert_eq!(all.len(), 2, "checkout + push must not resend snapshot state");
+    }
+
+    #[tokio::test]
+    async fn concurrent_pushes_converge() {
+        let backend = make_backend();
+        let conv = ConversationId::new();
+        let branch = BranchId::new();
+
+        let a = Arc::new(CrdtExtension::new("a"));
+        let b = Arc::new(CrdtExtension::new("b"));
+
+        a.map_set("items", "ka", r#"{"id":"ka"}"#);
+        b.map_set("items", "kb", r#"{"id":"kb"}"#);
+
+        let backend_a = Arc::clone(&backend);
+        let backend_b = Arc::clone(&backend);
+        let a_ref = Arc::clone(&a);
+        let b_ref = Arc::clone(&b);
+        let conv_a = conv.clone();
+        let conv_b = conv.clone();
+        let branch_a = branch.clone();
+        let branch_b = branch.clone();
+
+        let ha = tokio::spawn(async move {
+            a_ref.push(&conv_a, &branch_a, backend_a.as_ref()).await.unwrap();
+        });
+        let hb = tokio::spawn(async move {
+            b_ref.push(&conv_b, &branch_b, backend_b.as_ref()).await.unwrap();
+        });
+        ha.await.unwrap();
+        hb.await.unwrap();
+
+        // Pull both sides.
+        a.pull(&conv, &branch, backend.as_ref()).await.unwrap();
+        b.pull(&conv, &branch, backend.as_ref()).await.unwrap();
+
+        assert_eq!(a.map_entries("items").len(), 2, "a must see both after pull");
+        assert_eq!(b.map_entries("items").len(), 2, "b must see both after pull");
+    }
+
+    #[tokio::test]
     async fn load_snapshot_empty_bytes_is_blank_doc() {
         let ext = CrdtExtension::new("c");
-        ext.load_snapshot(&[], 0).unwrap();
+        ext.load_snapshot(&[]).unwrap();
         assert!(ext.map_entries("items").is_empty());
+    }
+
+    #[tokio::test]
+    async fn compact_prunes_deltas() {
+        let backend = make_backend();
+        let conv = ConversationId::new();
+        let branch = BranchId::new();
+
+        let ext = CrdtExtension::new("client");
+        for i in 0..10u32 {
+            ext.map_set("items", &i.to_string(), &format!(r#"{{"id":"{}"}}"#, i));
+            ext.push(&conv, &branch, backend.as_ref()).await.unwrap();
+        }
+
+        let before = backend.crdt_fetch(&conv, &branch, 0).await.unwrap();
+        assert_eq!(before.len(), 10);
+
+        // pull() must be called first to advance the snapshot (push does not save one).
+        ext.pull(&conv, &branch, backend.as_ref()).await.unwrap();
+        ext.compact(&conv, &branch, backend.as_ref()).await.unwrap();
+
+        let after = backend.crdt_fetch(&conv, &branch, 0).await.unwrap();
+        assert!(after.is_empty(), "compact must prune all snapshot-covered deltas");
+    }
+
+    #[tokio::test]
+    async fn subscribe_fires_on_pull() {
+        let backend = make_backend();
+        let conv = ConversationId::new();
+        let branch = BranchId::new();
+
+        // Writer pushes some data.
+        let writer = CrdtExtension::new("writer");
+        writer.map_set("items", "a", r#"{"id":"a"}"#);
+        let pushed_seq = writer.push(&conv, &branch, backend.as_ref()).await.unwrap();
+
+        // Reader subscribes to notifications.
+        let reader = CrdtExtension::new("reader").with_notifications(16);
+        let mut rx = reader.subscribe().unwrap();
+
+        reader.pull(&conv, &branch, backend.as_ref()).await.unwrap();
+
+        let notified_seq = rx.try_recv().expect("subscriber must receive seq on pull");
+        assert_eq!(notified_seq, pushed_seq, "notified seq must match pushed seq");
     }
 
     #[tokio::test]
@@ -579,11 +896,11 @@ mod tests {
 
         let parent = CrdtExtension::new("parent");
         parent.map_set("items", "k1", r#"{"id":"k1"}"#);
-        parent.push(&conv, &parent_branch, backend.as_ref()).await.unwrap();
+        let push_seq = parent.push(&conv, &parent_branch, backend.as_ref()).await.unwrap();
+        assert!(push_seq > 0);
 
-        // Capture snapshot at this point (watermark = parent's last push seq).
-        let (snapshot_seq, snapshot_bytes) = parent.to_snapshot();
-        assert!(snapshot_seq > 0);
+        // Capture snapshot at this point.
+        let snapshot_bytes = parent.to_snapshot();
 
         // Parent adds more after the snapshot.
         parent.map_set("items", "k2", r#"{"id":"k2"}"#);
@@ -592,7 +909,7 @@ mod tests {
         // Build child from the snapshot (before k2 was added).
         let child_branch = BranchId::new();
         let child = CrdtExtension::new("child");
-        child.load_snapshot(&snapshot_bytes, snapshot_seq).unwrap();
+        child.load_snapshot(&snapshot_bytes).unwrap();
 
         // Child should see k1 but NOT k2 (k2 was added after snapshot).
         let entries = child.map_entries("items");
@@ -620,20 +937,20 @@ mod tests {
         grandparent.push(&conv, &grandparent_branch, backend.as_ref()).await.unwrap();
 
         // Parent snapshot = grandparent full state.
-        let (gp_seq, gp_bytes) = grandparent.to_snapshot();
+        let gp_bytes = grandparent.to_snapshot();
 
         let parent_branch = BranchId::new();
         let parent = CrdtExtension::new("parent");
-        parent.load_snapshot(&gp_bytes, gp_seq).unwrap();
+        parent.load_snapshot(&gp_bytes).unwrap();
         parent.map_set("items", "parent_key", r#"{"id":"parent_key"}"#);
         parent.push(&conv, &parent_branch, backend.as_ref()).await.unwrap();
 
         // Child snapshot = parent full state (includes gp_key via snapshot).
-        let (parent_seq, parent_bytes) = parent.to_snapshot();
+        let parent_bytes = parent.to_snapshot();
 
         let child_branch = BranchId::new();
         let child = CrdtExtension::new("child");
-        child.load_snapshot(&parent_bytes, parent_seq).unwrap();
+        child.load_snapshot(&parent_bytes).unwrap();
 
         let entries = child.map_entries("items");
         assert!(entries.contains_key("gp_key"), "child must see grandparent key");

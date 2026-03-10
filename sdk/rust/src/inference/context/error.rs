@@ -22,9 +22,6 @@ pub enum CmError {
     #[error("Node is finalized: {0}")]
     NodeFinalized(NodeId),
 
-    #[error("Storage error: {0}")]
-    Storage(String),
-
     #[error("Backend error: {0}")]
     BackendError(String),
 

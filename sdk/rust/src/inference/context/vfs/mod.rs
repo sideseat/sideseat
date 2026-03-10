@@ -283,8 +283,10 @@ impl Vfs {
         let branch_entries: HashMap<String, String> =
             self.branch_index.read().get(&branch).cloned().unwrap_or_default();
 
-        let mut entries: Vec<FileEntry> = Vec::new();
+        let mut dir_entries: Vec<FileEntry> = Vec::new();
         let mut seen_dirs = std::collections::HashSet::new();
+        // Collect files that need metadata (vfs_path, physical_key, provider).
+        let mut pending_files: Vec<(String, String, Arc<dyn FsProvider>)> = Vec::new();
 
         for (vfs_path, physical_key) in &branch_entries {
             let matches = if normalized.is_empty() {
@@ -314,21 +316,27 @@ impl Vfs {
                     format!("{normalized}/{dir_name}")
                 };
                 if seen_dirs.insert(dir_path.clone()) {
-                    entries.push(FileEntry { path: dir_path, is_dir: true, meta: None });
+                    dir_entries.push(FileEntry { path: dir_path, is_dir: true, meta: None });
                 }
             } else if !remainder.is_empty() {
                 let (provider, _) = self.resolve_arc(vfs_path);
-                let file_meta = provider.metadata(physical_key).await.ok().map(|mut m| {
+                pending_files.push((vfs_path.clone(), physical_key.clone(), provider));
+            }
+        }
+
+        // Fan out all metadata calls concurrently — avoids N sequential round-trips
+        // for LocalFsProvider (syscalls) or remote providers.
+        let meta_futs = pending_files.into_iter().map(|(vfs_path, physical_key, provider)| {
+            async move {
+                let file_meta = provider.metadata(&physical_key).await.ok().map(|mut m| {
                     m.path = vfs_path.clone();
                     m
                 });
-                entries.push(FileEntry {
-                    path: vfs_path.clone(),
-                    is_dir: false,
-                    meta: file_meta,
-                });
+                FileEntry { path: vfs_path, is_dir: false, meta: file_meta }
             }
-        }
+        });
+        let mut entries: Vec<FileEntry> = futures::future::join_all(meta_futs).await;
+        entries.extend(dir_entries);
 
         for mount in &self.mounts {
             let is_child = if normalized.is_empty() {
