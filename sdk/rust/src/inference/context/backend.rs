@@ -14,12 +14,14 @@ use crate::types::Usage;
 // Query params
 // ---------------------------------------------------------------------------
 
+/// Generic pagination parameters.
 #[derive(Debug, Clone, Default)]
 pub struct ListParams {
     pub offset: Option<u64>,
     pub limit: Option<u32>,
 }
 
+/// Filters for node list queries.
 #[derive(Debug, Clone)]
 pub struct ListNodesParams {
     pub conversation_id: ConversationId,
@@ -31,6 +33,7 @@ pub struct ListNodesParams {
     pub time_range: Option<TimeRange>,
 }
 
+/// Inclusive microsecond timestamp range for node queries.
 #[derive(Debug, Clone)]
 pub struct TimeRange {
     pub start: i64,
@@ -222,6 +225,9 @@ impl InMemoryState {
     }
 }
 
+/// In-memory implementation of [`ContextBackend`] for tests and single-process use.
+///
+/// All state is kept in a `Mutex<InMemoryState>`; no persistence across restarts.
 pub struct InMemoryContextBackend {
     state: Mutex<InMemoryState>,
 }

@@ -17,6 +17,7 @@ crate::define_id!(KanbanCardId);
 // KanbanBoard
 // ---------------------------------------------------------------------------
 
+/// A kanban board owned by a conversation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KanbanBoard {
     pub id: KanbanBoardId,
@@ -46,6 +47,7 @@ impl KanbanBoard {
 // KanbanColumn
 // ---------------------------------------------------------------------------
 
+/// A column (swimlane) within a [`KanbanBoard`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KanbanColumn {
     pub id: KanbanColumnId,
@@ -82,6 +84,7 @@ impl KanbanColumn {
 // KanbanCard
 // ---------------------------------------------------------------------------
 
+/// Priority level of a [`KanbanCard`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum KanbanCardPriority {
@@ -91,6 +94,7 @@ pub enum KanbanCardPriority {
     Critical,
 }
 
+/// A task card within a [`KanbanColumn`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KanbanCard {
     pub id: KanbanCardId,
@@ -309,6 +313,7 @@ impl KanbanExtension {
     // Columns
     // -----------------------------------------------------------------------
 
+    /// Insert or update a column in the CRDT map.
     pub fn upsert_column(
         &self,
         crdt: &CrdtExtension,

@@ -215,6 +215,11 @@ pub struct CrdtExtension {
 }
 
 impl CrdtExtension {
+    /// Create a new extension with an empty doc.
+    ///
+    /// `client_id` is stored in every delta pushed by this instance — use a stable
+    /// identity (worker name, pod ID) to avoid unbounded Yjs state-vector growth
+    /// across restarts (each unique ID adds one entry to the SV).
     pub fn new(client_id: impl Into<String>) -> Self {
         Self {
             doc: Mutex::new(CrdtDoc::new()),
@@ -233,6 +238,7 @@ impl CrdtExtension {
         self
     }
 
+    /// The identity string used to tag outgoing deltas.
     pub fn client_id(&self) -> &str {
         &self.client_id
     }
@@ -247,14 +253,17 @@ impl CrdtExtension {
     // Doc ops (forwarded through Mutex)
     // -----------------------------------------------------------------------
 
+    /// Insert or overwrite a key in the named CRDT map.
     pub fn map_set(&self, name: &str, key: &str, value: &str) {
         self.doc.lock().map_set(name, key, value);
     }
 
+    /// Read a single key from the named CRDT map.
     pub fn map_get(&self, name: &str, key: &str) -> Option<String> {
         self.doc.lock().map_get(name, key)
     }
 
+    /// Return all entries in the named CRDT map.
     pub fn map_entries(&self, name: &str) -> HashMap<String, String> {
         self.doc.lock().map_entries(name)
     }
@@ -269,30 +278,37 @@ impl CrdtExtension {
         names.iter().map(|name| doc.map_entries(name)).collect()
     }
 
+    /// Insert `content` into the named Y.Text at character `index`.
     pub fn text_insert(&self, name: &str, index: u32, content: &str) {
         self.doc.lock().text_insert(name, index, content);
     }
 
+    /// Delete `len` characters starting at `index` from the named Y.Text.
     pub fn text_remove(&self, name: &str, index: u32, len: u32) {
         self.doc.lock().text_remove(name, index, len);
     }
 
+    /// Read the full content of the named Y.Text.
     pub fn text_read(&self, name: &str) -> String {
         self.doc.lock().text_read(name)
     }
 
+    /// Character length of the named Y.Text, or 0 if it does not exist.
     pub fn text_len(&self, name: &str) -> u32 {
         self.doc.lock().text_len(name)
     }
 
+    /// Encode the full doc state as a Yjs v1 update (snapshot).
     pub fn full_state(&self) -> Vec<u8> {
         self.doc.lock().full_state()
     }
 
+    /// Encode the current state vector (used as the diff baseline by remote peers).
     pub fn state_vector(&self) -> Vec<u8> {
         self.doc.lock().state_vector()
     }
 
+    /// Encode the diff between the local doc and `remote_sv` (ops the remote doesn't have yet).
     pub fn encode_diff(&self, remote_sv: &[u8]) -> Vec<u8> {
         self.doc.lock().encode_diff(remote_sv)
     }
