@@ -44,8 +44,13 @@ use crate::types::{ContentBlock, Message, Response, Role, Usage, estimate_tokens
 /// state internally behind interior mutability and use lifecycle hooks to stay
 /// in sync with the active branch.
 pub trait ContextExtension: Send + Sync + 'static {
+    /// Unique string identifier for this extension (e.g. `"crdt"`, `"vfs"`, `"canvas"`).
     fn id(&self) -> &str;
+    /// Called after a branch is forked; stateful extensions (VFS, CRDT) use this to
+    /// copy their branch-scoped state to the new child branch.
     fn on_branch_forked(&self, _parent: &BranchId, _child: &BranchId) {}
+    /// Called after `checkout()`; stateful extensions use this to switch their
+    /// internal view to the new active branch.
     fn on_branch_checked_out(&self, _branch: &BranchId) {}
 }
 
@@ -60,6 +65,11 @@ struct ExtensionRegistryInner {
     store: HashMap<String, Arc<dyn Any + Send + Sync>>,
 }
 
+/// Type-erased registry for [`ContextExtension`] instances.
+///
+/// Supports typed lookup by concrete type (`extension::<T>()`) or string ID
+/// (`extension_by_id()`), and broadcasts lifecycle hooks to all registered
+/// extensions in insertion order.
 pub struct ExtensionRegistry {
     inner: RwLock<ExtensionRegistryInner>,
 }
@@ -126,6 +136,7 @@ impl Default for ExtensionRegistry {
 // Summarizer
 // ---------------------------------------------------------------------------
 
+/// Summarizes a message history into a single string for context compression.
 #[async_trait]
 pub trait Summarizer: Send + Sync {
     async fn summarize(&self, messages: &[Message]) -> Result<String, CmError>;
@@ -135,6 +146,7 @@ pub trait Summarizer: Send + Sync {
 // MemorySource + MemoryItem
 // ---------------------------------------------------------------------------
 
+/// A single retrieved memory item returned by a [`MemorySource`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryItem {
     pub content: String,
@@ -144,6 +156,9 @@ pub struct MemoryItem {
     pub metadata: HashMap<String, Value>,
 }
 
+/// External memory store that can retrieve and persist context items.
+///
+/// Retrieved items are injected into the system prompt by `build_context()`.
 #[async_trait]
 pub trait MemorySource: Send + Sync {
     async fn retrieve(
@@ -166,6 +181,7 @@ pub trait MemorySource: Send + Sync {
 // CompressionConfig + strategies
 // ---------------------------------------------------------------------------
 
+/// Controls how the system prompt is extracted from a conversation.
 #[derive(Debug, Clone, Default)]
 pub enum SystemMode {
     #[default]
@@ -174,6 +190,7 @@ pub enum SystemMode {
     None,
 }
 
+/// Strategy applied when the linearized context exceeds `max_tokens`.
 #[derive(Debug, Clone, Default)]
 pub enum CompressionStrategy {
     None,
@@ -185,6 +202,7 @@ pub enum CompressionStrategy {
     Fail,
 }
 
+/// Configuration for context window compression passed to `build_context()`.
 #[derive(Clone)]
 pub struct CompressionConfig {
     pub max_tokens: u64,
@@ -210,6 +228,7 @@ impl Default for CompressionConfig {
 // ContextResult
 // ---------------------------------------------------------------------------
 
+/// Output of [`ContextManager::build_context`] ready to pass to a provider.
 #[derive(Debug, Clone)]
 pub struct ContextResult {
     pub messages: Vec<Message>,
@@ -226,6 +245,20 @@ pub struct ContextResult {
 /// Auto-compact CRDT delta log when delta count since last compaction exceeds this threshold.
 const CRDT_COMPACT_THRESHOLD: u64 = 500;
 
+/// Stateless conversation manager backed by a [`ContextBackend`].
+///
+/// Owns an append-only [`ConversationTree`], pluggable [`ContextExtension`]s (CRDT, VFS,
+/// Canvas, Kanban), and a [`CompressionConfig`] for building LLM context windows.
+/// All persistent state lives in the backend; `ContextManager` itself holds only
+/// in-memory indexes and is safe to reconstruct at any time via [`load`].
+///
+/// # Typical workflow
+/// 1. [`new`] or [`load`] to obtain an instance.
+/// 2. [`with_extension`] to register CRDT/VFS/Canvas/Kanban extensions.
+/// 3. [`checkout`] to restore CRDT + VFS state for the active branch.
+/// 4. [`add_node`] / [`start_streaming`] + [`finalize_streaming_node`] to record turns.
+/// 5. [`build_context`] to produce a compressed [`ContextResult`] for the next LLM call.
+/// 6. [`fork`] to create experiment branches; [`spawn_agent`] for sub-agents.
 pub struct ContextManager<B: ContextBackend> {
     backend: Arc<B>,
     tree: RwLock<ConversationTree>,
@@ -366,6 +399,7 @@ impl<B: ContextBackend> ContextManager<B> {
     // Builder methods
     // -----------------------------------------------------------------------
 
+    /// Register an extension and fire its `on_branch_checked_out` hook for the active branch.
     pub fn with_extension<T: ContextExtension>(self, ext: Arc<T>) -> Self {
         let current_branch = self.tree.read().active_branch().clone();
         ext.on_branch_checked_out(&current_branch);
@@ -373,16 +407,20 @@ impl<B: ContextBackend> ContextManager<B> {
         self
     }
 
+    /// Override the default compression configuration.
     pub fn with_compression(mut self, cfg: CompressionConfig) -> Self {
         self.compression = cfg;
         self
     }
 
+    /// Add a memory source whose retrieved items are injected into `build_context()` system prompts.
     pub fn with_memory_source(mut self, src: Arc<dyn MemorySource>) -> Self {
         self.memory_sources.push(src);
         self
     }
 
+    /// Override the auto-generated instance UUID. Affects `patch_conversation` key scoping
+    /// but not `CrdtExtension` identity — pass a stable ID to `CrdtExtension::new()` for that.
     pub fn with_client_id(mut self, id: impl Into<String>) -> Self {
         self.client_id = id.into();
         self
@@ -402,6 +440,7 @@ impl<B: ContextBackend> ContextManager<B> {
         &self.client_id
     }
 
+    /// The underlying backend shared with all clones and sub-agents.
     pub fn backend(&self) -> &Arc<B> {
         &self.backend
     }
@@ -410,22 +449,27 @@ impl<B: ContextBackend> ContextManager<B> {
         self.extensions.extension::<T>()
     }
 
+    /// Look up a registered extension by its string ID and concrete type.
     pub fn extension_by_id<T: ContextExtension>(&self, id: &str) -> Option<Arc<T>> {
         self.extensions.extension_by_id::<T>(id)
     }
 
+    /// Access the full extension registry (for batch operations or introspection).
     pub fn extensions(&self) -> &ExtensionRegistry {
         &self.extensions
     }
 
+    /// Snapshot of the current conversation metadata.
     pub fn conversation(&self) -> Conversation {
         self.conversation.lock().clone()
     }
 
+    /// Currently checked-out branch ID.
     pub fn active_branch(&self) -> BranchId {
         self.tree.read().active_branch().clone()
     }
 
+    /// Most recently appended node on the active branch, or `None` if the branch is empty.
     pub fn active_branch_tip(&self) -> Option<NodeId> {
         let tree = self.tree.read();
         let branch = tree.active_branch().clone();
@@ -465,6 +509,7 @@ impl<B: ContextBackend> ContextManager<B> {
     // Conversation patching
     // -----------------------------------------------------------------------
 
+    /// Apply a granular update to conversation metadata, persisting it as an append-only patch.
     pub async fn patch_conversation(&self, patch: ConversationPatch) -> Result<(), CmError> {
         let ts = now_micros();
         let seq = self.patch_seq.fetch_add(1, Ordering::Relaxed);
@@ -482,6 +527,8 @@ impl<B: ContextBackend> ContextManager<B> {
     // Branching
     // -----------------------------------------------------------------------
 
+    /// Fork a new branch from `from_node_id`, persisting the branch and a CRDT snapshot
+    /// at the fork watermark before registering it in the in-memory tree.
     pub async fn fork(
         &self,
         from_node_id: &NodeId,
@@ -794,6 +841,7 @@ impl<B: ContextBackend> ContextManager<B> {
     }
 
     /// Convenience: record a complete provider response as an AssistantMessage node.
+    /// Convenience: record a complete provider response as an `AssistantMessage` node.
     pub async fn add_response(
         &self,
         response: &Response,
@@ -820,6 +868,8 @@ impl<B: ContextBackend> ContextManager<B> {
     // build_context
     // -----------------------------------------------------------------------
 
+    /// Linearize the active branch, apply the compression strategy, and return a
+    /// [`ContextResult`] ready to pass to a provider call.
     pub async fn build_context(&self) -> Result<ContextResult, CmError> {
         let conv_id = self.conversation.lock().id.clone();
 

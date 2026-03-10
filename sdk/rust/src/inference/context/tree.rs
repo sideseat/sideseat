@@ -7,11 +7,16 @@ use super::types::{BranchId, BranchMeta, ConversationId, Node, NodeHeader, NodeI
 // BranchDiff
 // ---------------------------------------------------------------------------
 
+/// Result of a two-branch diff produced by [`ConversationTree::diff`].
 #[derive(Debug, Clone)]
 pub struct BranchDiff {
+    /// Most recent node present on both branches.
     pub common_ancestor: Option<NodeId>,
+    /// Nodes on the shared path from root to the common ancestor.
     pub shared: Vec<NodeId>,
+    /// Nodes exclusive to branch A (not reachable from B).
     pub only_in_a: Vec<NodeId>,
+    /// Nodes exclusive to branch B (not reachable from A).
     pub only_in_b: Vec<NodeId>,
 }
 
@@ -19,6 +24,12 @@ pub struct BranchDiff {
 // ConversationTree
 // ---------------------------------------------------------------------------
 
+/// In-memory index of all nodes and branches for a single conversation.
+///
+/// Tracks the tip (most recent node) of each branch, the active branch,
+/// per-user cursors, and per-branch sequence counters. All mutations
+/// (`register`, `fork`, `rewind`, `checkout`) keep the index consistent
+/// with respect to the append-only node tree.
 #[derive(Clone)]
 pub struct ConversationTree {
     conversation_id: ConversationId,
@@ -60,6 +71,7 @@ impl ConversationTree {
         }
     }
 
+    /// Index a newly appended node and advance the branch tip.
     pub fn register(&mut self, node: &Node) -> Result<NodeHeader, CmError> {
         let header = NodeHeader::from(node);
         self.headers.insert(node.id.clone(), header.clone());
@@ -103,6 +115,7 @@ impl ConversationTree {
         Ok(())
     }
 
+    /// Allocate and return the next sequence number for `branch_id`.
     pub fn next_seq(&mut self, branch_id: &BranchId) -> u64 {
         let seq = self.next_sequence.entry(branch_id.clone()).or_insert(0);
         let current = *seq;
@@ -114,6 +127,7 @@ impl ConversationTree {
     // Git-style ops
     // -----------------------------------------------------------------------
 
+    /// Create a new branch forking from `from_node_id`. Returns the new branch ID.
     pub fn fork(
         &mut self,
         from_node_id: &NodeId,
@@ -122,6 +136,7 @@ impl ConversationTree {
         self.fork_with_id(from_node_id, BranchId::new(), name)
     }
 
+    /// Like [`fork`] but uses a caller-supplied branch ID (useful for deterministic IDs in tests).
     pub fn fork_with_id(
         &mut self,
         from_node_id: &NodeId,
@@ -184,6 +199,7 @@ impl ConversationTree {
         Ok(pruned)
     }
 
+    /// Set `branch_id` as the active branch. Does not affect CRDT or VFS state.
     pub fn checkout(&mut self, branch_id: &BranchId) -> Result<(), CmError> {
         if !self.branches.contains_key(branch_id) {
             return Err(CmError::BranchNotFound(branch_id.clone()));
@@ -192,6 +208,7 @@ impl ConversationTree {
         Ok(())
     }
 
+    /// Compute the symmetric difference between two branches.
     pub fn diff(
         &self,
         branch_a: &BranchId,
@@ -236,6 +253,7 @@ impl ConversationTree {
     // Queries
     // -----------------------------------------------------------------------
 
+    /// Walk parent links from the branch tip to the root, returning headers in root-first order.
     pub fn linearize(&self, branch_id: &BranchId) -> Result<Vec<&NodeHeader>, CmError> {
         if !self.branches.contains_key(branch_id) {
             return Err(CmError::BranchNotFound(branch_id.clone()));
@@ -269,6 +287,7 @@ impl ConversationTree {
         Ok(path)
     }
 
+    /// Like [`linearize`] but returns node IDs only.
     pub fn linearize_ids(&self, branch_id: &BranchId) -> Result<Vec<NodeId>, CmError> {
         Ok(self
             .linearize(branch_id)?
@@ -277,6 +296,7 @@ impl ConversationTree {
             .collect())
     }
 
+    /// All non-deleted children of `parent_id` (parallel response variants).
     pub fn variants(&self, parent_id: &NodeId) -> Vec<&NodeHeader> {
         self.headers
             .values()
@@ -284,6 +304,8 @@ impl ConversationTree {
             .collect()
     }
 
+    /// Return the linearized sub-branch rooted at an `AgentSpawn` node,
+    /// or just the spawn node itself if no sub-branch has been created yet.
     pub fn agent_subtree(
         &self,
         agent_spawn_id: &NodeId,
@@ -308,14 +330,17 @@ impl ConversationTree {
     // Navigation
     // -----------------------------------------------------------------------
 
+    /// Currently checked-out branch.
     pub fn active_branch(&self) -> &BranchId {
         &self.active_branch
     }
 
+    /// All registered branches (including deleted ones not yet pruned).
     pub fn branches(&self) -> &HashMap<BranchId, BranchMeta> {
         &self.branches
     }
 
+    /// Most recently appended node on `branch_id`, or `None` if the branch has no nodes.
     pub fn branch_tip(&self, branch_id: &BranchId) -> Option<&NodeId> {
         self.tips.get(branch_id)
     }
@@ -332,6 +357,7 @@ impl ConversationTree {
         self.headers.get(node_id).map(|h| h.branch_id.clone())
     }
 
+    /// Cursor (last-viewed node) for `user_id`, or `None` if not set.
     pub fn cursor(&self, user_id: &UserId) -> Option<&NodeId> {
         self.cursors.get(user_id)
     }

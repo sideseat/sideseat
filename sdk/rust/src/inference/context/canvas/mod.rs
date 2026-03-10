@@ -8,6 +8,7 @@ use super::types::{ArtifactSetId, CanvasId, ConversationId, NodeId, StorageRef, 
 // Canvas
 // ---------------------------------------------------------------------------
 
+/// A freeform canvas workspace owned by a conversation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Canvas {
     pub id: CanvasId,
@@ -34,6 +35,7 @@ impl Canvas {
 // CanvasItem
 // ---------------------------------------------------------------------------
 
+/// A single item on a canvas (sticky note, shape, image, connector, etc.).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanvasItem {
     pub id: String,
@@ -56,6 +58,7 @@ pub struct CanvasItem {
     pub deleted: bool,
 }
 
+/// Visual type of a [`CanvasItem`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CanvasItemType {
@@ -71,6 +74,7 @@ pub enum CanvasItemType {
     ChatBubble,
 }
 
+/// Content payload of a [`CanvasItem`] (discriminated by `"type"`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum CanvasItemContent {
@@ -128,6 +132,7 @@ struct ItemProp {
 // Viewport
 // ---------------------------------------------------------------------------
 
+/// Visible rectangle on the canvas used for spatial filtering.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Viewport {
     pub x: f64,
