@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::SystemTime;
 
 use async_trait::async_trait;
 use parking_lot::Mutex;
@@ -7,6 +8,12 @@ use parking_lot::Mutex;
 use super::super::error::CmError;
 use super::{FileEntry, FileMeta};
 use super::super::types::now_micros;
+
+fn system_time_to_micros(t: SystemTime) -> i64 {
+    t.duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_micros() as i64)
+        .unwrap_or(0)
+}
 
 // ---------------------------------------------------------------------------
 // normalize_path
@@ -254,13 +261,20 @@ impl FsProvider for LocalFsProvider {
             .await
             .map_err(|e| CmError::FsError(e.to_string()))?;
 
-        let now = now_micros();
+        let modified_at = fs_meta
+            .modified()
+            .map(system_time_to_micros)
+            .unwrap_or_else(|_| now_micros());
+        let created_at = fs_meta
+            .created()
+            .map(system_time_to_micros)
+            .unwrap_or(modified_at);
         Ok(FileMeta {
             path: path.to_string(),
             size_bytes: fs_meta.len(),
             mime_type: mime_type.to_string(),
-            created_at: now,
-            modified_at: now,
+            created_at,
+            modified_at,
             checksum: None,
         })
     }
@@ -294,13 +308,20 @@ impl FsProvider for LocalFsProvider {
             .await
             .map_err(|e| CmError::FsError(e.to_string()))?;
 
-        let now = now_micros();
+        let modified_at = fs_meta
+            .modified()
+            .map(system_time_to_micros)
+            .unwrap_or_else(|_| now_micros());
+        let created_at = fs_meta
+            .created()
+            .map(system_time_to_micros)
+            .unwrap_or(modified_at);
         Ok(FileMeta {
             path: path.to_string(),
             size_bytes: fs_meta.len(),
             mime_type: "application/octet-stream".to_string(),
-            created_at: now,
-            modified_at: now,
+            created_at,
+            modified_at,
             checksum: None,
         })
     }
@@ -341,7 +362,14 @@ impl FsProvider for LocalFsProvider {
                     .metadata()
                     .await
                     .map_err(|e| CmError::FsError(e.to_string()))?;
-                let now = now_micros();
+                let modified_at = fs_meta
+                    .modified()
+                    .map(system_time_to_micros)
+                    .unwrap_or_else(|_| now_micros());
+                let created_at = fs_meta
+                    .created()
+                    .map(system_time_to_micros)
+                    .unwrap_or(modified_at);
                 entries.push(FileEntry {
                     path: entry_path.clone(),
                     is_dir: false,
@@ -349,8 +377,8 @@ impl FsProvider for LocalFsProvider {
                         path: entry_path,
                         size_bytes: fs_meta.len(),
                         mime_type: "application/octet-stream".to_string(),
-                        created_at: now,
-                        modified_at: now,
+                        created_at,
+                        modified_at,
                         checksum: None,
                     }),
                 });
