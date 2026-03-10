@@ -10,6 +10,10 @@ use crate::types::{ContentBlock, StopReason, Usage};
 // Newtype IDs — UUIDv7 (time-sortable)
 // ---------------------------------------------------------------------------
 
+/// Defines a strongly-typed newtype ID backed by a UUIDv7 string.
+///
+/// Generated types implement `new()`, `from_string()`, `as_str()`, `Default`, `Display`,
+/// and `Deref<Target = str>`. IDs are time-sortable (UUIDv7) and cheaply cloneable.
 #[macro_export]
 macro_rules! define_id {
     ($name:ident) => {
@@ -68,6 +72,7 @@ define_id!(DatasetEntryId);
 // Time helper
 // ---------------------------------------------------------------------------
 
+/// Current Unix timestamp in microseconds.
 pub fn now_micros() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -79,6 +84,7 @@ pub fn now_micros() -> i64 {
 // ConversationStatus
 // ---------------------------------------------------------------------------
 
+/// Lifecycle state of a conversation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ConversationStatus {
@@ -117,6 +123,10 @@ pub struct ConversationPatch {
 // Conversation
 // ---------------------------------------------------------------------------
 
+/// Root entity for a multi-turn context session.
+///
+/// Owns one or more branches (default `"main"`), an embedded [`Workspace`],
+/// and optional system-level instructions for agents.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Conversation {
     pub id: ConversationId,
@@ -187,6 +197,11 @@ impl Conversation {
 // Workspace (embedded in Conversation)
 // ---------------------------------------------------------------------------
 
+/// Shared workspace resources associated with a conversation.
+///
+/// Holds typed references to all persistent tools (canvases, kanban boards,
+/// artifact sets, sources, agents, skills) accessible on any branch.
+/// All collection fields are `#[serde(default)]` for forward compatibility.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Workspace {
     #[serde(default)]
@@ -208,6 +223,7 @@ pub struct Workspace {
     pub sources: Vec<SourceId>,
 }
 
+/// Reference to a registered skill usable within this workspace.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillRef {
     pub skill_id: String,
@@ -216,6 +232,7 @@ pub struct SkillRef {
     pub config: HashMap<String, Value>,
 }
 
+/// Reference to an MCP server exposed to agents in this workspace.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpServerRef {
     pub server_id: String,
@@ -226,6 +243,7 @@ pub struct McpServerRef {
     pub enabled_tools: Vec<String>,
 }
 
+/// Reference to an A2A (agent-to-agent) peer callable from this workspace.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2aAgentRef {
     pub agent_id: String,
@@ -234,6 +252,7 @@ pub struct A2aAgentRef {
     pub agent_card: Option<Value>,
 }
 
+/// Reference to an external knowledge base retrievable from this workspace.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KnowledgeBaseRef {
     pub kb_id: String,
@@ -248,6 +267,12 @@ pub struct KnowledgeBaseRef {
 // Node
 // ---------------------------------------------------------------------------
 
+/// Immutable append-only record of one interaction turn.
+///
+/// Nodes form a parent-linked tree: `parent_id` points to the preceding node on the
+/// same branch (or the fork point when crossing branches). `sequence` is monotonically
+/// increasing per branch. `version` tracks streaming updates — the latest content is
+/// always in the highest-version row.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Node {
     pub id: NodeId,
@@ -286,6 +311,9 @@ impl Node {
 // NodeHeader — lightweight tree index
 // ---------------------------------------------------------------------------
 
+/// Lightweight projection of [`Node`] used for tree index reconstruction.
+///
+/// Loaded in bulk by [`ContextBackend::list_node_headers`] to avoid fetching full content.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeHeader {
     pub id: NodeId,
@@ -324,6 +352,10 @@ impl From<&Node> for NodeHeader {
 // NodeContent — comprehensive tagged enum
 // ---------------------------------------------------------------------------
 
+/// Tagged union of all content variants a node can carry.
+///
+/// Serialized with a `"type"` discriminant (`snake_case`). Future schema versions
+/// with unknown types deserialize as `Unknown { kind, data }` for forward compatibility.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum NodeContent {
@@ -796,6 +828,8 @@ impl<'de> Deserialize<'de> for NodeContent {
 // NodeParams — builder for appending
 // ---------------------------------------------------------------------------
 
+/// Optional metadata supplied by the caller when appending a node.
+/// All fields default to `None` / empty.
 #[derive(Debug, Clone, Default)]
 pub struct NodeParams {
     pub created_by: Option<UserId>,
@@ -812,6 +846,7 @@ pub struct NodeParams {
 // Supporting enums
 // ---------------------------------------------------------------------------
 
+/// Operating mode that controls which tools and context strategies are active.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ConversationMode {
@@ -824,6 +859,7 @@ pub enum ConversationMode {
     Custom(String),
 }
 
+/// Integration protocol used by a spawned sub-agent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentType {
@@ -833,6 +869,7 @@ pub enum AgentType {
     Custom(String),
 }
 
+/// Source of a captured media stream.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MediaStreamType {
@@ -842,6 +879,7 @@ pub enum MediaStreamType {
     NovaSonic,
 }
 
+/// Execution state of an async task or skill invocation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatus {
@@ -852,6 +890,7 @@ pub enum TaskStatus {
     Cancelled,
 }
 
+/// Semantic kind of a node annotation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AnnotationType {
@@ -861,6 +900,7 @@ pub enum AnnotationType {
     Bookmark,
 }
 
+/// Storage system where a binary artifact is physically located.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StorageBackend {
@@ -873,6 +913,7 @@ pub enum StorageBackend {
     Unknown(String),
 }
 
+/// Visual icon displayed alongside a conversation in UI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ConversationIcon {
@@ -882,6 +923,7 @@ pub enum ConversationIcon {
     Color { value: String },
 }
 
+/// Pointer to a stored binary artifact.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageRef {
     pub backend: StorageBackend,
@@ -890,6 +932,7 @@ pub struct StorageRef {
     pub size_bytes: Option<u64>,
 }
 
+/// Live progress metadata for an in-flight streaming node.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StreamingState {
     pub started_at: i64,
@@ -898,6 +941,7 @@ pub struct StreamingState {
     pub status: StreamStatus,
 }
 
+/// Lifecycle state of a streaming node.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StreamStatus {
@@ -907,6 +951,7 @@ pub enum StreamStatus {
     Cancelled,
 }
 
+/// A single human interaction with an MCP UI component.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UiInteraction {
     pub action: String,
@@ -919,6 +964,7 @@ pub struct UiInteraction {
 // BranchMeta
 // ---------------------------------------------------------------------------
 
+/// Persistent metadata for a conversation branch.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BranchMeta {
     pub id: BranchId,
@@ -936,6 +982,7 @@ pub struct BranchMeta {
 // Reactions
 // ---------------------------------------------------------------------------
 
+/// User reaction attached to a node (thumb-up, star, flag, etc.).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Reaction {
     pub node_id: NodeId,
@@ -945,6 +992,7 @@ pub struct Reaction {
     pub comment: Option<String>,
 }
 
+/// Variety of reaction a user can attach to a node.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReactionType {
@@ -959,6 +1007,7 @@ pub enum ReactionType {
 // EvalScore
 // ---------------------------------------------------------------------------
 
+/// Single grader score attached to a node during evaluation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvalScore {
     pub name: String,
@@ -974,6 +1023,7 @@ pub struct EvalScore {
 // PromptVersion
 // ---------------------------------------------------------------------------
 
+/// Versioned snapshot of a named prompt template.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptVersion {
     pub id: PromptId,
@@ -990,6 +1040,7 @@ pub struct PromptVersion {
 // Dataset types
 // ---------------------------------------------------------------------------
 
+/// Dataset partition for train/test/eval splits.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DatasetSplit {
@@ -998,6 +1049,7 @@ pub enum DatasetSplit {
     Eval,
 }
 
+/// Labeled input/output pair extracted from a conversation for eval datasets.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatasetEntry {
     pub id: DatasetEntryId,
@@ -1018,6 +1070,7 @@ pub struct DatasetEntry {
 
 define_id!(MemoryEntryId);
 
+/// Semantic category of a [`MemoryEntry`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MemoryEntryType {
@@ -1028,6 +1081,7 @@ pub enum MemoryEntryType {
     Custom(String),
 }
 
+/// Persistent memory item scoped to a user, conversation, or agent.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryEntry {
     pub id: MemoryEntryId,

@@ -2,6 +2,7 @@ use thiserror::Error;
 
 use super::types::{ArtifactSetId, BranchId, CanvasId, ConversationId, NodeId, SourceId};
 
+/// All errors returned by [`ContextManager`](super::ContextManager) and related types.
 #[derive(Debug, Clone, Error)]
 pub enum CmError {
     #[error("Node not found: {0}")]
