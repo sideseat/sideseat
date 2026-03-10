@@ -7,12 +7,6 @@ use serde_json::Value;
 use crate::types::{ContentBlock, StopReason, Usage};
 
 // ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-pub const INLINE_SIZE_LIMIT: usize = 1024 * 1024; // 1MB
-
-// ---------------------------------------------------------------------------
 // Newtype IDs — UUIDv7 (time-sortable)
 // ---------------------------------------------------------------------------
 
@@ -199,7 +193,8 @@ pub struct Workspace {
     pub canvases: Vec<CanvasId>,
     #[serde(default)]
     pub artifact_sets: Vec<ArtifactSetId>,
-    pub kanban_id: Option<KanbanBoardId>,
+    #[serde(default)]
+    pub kanban_ids: Vec<KanbanBoardId>,
     pub plan_id: Option<String>,
     #[serde(default)]
     pub skills: Vec<SkillRef>,

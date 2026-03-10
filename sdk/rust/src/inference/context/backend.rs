@@ -49,6 +49,9 @@ pub struct NodePatch {
     pub usage: Option<Usage>,
     pub metadata: Option<HashMap<String, serde_json::Value>>,
     pub eval_scores: Option<Vec<super::types::EvalScore>>,
+    /// Update the CRDT log watermark on the node (used by `finalize_streaming_node`
+    /// to record the seq at which the streaming content was pushed).
+    pub crdt_seq_watermark: Option<Option<u64>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -133,12 +136,51 @@ pub trait ContextBackend: Send + Sync {
     async fn crdt_append(&self, delta: &CrdtDelta) -> Result<u64, CmError>;
 
     /// Return all deltas for `branch_id` where `global_seq > after_seq`.
+    ///
+    /// Results MUST be ordered by `global_seq` ascending. `push()` relies on
+    /// `pending.last()` being the highest-seq entry to derive the committed
+    /// baseline SV correctly.
     async fn crdt_fetch(
         &self,
         conv_id: &ConversationId,
         branch_id: &BranchId,
         after_seq: u64,
     ) -> Result<Vec<CrdtDelta>, CmError>;
+
+    /// Delete delta log entries covered by the snapshot (global_seq <= snapshot_seq).
+    /// Safe to call at any time — the snapshot is the authoritative baseline.
+    async fn crdt_compact(
+        &self,
+        conv_id: &ConversationId,
+        branch_id: &BranchId,
+        snapshot_seq: u64,
+    ) -> Result<(), CmError>;
+
+    /// Load the committed CRDT snapshot for a branch.
+    /// Returns `(0, [], [])` when no snapshot has been saved yet.
+    /// The third element is the pre-computed state vector of the snapshot state,
+    /// enabling O(1) diff baseline computation in `push()` when no pending deltas exist.
+    async fn crdt_load_snapshot(
+        &self,
+        branch_id: &BranchId,
+    ) -> Result<(u64, Vec<u8>, Vec<u8>), CmError>;
+
+    /// Persist a CRDT snapshot using seq-monotonic semantics: only stores the new
+    /// snapshot if `seq` is strictly greater than the currently stored seq.
+    ///
+    /// This prevents two concurrent pulls from regressing the snapshot cursor —
+    /// whichever write arrives last simply loses, and the stored snapshot stays at
+    /// the higher seq (CRDT convergence guarantees identical content at the same seq).
+    ///
+    /// `sv` must be the pre-computed state vector of `state`, passed by the caller
+    /// to avoid redundant CrdtDoc construction on the next push() call.
+    async fn crdt_save_snapshot(
+        &self,
+        branch_id: &BranchId,
+        seq: u64,
+        state: &[u8],
+        sv: &[u8],
+    ) -> Result<(), CmError>;
 }
 
 // ---------------------------------------------------------------------------
@@ -152,7 +194,17 @@ struct InMemoryState {
     node_headers: HashMap<ConversationId, Vec<NodeHeader>>,
     branches: HashMap<ConversationId, Vec<BranchMeta>>,
     kv: HashMap<(String, String), Vec<u8>>,
-    crdt_deltas: Vec<CrdtDelta>,
+    /// Per-branch delta log: key = (conv_id, branch_id) for O(branch_deltas) fetch.
+    /// Using a flat Vec<CrdtDelta> would require scanning all deltas globally on every
+    /// push/pull (O(total_deltas)); at 1000 ops/sec with no compaction that is ~3.6M
+    /// entries per hour scanned per push.
+    crdt_deltas: HashMap<(ConversationId, BranchId), Vec<CrdtDelta>>,
+    /// Per-branch CRDT snapshots: (seq, state_bytes, sv_bytes).
+    /// `sv_bytes` is the pre-computed state vector of `state_bytes`, cached so
+    /// push() can derive the committed baseline SV in O(1) when no pending deltas exist.
+    /// Stored separately from the generic KV store so `crdt_save_snapshot` can
+    /// apply seq-monotonic CAS atomically under one lock.
+    crdt_snapshots: HashMap<BranchId, (u64, Vec<u8>, Vec<u8>)>,
     next_seq: u64,
 }
 
@@ -163,7 +215,8 @@ impl InMemoryState {
             node_headers: HashMap::new(),
             branches: HashMap::new(),
             kv: HashMap::new(),
-            crdt_deltas: Vec::new(),
+            crdt_deltas: HashMap::new(),
+            crdt_snapshots: HashMap::new(),
             next_seq: 1,
         }
     }
@@ -336,6 +389,7 @@ impl ContextBackend for InMemoryContextBackend {
             if let Some(usage) = patch.usage.clone() { updated.usage = Some(usage); }
             if let Some(meta) = patch.metadata.clone() { updated.metadata.extend(meta); }
             if let Some(scores) = patch.eval_scores.clone() { updated.eval_scores = scores; }
+            if let Some(watermark) = patch.crdt_seq_watermark { updated.crdt_seq_watermark = watermark; }
             updated
         };
 
@@ -501,7 +555,11 @@ impl ContextBackend for InMemoryContextBackend {
         state.next_seq += 1;
         let mut d = delta.clone();
         d.global_seq = seq;
-        state.crdt_deltas.push(d);
+        state
+            .crdt_deltas
+            .entry((delta.conversation_id.clone(), delta.branch_id.clone()))
+            .or_default()
+            .push(d);
         Ok(seq)
     }
 
@@ -514,14 +572,60 @@ impl ContextBackend for InMemoryContextBackend {
         let state = self.state.lock();
         Ok(state
             .crdt_deltas
-            .iter()
-            .filter(|d| {
-                d.conversation_id == *conv_id
-                    && d.branch_id == *branch_id
-                    && d.global_seq > after_seq
+            .get(&(conv_id.clone(), branch_id.clone()))
+            .map(|branch_deltas| {
+                branch_deltas
+                    .iter()
+                    .filter(|d| d.global_seq > after_seq)
+                    .cloned()
+                    .collect()
             })
+            .unwrap_or_default())
+    }
+
+    async fn crdt_compact(
+        &self,
+        conv_id: &ConversationId,
+        branch_id: &BranchId,
+        snapshot_seq: u64,
+    ) -> Result<(), CmError> {
+        let mut state = self.state.lock();
+        if let Some(branch_deltas) =
+            state.crdt_deltas.get_mut(&(conv_id.clone(), branch_id.clone()))
+        {
+            branch_deltas.retain(|d| d.global_seq > snapshot_seq);
+        }
+        Ok(())
+    }
+
+    async fn crdt_load_snapshot(
+        &self,
+        branch_id: &BranchId,
+    ) -> Result<(u64, Vec<u8>, Vec<u8>), CmError> {
+        Ok(self
+            .state
+            .lock()
+            .crdt_snapshots
+            .get(branch_id)
             .cloned()
-            .collect())
+            .unwrap_or((0, Vec::new(), Vec::new())))
+    }
+
+    async fn crdt_save_snapshot(
+        &self,
+        branch_id: &BranchId,
+        seq: u64,
+        state: &[u8],
+        sv: &[u8],
+    ) -> Result<(), CmError> {
+        let mut s = self.state.lock();
+        let current_seq =
+            s.crdt_snapshots.get(branch_id).map(|(seq, _, _)| *seq).unwrap_or(0);
+        if seq > current_seq {
+            s.crdt_snapshots
+                .insert(branch_id.clone(), (seq, state.to_vec(), sv.to_vec()));
+        }
+        Ok(())
     }
 }
 
@@ -681,6 +785,7 @@ mod tests {
             branch_id: branch_a.clone(),
             conversation_id: conv_id.clone(),
             delta: b"for-a".to_vec(),
+            sv: Vec::new(),
             created_at: 0,
         };
         let d_b = CrdtDelta {
@@ -689,6 +794,7 @@ mod tests {
             branch_id: branch_b.clone(),
             conversation_id: conv_id.clone(),
             delta: b"for-b".to_vec(),
+            sv: Vec::new(),
             created_at: 0,
         };
 
@@ -716,6 +822,7 @@ mod tests {
             branch_id: branch_id.clone(),
             conversation_id: conv_id.clone(),
             delta: vec![],
+            sv: Vec::new(),
             created_at: 0,
         };
 

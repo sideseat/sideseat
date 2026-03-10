@@ -167,6 +167,17 @@ impl ArtifactExtension {
     // -----------------------------------------------------------------------
 
     /// Persist a new version and bump `latest_version` on the set.
+    ///
+    /// # Concurrency note
+    ///
+    /// The read-modify-write on `latest_version` is not atomic for distributed
+    /// backends. For `InMemoryContextBackend` (single `Mutex`) the operation is
+    /// safe. For production KV stores, callers must serialize `push_version`
+    /// calls for a given artifact set (e.g., hold an application-level lock or
+    /// route all writes for a set through a single actor). The condition
+    /// `version.version > set.latest_version` prevents regression but cannot
+    /// prevent a concurrent higher-version write from being obscured by a
+    /// lower-version write that races ahead of it.
     pub async fn push_version<B: ContextBackend>(
         &self,
         backend: &B,
