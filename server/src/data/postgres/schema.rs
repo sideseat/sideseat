@@ -3,7 +3,7 @@
 //! Initial schema with all tables. Compatible with SQLite schema structure.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 2;
+pub const SCHEMA_VERSION: i32 = 3;
 
 /// Complete schema SQL for PostgreSQL
 pub const SCHEMA: &str = r#"
@@ -189,6 +189,52 @@ CREATE TABLE IF NOT EXISTS api_keys (
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
 CREATE INDEX IF NOT EXISTS idx_api_keys_org_created ON api_keys(org_id, created_at DESC);
+
+-- =============================================================================
+-- 10. Credentials (references organizations and users)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS credentials (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    provider_key TEXT NOT NULL,
+    display_name TEXT NOT NULL CHECK(length(display_name) >= 1 AND length(display_name) <= 100),
+    endpoint_url TEXT,
+    extra_config TEXT,
+    key_preview TEXT,
+    created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_creds_org ON credentials(organization_id);
+CREATE INDEX IF NOT EXISTS idx_creds_org_key ON credentials(organization_id, provider_key);
+
+-- =============================================================================
+-- 11. Credential Project Permissions
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS credential_project_permissions (
+    id TEXT PRIMARY KEY,
+    credential_id TEXT NOT NULL REFERENCES credentials(id) ON DELETE CASCADE,
+    organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    access TEXT NOT NULL DEFAULT 'allow' CHECK(access IN ('allow', 'deny')),
+    created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_cred_perms_credential ON credential_project_permissions(credential_id);
+CREATE INDEX IF NOT EXISTS idx_cred_perms_project ON credential_project_permissions(project_id);
+
+-- Uniqueness: one rule per (credential, project) when project is specified
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cred_perms_unique_project
+    ON credential_project_permissions(credential_id, project_id)
+    WHERE project_id IS NOT NULL;
+
+-- One org-level default per credential (project_id IS NULL)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cred_perms_unique_org_default
+    ON credential_project_permissions(credential_id)
+    WHERE project_id IS NULL;
 "#;
 
 /// Default data SQL for PostgreSQL (inserted separately after schema)
@@ -249,6 +295,8 @@ mod tests {
             "trace_files",
             "favorites",
             "api_keys",
+            "credentials",
+            "credential_project_permissions",
         ];
 
         for table in required_tables {

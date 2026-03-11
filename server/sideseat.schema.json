@@ -556,6 +556,18 @@
         }
       ]
     },
+    "credentials": {
+      "type": "object",
+      "description": "LLM provider credential management settings",
+      "properties": {
+        "scan_env": {
+          "type": "boolean",
+          "description": "Scan environment variables for known provider API keys (e.g. ANTHROPIC_API_KEY). Default: true",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
     "debug": {
       "type": "boolean",
       "description": "Enable debug mode (writes incoming OTLP data to debug folder)",

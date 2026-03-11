@@ -2,6 +2,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { apiClient, type ApiClient } from "@/api/api-client";
 import type { ApiKeysClient } from "@/api/api-keys/client";
+import type { CredentialsClient } from "@/api/credentials/client";
 import type { FavoritesClient } from "@/api/favorites/client";
 import type { FilesClient } from "@/api/files/client";
 import type { OrganizationsClient } from "@/api/organizations/client";
@@ -67,4 +68,9 @@ export function useOrganizationsClient(): OrganizationsClient {
 /** Convenience hook for API keys client (apiClient.apiKeys) */
 export function useApiKeysClient(): ApiKeysClient {
   return useAppContext().api.apiKeys;
+}
+
+/** Convenience hook for credentials client (apiClient.credentials) */
+export function useCredentialsClient(): CredentialsClient {
+  return useAppContext().api.credentials;
 }

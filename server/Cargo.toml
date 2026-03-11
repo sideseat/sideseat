@@ -92,6 +92,9 @@ rmcp = { workspace = true }
 schemars = { workspace = true }
 tokio-util = { workspace = true }
 
+# SideSeat SDK (for provider test-connection)
+sideseat = { path = "../sdk/rust" }
+
 [features]
 default = []
 

@@ -11,11 +11,11 @@ use std::collections::HashMap;
 use crate::data::cache::CacheService;
 use crate::data::error::DataError;
 use crate::data::types::{
-    ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, EventRow, FeedMessagesParams,
-    FeedSpansParams, FileRow, LastOwnerResult, LinkRow, ListSessionsParams, ListSpansParams,
-    ListTracesParams, MemberWithUser, MembershipRow, MessageQueryParams, MessageQueryResult,
-    NormalizedMetric, NormalizedSpan, OrgWithRole, OrganizationRow, ProjectRow, SessionRow,
-    SpanCounts, SpanRow, TraceRow, UserRow,
+    ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
+    CredentialRow, EventRow, FeedMessagesParams, FeedSpansParams, FileRow, LastOwnerResult,
+    LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams, MemberWithUser, MembershipRow,
+    MessageQueryParams, MessageQueryResult, NormalizedMetric, NormalizedSpan, OrgWithRole,
+    OrganizationRow, ProjectRow, SessionRow, SpanCounts, SpanRow, TraceRow, UserRow,
 };
 
 // ============================================================================
@@ -636,6 +636,90 @@ pub trait TransactionalRepository: Send + Sync {
 
     /// Get key hashes for organization (for cache invalidation on org delete).
     async fn get_api_key_hashes_for_org(&self, org_id: &str) -> Result<Vec<String>, DataError>;
+
+    // ==================== Credential Operations ====================
+
+    /// List all credentials for an organization (metadata only, no secrets)
+    async fn list_credentials(
+        &self,
+        org_id: &str,
+    ) -> Result<Vec<CredentialRow>, DataError>;
+
+    /// Get a single credential by id, scoped to org
+    async fn get_credential(
+        &self,
+        id: &str,
+        org_id: &str,
+    ) -> Result<Option<CredentialRow>, DataError>;
+
+    /// Create a new credential row (secret stored separately)
+    #[allow(clippy::too_many_arguments)]
+    async fn create_credential(
+        &self,
+        id: &str,
+        org_id: &str,
+        provider_key: &str,
+        display_name: &str,
+        endpoint_url: Option<&str>,
+        extra_config: Option<&str>,
+        key_preview: Option<&str>,
+        created_by: Option<&str>,
+    ) -> Result<CredentialRow, DataError>;
+
+    /// Update credential metadata (display_name, endpoint_url, extra_config).
+    /// Uses `Option<Option<&str>>` to distinguish absent (don't change) from
+    /// `Some(None)` (clear field) and `Some(Some(v))` (set to value).
+    async fn update_credential(
+        &self,
+        id: &str,
+        org_id: &str,
+        display_name: Option<&str>,
+        endpoint_url: Option<Option<&str>>,
+        extra_config: Option<Option<&str>>,
+    ) -> Result<Option<CredentialRow>, DataError>;
+
+    /// Delete a credential row by id, scoped to org. Returns true if deleted.
+    async fn delete_credential(
+        &self,
+        id: &str,
+        org_id: &str,
+    ) -> Result<bool, DataError>;
+
+    // ==================== Credential Permission Operations ====================
+
+    /// List permissions for a credential
+    async fn list_credential_permissions(
+        &self,
+        credential_id: &str,
+    ) -> Result<Vec<CredentialPermissionRow>, DataError>;
+
+    /// Create a credential project permission
+    async fn create_credential_permission(
+        &self,
+        id: &str,
+        credential_id: &str,
+        org_id: &str,
+        project_id: Option<&str>,
+        access: &str,
+        created_by: Option<&str>,
+    ) -> Result<CredentialPermissionRow, DataError>;
+
+    /// Delete a credential permission by id. Returns true if deleted.
+    async fn delete_credential_permission(
+        &self,
+        id: &str,
+        credential_id: &str,
+    ) -> Result<bool, DataError>;
+
+    /// Get credential IDs accessible by a specific project (for filtering).
+    /// Returns credentials that are not denied for this project and either:
+    /// - have no allow rules (accessible by default), or
+    /// - have an allow rule for this project or the org-level default
+    async fn get_credentials_accessible_by_project(
+        &self,
+        org_id: &str,
+        project_id: &str,
+    ) -> Result<Vec<String>, DataError>;
 }
 
 // ============================================================================

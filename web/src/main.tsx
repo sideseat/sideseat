@@ -28,6 +28,7 @@ const ConfigurationLayout = lazy(() => import("./pages/configuration/layout"));
 const TelemetryPage = lazy(() => import("./pages/configuration/telemetry"));
 const McpPage = lazy(() => import("./pages/configuration/mcp"));
 const ApiKeysPage = lazy(() => import("./pages/configuration/api-keys"));
+const CredentialsPage = lazy(() => import("./pages/configuration/credentials"));
 const RealtimePage = lazy(() => import("./pages/observability/realtime"));
 
 const HIDE_QUERY_DEVTOOLS = true;
@@ -77,6 +78,7 @@ const router = createBrowserRouter(
         { path: "telemetry", element: <TelemetryPage /> },
         { path: "mcp", element: <McpPage /> },
         { path: "api-keys", element: <ApiKeysPage /> },
+        { path: "credentials", element: <CredentialsPage /> },
       ],
     },
     {

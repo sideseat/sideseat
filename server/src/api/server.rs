@@ -20,8 +20,8 @@ use super::openapi::{openapi_json, swagger_ui_html};
 use super::rate_limit::{KeyExtractor, RateLimitState, rate_limit_middleware};
 use super::routes::otel::files::{FilesApiState, get_file, head_file};
 use super::routes::{
-    api_keys, auth, favorites, health, organizations, otel, otlp_collector, pricing, projects,
-    users,
+    api_keys, auth, credentials, favorites, health, organizations, otel, otlp_collector, pricing,
+    projects, users,
 };
 use crate::core::CoreApp;
 use crate::core::constants::{AUTH_BODY_LIMIT, DEFAULT_BODY_LIMIT, OTLP_BODY_LIMIT};
@@ -328,6 +328,30 @@ impl ApiServer {
             api_keys_routes
         };
 
+        // Build credentials routes (rate limited by IP if enabled)
+        let credentials_routes =
+            credentials::routes(app.credentials.clone()).layer(axum::middleware::from_fn_with_state(
+                AuthState {
+                    auth_manager: auth_manager.clone(),
+                    allowed_origins: allowed_origins.clone(),
+                    database: app.database.clone(),
+                    cache: app.cache.clone(),
+                    api_key_secret: api_key_secret.clone(),
+                },
+                require_auth,
+            ));
+        let credentials_routes = if rate_limit_per_ip {
+            credentials_routes.layer(axum::middleware::from_fn_with_state(
+                make_rate_limit_state(
+                    RateLimitBucket::api(app.config.rate_limit.api_rpm),
+                    KeyExtractor::IpAddress,
+                ),
+                rate_limit_middleware,
+            ))
+        } else {
+            credentials_routes
+        };
+
         // Build files routes (rate limited by project)
         let api_files_routes =
             files_routes(app.files.clone()).layer(axum::middleware::from_fn_with_state(
@@ -388,6 +412,10 @@ impl ApiServer {
             .nest("/api/v1/pricing", pricing_routes)
             .nest("/api/v1/project/{project_id}/favorites", favorites_routes)
             .nest("/api/v1/organizations/{org_id}/api-keys", api_keys_routes)
+            .nest(
+                "/api/v1/organizations/{org_id}/credentials",
+                credentials_routes,
+            )
             .nest("/api/v1/project/{project_id}/files", api_files_routes);
 
         let router = if let Some(mcp) = mcp_routes {

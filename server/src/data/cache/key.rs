@@ -146,6 +146,20 @@ impl CacheKey {
     }
 
     // =========================================================================
+    // Credentials
+    // =========================================================================
+
+    /// Cache key for credentials list for an organization
+    pub fn credentials_for_org(org_id: &str) -> String {
+        format!("{}:creds:org:{}", CACHE_KEY_VERSION, org_id)
+    }
+
+    /// Cache key for a single credential secret (org-scoped)
+    pub fn credential_secret(org_id: &str, cred_id: &str) -> String {
+        format!("{}:cred:secret:{}:{}", CACHE_KEY_VERSION, org_id, cred_id)
+    }
+
+    // =========================================================================
     // File Quota
     // =========================================================================
 
@@ -237,5 +251,17 @@ mod tests {
         assert_eq!(CacheKey::api_key_by_hash("abc123"), "v1:apikey:abc123");
         assert_eq!(CacheKey::api_key_negative("abc123"), "v1:apikey:neg:abc123");
         assert_eq!(CacheKey::api_keys_for_org("org1"), "v1:apikeys:org:org1");
+    }
+
+    #[test]
+    fn test_credential_keys() {
+        assert_eq!(
+            CacheKey::credentials_for_org("org1"),
+            "v1:creds:org:org1"
+        );
+        assert_eq!(
+            CacheKey::credential_secret("org1", "cred123"),
+            "v1:cred:secret:org1:cred123"
+        );
     }
 }

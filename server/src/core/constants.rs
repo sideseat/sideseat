@@ -592,3 +592,28 @@ pub const ERROR_STACKTRACE_MAX_LEN: usize = 16_384;
 
 /// Environment variable for MCP server enabled
 pub const ENV_MCP_ENABLED: &str = "SIDESEAT_MCP_ENABLED";
+
+// =============================================================================
+// Credentials
+// =============================================================================
+
+/// Environment variable to scan env vars for provider API keys (default: true)
+pub const ENV_CREDENTIALS_SCAN_ENV: &str = "SIDESEAT_CREDENTIALS_SCAN_ENV";
+
+/// Secret key prefix for per-org credential secrets
+pub const CRED_SECRET_PREFIX: &str = "cred_";
+
+/// Timeout in seconds for credential test-connection operations
+pub const CRED_TEST_TIMEOUT_SECS: u64 = 10;
+
+/// Cache TTL for credential secrets (5 minutes)
+pub const CACHE_TTL_CRED_SECRET: u64 = 300;
+
+/// Cache TTL for credential list (60 seconds)
+pub const CACHE_TTL_CRED_LIST: u64 = 60;
+
+/// Maximum entries in the process-local cache (never Redis).
+///
+/// This cache holds sensitive data like credential secrets that must never
+/// leave the process. Sized to hold secrets for many orgs comfortably.
+pub const LOCAL_CACHE_MAX_ENTRIES: u64 = 10_000;
