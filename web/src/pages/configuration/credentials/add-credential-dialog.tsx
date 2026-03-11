@@ -1,14 +1,5 @@
 import { useState } from "react";
-import {
-  Eye,
-  EyeOff,
-  CheckCircle,
-  XCircle,
-  Loader2,
-  Trash2,
-  Plus,
-  ChevronDown,
-} from "lucide-react";
+import { Eye, EyeOff, CheckCircle, XCircle, Loader2, Trash2, Plus } from "lucide-react";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -219,15 +210,10 @@ function ConfigureStep({
   nameError: string;
   setNameError: (v: string) => void;
 }) {
-  const [showEndpoint, setShowEndpoint] = useState(false);
-
   const currentFields =
     authModeId && provider.authModes
       ? (provider.authModes.find((m) => m.id === authModeId)?.fields ?? [])
       : (provider.fields ?? []);
-
-  const primaryFields = currentFields.filter((f) => !f.inEndpointUrl || f.required);
-  const endpointField = currentFields.find((f) => f.inEndpointUrl && !f.required);
 
   return (
     <div className="space-y-5">
@@ -273,8 +259,7 @@ function ConfigureStep({
         </Field>
       )}
 
-      {/* Primary fields — flat in the parent spacing context */}
-      {primaryFields.map((field) => (
+      {currentFields.map((field) => (
         <DynamicField
           key={field.name}
           field={field}
@@ -283,35 +268,6 @@ function ConfigureStep({
           error={errors[field.name]}
         />
       ))}
-
-      {/* Optional endpoint — controlled toggle */}
-      {endpointField && (
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowEndpoint((v) => !v)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <ChevronDown
-              className={cn(
-                "h-3.5 w-3.5 transition-transform duration-150",
-                showEndpoint && "rotate-180",
-              )}
-            />
-            Custom endpoint
-          </button>
-          {showEndpoint && (
-            <div className="mt-3">
-              <DynamicField
-                field={endpointField}
-                value={values[endpointField.name] ?? ""}
-                onChange={(v) => setValue(endpointField.name, v)}
-                error={errors[endpointField.name]}
-              />
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
