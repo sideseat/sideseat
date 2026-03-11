@@ -317,10 +317,6 @@ async fn attempt_test(
         }
         "vertex-ai" => {
             use sideseat::providers::GeminiProvider;
-            let project_id = extra
-                .and_then(|e| e.get("project_id"))
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| "project_id is required for Vertex AI".to_string())?;
             let location = extra
                 .and_then(|e| e.get("location"))
                 .and_then(|v| v.as_str())
@@ -330,24 +326,64 @@ async fn attempt_test(
                 .and_then(|v| v.as_str())
                 .unwrap_or("bearer");
 
-            let p = match auth_mode {
+            match auth_mode {
                 "adc" => {
                     use sideseat::providers::GcpAdcTokenProvider;
+                    let project_id = extra
+                        .and_then(|e| e.get("project_id"))
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| "project_id is required for Vertex AI".to_string())?;
                     let token_provider = GcpAdcTokenProvider::try_new()
                         .await
                         .map_err(|e| format!("GCP ADC failed: {e}"))?;
-                    GeminiProvider::from_vertex_with_token_provider(
+                    let p = GeminiProvider::from_vertex_with_token_provider(
                         project_id,
                         location,
                         std::sync::Arc::new(token_provider),
-                    )
+                    );
+                    try_test_provider(Box::new(p), test_models::GEMINI.to_string(), timeout).await
+                }
+                "service_account" => {
+                    use gcp_auth::TokenProvider as _;
+                    let sa_json =
+                        secret.ok_or_else(|| "Service account JSON is required".to_string())?;
+                    // project_id: extra_config takes precedence, fall back to field in the JSON
+                    let project_id = extra
+                        .and_then(|e| e.get("project_id"))
+                        .and_then(|v| v.as_str())
+                        .map(ToString::to_string)
+                        .or_else(|| {
+                            serde_json::from_str::<serde_json::Value>(sa_json)
+                                .ok()
+                                .and_then(|v| {
+                                    v.get("project_id")
+                                        .and_then(|p| p.as_str())
+                                        .map(ToString::to_string)
+                                })
+                        })
+                        .ok_or_else(|| {
+                            "project_id not found in extra_config or service account JSON"
+                                .to_string()
+                        })?;
+                    let account = gcp_auth::CustomServiceAccount::from_json(sa_json)
+                        .map_err(|e| format!("Invalid service account credentials: {e}"))?;
+                    let token = account
+                        .token(&["https://www.googleapis.com/auth/cloud-platform"])
+                        .await
+                        .map_err(|e| format!("Failed to obtain GCP token: {e}"))?;
+                    let p = GeminiProvider::from_vertex(&project_id, location, token.as_str());
+                    try_test_provider(Box::new(p), test_models::GEMINI.to_string(), timeout).await
                 }
                 _ => {
                     // Default: bearer token (secret is used directly as the OAuth token)
-                    GeminiProvider::from_vertex(project_id, location, api_key)
+                    let project_id = extra
+                        .and_then(|e| e.get("project_id"))
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| "project_id is required for Vertex AI".to_string())?;
+                    let p = GeminiProvider::from_vertex(project_id, location, api_key);
+                    try_test_provider(Box::new(p), test_models::GEMINI.to_string(), timeout).await
                 }
-            };
-            try_test_provider(Box::new(p), test_models::GEMINI.to_string(), timeout).await
+            }
         }
         "custom" => {
             use sideseat::providers::OpenAIChatProvider;
