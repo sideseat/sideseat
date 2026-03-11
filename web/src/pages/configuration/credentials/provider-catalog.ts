@@ -135,10 +135,25 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     accentColor: "#4338ca",
     abbrev: "VA",
     supportsEndpointOverride: false,
-    fields: [
-      { name: "project_id", label: "Project ID", type: "text", required: true, placeholder: "my-gcp-project", inExtraConfig: true },
-      { name: "location", label: "Region", type: "text", required: true, placeholder: "us-central1", defaultValue: "us-central1", inExtraConfig: true },
-      { name: "api_key", label: "Bearer Token", type: "api_key", required: true, description: "OAuth2 bearer token (e.g. `gcloud auth print-access-token`)", placeholder: "ya29...." },
+    authModes: [
+      {
+        id: "bearer",
+        label: "Bearer Token",
+        fields: [
+          { name: "project_id", label: "Project ID", type: "text", required: true, placeholder: "my-gcp-project", inExtraConfig: true },
+          { name: "location", label: "Region", type: "text", required: true, placeholder: "us-central1", defaultValue: "us-central1", inExtraConfig: true },
+          { name: "api_key", label: "Bearer Token", type: "api_key", required: true, description: "OAuth2 bearer token (e.g. `gcloud auth print-access-token`)", placeholder: "ya29...." },
+        ],
+      },
+      {
+        id: "service_account",
+        label: "Service Account JSON",
+        fields: [
+          { name: "service_account_json", label: "Service Account JSON", type: "json_secret", required: true, description: "Paste the JSON key file downloaded from GCP Console → IAM → Service Accounts" },
+          { name: "location", label: "Region", type: "text", required: true, placeholder: "us-central1", defaultValue: "us-central1", inExtraConfig: true },
+          { name: "project_id", label: "Project ID Override", type: "text", required: false, placeholder: "auto-detected from JSON", description: "Leave blank to use the project_id from the service account JSON", inExtraConfig: true },
+        ],
+      },
     ],
   },
   {
@@ -306,6 +321,13 @@ export function buildCreatePayload(
     const apiKeyField = fields.find((f) => f.name === "api_key" && !f.inExtraConfig && !f.inEndpointUrl);
     if (apiKeyField && values["api_key"]) {
       secret_value = values["api_key"];
+    }
+    // json_secret fields that aren't in extra_config/endpoint_url → secret_value
+    if (!secret_value) {
+      const jsonSecretField = fields.find((f) => f.type === "json_secret" && !f.inExtraConfig && !f.inEndpointUrl);
+      if (jsonSecretField && values[jsonSecretField.name]) {
+        secret_value = values[jsonSecretField.name];
+      }
     }
   }
 

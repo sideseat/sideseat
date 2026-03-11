@@ -75,6 +75,7 @@ semver = { workspace = true }
 aws-sdk-s3 = { workspace = true }
 aws-sdk-secretsmanager = { workspace = true }
 aws-config = { workspace = true }
+gcp_auth = { workspace = true }
 
 # Cache
 moka = { workspace = true }
