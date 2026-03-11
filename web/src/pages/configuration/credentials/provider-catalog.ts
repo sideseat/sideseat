@@ -88,7 +88,6 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     fields: [
       { name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "sk-..." },
       { name: "endpoint_url", label: "Endpoint URL", type: "url", required: false, placeholder: "https://api.openai.com/v1", description: "Override for proxies or OpenAI-compatible APIs", inEndpointUrl: true },
-      { name: "org_id", label: "Organization ID", type: "text", required: false, placeholder: "org-...", inExtraConfig: true },
       {
         name: "api_variant",
         label: "API Variant",
