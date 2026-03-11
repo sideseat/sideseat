@@ -4,7 +4,23 @@
 //! - In-memory (default) - uses moka + dashmap
 //! - Redis (optional) - uses deadpool-redis
 //!
-//! Also provides rate limiting using the cache backend.
+//! ## Security model
+//!
+//! `CacheService` maintains two independent caches:
+//!
+//! - **Primary backend** — the configured backend (Redis or in-process memory).
+//!   Used for general caching: sessions, org metadata, project lists, etc.
+//!
+//! - **Process-local cache** — always an in-process `InMemoryCache`, regardless of
+//!   the primary backend configuration. Sensitive data (credential secrets, credential
+//!   metadata) is routed here via [`CacheService::get_local`] / [`CacheService::set_local`]
+//!   so it never leaves the process or touches Redis.
+//!
+//! Call sites choose which store to use explicitly:
+//! - `get` / `set` / `delete` — primary backend (may be Redis)
+//! - `get_local` / `set_local` / `delete_local` — always in-process memory
+//!
+//! Also provides rate limiting using the primary cache backend.
 
 mod backend;
 mod error;
@@ -46,26 +62,48 @@ pub async fn invalidate_membership_caches(cache: &CacheService, org_id: &str, us
 use memory::InMemoryCache;
 
 use crate::core::config::{CacheBackendType, CacheConfig};
+use crate::core::constants::LOCAL_CACHE_MAX_ENTRIES;
 
-/// Cache service providing typed access to cache backend
+/// Cache service providing typed access to a primary cache backend plus a
+/// process-local in-memory cache for sensitive data.
 ///
-/// Wraps the underlying cache backend and provides:
-/// - Raw bytes API for flexibility
-/// - Typed API using MessagePack serialization
+/// ## Two-tier design
+///
+/// ```text
+///   caller
+///     │
+///     ├── get / set / delete          → primary backend (Redis or in-process)
+///     │
+///     └── get_local / set_local /     → always in-process InMemoryCache
+///         delete_local                  (never touches Redis)
+/// ```
+///
+/// Use the `*_local` methods for any data that must not leave the process
+/// (credential secrets, credential metadata, session tokens, etc.).
 pub struct CacheService {
+    /// Primary backend — either Redis or in-process memory per config.
     backend: Arc<dyn CacheBackend>,
+    /// Process-local cache — always in-process, never Redis.
+    ///
+    /// Holds sensitive data that must never be serialized to an external store.
+    /// Independent of `backend`; present even when `backend` is also in-process.
+    local: InMemoryCache,
 }
 
 impl std::fmt::Debug for CacheService {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CacheService")
             .field("backend", &self.backend.backend_name())
+            .field("local", &"in-process")
             .finish()
     }
 }
 
 impl CacheService {
-    /// Create a new cache service from configuration
+    /// Create a new cache service from configuration.
+    ///
+    /// Always creates a process-local `InMemoryCache` in addition to the
+    /// configured primary backend.
     pub async fn new(config: &CacheConfig) -> Result<Self, CacheError> {
         let backend: Arc<dyn CacheBackend> = match config.backend {
             CacheBackendType::Memory => {
@@ -85,7 +123,9 @@ impl CacheService {
             }
         };
 
-        Ok(Self { backend })
+        let local = InMemoryCache::with_capacity(LOCAL_CACHE_MAX_ENTRIES);
+
+        Ok(Self { backend, local })
     }
 
     /// Get the backend name
@@ -142,6 +182,65 @@ impl CacheService {
         let bytes =
             rmp_serde::to_vec(value).map_err(|e| CacheError::Serialization(e.to_string()))?;
         self.set_raw(key, bytes, ttl).await
+    }
+
+    // =========================================================================
+    // Process-local API — always in-process memory, never Redis
+    // =========================================================================
+
+    /// Get raw bytes from the process-local cache.
+    ///
+    /// Use for sensitive data that must never leave the process.
+    pub async fn get_local_raw(&self, key: &str) -> Result<Option<Vec<u8>>, CacheError> {
+        self.local.get(key).await
+    }
+
+    /// Set raw bytes in the process-local cache.
+    ///
+    /// Use for sensitive data that must never leave the process.
+    pub async fn set_local_raw(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> Result<(), CacheError> {
+        self.local.set(key, value, ttl).await
+    }
+
+    /// Get a typed value from the process-local cache (MessagePack).
+    ///
+    /// Use for sensitive data that must never leave the process.
+    pub async fn get_local<T: DeserializeOwned>(
+        &self,
+        key: &str,
+    ) -> Result<Option<T>, CacheError> {
+        match self.get_local_raw(key).await? {
+            Some(bytes) => {
+                let value = rmp_serde::from_slice(&bytes)
+                    .map_err(|e| CacheError::Serialization(e.to_string()))?;
+                Ok(Some(value))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Set a typed value in the process-local cache (MessagePack).
+    ///
+    /// Use for sensitive data that must never leave the process.
+    pub async fn set_local<T: Serialize>(
+        &self,
+        key: &str,
+        value: &T,
+        ttl: Option<Duration>,
+    ) -> Result<(), CacheError> {
+        let bytes =
+            rmp_serde::to_vec(value).map_err(|e| CacheError::Serialization(e.to_string()))?;
+        self.set_local_raw(key, bytes, ttl).await
+    }
+
+    /// Delete a key from the process-local cache.
+    pub async fn delete_local(&self, key: &str) -> Result<bool, CacheError> {
+        self.local.delete(key).await
     }
 
     // =========================================================================
@@ -238,6 +337,62 @@ mod tests {
     async fn test_health_check() {
         let service = CacheService::new(&test_config()).await.unwrap();
         assert!(service.health_check().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_local_cache_independent_of_primary() {
+        let service = CacheService::new(&test_config()).await.unwrap();
+
+        // Write to local, not to primary
+        service
+            .set_local("secret:key", &"my-api-key".to_string(), None)
+            .await
+            .unwrap();
+
+        // Should be readable from local
+        let v: Option<String> = service.get_local("secret:key").await.unwrap();
+        assert_eq!(v.as_deref(), Some("my-api-key"));
+
+        // Should NOT be present in primary backend
+        let raw = service.get_raw("secret:key").await.unwrap();
+        assert!(raw.is_none(), "sensitive data must not reach primary backend");
+    }
+
+    #[tokio::test]
+    async fn test_local_delete() {
+        let service = CacheService::new(&test_config()).await.unwrap();
+
+        service
+            .set_local("k", &42u32, None)
+            .await
+            .unwrap();
+
+        let deleted = service.delete_local("k").await.unwrap();
+        assert!(deleted);
+
+        let v: Option<u32> = service.get_local("k").await.unwrap();
+        assert!(v.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_local_and_primary_namespaces_are_separate() {
+        let service = CacheService::new(&test_config()).await.unwrap();
+
+        // Write the same key to both stores with different values
+        service
+            .set("shared:key", &"primary-value".to_string(), None)
+            .await
+            .unwrap();
+        service
+            .set_local("shared:key", &"local-value".to_string(), None)
+            .await
+            .unwrap();
+
+        let from_primary: Option<String> = service.get("shared:key").await.unwrap();
+        let from_local: Option<String> = service.get_local("shared:key").await.unwrap();
+
+        assert_eq!(from_primary.as_deref(), Some("primary-value"));
+        assert_eq!(from_local.as_deref(), Some("local-value"));
     }
 
     #[tokio::test]

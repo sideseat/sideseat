@@ -22,6 +22,7 @@ use crate::data::files::FileService;
 use crate::data::secrets::SecretManager;
 use crate::data::{AnalyticsService, TransactionalService};
 use crate::domain::pricing::PricingService;
+use crate::domain::providers::CredentialService;
 
 pub struct CoreApp {
     pub shutdown: ShutdownService,
@@ -36,6 +37,7 @@ pub struct CoreApp {
     pub files: Arc<FileService>,
     pub cache: Arc<CacheService>,
     pub rate_limiter: Arc<RateLimiter>,
+    pub credentials: Arc<CredentialService>,
 }
 
 impl CoreApp {
@@ -126,6 +128,13 @@ impl CoreApp {
         );
         let shutdown = ShutdownService::new(topics.clone(), database.clone(), analytics.clone());
 
+        let credentials = CredentialService::new(
+            database.clone(),
+            secrets.clone(),
+            cache.clone(),
+            config.credentials.scan_env,
+        );
+
         Ok(Self {
             config,
             storage,
@@ -139,6 +148,7 @@ impl CoreApp {
             files,
             cache,
             rate_limiter,
+            credentials,
         })
     }
 

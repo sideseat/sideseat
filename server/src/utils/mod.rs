@@ -13,4 +13,5 @@ pub mod retry;
 pub mod sql;
 pub mod string;
 pub mod terminal;
+pub mod serde;
 pub mod time;

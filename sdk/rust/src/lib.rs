@@ -79,6 +79,8 @@
 
 #[path = "inference/context/mod.rs"]
 pub mod context;
+#[path = "inference/test_models.rs"]
+pub mod test_models;
 #[path = "inference/env.rs"]
 pub mod env;
 #[path = "inference/error.rs"]
@@ -119,6 +121,7 @@ pub use provider::{
 };
 pub use registry::ProviderRegistry;
 pub use telemetry::{InstrumentedProvider, SideSeat, SideSeatGuard, TelemetryConfig};
+pub use providers::GcpAdcTokenProvider;
 /// Convenience re-exports for glob imports: `use sideseat::prelude::*`.
 ///
 /// Includes the most frequently used traits, types, and builders. Import specific

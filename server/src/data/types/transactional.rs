@@ -218,6 +218,40 @@ pub struct ApiKeyValidation {
     pub last_used_at: Option<i64>,
 }
 
+// ============================================================================
+// Credential types
+// ============================================================================
+
+/// Credential row from database (no secret value ever stored here)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CredentialRow {
+    pub id: String,
+    pub organization_id: String,
+    pub provider_key: String,
+    pub display_name: String,
+    pub endpoint_url: Option<String>,
+    pub extra_config: Option<String>,
+    pub key_preview: Option<String>,
+    pub created_by: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// Credential project permission row from database
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CredentialPermissionRow {
+    pub id: String,
+    pub credential_id: String,
+    pub organization_id: String,
+    /// None = org-level default (applies to all projects)
+    pub project_id: Option<String>,
+    /// "allow" | "deny"
+    pub access: String,
+    pub created_by: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
