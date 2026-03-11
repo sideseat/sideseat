@@ -92,6 +92,41 @@ async fn apply_initial_schema(pool: &SqlitePool) -> Result<(), SqliteError> {
 /// Apply a specific migration version
 const MIGRATION_V2: &str = "ALTER TABLE files ADD COLUMN hash_algo TEXT NOT NULL DEFAULT 'sha256'";
 
+const MIGRATION_V3: &str = r#"
+CREATE TABLE IF NOT EXISTS credentials (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    provider_key TEXT NOT NULL,
+    display_name TEXT NOT NULL CHECK(length(display_name) >= 1 AND length(display_name) <= 100),
+    endpoint_url TEXT,
+    extra_config TEXT,
+    key_preview TEXT,
+    created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_creds_org ON credentials(organization_id);
+CREATE INDEX IF NOT EXISTS idx_creds_org_key ON credentials(organization_id, provider_key);
+CREATE TABLE IF NOT EXISTS credential_project_permissions (
+    id TEXT PRIMARY KEY,
+    credential_id TEXT NOT NULL REFERENCES credentials(id) ON DELETE CASCADE,
+    organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    access TEXT NOT NULL DEFAULT 'allow' CHECK(access IN ('allow', 'deny')),
+    created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cred_perms_credential ON credential_project_permissions(credential_id);
+CREATE INDEX IF NOT EXISTS idx_cred_perms_project ON credential_project_permissions(project_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cred_perms_unique_project
+    ON credential_project_permissions(credential_id, project_id)
+    WHERE project_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cred_perms_unique_org_default
+    ON credential_project_permissions(credential_id)
+    WHERE project_id IS NULL;
+"#;
+
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
     match version {
         1 => {
@@ -99,6 +134,7 @@ async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteEr
             Ok(())
         }
         2 => apply_versioned_migration(pool, 2, "add_hash_algo_to_files", MIGRATION_V2).await,
+        3 => apply_versioned_migration(pool, 3, "add_credentials_tables", MIGRATION_V3).await,
         _ => Err(SqliteError::MigrationFailed {
             version,
             name: "unknown".to_string(),

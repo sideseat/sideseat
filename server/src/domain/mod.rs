@@ -7,6 +7,7 @@
 
 pub mod metrics;
 pub mod pricing;
+pub mod providers;
 pub mod sideml;
 pub mod traces;
 

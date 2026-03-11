@@ -4,6 +4,8 @@
 
 pub mod api_key;
 pub mod auth_method;
+pub mod credential_permissions;
+pub mod credentials;
 pub mod favorite;
 pub mod file;
 pub mod membership;
@@ -11,6 +13,13 @@ pub mod organization;
 pub mod project;
 pub mod user;
 
+pub use credential_permissions::{
+    create_credential_permission, delete_credential_permission,
+    get_credentials_accessible_by_project, list_credential_permissions,
+};
+pub use credentials::{
+    create_credential, delete_credential, get_credential, list_credentials, update_credential,
+};
 pub use api_key::{
     create_api_key, delete_api_key, delete_for_org as delete_api_keys_for_org,
     get_by_hash as get_api_key_by_hash, get_hashes_for_org as get_api_key_hashes_for_org,

@@ -11,13 +11,15 @@ use crate::data::cache::CacheService;
 use crate::data::error::DataError;
 use crate::data::traits::TransactionalRepository;
 use crate::data::types::{
-    ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, FileRow, LastOwnerResult,
-    MemberWithUser, MembershipRow, OrgWithRole, OrganizationRow, ProjectRow, UserRow,
+    ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
+    CredentialRow, FileRow, LastOwnerResult, MemberWithUser, MembershipRow, OrgWithRole,
+    OrganizationRow, ProjectRow, UserRow,
 };
 
 use super::SqliteService;
 use super::repositories::{
-    api_key, auth_method, favorite, file, membership, organization, project, user,
+    api_key, auth_method, credential_permissions, credentials, favorite, file, membership,
+    organization, project, user,
 };
 
 #[async_trait]
@@ -636,5 +638,125 @@ impl TransactionalRepository for Arc<SqliteService> {
         api_key::get_hashes_for_org(self.pool(), org_id)
             .await
             .map_err(Into::into)
+    }
+
+    // ==================== Credential Operations ====================
+
+    async fn list_credentials(&self, org_id: &str) -> Result<Vec<CredentialRow>, DataError> {
+        credentials::list_credentials(self.pool(), org_id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn get_credential(
+        &self,
+        id: &str,
+        org_id: &str,
+    ) -> Result<Option<CredentialRow>, DataError> {
+        credentials::get_credential(self.pool(), id, org_id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn create_credential(
+        &self,
+        id: &str,
+        org_id: &str,
+        provider_key: &str,
+        display_name: &str,
+        endpoint_url: Option<&str>,
+        extra_config: Option<&str>,
+        key_preview: Option<&str>,
+        created_by: Option<&str>,
+    ) -> Result<CredentialRow, DataError> {
+        credentials::create_credential(
+            self.pool(),
+            id,
+            org_id,
+            provider_key,
+            display_name,
+            endpoint_url,
+            extra_config,
+            key_preview,
+            created_by,
+        )
+        .await
+        .map_err(Into::into)
+    }
+
+    async fn update_credential(
+        &self,
+        id: &str,
+        org_id: &str,
+        display_name: Option<&str>,
+        endpoint_url: Option<Option<&str>>,
+        extra_config: Option<Option<&str>>,
+    ) -> Result<Option<CredentialRow>, DataError> {
+        credentials::update_credential(self.pool(), id, org_id, display_name, endpoint_url, extra_config)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn delete_credential(&self, id: &str, org_id: &str) -> Result<bool, DataError> {
+        credentials::delete_credential(self.pool(), id, org_id)
+            .await
+            .map_err(Into::into)
+    }
+
+    // ==================== Credential Permission Operations ====================
+
+    async fn list_credential_permissions(
+        &self,
+        credential_id: &str,
+    ) -> Result<Vec<CredentialPermissionRow>, DataError> {
+        credential_permissions::list_credential_permissions(self.pool(), credential_id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn create_credential_permission(
+        &self,
+        id: &str,
+        credential_id: &str,
+        org_id: &str,
+        project_id: Option<&str>,
+        access: &str,
+        created_by: Option<&str>,
+    ) -> Result<CredentialPermissionRow, DataError> {
+        credential_permissions::create_credential_permission(
+            self.pool(),
+            id,
+            credential_id,
+            org_id,
+            project_id,
+            access,
+            created_by,
+        )
+        .await
+        .map_err(Into::into)
+    }
+
+    async fn delete_credential_permission(
+        &self,
+        id: &str,
+        credential_id: &str,
+    ) -> Result<bool, DataError> {
+        credential_permissions::delete_credential_permission(self.pool(), id, credential_id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn get_credentials_accessible_by_project(
+        &self,
+        org_id: &str,
+        project_id: &str,
+    ) -> Result<Vec<String>, DataError> {
+        credential_permissions::get_credentials_accessible_by_project(
+            self.pool(),
+            org_id,
+            project_id,
+        )
+        .await
+        .map_err(Into::into)
     }
 }

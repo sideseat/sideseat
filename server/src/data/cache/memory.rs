@@ -106,6 +106,24 @@ impl InMemoryCache {
         }
     }
 
+    /// Create an in-memory cache with a fixed capacity, without a full `CacheConfig`.
+    ///
+    /// Used to create the process-local cache inside `CacheService`, which must
+    /// always be backed by in-process memory regardless of the primary backend.
+    pub fn with_capacity(max_entries: u64) -> Self {
+        let cache = Cache::builder()
+            .max_capacity(max_entries)
+            .initial_capacity((max_entries as usize / 4).min(10_000))
+            .expire_after(VariableTtlExpiry)
+            .build();
+
+        Self {
+            cache,
+            counters: DashMap::new(),
+            cleanup_ops: AtomicU64::new(0),
+        }
+    }
+
     /// Clean up expired counters (called periodically)
     fn cleanup_expired_counters(&self) {
         let now = Instant::now();

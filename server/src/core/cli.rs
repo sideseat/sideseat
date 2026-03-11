@@ -8,10 +8,10 @@ use super::config::{
 };
 use super::constants::{
     ENV_ANALYTICS_BACKEND, ENV_CACHE_BACKEND, ENV_CACHE_EVICTION_POLICY, ENV_CACHE_MAX_ENTRIES,
-    ENV_CACHE_REDIS_URL, ENV_CLICKHOUSE_URL, ENV_CONFIG, ENV_DEBUG, ENV_FILES_ENABLED,
-    ENV_FILES_QUOTA_BYTES, ENV_FILES_S3_BUCKET, ENV_FILES_S3_ENDPOINT, ENV_FILES_S3_PREFIX,
-    ENV_FILES_S3_REGION, ENV_FILES_STORAGE, ENV_HOST, ENV_MCP_ENABLED, ENV_NO_UPDATE_CHECK,
-    ENV_OTEL_AUTH_REQUIRED, ENV_OTEL_GRPC_ENABLED, ENV_OTEL_GRPC_PORT,
+    ENV_CACHE_REDIS_URL, ENV_CLICKHOUSE_URL, ENV_CONFIG, ENV_CREDENTIALS_SCAN_ENV, ENV_DEBUG,
+    ENV_FILES_ENABLED, ENV_FILES_QUOTA_BYTES, ENV_FILES_S3_BUCKET, ENV_FILES_S3_ENDPOINT,
+    ENV_FILES_S3_PREFIX, ENV_FILES_S3_REGION, ENV_FILES_STORAGE, ENV_HOST, ENV_MCP_ENABLED,
+    ENV_NO_UPDATE_CHECK, ENV_OTEL_AUTH_REQUIRED, ENV_OTEL_GRPC_ENABLED, ENV_OTEL_GRPC_PORT,
     ENV_OTEL_RETENTION_MAX_AGE_MINUTES, ENV_OTEL_RETENTION_MAX_SPANS, ENV_PORT, ENV_POSTGRES_URL,
     ENV_PRICING_SYNC_HOURS, ENV_RATE_LIMIT_API_RPM, ENV_RATE_LIMIT_AUTH_RPM,
     ENV_RATE_LIMIT_BYPASS_HEADER, ENV_RATE_LIMIT_ENABLED, ENV_RATE_LIMIT_FILES_RPM,
@@ -173,6 +173,10 @@ pub struct Cli {
     /// ClickHouse connection URL (when using clickhouse backend)
     #[arg(long, global = true, env = ENV_CLICKHOUSE_URL)]
     pub clickhouse_url: Option<String>,
+
+    /// Scan environment variables for provider API keys (default: true)
+    #[arg(long, global = true, env = ENV_CREDENTIALS_SCAN_ENV)]
+    pub credentials_scan_env: Option<bool>,
 }
 
 /// Parse storage backend from CLI/env string
@@ -314,6 +318,7 @@ pub struct CliConfig {
     pub analytics_backend: Option<AnalyticsBackend>,
     pub postgres_url: Option<String>,
     pub clickhouse_url: Option<String>,
+    pub credentials_scan_env: Option<bool>,
 }
 
 /// Parse CLI arguments and return config with command
@@ -356,6 +361,7 @@ pub fn parse() -> (CliConfig, Option<Commands>) {
         analytics_backend: cli.analytics_backend,
         postgres_url: cli.postgres_url,
         clickhouse_url: cli.clickhouse_url,
+        credentials_scan_env: cli.credentials_scan_env,
     };
     (config, cli.command)
 }

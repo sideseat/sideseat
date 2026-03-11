@@ -77,7 +77,7 @@ pub mod xai;
 pub use anthropic::AnthropicProvider;
 pub use bedrock::BedrockProvider;
 pub use cohere::CohereProvider;
-pub use gemini::{GeminiAuth, GeminiProvider};
+pub use gemini::{GcpAdcTokenProvider, GeminiAuth, GeminiProvider};
 pub use gemini_interactions::GeminiInteractionsProvider;
 pub use mistral::MistralProvider;
 pub use openai_chat::OpenAIChatProvider;

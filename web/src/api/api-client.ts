@@ -7,6 +7,7 @@
 
 import { ApiKeysClient } from "./api-keys/client";
 import { AuthClient } from "./auth-client";
+import { CredentialsClient } from "./credentials/client";
 import { FavoritesClient } from "./favorites/client";
 import { FilesClient } from "./files/client";
 import { OrganizationsClient } from "./organizations/client";
@@ -105,6 +106,8 @@ export class ApiClient {
 
   /** API keys client */
   readonly apiKeys: ApiKeysClient;
+  /** Credentials client */
+  readonly credentials: CredentialsClient;
   /** Authentication client */
   readonly auth: AuthClient;
   /** Favorites client */
@@ -123,6 +126,7 @@ export class ApiClient {
     this.fetchFn = fetchFn.bind(globalThis);
     this.apiKeys = new ApiKeysClient(this);
     this.auth = new AuthClient(this);
+    this.credentials = new CredentialsClient(this);
     this.favorites = new FavoritesClient(this);
     this.files = new FilesClient(baseUrl);
     this.organizations = new OrganizationsClient(this);
@@ -236,6 +240,16 @@ export class ApiClient {
   async put<T>(endpoint: string, body?: unknown): Promise<T> {
     return this.request<T>(endpoint, {
       method: "PUT",
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  /**
+   * Make a PATCH request
+   */
+  async patch<T>(endpoint: string, body?: unknown): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: "PATCH",
       body: body ? JSON.stringify(body) : undefined,
     });
   }
