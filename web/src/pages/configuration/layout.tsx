@@ -2,7 +2,7 @@ import { Suspense, useEffect } from "react";
 import { Link, Navigate, Outlet, useLocation, useParams } from "react-router";
 import { QueryParamProvider } from "use-query-params";
 import { ReactRouter6Adapter } from "use-query-params/adapters/react-router-6";
-import { Key, TerminalSquare, Workflow, type LucideIcon } from "lucide-react";
+import { Key, Plug, TerminalSquare, Workflow, type LucideIcon } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { isPathActive } from "@/lib/navigation";
@@ -21,6 +21,7 @@ const configSections: ConfigSection[] = [
   { id: "telemetry", url: "telemetry", label: "Telemetry", icon: TerminalSquare },
   { id: "mcp", url: "mcp", label: "MCP Server", icon: Workflow },
   { id: "api-keys", url: "api-keys", label: "API Keys", icon: Key },
+  { id: "credentials", url: "credentials", label: "Model Providers", icon: Plug },
 ];
 
 export default function ConfigurationLayout() {
@@ -32,6 +33,7 @@ export default function ConfigurationLayout() {
       () => import("./telemetry"),
       () => import("./mcp"),
       () => import("./api-keys"),
+      () => import("./credentials"),
     );
   }, []);
 

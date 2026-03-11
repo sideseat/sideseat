@@ -146,6 +146,42 @@ async fn apply_versioned_migration(
             "add_hash_algo_to_files",
             "ALTER TABLE files ADD COLUMN IF NOT EXISTS hash_algo TEXT NOT NULL DEFAULT 'sha256'",
         ),
+        3 => (
+            "add_credentials_tables",
+            r#"CREATE TABLE IF NOT EXISTS credentials (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    provider_key TEXT NOT NULL,
+    display_name TEXT NOT NULL CHECK(length(display_name) >= 1 AND length(display_name) <= 100),
+    endpoint_url TEXT,
+    extra_config TEXT,
+    key_preview TEXT,
+    created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_creds_org ON credentials(organization_id);
+CREATE INDEX IF NOT EXISTS idx_creds_org_key ON credentials(organization_id, provider_key);
+CREATE TABLE IF NOT EXISTS credential_project_permissions (
+    id TEXT PRIMARY KEY,
+    credential_id TEXT NOT NULL REFERENCES credentials(id) ON DELETE CASCADE,
+    organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    access TEXT NOT NULL DEFAULT 'allow' CHECK(access IN ('allow', 'deny')),
+    created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cred_perms_credential ON credential_project_permissions(credential_id);
+CREATE INDEX IF NOT EXISTS idx_cred_perms_project ON credential_project_permissions(project_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cred_perms_unique_project
+    ON credential_project_permissions(credential_id, project_id)
+    WHERE project_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cred_perms_unique_org_default
+    ON credential_project_permissions(credential_id)
+    WHERE project_id IS NULL;
+"#,
+        ),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,
@@ -157,14 +193,20 @@ async fn apply_versioned_migration(
 
     let mut tx = conn.begin().await?;
 
-    sqlx::query(sql)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| PostgresError::MigrationFailed {
-            version,
-            name: name.to_string(),
-            error: e.to_string(),
-        })?;
+    for statement in sql.split(';').filter(|s| !s.trim().is_empty()) {
+        sqlx::query(statement.trim())
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| PostgresError::MigrationFailed {
+                version,
+                name: name.to_string(),
+                error: format!(
+                    "Failed at statement: {} - {}",
+                    &statement.trim()[..statement.trim().len().min(50)],
+                    e
+                ),
+            })?;
+    }
 
     let elapsed = start.elapsed().as_millis() as i64;
 

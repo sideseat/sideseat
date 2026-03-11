@@ -29,6 +29,7 @@ aws-config = { workspace = true }
 aws-sdk-bedrockruntime = { workspace = true }
 aws-sdk-bedrock = { workspace = true }
 aws-credential-types = { workspace = true }
+gcp_auth = { workspace = true }
 aws-smithy-types = "1"
 aws-smithy-http = "0.62"
 

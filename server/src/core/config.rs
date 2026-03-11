@@ -423,6 +423,12 @@ pub struct SecretsFileConfig {
     pub vault: Option<SecretsVaultFileConfig>,
 }
 
+/// Credentials file configuration
+#[derive(Debug, Default, Deserialize)]
+pub struct CredentialsFileConfig {
+    pub scan_env: Option<bool>,
+}
+
 /// File-based configuration (JSON)
 #[derive(Debug, Default, Deserialize)]
 pub struct FileConfig {
@@ -435,6 +441,7 @@ pub struct FileConfig {
     pub update: Option<UpdateFileConfig>,
     pub database: Option<DatabaseFileConfig>,
     pub secrets: Option<SecretsFileConfig>,
+    pub credentials: Option<CredentialsFileConfig>,
     pub debug: Option<bool>,
     #[serde(flatten)]
     pub extra: serde_json::Value,
@@ -780,6 +787,17 @@ impl FileConfig {
             }
         }
 
+        // Credentials
+        if let Some(credentials) = other.credentials {
+            let current = self
+                .credentials
+                .get_or_insert_with(CredentialsFileConfig::default);
+            if credentials.scan_env.is_some() {
+                tracing::trace!(scan_env = ?credentials.scan_env, "Merging credentials.scan_env");
+                current.scan_env = credentials.scan_env;
+            }
+        }
+
         // Debug
         if other.debug.is_some() {
             tracing::trace!(debug = ?other.debug, "Merging debug");
@@ -857,6 +875,13 @@ pub struct UpdateConfig {
 #[derive(Debug, Clone)]
 pub struct McpConfig {
     pub enabled: bool,
+}
+
+/// Credentials configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct CredentialsConfig {
+    /// Scan environment variables for provider API keys
+    pub scan_env: bool,
 }
 
 /// Redis cache configuration (final/runtime)
@@ -1024,6 +1049,7 @@ pub struct AppConfig {
     pub rate_limit: RateLimitConfig,
     pub update: UpdateConfig,
     pub mcp: McpConfig,
+    pub credentials: CredentialsConfig,
     pub database: DatabaseConfig,
     pub secrets: SecretsConfig,
     pub debug: bool,
@@ -1087,6 +1113,7 @@ impl AppConfig {
         let file_rate_limit = file_config.rate_limit.unwrap_or_default();
         let file_update = file_config.update.unwrap_or_default();
         let file_mcp = file_server.mcp.unwrap_or_default();
+        let file_credentials = file_config.credentials.unwrap_or_default();
         let file_database = file_config.database.unwrap_or_default();
 
         // 4. Layer configs: defaults -> file config -> CLI/env overrides
@@ -1196,6 +1223,12 @@ impl AppConfig {
 
         // mcp config: CLI/env overrides file config, enabled by default
         let mcp_enabled = cli.mcp.or(file_mcp.enabled).unwrap_or(true);
+
+        // credentials config: CLI/env overrides file config, scan_env enabled by default
+        let credentials_scan_env = cli
+            .credentials_scan_env
+            .or(file_credentials.scan_env)
+            .unwrap_or(true);
 
         // cache config: CLI/env overrides file config
         let cache_backend = cli
@@ -1453,6 +1486,9 @@ impl AppConfig {
             mcp: McpConfig {
                 enabled: mcp_enabled,
             },
+            credentials: CredentialsConfig {
+                scan_env: credentials_scan_env,
+            },
             database,
             secrets,
             debug,
@@ -1480,6 +1516,7 @@ impl AppConfig {
             rate_limit_enabled = config.rate_limit.enabled,
             update_enabled = config.update.enabled,
             mcp_enabled = config.mcp.enabled,
+            credentials_scan_env = config.credentials.scan_env,
             transactional_backend = %config.database.transactional,
             analytics_backend = %config.database.analytics,
             "Configuration loaded"
@@ -1792,6 +1829,7 @@ mod tests {
             update: None,
             database: None,
             secrets: None,
+            credentials: None,
             debug: Some(false),
             extra: serde_json::Value::Null,
         };
@@ -1824,6 +1862,7 @@ mod tests {
             update: None,
             database: None,
             secrets: None,
+            credentials: None,
             debug: Some(true),
             extra: serde_json::Value::Null,
         };
@@ -1898,6 +1937,7 @@ mod tests {
             analytics_backend: None,
             postgres_url: None,
             clickhouse_url: None,
+            credentials_scan_env: None,
         };
         let config = AppConfig::load(&cli).unwrap();
 

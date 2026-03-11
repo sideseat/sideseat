@@ -60,6 +60,8 @@ use crate::{
 /// - `with_profile()` — named AWS profile from `~/.aws/credentials`
 /// - `from_client()` — wrap an existing `aws_sdk_bedrockruntime::Client`
 /// - `with_api_key()` — Bedrock API key via the SDK's native bearer-token auth
+/// - `from_static_assume_role()` — static base credentials + explicit STS AssumeRole
+/// - `from_ambient_assume_role()` — ambient credentials (EC2/ECS/IRSA) + STS AssumeRole
 pub struct BedrockProvider {
     client: Arc<Client>,
     /// Bedrock management client (for listing models). None only when created via [`from_client()`](Self::from_client).
@@ -160,6 +162,78 @@ impl BedrockProvider {
             client: Arc::new(Client::from_conf(conf)),
             mgmt_client: Some(Arc::new(BedrockMgmtClient::from_conf(mgmt_conf))),
         }
+    }
+
+    /// Create using static credentials + STS AssumeRole.
+    ///
+    /// Constructs a static base credential then configures STS to assume `role_arn`.
+    /// The actual STS call is lazy — it happens on the first credential use.
+    pub async fn from_static_assume_role(
+        access_key_id: impl Into<String>,
+        secret_access_key: impl Into<String>,
+        session_token: Option<String>,
+        role_arn: impl Into<String>,
+        external_id: Option<String>,
+        region: impl Into<String>,
+    ) -> Result<Self, ProviderError> {
+        use aws_config::sts::AssumeRoleProvider;
+        use aws_credential_types::Credentials;
+        let region_val = aws_config::Region::new(region.into());
+        let base = Credentials::new(
+            access_key_id,
+            secret_access_key,
+            session_token,
+            None,
+            "sideseat",
+        );
+        let mut builder = AssumeRoleProvider::builder(role_arn.into())
+            .region(region_val.clone())
+            .session_name("sideseat");
+        if let Some(ext) = external_id {
+            builder = builder.external_id(ext);
+        }
+        // build_from_provider returns a Future resolved to AssumeRoleProvider
+        let assume_provider = builder.build_from_provider(base).await;
+        let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+            .region(region_val)
+            .credentials_provider(assume_provider)
+            .load()
+            .await;
+        Ok(Self {
+            client: Arc::new(Client::new(&config)),
+            mgmt_client: Some(Arc::new(BedrockMgmtClient::new(&config))),
+        })
+    }
+
+    /// Create using ambient credentials (EC2/ECS/IRSA) + STS AssumeRole.
+    ///
+    /// Loads the default AWS credential chain as the base identity, then
+    /// wraps it in an `AssumeRoleProvider` for cross-account access.
+    /// The base credential chain is resolved during construction (`build().await`).
+    pub async fn from_ambient_assume_role(
+        role_arn: impl Into<String>,
+        external_id: Option<String>,
+        region: impl Into<String>,
+    ) -> Result<Self, ProviderError> {
+        use aws_config::sts::AssumeRoleProvider;
+        let region_val = aws_config::Region::new(region.into());
+        let mut builder = AssumeRoleProvider::builder(role_arn.into())
+            .region(region_val.clone())
+            .session_name("sideseat");
+        if let Some(ext) = external_id {
+            builder = builder.external_id(ext);
+        }
+        // build() is async — loads default credential chain as base for AssumeRole
+        let assume_provider = builder.build().await;
+        let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+            .region(region_val)
+            .credentials_provider(assume_provider)
+            .load()
+            .await;
+        Ok(Self {
+            client: Arc::new(Client::new(&config)),
+            mgmt_client: Some(Arc::new(BedrockMgmtClient::new(&config))),
+        })
     }
 
     /// Call `invoke_model` with a JSON body and return the parsed JSON response.

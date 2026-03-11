@@ -19,6 +19,36 @@ use crate::{
     },
 };
 
+/// GCP Application Default Credentials token provider.
+///
+/// Resolves in order: `GOOGLE_APPLICATION_CREDENTIALS` (service account JSON) →
+/// GKE workload identity federation → GCE/Cloud Run instance metadata server.
+/// The inner `gcp_auth` provider caches tokens and refreshes them before expiry.
+pub struct GcpAdcTokenProvider {
+    inner: std::sync::Arc<dyn gcp_auth::TokenProvider>,
+}
+
+impl GcpAdcTokenProvider {
+    /// Initialize ADC. Fails immediately if no credential source is discoverable.
+    pub async fn try_new() -> Result<Self, ProviderError> {
+        gcp_auth::provider()
+            .await
+            .map(|p| Self { inner: p })
+            .map_err(|e| ProviderError::Auth(format!("GCP ADC initialization failed: {e}")))
+    }
+}
+
+#[async_trait::async_trait]
+impl TokenProvider for GcpAdcTokenProvider {
+    async fn get_token(&self) -> Result<String, ProviderError> {
+        self.inner
+            .token(&["https://www.googleapis.com/auth/cloud-platform"])
+            .await
+            .map(|t| t.as_str().to_string())
+            .map_err(|e| ProviderError::Auth(format!("GCP token refresh failed: {e}")))
+    }
+}
+
 const GEMINI_BASE_URL: &str = "https://generativelanguage.googleapis.com/v1beta/models";
 const VERTEX_BASE_URL: &str = "https://{location}-aiplatform.googleapis.com/v1/projects/{project}/locations/{location}/publishers/google/models";
 
