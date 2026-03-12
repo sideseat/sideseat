@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Spinner } from "@/components/ui/spinner";
 import { Wizard, type WizardStep } from "@/components/wizard";
 import { cn } from "@/lib/utils";
@@ -239,23 +240,18 @@ function ConfigureStep({
       {provider.authModes && (
         <Field>
           <FieldLabel>Authentication</FieldLabel>
-          <div className="flex flex-wrap gap-1.5">
+          <ToggleGroup
+            type="single"
+            value={authModeId ?? ""}
+            onValueChange={(v) => v && onAuthModeChange(v)}
+            className="flex flex-wrap justify-start gap-1"
+          >
             {provider.authModes.map((mode) => (
-              <button
-                key={mode.id}
-                type="button"
-                onClick={() => onAuthModeChange(mode.id)}
-                className={cn(
-                  "rounded-md border px-3 py-1.5 text-sm transition-colors",
-                  authModeId === mode.id
-                    ? "border-primary bg-primary/10 font-medium text-primary"
-                    : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
-                )}
-              >
+              <ToggleGroupItem key={mode.id} value={mode.id} className="px-3 py-1.5 text-sm">
                 {mode.label}
-              </button>
+              </ToggleGroupItem>
             ))}
-          </div>
+          </ToggleGroup>
         </Field>
       )}
 
@@ -292,7 +288,7 @@ function AccessStep({
         Restrict which projects can use this credential. By default all projects have access.
       </p>
 
-      <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
+      <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-1 pt-1">
         {pendingPerms.length === 0 ? (
           <div className="flex h-full items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
             No rules — all projects will have access by default

@@ -33,7 +33,7 @@ export function DeleteApiKeyDialog({ apiKey, orgId, onOpenChange }: DeleteApiKey
 
   return (
     <AlertDialog open={!!apiKey} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent className="sm:max-w-xl">
         <AlertDialogHeader>
           <AlertDialogTitle>Delete API Key</AlertDialogTitle>
           <AlertDialogDescription asChild>

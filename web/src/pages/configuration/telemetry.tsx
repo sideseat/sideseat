@@ -5,14 +5,25 @@ import { toast } from "sonner";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useProjects } from "@/api/projects/hooks/queries";
 import { cn } from "@/lib/utils";
 
 type Framework = {
   id: string;
   name: string;
+  group: "Providers" | "Frameworks";
   lang: "python" | "javascript";
   docUrl: string;
   install: string;
@@ -38,15 +49,141 @@ function getEndpoint(hostname: string, httpPort: string, projectId: string) {
 }
 
 const FRAMEWORKS: Framework[] = [
+  // — Providers —
+  {
+    id: "bedrock",
+    name: "Amazon Bedrock",
+    group: "Providers",
+    lang: "python",
+    docUrl: "https://sideseat.ai/docs/integrations/providers/bedrock/",
+    install: "pip install sideseat boto3",
+    code: () => `import boto3
+from sideseat import SideSeat, Frameworks
+
+SideSeat(framework=Frameworks.Bedrock)
+
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+
+response = bedrock.converse(
+    modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    system=[{"text": "Answer in one sentence."}],
+    messages=[{"role": "user", "content": [{"text": "What is the speed of light?"}]}],
+    inferenceConfig={"maxTokens": 128},
+)
+
+print(response["output"]["message"]["content"][0]["text"])`,
+    run: "python app.py",
+  },
+  {
+    id: "anthropic",
+    name: "Anthropic",
+    group: "Providers",
+    lang: "python",
+    docUrl: "https://sideseat.ai/docs/integrations/providers/anthropic/",
+    install: 'pip install "sideseat[anthropic]"',
+    code: () => `import anthropic
+from sideseat import SideSeat, Frameworks
+
+SideSeat(framework=Frameworks.Anthropic)
+
+client = anthropic.Anthropic()
+message = client.messages.create(
+    model="claude-sonnet-4-5-20250929",
+    system="Answer in one sentence.",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "What is the speed of light?"}],
+)
+
+print(message.content[0].text)`,
+    run: "python app.py",
+  },
+  {
+    id: "openai",
+    name: "OpenAI",
+    group: "Providers",
+    lang: "python",
+    docUrl: "https://sideseat.ai/docs/integrations/providers/openai/",
+    install: 'pip install "sideseat[openai]"',
+    code: () => `from openai import OpenAI
+from sideseat import SideSeat, Frameworks
+
+SideSeat(framework=Frameworks.OpenAI)
+
+client = OpenAI()
+response = client.chat.completions.create(
+    model="gpt-5-mini",
+    messages=[
+        {"role": "system", "content": "Answer in one sentence."},
+        {"role": "user", "content": "What is the speed of light?"},
+    ],
+    max_completion_tokens=1024,
+)
+
+print(response.choices[0].message.content)`,
+    run: "python app.py",
+  },
+  {
+    id: "azure-openai",
+    name: "Azure OpenAI",
+    group: "Providers",
+    lang: "python",
+    docUrl: "https://sideseat.ai/docs/integrations/providers/azure/",
+    install: 'pip install "sideseat[openai]"',
+    code: () => `from openai import AzureOpenAI
+from sideseat import SideSeat, Frameworks
+
+SideSeat(framework=Frameworks.OpenAI)
+
+azure = AzureOpenAI(
+    api_key="your-api-key",
+    api_version="2024-02-01",
+    azure_endpoint="https://your-resource.openai.azure.com",
+)
+
+response = azure.chat.completions.create(
+    model="gpt-5-mini",  # Your deployment name
+    messages=[
+        {"role": "system", "content": "Answer in one sentence."},
+        {"role": "user", "content": "What is the speed of light?"},
+    ],
+)
+
+print(response.choices[0].message.content)`,
+    run: "python app.py",
+  },
+  {
+    id: "google-gemini",
+    name: "Google Gemini",
+    group: "Providers",
+    lang: "python",
+    docUrl: "https://sideseat.ai/docs/integrations/providers/google-gemini/",
+    install: 'pip install "sideseat[google-genai]"',
+    code: () => `from google import genai
+from sideseat import SideSeat, Frameworks
+
+SideSeat(framework=Frameworks.GoogleGenAI)
+
+client = genai.Client(api_key="your-api-key")
+
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="What is the speed of light?",
+)
+
+print(response.text)`,
+    run: "python app.py",
+  },
+  // — Frameworks —
   {
     id: "strands-python",
     name: "Strands (Python)",
+    group: "Frameworks",
     lang: "python",
     docUrl:
       "https://strandsagents.com/latest/documentation/docs/user-guide/observability-evaluation/traces/",
     install: "pip install strands-agents sideseat",
-    code: () => `from sideseat import SideSeat, Frameworks
-from strands import Agent
+    code: () => `from strands import Agent
+from sideseat import SideSeat, Frameworks
 
 SideSeat(framework=Frameworks.Strands)
 
@@ -68,6 +205,7 @@ print(response)`,
   {
     id: "strands-typescript",
     name: "Strands (TypeScript)",
+    group: "Frameworks",
     lang: "javascript",
     docUrl:
       "https://strandsagents.com/latest/documentation/docs/user-guide/observability-evaluation/traces/",
@@ -93,14 +231,15 @@ print(response)`,
   {
     id: "vercel-ai",
     name: "Vercel AI",
+    group: "Frameworks",
     lang: "javascript",
     docUrl: "https://sdk.vercel.ai",
     install: "npm install ai @ai-sdk/amazon-bedrock @sideseat/sdk",
-    code: () => `import { init } from '@sideseat/sdk';
-import { generateText } from 'ai';
+    code: () => `import { generateText } from 'ai';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
+import { init, Frameworks } from '@sideseat/sdk';
 
-init();
+init({ framework: Frameworks.VercelAI });
 
 const { text } = await generateText({
   model: bedrock('anthropic.claude-sonnet-4-5-20250929-v1:0'),
@@ -131,17 +270,152 @@ console.log(text);`,
     note: "Requires experimental_telemetry: { isEnabled: true } on each generateText/streamText call.",
   },
   {
+    id: "langgraph",
+    name: "LangGraph",
+    group: "Frameworks",
+    lang: "python",
+    docUrl: "https://langchain-ai.github.io/langgraph/",
+    install: 'pip install langgraph langchain-openai "sideseat[langgraph]"',
+    code: () => `from langgraph.prebuilt import create_react_agent
+from langchain_openai import ChatOpenAI
+from sideseat import SideSeat, Frameworks
+
+SideSeat(framework=Frameworks.LangGraph)
+
+llm = ChatOpenAI(model="gpt-5-mini")
+agent = create_react_agent(llm, tools=[])
+result = agent.invoke({"messages": [("user", "What is 2+2?")]})
+print(result["messages"][-1].content)`,
+    altInstall:
+      "pip install langgraph langchain-openai openinference-instrumentation-langchain opentelemetry-exporter-otlp",
+    altCode: () => `from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from openinference.instrumentation.langchain import LangChainInstrumentor
+
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+LangChainInstrumentor().instrument()
+
+from langgraph.prebuilt import create_react_agent
+from langchain_openai import ChatOpenAI
+
+llm = ChatOpenAI(model="gpt-5-mini")
+agent = create_react_agent(llm, tools=[])
+result = agent.invoke({"messages": [("user", "What is 2+2?")]})
+print(result["messages"][-1].content)`,
+    run: "python agent.py",
+  },
+  {
+    id: "crewai",
+    name: "CrewAI",
+    group: "Frameworks",
+    lang: "python",
+    docUrl: "https://docs.crewai.com",
+    install: 'pip install crewai "sideseat[crewai]"',
+    code: () => `from crewai import Agent, Task, Crew
+from sideseat import SideSeat, Frameworks
+
+SideSeat(framework=Frameworks.CrewAI)
+
+researcher = Agent(
+    role="Researcher",
+    goal="Find information",
+    backstory="Expert researcher",
+)
+
+task = Task(
+    description="Research AI trends",
+    expected_output="Summary of trends",
+    agent=researcher,
+)
+
+crew = Crew(agents=[researcher], tasks=[task])
+
+result = crew.kickoff()
+print(result)`,
+    altInstall:
+      "pip install crewai openinference-instrumentation-crewai opentelemetry-exporter-otlp",
+    altCode: () => `from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from openinference.instrumentation.crewai import CrewAIInstrumentor
+
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+CrewAIInstrumentor().instrument()
+
+from crewai import Agent, Task, Crew
+
+researcher = Agent(
+    role="Researcher",
+    goal="Find information",
+    backstory="Expert researcher",
+)
+task = Task(
+    description="Research AI trends",
+    expected_output="Summary of trends",
+    agent=researcher,
+)
+crew = Crew(agents=[researcher], tasks=[task])
+result = crew.kickoff()
+print(result)`,
+    run: "python crew.py",
+  },
+  {
+    id: "autogen",
+    name: "AutoGen",
+    group: "Frameworks",
+    lang: "python",
+    docUrl: "https://microsoft.github.io/autogen/",
+    install: 'pip install autogen-agentchat "sideseat[autogen]"',
+    code: () => `from autogen import AssistantAgent, UserProxyAgent
+from sideseat import SideSeat, Frameworks
+
+SideSeat(framework=Frameworks.AutoGen)
+
+llm_config = {"config_list": [{"model": "gpt-5-mini"}]}
+assistant = AssistantAgent("assistant", llm_config=llm_config)
+user = UserProxyAgent("user", human_input_mode="NEVER")
+user.initiate_chat(assistant, message="Hello!")`,
+    altInstall:
+      "pip install autogen-agentchat openinference-instrumentation-autogen-agentchat opentelemetry-exporter-otlp",
+    altCode: () => `from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from openinference.instrumentation.autogen_agentchat import AutogenInstrumentor
+
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+AutogenInstrumentor().instrument()
+
+from autogen import AssistantAgent, UserProxyAgent
+
+llm_config = {"config_list": [{"model": "gpt-5-mini"}]}
+assistant = AssistantAgent("assistant", llm_config=llm_config)
+user = UserProxyAgent("user", human_input_mode="NEVER")
+user.initiate_chat(assistant, message="Hello!")`,
+    run: "python autogen_app.py",
+  },
+  {
     id: "google-adk",
     name: "Google ADK",
+    group: "Frameworks",
     lang: "python",
     docUrl: "https://google.github.io/adk-docs/",
     install: "pip install google-adk sideseat",
     code: () => `import asyncio
-from sideseat import SideSeat, Frameworks
 from google.adk.agents import Agent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
+from sideseat import SideSeat, Frameworks
 
 SideSeat(framework=Frameworks.GoogleADK)
 
@@ -204,144 +478,14 @@ asyncio.run(main())`,
     run: "python agent.py",
   },
   {
-    id: "langgraph",
-    name: "LangGraph",
-    lang: "python",
-    docUrl: "https://langchain-ai.github.io/langgraph/",
-    install: 'pip install langgraph langchain-openai "sideseat[langgraph]"',
-    code: () => `from sideseat import SideSeat, Frameworks
-from langgraph.prebuilt import create_react_agent
-from langchain_openai import ChatOpenAI
-
-SideSeat(framework=Frameworks.LangGraph)
-
-llm = ChatOpenAI(model="gpt-5-mini")
-agent = create_react_agent(llm, tools=[])
-result = agent.invoke({"messages": [("user", "What is 2+2?")]})
-print(result["messages"][-1].content)`,
-    altInstall:
-      "pip install langgraph langchain-openai openinference-instrumentation-langchain opentelemetry-exporter-otlp",
-    altCode: () => `from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from openinference.instrumentation.langchain import LangChainInstrumentor
-
-provider = TracerProvider()
-provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-trace.set_tracer_provider(provider)
-LangChainInstrumentor().instrument()
-
-from langgraph.prebuilt import create_react_agent
-from langchain_openai import ChatOpenAI
-
-llm = ChatOpenAI(model="gpt-5-mini")
-agent = create_react_agent(llm, tools=[])
-result = agent.invoke({"messages": [("user", "What is 2+2?")]})
-print(result["messages"][-1].content)`,
-    run: "python agent.py",
-  },
-  {
-    id: "crewai",
-    name: "CrewAI",
-    lang: "python",
-    docUrl: "https://docs.crewai.com",
-    install: 'pip install crewai "sideseat[crewai]"',
-    code: () => `from sideseat import SideSeat, Frameworks
-from crewai import Agent, Task, Crew
-
-SideSeat(framework=Frameworks.CrewAI)
-
-researcher = Agent(
-    role="Researcher",
-    goal="Find information",
-    backstory="Expert researcher",
-)
-
-task = Task(
-    description="Research AI trends",
-    expected_output="Summary of trends",
-    agent=researcher,
-)
-
-crew = Crew(agents=[researcher], tasks=[task])
-
-result = crew.kickoff()
-print(result)`,
-    altInstall:
-      "pip install crewai openinference-instrumentation-crewai opentelemetry-exporter-otlp",
-    altCode: () => `from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from openinference.instrumentation.crewai import CrewAIInstrumentor
-
-provider = TracerProvider()
-provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-trace.set_tracer_provider(provider)
-CrewAIInstrumentor().instrument()
-
-from crewai import Agent, Task, Crew
-
-researcher = Agent(
-    role="Researcher",
-    goal="Find information",
-    backstory="Expert researcher",
-)
-task = Task(
-    description="Research AI trends",
-    expected_output="Summary of trends",
-    agent=researcher,
-)
-crew = Crew(agents=[researcher], tasks=[task])
-result = crew.kickoff()
-print(result)`,
-    run: "python crew.py",
-  },
-  {
-    id: "autogen",
-    name: "AutoGen",
-    lang: "python",
-    docUrl: "https://microsoft.github.io/autogen/",
-    install: 'pip install autogen-agentchat "sideseat[autogen]"',
-    code: () => `from sideseat import SideSeat, Frameworks
-from autogen import AssistantAgent, UserProxyAgent
-
-SideSeat(framework=Frameworks.AutoGen)
-
-llm_config = {"config_list": [{"model": "gpt-5-mini"}]}
-assistant = AssistantAgent("assistant", llm_config=llm_config)
-user = UserProxyAgent("user", human_input_mode="NEVER")
-user.initiate_chat(assistant, message="Hello!")`,
-    altInstall:
-      "pip install autogen-agentchat openinference-instrumentation-autogen-agentchat opentelemetry-exporter-otlp",
-    altCode: () => `from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from openinference.instrumentation.autogen_agentchat import AutogenInstrumentor
-
-provider = TracerProvider()
-provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-trace.set_tracer_provider(provider)
-AutogenInstrumentor().instrument()
-
-from autogen import AssistantAgent, UserProxyAgent
-
-llm_config = {"config_list": [{"model": "gpt-5-mini"}]}
-assistant = AssistantAgent("assistant", llm_config=llm_config)
-user = UserProxyAgent("user", human_input_mode="NEVER")
-user.initiate_chat(assistant, message="Hello!")`,
-    run: "python autogen_app.py",
-  },
-  {
     id: "openai-agents",
     name: "OpenAI Agents",
+    group: "Frameworks",
     lang: "python",
     docUrl: "https://openai.github.io/openai-agents-python/",
     install: 'pip install openai-agents "sideseat[openai]"',
-    code: () => `from sideseat import SideSeat, Frameworks
-from agents import Agent, Runner
+    code: () => `from agents import Agent, Runner
+from sideseat import SideSeat, Frameworks
 
 SideSeat(framework=Frameworks.OpenAIAgents)
 
@@ -483,15 +627,51 @@ function ProjectSelector({
   );
 }
 
+function transformCode(
+  code: string,
+  lang: "python" | "javascript",
+  opts: { useApiKey: boolean; projectId: string },
+): string {
+  const { useApiKey, projectId } = opts;
+  const nonDefaultProject = projectId !== "default";
+
+  if (lang === "javascript") {
+    if (!useApiKey && !nonDefaultProject) return code;
+    const extraArgs: string[] = [];
+    if (nonDefaultProject) extraArgs.push(`projectId: "${projectId}"`);
+    if (useApiKey) extraArgs.push("apiKey: process.env.SIDESEAT_API_KEY");
+    return code.replace(/init\((\{[^}]*\}|)\)/, (_, existing) => {
+      const inner = existing ? existing.slice(1, -1).trim() : "";
+      const parts = [inner, ...extraArgs].filter(Boolean);
+      return `init({ ${parts.join(", ")} })`;
+    });
+  }
+
+  if (!code.includes("SideSeat(")) return code;
+
+  const extraArgs: string[] = [];
+  if (nonDefaultProject) extraArgs.push(`project_id="${projectId}"`);
+  if (useApiKey) extraArgs.push('api_key=os.environ["SIDESEAT_API_KEY"]');
+
+  if (extraArgs.length === 0) return code;
+
+  const withImport = useApiKey && !code.includes("import os\n") ? "import os\n" + code : code;
+  return withImport.replace(
+    /SideSeat\(framework=([^)]+)\)/,
+    `SideSeat(framework=$1, ${extraArgs.join(", ")})`,
+  );
+}
+
 export default function TelemetryPage() {
-  const [selectedFramework, setSelectedFramework] = useState<string>("strands-python");
+  const [selectedFramework, setSelectedFramework] = useState<string>("bedrock");
+  const [useApiKey, setUseApiKey] = useState(false);
   const [projectId, setProjectId] = useQueryParam("project", withDefault(StringParam, "default"));
   const { hostname, httpPort } = usePorts();
   const endpoint = getEndpoint(hostname, httpPort, projectId);
   const framework = FRAMEWORKS.find((f) => f.id === selectedFramework) ?? FRAMEWORKS[0];
 
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Telemetry Setup</h2>
@@ -509,29 +689,46 @@ export default function TelemetryPage() {
           </p>
         </div>
         <ProjectSelector value={projectId} onChange={setProjectId} />
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="use-api-key"
+            checked={useApiKey}
+            onCheckedChange={(checked) => setUseApiKey(checked === true)}
+          />
+          <Label htmlFor="use-api-key" className="text-sm font-normal cursor-pointer">
+            With API Key
+          </Label>
+        </div>
       </section>
 
       {/* Step 1: Framework */}
-      <section className="space-y-3 sm:space-y-4">
+      <section className="space-y-3">
         <div>
           <h3 className="text-sm font-medium">1. Pick your framework</h3>
         </div>
-        <ToggleGroup
-          type="single"
-          value={selectedFramework}
-          onValueChange={(value) => value && setSelectedFramework(value)}
-          className="flex flex-wrap gap-1"
-        >
-          {FRAMEWORKS.map((f) => (
-            <ToggleGroupItem
-              key={f.id}
-              value={f.id}
-              className="px-2 py-1 text-xs sm:px-3 sm:text-sm"
-            >
-              {f.name}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+        <Select value={selectedFramework} onValueChange={setSelectedFramework}>
+          <SelectTrigger className="w-full sm:w-80">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectLabel>Providers</SelectLabel>
+              {FRAMEWORKS.filter((f) => f.group === "Providers").map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  {f.name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+            <SelectGroup>
+              <SelectLabel>Frameworks</SelectLabel>
+              {FRAMEWORKS.filter((f) => f.group === "Frameworks").map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  {f.name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
       </section>
 
       {/* Step 2: Install & Run */}
@@ -574,7 +771,7 @@ export default function TelemetryPage() {
               </div>
               <div className="space-y-1.5">
                 <p className="text-xs text-muted-foreground">Code</p>
-                <CodeBlock code={framework.code()} label="Setup code" lang={framework.lang} />
+                <CodeBlock code={transformCode(framework.code(), framework.lang, { useApiKey, projectId })} label="Setup code" lang={framework.lang} />
               </div>
             </div>
 
@@ -614,7 +811,7 @@ export default function TelemetryPage() {
             </div>
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-muted-foreground">Code</p>
-              <CodeBlock code={framework.code()} label="Setup code" lang={framework.lang} />
+              <CodeBlock code={transformCode(framework.code(), framework.lang, { useApiKey, projectId })} label="Setup code" lang={framework.lang} />
             </div>
           </>
         )}

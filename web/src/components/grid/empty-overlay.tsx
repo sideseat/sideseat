@@ -30,7 +30,7 @@ export function GridEmptyOverlay(props: GridEmptyOverlayProps) {
     <div className="flex flex-col items-center justify-center gap-2 p-8 pointer-events-auto">
       <p className="text-sm text-muted-foreground">No {entityName} found</p>
       <p className="text-xs text-muted-foreground/70">Try adjusting your filters or time range</p>
-      <Button variant="link" size="sm" className="h-auto p-0 text-xs mt-1" asChild>
+      <Button variant="outline" size="sm" className="mt-2" asChild>
         <Link to={telemetryUrl}>View setup instructions</Link>
       </Button>
     </div>

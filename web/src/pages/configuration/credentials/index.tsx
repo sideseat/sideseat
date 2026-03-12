@@ -213,6 +213,7 @@ function CredentialCard({ credential, orgId, onDelete, onManage }: CredentialCar
                 size="sm"
                 className="ml-auto text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                 onClick={onDelete}
+                aria-label={`Delete credential ${credential.display_name}`}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -246,7 +247,7 @@ export default function CredentialsPage() {
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Model Providers</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage API credentials for LLM providers
+            Manage API credentials for LLM/AI providers
           </p>
         </div>
         <Button onClick={() => setAddOpen(true)}>
@@ -276,7 +277,7 @@ export default function CredentialsPage() {
 
       {/* Empty state */}
       {!isLoading && !error && credentials.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-border/70 bg-muted/40 p-8 text-center">
+        <div className="rounded-2xl border border-dashed border-border/70 bg-muted/40 p-6 text-center">
           <Plug className="mx-auto h-10 w-10 text-muted-foreground/50 mb-3" />
           <p className="font-medium text-sm">No providers configured</p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -291,7 +292,7 @@ export default function CredentialsPage() {
       {/* Env-detected credentials */}
       {!isLoading && !error && envCreds.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <h3 className="text-sm font-medium text-muted-foreground">
             Detected from environment
           </h3>
           <div className="grid gap-4 md:grid-cols-2">
@@ -312,7 +313,7 @@ export default function CredentialsPage() {
       {!isLoading && !error && storedCreds.length > 0 && (
         <div className="space-y-3">
           {envCreds.length > 0 && (
-            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <h3 className="text-sm font-medium text-muted-foreground">
               Configured
             </h3>
           )}

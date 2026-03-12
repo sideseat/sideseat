@@ -46,18 +46,18 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
         id: "bearer",
         label: "Bearer Token",
         fields: [
-          { name: "api_key", label: "Bearer Token", type: "api_key", required: true },
           { name: "region", label: "Region", type: "text", required: true, placeholder: "us-east-1", defaultValue: "us-east-1", inExtraConfig: true },
+          { name: "api_key", label: "Bearer Token", type: "api_key", required: true },
         ],
       },
       {
         id: "access_keys",
         label: "Access Keys",
         fields: [
+          { name: "region", label: "Region", type: "text", required: true, placeholder: "us-east-1", defaultValue: "us-east-1", inExtraConfig: true },
           { name: "access_key_id", label: "Access Key ID", type: "text", required: true, placeholder: "AKIA..." },
           { name: "secret_access_key", label: "Secret Access Key", type: "api_key", required: true },
           { name: "session_token", label: "Session Token", type: "api_key", required: false, description: "Optional — for temporary credentials" },
-          { name: "region", label: "Region", type: "text", required: true, placeholder: "us-east-1", defaultValue: "us-east-1", inExtraConfig: true },
           { name: "role_arn", label: "Assume Role ARN", type: "text", required: false, placeholder: "arn:aws:iam::123456789012:role/MyRole", description: "Optional — assume a role after authenticating", inExtraConfig: true },
           { name: "external_id", label: "External ID", type: "text", required: false, description: "Optional — for cross-account role assumption", inExtraConfig: true },
         ],
@@ -86,8 +86,6 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     abbrev: "OA",
     supportsEndpointOverride: true,
     fields: [
-      { name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "sk-..." },
-      { name: "endpoint_url", label: "Endpoint URL", type: "url", required: false, placeholder: "https://api.openai.com/v1", description: "Override for proxies or OpenAI-compatible APIs", inEndpointUrl: true },
       {
         name: "api_variant",
         label: "API Variant",
@@ -100,6 +98,8 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
           { value: "responses_api", label: "Responses API (stateful)" },
         ],
       },
+      { name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "sk-..." },
+      { name: "endpoint_url", label: "Endpoint URL", type: "url", required: false, placeholder: "https://api.openai.com/v1", description: "Override for proxies or OpenAI-compatible APIs", inEndpointUrl: true },
     ],
   },
   {
@@ -111,7 +111,6 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     abbrev: "GM",
     supportsEndpointOverride: false,
     fields: [
-      { name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "AIzaSy..." },
       {
         name: "api_variant",
         label: "API Variant",
@@ -124,6 +123,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
           { value: "interactions", label: "Interactions API (stateful)" },
         ],
       },
+      { name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "AIzaSy..." },
     ],
   },
   {
@@ -164,8 +164,6 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     abbrev: "AZ",
     supportsEndpointOverride: true,
     fields: [
-      { name: "api_key", label: "API Key", type: "api_key", required: true },
-      { name: "endpoint_url", label: "Endpoint URL", type: "url", required: true, placeholder: "https://your-resource.openai.azure.com/", inEndpointUrl: true },
       {
         name: "api_variant",
         label: "API Variant",
@@ -178,6 +176,8 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
           { value: "v1", label: "Modern Foundry (model in request body)" },
         ],
       },
+      { name: "api_key", label: "API Key", type: "api_key", required: true },
+      { name: "endpoint_url", label: "Endpoint URL", type: "url", required: true, placeholder: "https://your-resource.openai.azure.com/", inEndpointUrl: true },
       { name: "deployment_name", label: "Deployment Name", type: "text", required: false, description: "Required for Standard variant", inExtraConfig: true },
     ],
   },

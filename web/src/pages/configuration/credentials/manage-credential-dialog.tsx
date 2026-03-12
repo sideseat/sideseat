@@ -206,20 +206,20 @@ export function ManageCredentialDialog({
           )}
 
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" onClick={handleTest} disabled={isTesting}>
-              {isTesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Test Connection
+            <Button type="button" variant="outline" onClick={onClose}>
+              Close
             </Button>
             <div className="ml-auto flex items-center gap-2">
+              <Button type="button" variant="outline" onClick={handleTest} disabled={isTesting}>
+                {isTesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Test Connection
+              </Button>
               {activeTab === "general" && (
                 <Button type="button" onClick={handleSave} disabled={isSaving || !displayName.trim()}>
                   {isSaving && <Spinner className="mr-2 h-4 w-4" />}
                   Save
                 </Button>
               )}
-              <Button type="button" variant="outline" onClick={onClose}>
-                Close
-              </Button>
             </div>
           </div>
         </div>
@@ -249,7 +249,7 @@ function GeneralTab({
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto space-y-5 px-0.5 pb-2">
+      <div className="min-h-0 flex-1 overflow-y-auto space-y-5 px-1 py-1">
         <Field>
           <FieldLabel>Display Name</FieldLabel>
           <Input
@@ -280,6 +280,14 @@ function GeneralTab({
         {credential.extra_config &&
           Object.entries(credential.extra_config)
             .filter(([key]) => key !== "auth_mode")
+            .sort(([a], [b]) => {
+              const priority = ["api_variant", "region", "location"];
+              const ai = priority.indexOf(a);
+              const bi = priority.indexOf(b);
+              if (ai !== -1 && bi === -1) return -1;
+              if (bi !== -1 && ai === -1) return 1;
+              return 0;
+            })
             .map(([key, val]) => {
               const fieldDef = getFieldDef(provider, key);
               const label = fieldDef?.label ?? key.replace(/_/g, " ");
@@ -342,7 +350,7 @@ function AccessTab({
         Control which projects can use this credential. By default, all projects have access.
       </p>
 
-      <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-0.5">
+      <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-1 pt-1">
         {permsLoading ? (
           <div className="space-y-2">
             {[1, 2].map((i) => (
