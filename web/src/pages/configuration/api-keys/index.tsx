@@ -75,8 +75,9 @@ export default function ApiKeysPage() {
       {!isLoading && !error && sortedKeys.length === 0 && (
         <div className="rounded-2xl border border-dashed border-border/70 bg-muted/40 p-6 text-center">
           <Key className="mx-auto h-10 w-10 text-muted-foreground/50 mb-3" />
-          <p className="text-sm text-muted-foreground">
-            No API keys yet. Create one to authenticate API requests.
+          <p className="font-medium text-sm">No API keys yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Create one to authenticate programmatic API requests.
           </p>
           <Button onClick={() => setCreateOpen(true)} className="mt-4">
             Create API Key
