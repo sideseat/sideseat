@@ -118,6 +118,18 @@ No authentication is required. SideSeat binds to `127.0.0.1` by default, so only
 | `get_raw_span` | Get raw OTLP span data with all attributes and events |
 | `get_stats` | Cost and token analytics by model, framework, and time period |
 
+## Available Prompts
+
+| Prompt | Argument | Description |
+|--------|----------|-------------|
+| `setup_guide` | `framework` (optional) | Installation and instrumentation instructions for adding SideSeat to an AI application. Returns SDK one-liner and direct OTLP setup. |
+
+Supported `framework` values: `strands`, `langchain`, `langgraph`, `crewai`, `autogen`, `openai-agents`, `pydantic-ai`, `google-adk`, `agent-framework`, `bedrock`, `openai`, `anthropic`, `google-genai`, `vertex-ai`.
+
+Example prompt to your coding agent:
+
+> Use the SideSeat `setup_guide` prompt with `framework=langchain` to add observability to this project.
+
 ## Workflows
 
 ### Prompt Optimization
@@ -187,6 +199,8 @@ npx @modelcontextprotocol/inspector http://localhost:5388/api/v1/projects/defaul
 ```
 
 This opens a web UI where you can list tools, call them interactively, and verify responses.
+
+To verify prompts are available, run `prompts/list` in the MCP inspector. You should see `setup_guide` listed.
 
 ## Next Steps
 
