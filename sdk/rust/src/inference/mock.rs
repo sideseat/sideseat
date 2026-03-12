@@ -12,12 +12,12 @@ use crate::provider::{
     ProviderStream, VideoProvider,
 };
 use crate::types::{
-    AudioFormat, ContentBlock, ContentBlockStart, ContentDelta, EmbeddingRequest, EmbeddingResponse,
-    GeneratedImage, GeneratedVideo, ImageGenerationRequest, ImageGenerationResponse, Message,
-    ModerationCategories, ModerationCategoryScores, ModerationRequest, ModerationResponse,
-    ModerationResult, ProviderConfig, Response, SpeechRequest, SpeechResponse, StopReason,
-    StreamEvent, ToolUseBlock, TranscriptionRequest, TranscriptionResponse, Usage,
-    VideoGenerationRequest, VideoGenerationResponse,
+    AudioFormat, ContentBlock, ContentBlockStart, ContentDelta, EmbeddingRequest,
+    EmbeddingResponse, GeneratedImage, GeneratedVideo, ImageGenerationRequest,
+    ImageGenerationResponse, Message, ModerationCategories, ModerationCategoryScores,
+    ModerationRequest, ModerationResponse, ModerationResult, ProviderConfig, Response,
+    SpeechRequest, SpeechResponse, StopReason, StreamEvent, ToolUseBlock, TranscriptionRequest,
+    TranscriptionResponse, Usage, VideoGenerationRequest, VideoGenerationResponse,
 };
 
 type CallRecord = Arc<Mutex<Vec<(Vec<Message>, ProviderConfig)>>>;
@@ -212,7 +212,11 @@ impl ChatProvider for MockProvider {
             ],
             MockResponse::ToolCall { id, name, input } => {
                 let input_json = serde_json::to_string(&input).unwrap_or_else(|e| {
-                    tracing::warn!("MockProvider: failed to serialize tool input for '{}': {}", name, e);
+                    tracing::warn!(
+                        "MockProvider: failed to serialize tool input for '{}': {}",
+                        name,
+                        e
+                    );
                     String::new()
                 });
                 vec![
@@ -308,7 +312,6 @@ impl ChatProvider for MockProvider {
             }
         }
     }
-
 }
 
 #[async_trait]
@@ -317,7 +320,9 @@ impl ImageProvider for MockProvider {
         &self,
         request: ImageGenerationRequest,
     ) -> Result<ImageGenerationResponse, ProviderError> {
-        self.non_chat_calls.lock().push(NonChatCall::GenerateImage(request));
+        self.non_chat_calls
+            .lock()
+            .push(NonChatCall::GenerateImage(request));
         match self.pop_response() {
             MockResponse::Image(r) => Ok(r),
             MockResponse::Error(e) => Err(e),
@@ -332,7 +337,9 @@ impl VideoProvider for MockProvider {
         &self,
         request: VideoGenerationRequest,
     ) -> Result<VideoGenerationResponse, ProviderError> {
-        self.non_chat_calls.lock().push(NonChatCall::GenerateVideo(request));
+        self.non_chat_calls
+            .lock()
+            .push(NonChatCall::GenerateVideo(request));
         match self.pop_response() {
             MockResponse::Video(r) => Ok(r),
             MockResponse::Error(e) => Err(e),
@@ -348,7 +355,11 @@ impl EmbeddingProvider for MockProvider {
         match self.pop_response() {
             MockResponse::Embedding(r) => Ok(r),
             MockResponse::Error(e) => Err(e),
-            _ => Ok(EmbeddingResponse { embeddings: vec![], usage: Usage::default(), model: None }),
+            _ => Ok(EmbeddingResponse {
+                embeddings: vec![],
+                usage: Usage::default(),
+                model: None,
+            }),
         }
     }
 }
@@ -359,11 +370,16 @@ impl AudioProvider for MockProvider {
         &self,
         request: SpeechRequest,
     ) -> Result<SpeechResponse, ProviderError> {
-        self.non_chat_calls.lock().push(NonChatCall::GenerateSpeech(request));
+        self.non_chat_calls
+            .lock()
+            .push(NonChatCall::GenerateSpeech(request));
         match self.pop_response() {
             MockResponse::Speech(r) => Ok(r),
             MockResponse::Error(e) => Err(e),
-            _ => Ok(SpeechResponse { audio: vec![], format: AudioFormat::Mp3 }),
+            _ => Ok(SpeechResponse {
+                audio: vec![],
+                format: AudioFormat::Mp3,
+            }),
         }
     }
 
@@ -371,7 +387,9 @@ impl AudioProvider for MockProvider {
         &self,
         request: TranscriptionRequest,
     ) -> Result<TranscriptionResponse, ProviderError> {
-        self.non_chat_calls.lock().push(NonChatCall::Transcribe(request.clone()));
+        self.non_chat_calls
+            .lock()
+            .push(NonChatCall::Transcribe(request.clone()));
         match self.pop_response() {
             MockResponse::Transcription(r) => Ok(r),
             MockResponse::Error(e) => Err(e),
@@ -392,11 +410,17 @@ impl ModerationProvider for MockProvider {
         &self,
         request: ModerationRequest,
     ) -> Result<ModerationResponse, ProviderError> {
-        self.non_chat_calls.lock().push(NonChatCall::Moderate(request));
+        self.non_chat_calls
+            .lock()
+            .push(NonChatCall::Moderate(request));
         match self.pop_response() {
             MockResponse::Moderation(r) => Ok(r),
             MockResponse::Error(e) => Err(e),
-            _ => Ok(ModerationResponse { id: String::new(), model: String::new(), results: vec![] }),
+            _ => Ok(ModerationResponse {
+                id: String::new(),
+                model: String::new(),
+                results: vec![],
+            }),
         }
     }
 }

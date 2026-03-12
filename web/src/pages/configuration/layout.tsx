@@ -19,9 +19,9 @@ type ConfigSection = {
 
 const configSections: ConfigSection[] = [
   { id: "telemetry", url: "telemetry", label: "Telemetry", icon: TerminalSquare },
+  { id: "credentials", url: "credentials", label: "Model Providers", icon: Plug },
   { id: "mcp", url: "mcp", label: "MCP Server", icon: Workflow },
   { id: "api-keys", url: "api-keys", label: "API Keys", icon: Key },
-  { id: "credentials", url: "credentials", label: "Model Providers", icon: Plug },
 ];
 
 export default function ConfigurationLayout() {

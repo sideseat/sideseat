@@ -255,19 +255,39 @@ impl KanbanExtension {
     ) {
         let map = Self::cfields_map(board_id);
         if let Some(t) = title {
-            crdt.map_set(&map, &format!("{}:title", card_id), &serde_json::to_string(t).unwrap_or_default());
+            crdt.map_set(
+                &map,
+                &format!("{}:title", card_id),
+                &serde_json::to_string(t).unwrap_or_default(),
+            );
         }
         if let Some(d) = description {
-            crdt.map_set(&map, &format!("{}:desc", card_id), &serde_json::to_string(&d).unwrap_or_default());
+            crdt.map_set(
+                &map,
+                &format!("{}:desc", card_id),
+                &serde_json::to_string(&d).unwrap_or_default(),
+            );
         }
         if let Some(p) = priority {
-            crdt.map_set(&map, &format!("{}:priority", card_id), &serde_json::to_string(&p).unwrap_or_default());
+            crdt.map_set(
+                &map,
+                &format!("{}:priority", card_id),
+                &serde_json::to_string(&p).unwrap_or_default(),
+            );
         }
         if let Some(a) = assignee_id {
-            crdt.map_set(&map, &format!("{}:assignee", card_id), &serde_json::to_string(&a).unwrap_or_default());
+            crdt.map_set(
+                &map,
+                &format!("{}:assignee", card_id),
+                &serde_json::to_string(&a).unwrap_or_default(),
+            );
         }
         if let Some(d) = due_at {
-            crdt.map_set(&map, &format!("{}:due_at", card_id), &serde_json::to_string(&d).unwrap_or_default());
+            crdt.map_set(
+                &map,
+                &format!("{}:due_at", card_id),
+                &serde_json::to_string(&d).unwrap_or_default(),
+            );
         }
     }
 
@@ -278,7 +298,13 @@ impl KanbanExtension {
         card_id: &str,
         cfields_entries: &HashMap<String, String>,
         cmeta_fallback: Option<&CardMeta>,
-    ) -> (String, Option<String>, Option<KanbanCardPriority>, Option<String>, Option<i64>) {
+    ) -> (
+        String,
+        Option<String>,
+        Option<KanbanCardPriority>,
+        Option<String>,
+        Option<i64>,
+    ) {
         let get = |field: &str| cfields_entries.get(&format!("{}:{}", card_id, field));
 
         let title = get("title")
@@ -299,7 +325,9 @@ impl KanbanExtension {
         let assignee_id = get("assignee")
             .and_then(|s| serde_json::from_str::<Option<String>>(s).ok())
             .flatten()
-            .or_else(|| cmeta_fallback.and_then(|m| m.assignee_id.as_ref().map(|u| u.as_str().to_string())));
+            .or_else(|| {
+                cmeta_fallback.and_then(|m| m.assignee_id.as_ref().map(|u| u.as_str().to_string()))
+            });
 
         let due_at = get("due_at")
             .and_then(|s| serde_json::from_str::<Option<i64>>(s).ok())
@@ -340,7 +368,11 @@ impl KanbanExtension {
     }
 
     /// List all non-deleted columns sorted by `position`.
-    pub fn list_columns(&self, crdt: &CrdtExtension, board_id: &KanbanBoardId) -> Vec<KanbanColumn> {
+    pub fn list_columns(
+        &self,
+        crdt: &CrdtExtension,
+        board_id: &KanbanBoardId,
+    ) -> Vec<KanbanColumn> {
         let [cols_entries, coldel_entries]: [HashMap<String, String>; 2] = crdt
             .map_entries_batch(&[&Self::cols_map(board_id), &Self::coldel_map(board_id)])
             .try_into()
@@ -370,7 +402,10 @@ impl KanbanExtension {
         column_id: KanbanColumnId,
         position: u32,
     ) -> Result<(), super::error::CmError> {
-        let pos = CardPos { column_id, position };
+        let pos = CardPos {
+            column_id,
+            position,
+        };
         let json = serde_json::to_string(&pos)
             .map_err(|e| super::error::CmError::Serialization(e.to_string()))?;
         crdt.map_set(&Self::cpos_map(board_id), card_id.as_str(), &json);
@@ -486,7 +521,11 @@ impl KanbanExtension {
             .map_err(|e| super::error::CmError::Serialization(e.to_string()))?;
 
         crdt.map_set(&Self::cpos_map(&card.board_id), card.id.as_str(), &pos_json);
-        crdt.map_set(&Self::cmeta_map(&card.board_id), card.id.as_str(), &meta_json);
+        crdt.map_set(
+            &Self::cmeta_map(&card.board_id),
+            card.id.as_str(),
+            &meta_json,
+        );
         // Per-field writes: Some(v) = "write all fields" (full upsert).
         Self::write_card_fields(
             crdt,
@@ -531,8 +570,14 @@ impl KanbanExtension {
         col_id: Option<&KanbanColumnId>,
     ) -> Vec<KanbanCard> {
         // Single lock acquisition for all 6 maps — prevents torn reads.
-        let [cpos_entries, cmeta_entries, cfields_entries, clabels_entries, cdel_entries, coldel_entries]:
-            [HashMap<String, String>; 6] = crdt
+        let [
+            cpos_entries,
+            cmeta_entries,
+            cfields_entries,
+            clabels_entries,
+            cdel_entries,
+            coldel_entries,
+        ]: [HashMap<String, String>; 6] = crdt
             .map_entries_batch(&[
                 &Self::cpos_map(board_id),
                 &Self::cmeta_map(board_id),
@@ -751,18 +796,27 @@ mod tests {
 
         // cpos must still exist (remove_card only touches cdel).
         let cpos_entries = crdt.map_entries(&KanbanExtension::cpos_map(&board.id));
-        assert!(cpos_entries.contains_key(card.id.as_str()), "cpos must survive remove_card");
+        assert!(
+            cpos_entries.contains_key(card.id.as_str()),
+            "cpos must survive remove_card"
+        );
 
         // cmeta must still have deleted:false (remove_card does NOT touch cmeta).
         let meta_json = crdt
             .map_get(&KanbanExtension::cmeta_map(&board.id), card.id.as_str())
             .unwrap();
         let meta: CardMeta = serde_json::from_str(&meta_json).unwrap();
-        assert!(!meta.deleted, "cmeta.deleted must remain false — tombstone is in cdel");
+        assert!(
+            !meta.deleted,
+            "cmeta.deleted must remain false — tombstone is in cdel"
+        );
 
         // cdel must contain the card id.
         let cdel_entries = crdt.map_entries(&KanbanExtension::cdel_map(&board.id));
-        assert_eq!(cdel_entries.get(card.id.as_str()).map(|s| s.as_str()), Some("1"));
+        assert_eq!(
+            cdel_entries.get(card.id.as_str()).map(|s| s.as_str()),
+            Some("1")
+        );
 
         // list_cards must return empty.
         assert!(ext.list_cards(&crdt, &board.id, None).is_empty());
@@ -787,7 +841,18 @@ mod tests {
 
         // A deletes; B edits title concurrently.
         ext.remove_card(&crdt_a, &board.id, &card.id);
-        ext.patch_card_meta(&crdt_b, &board.id, &card.id, Some("New Title".into()), None, None, None, None, vec![]).unwrap();
+        ext.patch_card_meta(
+            &crdt_b,
+            &board.id,
+            &card.id,
+            Some("New Title".into()),
+            None,
+            None,
+            None,
+            None,
+            vec![],
+        )
+        .unwrap();
 
         // Merge both ways.
         let sv_a = crdt_a.state_vector();
@@ -796,8 +861,14 @@ mod tests {
         crdt_b.merge_raw(&crdt_a.encode_diff(&sv_b)).unwrap();
 
         // On both sides: card must be absent (deletion wins).
-        assert!(ext.list_cards(&crdt_a, &board.id, None).is_empty(), "A: deleted card must not appear");
-        assert!(ext.list_cards(&crdt_b, &board.id, None).is_empty(), "B: deleted card must not appear");
+        assert!(
+            ext.list_cards(&crdt_a, &board.id, None).is_empty(),
+            "A: deleted card must not appear"
+        );
+        assert!(
+            ext.list_cards(&crdt_b, &board.id, None).is_empty(),
+            "B: deleted card must not appear"
+        );
     }
 
     #[test]
@@ -837,10 +908,18 @@ mod tests {
 
         // A writes ONLY the title field (targeted cfields write, no desc).
         let cfields = KanbanExtension::cfields_map(&board.id);
-        crdt_a.map_set(&cfields, &format!("{}:title", card.id.as_str()), r#""New Title""#);
+        crdt_a.map_set(
+            &cfields,
+            &format!("{}:title", card.id.as_str()),
+            r#""New Title""#,
+        );
 
         // B writes ONLY the description field (targeted cfields write, no title).
-        crdt_b.map_set(&cfields, &format!("{}:desc", card.id.as_str()), r#""Desc from B""#);
+        crdt_b.map_set(
+            &cfields,
+            &format!("{}:desc", card.id.as_str()),
+            r#""Desc from B""#,
+        );
 
         // CRDT merge.
         let sv_a = crdt_a.state_vector();
@@ -852,12 +931,20 @@ mod tests {
         let cards_a = ext.list_cards(&crdt_a, &board.id, None);
         assert_eq!(cards_a.len(), 1);
         assert_eq!(cards_a[0].title, "New Title", "A must see own title");
-        assert_eq!(cards_a[0].description.as_deref(), Some("Desc from B"), "A must see B's description");
+        assert_eq!(
+            cards_a[0].description.as_deref(),
+            Some("Desc from B"),
+            "A must see B's description"
+        );
 
         // B must see A's title + its own description.
         let cards_b = ext.list_cards(&crdt_b, &board.id, None);
         assert_eq!(cards_b[0].title, "New Title", "B must see A's title");
-        assert_eq!(cards_b[0].description.as_deref(), Some("Desc from B"), "B must see own description");
+        assert_eq!(
+            cards_b[0].description.as_deref(),
+            Some("Desc from B"),
+            "B must see own description"
+        );
     }
 
     #[test]
@@ -879,7 +966,8 @@ mod tests {
         crdt_b.merge_raw(&crdt_a.full_state()).unwrap();
 
         // A moves the card to col2.
-        ext.move_card(&crdt_a, &board.id, &card.id, col2.id.clone(), 0).unwrap();
+        ext.move_card(&crdt_a, &board.id, &card.id, col2.id.clone(), 0)
+            .unwrap();
 
         // B edits the title.
         ext.patch_card_meta(
@@ -943,12 +1031,20 @@ mod tests {
         assert_eq!(cards_a.len(), 1);
         let mut labels_a = cards_a[0].labels.clone();
         labels_a.sort();
-        assert_eq!(labels_a, vec!["bug", "feature"], "both labels must survive merge");
+        assert_eq!(
+            labels_a,
+            vec!["bug", "feature"],
+            "both labels must survive merge"
+        );
 
         let cards_b = ext.list_cards(&crdt_b, &board.id, None);
         let mut labels_b = cards_b[0].labels.clone();
         labels_b.sort();
-        assert_eq!(labels_b, vec!["bug", "feature"], "both clients must converge on labels");
+        assert_eq!(
+            labels_b,
+            vec!["bug", "feature"],
+            "both clients must converge on labels"
+        );
     }
 
     #[test]
@@ -992,10 +1088,16 @@ mod tests {
 
         ext.upsert_column(&writer_crdt, &col).unwrap();
         ext.upsert_card(&writer_crdt, &card).unwrap();
-        writer_crdt.push(&conv, &branch, backend.as_ref()).await.unwrap();
+        writer_crdt
+            .push(&conv, &branch, backend.as_ref())
+            .await
+            .unwrap();
 
         let reader_crdt = CrdtExtension::new("reader");
-        reader_crdt.pull(&conv, &branch, backend.as_ref()).await.unwrap();
+        reader_crdt
+            .pull(&conv, &branch, backend.as_ref())
+            .await
+            .unwrap();
 
         let cols = ext.list_columns(&reader_crdt, &board.id);
         assert_eq!(cols.len(), 1);

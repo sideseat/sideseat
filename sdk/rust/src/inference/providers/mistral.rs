@@ -70,7 +70,9 @@ pub struct MistralProvider {
 impl MistralProvider {
     /// Create a provider from the `MISTRAL_API_KEY` environment variable.
     pub fn from_env() -> Result<Self, ProviderError> {
-        Ok(Self::new(crate::env::require(crate::env::keys::MISTRAL_API_KEY)?))
+        Ok(Self::new(crate::env::require(
+            crate::env::keys::MISTRAL_API_KEY,
+        )?))
     }
 
     /// Create a provider with a direct Mistral API key.
@@ -97,7 +99,12 @@ impl MistralProvider {
     /// Sets both `{base}/chat/completions` and `{base}` for embeddings/models.
     pub fn with_api_base(mut self, base: impl Into<String>) -> Self {
         let base = base.into();
-        if let MistralBackend::Direct { ref mut chat_url, ref mut api_base, .. } = self.backend {
+        if let MistralBackend::Direct {
+            ref mut chat_url,
+            ref mut api_base,
+            ..
+        } = self.backend
+        {
             *chat_url = format!("{}/chat/completions", base);
             *api_base = base;
         }
@@ -161,8 +168,14 @@ impl Provider for MistralProvider {
 
     async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
         match &self.backend {
-            MistralBackend::Direct { api_key, api_base, .. } => {
-                let inner = OpenAIInnerClient::new(api_key.as_str(), Arc::clone(&self.client), api_base.as_str());
+            MistralBackend::Direct {
+                api_key, api_base, ..
+            } => {
+                let inner = OpenAIInnerClient::new(
+                    api_key.as_str(),
+                    Arc::clone(&self.client),
+                    api_base.as_str(),
+                );
                 inner.list_models().await
             }
             MistralBackend::Bedrock { .. } => Err(ProviderError::Unsupported(
@@ -484,14 +497,12 @@ impl ChatProvider for MistralProvider {
         config: ProviderConfig,
     ) -> Result<crate::types::Response, ProviderError> {
         match &self.backend {
-            MistralBackend::Direct { api_key, chat_url, .. } => {
+            MistralBackend::Direct {
+                api_key, chat_url, ..
+            } => {
                 let body = build_request(&messages, &config, false)?;
 
-                let mut req_builder = self
-                    .client
-                    .post(chat_url)
-                    .bearer_auth(api_key)
-                    .json(&body);
+                let mut req_builder = self.client.post(chat_url).bearer_auth(api_key).json(&body);
                 if let Some(ms) = config.timeout_ms {
                     req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
                 }
@@ -523,7 +534,8 @@ impl ChatProvider for MistralProvider {
                         .map_err(|_| ProviderError::Timeout { ms: Some(ms) })?
                         .map_err(|e| classify_bedrock_error(format!("{e:?}")))?
                 } else {
-                    fut.await.map_err(|e| classify_bedrock_error(format!("{e:?}")))?
+                    fut.await
+                        .map_err(|e| classify_bedrock_error(format!("{e:?}")))?
                 };
 
                 let json: Value = serde_json::from_slice(resp.body.as_ref())
@@ -550,12 +562,11 @@ impl ChatProvider for MistralProvider {
 
 #[async_trait]
 impl EmbeddingProvider for MistralProvider {
-    async fn embed(
-        &self,
-        request: EmbeddingRequest,
-    ) -> Result<EmbeddingResponse, ProviderError> {
+    async fn embed(&self, request: EmbeddingRequest) -> Result<EmbeddingResponse, ProviderError> {
         match &self.backend {
-            MistralBackend::Direct { api_key, api_base, .. } => {
+            MistralBackend::Direct {
+                api_key, api_base, ..
+            } => {
                 let inner = OpenAIInnerClient::new(
                     api_key.as_str(),
                     Arc::clone(&self.client),
@@ -634,7 +645,11 @@ fn build_request(
         Some(ResponseFormat::Json) => {
             req["response_format"] = json!({"type": "json_object"});
         }
-        Some(ResponseFormat::JsonSchema { name, schema, strict }) => {
+        Some(ResponseFormat::JsonSchema {
+            name,
+            schema,
+            strict,
+        }) => {
             let mut s = schema.clone();
             if *strict && let Some(obj) = s.as_object_mut() {
                 obj.entry("additionalProperties").or_insert(json!(false));
@@ -680,14 +695,23 @@ fn format_messages(messages: &[Message], system: Option<&str>) -> Result<Value, 
         };
 
         // Tool results
-        let has_tool_results = msg.content.iter().any(|b| matches!(b, ContentBlock::ToolResult(_)));
+        let has_tool_results = msg
+            .content
+            .iter()
+            .any(|b| matches!(b, ContentBlock::ToolResult(_)));
         if (role == "user" || role == "tool") && has_tool_results {
             for block in &msg.content {
                 if let ContentBlock::ToolResult(tr) = block {
                     let content_str: String = tr
                         .content
                         .iter()
-                        .filter_map(|b| if let ContentBlock::Text(t) = b { Some(t.text.as_str()) } else { None })
+                        .filter_map(|b| {
+                            if let ContentBlock::Text(t) = b {
+                                Some(t.text.as_str())
+                            } else {
+                                None
+                            }
+                        })
                         .collect::<Vec<_>>()
                         .join("\n");
                     result.push(json!({
@@ -697,7 +721,9 @@ fn format_messages(messages: &[Message], system: Option<&str>) -> Result<Value, 
                     }));
                 }
             }
-            let other: Vec<&ContentBlock> = msg.content.iter()
+            let other: Vec<&ContentBlock> = msg
+                .content
+                .iter()
                 .filter(|b| !matches!(b, ContentBlock::ToolResult(_)))
                 .collect();
             if !other.is_empty() {
@@ -709,18 +735,40 @@ fn format_messages(messages: &[Message], system: Option<&str>) -> Result<Value, 
 
         // Assistant tool calls
         if role == "assistant" {
-            let tool_uses: Vec<_> = msg.content.iter()
-                .filter_map(|b| if let ContentBlock::ToolUse(tu) = b { Some(tu) } else { None })
+            let tool_uses: Vec<_> = msg
+                .content
+                .iter()
+                .filter_map(|b| {
+                    if let ContentBlock::ToolUse(tu) = b {
+                        Some(tu)
+                    } else {
+                        None
+                    }
+                })
                 .collect();
             if !tool_uses.is_empty() {
-                let tool_calls: Vec<Value> = tool_uses.iter().map(|tu| json!({
-                    "id": tu.id,
-                    "type": "function",
-                    "function": { "name": tu.name, "arguments": tu.input.to_string() }
-                })).collect();
-                let text: String = msg.content.iter()
-                    .filter_map(|b| if let ContentBlock::Text(t) = b { Some(t.text.as_str()) } else { None })
-                    .collect::<Vec<_>>().join("");
+                let tool_calls: Vec<Value> = tool_uses
+                    .iter()
+                    .map(|tu| {
+                        json!({
+                            "id": tu.id,
+                            "type": "function",
+                            "function": { "name": tu.name, "arguments": tu.input.to_string() }
+                        })
+                    })
+                    .collect();
+                let text: String = msg
+                    .content
+                    .iter()
+                    .filter_map(|b| {
+                        if let ContentBlock::Text(t) = b {
+                            Some(t.text.as_str())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("");
                 let mut am = json!({"role": "assistant", "tool_calls": tool_calls});
                 if !text.is_empty() {
                     am["content"] = json!(text);
@@ -737,7 +785,9 @@ fn format_messages(messages: &[Message], system: Option<&str>) -> Result<Value, 
 }
 
 fn format_content_parts(blocks: &[ContentBlock]) -> Result<Value, ProviderError> {
-    if blocks.len() == 1 && let ContentBlock::Text(t) = &blocks[0] {
+    if blocks.len() == 1
+        && let ContentBlock::Text(t) = &blocks[0]
+    {
         return Ok(json!(t.text));
     }
     let parts: Result<Vec<Value>, _> = blocks.iter().map(format_content_part).collect();
@@ -767,16 +817,25 @@ fn format_image_part(img: &ImageContent) -> Result<Value, ProviderError> {
             };
             format!("data:{};base64,{}", mime, b64.data)
         }
-        _ => return Err(ProviderError::Unsupported(
-            "Mistral only supports URL or base64 image sources".into(),
-        )),
+        _ => {
+            return Err(ProviderError::Unsupported(
+                "Mistral only supports URL or base64 image sources".into(),
+            ));
+        }
     };
     Ok(json!({"type": "image_url", "image_url": {"url": url}}))
 }
 
 fn text_content(blocks: &[ContentBlock]) -> String {
-    blocks.iter()
-        .filter_map(|b| if let ContentBlock::Text(t) = b { Some(t.text.as_str()) } else { None })
+    blocks
+        .iter()
+        .filter_map(|b| {
+            if let ContentBlock::Text(t) = b {
+                Some(t.text.as_str())
+            } else {
+                None
+            }
+        })
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -786,14 +845,19 @@ fn text_content(blocks: &[ContentBlock]) -> String {
 // ---------------------------------------------------------------------------
 
 fn format_tools(tools: &[Tool]) -> Value {
-    let arr: Vec<Value> = tools.iter().map(|t| json!({
-        "type": "function",
-        "function": {
-            "name": t.name,
-            "description": t.description,
-            "parameters": t.input_schema,
-        }
-    })).collect();
+    let arr: Vec<Value> = tools
+        .iter()
+        .map(|t| {
+            json!({
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.input_schema,
+                }
+            })
+        })
+        .collect();
     json!(arr)
 }
 
@@ -813,11 +877,13 @@ fn format_tool_choice(tc: &ToolChoice) -> Value {
 // ---------------------------------------------------------------------------
 
 fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError> {
-    let choices = json["choices"].as_array().ok_or_else(|| {
-        ProviderError::Serialization("Mistral response missing 'choices'".into())
-    })?;
+    let choices = json["choices"]
+        .as_array()
+        .ok_or_else(|| ProviderError::Serialization("Mistral response missing 'choices'".into()))?;
     if choices.is_empty() {
-        return Err(ProviderError::Serialization("Mistral response has empty 'choices'".into()));
+        return Err(ProviderError::Serialization(
+            "Mistral response has empty 'choices'".into(),
+        ));
     }
 
     let message = &choices[0]["message"];
@@ -867,13 +933,22 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
 
 fn classify_bedrock_error(msg: String) -> ProviderError {
     if msg.contains("ThrottlingException") || msg.to_lowercase().contains("throttl") {
-        ProviderError::TooManyRequests { message: msg, retry_after_secs: None }
+        ProviderError::TooManyRequests {
+            message: msg,
+            retry_after_secs: None,
+        }
     } else if msg.contains("ModelTimeoutException") {
         ProviderError::Timeout { ms: None }
     } else if msg.contains("ValidationException") {
-        ProviderError::Api { status: 400, message: msg }
+        ProviderError::Api {
+            status: 400,
+            message: msg,
+        }
     } else {
-        ProviderError::Api { status: 0, message: msg }
+        ProviderError::Api {
+            status: 0,
+            message: msg,
+        }
     }
 }
 
@@ -1008,7 +1083,9 @@ mod tests {
             "usage": {"prompt_tokens": 15, "completion_tokens": 8, "total_tokens": 23}
         });
         let resp = parse_response(&json).unwrap();
-        assert!(matches!(&resp.content[0], ContentBlock::ToolUse(tu) if tu.name == "get_weather" && tu.id == "D681PevKs"));
+        assert!(
+            matches!(&resp.content[0], ContentBlock::ToolUse(tu) if tu.name == "get_weather" && tu.id == "D681PevKs")
+        );
         assert!(matches!(resp.stop_reason, StopReason::ToolUse));
     }
 
@@ -1018,7 +1095,9 @@ mod tests {
         assert_eq!(format_tool_choice(&ToolChoice::None), json!("none"));
         assert_eq!(format_tool_choice(&ToolChoice::Any), json!("any"));
         assert_eq!(
-            format_tool_choice(&ToolChoice::Tool { name: "my_fn".into() }),
+            format_tool_choice(&ToolChoice::Tool {
+                name: "my_fn".into()
+            }),
             json!({"type": "function", "function": {"name": "my_fn"}})
         );
     }

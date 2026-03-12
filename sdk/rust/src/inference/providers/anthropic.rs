@@ -74,7 +74,9 @@ pub struct AnthropicProvider {
 impl AnthropicProvider {
     /// Create a provider from the `ANTHROPIC_API_KEY` environment variable.
     pub fn from_env() -> Result<Self, ProviderError> {
-        Ok(Self::new(crate::env::require(crate::env::keys::ANTHROPIC_API_KEY)?))
+        Ok(Self::new(crate::env::require(
+            crate::env::keys::ANTHROPIC_API_KEY,
+        )?))
     }
 
     /// Create a direct Anthropic API provider.
@@ -469,7 +471,8 @@ impl ChatProvider for AnthropicProvider {
                         .map_err(|_| ProviderError::Timeout { ms: Some(ms) })?
                         .map_err(|e| classify_bedrock_sdk_error(format!("{e:?}")))?
                 } else {
-                    fut.await.map_err(|e| classify_bedrock_sdk_error(format!("{e:?}")))?
+                    fut.await
+                        .map_err(|e| classify_bedrock_sdk_error(format!("{e:?}")))?
                 };
                 let json: Value = serde_json::from_slice(resp.body.as_ref())
                     .map_err(|e| ProviderError::Serialization(e.to_string()))?;
@@ -959,7 +962,10 @@ fn parse_sse_events(data: &str) -> Vec<Result<StreamEvent, ProviderError>> {
                 .unwrap_or("end_turn");
             let stop_reason = if stop_reason_str == "stop_sequence" {
                 StopReason::StopSequence(
-                    parsed["delta"]["stop_sequence"].as_str().unwrap_or("").to_string(),
+                    parsed["delta"]["stop_sequence"]
+                        .as_str()
+                        .unwrap_or("")
+                        .to_string(),
                 )
             } else {
                 parse_stop_reason(stop_reason_str)
@@ -998,11 +1004,17 @@ fn parse_sse_events(data: &str) -> Vec<Result<StreamEvent, ProviderError>> {
 
 fn classify_bedrock_sdk_error(msg: String) -> ProviderError {
     if msg.contains("ThrottlingException") || msg.to_lowercase().contains("throttl") {
-        ProviderError::TooManyRequests { message: msg, retry_after_secs: None }
+        ProviderError::TooManyRequests {
+            message: msg,
+            retry_after_secs: None,
+        }
     } else if msg.contains("ModelTimeoutException") {
         ProviderError::Timeout { ms: None }
     } else {
-        ProviderError::Api { status: 0, message: msg }
+        ProviderError::Api {
+            status: 0,
+            message: msg,
+        }
     }
 }
 
@@ -1040,9 +1052,9 @@ fn parse_response(json: &Value) -> Result<crate::types::Response, ProviderError>
 
     let model = json["model"].as_str().map(|s| s.to_string());
     let id = json["id"].as_str().map(|s| s.to_string());
-    let container = json.get("container").and_then(|c| {
-        serde_json::from_value::<ContainerInfo>(c.clone()).ok()
-    });
+    let container = json
+        .get("container")
+        .and_then(|c| serde_json::from_value::<ContainerInfo>(c.clone()).ok());
 
     Ok(crate::types::Response {
         content,
@@ -1086,7 +1098,11 @@ fn parse_content_block(block: &Value) -> Option<ContentBlock> {
                 "url" => MediaSource::Url(source["url"].as_str()?.to_string()),
                 _ => return None,
             };
-            Some(ContentBlock::Image(ImageContent { source: src, format: None, detail: None }))
+            Some(ContentBlock::Image(ImageContent {
+                source: src,
+                format: None,
+                detail: None,
+            }))
         }
         _ => None,
     }

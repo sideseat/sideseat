@@ -10,29 +10,31 @@ The JavaScript SDK provides two initialization functions: `init()` for synchrono
 ## init()
 
 ```typescript
-function init(options?: SideSeatOptions): SideSeat;
+function init(options: SideSeatOptions): SideSeat;
 ```
 
 Synchronous initialization. Returns a `SideSeat` instance.
 
 ### Parameters
 
-#### `options` (optional)
+#### `options`
 
 ```typescript
 interface SideSeatOptions {
+  framework: Framework | string;  // required
   disabled?: boolean;
   endpoint?: string;
   apiKey?: string;
   projectId?: string;
   serviceName?: string;
   serviceVersion?: string;
-  framework?: Framework | string;
   enableTraces?: boolean;
   logLevel?: LogLevel;
   debug?: boolean;
 }
 ```
+
+`framework` is required. Omitting it throws a `SideSeatError` at runtime. Use a `Frameworks.*` constant.
 
 See [Configuration](/docs/sdks/javascript/configuration/) for details on each option.
 
@@ -51,8 +53,8 @@ When called, `init()`:
 The function is idempotent. Multiple calls return the existing instance:
 
 ```typescript
-const a = init();   // Initializes OpenTelemetry
-const b = init();   // Returns same instance, logs warning
+const a = init({ framework: Frameworks.VercelAI });   // Initializes OpenTelemetry
+const b = init({ framework: Frameworks.VercelAI });   // Returns same instance, logs warning
 console.log(a === b); // true
 ```
 
@@ -63,13 +65,14 @@ Once initialized, the configuration cannot be changed. If you need different set
 ### Examples
 
 ```typescript
-import { init } from '@sideseat/sdk';
+import { init, Frameworks } from '@sideseat/sdk';
 
 // Minimal
-init();
+init({ framework: Frameworks.VercelAI });
 
 // With options
 const client = init({
+  framework: Frameworks.Strands,
   endpoint: 'http://sideseat.example.com:5388',
   projectId: 'my-project',
   serviceName: 'my-ai-agent',
@@ -77,7 +80,7 @@ const client = init({
 });
 
 // Environment-based
-init({ debug: process.env.NODE_ENV !== 'production' });
+init({ framework: Frameworks.VercelAI, debug: process.env.NODE_ENV !== 'production' });
 ```
 
 ## createClient()
@@ -116,9 +119,9 @@ function getClient(): SideSeat;
 Get the global SideSeat instance. Throws `SideSeatError` if not initialized.
 
 ```typescript
-import { init, getClient } from '@sideseat/sdk';
+import { init, getClient, Frameworks } from '@sideseat/sdk';
 
-init();
+init({ framework: Frameworks.VercelAI });
 
 // Later, in another module
 const client = getClient();
@@ -151,10 +154,10 @@ Check whether SideSeat has been initialized.
 After initialization, any code using `@opentelemetry/api` will use the configured provider:
 
 ```typescript
-import { init } from '@sideseat/sdk';
+import { init, Frameworks } from '@sideseat/sdk';
 import { trace } from '@opentelemetry/api';
 
-init();
+init({ framework: Frameworks.VercelAI });
 
 // This tracer uses the SideSeat-configured provider
 const tracer = trace.getTracer('my-module');
@@ -165,44 +168,40 @@ const tracer = trace.getTracer('my-module');
 ### Vercel AI SDK
 
 ```typescript
-import { init } from '@sideseat/sdk';
+import { init, Frameworks } from '@sideseat/sdk';
 import { generateText } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { bedrock } from '@ai-sdk/amazon-bedrock';
 
-init();
+init({ framework: Frameworks.VercelAI });
 
 const { text } = await generateText({
-  model: openai('gpt-5-mini'),
+  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
   prompt: 'Hello!',
   experimental_telemetry: { isEnabled: true },
 });
 ```
 
-### Anthropic SDK
+### Strands (TypeScript)
 
 ```typescript
-import { init } from '@sideseat/sdk';
-import Anthropic from '@anthropic-ai/sdk';
+import { init, Frameworks } from '@sideseat/sdk';
+import { Agent } from '@strands-agents/sdk';
 
-init();
+init({ framework: Frameworks.Strands });
 
-const client = new Anthropic();
-
-const message = await client.messages.create({
-  model: 'claude-sonnet-4-5-20250929',
-  max_tokens: 1024,
-  messages: [{ role: 'user', content: 'Hello!' }]
-});
+const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
+const result = await agent.invoke('Hello!');
+console.log(result.toString());
 ```
 
 ### Express
 
 ```typescript
-import { init } from '@sideseat/sdk';
+import { init, Frameworks } from '@sideseat/sdk';
 import express from 'express';
 
 // Initialize before creating the app
-init();
+init({ framework: Frameworks.VercelAI });
 
 const app = express();
 

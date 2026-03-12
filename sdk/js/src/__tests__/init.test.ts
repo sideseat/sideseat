@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { VERSION } from "../version.js";
-import { init, shutdown } from "../index.js";
+import { init, shutdown, Frameworks } from "../index.js";
 
 describe("sideseat sdk", () => {
   it("exports VERSION", () => {
@@ -16,7 +16,7 @@ describe("init", () => {
   });
 
   it("returns a SideSeat instance", () => {
-    const result = init({ disabled: true });
+    const result = init({ framework: Frameworks.VercelAI, disabled: true });
     expect(result).toBeDefined();
   });
 });

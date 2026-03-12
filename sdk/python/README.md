@@ -110,11 +110,12 @@ pip install "sideseat[openai]"          # + OpenAI / OpenAI Agents
 pip install "sideseat[anthropic]"       # + Anthropic
 pip install "sideseat[aws]"             # + Amazon Bedrock
 pip install "sideseat[google-genai]"    # + Google Gemini
+pip install "sideseat[vertex-ai]"       # + Google Vertex AI (native SDK)
 
 pip install "sideseat[all]"             # All frameworks + providers
 ```
 
-Strands Agents and Google ADK require only the core SDK.
+Strands Agents, Google ADK, and Microsoft Agent Framework require only the core SDK.
 
 ## Framework Examples
 

@@ -78,7 +78,10 @@ pub fn require_any(names: &[&str]) -> Result<String, ProviderError> {
             return Ok(v);
         }
     }
-    Err(ProviderError::MissingConfig(format!("{} not set", names.join(" or "))))
+    Err(ProviderError::MissingConfig(format!(
+        "{} not set",
+        names.join(" or ")
+    )))
 }
 
 /// Read an optional env var, returning `None` if absent.

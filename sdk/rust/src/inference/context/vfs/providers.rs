@@ -6,8 +6,8 @@ use async_trait::async_trait;
 use parking_lot::Mutex;
 
 use super::super::error::CmError;
-use super::{FileEntry, FileMeta};
 use super::super::types::now_micros;
+use super::{FileEntry, FileMeta};
 
 fn system_time_to_micros(t: SystemTime) -> i64 {
     t.duration_since(SystemTime::UNIX_EPOCH)
@@ -28,12 +28,18 @@ pub(super) fn normalize_path(path: &str) -> String {
 fn validate_local_path(path: &str) -> Result<(), CmError> {
     use std::path::Component;
     if path.contains('\0') {
-        return Err(CmError::FsError(format!("Invalid path (null byte): {path}")));
+        return Err(CmError::FsError(format!(
+            "Invalid path (null byte): {path}"
+        )));
     }
     for component in std::path::Path::new(path).components() {
         match component {
             Component::Normal(_) | Component::CurDir => {}
-            _ => return Err(CmError::FsError(format!("Invalid path component in: {path}"))),
+            _ => {
+                return Err(CmError::FsError(format!(
+                    "Invalid path component in: {path}"
+                )));
+            }
         }
     }
     Ok(())
@@ -45,12 +51,7 @@ fn validate_local_path(path: &str) -> Result<(), CmError> {
 
 #[async_trait]
 pub trait FsProvider: Send + Sync {
-    async fn write(
-        &self,
-        path: &str,
-        data: &[u8],
-        mime_type: &str,
-    ) -> Result<FileMeta, CmError>;
+    async fn write(&self, path: &str, data: &[u8], mime_type: &str) -> Result<FileMeta, CmError>;
 
     async fn read(&self, path: &str) -> Result<Vec<u8>, CmError>;
 
@@ -82,7 +83,9 @@ pub struct MemoryFsProvider {
 
 impl MemoryFsProvider {
     pub fn new() -> Self {
-        Self { files: Mutex::new(HashMap::new()) }
+        Self {
+            files: Mutex::new(HashMap::new()),
+        }
     }
 }
 
@@ -94,12 +97,7 @@ impl Default for MemoryFsProvider {
 
 #[async_trait]
 impl FsProvider for MemoryFsProvider {
-    async fn write(
-        &self,
-        path: &str,
-        data: &[u8],
-        mime_type: &str,
-    ) -> Result<FileMeta, CmError> {
+    async fn write(&self, path: &str, data: &[u8], mime_type: &str) -> Result<FileMeta, CmError> {
         let key = normalize_path(path);
         let now = now_micros();
         let size = data.len() as u64;
@@ -197,7 +195,11 @@ impl FsProvider for MemoryFsProvider {
                     format!("{normalized}/{dir_name}")
                 };
                 if seen_dirs.insert(dir_path.clone()) {
-                    entries.push(FileEntry { path: dir_path, is_dir: true, meta: None });
+                    entries.push(FileEntry {
+                        path: dir_path,
+                        is_dir: true,
+                        meta: None,
+                    });
                 }
             } else if !remainder.is_empty() {
                 entries.push(FileEntry {
@@ -234,18 +236,15 @@ pub struct LocalFsProvider {
 
 impl LocalFsProvider {
     pub fn new(base_path: impl Into<PathBuf>) -> Self {
-        Self { base_path: base_path.into() }
+        Self {
+            base_path: base_path.into(),
+        }
     }
 }
 
 #[async_trait]
 impl FsProvider for LocalFsProvider {
-    async fn write(
-        &self,
-        path: &str,
-        data: &[u8],
-        mime_type: &str,
-    ) -> Result<FileMeta, CmError> {
+    async fn write(&self, path: &str, data: &[u8], mime_type: &str) -> Result<FileMeta, CmError> {
         validate_local_path(path)?;
         let full_path = self.base_path.join(path);
         if let Some(parent) = full_path.parent() {
@@ -356,7 +355,11 @@ impl FsProvider for LocalFsProvider {
             };
 
             if file_type.is_dir() {
-                entries.push(FileEntry { path: entry_path, is_dir: true, meta: None });
+                entries.push(FileEntry {
+                    path: entry_path,
+                    is_dir: true,
+                    meta: None,
+                });
             } else {
                 let fs_meta = entry
                     .metadata()
@@ -406,7 +409,10 @@ mod tests {
     async fn memory_provider_write_read_delete() {
         let provider = MemoryFsProvider::new();
 
-        let meta = provider.write("test/file.txt", b"hello", "text/plain").await.unwrap();
+        let meta = provider
+            .write("test/file.txt", b"hello", "text/plain")
+            .await
+            .unwrap();
         assert_eq!(meta.size_bytes, 5);
         assert_eq!(meta.mime_type, "text/plain");
 
@@ -422,7 +428,10 @@ mod tests {
     #[tokio::test]
     async fn memory_provider_metadata() {
         let provider = MemoryFsProvider::new();
-        provider.write("doc.pdf", b"pdf data", "application/pdf").await.unwrap();
+        provider
+            .write("doc.pdf", b"pdf data", "application/pdf")
+            .await
+            .unwrap();
 
         let meta = provider.metadata("doc.pdf").await.unwrap();
         assert_eq!(meta.size_bytes, 8);
@@ -458,7 +467,10 @@ mod tests {
         let provider = LocalFsProvider::new(dir.path());
 
         let data = b"hello artifact";
-        let meta = provider.write("test/file.txt", data, "text/plain").await.unwrap();
+        let meta = provider
+            .write("test/file.txt", data, "text/plain")
+            .await
+            .unwrap();
         assert_eq!(meta.size_bytes, data.len() as u64);
 
         assert!(provider.exists("test/file.txt").await.unwrap());

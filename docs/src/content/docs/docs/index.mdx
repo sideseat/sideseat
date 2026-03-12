@@ -1,9 +1,10 @@
 ---
-title: Docs
+title: SideSeat
 description: Start here to run SideSeat locally, instrument your agent, and debug runs in the workbench.
 ---
 
 import { Card, CardGrid, Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import FrameworkDropdown from '../../../components/FrameworkDropdown.astro';
 
 AI agents are hard to debug. Requests fly by, context builds up, and when something fails you're left guessing. SideSeat captures every LLM call, tool call, and agent decision, then displays them in a web UI as they happen.
 
@@ -26,9 +27,9 @@ AI agents are hard to debug. Requests fly by, context builds up, and when someth
        uv add strands-agents sideseat
        ```
      </TabItem>
-     <TabItem label="JavaScript">
+     <TabItem label="TypeScript">
        ```bash
-       npm install ai @ai-sdk/amazon-bedrock @sideseat/sdk
+       npm install @strands-agents/sdk @sideseat/sdk
        ```
      </TabItem>
    </Tabs>
@@ -47,19 +48,16 @@ AI agents are hard to debug. Requests fly by, context builds up, and when someth
        agent("Analyze this dataset...")
        ```
      </TabItem>
-     <TabItem label="JavaScript">
+     <TabItem label="TypeScript">
        ```typescript
-       import { generateText } from "ai";
-       import { bedrock } from "@ai-sdk/amazon-bedrock";
-       import { init } from "@sideseat/sdk";
+       import { init, Frameworks } from "@sideseat/sdk";
+       import { Agent } from "@strands-agents/sdk";
 
-       init();   // add this
+       init({ framework: Frameworks.Strands });   // add this
 
-       const { text } = await generateText({
-         model: bedrock("anthropic.claude-sonnet-4-5-20250929-v1:0"),
-         prompt: "Analyze this dataset...",
-         experimental_telemetry: { isEnabled: true },
-       });
+       const agent = new Agent({ model: "global.anthropic.claude-haiku-4-5-20251001-v1:0" });
+       const result = await agent.invoke("Analyze this dataset...");
+       console.log(result.toString());
        ```
      </TabItem>
    </Tabs>
@@ -69,134 +67,161 @@ Open [http://localhost:5388](http://localhost:5388). You'll see a live timeline 
 
 ## Framework Examples
 
-<Tabs>
-  <TabItem label="Strands">
-    ```python
-    from sideseat import SideSeat, Frameworks
-    from strands import Agent
+<FrameworkDropdown items={[
+  {
+    label: "Strands (Python)",
+    lang: "python",
+    code: `from sideseat import SideSeat, Frameworks
+from strands import Agent
 
-    SideSeat(framework=Frameworks.Strands)
+SideSeat(framework=Frameworks.Strands)
 
-    agent = Agent()
-    response = agent("What is 2+2?")
-    print(response)
-    ```
-  </TabItem>
-  <TabItem label="Vercel&nbsp;AI">
-    ```typescript
-    import { init } from '@sideseat/sdk';
-    import { generateText } from 'ai';
-    import { bedrock } from '@ai-sdk/amazon-bedrock';
+agent = Agent()
+response = agent("What is 2+2?")
+print(response)`,
+  },
+  {
+    label: "Strands (TypeScript)",
+    lang: "typescript",
+    code: `import { init, Frameworks } from '@sideseat/sdk';
+import { Agent } from '@strands-agents/sdk';
 
-    init();
+init({ framework: Frameworks.Strands });
 
-    const { text } = await generateText({
-      model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
-      prompt: 'What is 2+2?',
-      experimental_telemetry: { isEnabled: true },
-    });
+const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
+const result = await agent.invoke('What is 2+2?');
+console.log(result.toString());`,
+  },
+  {
+    label: "Vercel AI SDK",
+    lang: "typescript",
+    code: `import { init, Frameworks } from '@sideseat/sdk';
+import { generateText } from 'ai';
+import { bedrock } from '@ai-sdk/amazon-bedrock';
 
-    console.log(text);
-    ```
-  </TabItem>
-  <TabItem label="Google&nbsp;ADK">
-    ```python
-    import asyncio
-    from sideseat import SideSeat, Frameworks
-    from google.adk.agents import Agent
-    from google.adk.runners import Runner
-    from google.adk.sessions import InMemorySessionService
-    from google.genai import types
+init({ framework: Frameworks.VercelAI });
 
-    SideSeat(framework=Frameworks.GoogleADK)
+const { text } = await generateText({
+  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
+  prompt: 'What is 2+2?',
+  experimental_telemetry: { isEnabled: true },
+});
 
-    agent = Agent(
-        model="gemini-2.5-flash",
-        name="assistant",
-        instruction="You are a helpful assistant.",
-    )
+console.log(text);`,
+  },
+  {
+    label: "Google ADK",
+    lang: "python",
+    code: `import asyncio
+from sideseat import SideSeat, Frameworks
+from google.adk.agents import Agent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
 
-    async def main():
-        session_service = InMemorySessionService()
-        runner = Runner(agent=agent, app_name="my_app", session_service=session_service)
-        session = await session_service.create_session(app_name="my_app", user_id="user")
-        message = types.Content(role="user", parts=[types.Part(text="What is 2+2?")])
-        async for event in runner.run_async(
-            session_id=session.id, user_id="user", new_message=message
-        ):
-            if event.content and event.content.parts:
-                for part in event.content.parts:
-                    if hasattr(part, "text") and part.text:
-                        print(part.text)
+SideSeat(framework=Frameworks.GoogleADK)
 
-    asyncio.run(main())
-    ```
-  </TabItem>
-  <TabItem label="LangGraph">
-    ```python
-    from sideseat import SideSeat, Frameworks
-    from langgraph.prebuilt import create_react_agent
-    from langchain_openai import ChatOpenAI
+agent = Agent(
+    model="gemini-2.5-flash",
+    name="assistant",
+    instruction="You are a helpful assistant.",
+)
 
-    SideSeat(framework=Frameworks.LangGraph)
+async def main():
+    session_service = InMemorySessionService()
+    runner = Runner(agent=agent, app_name="my_app", session_service=session_service)
+    session = await session_service.create_session(app_name="my_app", user_id="user")
+    message = types.Content(role="user", parts=[types.Part(text="What is 2+2?")])
+    async for event in runner.run_async(
+        session_id=session.id, user_id="user", new_message=message
+    ):
+        if event.content and event.content.parts:
+            for part in event.content.parts:
+                if hasattr(part, "text") and part.text:
+                    print(part.text)
 
-    llm = ChatOpenAI(model="gpt-5-mini")
-    agent = create_react_agent(llm, tools=[])
-    result = agent.invoke({"messages": [("user", "What is 2+2?")]})
-    print(result["messages"][-1].content)
-    ```
-  </TabItem>
-  <TabItem label="CrewAI">
-    ```python
-    from sideseat import SideSeat, Frameworks
-    from crewai import Agent, Task, Crew
+asyncio.run(main())`,
+  },
+  {
+    label: "LangGraph",
+    lang: "python",
+    code: `from sideseat import SideSeat, Frameworks
+from langgraph.prebuilt import create_react_agent
+from langchain_openai import ChatOpenAI
 
-    SideSeat(framework=Frameworks.CrewAI)
+SideSeat(framework=Frameworks.LangGraph)
 
-    researcher = Agent(
-        role="Researcher",
-        goal="Find information",
-        backstory="Expert researcher",
-    )
+llm = ChatOpenAI(model="gpt-5-mini")
+agent = create_react_agent(llm, tools=[])
+result = agent.invoke({"messages": [("user", "What is 2+2?")]})
+print(result["messages"][-1].content)`,
+  },
+  {
+    label: "OpenAI Agents SDK",
+    lang: "python",
+    code: `from sideseat import SideSeat, Frameworks
+from agents import Agent, Runner
 
-    task = Task(
-        description="Research AI trends",
-        expected_output="Summary of trends",
-        agent=researcher,
-    )
+SideSeat(framework=Frameworks.OpenAIAgents)
 
-    crew = Crew(agents=[researcher], tasks=[task])
+agent = Agent(name="Assistant", instructions="You are helpful.")
+result = Runner.run_sync(agent, "What is the capital of France?")
+print(result.final_output)`,
+  },
+  {
+    label: "Microsoft Agent Framework",
+    lang: "python",
+    code: `import asyncio
+from sideseat import SideSeat, Frameworks
+from agent_framework import Agent
+from agent_framework.openai import OpenAIChatClient
 
-    result = crew.kickoff()
-    print(result)
-    ```
-  </TabItem>
-  <TabItem label="AutoGen">
-    ```python
-    from sideseat import SideSeat, Frameworks
-    from autogen import AssistantAgent, UserProxyAgent
+SideSeat(framework=Frameworks.AgentFramework)
 
-    SideSeat(framework=Frameworks.AutoGen)
+client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
+agent = Agent(client=client, instructions="You are helpful.")
+result = asyncio.run(agent.run("What is the capital of France?"))
+print(result.text)`,
+  },
+  {
+    label: "AutoGen",
+    lang: "python",
+    code: `from sideseat import SideSeat, Frameworks
+from autogen import AssistantAgent, UserProxyAgent
 
-    llm_config = {"config_list": [{"model": "gpt-5-mini"}]}
-    assistant = AssistantAgent("assistant", llm_config=llm_config)
-    user = UserProxyAgent("user", human_input_mode="NEVER")
-    user.initiate_chat(assistant, message="Hello!")
-    ```
-  </TabItem>
-  <TabItem label="OpenAI&nbsp;Agents">
-    ```python
-    from sideseat import SideSeat, Frameworks
-    from agents import Agent, Runner
+SideSeat(framework=Frameworks.AutoGen)
 
-    SideSeat(framework=Frameworks.OpenAIAgents)
+llm_config = {"config_list": [{"model": "gpt-5-mini"}]}
+assistant = AssistantAgent("assistant", llm_config=llm_config)
+user = UserProxyAgent("user", human_input_mode="NEVER")
+user.initiate_chat(assistant, message="Hello!")`,
+  },
+  {
+    label: "CrewAI",
+    lang: "python",
+    code: `from sideseat import SideSeat, Frameworks
+from crewai import Agent, Task, Crew
 
-    agent = Agent(name="Assistant", instructions="You are helpful.")
-    result = Runner.run_sync(agent, "What is the capital of France?")
-    print(result.final_output)
-    ```
-  </TabItem>
-</Tabs>
+SideSeat(framework=Frameworks.CrewAI)
+
+researcher = Agent(
+    role="Researcher",
+    goal="Find information",
+    backstory="Expert researcher",
+)
+
+task = Task(
+    description="Research AI trends",
+    expected_output="Summary of trends",
+    agent=researcher,
+)
+
+crew = Crew(agents=[researcher], tasks=[task])
+
+result = crew.kickoff()
+print(result)`,
+  },
+]} />
 
 See [all supported frameworks](/docs/integrations/).
 
@@ -204,57 +229,108 @@ See [all supported frameworks](/docs/integrations/).
 
 Use SideSeat directly with cloud provider SDKs, without an agent framework:
 
-<Tabs>
-  <TabItem label="Amazon&nbsp;Bedrock">
-    ```python
-    from sideseat import SideSeat, Frameworks
-    import boto3
+<FrameworkDropdown items={[
+  {
+    label: "Amazon Bedrock",
+    lang: "python",
+    code: `from sideseat import SideSeat, Frameworks
+import boto3
 
-    SideSeat(framework=Frameworks.Bedrock)
+SideSeat(framework=Frameworks.Bedrock)
 
-    bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
-    response = bedrock.converse(
-        modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-        messages=[{"role": "user", "content": [{"text": "What is 2+2?"}]}],
-    )
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+response = bedrock.converse(
+    modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    messages=[{"role": "user", "content": [{"text": "What is 2+2?"}]}],
+)
 
-    print(response["output"]["message"]["content"][0]["text"])
-    ```
-  </TabItem>
-  <TabItem label="Anthropic">
-    ```python
-    from sideseat import SideSeat, Frameworks
-    import anthropic
+print(response["output"]["message"]["content"][0]["text"])`,
+  },
+  {
+    label: "Anthropic",
+    lang: "python",
+    code: `from sideseat import SideSeat, Frameworks
+import anthropic
 
-    SideSeat(framework=Frameworks.Anthropic)
+SideSeat(framework=Frameworks.Anthropic)
 
-    client = anthropic.Anthropic()
-    message = client.messages.create(
-        model="claude-sonnet-4-5-20250929",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": "What is 2+2?"}],
-    )
+client = anthropic.Anthropic()
+message = client.messages.create(
+    model="claude-sonnet-4-5-20250929",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "What is 2+2?"}],
+)
 
-    print(message.content[0].text)
-    ```
-  </TabItem>
-  <TabItem label="OpenAI">
-    ```python
-    from sideseat import SideSeat, Frameworks
-    from openai import OpenAI
+print(message.content[0].text)`,
+  },
+  {
+    label: "OpenAI",
+    lang: "python",
+    code: `from sideseat import SideSeat, Frameworks
+from openai import OpenAI
 
-    SideSeat(framework=Frameworks.OpenAI)
+SideSeat(framework=Frameworks.OpenAI)
 
-    client = OpenAI()
-    response = client.chat.completions.create(
-        model="gpt-5-mini",
-        messages=[{"role": "user", "content": "What is 2+2?"}],
-    )
+client = OpenAI()
+response = client.chat.completions.create(
+    model="gpt-5-mini",
+    messages=[{"role": "user", "content": "What is 2+2?"}],
+)
 
-    print(response.choices[0].message.content)
-    ```
-  </TabItem>
-</Tabs>
+print(response.choices[0].message.content)`,
+  },
+  {
+    label: "Azure OpenAI",
+    lang: "python",
+    code: `from sideseat import SideSeat, Frameworks
+from openai import AzureOpenAI
+
+SideSeat(framework=Frameworks.OpenAI)
+
+client = AzureOpenAI(
+    azure_endpoint="https://YOUR_RESOURCE.openai.azure.com",
+    api_key="YOUR_API_KEY",
+    api_version="2024-12-01-preview",
+)
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "What is 2+2?"}],
+)
+
+print(response.choices[0].message.content)`,
+  },
+  {
+    label: "Google Gemini",
+    lang: "python",
+    code: `from sideseat import SideSeat, Frameworks
+from google import genai
+
+SideSeat(framework=Frameworks.GoogleGenAI)
+
+client = genai.Client(api_key="YOUR_API_KEY")
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="What is 2+2?",
+)
+
+print(response.text)`,
+  },
+  {
+    label: "Google Vertex AI",
+    lang: "python",
+    code: `from sideseat import SideSeat, Frameworks
+import vertexai
+from vertexai.generative_models import GenerativeModel
+
+SideSeat(framework=Frameworks.VertexAI)
+
+vertexai.init(project="YOUR_PROJECT_ID", location="us-central1")
+model = GenerativeModel("gemini-2.5-flash")
+response = model.generate_content("What is 2+2?")
+
+print(response.text)`,
+  },
+]} />
 
 See [all supported providers](/docs/integrations/).
 
@@ -274,6 +350,21 @@ codex mcp add --transport http sideseat http://localhost:5388/api/v1/projects/de
 ```
 
 See the [MCP Server guide](/docs/mcp/) for Kiro, Cursor, and other clients.
+
+## Why Local?
+
+SideSeat runs locally by default. Your data stays on your machine.
+
+| Benefit | What It Means |
+|---------|---------------|
+| **No signup** | Run `npx sideseat` and start debugging immediately |
+| **No data egress** | Traces stay on your machine — no cloud uploads |
+| **No latency** | Real-time streaming without network roundtrips |
+| **No vendor lock-in** | Standard OpenTelemetry traces work with any backend |
+
+<Aside type="note">
+If you use cloud LLMs, those requests still go to your provider. SideSeat only stores what your app sends via OpenTelemetry.
+</Aside>
 
 ## Choose Your Path
 

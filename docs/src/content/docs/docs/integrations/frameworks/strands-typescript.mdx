@@ -1,0 +1,119 @@
+---
+title: Strands (TypeScript)
+description: Integrate SideSeat with the Strands TypeScript SDK using the SideSeat JavaScript SDK.
+---
+
+import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
+
+[Strands Agents](https://strandsagents.com) is an AI agent framework developed by AWS. The TypeScript SDK integrates with SideSeat via the `@sideseat/sdk` JavaScript SDK — no extra OpenTelemetry configuration needed.
+
+## Quick Start
+
+<Steps>
+1. **Install dependencies**
+
+   ```bash
+   npm install @strands-agents/sdk @sideseat/sdk
+   ```
+
+2. **Add telemetry**
+
+   ```typescript
+   import { init, Frameworks } from '@sideseat/sdk';
+   import { Agent } from '@strands-agents/sdk';
+
+   init({ framework: Frameworks.Strands });
+
+   const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
+   const result = await agent.invoke('What is the capital of France?');
+   console.log(result.toString());
+   ```
+
+3. **Run**
+
+   ```bash
+   npx tsx agent.ts
+   ```
+
+4. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
+</Steps>
+
+## Without SideSeat SDK
+
+Set up OpenTelemetry manually using the standard Node.js SDK:
+
+```bash
+# Set endpoint
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+
+# Install
+npm install @strands-agents/sdk @opentelemetry/sdk-trace-node @opentelemetry/sdk-trace-base @opentelemetry/exporter-trace-otlp-http
+```
+
+```typescript
+import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { Agent } from '@strands-agents/sdk';
+
+const provider = new NodeTracerProvider({
+  spanProcessors: [new BatchSpanProcessor(new OTLPTraceExporter())],
+});
+provider.register();
+
+const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
+const result = await agent.invoke('What is the capital of France?');
+console.log(result.toString());
+
+await provider.shutdown();
+```
+
+## Tools
+
+Define tools with Zod schemas and pass them to the agent:
+
+```typescript
+import { init, Frameworks } from '@sideseat/sdk';
+import { Agent, tool } from '@strands-agents/sdk';
+import { z } from 'zod';
+
+init({ framework: Frameworks.Strands });
+
+const getWeather = tool({
+  name: 'get_weather',
+  description: 'Get the weather for a location.',
+  inputSchema: z.object({
+    location: z.string().describe('City name'),
+  }),
+  callback: ({ location }) => `Weather in ${location}: Sunny, 22°C`,
+});
+
+const agent = new Agent({
+  model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
+  tools: [getWeather],
+});
+
+const result = await agent.invoke("What's the weather in Paris?");
+console.log(result.toString());
+```
+
+## Prerequisites
+
+- Node.js 20+
+- AWS credentials configured (`AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` or an IAM role)
+- Amazon Bedrock access for the model you use
+
+## What You'll See
+
+SideSeat shows a trace timeline with:
+- A parent span for the agent run
+- Child spans for each Bedrock LLM call with model, tokens, and cost
+- Child spans for each tool execution with inputs and outputs
+
+## Next Steps
+
+- [JavaScript SDK](/docs/sdks/javascript/) — SDK reference
+- [Strands (Python)](/docs/integrations/frameworks/strands/) — Python version
+- [Amazon Bedrock](/docs/integrations/providers/bedrock/) — provider-specific details

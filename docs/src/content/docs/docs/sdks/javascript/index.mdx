@@ -45,46 +45,30 @@ Or with your package manager:
 
 ## Quick Start
 
-Add one line at the top of your entry point:
+Add two lines at the top of your entry point:
 
 ```typescript
-import { init } from '@sideseat/sdk';
-init();
+import { init, Frameworks } from '@sideseat/sdk';
+init({ framework: Frameworks.VercelAI });
 
 // Your existing code
 import { generateText } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { bedrock } from '@ai-sdk/amazon-bedrock';
 
 const { text } = await generateText({
-  model: openai('gpt-5-mini'),
+  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
   prompt: 'Hello!',
   experimental_telemetry: { isEnabled: true },
 });
 ```
 
-That's it. Runs flow to SideSeat at `http://localhost:5388`.
+Runs flow to SideSeat at `http://localhost:5388`.
 
 ## Features
 
-### Zero Configuration
-
-The SDK works out of the box with sensible defaults:
-- Sends to `http://127.0.0.1:5388`
-- Uses `default` project
-- Auto-detects service name from `package.json`
-
-### Idempotent Initialization
-
-Safe to call multiple times:
-
-```typescript
-init();  // Initializes
-init();  // No-op (already initialized)
-```
-
 ### Framework Selection
 
-Explicitly select a framework for instrumentation:
+`framework` is required and tells SideSeat which framework you are using for accurate trace detection:
 
 ```typescript
 import { init, Frameworks } from '@sideseat/sdk';
@@ -93,6 +77,15 @@ init({ framework: Frameworks.VercelAI });
 ```
 
 Available frameworks: `Strands`, `VercelAI`, `LangChain`, `CrewAI`, `AutoGen`, `OpenAIAgents`, `GoogleADK`, `PydanticAI`.
+
+### Idempotent Initialization
+
+Safe to call multiple times:
+
+```typescript
+init({ framework: Frameworks.VercelAI });  // Initializes
+init({ framework: Frameworks.VercelAI });  // No-op (already initialized)
+```
 
 ### Environment Variable Support
 
@@ -110,7 +103,7 @@ node app.js
 Enable verbose logging:
 
 ```typescript
-init({ debug: true });
+init({ framework: Frameworks.VercelAI, debug: true });
 ```
 
 Output:
@@ -147,10 +140,11 @@ The endpoint URL is constructed as:
 ## Example
 
 ```typescript
-import { init } from '@sideseat/sdk';
+import { init, Frameworks } from '@sideseat/sdk';
 
 // Initialize with all options
 const client = init({
+  framework: Frameworks.VercelAI,
   endpoint: 'http://localhost:5388',
   projectId: 'my-project',
   apiKey: 'sk-xxx',
@@ -160,10 +154,10 @@ const client = init({
 
 // Your AI application code
 import { generateText } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { bedrock } from '@ai-sdk/amazon-bedrock';
 
 const { text } = await generateText({
-  model: openai('gpt-5-mini'),
+  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
   prompt: 'Hello!',
   experimental_telemetry: { isEnabled: true },
 });
@@ -175,10 +169,11 @@ console.log(text);
 The SDK is written in TypeScript and includes type definitions:
 
 ```typescript
-import { init } from '@sideseat/sdk';
+import { init, Frameworks } from '@sideseat/sdk';
 import type { SideSeatOptions } from '@sideseat/sdk';
 
 const config: SideSeatOptions = {
+  framework: Frameworks.VercelAI,
   endpoint: 'http://localhost:5388',
   projectId: 'my-project',
   debug: true

@@ -47,7 +47,9 @@ pub struct XAIProvider {
 impl XAIProvider {
     /// Create a provider from the `XAI_API_KEY` environment variable.
     pub fn from_env() -> Result<Self, ProviderError> {
-        Ok(Self::new(crate::env::require(crate::env::keys::XAI_API_KEY)?))
+        Ok(Self::new(crate::env::require(
+            crate::env::keys::XAI_API_KEY,
+        )?))
     }
 
     /// Create a provider with an xAI API key.
@@ -274,7 +276,8 @@ impl ChatProvider for XAIProvider {
     ) -> Result<crate::types::Response, ProviderError> {
         let body = build_request(&messages, &config, false)?;
 
-        let mut req_builder = self.client
+        let mut req_builder = self
+            .client
             .post(&self.chat_url)
             .bearer_auth(&self.api_key)
             .json(&body);
@@ -296,7 +299,8 @@ impl ChatProvider for XAIProvider {
         count_config.max_tokens = Some(1);
         let body = build_request(&messages, &count_config, false)?;
 
-        let mut req_builder = self.client
+        let mut req_builder = self
+            .client
             .post(&self.chat_url)
             .bearer_auth(&self.api_key)
             .json(&body);
@@ -333,7 +337,11 @@ fn build_request(
     config: &ProviderConfig,
     stream: bool,
 ) -> Result<Value, ProviderError> {
-    let formatted = format_messages(messages, config.system.as_deref(), config.inject_system_as_user_message)?;
+    let formatted = format_messages(
+        messages,
+        config.system.as_deref(),
+        config.inject_system_as_user_message,
+    )?;
 
     let mut req = json!({
         "model": config.model,
@@ -441,7 +449,11 @@ fn format_response_format(fmt: &ResponseFormat) -> Value {
     match fmt {
         ResponseFormat::Text => json!({"type": "text"}),
         ResponseFormat::Json => json!({"type": "json_object"}),
-        ResponseFormat::JsonSchema { name, schema, strict } => {
+        ResponseFormat::JsonSchema {
+            name,
+            schema,
+            strict,
+        } => {
             let mut s = schema.clone();
             if *strict && let Some(obj) = s.as_object_mut() {
                 obj.entry("additionalProperties").or_insert(json!(false));
@@ -483,7 +495,9 @@ fn format_messages(
                 let content = format_content(&msg.content)?;
                 if inject_system_as_user {
                     let text = content.as_str().unwrap_or("");
-                    result.push(json!({"role": "user", "content": format!("<system>{}</system>", text)}));
+                    result.push(
+                        json!({"role": "user", "content": format!("<system>{}</system>", text)}),
+                    );
                 } else {
                     result.push(json!({"role": "system", "content": content}));
                 }
@@ -496,14 +510,25 @@ fn format_messages(
         };
 
         // Tool results → role=tool messages
-        let has_tool_results = msg.content.iter().any(|b| matches!(b, ContentBlock::ToolResult(_)));
+        let has_tool_results = msg
+            .content
+            .iter()
+            .any(|b| matches!(b, ContentBlock::ToolResult(_)));
         if (role == "user" || role == "tool") && has_tool_results {
             let mut other: Vec<&ContentBlock> = Vec::new();
             for block in &msg.content {
                 match block {
                     ContentBlock::ToolResult(tr) => {
-                        let content_str: String = tr.content.iter()
-                            .filter_map(|b| if let ContentBlock::Text(t) = b { Some(t.text.as_str()) } else { None })
+                        let content_str: String = tr
+                            .content
+                            .iter()
+                            .filter_map(|b| {
+                                if let ContentBlock::Text(t) = b {
+                                    Some(t.text.as_str())
+                                } else {
+                                    None
+                                }
+                            })
                             .collect::<Vec<_>>()
                             .join("\n");
                         result.push(json!({
@@ -524,18 +549,40 @@ fn format_messages(
 
         // Tool calls in assistant messages
         if role == "assistant" {
-            let tool_uses: Vec<_> = msg.content.iter()
-                .filter_map(|b| if let ContentBlock::ToolUse(tu) = b { Some(tu) } else { None })
+            let tool_uses: Vec<_> = msg
+                .content
+                .iter()
+                .filter_map(|b| {
+                    if let ContentBlock::ToolUse(tu) = b {
+                        Some(tu)
+                    } else {
+                        None
+                    }
+                })
                 .collect();
             if !tool_uses.is_empty() {
-                let tc_vals: Vec<Value> = tool_uses.iter().map(|tu| json!({
-                    "id": tu.id,
-                    "type": "function",
-                    "function": {"name": tu.name, "arguments": tu.input.to_string()},
-                })).collect();
-                let text: String = msg.content.iter()
-                    .filter_map(|b| if let ContentBlock::Text(t) = b { Some(t.text.as_str()) } else { None })
-                    .collect::<Vec<_>>().join("");
+                let tc_vals: Vec<Value> = tool_uses
+                    .iter()
+                    .map(|tu| {
+                        json!({
+                            "id": tu.id,
+                            "type": "function",
+                            "function": {"name": tu.name, "arguments": tu.input.to_string()},
+                        })
+                    })
+                    .collect();
+                let text: String = msg
+                    .content
+                    .iter()
+                    .filter_map(|b| {
+                        if let ContentBlock::Text(t) = b {
+                            Some(t.text.as_str())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("");
                 let mut am = json!({"role": "assistant", "tool_calls": tc_vals});
                 if !text.is_empty() {
                     am["content"] = json!(text);
@@ -556,7 +603,9 @@ fn format_messages(
 }
 
 fn format_content(blocks: &[ContentBlock]) -> Result<Value, ProviderError> {
-    if blocks.len() == 1 && let ContentBlock::Text(t) = &blocks[0] {
+    if blocks.len() == 1
+        && let ContentBlock::Text(t) = &blocks[0]
+    {
         return Ok(json!(t.text));
     }
     let parts: Result<Vec<Value>, _> = blocks.iter().map(format_content_part).collect();
@@ -600,21 +649,26 @@ fn format_image_part(img: &ImageContent) -> Result<Value, ProviderError> {
 }
 
 fn format_tools(tools: &[Tool]) -> Vec<Value> {
-    tools.iter().map(|t| {
-        let mut schema = t.input_schema.clone();
-        if t.strict && let Some(obj) = schema.as_object_mut() {
-            obj.entry("additionalProperties").or_insert(json!(false));
-        }
-        json!({
-            "type": "function",
-            "function": {
-                "name": t.name,
-                "description": t.description,
-                "parameters": schema,
-                "strict": t.strict,
+    tools
+        .iter()
+        .map(|t| {
+            let mut schema = t.input_schema.clone();
+            if t.strict
+                && let Some(obj) = schema.as_object_mut()
+            {
+                obj.entry("additionalProperties").or_insert(json!(false));
             }
+            json!({
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": schema,
+                    "strict": t.strict,
+                }
+            })
         })
-    }).collect()
+        .collect()
 }
 
 fn format_tool_choice(tc: &ToolChoice) -> Value {
@@ -697,7 +751,9 @@ fn parse_logprobs(val: &Value) -> Option<Vec<crate::types::TokenLogprob>> {
                             token: t["token"].as_str().unwrap_or("").to_string(),
                             logprob: t["logprob"].as_f64().unwrap_or(0.0),
                             bytes: t["bytes"].as_array().map(|b| {
-                                b.iter().filter_map(|v| v.as_u64().map(|n| n as u8)).collect()
+                                b.iter()
+                                    .filter_map(|v| v.as_u64().map(|n| n as u8))
+                                    .collect()
                             }),
                         })
                         .collect()
@@ -707,13 +763,19 @@ fn parse_logprobs(val: &Value) -> Option<Vec<crate::types::TokenLogprob>> {
                 token: item["token"].as_str().unwrap_or("").to_string(),
                 logprob: item["logprob"].as_f64().unwrap_or(0.0),
                 bytes: item["bytes"].as_array().map(|b| {
-                    b.iter().filter_map(|v| v.as_u64().map(|n| n as u8)).collect()
+                    b.iter()
+                        .filter_map(|v| v.as_u64().map(|n| n as u8))
+                        .collect()
                 }),
                 top_logprobs,
             }
         })
         .collect();
-    if tokens.is_empty() { None } else { Some(tokens) }
+    if tokens.is_empty() {
+        None
+    } else {
+        Some(tokens)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -880,8 +942,15 @@ mod tests {
             "usage": {"prompt_tokens": 15, "completion_tokens": 10, "total_tokens": 25}
         });
         let resp = parse_response(&json).unwrap();
-        assert!(matches!(resp.stop_reason, crate::types::StopReason::ToolUse));
-        let tool = resp.content.iter().find(|b| matches!(b, ContentBlock::ToolUse(_))).unwrap();
+        assert!(matches!(
+            resp.stop_reason,
+            crate::types::StopReason::ToolUse
+        ));
+        let tool = resp
+            .content
+            .iter()
+            .find(|b| matches!(b, ContentBlock::ToolUse(_)))
+            .unwrap();
         if let ContentBlock::ToolUse(tu) = tool {
             assert_eq!(tu.name, "echo");
             assert_eq!(tu.input["message"], json!("hello"));

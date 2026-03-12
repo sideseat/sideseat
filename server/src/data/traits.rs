@@ -640,10 +640,7 @@ pub trait TransactionalRepository: Send + Sync {
     // ==================== Credential Operations ====================
 
     /// List all credentials for an organization (metadata only, no secrets)
-    async fn list_credentials(
-        &self,
-        org_id: &str,
-    ) -> Result<Vec<CredentialRow>, DataError>;
+    async fn list_credentials(&self, org_id: &str) -> Result<Vec<CredentialRow>, DataError>;
 
     /// Get a single credential by id, scoped to org
     async fn get_credential(
@@ -679,11 +676,7 @@ pub trait TransactionalRepository: Send + Sync {
     ) -> Result<Option<CredentialRow>, DataError>;
 
     /// Delete a credential row by id, scoped to org. Returns true if deleted.
-    async fn delete_credential(
-        &self,
-        id: &str,
-        org_id: &str,
-    ) -> Result<bool, DataError>;
+    async fn delete_credential(&self, id: &str, org_id: &str) -> Result<bool, DataError>;
 
     // ==================== Credential Permission Operations ====================
 
