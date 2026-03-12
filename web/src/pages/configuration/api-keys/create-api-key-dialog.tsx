@@ -116,7 +116,7 @@ export function CreateApiKeyDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Create API Key</DialogTitle>
           <DialogDescription>Create a new API key for programmatic access.</DialogDescription>

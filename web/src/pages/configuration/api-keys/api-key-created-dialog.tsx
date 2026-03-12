@@ -56,7 +56,7 @@ OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20${base64Key}
 
   return (
     <Dialog open={!!createdKey} onOpenChange={() => {}}>
-      <DialogContent className="[&>button]:hidden sm:max-w-lg">
+      <DialogContent className="[&>button]:hidden sm:max-w-xl">
         <DialogHeader className="overflow-hidden">
           <DialogTitle className="flex items-center gap-3 overflow-hidden">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/15">
