@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Annotated
 
 import boto3
-from agent_framework import Agent, Content, Message, tool
+from agent_framework import ChatAgent, ChatMessage, DataContent, TextContent, ai_function
 from opentelemetry import trace
 from pydantic import Field
 
@@ -25,7 +25,7 @@ IMAGE_SIZE = 512
 _generated_paths: list[Path] = []
 
 
-@tool(approval_mode="never_require")
+@ai_function(approval_mode="never_require")
 def generate_image(
     prompt: Annotated[str, Field(description="Text description of the image to generate")],
 ) -> str:
@@ -80,8 +80,8 @@ async def run(client, trace_attrs: dict):
     tracer = trace.get_tracer(__name__)
 
     # Artist agent generates images via Bedrock Titan
-    artist = Agent(
-        client=client,
+    artist = ChatAgent(
+        chat_client=client,
         instructions=(
             "You are an AI artist. When asked to generate images, use the generate_image tool "
             "with varied prompts for each image to create a diverse collection. "
@@ -92,8 +92,8 @@ async def run(client, trace_attrs: dict):
     )
 
     # Critic agent evaluates generated images visually
-    critic = Agent(
-        client=client,
+    critic = ChatAgent(
+        chat_client=client,
         instructions=(
             "You are an art critic. Evaluate each image based on creativity, composition, "
             "and appeal. Choose the best one. "
@@ -125,13 +125,13 @@ async def run(client, trace_attrs: dict):
 
         # Phase 2: Critic evaluates images via multimodal message
         contents: list = [
-            Content.from_text("Evaluate these generated images and select the best one:")
+            TextContent(text="Evaluate these generated images and select the best one:")
         ]
         for i, path in enumerate(paths, 1):
             image_bytes = path.read_bytes()
-            contents.append(Content.from_text(f"\nImage {i} ({path.name}):"))
-            contents.append(Content.from_data(data=image_bytes, media_type="image/png"))
+            contents.append(TextContent(text=f"\nImage {i} ({path.name}):"))
+            contents.append(DataContent(data=image_bytes, media_type="image/png"))
 
-        critic_message = Message(role="user", contents=contents)
+        critic_message = ChatMessage(role="user", contents=contents)
         critic_result = await critic.run(critic_message)
         print(f"Critic:\n{critic_result.text}")

@@ -11,7 +11,7 @@ import asyncio
 import logging
 from typing import Annotated
 
-from agent_framework import Agent, tool
+from agent_framework import ChatAgent, ai_function
 from opentelemetry import trace
 from pydantic import Field
 
@@ -22,7 +22,7 @@ logging.basicConfig(
 )
 
 
-@tool(approval_mode="never_require")
+@ai_function(approval_mode="never_require")
 def calculator(
     operation: Annotated[
         str, Field(description="The operation to perform (add, subtract, multiply, divide)")
@@ -42,7 +42,7 @@ def calculator(
     return operations[operation](a, b)
 
 
-@tool(approval_mode="never_require")
+@ai_function(approval_mode="never_require")
 def weather_forecast(
     city: Annotated[str, Field(description="The name of the city")],
     days: Annotated[int, Field(description="Number of days for the forecast")] = 3,
@@ -58,7 +58,7 @@ def weather_forecast(
     return f"{days}-day forecast for {city}: {base}"
 
 
-@tool(approval_mode="never_require")
+@ai_function(approval_mode="never_require")
 def web_search(
     query: Annotated[str, Field(description="Search query string")],
     max_results: Annotated[int, Field(description="Maximum number of results")] = 5,
@@ -76,11 +76,11 @@ def web_search(
     }
 
 
-def create_agents(client) -> dict[str, Agent]:
+def create_agents(client) -> dict[str, ChatAgent]:
     """Create specialist agents for concurrent execution."""
 
-    researcher = Agent(
-        client=client,
+    researcher = ChatAgent(
+        chat_client=client,
         instructions=(
             "You are a market and product researcher. Given a prompt, provide concise, "
             "factual insights, opportunities, and risks. Be specific and data-driven."
@@ -88,8 +88,8 @@ def create_agents(client) -> dict[str, Agent]:
         tools=[web_search, weather_forecast],
     )
 
-    technical = Agent(
-        client=client,
+    technical = ChatAgent(
+        chat_client=client,
         instructions=(
             "You are a technical architect. Evaluate the technical feasibility, "
             "identify key implementation challenges, and propose a high-level architecture. "
@@ -98,8 +98,8 @@ def create_agents(client) -> dict[str, Agent]:
         tools=[calculator],
     )
 
-    marketing = Agent(
-        client=client,
+    marketing = ChatAgent(
+        chat_client=client,
         instructions=(
             "You are a creative marketing strategist. Craft compelling value propositions, "
             "identify target audiences, and propose key marketing messages. "
@@ -107,8 +107,8 @@ def create_agents(client) -> dict[str, Agent]:
         ),
     )
 
-    reviewer = Agent(
-        client=client,
+    reviewer = ChatAgent(
+        chat_client=client,
         instructions=(
             "You are a senior project reviewer. Synthesize insights from research, "
             "technical, and marketing perspectives. Identify gaps and provide a final "

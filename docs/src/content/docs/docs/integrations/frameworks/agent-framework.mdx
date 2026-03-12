@@ -21,37 +21,38 @@ import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 2. **Add telemetry**
 
    ```python
+   import asyncio
    from sideseat import SideSeat, Frameworks
-   from agent_framework import Agent
+   from agent_framework import ChatAgent
    from agent_framework.openai import OpenAIChatClient
 
    SideSeat(framework=Frameworks.AgentFramework)
 
    client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
-   agent = Agent(client=client, instructions="You are a helpful assistant.")
+   agent = ChatAgent(chat_client=client, instructions="You are a helpful assistant.")
 
-   import asyncio
    result = asyncio.run(agent.run("What is the capital of France?"))
    print(result.text)
    ```
 
 3. **View runs**
 
-   Open [http://localhost:5388](http://localhost:5388) to see your runs.
+   Open [http://localhost:5389](http://localhost:5389) to see your runs.
 </Steps>
-
-<Aside type="note">
-Agent Framework instruments itself automatically when any TracerProvider is configured as the global OpenTelemetry provider. No separate instrumentor is needed.
-</Aside>
 
 ## Without SideSeat SDK
 
 Configure the OpenTelemetry SDK directly:
 
 ```python
+from agent_framework.observability import OBSERVABILITY_SETTINGS
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry import trace
+
+OBSERVABILITY_SETTINGS.enable_otel = True
+OBSERVABILITY_SETTINGS.enable_sensitive_data = True
 
 provider = TracerProvider()
 provider.add_span_processor(
@@ -59,21 +60,19 @@ provider.add_span_processor(
         endpoint="http://localhost:5388/otel/default/v1/traces"
     ))
 )
-
-from opentelemetry import trace
 trace.set_tracer_provider(provider)
 ```
 
 ## Providers
 
-Agent Framework supports OpenAI and Anthropic:
+Agent Framework supports OpenAI, OpenAI Responses, and Anthropic:
 
 <Tabs>
   <TabItem label="OpenAI">
     ```python
     from agent_framework.openai import OpenAIChatClient
 
-    # Uses OPENAI_API_KEY and OPENAI_CHAT_MODEL_ID env vars
+    # Uses OPENAI_API_KEY env var
     client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
     ```
   </TabItem>
@@ -89,7 +88,7 @@ Agent Framework supports OpenAI and Anthropic:
     ```python
     from agent_framework.anthropic import AnthropicClient
 
-    # Uses ANTHROPIC_API_KEY and ANTHROPIC_CHAT_MODEL_ID env vars
+    # Uses ANTHROPIC_API_KEY env var
     client = AnthropicClient(model_id="claude-haiku-4-5-20251001")
     ```
   </TabItem>
@@ -97,22 +96,22 @@ Agent Framework supports OpenAI and Anthropic:
 
 ## Tools
 
-Define tools with the `@tool` decorator using Annotated type hints:
+Define tools with the `@ai_function` decorator using `Annotated` type hints:
 
 ```python
 from typing import Annotated
-from agent_framework import Agent, tool
+from agent_framework import ChatAgent, ai_function
 from pydantic import Field
 
-@tool(approval_mode="never_require")
+@ai_function(approval_mode="never_require")
 def get_weather(
     city: Annotated[str, Field(description="The city name")],
 ) -> str:
     """Get weather for a city."""
-    return f"Sunny in {city}, 72F"
+    return f"Sunny in {city}, 72°F"
 
-agent = Agent(
-    client=client,
+agent = ChatAgent(
+    chat_client=client,
     instructions="You are a weather assistant.",
     tools=[get_weather],
 )
@@ -120,7 +119,7 @@ agent = Agent(
 result = await agent.run("What's the weather in Paris?")
 ```
 
-SideSeat shows each tool call as a child span with inputs and outputs.
+SideSeat shows each tool call with inputs and outputs in the message thread.
 
 ## Multi-Agent Concurrency
 
@@ -128,10 +127,10 @@ Run multiple specialized agents in parallel using `asyncio.gather()`:
 
 ```python
 import asyncio
-from agent_framework import Agent
+from agent_framework import ChatAgent
 
-researcher = Agent(client=client, instructions="You are a researcher.")
-technical = Agent(client=client, instructions="You are a technical expert.")
+researcher = ChatAgent(chat_client=client, instructions="You are a researcher.")
+technical = ChatAgent(chat_client=client, instructions="You are a technical expert.")
 
 prompt = "Evaluate building a weather app"
 
@@ -143,59 +142,83 @@ researcher_result, technical_result = await asyncio.gather(
 
 ## Structured Output
 
-Extract structured data using Pydantic models:
+Extract structured data using Pydantic models via the `response_format` parameter:
 
 ```python
 from pydantic import BaseModel
-from agent_framework import Agent
+from agent_framework import ChatAgent
 
 class Person(BaseModel):
     name: str
     age: int
     city: str
 
-agent = Agent(client=client, instructions="Extract structured information.")
+agent = ChatAgent(chat_client=client, instructions="Extract structured information.")
 result = await agent.run(
     "Jane Doe, 28, lives in New York.",
-    options={"response_format": Person},
+    response_format=Person,
 )
 
-if result.value is not None:
-    print(result.value.name)  # "Jane Doe"
+person = result.try_parse_value(Person)
+if person is not None:
+    print(person.name)  # "Jane Doe"
 ```
 
 ## Extended Thinking
 
-Enable extended thinking for supported models:
+Enable extended thinking for supported models via `additional_chat_options`:
 
 <Tabs>
-  <TabItem label="OpenAI">
+  <TabItem label="OpenAI Responses">
     ```python
     from agent_framework.openai import OpenAIResponsesClient
+    from agent_framework import ChatAgent
 
     client = OpenAIResponsesClient(model_id="gpt-5-nano-2025-08-07")
-    agent = Agent(client=client, instructions="Solve problems step by step.")
+    agent = ChatAgent(chat_client=client, instructions="Solve problems step by step.")
 
     result = await agent.run(
         "Solve this logic puzzle...",
-        options={"reasoning_effort": "medium"},
+        additional_chat_options={"reasoning_effort": "medium"},
     )
     ```
   </TabItem>
   <TabItem label="Anthropic">
     ```python
     from agent_framework.anthropic import AnthropicClient
+    from agent_framework import ChatAgent
 
     client = AnthropicClient(model_id="claude-sonnet-4-20250514")
-    agent = Agent(client=client, instructions="Solve problems step by step.")
+    agent = ChatAgent(chat_client=client, instructions="Solve problems step by step.")
 
     result = await agent.run(
         "Solve this logic puzzle...",
-        options={"thinking": {"type": "enabled", "budget_tokens": 4096}},
+        additional_chat_options={"thinking": {"type": "enabled", "budget_tokens": 4096}},
     )
     ```
   </TabItem>
 </Tabs>
+
+## Multimodal Input
+
+Pass images and documents alongside text using `ChatMessage`, `DataContent`, and `TextContent`:
+
+```python
+from agent_framework import ChatAgent, ChatMessage, DataContent, TextContent
+
+agent = ChatAgent(chat_client=client, instructions="You analyze images and documents.")
+
+image_bytes = open("photo.jpg", "rb").read()
+pdf_bytes = open("report.pdf", "rb").read()
+
+message = ChatMessage(role="user", contents=[
+    TextContent(text="Describe the image and summarize the PDF."),
+    DataContent(data=image_bytes, media_type="image/jpeg"),
+    DataContent(data=pdf_bytes, media_type="application/pdf"),
+])
+
+result = await agent.run(message)
+```
 
 ## MCP Servers
 
@@ -203,7 +226,7 @@ Connect to MCP servers using `MCPStdioTool`:
 
 ```python
 import shutil
-from agent_framework import Agent, MCPStdioTool
+from agent_framework import ChatAgent, MCPStdioTool
 
 mcp_tool = MCPStdioTool(
     name="calculator",
@@ -212,8 +235,8 @@ mcp_tool = MCPStdioTool(
     approval_mode="never_require",
 )
 
-agent = Agent(
-    client=client,
+agent = ChatAgent(
+    chat_client=client,
     instructions="You help users calculate.",
     tools=[mcp_tool],
 )
@@ -224,7 +247,8 @@ agent = Agent(
 SideSeat shows a trace timeline with:
 - A parent span for the agent session
 - Child spans for each LLM call with model, tokens, and cost
-- Child spans for each tool execution with inputs and outputs
+- Tool calls and results inline in the message thread
+- Images and documents rendered in multimodal conversations
 - Error spans with exception details when failures occur
 
 ## Next Steps

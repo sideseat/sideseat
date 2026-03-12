@@ -99,6 +99,7 @@ pub enum Framework {
     LiveKit,
     OpenAIAgents,
     AWSBedrock,
+    AgentFramework,
     #[default]
     Unknown,
 }
@@ -125,6 +126,7 @@ impl Framework {
             Self::LiveKit => "LiveKit",
             Self::OpenAIAgents => "OpenAIAgents",
             Self::AWSBedrock => "AWSBedrock",
+            Self::AgentFramework => "AgentFramework",
             Self::Unknown => "Unknown",
         }
     }

@@ -70,7 +70,7 @@ def instrument(
         elif framework == Frameworks.GoogleADK:
             pass  # Uses global provider
         elif framework == Frameworks.AgentFramework:
-            pass  # Uses global provider
+            _enable_agent_framework_otel()
         else:
             logger.debug("Unknown framework: %s", framework)
             with _lock:
@@ -90,6 +90,14 @@ def instrument(
         with _lock:
             _instrumented.discard(framework)
         return False
+
+
+def _enable_agent_framework_otel() -> None:
+    """Enable Agent Framework's built-in OTel gate and sensitive data capture."""
+    from agent_framework.observability import OBSERVABILITY_SETTINGS
+
+    OBSERVABILITY_SETTINGS.enable_otel = True
+    OBSERVABILITY_SETTINGS.enable_sensitive_data = True
 
 
 def _instrument_openllmetry_vertexai(provider: "TracerProvider | None") -> None:

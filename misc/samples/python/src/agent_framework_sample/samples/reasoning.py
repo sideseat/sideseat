@@ -95,15 +95,15 @@ def _get_reasoning_options(client) -> dict:
 
 async def run(client, trace_attrs: dict, provider: str = "openai"):
     """Run the reasoning sample with extended thinking enabled."""
-    from agent_framework import Agent
+    from agent_framework import ChatAgent
     from opentelemetry import trace
 
     tracer = trace.get_tracer(__name__)
 
     reasoning_options = _get_reasoning_options(client)
 
-    agent = Agent(
-        client=client,
+    agent = ChatAgent(
+        chat_client=client,
         instructions=SYSTEM_PROMPT,
     )
 
@@ -126,10 +126,8 @@ async def run(client, trace_attrs: dict, provider: str = "openai"):
             print(f"{prompt_preview}{'...' if len(problem['prompt']) > 200 else ''}")
             print("-" * 60)
 
-            run_options = reasoning_options if reasoning_options else {}
-            result = await agent.run(
-                problem["prompt"], options=run_options if run_options else None
-            )
+            run_kwargs = {"additional_chat_options": reasoning_options} if reasoning_options else {}
+            result = await agent.run(problem["prompt"], **run_kwargs)
 
             # Check for reasoning/thinking content in response
             if hasattr(result, "messages"):

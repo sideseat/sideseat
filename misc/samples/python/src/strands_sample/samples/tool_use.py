@@ -157,31 +157,28 @@ Guidelines (Important!!!):
 ]
 
 
-def run(model, trace_attrs: dict):
-    """Run the tool_use sample with prompt caching."""
+def _run_conversation(model, trace_attrs: dict):
     agent = Agent(
         model=model,
         tools=[temperature_forecast, precipitation_forecast],
         system_prompt=SYSTEM_PROMPT,
         trace_attributes=trace_attrs,
     )
-
-    # First call - cache miss (writes to cache)
-    print("--- First call (cache write) ---")
     result = agent("Provide a 3-day weather forecast for New York City.")
     print(result)
-
-    # Second call - cache hit (reads from cache)
-    print("--- Second call (cache read) ---")
-    result = agent("Provide a 3-day weather forecast for New York City.")
-    print(result)
-
-    # Third call - cache hit (reads from cache)
-    print("\n--- Third call (cache read) ---")
     result = agent("Provide a 7-day weather forecast for Los Angeles.")
     print(result)
-
-    # Fourth call - cache hit (reads from cache)
-    print("\n--- Fourth call (cache read) ---")
+    result = agent("Provide a 3-day weather forecast for London.")
+    print(result)
     result = agent("Provide a 14-day weather forecast for London.")
     print(result)
+
+
+def run(model, trace_attrs: dict):
+    """Run the tool_use sample twice: first with session, then without."""
+    print("--- Run with session ---")
+    _run_conversation(model, trace_attrs)
+
+    print("\n--- Run without session ---")
+    attrs_no_session = {k: v for k, v in trace_attrs.items() if k != "session.id"}
+    _run_conversation(model, attrs_no_session)
