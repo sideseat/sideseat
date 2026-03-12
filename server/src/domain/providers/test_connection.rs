@@ -167,8 +167,7 @@ async fn attempt_test(
         }
         "openrouter" => {
             use sideseat::providers::OpenAIChatProvider;
-            let p = OpenAIChatProvider::new(api_key)
-                .with_api_base("https://openrouter.ai/api/v1");
+            let p = OpenAIChatProvider::for_openrouter(api_key);
             try_test_provider(
                 Box::new(p),
                 test_models::OPENROUTER.to_string(),
@@ -184,16 +183,24 @@ async fn attempt_test(
         }
         "azure-ai-foundry" => {
             use sideseat::providers::OpenAIChatProvider;
-            let ep = endpoint
+            let raw_ep = endpoint
                 .ok_or_else(|| "endpoint_url is required for Azure AI Foundry".to_string())?;
             let deployment = extra
                 .and_then(|e| e.get("deployment_name"))
                 .and_then(|v| v.as_str());
-            let model = deployment.unwrap_or(test_models::OPENAI).to_string();
+            let api_variant = extra
+                .and_then(|e| e.get("api_variant"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("standard");
             let auth_mode = extra
                 .and_then(|e| e.get("auth_mode"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("api_key");
+
+            // Normalise whatever endpoint format the user stored into the base
+            // URL that OpenAIChatProvider::with_api_base() expects.
+            let base = resolve_azure_base_url(raw_ep, deployment, api_variant)?;
+            let model = deployment.unwrap_or(test_models::OPENAI).to_string();
 
             let p: Box<dyn ChatProvider + Send> = match auth_mode {
                 "managed_identity" => {
@@ -201,9 +208,9 @@ async fn attempt_test(
                         get_azure_managed_identity_token("https://cognitiveservices.azure.com")
                             .await
                             .map_err(|e| format!("Azure Managed Identity failed: {e}"))?;
-                    Box::new(OpenAIChatProvider::new(&token).with_api_base(ep))
+                    Box::new(OpenAIChatProvider::new(&token).with_api_base(&base))
                 }
-                _ => Box::new(OpenAIChatProvider::new(api_key).with_api_base(ep)),
+                _ => Box::new(OpenAIChatProvider::new(api_key).with_api_base(&base)),
             };
             try_test_provider(p, model, timeout).await
         }
@@ -394,6 +401,52 @@ async fn attempt_test(
             try_test_provider(Box::new(p), test_models::OPENAI.to_string(), timeout).await
         }
         unknown => Err(format!("Unknown provider: {}", unknown)),
+    }
+}
+
+/// Normalise an Azure AI Foundry endpoint URL into the base URL that
+/// `OpenAIChatProvider::with_api_base()` expects.
+///
+/// `with_api_base(base)` constructs `{base}/chat/completions`, so this
+/// function must return everything *before* `/chat/completions`.
+///
+/// Accepted input forms:
+///
+/// | Stored `endpoint_url`                                              | Resource era    |
+/// |--------------------------------------------------------------------|-----------------|
+/// | `https://name.openai.azure.com/openai/deployments/d`              | Legacy          |
+/// | `https://name.openai.azure.com/openai/deployments/d/chat/compl…`  | Legacy (full)   |
+/// | `https://name.openai.azure.com/openai/v1`                         | Modern          |
+/// | `https://name.services.ai.azure.com/openai/v1`                    | Modern Foundry  |
+/// | `https://name.openai.azure.com`                                    | Root (any era)  |
+/// | `https://name.services.ai.azure.com`                              | Root Foundry    |
+fn resolve_azure_base_url(
+    raw_endpoint: &str,
+    deployment: Option<&str>,
+    api_variant: &str,
+) -> Result<String, String> {
+    let ep = raw_endpoint.trim_end_matches('/');
+
+    // Full chat completions URL — strip the suffix so with_api_base doesn't double it.
+    if let Some(base) = ep.strip_suffix("/chat/completions") {
+        return Ok(base.to_string());
+    }
+
+    // Already contains a recognized sub-path — pass through unchanged.
+    if ep.contains("/openai/v1") || ep.contains("/openai/deployments/") {
+        return Ok(ep.to_string());
+    }
+
+    // Resource root URL — build the correct sub-path.
+    match api_variant {
+        "v1" => Ok(format!("{ep}/openai/v1")),
+        _ => match deployment {
+            // Standard/legacy: deployment name in URL.
+            Some(name) => Ok(format!("{ep}/openai/deployments/{name}")),
+            // No deployment name available (ambient credential) — fall back to /v1/ path.
+            // The model field in the request body carries the deployment name instead.
+            None => Ok(format!("{ep}/openai/v1")),
+        },
     }
 }
 

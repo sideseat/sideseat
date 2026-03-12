@@ -803,8 +803,8 @@ fn format_tool_choice(tc: &ToolChoice) -> Value {
         ToolChoice::None => json!("none"),
         ToolChoice::Any => json!("any"),
         ToolChoice::Tool { name } => json!({"type": "function", "function": {"name": name}}),
-        // Mistral doesn't support restricting to a subset; fall back to required
-        ToolChoice::AllowedTools { .. } => json!("any"),
+        // Mistral has no subset-restriction mode; "auto" preserves optional-tool semantics.
+        ToolChoice::AllowedTools { .. } => json!("auto"),
     }
 }
 

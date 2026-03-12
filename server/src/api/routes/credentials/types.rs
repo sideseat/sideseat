@@ -17,7 +17,7 @@ pub struct CredentialDto {
     pub endpoint_url: Option<String>,
     pub extra_config: Option<serde_json::Value>,
     pub key_preview: Option<String>,
-    /// "stored" or "env"
+    /// "stored", "env", or "ambient"
     pub source: String,
     pub env_var_name: Option<String>,
     pub read_only: bool,
