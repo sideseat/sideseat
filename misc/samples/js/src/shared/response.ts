@@ -1,57 +1,53 @@
 /**
  * Utilities for extracting content from SDK responses.
  *
- * Strands SDK responses have varying shapes depending on the operation.
- * These utilities normalize response extraction across samples.
+ * Handles both legacy response shapes and the AgentResult type from SDK 0.6.0+.
+ * AgentResult: { type: 'agentResult', lastMessage: { content: ContentBlock[] } }
+ * ContentBlock types: { type: 'textBlock', text: string } | { type: 'reasoningBlock', text?: string }
  */
 
-/**
- * Extract text content from a Strands agent response message.
- * Handles both string and content block array formats.
- */
-export function extractTextFromMessage(message: unknown): string {
-  if (!message || typeof message !== 'object') return String(message);
+type Block = { type: string; text?: string };
 
-  const msg = message as Record<string, unknown>;
-  const content = msg.content;
+function getContentBlocks(response: unknown): Block[] {
+  if (!response || typeof response !== 'object') return [];
+  const r = response as Record<string, unknown>;
 
-  if (typeof content === 'string') return content;
-
-  if (Array.isArray(content)) {
-    const texts: string[] = [];
-    for (const block of content) {
-      if (typeof block === 'string') {
-        texts.push(block);
-      } else if (typeof block === 'object' && block !== null) {
-        const b = block as Record<string, unknown>;
-        if (b.type === 'text' && typeof b.text === 'string') {
-          texts.push(b.text);
-        }
-      }
-    }
-    if (texts.length > 0) return texts.join('\n');
+  // AgentResult from SDK 0.6.0+
+  if (r.type === 'agentResult' && r.lastMessage) {
+    const msg = r.lastMessage as Record<string, unknown>;
+    if (Array.isArray(msg.content)) return msg.content as Block[];
   }
 
-  return String(message);
+  // Legacy format: { message: { content: [...] } }
+  const msg = r.message;
+  if (msg && typeof msg === 'object') {
+    const m = msg as Record<string, unknown>;
+    if (Array.isArray(m.content)) return m.content as Block[];
+  }
+
+  return [];
 }
 
 /**
- * Extract text content from a full Strands agent response.
- * Unwraps the message wrapper if present.
+ * Extract text content from a Strands agent response.
  */
 export function extractTextFromResponse(response: unknown): string {
-  if (!response || typeof response !== 'object') return String(response);
   if (typeof response === 'string') return response;
 
-  const resp = response as Record<string, unknown>;
+  const blocks = getContentBlocks(response);
+  const texts = blocks
+    .filter((b) => b.type === 'textBlock' && typeof b.text === 'string')
+    .map((b) => b.text as string);
 
-  // Try to unwrap message wrapper
-  if (resp.message && typeof resp.message === 'object') {
-    return extractTextFromMessage(resp.message);
+  if (texts.length > 0) return texts.join('\n');
+
+  // Fallback: try toString()
+  if (response && typeof (response as Record<string, unknown>).toString === 'function') {
+    const str = String(response);
+    if (str !== '[object Object]') return str;
   }
 
-  // Try direct message extraction
-  return extractTextFromMessage(response);
+  return String(response);
 }
 
 /**
@@ -59,27 +55,17 @@ export function extractTextFromResponse(response: unknown): string {
  * Returns null if no thinking content found.
  */
 export function extractThinkingFromResponse(response: unknown): string | null {
-  if (!response || typeof response !== 'object') return null;
+  const blocks = getContentBlocks(response);
 
-  const resp = response as Record<string, unknown>;
-  if (!resp.message || typeof resp.message !== 'object') return null;
-
-  const message = resp.message as Record<string, unknown>;
-  const content = message.content;
-  if (!Array.isArray(content)) return null;
-
-  for (const block of content) {
-    if (typeof block === 'object' && block !== null) {
-      const b = block as Record<string, unknown>;
-      // Anthropic thinking block format
-      if (b.type === 'thinking') {
-        return (b.thinking ?? b.text) as string;
-      }
-      // Alternative reasoning format
-      if (b.type === 'reasoning') {
-        return (b.reasoning ?? b.text) as string;
-      }
+  for (const block of blocks) {
+    if (block.type === 'reasoningBlock' && typeof block.text === 'string') {
+      return block.text;
+    }
+    // Legacy thinking block format
+    if (block.type === 'thinking' && typeof block.text === 'string') {
+      return block.text;
     }
   }
+
   return null;
 }

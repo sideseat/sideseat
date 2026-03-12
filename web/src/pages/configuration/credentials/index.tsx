@@ -45,13 +45,7 @@ function ProviderBadge({ providerKey }: { providerKey: string }) {
   );
 }
 
-function TestButton({
-  testInfo,
-  onTest,
-}: {
-  testInfo: TestInfo;
-  onTest: () => void;
-}) {
+function TestButton({ testInfo, onTest }: { testInfo: TestInfo; onTest: () => void }) {
   if (testInfo.state === "loading") {
     return (
       <Button variant="outline" size="sm" disabled>
@@ -65,7 +59,12 @@ function TestButton({
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="outline" size="sm" className="text-green-600 border-green-600/50" onClick={onTest}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-green-600 border-green-600/50"
+              onClick={onTest}
+            >
               <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
               Connected
               {testInfo.latencyMs !== undefined && (
@@ -292,9 +291,7 @@ export default function CredentialsPage() {
       {/* Env-detected credentials */}
       {!isLoading && !error && envCreds.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-muted-foreground">
-            Detected from environment
-          </h3>
+          <h3 className="text-sm font-medium text-muted-foreground">Detected from environment</h3>
           <div className="grid gap-4 md:grid-cols-2">
             {envCreds.map((cred) => (
               <CredentialCard
@@ -313,9 +310,7 @@ export default function CredentialsPage() {
       {!isLoading && !error && storedCreds.length > 0 && (
         <div className="space-y-3">
           {envCreds.length > 0 && (
-            <h3 className="text-sm font-medium text-muted-foreground">
-              Configured
-            </h3>
+            <h3 className="text-sm font-medium text-muted-foreground">Configured</h3>
           )}
           <div className="grid gap-4 md:grid-cols-2">
             {storedCreds.map((cred) => (

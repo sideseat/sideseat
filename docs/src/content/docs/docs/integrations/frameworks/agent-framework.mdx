@@ -1,0 +1,235 @@
+---
+title: Microsoft Agent Framework
+description: Integrate SideSeat with Microsoft Agent Framework for multi-agent run visibility.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+[Microsoft Agent Framework](https://pypi.org/project/agent-framework/) (`agent-framework`) is a Python SDK for building AI agents with built-in OpenTelemetry support. SideSeat captures runs from agents using OpenAI, Anthropic, and Azure OpenAI providers.
+
+## Quick Start
+
+<Steps>
+1. **Install dependencies**
+
+   ```bash
+   pip install agent-framework sideseat
+   # or
+   uv add agent-framework sideseat
+   ```
+
+2. **Add telemetry**
+
+   ```python
+   from sideseat import SideSeat, Frameworks
+   from agent_framework import Agent
+   from agent_framework.openai import OpenAIChatClient
+
+   SideSeat(framework=Frameworks.AgentFramework)
+
+   client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
+   agent = Agent(client=client, instructions="You are a helpful assistant.")
+
+   import asyncio
+   result = asyncio.run(agent.run("What is the capital of France?"))
+   print(result.text)
+   ```
+
+3. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
+</Steps>
+
+<Aside type="note">
+Agent Framework instruments itself automatically when any TracerProvider is configured as the global OpenTelemetry provider. No separate instrumentor is needed.
+</Aside>
+
+## Without SideSeat SDK
+
+Configure the OpenTelemetry SDK directly:
+
+```python
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+provider = TracerProvider()
+provider.add_span_processor(
+    BatchSpanProcessor(OTLPSpanExporter(
+        endpoint="http://localhost:5388/otel/default/v1/traces"
+    ))
+)
+
+from opentelemetry import trace
+trace.set_tracer_provider(provider)
+```
+
+## Providers
+
+Agent Framework supports OpenAI and Anthropic:
+
+<Tabs>
+  <TabItem label="OpenAI">
+    ```python
+    from agent_framework.openai import OpenAIChatClient
+
+    # Uses OPENAI_API_KEY and OPENAI_CHAT_MODEL_ID env vars
+    client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
+    ```
+  </TabItem>
+  <TabItem label="OpenAI Responses">
+    ```python
+    from agent_framework.openai import OpenAIResponsesClient
+
+    # Supports reasoning_effort for extended thinking
+    client = OpenAIResponsesClient(model_id="gpt-5-nano-2025-08-07")
+    ```
+  </TabItem>
+  <TabItem label="Anthropic">
+    ```python
+    from agent_framework.anthropic import AnthropicClient
+
+    # Uses ANTHROPIC_API_KEY and ANTHROPIC_CHAT_MODEL_ID env vars
+    client = AnthropicClient(model_id="claude-haiku-4-5-20251001")
+    ```
+  </TabItem>
+</Tabs>
+
+## Tools
+
+Define tools with the `@tool` decorator using Annotated type hints:
+
+```python
+from typing import Annotated
+from agent_framework import Agent, tool
+from pydantic import Field
+
+@tool(approval_mode="never_require")
+def get_weather(
+    city: Annotated[str, Field(description="The city name")],
+) -> str:
+    """Get weather for a city."""
+    return f"Sunny in {city}, 72F"
+
+agent = Agent(
+    client=client,
+    instructions="You are a weather assistant.",
+    tools=[get_weather],
+)
+
+result = await agent.run("What's the weather in Paris?")
+```
+
+SideSeat shows each tool call as a child span with inputs and outputs.
+
+## Multi-Agent Concurrency
+
+Run multiple specialized agents in parallel using `asyncio.gather()`:
+
+```python
+import asyncio
+from agent_framework import Agent
+
+researcher = Agent(client=client, instructions="You are a researcher.")
+technical = Agent(client=client, instructions="You are a technical expert.")
+
+prompt = "Evaluate building a weather app"
+
+researcher_result, technical_result = await asyncio.gather(
+    researcher.run(prompt),
+    technical.run(prompt),
+)
+```
+
+## Structured Output
+
+Extract structured data using Pydantic models:
+
+```python
+from pydantic import BaseModel
+from agent_framework import Agent
+
+class Person(BaseModel):
+    name: str
+    age: int
+    city: str
+
+agent = Agent(client=client, instructions="Extract structured information.")
+result = await agent.run(
+    "Jane Doe, 28, lives in New York.",
+    options={"response_format": Person},
+)
+
+if result.value is not None:
+    print(result.value.name)  # "Jane Doe"
+```
+
+## Extended Thinking
+
+Enable extended thinking for supported models:
+
+<Tabs>
+  <TabItem label="OpenAI">
+    ```python
+    from agent_framework.openai import OpenAIResponsesClient
+
+    client = OpenAIResponsesClient(model_id="gpt-5-nano-2025-08-07")
+    agent = Agent(client=client, instructions="Solve problems step by step.")
+
+    result = await agent.run(
+        "Solve this logic puzzle...",
+        options={"reasoning_effort": "medium"},
+    )
+    ```
+  </TabItem>
+  <TabItem label="Anthropic">
+    ```python
+    from agent_framework.anthropic import AnthropicClient
+
+    client = AnthropicClient(model_id="claude-sonnet-4-20250514")
+    agent = Agent(client=client, instructions="Solve problems step by step.")
+
+    result = await agent.run(
+        "Solve this logic puzzle...",
+        options={"thinking": {"type": "enabled", "budget_tokens": 4096}},
+    )
+    ```
+  </TabItem>
+</Tabs>
+
+## MCP Servers
+
+Connect to MCP servers using `MCPStdioTool`:
+
+```python
+import shutil
+from agent_framework import Agent, MCPStdioTool
+
+mcp_tool = MCPStdioTool(
+    name="calculator",
+    command=shutil.which("uv") or "uv",
+    args=["run", "--directory", "/path/to/mcp-server", "mcp-calculator"],
+    approval_mode="never_require",
+)
+
+agent = Agent(
+    client=client,
+    instructions="You help users calculate.",
+    tools=[mcp_tool],
+)
+```
+
+## What You'll See
+
+SideSeat shows a trace timeline with:
+- A parent span for the agent session
+- Child spans for each LLM call with model, tokens, and cost
+- Child spans for each tool execution with inputs and outputs
+- Error spans with exception details when failures occur
+
+## Next Steps
+
+- [Python SDK](/docs/sdks/python/) — SDK reference
+- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages
+- [OpenAI](/docs/integrations/providers/openai/) — OpenAI provider details
+- [Anthropic](/docs/integrations/providers/anthropic/) — Anthropic provider details

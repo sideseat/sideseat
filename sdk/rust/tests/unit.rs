@@ -3,15 +3,14 @@ use std::collections::HashMap;
 
 use futures::StreamExt;
 use sideseat::{
-    AgentHooks, ChatProvider, DefaultHooks, DefaultSettingsMiddleware,
-    ExtractReasoningMiddleware, FallbackProvider, FallbackStrategy, FallbackTrigger,
-    ImageGenerationRequest, ImageProvider, InstrumentedProvider, LoggingMiddleware, Message,
-    Middleware, MiddlewareStack, MockProvider, MockResponse, ModelCapability, PromptTemplate,
-    Provider, ProviderConfig, ProviderError, ProviderRegistry, RetryConfig, RetryProvider,
-    SideSeat, SimulateStreamingMiddleware, TelemetryConfig, Tool,
-    VideoGenerationRequest, VideoProvider, batch_complete, cosine_similarity, euclidean_distance,
-    model_capabilities, normalize_embedding, record_stream, run_agent_loop_with_hooks,
-    stream_text, supports_audio_input, supports_audio_output,
+    AgentHooks, ChatProvider, DefaultHooks, DefaultSettingsMiddleware, ExtractReasoningMiddleware,
+    FallbackProvider, FallbackStrategy, FallbackTrigger, ImageGenerationRequest, ImageProvider,
+    InstrumentedProvider, LoggingMiddleware, Message, Middleware, MiddlewareStack, MockProvider,
+    MockResponse, ModelCapability, PromptTemplate, Provider, ProviderConfig, ProviderError,
+    ProviderRegistry, RetryConfig, RetryProvider, SideSeat, SimulateStreamingMiddleware,
+    TelemetryConfig, Tool, VideoGenerationRequest, VideoProvider, batch_complete,
+    cosine_similarity, euclidean_distance, model_capabilities, normalize_embedding, record_stream,
+    run_agent_loop_with_hooks, stream_text, supports_audio_input, supports_audio_output,
     supports_extended_thinking, supports_function_calling, supports_vision, truncate_messages,
     validate_messages,
 };
@@ -169,15 +168,14 @@ async fn fallback_provider_uses_second() {
 async fn fallback_any_error_skips_unsupported() {
     // AnyError strategy must NOT fall back when the error is Unsupported —
     // that is a programming error (wrong provider for the task), not transient.
-    let first = MockProvider::new()
-        .with_response(MockResponse::Error(ProviderError::Unsupported("no audio".into())));
+    let first = MockProvider::new().with_response(MockResponse::Error(ProviderError::Unsupported(
+        "no audio".into(),
+    )));
     let second = MockProvider::new().with_text("should not be reached");
 
     let provider = FallbackProvider::new(vec![Box::new(first), Box::new(second)]);
     let config = ProviderConfig::new("mock-model");
-    let result = provider
-        .complete(vec![Message::user("hi")], config)
-        .await;
+    let result = provider.complete(vec![Message::user("hi")], config).await;
     assert!(
         matches!(result, Err(ProviderError::Unsupported(_))),
         "expected Unsupported to propagate without fallback, got: {result:?}"
@@ -489,7 +487,10 @@ async fn provider_image_generation_unsupported_by_default() {
         "make it blue",
     );
     let result = provider.edit_image(request).await;
-    assert!(matches!(result, Err(sideseat::ProviderError::Unsupported(_))));
+    assert!(matches!(
+        result,
+        Err(sideseat::ProviderError::Unsupported(_))
+    ));
 }
 
 #[test]
@@ -1081,11 +1082,11 @@ async fn agent_loop_needs_approval_blocks_tool() {
     // The step should have recorded the approval-blocked result
     assert_eq!(result.steps.len(), 1);
     let step = &result.steps[0];
-    assert!(
-        step.tool_results
+    assert!(step.tool_results.iter().any(|(_, blocks)| {
+        blocks
             .iter()
-            .any(|(_, blocks)| blocks.iter().any(|b| b.as_text().is_some_and(|t| t.contains("approval"))))
-    );
+            .any(|b| b.as_text().is_some_and(|t| t.contains("approval")))
+    }));
 }
 
 #[tokio::test]
@@ -1244,8 +1245,9 @@ async fn fallback_trigger_no_any_error_variant() {
     // Timeout triggers fallback; Auth does not
     use sideseat::{FallbackStrategy, FallbackTrigger};
     let strategy = FallbackStrategy::OnTriggers(vec![FallbackTrigger::Timeout]);
-    let primary = MockProvider::new()
-        .with_response(MockResponse::Error(ProviderError::Timeout { ms: Some(5000) }));
+    let primary = MockProvider::new().with_response(MockResponse::Error(ProviderError::Timeout {
+        ms: Some(5000),
+    }));
     let secondary = MockProvider::new().with_text("recovered");
     let mut p = FallbackProvider::with_strategy(vec![Box::new(primary)], strategy);
     p.push(secondary);
@@ -1471,18 +1473,15 @@ fn media_source_text_round_trips() {
 #[test]
 fn bedrock_guardrail_extra_keys() {
     let mut config = ProviderConfig::new("claude-3");
-    config.extra.insert(
-        "guardrail_id".into(),
-        serde_json::json!("gr-123"),
-    );
-    config.extra.insert(
-        "guardrail_version".into(),
-        serde_json::json!("1"),
-    );
-    config.extra.insert(
-        "guardrail_trace".into(),
-        serde_json::json!("enabled"),
-    );
+    config
+        .extra
+        .insert("guardrail_id".into(), serde_json::json!("gr-123"));
+    config
+        .extra
+        .insert("guardrail_version".into(), serde_json::json!("1"));
+    config
+        .extra
+        .insert("guardrail_trace".into(), serde_json::json!("enabled"));
     assert_eq!(config.extra["guardrail_id"], "gr-123");
     assert_eq!(config.extra["guardrail_trace"], "enabled");
 }
@@ -1514,7 +1513,10 @@ fn bedrock_prompt_variables_extra_key() {
         "prompt_variables".into(),
         serde_json::json!({"topic": "Rust programming"}),
     );
-    assert_eq!(config.extra["prompt_variables"]["topic"], "Rust programming");
+    assert_eq!(
+        config.extra["prompt_variables"]["topic"],
+        "Rust programming"
+    );
 }
 
 #[test]
@@ -1524,7 +1526,9 @@ fn bedrock_amr_paths_extra_key() {
         "additional_model_response_field_paths".into(),
         serde_json::json!(["/path/to/field1", "/path/to/field2"]),
     );
-    let arr = config.extra["additional_model_response_field_paths"].as_array().unwrap();
+    let arr = config.extra["additional_model_response_field_paths"]
+        .as_array()
+        .unwrap();
     assert_eq!(arr.len(), 2);
     assert_eq!(arr[0], "/path/to/field1");
 }

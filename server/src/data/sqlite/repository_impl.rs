@@ -692,9 +692,16 @@ impl TransactionalRepository for Arc<SqliteService> {
         endpoint_url: Option<Option<&str>>,
         extra_config: Option<Option<&str>>,
     ) -> Result<Option<CredentialRow>, DataError> {
-        credentials::update_credential(self.pool(), id, org_id, display_name, endpoint_url, extra_config)
-            .await
-            .map_err(Into::into)
+        credentials::update_credential(
+            self.pool(),
+            id,
+            org_id,
+            display_name,
+            endpoint_url,
+            extra_config,
+        )
+        .await
+        .map_err(Into::into)
     }
 
     async fn delete_credential(&self, id: &str, org_id: &str) -> Result<bool, DataError> {

@@ -1,0 +1,108 @@
+---
+import { Code } from '@astrojs/starlight/components';
+
+interface Item {
+  label: string;
+  code: string;
+  lang: string;
+}
+
+const { items } = Astro.props as { items: Item[] };
+---
+
+<framework-dropdown>
+  <div class="fd-header">
+    <span class="fd-label">Framework</span>
+    <select class="fd-select" aria-label="Select framework">
+      {items.map((item, i) => <option value={String(i)}>{item.label}</option>)}
+    </select>
+  </div>
+  <div class="fd-body">
+    {items.map((item, i) => (
+      <div class="fd-panel" data-index={String(i)} hidden={i !== 0}>
+        <Code code={item.code} lang={item.lang} />
+      </div>
+    ))}
+  </div>
+</framework-dropdown>
+
+<script>
+  class FrameworkDropdown extends HTMLElement {
+    connectedCallback() {
+      const select = this.querySelector<HTMLSelectElement>('.fd-select')!;
+      const panels = this.querySelectorAll<HTMLElement>('.fd-panel');
+      select.addEventListener('change', () => {
+        const idx = parseInt(select.value);
+        panels.forEach((panel, i) => {
+          panel.hidden = i !== idx;
+        });
+      });
+    }
+  }
+  if (!customElements.get('framework-dropdown')) {
+    customElements.define('framework-dropdown', FrameworkDropdown);
+  }
+</script>
+
+<style>
+  framework-dropdown {
+    display: block;
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    margin-block: 1.5rem;
+  }
+
+  .fd-header {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--sl-color-bg-nav);
+    border-bottom: 1px solid var(--sl-color-hairline-light);
+  }
+
+  .fd-label {
+    font-size: 0.75rem;
+    color: var(--sl-color-gray-3);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+  }
+
+  .fd-select {
+    background: var(--sl-color-bg-inline-code);
+    color: var(--sl-color-text);
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.375rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    font-family: var(--sl-font);
+    cursor: pointer;
+    min-width: 9rem;
+  }
+
+  .fd-select:focus-visible {
+    outline: 2px solid var(--sl-color-accent);
+    outline-offset: 1px;
+  }
+
+  .fd-panel[hidden] {
+    display: none;
+  }
+
+  /* Strip borders/radius from the inner Code block — the outer wrapper handles them */
+  .fd-body :global(.expressive-code) {
+    border-radius: 0 !important;
+  }
+
+  .fd-body :global(.expressive-code .frame) {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .fd-body :global(.expressive-code pre) {
+    border-radius: 0 !important;
+  }
+</style>

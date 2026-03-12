@@ -146,10 +146,7 @@ pub async fn create_credential(
         .filter(|s| !s.is_empty())
         .map(|s| s.chars().take(8).collect::<String>());
 
-    let extra_config_str = req
-        .extra_config
-        .as_ref()
-        .map(|v| v.to_string());
+    let extra_config_str = req.extra_config.as_ref().map(|v| v.to_string());
 
     let row = state
         .service
@@ -215,12 +212,8 @@ pub async fn update_credential(
             &path.id,
             &org.org_id,
             req.display_name.as_deref(),
-            req.endpoint_url
-                .as_ref()
-                .map(|opt| opt.as_deref()),
-            extra_config_str
-                .as_ref()
-                .map(|opt| opt.as_deref()),
+            req.endpoint_url.as_ref().map(|opt| opt.as_deref()),
+            extra_config_str.as_ref().map(|opt| opt.as_deref()),
         )
         .await
         .map_err(credential_error)?
@@ -341,7 +334,10 @@ pub async fn list_permissions(
         .map_err(credential_error)?;
 
     Ok(Json(
-        perms.into_iter().map(CredentialPermissionDto::from).collect(),
+        perms
+            .into_iter()
+            .map(CredentialPermissionDto::from)
+            .collect(),
     ))
 }
 
@@ -389,7 +385,10 @@ pub async fn create_permission(
         .await
         .map_err(credential_error)?;
 
-    Ok((StatusCode::CREATED, Json(CredentialPermissionDto::from(perm))))
+    Ok((
+        StatusCode::CREATED,
+        Json(CredentialPermissionDto::from(perm)),
+    ))
 }
 
 /// Delete a permission rule

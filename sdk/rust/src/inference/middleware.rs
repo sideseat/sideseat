@@ -232,10 +232,7 @@ impl<P: Provider + 'static> MiddlewareStack<P> {
 }
 
 /// Propagate an error through all `on_error` hooks (FIFO).
-async fn propagate_error(
-    middlewares: &[Arc<dyn Middleware>],
-    e: ProviderError,
-) -> ProviderError {
+async fn propagate_error(middlewares: &[Arc<dyn Middleware>], e: ProviderError) -> ProviderError {
     let mut err = e;
     for mw in middlewares {
         err = mw.on_error(err, &[], &ProviderConfig::default()).await;
@@ -349,8 +346,7 @@ impl<P: ChatProvider + Send + Sync + 'static> ChatProvider for MiddlewareStack<P
         messages: Vec<Message>,
         config: ProviderConfig,
     ) -> Result<TokenCount, ProviderError> {
-        let (messages, config) =
-            run_before_pipeline(&self.middlewares, messages, config).await?;
+        let (messages, config) = run_before_pipeline(&self.middlewares, messages, config).await?;
         let mut inner_config = config.clone();
         inner_config.extra.retain(|k, _| !k.starts_with('_'));
         self.inner.count_tokens(messages, inner_config).await
@@ -402,12 +398,16 @@ impl<P: Provider + ImageProvider + Send + Sync + 'static> ImageProvider for Midd
         &self,
         mut request: ImageEditRequest,
     ) -> Result<ImageGenerationResponse, ProviderError> {
-        for mw in &self.middlewares { request = mw.before_edit_image(request).await?; }
+        for mw in &self.middlewares {
+            request = mw.before_edit_image(request).await?;
+        }
         let mut response = match self.inner.edit_image(request).await {
             Ok(r) => r,
             Err(e) => return Err(propagate_error(&self.middlewares, e).await),
         };
-        for mw in self.middlewares.iter().rev() { response = mw.after_edit_image(response).await?; }
+        for mw in self.middlewares.iter().rev() {
+            response = mw.after_edit_image(response).await?;
+        }
         Ok(response)
     }
 }
@@ -512,11 +512,17 @@ impl<P: Provider + ModerationProvider + Send + Sync + 'static> ModerationProvide
 impl<P: Provider + StatefulProvider + Send + Sync + 'static> StatefulProvider
     for MiddlewareStack<P>
 {
-    async fn retrieve_response(&self, response_id: &str) -> Result<crate::types::Response, ProviderError> {
+    async fn retrieve_response(
+        &self,
+        response_id: &str,
+    ) -> Result<crate::types::Response, ProviderError> {
         self.inner.retrieve_response(response_id).await
     }
 
-    async fn cancel_response(&self, response_id: &str) -> Result<crate::types::Response, ProviderError> {
+    async fn cancel_response(
+        &self,
+        response_id: &str,
+    ) -> Result<crate::types::Response, ProviderError> {
         self.inner.cancel_response(response_id).await
     }
 }
@@ -616,7 +622,9 @@ impl Middleware for TimingMiddleware {
     ) -> Result<(Vec<Message>, ProviderConfig), ProviderError> {
         let id = self.counter.fetch_add(1, Ordering::Relaxed);
         self.starts.lock().insert(id, Instant::now());
-        config.extra.insert("_tm".into(), serde_json::Value::from(id));
+        config
+            .extra
+            .insert("_tm".into(), serde_json::Value::from(id));
         Ok((messages, config))
     }
 

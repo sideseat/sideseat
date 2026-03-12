@@ -38,7 +38,30 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 
    user.initiate_chat(assistant, message="Hello!")
    ```
+
+3. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
 </Steps>
+
+## Without SideSeat SDK
+
+Configure the OpenTelemetry SDK directly:
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+provider = TracerProvider()
+provider.add_span_processor(
+    BatchSpanProcessor(
+        OTLPSpanExporter(endpoint="http://localhost:5388/otel/default/v1/traces")
+    )
+)
+trace.set_tracer_provider(provider)
+```
 
 ## Agent Configuration
 
@@ -116,6 +139,14 @@ SideSeat shows:
 - Code generation spans
 - Execution spans with output
 - Error spans if execution fails
+
+## What You'll See
+
+SideSeat shows a trace timeline with:
+- A parent span for each agent conversation
+- Child spans for each LLM call with model, tokens, and cost
+- Code generation and execution spans with outputs
+- Error spans with exception details when failures occur
 
 ## Next Steps
 

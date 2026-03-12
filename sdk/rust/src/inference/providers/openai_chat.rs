@@ -7,18 +7,21 @@ use serde_json::{Value, json};
 
 use crate::{
     error::ProviderError,
-    provider::{AudioProvider, ChatProvider, EmbeddingProvider, ImageProvider, ModerationProvider, Provider, ProviderStream},
+    provider::{
+        AudioProvider, ChatProvider, EmbeddingProvider, ImageProvider, ModerationProvider,
+        Provider, ProviderStream,
+    },
     providers::{
         openai_common::{OpenAIInnerClient, parse_finish_reason, parse_usage},
         sse::{check_response, sse_data_stream},
     },
     types::{
-        AudioContent, AudioFormat, ContentBlock, ContentBlockStart, ContentDelta,
-        EmbeddingRequest, EmbeddingResponse, ImageContent, ImageEditRequest,
-        ImageGenerationRequest, ImageGenerationResponse, MediaSource, Message, ModelInfo,
-        ModerationRequest, ModerationResponse, ProviderConfig, ResponseFormat, Role,
-        SpeechRequest, SpeechResponse, StreamEvent, TokenCount, Tool, ToolChoice,
-        ToolUseBlock, TranscriptionRequest, TranscriptionResponse, WebSearchConfig,
+        AudioContent, AudioFormat, ContentBlock, ContentBlockStart, ContentDelta, EmbeddingRequest,
+        EmbeddingResponse, ImageContent, ImageEditRequest, ImageGenerationRequest,
+        ImageGenerationResponse, MediaSource, Message, ModelInfo, ModerationRequest,
+        ModerationResponse, ProviderConfig, ResponseFormat, Role, SpeechRequest, SpeechResponse,
+        StreamEvent, TokenCount, Tool, ToolChoice, ToolUseBlock, TranscriptionRequest,
+        TranscriptionResponse, WebSearchConfig,
     },
 };
 
@@ -43,32 +46,44 @@ pub struct OpenAIChatProvider {
 impl OpenAIChatProvider {
     /// Create a provider from the `OPENAI_API_KEY` environment variable.
     pub fn from_env() -> Result<Self, ProviderError> {
-        Ok(Self::new(crate::env::require(crate::env::keys::OPENAI_API_KEY)?))
+        Ok(Self::new(crate::env::require(
+            crate::env::keys::OPENAI_API_KEY,
+        )?))
     }
 
     /// Create a Groq provider from the `GROQ_API_KEY` environment variable.
     pub fn for_groq_from_env() -> Result<Self, ProviderError> {
-        Ok(Self::for_groq(crate::env::require(crate::env::keys::GROQ_API_KEY)?))
+        Ok(Self::for_groq(crate::env::require(
+            crate::env::keys::GROQ_API_KEY,
+        )?))
     }
 
     /// Create a DeepSeek provider from the `DEEPSEEK_API_KEY` environment variable.
     pub fn for_deepseek_from_env() -> Result<Self, ProviderError> {
-        Ok(Self::for_deepseek(crate::env::require(crate::env::keys::DEEPSEEK_API_KEY)?))
+        Ok(Self::for_deepseek(crate::env::require(
+            crate::env::keys::DEEPSEEK_API_KEY,
+        )?))
     }
 
     /// Create an xAI provider from the `XAI_API_KEY` environment variable.
     pub fn for_xai_from_env() -> Result<Self, ProviderError> {
-        Ok(Self::for_xai(crate::env::require(crate::env::keys::XAI_API_KEY)?))
+        Ok(Self::for_xai(crate::env::require(
+            crate::env::keys::XAI_API_KEY,
+        )?))
     }
 
     /// Create a Mistral provider from the `MISTRAL_API_KEY` environment variable.
     pub fn for_mistral_from_env() -> Result<Self, ProviderError> {
-        Ok(Self::for_mistral(crate::env::require(crate::env::keys::MISTRAL_API_KEY)?))
+        Ok(Self::for_mistral(crate::env::require(
+            crate::env::keys::MISTRAL_API_KEY,
+        )?))
     }
 
     /// Create a Together AI provider from the `TOGETHER_API_KEY` environment variable.
     pub fn for_together_from_env() -> Result<Self, ProviderError> {
-        Ok(Self::for_together(crate::env::require(crate::env::keys::TOGETHER_API_KEY)?))
+        Ok(Self::for_together(crate::env::require(
+            crate::env::keys::TOGETHER_API_KEY,
+        )?))
     }
 
     pub fn new(api_key: impl Into<String>) -> Self {
@@ -191,8 +206,7 @@ impl OpenAIChatProvider {
     /// Use `openai.` prefixed model names, e.g. `"openai.gpt-oss-120b"`.
     pub fn for_bedrock_openai(region: impl Into<String>, api_key: impl Into<String>) -> Self {
         let region = region.into();
-        Self::new(api_key)
-            .with_api_base(format!("https://bedrock-mantle.{region}.api.aws/v1"))
+        Self::new(api_key).with_api_base(format!("https://bedrock-mantle.{region}.api.aws/v1"))
     }
 
     /// Create an Amazon Bedrock OpenAI-compatible API provider from environment variables.
@@ -214,7 +228,9 @@ impl OpenAIChatProvider {
     ///
     /// Tries `AZURE_OPENAI_API_KEY` env var first; falls back to Azure Managed
     /// Identity via the IMDS endpoint (Azure VMs, Container Apps, AKS pod identity).
-    pub async fn for_azure_default(endpoint: impl Into<String>) -> Result<Self, crate::error::ProviderError> {
+    pub async fn for_azure_default(
+        endpoint: impl Into<String>,
+    ) -> Result<Self, crate::error::ProviderError> {
         let ep = endpoint.into();
         if let Ok(key) = std::env::var("AZURE_OPENAI_API_KEY")
             && !key.is_empty()
@@ -239,14 +255,22 @@ async fn fetch_azure_imds_token(resource: &str) -> Result<String, crate::error::
         .header("Metadata", "true")
         .send()
         .await
-        .map_err(|e| crate::error::ProviderError::Auth(format!("Azure IMDS unreachable (not an Azure host?): {e}")))?
+        .map_err(|e| {
+            crate::error::ProviderError::Auth(format!(
+                "Azure IMDS unreachable (not an Azure host?): {e}"
+            ))
+        })?
         .json()
         .await
-        .map_err(|e| crate::error::ProviderError::Auth(format!("Azure IMDS response parse error: {e}")))?;
+        .map_err(|e| {
+            crate::error::ProviderError::Auth(format!("Azure IMDS response parse error: {e}"))
+        })?;
     resp.get("access_token")
         .and_then(|v| v.as_str())
         .map(ToString::to_string)
-        .ok_or_else(|| crate::error::ProviderError::Auth(format!("Azure IMDS missing access_token: {resp}")))
+        .ok_or_else(|| {
+            crate::error::ProviderError::Auth(format!("Azure IMDS missing access_token: {resp}"))
+        })
 }
 
 #[async_trait]
@@ -718,8 +742,7 @@ fn build_request(
         req["modalities"] = json!(["text", "audio"]);
         let mut audio_obj = json!({"voice": audio.voice});
         if let Some(fmt) = &audio.format {
-            audio_obj["format"] =
-                serde_json::to_value(fmt).unwrap_or_else(|_| json!("mp3"));
+            audio_obj["format"] = serde_json::to_value(fmt).unwrap_or_else(|_| json!("mp3"));
         }
         req["audio"] = audio_obj;
     }
@@ -1199,7 +1222,9 @@ mod tests {
 
     #[test]
     fn test_logprobs() {
-        let config = ProviderConfig::new("gpt-4.1").with_logprobs(true).with_top_logprobs(3);
+        let config = ProviderConfig::new("gpt-4.1")
+            .with_logprobs(true)
+            .with_top_logprobs(3);
         let req = build_request(&[Message::user("Hi")], &config, false).unwrap();
         assert_eq!(req["logprobs"], true);
         assert_eq!(req["top_logprobs"], 3);

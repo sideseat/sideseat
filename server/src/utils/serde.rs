@@ -17,9 +17,7 @@ where
 /// - absent from JSON → `None` (requires `#[serde(default)]`)
 /// - `null` → `Some(None)` (clear the field)
 /// - `{...}` → `Some(Some({...}))` (update the field)
-pub fn double_option_value<'de, D>(
-    d: D,
-) -> Result<Option<Option<serde_json::Value>>, D::Error>
+pub fn double_option_value<'de, D>(d: D) -> Result<Option<Option<serde_json::Value>>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {

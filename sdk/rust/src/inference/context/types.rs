@@ -734,18 +734,39 @@ impl<'de> Deserialize<'de> for NodeContent {
         }
 
         const KNOWN_TYPES: &[&str] = &[
-            "user_message", "assistant_message", "system_message", "tool_result",
-            "agent_spawn", "agent_result", "agent_event", "agent_handoff",
-            "file_upload", "media_capture", "artifact_ref", "canvas_ref",
-            "mcp_ui", "skill_invocation", "async_task", "computer_action",
-            "mode_switch", "annotation", "source_ref", "eval_result",
-            "approval_request", "approval_response", "workflow_step", "vfs_change",
+            "user_message",
+            "assistant_message",
+            "system_message",
+            "tool_result",
+            "agent_spawn",
+            "agent_result",
+            "agent_event",
+            "agent_handoff",
+            "file_upload",
+            "media_capture",
+            "artifact_ref",
+            "canvas_ref",
+            "mcp_ui",
+            "skill_invocation",
+            "async_task",
+            "computer_action",
+            "mode_switch",
+            "annotation",
+            "source_ref",
+            "eval_result",
+            "approval_request",
+            "approval_response",
+            "workflow_step",
+            "vfs_change",
         ];
 
         // Fast path: skip deserialization entirely for types not in this schema version.
         // This avoids cloning `value` for forward-compatibility unknown types.
         if !KNOWN_TYPES.contains(&type_str.as_str()) {
-            return Ok(NodeContent::Unknown { kind: type_str, data: value });
+            return Ok(NodeContent::Unknown {
+                kind: type_str,
+                data: value,
+            });
         }
 
         // Clone is unavoidable: `from_value` consumes `value`, but we need
@@ -753,73 +774,248 @@ impl<'de> Deserialize<'de> for NodeContent {
         match serde_json::from_value::<Inner>(value.clone()) {
             Ok(inner) => Ok(match inner {
                 Inner::UserMessage { content, name } => NodeContent::UserMessage { content, name },
-                Inner::AssistantMessage { content, stop_reason, variant_index } => {
-                    NodeContent::AssistantMessage { content, stop_reason, variant_index }
-                }
+                Inner::AssistantMessage {
+                    content,
+                    stop_reason,
+                    variant_index,
+                } => NodeContent::AssistantMessage {
+                    content,
+                    stop_reason,
+                    variant_index,
+                },
                 Inner::SystemMessage { content } => NodeContent::SystemMessage { content },
-                Inner::ToolResult { tool_use_id, content, is_error, duration_ms } => {
-                    NodeContent::ToolResult { tool_use_id, content, is_error, duration_ms }
-                }
-                Inner::AgentSpawn { agent_id, agent_name, sub_branch_id, agent_type, framework, a2a_endpoint, skill_id, is_async } => {
-                    NodeContent::AgentSpawn { agent_id, agent_name, sub_branch_id, agent_type, framework, a2a_endpoint, skill_id, is_async }
-                }
-                Inner::AgentResult { agent_id, content, usage_total, was_async } => {
-                    NodeContent::AgentResult { agent_id, content, usage_total, was_async }
-                }
-                Inner::AgentEvent { agent_id, event_name, event_data } => {
-                    NodeContent::AgentEvent { agent_id, event_name, event_data }
-                }
-                Inner::AgentHandoff { from_agent_id, to_agent_id, to_agent_name, reason, target_branch_id } => {
-                    NodeContent::AgentHandoff { from_agent_id, to_agent_id, to_agent_name, reason, target_branch_id }
-                }
-                Inner::FileUpload { file_id, filename, mime_type, size_bytes, storage_ref } => {
-                    NodeContent::FileUpload { file_id, filename, mime_type, size_bytes, storage_ref }
-                }
-                Inner::MediaCapture { stream_type, started_at, duration_ms, storage_ref, transcription } => {
-                    NodeContent::MediaCapture { stream_type, started_at, duration_ms, storage_ref, transcription }
-                }
-                Inner::ArtifactRef { artifact_set_id, version, summary } => {
-                    NodeContent::ArtifactRef { artifact_set_id, version, summary }
-                }
-                Inner::CanvasRef { canvas_id, snapshot_version, changed_items } => {
-                    NodeContent::CanvasRef { canvas_id, snapshot_version, changed_items }
-                }
-                Inner::McpUi { component_type, component_data, interactions } => {
-                    NodeContent::McpUi { component_type, component_data, interactions }
-                }
-                Inner::SkillInvocation { skill_id, skill_name, input, output, status } => {
-                    NodeContent::SkillInvocation { skill_id, skill_name, input, output, status }
-                }
-                Inner::AsyncTask { task_id, task_type, description, status, result } => {
-                    NodeContent::AsyncTask { task_id, task_type, description, status, result }
-                }
-                Inner::ComputerAction { action, before_screenshot, after_screenshot, result } => {
-                    NodeContent::ComputerAction { action, before_screenshot, after_screenshot, result }
-                }
+                Inner::ToolResult {
+                    tool_use_id,
+                    content,
+                    is_error,
+                    duration_ms,
+                } => NodeContent::ToolResult {
+                    tool_use_id,
+                    content,
+                    is_error,
+                    duration_ms,
+                },
+                Inner::AgentSpawn {
+                    agent_id,
+                    agent_name,
+                    sub_branch_id,
+                    agent_type,
+                    framework,
+                    a2a_endpoint,
+                    skill_id,
+                    is_async,
+                } => NodeContent::AgentSpawn {
+                    agent_id,
+                    agent_name,
+                    sub_branch_id,
+                    agent_type,
+                    framework,
+                    a2a_endpoint,
+                    skill_id,
+                    is_async,
+                },
+                Inner::AgentResult {
+                    agent_id,
+                    content,
+                    usage_total,
+                    was_async,
+                } => NodeContent::AgentResult {
+                    agent_id,
+                    content,
+                    usage_total,
+                    was_async,
+                },
+                Inner::AgentEvent {
+                    agent_id,
+                    event_name,
+                    event_data,
+                } => NodeContent::AgentEvent {
+                    agent_id,
+                    event_name,
+                    event_data,
+                },
+                Inner::AgentHandoff {
+                    from_agent_id,
+                    to_agent_id,
+                    to_agent_name,
+                    reason,
+                    target_branch_id,
+                } => NodeContent::AgentHandoff {
+                    from_agent_id,
+                    to_agent_id,
+                    to_agent_name,
+                    reason,
+                    target_branch_id,
+                },
+                Inner::FileUpload {
+                    file_id,
+                    filename,
+                    mime_type,
+                    size_bytes,
+                    storage_ref,
+                } => NodeContent::FileUpload {
+                    file_id,
+                    filename,
+                    mime_type,
+                    size_bytes,
+                    storage_ref,
+                },
+                Inner::MediaCapture {
+                    stream_type,
+                    started_at,
+                    duration_ms,
+                    storage_ref,
+                    transcription,
+                } => NodeContent::MediaCapture {
+                    stream_type,
+                    started_at,
+                    duration_ms,
+                    storage_ref,
+                    transcription,
+                },
+                Inner::ArtifactRef {
+                    artifact_set_id,
+                    version,
+                    summary,
+                } => NodeContent::ArtifactRef {
+                    artifact_set_id,
+                    version,
+                    summary,
+                },
+                Inner::CanvasRef {
+                    canvas_id,
+                    snapshot_version,
+                    changed_items,
+                } => NodeContent::CanvasRef {
+                    canvas_id,
+                    snapshot_version,
+                    changed_items,
+                },
+                Inner::McpUi {
+                    component_type,
+                    component_data,
+                    interactions,
+                } => NodeContent::McpUi {
+                    component_type,
+                    component_data,
+                    interactions,
+                },
+                Inner::SkillInvocation {
+                    skill_id,
+                    skill_name,
+                    input,
+                    output,
+                    status,
+                } => NodeContent::SkillInvocation {
+                    skill_id,
+                    skill_name,
+                    input,
+                    output,
+                    status,
+                },
+                Inner::AsyncTask {
+                    task_id,
+                    task_type,
+                    description,
+                    status,
+                    result,
+                } => NodeContent::AsyncTask {
+                    task_id,
+                    task_type,
+                    description,
+                    status,
+                    result,
+                },
+                Inner::ComputerAction {
+                    action,
+                    before_screenshot,
+                    after_screenshot,
+                    result,
+                } => NodeContent::ComputerAction {
+                    action,
+                    before_screenshot,
+                    after_screenshot,
+                    result,
+                },
                 Inner::ModeSwitch { from_mode, to_mode } => {
                     NodeContent::ModeSwitch { from_mode, to_mode }
                 }
-                Inner::Annotation { target_node_id, text, annotation_type } => {
-                    NodeContent::Annotation { target_node_id, text, annotation_type }
-                }
-                Inner::SourceRef { source_id, source_name, mime_type, summary } => {
-                    NodeContent::SourceRef { source_id, source_name, mime_type, summary }
-                }
-                Inner::EvalResult { target_node_id, eval_name, scores, grader_model } => {
-                    NodeContent::EvalResult { target_node_id, eval_name, scores, grader_model }
-                }
-                Inner::ApprovalRequest { question, options, timeout_ms, context } => {
-                    NodeContent::ApprovalRequest { question, options, timeout_ms, context }
-                }
-                Inner::ApprovalResponse { request_node_id, selected, comment, responded_by } => {
-                    NodeContent::ApprovalResponse { request_node_id, selected, comment, responded_by }
-                }
-                Inner::WorkflowStep { step_name, step_index, total_steps, status, inputs, outputs, workflow_id } => {
-                    NodeContent::WorkflowStep { step_name, step_index, total_steps, status, inputs, outputs, workflow_id }
-                }
+                Inner::Annotation {
+                    target_node_id,
+                    text,
+                    annotation_type,
+                } => NodeContent::Annotation {
+                    target_node_id,
+                    text,
+                    annotation_type,
+                },
+                Inner::SourceRef {
+                    source_id,
+                    source_name,
+                    mime_type,
+                    summary,
+                } => NodeContent::SourceRef {
+                    source_id,
+                    source_name,
+                    mime_type,
+                    summary,
+                },
+                Inner::EvalResult {
+                    target_node_id,
+                    eval_name,
+                    scores,
+                    grader_model,
+                } => NodeContent::EvalResult {
+                    target_node_id,
+                    eval_name,
+                    scores,
+                    grader_model,
+                },
+                Inner::ApprovalRequest {
+                    question,
+                    options,
+                    timeout_ms,
+                    context,
+                } => NodeContent::ApprovalRequest {
+                    question,
+                    options,
+                    timeout_ms,
+                    context,
+                },
+                Inner::ApprovalResponse {
+                    request_node_id,
+                    selected,
+                    comment,
+                    responded_by,
+                } => NodeContent::ApprovalResponse {
+                    request_node_id,
+                    selected,
+                    comment,
+                    responded_by,
+                },
+                Inner::WorkflowStep {
+                    step_name,
+                    step_index,
+                    total_steps,
+                    status,
+                    inputs,
+                    outputs,
+                    workflow_id,
+                } => NodeContent::WorkflowStep {
+                    step_name,
+                    step_index,
+                    total_steps,
+                    status,
+                    inputs,
+                    outputs,
+                    workflow_id,
+                },
                 Inner::VfsChange { path, operation } => NodeContent::VfsChange { path, operation },
             }),
-            Err(_) => Ok(NodeContent::Unknown { kind: type_str, data: value }),
+            Err(_) => Ok(NodeContent::Unknown {
+                kind: type_str,
+                data: value,
+            }),
         }
     }
 }

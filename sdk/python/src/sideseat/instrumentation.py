@@ -65,7 +65,11 @@ def instrument(
             _instrument_logfire("anthropic", service_name, service_version)
         elif framework == Frameworks.GoogleGenAI:
             _instrument_logfire("google_genai", service_name, service_version)
+        elif framework == Frameworks.VertexAI:
+            _instrument_openllmetry_vertexai(provider)
         elif framework == Frameworks.GoogleADK:
+            pass  # Uses global provider
+        elif framework == Frameworks.AgentFramework:
             pass  # Uses global provider
         else:
             logger.debug("Unknown framework: %s", framework)
@@ -86,6 +90,13 @@ def instrument(
         with _lock:
             _instrumented.discard(framework)
         return False
+
+
+def _instrument_openllmetry_vertexai(provider: "TracerProvider | None") -> None:
+    """Instrument Vertex AI SDK via opentelemetry-instrumentation-vertexai (openllmetry)."""
+    from opentelemetry.instrumentation.vertexai import VertexAIInstrumentor
+
+    VertexAIInstrumentor().instrument(tracer_provider=provider)
 
 
 def _instrument_openinference(

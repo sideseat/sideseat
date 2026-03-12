@@ -25,7 +25,10 @@ async fn test_mistral_complete() {
     mock_json(&server, POST, "/chat/completions", OPENAI_COMPLETE_JSON);
     let config = default_config(MISTRAL_MODEL);
 
-    let resp = provider.complete(vec![user_msg("Say hello in one word.")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Say hello in one word.")], config)
+        .await
+        .unwrap();
 
     assert!(!resp.text().is_empty());
     assert!(resp.usage.input_tokens > 0);
@@ -54,7 +57,10 @@ async fn test_mistral_system_prompt() {
     let mut config = default_config(MISTRAL_MODEL);
     config.system = Some("You are a pirate. Respond only in pirate speak.".to_string());
 
-    let resp = provider.complete(vec![user_msg("Hello!")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Hello!")], config)
+        .await
+        .unwrap();
 
     assert!(!resp.text().is_empty());
 }
@@ -82,9 +88,15 @@ async fn test_mistral_tools() {
     let mut config = default_config(MISTRAL_MODEL);
     config.tools = vec![echo_tool()];
 
-    let resp = provider.complete(vec![user_msg("Please echo the word 'mango'")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Please echo the word 'mango'")], config)
+        .await
+        .unwrap();
 
-    let has_tool = resp.content.iter().any(|b| matches!(b, ContentBlock::ToolUse(_)));
+    let has_tool = resp
+        .content
+        .iter()
+        .any(|b| matches!(b, ContentBlock::ToolUse(_)));
     assert!(has_tool, "expected tool_use block, got: {:?}", resp.content);
 }
 
@@ -95,14 +107,18 @@ async fn test_mistral_structured_output() {
     let (server, provider) = mock_mistral();
     server.mock(|when, then| {
         when.method(POST).path_includes("/chat/completions");
-        then.status(200).header("content-type", "application/json").body(json_body);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(json_body);
     });
     let mut config = default_config(MISTRAL_MODEL);
     config.response_format = Some(ResponseFormat::Json);
 
     let resp = provider
         .complete(
-            vec![user_msg("Return a JSON object with fields 'name' and 'age'.")],
+            vec![user_msg(
+                "Return a JSON object with fields 'name' and 'age'.",
+            )],
             config,
         )
         .await
@@ -119,7 +135,8 @@ async fn test_mistral_embed() {
     let (server, provider) = mock_mistral();
     mock_json(&server, POST, "/embeddings", MISTRAL_EMBED_JSON);
 
-    let request = EmbeddingRequest::new(MISTRAL_EMBED_MODEL, vec!["Hello, world!", "Rust is great"]);
+    let request =
+        EmbeddingRequest::new(MISTRAL_EMBED_MODEL, vec!["Hello, world!", "Rust is great"]);
     let resp = provider.embed(request).await.unwrap();
 
     assert_eq!(resp.embeddings.len(), 1);
@@ -145,11 +162,16 @@ async fn test_mistral_bedrock_complete() {
     let (server, provider) = mock_bedrock();
     server.mock(|when, then| {
         when.method(POST).path_matches(r".*\/converse$");
-        then.status(200).header("content-type", "application/json").body(BEDROCK_COMPLETE_JSON);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(BEDROCK_COMPLETE_JSON);
     });
     let config = default_config(bedrock_mistral_small());
 
-    let resp = provider.complete(vec![user_msg("Say hello in one word.")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Say hello in one word.")], config)
+        .await
+        .unwrap();
     assert!(!resp.text().is_empty());
 }
 
@@ -175,12 +197,17 @@ async fn test_mistral_bedrock_system_prompt() {
     let (server, provider) = mock_bedrock();
     server.mock(|when, then| {
         when.method(POST).path_matches(r".*\/converse$");
-        then.status(200).header("content-type", "application/json").body(BEDROCK_COMPLETE_JSON);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(BEDROCK_COMPLETE_JSON);
     });
     let mut config = default_config(bedrock_mistral_small());
     config.system = Some("You are a pirate.".to_string());
 
-    let resp = provider.complete(vec![user_msg("Hello!")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Hello!")], config)
+        .await
+        .unwrap();
     assert!(!resp.text().is_empty());
 }
 
@@ -189,7 +216,9 @@ async fn test_mistral_bedrock_multi_turn() {
     let (server, provider) = mock_bedrock();
     server.mock(|when, then| {
         when.method(POST).path_matches(r".*\/converse$");
-        then.status(200).header("content-type", "application/json").body(BEDROCK_COMPLETE_JSON);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(BEDROCK_COMPLETE_JSON);
     });
     let config = default_config(bedrock_mistral_small());
 
@@ -208,13 +237,21 @@ async fn test_mistral_bedrock_tools() {
     let (server, provider) = mock_bedrock();
     server.mock(|when, then| {
         when.method(POST).path_matches(r".*\/converse$");
-        then.status(200).header("content-type", "application/json").body(BEDROCK_TOOL_JSON);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(BEDROCK_TOOL_JSON);
     });
     let mut config = default_config(bedrock_mistral_large());
     config.tools = vec![echo_tool()];
 
-    let resp = provider.complete(vec![user_msg("Please echo the word 'mango'")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Please echo the word 'mango'")], config)
+        .await
+        .unwrap();
 
-    let has_tool = resp.content.iter().any(|b| matches!(b, ContentBlock::ToolUse(_)));
+    let has_tool = resp
+        .content
+        .iter()
+        .any(|b| matches!(b, ContentBlock::ToolUse(_)));
     assert!(has_tool, "expected tool_use block, got: {:?}", resp.content);
 }

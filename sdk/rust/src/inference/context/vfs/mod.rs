@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use super::error::CmError;
 use super::types::{BranchId, StorageBackend, StorageRef};
-pub use providers::{FsProvider, LocalFsProvider, MemoryFsProvider};
 use providers::normalize_path;
+pub use providers::{FsProvider, LocalFsProvider, MemoryFsProvider};
 
 // ---------------------------------------------------------------------------
 // FileMeta / FileEntry
@@ -79,7 +79,8 @@ impl Vfs {
         let prefix = normalize_path(&prefix.into());
         self.mounts.retain(|m| m.prefix != prefix);
         self.mounts.push(Mount { prefix, provider });
-        self.mounts.sort_by(|a, b| b.prefix.len().cmp(&a.prefix.len()));
+        self.mounts
+            .sort_by(|a, b| b.prefix.len().cmp(&a.prefix.len()));
     }
 
     pub fn unmount(&mut self, prefix: &str) -> bool {
@@ -104,7 +105,10 @@ impl Vfs {
         // Initialize the branch index entry before activating the branch so
         // that any concurrent read sees a valid (possibly empty) index rather
         // than a missing entry that would return "not found" for every path.
-        self.branch_index.write().entry(branch.to_string()).or_default();
+        self.branch_index
+            .write()
+            .entry(branch.to_string())
+            .or_default();
         *self.active_branch.write() = branch.to_string();
     }
 
@@ -115,7 +119,10 @@ impl Vfs {
     }
 
     pub fn ensure_branch(&self, branch: &str) {
-        self.branch_index.write().entry(branch.to_string()).or_default();
+        self.branch_index
+            .write()
+            .entry(branch.to_string())
+            .or_default();
     }
 
     pub async fn write_on_branch(
@@ -136,16 +143,12 @@ impl Vfs {
         Ok(meta)
     }
 
-    pub async fn read_on_branch(
-        &self,
-        branch: &str,
-        path: &str,
-    ) -> Result<Vec<u8>, CmError> {
+    pub async fn read_on_branch(&self, branch: &str, path: &str) -> Result<Vec<u8>, CmError> {
         let vfs_path = normalize_path(path);
         let physical = Self::physical_key_in_branch(&self.branch_index.read(), branch, &vfs_path)
             .ok_or_else(|| {
-                CmError::FsError(format!("File not found: {path} (branch: {branch})"))
-            })?;
+            CmError::FsError(format!("File not found: {path} (branch: {branch})"))
+        })?;
         let (provider, _) = self.resolve_arc(path);
         provider.read(&physical).await
     }
@@ -230,7 +233,12 @@ impl Vfs {
 
         let mut meta = provider.write(&physical, data, mime_type).await?;
         meta.path = vfs_path.clone();
-        Self::index_insert_on(&mut self.branch_index.write(), &branch, &vfs_path, &physical);
+        Self::index_insert_on(
+            &mut self.branch_index.write(),
+            &branch,
+            &vfs_path,
+            &physical,
+        );
         Ok(meta)
     }
 
@@ -280,8 +288,12 @@ impl Vfs {
     pub async fn list(&self, prefix: &str) -> Result<Vec<FileEntry>, CmError> {
         let normalized = normalize_path(prefix);
         let branch = self.active_branch.read().clone();
-        let branch_entries: HashMap<String, String> =
-            self.branch_index.read().get(&branch).cloned().unwrap_or_default();
+        let branch_entries: HashMap<String, String> = self
+            .branch_index
+            .read()
+            .get(&branch)
+            .cloned()
+            .unwrap_or_default();
 
         let mut dir_entries: Vec<FileEntry> = Vec::new();
         let mut seen_dirs = std::collections::HashSet::new();
@@ -316,7 +328,11 @@ impl Vfs {
                     format!("{normalized}/{dir_name}")
                 };
                 if seen_dirs.insert(dir_path.clone()) {
-                    dir_entries.push(FileEntry { path: dir_path, is_dir: true, meta: None });
+                    dir_entries.push(FileEntry {
+                        path: dir_path,
+                        is_dir: true,
+                        meta: None,
+                    });
                 }
             } else if !remainder.is_empty() {
                 let (provider, _) = self.resolve_arc(vfs_path);
@@ -326,15 +342,20 @@ impl Vfs {
 
         // Fan out all metadata calls concurrently — avoids N sequential round-trips
         // for LocalFsProvider (syscalls) or remote providers.
-        let meta_futs = pending_files.into_iter().map(|(vfs_path, physical_key, provider)| {
-            async move {
-                let file_meta = provider.metadata(&physical_key).await.ok().map(|mut m| {
-                    m.path = vfs_path.clone();
-                    m
+        let meta_futs =
+            pending_files
+                .into_iter()
+                .map(|(vfs_path, physical_key, provider)| async move {
+                    let file_meta = provider.metadata(&physical_key).await.ok().map(|mut m| {
+                        m.path = vfs_path.clone();
+                        m
+                    });
+                    FileEntry {
+                        path: vfs_path,
+                        is_dir: false,
+                        meta: file_meta,
+                    }
                 });
-                FileEntry { path: vfs_path, is_dir: false, meta: file_meta }
-            }
-        });
         let mut entries: Vec<FileEntry> = futures::future::join_all(meta_futs).await;
         entries.extend(dir_entries);
 
@@ -380,7 +401,10 @@ impl Vfs {
     /// empty map (idempotent for new branches).
     pub fn load_branch_index(&self, branch: &str, bytes: &[u8]) -> Result<(), CmError> {
         if bytes.is_empty() {
-            self.branch_index.write().entry(branch.to_string()).or_default();
+            self.branch_index
+                .write()
+                .entry(branch.to_string())
+                .or_default();
             return Ok(());
         }
         let map = serde_json::from_slice::<HashMap<String, String>>(bytes)
@@ -401,8 +425,10 @@ impl Vfs {
     pub async fn read_storage_ref(&self, storage_ref: &StorageRef) -> Result<Vec<u8>, CmError> {
         match &storage_ref.backend {
             StorageBackend::Inline => {
-                let data_str =
-                    storage_ref.uri.strip_prefix("inline:").unwrap_or(&storage_ref.uri);
+                let data_str = storage_ref
+                    .uri
+                    .strip_prefix("inline:")
+                    .unwrap_or(&storage_ref.uri);
                 use base64::Engine;
                 base64::engine::general_purpose::STANDARD
                     .decode(data_str)
@@ -428,7 +454,9 @@ pub struct VfsExtension {
 
 impl VfsExtension {
     pub fn new() -> Self {
-        Self { vfs: Vfs::new(Arc::new(MemoryFsProvider::new())) }
+        Self {
+            vfs: Vfs::new(Arc::new(MemoryFsProvider::new())),
+        }
     }
 
     pub fn with_vfs(vfs: Vfs) -> Self {
@@ -491,7 +519,9 @@ impl VfsExtension {
         data: &[u8],
         mime_type: &str,
     ) -> Result<FileMeta, CmError> {
-        self.vfs.write_on_branch(branch, path, data, mime_type).await
+        self.vfs
+            .write_on_branch(branch, path, data, mime_type)
+            .await
     }
 
     pub async fn read_on(&self, branch: &str, path: &str) -> Result<Vec<u8>, CmError> {
@@ -559,8 +589,12 @@ mod tests {
         let sources = Arc::new(MemoryFsProvider::new());
         let vfs = Vfs::new(default).with_mount("sources", sources);
 
-        vfs.write("sources/doc.txt", b"source data", "text/plain").await.unwrap();
-        vfs.write("other/file.txt", b"default data", "text/plain").await.unwrap();
+        vfs.write("sources/doc.txt", b"source data", "text/plain")
+            .await
+            .unwrap();
+        vfs.write("other/file.txt", b"default data", "text/plain")
+            .await
+            .unwrap();
 
         assert_eq!(vfs.read("sources/doc.txt").await.unwrap(), b"source data");
         assert_eq!(vfs.read("other/file.txt").await.unwrap(), b"default data");
@@ -593,7 +627,9 @@ mod tests {
 
         vfs.fork_branch("default", "branch-a");
         vfs.checkout_branch("branch-a");
-        vfs.write("only-in-a.txt", b"branch-a", "text/plain").await.unwrap();
+        vfs.write("only-in-a.txt", b"branch-a", "text/plain")
+            .await
+            .unwrap();
 
         assert!(vfs.exists("only-in-a.txt").await.unwrap());
 
@@ -643,7 +679,10 @@ mod tests {
         let child = BranchId::new();
 
         ext.vfs.checkout_branch(parent.as_str());
-        ext.vfs.write("f.txt", b"parent data", "text/plain").await.unwrap();
+        ext.vfs
+            .write("f.txt", b"parent data", "text/plain")
+            .await
+            .unwrap();
 
         // Fork via extension hook
         ext.on_branch_forked(&parent, &child);
@@ -653,7 +692,9 @@ mod tests {
         assert!(ext.exists("f.txt").await.unwrap());
 
         // Write in child
-        ext.write("f.txt", b"child data", "text/plain").await.unwrap();
+        ext.write("f.txt", b"child data", "text/plain")
+            .await
+            .unwrap();
         assert_eq!(ext.read("f.txt").await.unwrap(), b"child data");
 
         // Parent unaffected
@@ -666,7 +707,10 @@ mod tests {
         let provider = Arc::new(MemoryFsProvider::new());
         let vfs = Vfs::new(provider);
 
-        let meta = vfs.write("test/file.bin", b"binary", "application/octet-stream").await.unwrap();
+        let meta = vfs
+            .write("test/file.bin", b"binary", "application/octet-stream")
+            .await
+            .unwrap();
         let sref = vfs.to_storage_ref("test/file.bin", &meta);
 
         assert_eq!(sref.uri, "test/file.bin");

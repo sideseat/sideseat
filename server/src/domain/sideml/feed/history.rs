@@ -55,21 +55,29 @@ use crate::domain::sideml::types::{ChatRole, ContentBlock};
 
 /// Build a map of tool_use_ids to their "current" status, **per trace**.
 ///
-/// A tool_use is "current" (not history) if:
-/// 1. It's protected (GenAIChoice, finish_reason)
-/// 2. It's in an agent span (authoritative)
+/// A tool_use is "current" (not history) if it appears in a protected block
+/// (GenAIChoice or finish_reason). This identifies tool calls that are part of
+/// the current turn's LLM output.
 ///
 /// Returns: Map of trace_id -> Set of tool_use_ids that are current (not history)
 ///
 /// IMPORTANT: This must be per-trace to avoid cross-trace contamination when
 /// processing sessions. Tool_use_ids from previous traces should not be
 /// considered "current" for subsequent traces.
+///
+/// NOTE: We intentionally use ONLY protected blocks (not all agent span blocks).
+/// Event-based frameworks (Strands) bubble ALL events (including historical ones
+/// from previous turns) up to the root agent span. Including agent span blocks
+/// would incorrectly collect historical tool_use_ids as "current", causing
+/// Phase 6 to skip marking their tool_results as orphans.
 fn build_current_tool_use_ids(blocks: &[BlockEntry]) -> HashMap<String, HashSet<String>> {
     let mut map: HashMap<String, HashSet<String>> = HashMap::new();
 
     for block in blocks {
-        // Only protected tool_uses or agent span tool_uses are current
-        if !block.is_protected() && !block.is_agent_span() {
+        // Only protected tool_uses (gen_ai.choice or finish_reason) are current.
+        // Agent span tool_uses are excluded because bubbled-up historical events
+        // would contaminate the set with tool_use_ids from previous turns.
+        if !block.is_protected() {
             continue;
         }
 
@@ -1064,5 +1072,138 @@ mod tests {
             stats.input_source_history, 0,
             "event source should not be counted in Phase 4b"
         );
+    }
+
+    // ========================================================================
+    // PHASE 6: ORPHAN TOOL RESULT TESTS (Strands JS multi-turn history)
+    // ========================================================================
+
+    /// Reproduces the Strands JS bug where historical tool_use events bubble up
+    /// to the root agent span, causing their tool_use_ids to be collected as
+    /// "current" and preventing Phase 6 from marking their tool_results as orphans.
+    ///
+    /// Scenario: trace has NYC turn (history) + London turn (current).
+    /// The root agent span has both NYC and London tool_use events (due to bubbling).
+    /// Only the London tool_use appears in gen_ai.choice → only London is "current".
+    /// NYC tool_result should be orphan (its tool_use_id not in gen_ai.choice).
+    #[test]
+    fn test_phase6_historical_tool_results_are_orphans_not_bubbled_agent_span() {
+        // Simulate: root agent span has NYC tool_use (historical, bubbled) +
+        //           London gen_ai.choice with London tool_use (current/protected)
+        // execute_agent_loop_cycle has NYC tool_result + London tool_result
+
+        let nyc_tool_use_id = "tooluse_NYC_historical";
+        let london_tool_use_id = "tooluse_London_current";
+
+        // Protected gen_ai.choice on root agent span — contains London tool_use
+        let mut choice_block = make_block_with_source(
+            "tool_use",
+            Some("agent"),
+            Some("gen_ai.choice"),
+            "event",
+            MessageCategory::GenAIChoice,
+            ChatRole::Assistant,
+        );
+        if let ContentBlock::ToolUse { id, name, .. } = &mut choice_block.content {
+            *id = Some(london_tool_use_id.to_string());
+            *name = "weather_forecast".to_string();
+        }
+        choice_block.parent_span_id = None; // root span
+        choice_block.finish_reason = Some(FinishReason::ToolUse);
+
+        // Historical NYC tool_use on root agent span (bubbled, NOT protected)
+        let mut nyc_tool_use = make_block_with_source(
+            "tool_use",
+            Some("agent"),
+            Some("gen_ai.assistant.message"),
+            "event",
+            MessageCategory::GenAIAssistantMessage,
+            ChatRole::Assistant,
+        );
+        if let ContentBlock::ToolUse { id, name, .. } = &mut nyc_tool_use.content {
+            *id = Some(nyc_tool_use_id.to_string());
+            *name = "weather_forecast".to_string();
+        }
+        nyc_tool_use.parent_span_id = None; // root span
+
+        // NYC tool_result on execute_agent_loop_cycle (non-root agent span, multi-turn history)
+        let mut nyc_tool_result = make_block_with_source(
+            "tool_result",
+            Some("agent"),
+            Some("gen_ai.tool.message"),
+            "event",
+            MessageCategory::GenAIToolMessage,
+            ChatRole::Tool,
+        );
+        if let ContentBlock::ToolResult { tool_use_id, .. } = &mut nyc_tool_result.content {
+            *tool_use_id = Some(nyc_tool_use_id.to_string());
+        }
+        nyc_tool_result.parent_span_id = Some("root_agent".to_string()); // non-root
+
+        // London tool_result on execute_agent_loop_cycle (non-root agent span, current turn)
+        let mut london_tool_result = make_block_with_source(
+            "tool_result",
+            Some("agent"),
+            Some("gen_ai.tool.message"),
+            "event",
+            MessageCategory::GenAIToolMessage,
+            ChatRole::Tool,
+        );
+        if let ContentBlock::ToolResult { tool_use_id, .. } = &mut london_tool_result.content {
+            *tool_use_id = Some(london_tool_use_id.to_string());
+        }
+        london_tool_result.parent_span_id = Some("root_agent".to_string()); // non-root
+
+        // Tool_result in generation span (makes traces_with_multi_turn_history fire)
+        let mut gen_tool_result = make_block_with_source(
+            "tool_result",
+            Some("generation"),
+            Some("gen_ai.tool.message"),
+            "event",
+            MessageCategory::GenAIToolMessage,
+            ChatRole::Tool,
+        );
+        if let ContentBlock::ToolResult { tool_use_id, .. } = &mut gen_tool_result.content {
+            *tool_use_id = Some(nyc_tool_use_id.to_string());
+        }
+        gen_tool_result.parent_span_id = Some("exec_loop".to_string());
+
+        // Gen_ai.choice event on generation span (bubbled) — enables has_event_based_messages
+        let mut gen_choice = make_block_with_source(
+            "text",
+            Some("generation"),
+            Some("gen_ai.choice"),
+            "event",
+            MessageCategory::GenAIChoice,
+            ChatRole::Assistant,
+        );
+        gen_choice.parent_span_id = Some("exec_loop".to_string());
+        gen_choice.finish_reason = Some(FinishReason::Stop);
+
+        let mut blocks = vec![
+            choice_block,
+            nyc_tool_use,
+            nyc_tool_result,
+            london_tool_result,
+            gen_tool_result,
+            gen_choice,
+        ];
+
+        let span_timestamps = HashMap::new();
+        let stats = mark_history(&mut blocks, &span_timestamps);
+
+        // NYC tool_result (index 2) should be orphan — its tool_use_id not in gen_ai.choice
+        assert!(
+            blocks[2].is_history,
+            "NYC tool_result should be marked as orphan (historical tool_use_id not in gen_ai.choice)"
+        );
+
+        // London tool_result (index 3) should NOT be orphan — London ID is in gen_ai.choice
+        assert!(
+            !blocks[3].is_history,
+            "London tool_result should NOT be orphan (tool_use_id IS in gen_ai.choice)"
+        );
+
+        assert!(stats.orphan_tool_results >= 1, "at least 1 orphan expected");
     }
 }

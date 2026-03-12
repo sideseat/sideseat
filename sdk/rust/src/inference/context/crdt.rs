@@ -30,8 +30,7 @@ impl CrdtDoc {
             return Ok(Self::new());
         }
         let doc = Doc::new();
-        let update =
-            Update::decode_v1(state).map_err(|e| CmError::Crdt(e.to_string()))?;
+        let update = Update::decode_v1(state).map_err(|e| CmError::Crdt(e.to_string()))?;
         {
             let mut txn = doc.transact_mut();
             txn.apply_update(update)
@@ -45,8 +44,7 @@ impl CrdtDoc {
     // -----------------------------------------------------------------------
 
     pub(super) fn merge_delta(&mut self, delta: &[u8]) -> Result<(), CmError> {
-        let update =
-            Update::decode_v1(delta).map_err(|e| CmError::Crdt(e.to_string()))?;
+        let update = Update::decode_v1(delta).map_err(|e| CmError::Crdt(e.to_string()))?;
         let mut txn = self.doc.transact_mut();
         txn.apply_update(update)
             .map_err(|e| CmError::Crdt(e.to_string()))
@@ -488,7 +486,9 @@ impl CrdtExtension {
             }
             let new_sv = snap_doc.state_vector();
             let new_state = snap_doc.full_state();
-            backend.crdt_save_snapshot(branch_id, max_seq, &new_state, &new_sv).await?;
+            backend
+                .crdt_save_snapshot(branch_id, max_seq, &new_state, &new_sv)
+                .await?;
         }
 
         // 5. Notify subscribers if the local doc changed.
@@ -593,7 +593,10 @@ mod tests {
 
         let state = doc1.full_state();
         let doc2 = CrdtDoc::from_state(&state).unwrap();
-        assert_eq!(doc2.map_get("items", "k"), Some(r#"{"id":"k","v":99}"#.into()));
+        assert_eq!(
+            doc2.map_get("items", "k"),
+            Some(r#"{"id":"k","v":99}"#.into())
+        );
     }
 
     #[test]
@@ -646,7 +649,10 @@ mod tests {
         // Verify the returned seq matches the delta appended to the log.
         let deltas = backend.crdt_fetch(&conv, &branch, 0).await.unwrap();
         assert_eq!(deltas.len(), 1);
-        assert_eq!(deltas[0].global_seq, seq, "push must return the assigned global_seq");
+        assert_eq!(
+            deltas[0].global_seq, seq,
+            "push must return the assigned global_seq"
+        );
     }
 
     #[tokio::test]
@@ -667,7 +673,11 @@ mod tests {
         // After pull it should still be there exactly once (idempotent re-apply).
         writer.pull(&conv, &branch, backend.as_ref()).await.unwrap();
         let entries = writer.map_entries("items");
-        assert_eq!(entries.len(), 1, "own data must not be duplicated after pull");
+        assert_eq!(
+            entries.len(),
+            1,
+            "own data must not be duplicated after pull"
+        );
         assert_eq!(entries["a"], r#"{"id":"a"}"#);
     }
 
@@ -684,10 +694,7 @@ mod tests {
         writer.push(&conv, &branch, backend.as_ref()).await.unwrap();
 
         reader.pull(&conv, &branch, backend.as_ref()).await.unwrap();
-        assert_eq!(
-            reader.map_get("items", "a"),
-            Some(r#"{"id":"a"}"#.into()),
-        );
+        assert_eq!(reader.map_get("items", "a"), Some(r#"{"id":"a"}"#.into()),);
     }
 
     #[tokio::test]
@@ -703,7 +710,10 @@ mod tests {
 
         let writer2 = CrdtExtension::new("writer2");
         writer2.map_set("items", "b", r#"{"id":"b"}"#);
-        let seq2 = writer2.push(&conv, &branch, backend.as_ref()).await.unwrap();
+        let seq2 = writer2
+            .push(&conv, &branch, backend.as_ref())
+            .await
+            .unwrap();
         assert!(seq2 > seq1);
 
         // Fresh reader with no snapshot — pull must advance snapshot to max delta seq.
@@ -711,7 +721,10 @@ mod tests {
         reader.pull(&conv, &branch, backend.as_ref()).await.unwrap();
 
         let (snap_seq, _, _) = backend.crdt_load_snapshot(&branch).await.unwrap();
-        assert!(snap_seq >= seq2, "snapshot seq must be >= max delta seq after pull");
+        assert!(
+            snap_seq >= seq2,
+            "snapshot seq must be >= max delta seq after pull"
+        );
     }
 
     #[tokio::test]
@@ -745,7 +758,10 @@ mod tests {
         // Another client establishes the baseline snapshot.
         let baseline = CrdtExtension::new("baseline");
         baseline.map_set("items", "existing", r#"{"id":"existing"}"#);
-        baseline.push(&conv, &branch, backend.as_ref()).await.unwrap();
+        baseline
+            .push(&conv, &branch, backend.as_ref())
+            .await
+            .unwrap();
 
         // New client loads snapshot, adds one new item, pushes.
         let client = CrdtExtension::new("client");
@@ -756,7 +772,11 @@ mod tests {
 
         // Only 2 deltas total: baseline's push + client's push (not a full resend).
         let all_deltas = backend.crdt_fetch(&conv, &branch, 0).await.unwrap();
-        assert_eq!(all_deltas.len(), 2, "push after load_snapshot must send only new ops");
+        assert_eq!(
+            all_deltas.len(),
+            2,
+            "push after load_snapshot must send only new ops"
+        );
     }
 
     #[tokio::test]
@@ -771,12 +791,24 @@ mod tests {
         client_a.map_set("items", "ka", r#"{"id":"ka"}"#);
         client_b.map_set("items", "kb", r#"{"id":"kb"}"#);
 
-        client_a.push(&conv, &branch, backend.as_ref()).await.unwrap();
-        client_b.push(&conv, &branch, backend.as_ref()).await.unwrap();
+        client_a
+            .push(&conv, &branch, backend.as_ref())
+            .await
+            .unwrap();
+        client_b
+            .push(&conv, &branch, backend.as_ref())
+            .await
+            .unwrap();
 
         // Both pull each other's changes.
-        client_a.pull(&conv, &branch, backend.as_ref()).await.unwrap();
-        client_b.pull(&conv, &branch, backend.as_ref()).await.unwrap();
+        client_a
+            .pull(&conv, &branch, backend.as_ref())
+            .await
+            .unwrap();
+        client_b
+            .pull(&conv, &branch, backend.as_ref())
+            .await
+            .unwrap();
 
         // Both should see both entries.
         assert_eq!(client_a.map_entries("items").len(), 2);
@@ -810,7 +842,11 @@ mod tests {
 
         // Only 2 deltas: init's push + client's push.
         let all = backend.crdt_fetch(&conv, &branch, 0).await.unwrap();
-        assert_eq!(all.len(), 2, "checkout + push must not resend snapshot state");
+        assert_eq!(
+            all.len(),
+            2,
+            "checkout + push must not resend snapshot state"
+        );
     }
 
     #[tokio::test]
@@ -835,10 +871,16 @@ mod tests {
         let branch_b = branch.clone();
 
         let ha = tokio::spawn(async move {
-            a_ref.push(&conv_a, &branch_a, backend_a.as_ref()).await.unwrap();
+            a_ref
+                .push(&conv_a, &branch_a, backend_a.as_ref())
+                .await
+                .unwrap();
         });
         let hb = tokio::spawn(async move {
-            b_ref.push(&conv_b, &branch_b, backend_b.as_ref()).await.unwrap();
+            b_ref
+                .push(&conv_b, &branch_b, backend_b.as_ref())
+                .await
+                .unwrap();
         });
         ha.await.unwrap();
         hb.await.unwrap();
@@ -847,8 +889,16 @@ mod tests {
         a.pull(&conv, &branch, backend.as_ref()).await.unwrap();
         b.pull(&conv, &branch, backend.as_ref()).await.unwrap();
 
-        assert_eq!(a.map_entries("items").len(), 2, "a must see both after pull");
-        assert_eq!(b.map_entries("items").len(), 2, "b must see both after pull");
+        assert_eq!(
+            a.map_entries("items").len(),
+            2,
+            "a must see both after pull"
+        );
+        assert_eq!(
+            b.map_entries("items").len(),
+            2,
+            "b must see both after pull"
+        );
     }
 
     #[tokio::test]
@@ -878,7 +928,10 @@ mod tests {
         ext.compact(&conv, &branch, backend.as_ref()).await.unwrap();
 
         let after = backend.crdt_fetch(&conv, &branch, 0).await.unwrap();
-        assert!(after.is_empty(), "compact must prune all snapshot-covered deltas");
+        assert!(
+            after.is_empty(),
+            "compact must prune all snapshot-covered deltas"
+        );
     }
 
     #[tokio::test]
@@ -899,7 +952,10 @@ mod tests {
         reader.pull(&conv, &branch, backend.as_ref()).await.unwrap();
 
         let notified_seq = rx.try_recv().expect("subscriber must receive seq on pull");
-        assert_eq!(notified_seq, pushed_seq, "notified seq must match pushed seq");
+        assert_eq!(
+            notified_seq, pushed_seq,
+            "notified seq must match pushed seq"
+        );
     }
 
     #[tokio::test]
@@ -912,7 +968,10 @@ mod tests {
 
         let parent = CrdtExtension::new("parent");
         parent.map_set("items", "k1", r#"{"id":"k1"}"#);
-        let push_seq = parent.push(&conv, &parent_branch, backend.as_ref()).await.unwrap();
+        let push_seq = parent
+            .push(&conv, &parent_branch, backend.as_ref())
+            .await
+            .unwrap();
         assert!(push_seq > 0);
 
         // Capture snapshot at this point.
@@ -920,7 +979,10 @@ mod tests {
 
         // Parent adds more after the snapshot.
         parent.map_set("items", "k2", r#"{"id":"k2"}"#);
-        parent.push(&conv, &parent_branch, backend.as_ref()).await.unwrap();
+        parent
+            .push(&conv, &parent_branch, backend.as_ref())
+            .await
+            .unwrap();
 
         // Build child from the snapshot (before k2 was added).
         let child_branch = BranchId::new();
@@ -929,13 +991,25 @@ mod tests {
 
         // Child should see k1 but NOT k2 (k2 was added after snapshot).
         let entries = child.map_entries("items");
-        assert!(entries.contains_key("k1"), "child must have k1 from snapshot");
-        assert!(!entries.contains_key("k2"), "child must not have k2 (post-snapshot)");
+        assert!(
+            entries.contains_key("k1"),
+            "child must have k1 from snapshot"
+        );
+        assert!(
+            !entries.contains_key("k2"),
+            "child must not have k2 (post-snapshot)"
+        );
 
         // Push child state; it should be a no-op since no new writes.
-        child.push(&conv, &child_branch, backend.as_ref()).await.unwrap();
+        child
+            .push(&conv, &child_branch, backend.as_ref())
+            .await
+            .unwrap();
         // Child pulls its own branch — no deltas expected.
-        child.pull(&conv, &child_branch, backend.as_ref()).await.unwrap();
+        child
+            .pull(&conv, &child_branch, backend.as_ref())
+            .await
+            .unwrap();
         assert_eq!(child.map_entries("items").len(), 1);
     }
 
@@ -950,7 +1024,10 @@ mod tests {
         // Grandparent writes and pushes.
         let grandparent = CrdtExtension::new("gp");
         grandparent.map_set("items", "gp_key", r#"{"id":"gp_key"}"#);
-        grandparent.push(&conv, &grandparent_branch, backend.as_ref()).await.unwrap();
+        grandparent
+            .push(&conv, &grandparent_branch, backend.as_ref())
+            .await
+            .unwrap();
 
         // Parent snapshot = grandparent full state.
         let gp_bytes = grandparent.to_snapshot();
@@ -959,7 +1036,10 @@ mod tests {
         let parent = CrdtExtension::new("parent");
         parent.load_snapshot(&gp_bytes).unwrap();
         parent.map_set("items", "parent_key", r#"{"id":"parent_key"}"#);
-        parent.push(&conv, &parent_branch, backend.as_ref()).await.unwrap();
+        parent
+            .push(&conv, &parent_branch, backend.as_ref())
+            .await
+            .unwrap();
 
         // Child snapshot = parent full state (includes gp_key via snapshot).
         let parent_bytes = parent.to_snapshot();
@@ -969,12 +1049,21 @@ mod tests {
         child.load_snapshot(&parent_bytes).unwrap();
 
         let entries = child.map_entries("items");
-        assert!(entries.contains_key("gp_key"), "child must see grandparent key");
-        assert!(entries.contains_key("parent_key"), "child must see parent key");
+        assert!(
+            entries.contains_key("gp_key"),
+            "child must see grandparent key"
+        );
+        assert!(
+            entries.contains_key("parent_key"),
+            "child must see parent key"
+        );
 
         // Child adds its own key.
         child.map_set("items", "child_key", r#"{"id":"child_key"}"#);
-        child.push(&conv, &child_branch, backend.as_ref()).await.unwrap();
+        child
+            .push(&conv, &child_branch, backend.as_ref())
+            .await
+            .unwrap();
 
         let all = child.map_entries("items");
         assert_eq!(all.len(), 3);

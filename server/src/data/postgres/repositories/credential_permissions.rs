@@ -36,7 +36,16 @@ pub async fn list_credential_permissions(
     Ok(rows
         .into_iter()
         .map(
-            |(id, credential_id, organization_id, project_id, access, created_by, created_at, updated_at)| {
+            |(
+                id,
+                credential_id,
+                organization_id,
+                project_id,
+                access,
+                created_by,
+                created_at,
+                updated_at,
+            )| {
                 CredentialPermissionRow {
                     id,
                     credential_id,

@@ -4,7 +4,7 @@ import { registerInstrumentations } from '@opentelemetry/instrumentation';
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { resourceFromAttributes } from '@opentelemetry/resources';
+import { Resource } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { config } from './config.js';
 
@@ -53,7 +53,7 @@ export function setupTelemetry(options: TelemetryOptions = {}): SideSeat | null 
     const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
     if (endpoint) {
       provider = new NodeTracerProvider({
-        resource: resourceFromAttributes({
+        resource: new Resource({
           [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME ?? 'js-samples',
         }),
         spanProcessors: [
