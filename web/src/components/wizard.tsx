@@ -51,7 +51,7 @@ export function Wizard({
       <WizardStepIndicator steps={steps} currentStep={currentStep} />
 
       {/* Scrollable step content */}
-      <div className="mt-5 flex min-h-0 flex-1 flex-col overflow-y-auto pb-1 pl-0.5 pr-1">{children}</div>
+      <div className="mt-5 flex min-h-0 flex-1 flex-col overflow-y-auto p-1">{children}</div>
 
       {/* Footer */}
       <div className="mt-4 shrink-0 space-y-3 border-t pt-4">
@@ -60,13 +60,13 @@ export function Wizard({
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
+          {extra}
           <div className="ml-auto flex gap-2">
             {onBack && (
               <Button type="button" variant="outline" onClick={onBack}>
                 Back
               </Button>
             )}
-            {extra}
             <Button type="button" onClick={onNext} disabled={!canNext || nextLoading}>
               {nextLoading && <Spinner className="mr-2 h-4 w-4" />}
               {nextLabel}

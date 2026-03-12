@@ -35,7 +35,7 @@ export function DeleteCredentialDialog({
 
   return (
     <AlertDialog open={!!credential} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent className="sm:max-w-xl">
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Credential</AlertDialogTitle>
           <AlertDialogDescription asChild>

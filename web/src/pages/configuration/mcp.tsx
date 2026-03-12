@@ -282,7 +282,7 @@ export default function McpPage() {
   );
 
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div>
         <h2 className="text-xl font-semibold tracking-tight">MCP Server</h2>
