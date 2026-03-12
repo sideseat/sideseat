@@ -1,8 +1,8 @@
 //! API route handlers
 
 pub mod api_keys;
-pub mod credentials;
 pub mod auth;
+pub mod credentials;
 pub mod favorites;
 pub mod health;
 pub mod organizations;

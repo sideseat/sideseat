@@ -79,8 +79,6 @@
 
 #[path = "inference/context/mod.rs"]
 pub mod context;
-#[path = "inference/test_models.rs"]
-pub mod test_models;
 #[path = "inference/env.rs"]
 pub mod env;
 #[path = "inference/error.rs"]
@@ -99,6 +97,8 @@ pub mod providers;
 pub mod registry;
 #[path = "inference/telemetry.rs"]
 pub mod telemetry;
+#[path = "inference/test_models.rs"]
+pub mod test_models;
 #[path = "inference/types.rs"]
 pub mod types;
 
@@ -106,61 +106,59 @@ pub mod types;
 pub use error::ProviderError;
 pub use middleware::{
     DefaultSettingsMiddleware, ExtractReasoningMiddleware, ImageModelMiddleware, LoggingMiddleware,
-    Middleware, MiddlewareStack, RateLimitMiddleware, SimulateStreamingMiddleware, TimingMiddleware,
-    WrappedImageModel, wrap_image_model,
+    Middleware, MiddlewareStack, RateLimitMiddleware, SimulateStreamingMiddleware,
+    TimingMiddleware, WrappedImageModel, wrap_image_model,
 };
 pub use mock::{MockProvider, MockResponse};
 pub use provider::{
     AgentHooks, AudioProvider, ChatProvider, DefaultHooks, EmbeddingProvider, FallbackProvider,
     ImageProvider, ModerationProvider, Provider, ProviderExt, ProviderHealthStatus, ProviderStream,
     RetryConfig, RetryProvider, StatefulProvider, TextStream, TextStreamWithMeta, VideoProvider,
-    batch_complete, batch_embed,
-    batch_generate_images, collect_stream, collect_stream_with_config, collect_stream_with_events,
-    generate_text, record_stream, response_to_stream, run_agent_loop, run_agent_loop_with_hooks,
-    stream_text, with_chunk_timeout, wrap_language_model,
+    batch_complete, batch_embed, batch_generate_images, collect_stream, collect_stream_with_config,
+    collect_stream_with_events, generate_text, record_stream, response_to_stream, run_agent_loop,
+    run_agent_loop_with_hooks, stream_text, with_chunk_timeout, wrap_language_model,
 };
+pub use providers::GcpAdcTokenProvider;
 pub use registry::ProviderRegistry;
 pub use telemetry::{InstrumentedProvider, SideSeat, SideSeatGuard, TelemetryConfig};
-pub use providers::GcpAdcTokenProvider;
 /// Convenience re-exports for glob imports: `use sideseat::prelude::*`.
 ///
 /// Includes the most frequently used traits, types, and builders. Import specific
 /// items from their respective modules when you need something not listed here.
 pub mod prelude {
     pub use crate::error::ProviderError;
+    pub use crate::middleware::{LoggingMiddleware, Middleware, MiddlewareStack, TimingMiddleware};
     pub use crate::provider::{
-        ChatProvider, EmbeddingProvider, ImageProvider, AudioProvider, VideoProvider,
-        ModerationProvider, StatefulProvider, Provider, ProviderExt, ProviderStream,
-        RetryProvider, FallbackProvider, TextStream, run_agent_loop, run_agent_loop_with_hooks,
-        collect_stream, stream_text, generate_text,
+        AudioProvider, ChatProvider, EmbeddingProvider, FallbackProvider, ImageProvider,
+        ModerationProvider, Provider, ProviderExt, ProviderStream, RetryProvider, StatefulProvider,
+        TextStream, VideoProvider, collect_stream, generate_text, run_agent_loop,
+        run_agent_loop_with_hooks, stream_text,
     };
-    pub use crate::middleware::{Middleware, MiddlewareStack, LoggingMiddleware, TimingMiddleware};
     pub use crate::types::{
-        Message, Role, Response, ContentBlock, ProviderConfig, Tool, ToolUseBlock, ToolResultBlock,
-        ConversationBuilder, StreamEvent, StopReason, Usage, TokenCount,
+        ContentBlock, ConversationBuilder, Message, ProviderConfig, Response, Role, StopReason,
+        StreamEvent, TokenCount, Tool, ToolResultBlock, ToolUseBlock, Usage,
     };
 }
 
 pub use types::{
     AgentResult, AgentStep, AudioContent, AudioFormat, AudioOutputConfig, Base64Data, BuiltinTool,
-    CacheControl, Citation, ContextManagementConfig, ContainerInfo, ContentBlock,
-    ContentBlockStart, ContentDelta, ConversationBuilder, CostEstimate, DocumentContent,
-    DocumentFormat, EmbeddingRequest, EmbeddingResponse, EmbeddingTaskType, FallbackStrategy,
-    FallbackTrigger, GeneratedImage, GeneratedVideo, GroundingChunk, GroundingMetadata,
-    ImageContent, ImageDetail, ImageEditRequest, ImageFormat, ImageGenerationRequest, JsonSchema,
-    ImageGenerationResponse, ImageOutputFormat, ImageQuality, ImageSize, ImageStyle, MediaSource,
-    McpToolConfig, Message, ModelCapability, ModelInfo, ModerationCategories,
-    ModerationCategoryScores, ModerationRequest, ModerationResponse, ModerationResult,
-    PartialConfig, PromptTemplate, ProviderConfig, ReasoningEffort, RequestMetadata, Response,
-    ResponseFormat, Role, S3Location, SafetyCategory, SafetySetting, SafetyThreshold, ServiceTier,
-    SpeechRequest, SpeechResponse, StaticTokenProvider, StopReason, StreamEvent, StreamMeta,
-    StreamRecording,
-    TextBlock, ThinkingBlock, TimestampGranularity, TokenCount, TokenLogprob, TokenProvider, Tool,
-    ToolChoice, ToolResultBlock, ToolUseBlock, TopLogprob, TranscriptionRequest,
-    TranscriptionResponse, TranscriptionSegment, TranscriptionWord, Usage, UsageAccumulator,
-    VideoAspectRatio, VideoContent, VideoFormat, VideoGenerationRequest, VideoGenerationResponse,
-    VideoResolution, WebSearchConfig, WebSearchUserLocation, cosine_similarity, estimate_tokens,
-    euclidean_distance, model_capabilities, normalize_embedding, supports_audio_input,
-    supports_audio_output, supports_extended_thinking, supports_function_calling, supports_vision,
-    truncate_messages, validate_messages,
+    CacheControl, Citation, ContainerInfo, ContentBlock, ContentBlockStart, ContentDelta,
+    ContextManagementConfig, ConversationBuilder, CostEstimate, DocumentContent, DocumentFormat,
+    EmbeddingRequest, EmbeddingResponse, EmbeddingTaskType, FallbackStrategy, FallbackTrigger,
+    GeneratedImage, GeneratedVideo, GroundingChunk, GroundingMetadata, ImageContent, ImageDetail,
+    ImageEditRequest, ImageFormat, ImageGenerationRequest, ImageGenerationResponse,
+    ImageOutputFormat, ImageQuality, ImageSize, ImageStyle, JsonSchema, McpToolConfig, MediaSource,
+    Message, ModelCapability, ModelInfo, ModerationCategories, ModerationCategoryScores,
+    ModerationRequest, ModerationResponse, ModerationResult, PartialConfig, PromptTemplate,
+    ProviderConfig, ReasoningEffort, RequestMetadata, Response, ResponseFormat, Role, S3Location,
+    SafetyCategory, SafetySetting, SafetyThreshold, ServiceTier, SpeechRequest, SpeechResponse,
+    StaticTokenProvider, StopReason, StreamEvent, StreamMeta, StreamRecording, TextBlock,
+    ThinkingBlock, TimestampGranularity, TokenCount, TokenLogprob, TokenProvider, Tool, ToolChoice,
+    ToolResultBlock, ToolUseBlock, TopLogprob, TranscriptionRequest, TranscriptionResponse,
+    TranscriptionSegment, TranscriptionWord, Usage, UsageAccumulator, VideoAspectRatio,
+    VideoContent, VideoFormat, VideoGenerationRequest, VideoGenerationResponse, VideoResolution,
+    WebSearchConfig, WebSearchUserLocation, cosine_similarity, estimate_tokens, euclidean_distance,
+    model_capabilities, normalize_embedding, supports_audio_input, supports_audio_output,
+    supports_extended_thinking, supports_function_calling, supports_vision, truncate_messages,
+    validate_messages,
 };

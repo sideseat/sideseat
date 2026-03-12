@@ -454,18 +454,24 @@ fn mark_cross_trace_prefix(blocks: &mut [BlockEntry], accumulated: &CrossTracePr
         return;
     }
 
-    // Cross-trace prefix stripping is for attribute-sourced history re-send.
-    // Event-based frameworks should remain independent across traces.
+    // A block is "cross-trace strippable" if it represents history re-sent to a new LLM call:
+    // - Attribute-sourced input (LangGraph, ADK, Vercel, etc.)
+    // - gen_ai.input.messages event (Strands JS bundled format: all messages share event_time
+    //   so timestamp-based Phase 2 can't detect history within a single span)
+    // Pure per-message event frameworks (Strands Python: gen_ai.user.message etc.) are excluded
+    // because they preserve original timestamps and Phase 2 handles them within each trace.
+    let is_strippable = |b: &BlockEntry| {
+        (b.is_input_source() && b.source_type == source_type::ATTRIBUTE)
+            || b.event_name.as_deref() == Some("gen_ai.input.messages")
+    };
+
     let input_source_count = blocks.iter().filter(|b| b.is_input_source()).count();
-    let attribute_input_count = blocks
-        .iter()
-        .filter(|b| b.is_input_source() && b.source_type == source_type::ATTRIBUTE)
-        .count();
-    if attribute_input_count == 0 {
+    let strippable_input_count = blocks.iter().filter(|b| is_strippable(b)).count();
+    if strippable_input_count == 0 {
         return;
     }
 
-    // Sequential prefix match per span on input-source blocks.
+    // Sequential prefix match per span on strippable input blocks.
     // Since this runs before any history marking, no blocks are is_history yet.
     let mut acc_idx = 0;
     let mut current_span_id: Option<String> = None;
@@ -485,10 +491,9 @@ fn mark_cross_trace_prefix(blocks: &mut [BlockEntry], accumulated: &CrossTracePr
         if acc_idx >= accumulated.len() || !span_prefix_active {
             continue;
         }
-        if !block.is_input_source() {
-            continue;
-        }
-        if block.source_type != source_type::ATTRIBUTE {
+        let strippable = (block.is_input_source() && block.source_type == source_type::ATTRIBUTE)
+            || block.event_name.as_deref() == Some("gen_ai.input.messages");
+        if !strippable {
             continue;
         }
         // System prompts are per-trace framing, not semantic history prefix.
@@ -515,7 +520,7 @@ fn mark_cross_trace_prefix(blocks: &mut [BlockEntry], accumulated: &CrossTracePr
     tracing::debug!(
         accumulated_len = accumulated.len(),
         input_source_count,
-        attribute_input_count,
+        strippable_input_count,
         spans_scanned,
         marked,
         skipped,

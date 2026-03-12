@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use super::error::CmError;
-use super::types::{BranchId, BranchMeta, ConversationId, Node, NodeHeader, NodeId, UserId, now_micros};
+use super::types::{
+    BranchId, BranchMeta, ConversationId, Node, NodeHeader, NodeId, UserId, now_micros,
+};
 
 // ---------------------------------------------------------------------------
 // BranchDiff
@@ -101,12 +103,16 @@ impl ConversationTree {
             .unwrap_or(0);
 
         if header.sequence >= current_tip_seq {
-            self.tips.insert(header.branch_id.clone(), header.id.clone());
+            self.tips
+                .insert(header.branch_id.clone(), header.id.clone());
         }
 
         // Advance next_sequence so new nodes appended after load() get a unique,
         // monotonically increasing sequence number on this branch.
-        let next = self.next_sequence.entry(header.branch_id.clone()).or_insert(0);
+        let next = self
+            .next_sequence
+            .entry(header.branch_id.clone())
+            .or_insert(0);
         if header.sequence + 1 > *next {
             *next = header.sequence + 1;
         }
@@ -128,11 +134,7 @@ impl ConversationTree {
     // -----------------------------------------------------------------------
 
     /// Create a new branch forking from `from_node_id`. Returns the new branch ID.
-    pub fn fork(
-        &mut self,
-        from_node_id: &NodeId,
-        name: String,
-    ) -> Result<BranchId, CmError> {
+    pub fn fork(&mut self, from_node_id: &NodeId, name: String) -> Result<BranchId, CmError> {
         self.fork_with_id(from_node_id, BranchId::new(), name)
     }
 
@@ -163,9 +165,9 @@ impl ConversationTree {
             },
         );
 
-        self.tips
-            .insert(new_branch.clone(), from_node_id.clone());
-        self.next_sequence.insert(new_branch.clone(), header.sequence + 1);
+        self.tips.insert(new_branch.clone(), from_node_id.clone());
+        self.next_sequence
+            .insert(new_branch.clone(), header.sequence + 1);
 
         Ok(new_branch)
     }
@@ -193,8 +195,7 @@ impl ConversationTree {
             .collect();
 
         self.tips.insert(branch_id.clone(), to_node_id.clone());
-        self.next_sequence
-            .insert(branch_id, target_seq + 1);
+        self.next_sequence.insert(branch_id, target_seq + 1);
 
         Ok(pruned)
     }
@@ -209,11 +210,7 @@ impl ConversationTree {
     }
 
     /// Compute the symmetric difference between two branches.
-    pub fn diff(
-        &self,
-        branch_a: &BranchId,
-        branch_b: &BranchId,
-    ) -> Result<BranchDiff, CmError> {
+    pub fn diff(&self, branch_a: &BranchId, branch_b: &BranchId) -> Result<BranchDiff, CmError> {
         let path_a = self.linearize_ids(branch_a)?;
         let path_b = self.linearize_ids(branch_b)?;
 
@@ -306,10 +303,7 @@ impl ConversationTree {
 
     /// Return the linearized sub-branch rooted at an `AgentSpawn` node,
     /// or just the spawn node itself if no sub-branch has been created yet.
-    pub fn agent_subtree(
-        &self,
-        agent_spawn_id: &NodeId,
-    ) -> Result<Vec<&NodeHeader>, CmError> {
+    pub fn agent_subtree(&self, agent_spawn_id: &NodeId) -> Result<Vec<&NodeHeader>, CmError> {
         let spawn_header = self
             .headers
             .get(agent_spawn_id)
@@ -378,8 +372,12 @@ impl ConversationTree {
         if let Some(fork_node) = &branch.fork_node_id
             && let Some(h) = self.headers.get(fork_node)
         {
-            self.tips.entry(branch.id.clone()).or_insert_with(|| fork_node.clone());
-            self.next_sequence.entry(branch.id.clone()).or_insert(h.sequence + 1);
+            self.tips
+                .entry(branch.id.clone())
+                .or_insert_with(|| fork_node.clone());
+            self.next_sequence
+                .entry(branch.id.clone())
+                .or_insert(h.sequence + 1);
         } else {
             self.next_sequence.entry(branch.id.clone()).or_insert(0);
         }
@@ -419,9 +417,9 @@ impl ConversationTree {
 
 #[cfg(test)]
 mod tests {
+    use super::super::types::{Node, NodeContent};
     use super::*;
     use crate::types::ContentBlock;
-    use super::super::types::{NodeContent, Node};
     use std::collections::HashMap;
 
     fn make_node(

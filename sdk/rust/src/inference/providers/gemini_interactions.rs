@@ -86,9 +86,15 @@ impl GeminiInteractionsProvider {
 
     fn build_url(&self, stream: bool) -> String {
         if stream {
-            format!("{}{}?key={}&alt=sse", self.base_url, INTERACTIONS_PATH, self.api_key)
+            format!(
+                "{}{}?key={}&alt=sse",
+                self.base_url, INTERACTIONS_PATH, self.api_key
+            )
         } else {
-            format!("{}{}?key={}", self.base_url, INTERACTIONS_PATH, self.api_key)
+            format!(
+                "{}{}?key={}",
+                self.base_url, INTERACTIONS_PATH, self.api_key
+            )
         }
     }
 
@@ -432,7 +438,10 @@ fn format_input(messages: &[Message]) -> Result<Value, ProviderError> {
         .next_back()
         .ok_or_else(|| ProviderError::InvalidRequest("No user message in input".into()))?;
 
-    let all_text = last_user.content.iter().all(|b| matches!(b, ContentBlock::Text(_)));
+    let all_text = last_user
+        .content
+        .iter()
+        .all(|b| matches!(b, ContentBlock::Text(_)));
     if all_text {
         let text = last_user
             .content

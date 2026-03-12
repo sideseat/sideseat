@@ -10,6 +10,7 @@ const INVALID_MODEL_ID = 'nonexistent-model-id-12345';
 export async function run() {
   const agent = new Agent({
     model: resolveModel(INVALID_MODEL_ID),
+    printer: false,
     systemPrompt: 'You are a helpful assistant.',
   });
 

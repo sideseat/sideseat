@@ -10,7 +10,7 @@ use rmcp::{Peer, RoleClient, model::CallToolRequestParams, model::Tool as McpToo
 
 use crate::{
     error::ProviderError,
-    types::{ContentBlock, ImageContent, MediaSource, Base64Data, Tool, ToolUseBlock},
+    types::{Base64Data, ContentBlock, ImageContent, MediaSource, Tool, ToolUseBlock},
 };
 
 /// Convert all tools from an MCP server into sideseat `Tool` definitions.
@@ -45,7 +45,8 @@ fn mcp_tool_to_tool(t: McpTool) -> Tool {
 #[allow(clippy::type_complexity)]
 pub fn mcp_tool_handler(
     client: Arc<Peer<RoleClient>>,
-) -> impl Fn(Vec<ToolUseBlock>) -> Pin<Box<dyn Future<Output = Vec<(String, Vec<ContentBlock>)>> + Send>> {
+) -> impl Fn(Vec<ToolUseBlock>) -> Pin<Box<dyn Future<Output = Vec<(String, Vec<ContentBlock>)>> + Send>>
+{
     move |tool_uses| {
         let client = client.clone();
         Box::pin(async move {
@@ -122,7 +123,11 @@ fn mcp_content_to_block(content: &rmcp::model::Content) -> ContentBlock {
             media_type: image_content.mime_type.clone(),
             data: image_content.data.clone(),
         });
-        return ContentBlock::Image(ImageContent { source, format: None, detail: None });
+        return ContentBlock::Image(ImageContent {
+            source,
+            format: None,
+            detail: None,
+        });
     }
     // Unknown content type — fall back to text representation
     ContentBlock::text(format!("{content:?}"))

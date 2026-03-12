@@ -53,6 +53,7 @@ export async function run(modelId: string) {
   const artist = new Agent({
     model,
     tools: [imageGenTool],
+    printer: false,
     systemPrompt: `You will be instructed to generate a number of images of a given subject.
 Vary the prompt for each generated image to create a variety of options.
 Your final output must contain ONLY a comma-separated list of the filesystem paths of generated images.`,
@@ -62,6 +63,7 @@ Your final output must contain ONLY a comma-separated list of the filesystem pat
   const critic = new Agent({
     model,
     tools: [imageReaderTool],
+    printer: false,
     systemPrompt: `You will be provided with a list of filesystem paths, each containing an image.
 Describe each image, and then choose which one is best.
 Your final line of output must be as follows:
@@ -71,10 +73,10 @@ FINAL DECISION: <path to final decision image>`,
   // Generate multiple images using the artist agent
   console.log('Artist generating images...');
   const artistResult = await artist.invoke('Generate 3 images of a dog');
-  console.log(`Artist result: ${artistResult}`);
+  console.log(`Artist result: ${artistResult.toString()}`);
 
   // Pass the image paths to the critic agent for evaluation
   console.log('\nCritic evaluating images...');
-  const criticResult = await critic.invoke(String(artistResult));
-  console.log(`Critic result: ${criticResult}`);
+  const criticResult = await critic.invoke(artistResult.toString());
+  console.log(`Critic result: ${criticResult.toString()}`);
 }

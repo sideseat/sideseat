@@ -11,10 +11,10 @@ use crate::types::{
     AgentResult, AgentStep, AudioContent, AudioFormat, ContentBlock, ContentBlockStart,
     ContentDelta, EmbeddingRequest, EmbeddingResponse, FallbackStrategy, ImageContent,
     ImageEditRequest, ImageGenerationRequest, ImageGenerationResponse, MediaSource, Message,
-    ModelInfo, ModerationRequest, ModerationResponse, ProviderConfig, Response, Role, SpeechRequest,
-    SpeechResponse, StopReason, StreamEvent, StreamRecording, TextBlock, ThinkingBlock, TokenCount,
-    ToolUseBlock, TranscriptionRequest, TranscriptionResponse, Usage, VideoGenerationRequest,
-    VideoGenerationResponse,
+    ModelInfo, ModerationRequest, ModerationResponse, ProviderConfig, Response, Role,
+    SpeechRequest, SpeechResponse, StopReason, StreamEvent, StreamRecording, TextBlock,
+    ThinkingBlock, TokenCount, ToolUseBlock, TranscriptionRequest, TranscriptionResponse, Usage,
+    VideoGenerationRequest, VideoGenerationResponse,
 };
 
 /// Boxed stream of provider events.
@@ -93,10 +93,7 @@ pub trait ChatProvider: Provider {
 /// Text embedding capability. Model is specified inside `EmbeddingRequest`.
 #[async_trait]
 pub trait EmbeddingProvider: Provider {
-    async fn embed(
-        &self,
-        request: EmbeddingRequest,
-    ) -> Result<EmbeddingResponse, ProviderError>;
+    async fn embed(&self, request: EmbeddingRequest) -> Result<EmbeddingResponse, ProviderError>;
 }
 
 // ---------------------------------------------------------------------------
@@ -458,55 +455,99 @@ async fn collect_stream_with_audio_format(
 /// Emits: MessageStart → ContentBlockStart × N → ContentBlockDelta × N →
 /// ContentBlockStop × N → Metadata → MessageStop.
 pub fn response_to_stream(response: Response) -> ProviderStream {
-    Box::pin(futures::stream::once(async move {
-        Ok::<StreamEvent, ProviderError>(StreamEvent::MessageStart {
-            role: Role::Assistant,
+    Box::pin(
+        futures::stream::once(async move {
+            Ok::<StreamEvent, ProviderError>(StreamEvent::MessageStart {
+                role: Role::Assistant,
+            })
         })
-    }).chain(futures::stream::iter({
-        let mut events: Vec<Result<StreamEvent, ProviderError>> = Vec::new();
-        for (i, block) in response.content.iter().enumerate() {
-            match block {
-                ContentBlock::Text(t) => {
-                    events.push(Ok(StreamEvent::ContentBlockStart { index: i, block: crate::types::ContentBlockStart::Text }));
-                    events.push(Ok(StreamEvent::ContentBlockDelta { index: i, delta: crate::types::ContentDelta::Text { text: t.text.clone() } }));
-                    events.push(Ok(StreamEvent::ContentBlockStop { index: i }));
-                }
-                ContentBlock::ToolUse(tu) => {
-                    events.push(Ok(StreamEvent::ContentBlockStart { index: i, block: crate::types::ContentBlockStart::ToolUse { id: tu.id.clone(), name: tu.name.clone() } }));
-                    events.push(Ok(StreamEvent::ContentBlockDelta { index: i, delta: crate::types::ContentDelta::ToolInput { partial_json: tu.input.to_string() } }));
-                    events.push(Ok(StreamEvent::ContentBlockStop { index: i }));
-                }
-                ContentBlock::Thinking(t) => {
-                    events.push(Ok(StreamEvent::ContentBlockStart { index: i, block: crate::types::ContentBlockStart::Thinking }));
-                    events.push(Ok(StreamEvent::ContentBlockDelta { index: i, delta: crate::types::ContentDelta::Thinking { text: t.text.clone() } }));
-                    events.push(Ok(StreamEvent::ContentBlockStop { index: i }));
-                }
-                ContentBlock::Audio(audio) => {
-                    if let MediaSource::Base64(b64) = &audio.source {
-                        events.push(Ok(StreamEvent::ContentBlockStart { index: i, block: crate::types::ContentBlockStart::Audio }));
-                        events.push(Ok(StreamEvent::ContentBlockDelta { index: i, delta: crate::types::ContentDelta::AudioData { b64_data: b64.data.clone() } }));
+        .chain(futures::stream::iter({
+            let mut events: Vec<Result<StreamEvent, ProviderError>> = Vec::new();
+            for (i, block) in response.content.iter().enumerate() {
+                match block {
+                    ContentBlock::Text(t) => {
+                        events.push(Ok(StreamEvent::ContentBlockStart {
+                            index: i,
+                            block: crate::types::ContentBlockStart::Text,
+                        }));
+                        events.push(Ok(StreamEvent::ContentBlockDelta {
+                            index: i,
+                            delta: crate::types::ContentDelta::Text {
+                                text: t.text.clone(),
+                            },
+                        }));
                         events.push(Ok(StreamEvent::ContentBlockStop { index: i }));
                     }
-                    // URL-sourced audio has no inline payload to stream
-                }
-                ContentBlock::Image(img) => {
-                    if let MediaSource::Base64(b64) = &img.source {
-                        events.push(Ok(StreamEvent::InlineData { index: i, media_type: b64.media_type.clone(), b64_data: b64.data.clone() }));
+                    ContentBlock::ToolUse(tu) => {
+                        events.push(Ok(StreamEvent::ContentBlockStart {
+                            index: i,
+                            block: crate::types::ContentBlockStart::ToolUse {
+                                id: tu.id.clone(),
+                                name: tu.name.clone(),
+                            },
+                        }));
+                        events.push(Ok(StreamEvent::ContentBlockDelta {
+                            index: i,
+                            delta: crate::types::ContentDelta::ToolInput {
+                                partial_json: tu.input.to_string(),
+                            },
+                        }));
+                        events.push(Ok(StreamEvent::ContentBlockStop { index: i }));
                     }
-                    // URL-sourced images have no inline payload to stream
+                    ContentBlock::Thinking(t) => {
+                        events.push(Ok(StreamEvent::ContentBlockStart {
+                            index: i,
+                            block: crate::types::ContentBlockStart::Thinking,
+                        }));
+                        events.push(Ok(StreamEvent::ContentBlockDelta {
+                            index: i,
+                            delta: crate::types::ContentDelta::Thinking {
+                                text: t.text.clone(),
+                            },
+                        }));
+                        events.push(Ok(StreamEvent::ContentBlockStop { index: i }));
+                    }
+                    ContentBlock::Audio(audio) => {
+                        if let MediaSource::Base64(b64) = &audio.source {
+                            events.push(Ok(StreamEvent::ContentBlockStart {
+                                index: i,
+                                block: crate::types::ContentBlockStart::Audio,
+                            }));
+                            events.push(Ok(StreamEvent::ContentBlockDelta {
+                                index: i,
+                                delta: crate::types::ContentDelta::AudioData {
+                                    b64_data: b64.data.clone(),
+                                },
+                            }));
+                            events.push(Ok(StreamEvent::ContentBlockStop { index: i }));
+                        }
+                        // URL-sourced audio has no inline payload to stream
+                    }
+                    ContentBlock::Image(img) => {
+                        if let MediaSource::Base64(b64) = &img.source {
+                            events.push(Ok(StreamEvent::InlineData {
+                                index: i,
+                                media_type: b64.media_type.clone(),
+                                b64_data: b64.data.clone(),
+                            }));
+                        }
+                        // URL-sourced images have no inline payload to stream
+                    }
+                    // Document, Video, ToolResult are inputs, not outputs
+                    _ => {}
                 }
-                // Document, Video, ToolResult are inputs, not outputs
-                _ => {}
             }
-        }
-        events.push(Ok(StreamEvent::Metadata {
-            usage: response.usage.clone(),
-            model: response.model.clone(),
-            id: response.id.clone(),
-        }));
-        events.push(Ok(StreamEvent::MessageStop { stop_reason: response.stop_reason.clone() }));
-        events
-    })))
+            events.push(Ok(StreamEvent::Metadata {
+                usage: response.usage.clone(),
+                model: response.model.clone(),
+                id: response.id.clone(),
+            }));
+            events.push(Ok(StreamEvent::MessageStop {
+                stop_reason: response.stop_reason.clone(),
+            }));
+            events
+        })),
+    )
 }
 
 /// Wraps a `ProviderStream` with a per-chunk timeout.
@@ -827,7 +868,10 @@ where
     let mut last_err: Option<ProviderError> = None;
     for attempt in 0..=config.max_retries {
         if attempt > 0 {
-            tokio::time::sleep(tokio::time::Duration::from_millis(config.delay_for_attempt(attempt))).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(
+                config.delay_for_attempt(attempt),
+            ))
+            .await;
         }
         match f().await {
             Ok(r) => return Ok(r),
@@ -861,7 +905,10 @@ impl<P> RetryProvider<P> {
 
     /// Create a [`RetryProvider`] with a fully-customized [`RetryConfig`].
     pub fn from_config(inner: P, config: RetryConfig) -> Self {
-        Self { inner: std::sync::Arc::new(inner), config }
+        Self {
+            inner: std::sync::Arc::new(inner),
+            config,
+        }
     }
 
     /// Set the initial delay before the first retry. Default: 1000 ms.
@@ -1158,12 +1205,17 @@ impl ChatProvider for FallbackProvider {
         let now = std::time::Instant::now();
         let idx = {
             let h = self.health.lock();
-            (0..self.providers.len()).find(|&i| {
-                h.get(i)
-                    .map(|health| health.unhealthy_until.map(|t| t <= now).unwrap_or(true))
-                    .unwrap_or(true)
-            })
-            .or(if self.providers.is_empty() { None } else { Some(0) })
+            (0..self.providers.len())
+                .find(|&i| {
+                    h.get(i)
+                        .map(|health| health.unhealthy_until.map(|t| t <= now).unwrap_or(true))
+                        .unwrap_or(true)
+                })
+                .or(if self.providers.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                })
         };
         match idx {
             Some(i) => self.providers[i].stream(messages, config),
@@ -1184,7 +1236,8 @@ impl ChatProvider for FallbackProvider {
             {
                 let h = self.health.lock();
                 if let Some(h) = h.get(i)
-                    && h.unhealthy_until.is_some_and(|t| std::time::Instant::now() < t)
+                    && h.unhealthy_until
+                        .is_some_and(|t| std::time::Instant::now() < t)
                 {
                     continue;
                 }
@@ -1211,8 +1264,7 @@ impl ChatProvider for FallbackProvider {
                             h.consecutive_errors += 1;
                             if h.consecutive_errors >= 3 {
                                 h.unhealthy_until = Some(
-                                    std::time::Instant::now()
-                                        + std::time::Duration::from_secs(30),
+                                    std::time::Instant::now() + std::time::Duration::from_secs(30),
                                 );
                             }
                         }
@@ -1223,7 +1275,12 @@ impl ChatProvider for FallbackProvider {
                 }
             }
         }
-        Err(last_err.unwrap_or_else(|| ProviderError::InvalidRequest("No providers available — FallbackProvider is empty or all providers are unhealthy".into())))
+        Err(last_err.unwrap_or_else(|| {
+            ProviderError::InvalidRequest(
+                "No providers available — FallbackProvider is empty or all providers are unhealthy"
+                    .into(),
+            )
+        }))
     }
 }
 
@@ -1459,7 +1516,10 @@ pub async fn batch_embed<P: EmbeddingProvider + Sync>(
     requests: Vec<EmbeddingRequest>,
 ) -> Vec<Result<EmbeddingResponse, ProviderError>> {
     use futures::future::join_all;
-    let futs: Vec<_> = requests.into_iter().map(|req| provider.embed(req)).collect();
+    let futs: Vec<_> = requests
+        .into_iter()
+        .map(|req| provider.embed(req))
+        .collect();
     join_all(futs).await
 }
 

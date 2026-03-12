@@ -18,7 +18,10 @@ async fn test_xai_complete() {
     mock_json(&server, POST, "/chat/completions", OPENAI_COMPLETE_JSON);
     let config = default_config(XAI_MODEL);
 
-    let resp = provider.complete(vec![user_msg("Say hello in one word.")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Say hello in one word.")], config)
+        .await
+        .unwrap();
 
     assert!(!resp.text().is_empty());
     assert!(resp.usage.input_tokens > 0);
@@ -48,7 +51,10 @@ async fn test_xai_system_prompt() {
     let mut config = default_config(XAI_MODEL);
     config.system = Some("You are a pirate. Respond only in pirate speak.".to_string());
 
-    let resp = provider.complete(vec![user_msg("Hello!")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Hello!")], config)
+        .await
+        .unwrap();
     assert!(!resp.text().is_empty());
 }
 
@@ -75,9 +81,15 @@ async fn test_xai_tools() {
     let mut config = default_config(XAI_MODEL);
     config.tools = vec![echo_tool()];
 
-    let resp = provider.complete(vec![user_msg("Please echo the word 'mango'")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Please echo the word 'mango'")], config)
+        .await
+        .unwrap();
 
-    let has_tool = resp.content.iter().any(|b| matches!(b, ContentBlock::ToolUse(_)));
+    let has_tool = resp
+        .content
+        .iter()
+        .any(|b| matches!(b, ContentBlock::ToolUse(_)));
     assert!(has_tool, "expected tool_use block, got: {:?}", resp.content);
 }
 
@@ -88,13 +100,20 @@ async fn test_xai_structured_output() {
     let (server, provider) = mock_xai();
     server.mock(|when, then| {
         when.method(POST).path_includes("/chat/completions");
-        then.status(200).header("content-type", "application/json").body(json_body);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(json_body);
     });
     let mut config = default_config(XAI_MODEL);
     config.response_format = Some(ResponseFormat::Json);
 
     let resp = provider
-        .complete(vec![user_msg("Return a JSON object with fields 'name' and 'age'.")], config)
+        .complete(
+            vec![user_msg(
+                "Return a JSON object with fields 'name' and 'age'.",
+            )],
+            config,
+        )
         .await
         .unwrap();
 
@@ -116,20 +135,28 @@ async fn test_xai_reasoning() {
     let (server, provider) = mock_xai();
     server.mock(|when, then| {
         when.method(POST).path_includes("/chat/completions");
-        then.status(200).header("content-type", "application/json").body(reasoning_resp);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(reasoning_resp);
     });
     let mut config = default_config(XAI_MODEL);
     config.reasoning_effort = Some(ReasoningEffort::Low);
     config.max_tokens = Some(512);
 
     let resp = provider
-        .complete(vec![user_msg("What is 17 * 13? Think step by step.")], config)
+        .complete(
+            vec![user_msg("What is 17 * 13? Think step by step.")],
+            config,
+        )
         .await
         .unwrap();
 
     let text = resp.text();
     assert!(!text.is_empty());
-    assert!(text.contains("221"), "expected correct answer 221, got: {text}");
+    assert!(
+        text.contains("221"),
+        "expected correct answer 221, got: {text}"
+    );
 }
 
 #[tokio::test]
@@ -143,7 +170,9 @@ async fn test_xai_reasoning_stream() {
     let (server, provider) = mock_xai();
     server.mock(|when, then| {
         when.method(POST).path_includes("/chat/completions");
-        then.status(200).header("content-type", "text/event-stream").body(stream_events);
+        then.status(200)
+            .header("content-type", "text/event-stream")
+            .body(stream_events);
     });
     let mut config = default_config(XAI_MODEL);
     config.reasoning_effort = Some(ReasoningEffort::Low);
@@ -178,7 +207,10 @@ async fn test_xai_vision() {
 
     let messages = vec![Message {
         role: Role::User,
-        content: vec![ContentBlock::text("What color is this image?".to_string()), image],
+        content: vec![
+            ContentBlock::text("What color is this image?".to_string()),
+            image,
+        ],
         name: None,
         cache_control: None,
     }];
@@ -211,11 +243,19 @@ async fn test_xai_embed() {
 async fn test_xai_logprobs() {
     let (server, provider) = mock_xai();
     mock_json(&server, POST, "/chat/completions", OPENAI_LOGPROBS_JSON);
-    let config = default_config(XAI_MODEL).with_logprobs(true).with_top_logprobs(2);
+    let config = default_config(XAI_MODEL)
+        .with_logprobs(true)
+        .with_top_logprobs(2);
 
-    let resp = provider.complete(vec![user_msg("Say hello in one word.")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Say hello in one word.")], config)
+        .await
+        .unwrap();
 
-    let lp = resp.logprobs.as_ref().expect("expected logprobs in response");
+    let lp = resp
+        .logprobs
+        .as_ref()
+        .expect("expected logprobs in response");
     assert!(!lp.is_empty());
     assert!(!lp[0].top_logprobs.is_empty());
 }

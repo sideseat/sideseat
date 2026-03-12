@@ -82,11 +82,7 @@ pub enum ChunkLocation {
 #[async_trait]
 pub trait DocumentExtractor: Send + Sync {
     fn supported_types(&self) -> &[SourceType];
-    async fn extract(
-        &self,
-        data: &[u8],
-        mime_type: &str,
-    ) -> Result<ExtractedContent, CmError>;
+    async fn extract(&self, data: &[u8], mime_type: &str) -> Result<ExtractedContent, CmError>;
 }
 
 #[derive(Debug, Clone)]
@@ -107,11 +103,7 @@ impl DocumentExtractor for PlainTextExtractor {
         &[SourceType::Text, SourceType::Markdown, SourceType::Code]
     }
 
-    async fn extract(
-        &self,
-        data: &[u8],
-        _mime_type: &str,
-    ) -> Result<ExtractedContent, CmError> {
+    async fn extract(&self, data: &[u8], _mime_type: &str) -> Result<ExtractedContent, CmError> {
         let text = String::from_utf8(data.to_vec())
             .map_err(|e| CmError::ExtractionFailed(e.to_string()))?;
         Ok(ExtractedContent {
@@ -344,14 +336,22 @@ mod tests {
     #[tokio::test]
     async fn plain_text_extractor_ok() {
         let extractor = PlainTextExtractor;
-        let result = extractor.extract(b"Hello, world!", "text/plain").await.unwrap();
+        let result = extractor
+            .extract(b"Hello, world!", "text/plain")
+            .await
+            .unwrap();
         assert_eq!(result.text, "Hello, world!");
     }
 
     #[tokio::test]
     async fn plain_text_extractor_invalid_utf8() {
         let extractor = PlainTextExtractor;
-        assert!(extractor.extract(&[0xFF, 0xFE], "text/plain").await.is_err());
+        assert!(
+            extractor
+                .extract(&[0xFF, 0xFE], "text/plain")
+                .await
+                .is_err()
+        );
     }
 
     #[test]
@@ -373,7 +373,9 @@ mod tests {
         let parsed: SourceStatus = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, SourceStatus::Ready);
 
-        let failed = SourceStatus::Failed { error: "bad file".into() };
+        let failed = SourceStatus::Failed {
+            error: "bad file".into(),
+        };
         let json = serde_json::to_string(&failed).unwrap();
         let parsed: SourceStatus = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, failed);

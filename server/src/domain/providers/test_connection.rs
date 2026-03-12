@@ -8,10 +8,7 @@ use std::time::Instant;
 use super::service::{ResolvedCredential, TestResult};
 
 /// Test a resolved credential by attempting to reach its provider API.
-pub async fn test_credential(
-    resolved: &ResolvedCredential,
-    secret: Option<&str>,
-) -> TestResult {
+pub async fn test_credential(resolved: &ResolvedCredential, secret: Option<&str>) -> TestResult {
     let start = Instant::now();
 
     let result = attempt_test(resolved, secret).await;
@@ -51,12 +48,7 @@ async fn attempt_test(
         "anthropic" => {
             use sideseat::providers::AnthropicProvider;
             let p = AnthropicProvider::new(api_key);
-            try_test_provider(
-                Box::new(p),
-                test_models::ANTHROPIC.to_string(),
-                timeout,
-            )
-            .await
+            try_test_provider(Box::new(p), test_models::ANTHROPIC.to_string(), timeout).await
         }
         "openai" => {
             let variant = extra
@@ -67,21 +59,11 @@ async fn attempt_test(
             if variant == "responses_api" {
                 use sideseat::providers::OpenAIResponsesProvider;
                 let p = OpenAIResponsesProvider::new(api_key);
-                try_test_provider(
-                    Box::new(p),
-                    test_models::OPENAI.to_string(),
-                    timeout,
-                )
-                .await
+                try_test_provider(Box::new(p), test_models::OPENAI.to_string(), timeout).await
             } else {
                 use sideseat::providers::OpenAIChatProvider;
                 let p = OpenAIChatProvider::new(api_key);
-                try_test_provider(
-                    Box::new(p),
-                    test_models::OPENAI.to_string(),
-                    timeout,
-                )
-                .await
+                try_test_provider(Box::new(p), test_models::OPENAI.to_string(), timeout).await
             }
         }
         "gemini" => {
@@ -93,21 +75,11 @@ async fn attempt_test(
             if variant == "interactions" {
                 use sideseat::providers::GeminiInteractionsProvider;
                 let p = GeminiInteractionsProvider::new(api_key);
-                try_test_provider(
-                    Box::new(p),
-                    test_models::GEMINI.to_string(),
-                    timeout,
-                )
-                .await
+                try_test_provider(Box::new(p), test_models::GEMINI.to_string(), timeout).await
             } else {
                 use sideseat::providers::{GeminiAuth, GeminiProvider};
                 let p = GeminiProvider::new(GeminiAuth::ApiKey(api_key.to_string()));
-                try_test_provider(
-                    Box::new(p),
-                    test_models::GEMINI.to_string(),
-                    timeout,
-                )
-                .await
+                try_test_provider(Box::new(p), test_models::GEMINI.to_string(), timeout).await
             }
         }
         "cohere" => {
@@ -148,32 +120,17 @@ async fn attempt_test(
         "cerebras" => {
             use sideseat::providers::OpenAIChatProvider;
             let p = OpenAIChatProvider::for_cerebras(api_key);
-            try_test_provider(
-                Box::new(p),
-                test_models::CEREBRAS.to_string(),
-                timeout,
-            )
-            .await
+            try_test_provider(Box::new(p), test_models::CEREBRAS.to_string(), timeout).await
         }
         "perplexity" => {
             use sideseat::providers::OpenAIChatProvider;
             let p = OpenAIChatProvider::for_perplexity(api_key);
-            try_test_provider(
-                Box::new(p),
-                test_models::PERPLEXITY.to_string(),
-                timeout,
-            )
-            .await
+            try_test_provider(Box::new(p), test_models::PERPLEXITY.to_string(), timeout).await
         }
         "openrouter" => {
             use sideseat::providers::OpenAIChatProvider;
             let p = OpenAIChatProvider::for_openrouter(api_key);
-            try_test_provider(
-                Box::new(p),
-                test_models::OPENROUTER.to_string(),
-                timeout,
-            )
-            .await
+            try_test_provider(Box::new(p), test_models::OPENROUTER.to_string(), timeout).await
         }
         "ollama" => {
             use sideseat::providers::OpenAIChatProvider;
@@ -493,9 +450,7 @@ async fn get_azure_managed_identity_token(resource: &str) -> Result<String, Stri
             .get("access_token")
             .and_then(|v| v.as_str())
             .map(ToString::to_string)
-            .ok_or_else(|| {
-                format!("Workload identity response missing access_token: {resp}")
-            });
+            .ok_or_else(|| format!("Workload identity response missing access_token: {resp}"));
     }
 
     // Path 2: IMDS (Azure VM / Container Apps / Functions)

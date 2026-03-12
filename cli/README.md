@@ -19,7 +19,7 @@ Built on [OpenTelemetry](https://opentelemetry.io/) — the open standard alread
 npx sideseat
 ```
 
-Open [localhost:5388](http://localhost:5388) and instrument your agent. Here's [Strands Agents](https://strandsagents.com) as an example — see the [setup guide](https://sideseat.ai/docs) for Vercel AI, Google ADK, LangGraph, CrewAI, AutoGen, OpenAI Agents, and others.
+Open [localhost:5388](http://localhost:5388) and instrument your agent. Here's [Strands Agents](https://strandsagents.com) as an example — see the [setup guide](https://sideseat.ai/docs) for Vercel AI SDK, Google ADK, LangGraph, CrewAI, AutoGen, OpenAI Agents, and others.
 
 **With SideSeat SDK** — automatic setup, one import:
 

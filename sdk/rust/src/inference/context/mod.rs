@@ -26,9 +26,9 @@ use self::crdt::CrdtExtension;
 use self::error::CmError;
 use self::tree::ConversationTree;
 use self::types::{
-    AgentId, BranchId, BranchMeta, Conversation, ConversationId, ConversationPatch,
-    DatasetEntry, DatasetSplit, MemoryEntry, MemoryEntryId, MemoryEntryType,
-    Node, NodeContent, NodeId, NodeParams, StreamStatus, StreamingState, now_micros,
+    AgentId, BranchId, BranchMeta, Conversation, ConversationId, ConversationPatch, DatasetEntry,
+    DatasetSplit, MemoryEntry, MemoryEntryId, MemoryEntryType, Node, NodeContent, NodeId,
+    NodeParams, StreamStatus, StreamingState, now_micros,
 };
 use self::vfs::VfsExtension;
 use crate::types::{ContentBlock, Message, Response, Role, Usage, estimate_tokens};
@@ -91,7 +91,9 @@ impl ExtensionRegistry {
     pub(crate) fn register<T: ContextExtension>(&self, ext: Arc<T>) {
         let id = ext.id().to_string();
         let mut guard = self.inner.write();
-        guard.store.insert(id, ext.clone() as Arc<dyn Any + Send + Sync>);
+        guard
+            .store
+            .insert(id, ext.clone() as Arc<dyn Any + Send + Sync>);
         guard.hooks.push(ext as Arc<dyn ContextExtension>);
     }
 
@@ -168,11 +170,7 @@ pub trait MemorySource: Send + Sync {
         limit: u32,
     ) -> Result<Vec<MemoryItem>, CmError>;
 
-    async fn store(
-        &self,
-        conv_id: &ConversationId,
-        item: &MemoryItem,
-    ) -> Result<(), CmError>;
+    async fn store(&self, conv_id: &ConversationId, item: &MemoryItem) -> Result<(), CmError>;
 
     fn name(&self) -> &str;
 }
@@ -197,8 +195,12 @@ pub enum CompressionStrategy {
     #[default]
     Truncate,
     Summarize,
-    SlidingWindow { keep_last: usize },
-    ServerCompaction { compact_threshold: u32 },
+    SlidingWindow {
+        keep_last: usize,
+    },
+    ServerCompaction {
+        compact_threshold: u32,
+    },
     Fail,
 }
 
@@ -291,7 +293,11 @@ impl<B: ContextBackend> ContextManager<B> {
 
         // Register in global conversations index.
         backend
-            .kv_put("conversations", conv_id.as_str(), conv_id.as_str().as_bytes())
+            .kv_put(
+                "conversations",
+                conv_id.as_str(),
+                conv_id.as_str().as_bytes(),
+            )
             .await?;
 
         // ConversationTree::new() auto-creates a placeholder branch. We reuse
@@ -486,19 +492,9 @@ impl<B: ContextBackend> ContextManager<B> {
         let Some(vfs) = self.extensions.extension::<VfsExtension>() else {
             return Ok(());
         };
-        let branch_ids: Vec<BranchId> = self
-            .tree
-            .read()
-            .branches()
-            .keys()
-            .cloned()
-            .collect();
+        let branch_ids: Vec<BranchId> = self.tree.read().branches().keys().cloned().collect();
         for branch_id in &branch_ids {
-            if let Some(data) = self
-                .backend
-                .kv_get("vfs_index", branch_id.as_str())
-                .await?
-            {
+            if let Some(data) = self.backend.kv_get("vfs_index", branch_id.as_str()).await? {
                 vfs.load_branch_index(branch_id.as_str(), &data)?;
             }
         }
@@ -618,10 +614,7 @@ impl<B: ContextBackend> ContextManager<B> {
         let conv_id = self.conversation.lock().id.clone();
 
         // 1. Pre-load VFS state (I/O before mutation).
-        let vfs_data = self
-            .backend
-            .kv_get("vfs_index", branch_id.as_str())
-            .await?;
+        let vfs_data = self.backend.kv_get("vfs_index", branch_id.as_str()).await?;
 
         // 2. Apply subsystems — VFS first, CRDT second, tree last (commit signal).
         if let Some(vfs) = self.extensions.extension::<VfsExtension>() {
@@ -695,8 +688,9 @@ impl<B: ContextBackend> ContextManager<B> {
                     self.last_compact_seq.store(seq, Ordering::Release);
                     if let Err(e) = crdt.pull(&conv_id, &branch_id, self.backend.as_ref()).await {
                         tracing::warn!(error = %e, "CRDT auto-compact: pull failed, skipping compact");
-                    } else if let Err(e) =
-                        crdt.compact(&conv_id, &branch_id, self.backend.as_ref()).await
+                    } else if let Err(e) = crdt
+                        .compact(&conv_id, &branch_id, self.backend.as_ref())
+                        .await
                     {
                         tracing::warn!(error = %e, "CRDT auto-compact: compact failed");
                     }
@@ -763,7 +757,9 @@ impl<B: ContextBackend> ContextManager<B> {
 
         // Persist first. If this fails, the sequence number has a gap but the
         // tree never sees the node, keeping tree ⊆ backend at all times.
-        self.backend.append_nodes(std::slice::from_ref(&node)).await?;
+        self.backend
+            .append_nodes(std::slice::from_ref(&node))
+            .await?;
 
         // Backend write succeeded — safe to register in the in-memory tree.
         self.tree.write().register(&node)?;
@@ -785,7 +781,10 @@ impl<B: ContextBackend> ContextManager<B> {
         let crdt_seq_watermark = if let Some(crdt) = self.extensions.extension::<CrdtExtension>() {
             let conv_id = self.conversation.lock().id.clone();
             let branch_id = self.tree.read().active_branch().clone();
-            Some(crdt.push(&conv_id, &branch_id, self.backend.as_ref()).await?)
+            Some(
+                crdt.push(&conv_id, &branch_id, self.backend.as_ref())
+                    .await?,
+            )
         } else {
             None
         };
@@ -824,7 +823,10 @@ impl<B: ContextBackend> ContextManager<B> {
 
         // Load the child's committed snapshot and any incremental deltas after it.
         let (snap_seq, snap_bytes, _) = self.backend.crdt_load_snapshot(from_branch).await?;
-        let deltas = self.backend.crdt_fetch(&conv_id, from_branch, snap_seq).await?;
+        let deltas = self
+            .backend
+            .crdt_fetch(&conv_id, from_branch, snap_seq)
+            .await?;
 
         // Nothing from that branch yet.
         if snap_bytes.is_empty() && deltas.is_empty() {
@@ -887,8 +889,7 @@ impl<B: ContextBackend> ContextManager<B> {
 
         // 3. Project nodes → messages. Build a parallel `pinned` bool vec so
         //    truncation can track pinned status even as messages are removed.
-        let pinned_set: HashSet<&NodeId> =
-            self.compression.pinned_node_ids.iter().collect();
+        let pinned_set: HashSet<&NodeId> = self.compression.pinned_node_ids.iter().collect();
         let mut messages: Vec<Message> = Vec::new();
         let mut pinned: Vec<bool> = Vec::new();
 
@@ -961,7 +962,9 @@ impl<B: ContextBackend> ContextManager<B> {
         // Budget available for messages after reserving space for the system prompt.
         // Passing the full max_tokens to truncate_messages would leave no room for
         // the system prompt when the system string is large.
-        let system_tokens = final_system.as_deref().map_or(0, |s| estimate_tokens(s) as u64);
+        let system_tokens = final_system
+            .as_deref()
+            .map_or(0, |s| estimate_tokens(s) as u64);
         let message_budget = self.compression.max_tokens.saturating_sub(system_tokens);
 
         // 7. Apply compression strategy.
@@ -972,20 +975,13 @@ impl<B: ContextBackend> ContextManager<B> {
             match &self.compression.strategy {
                 CompressionStrategy::None => {}
                 CompressionStrategy::Truncate => {
-                    truncate_messages(
-                        &mut messages,
-                        &mut pinned,
-                        message_budget,
-                    );
+                    truncate_messages(&mut messages, &mut pinned, message_budget);
                 }
                 CompressionStrategy::Summarize => {
                     if let Some(summarizer) = &self.compression.summarizer {
-                        let (summ, kept) = summarize_old_messages(
-                            &messages,
-                            summarizer.as_ref(),
-                            message_budget,
-                        )
-                        .await?;
+                        let (summ, kept) =
+                            summarize_old_messages(&messages, summarizer.as_ref(), message_budget)
+                                .await?;
                         messages = kept;
                         if !summ.is_empty() {
                             summary = Some(summ.clone());
@@ -1002,11 +998,7 @@ impl<B: ContextBackend> ContextManager<B> {
                             );
                         }
                     } else {
-                        truncate_messages(
-                            &mut messages,
-                            &mut pinned,
-                            message_budget,
-                        );
+                        truncate_messages(&mut messages, &mut pinned, message_budget);
                     }
                 }
                 CompressionStrategy::SlidingWindow { keep_last } => {
@@ -1018,7 +1010,8 @@ impl<B: ContextBackend> ContextManager<B> {
                         // of the window, consistent with Truncate behaviour.
                         let mut pinned_from_old: Vec<Message> = Vec::new();
                         let mut old_unpinned: Vec<Message> = Vec::new();
-                        for (msg, is_pinned) in messages[..split].iter().zip(pinned[..split].iter()) {
+                        for (msg, is_pinned) in messages[..split].iter().zip(pinned[..split].iter())
+                        {
                             if *is_pinned {
                                 pinned_from_old.push(msg.clone());
                             } else {
@@ -1103,9 +1096,7 @@ impl<B: ContextBackend> ContextManager<B> {
         agent_id: AgentId,
         system: Option<String>,
     ) -> Result<ContextManager<B>, CmError> {
-        let head = self
-            .active_branch_tip()
-            .ok_or(CmError::NoNodes)?;
+        let head = self.active_branch_tip().ok_or(CmError::NoNodes)?;
 
         let agent_name = format!("agent/{}", agent_id.as_str());
         let new_branch_id = self.fork(&head, agent_name).await?;
@@ -1157,18 +1148,21 @@ impl<B: ContextBackend> ContextManager<B> {
         params: NodeParams,
     ) -> Result<NodeId, CmError> {
         self.add_node(
-            NodeContent::UserMessage { content, name: None },
+            NodeContent::UserMessage {
+                content,
+                name: None,
+            },
             params,
         )
         .await
     }
 
-    pub async fn add_system_message(
-        &self,
-        content: Vec<ContentBlock>,
-    ) -> Result<NodeId, CmError> {
-        self.add_node(NodeContent::SystemMessage { content }, NodeParams::default())
-            .await
+    pub async fn add_system_message(&self, content: Vec<ContentBlock>) -> Result<NodeId, CmError> {
+        self.add_node(
+            NodeContent::SystemMessage { content },
+            NodeParams::default(),
+        )
+        .await
     }
 
     pub async fn add_tool_result(
@@ -1190,10 +1184,7 @@ impl<B: ContextBackend> ContextManager<B> {
     }
 
     /// Import a slice of Messages as nodes (one node per message).
-    pub async fn import_messages(
-        &self,
-        messages: &[Message],
-    ) -> Result<Vec<NodeId>, CmError> {
+    pub async fn import_messages(&self, messages: &[Message]) -> Result<Vec<NodeId>, CmError> {
         let mut ids = Vec::new();
         for msg in messages {
             let content = match msg.role {
@@ -1350,10 +1341,7 @@ impl<B: ContextBackend> ContextManager<B> {
 
     pub async fn list_conversations(backend: &Arc<B>) -> Result<Vec<ConversationId>, CmError> {
         let keys = backend.kv_list("conversations", "").await?;
-        Ok(keys
-            .into_iter()
-            .map(ConversationId::from_string)
-            .collect())
+        Ok(keys.into_iter().map(ConversationId::from_string).collect())
     }
 }
 
@@ -1375,7 +1363,11 @@ impl<B: ContextBackend> KvMemorySource<B> {
     pub fn new(backend: Arc<B>, scope_id: impl Into<String>) -> Self {
         let scope_id = scope_id.into();
         let source_name = format!("kv:{scope_id}");
-        Self { backend, scope_id, source_name }
+        Self {
+            backend,
+            scope_id,
+            source_name,
+        }
     }
 
     fn ns(&self) -> String {
@@ -1419,11 +1411,7 @@ impl<B: ContextBackend> MemorySource for KvMemorySource<B> {
         Ok(results)
     }
 
-    async fn store(
-        &self,
-        _conv_id: &ConversationId,
-        item: &MemoryItem,
-    ) -> Result<(), CmError> {
+    async fn store(&self, _conv_id: &ConversationId, item: &MemoryItem) -> Result<(), CmError> {
         let entry_id = MemoryEntryId::new();
         let now = now_micros();
         let entry = MemoryEntry {
@@ -1439,7 +1427,9 @@ impl<B: ContextBackend> MemorySource for KvMemorySource<B> {
         };
         let bytes =
             serde_json::to_vec(&entry).map_err(|e| CmError::Serialization(e.to_string()))?;
-        self.backend.kv_put(&self.ns(), entry_id.as_str(), &bytes).await
+        self.backend
+            .kv_put(&self.ns(), entry_id.as_str(), &bytes)
+            .await
     }
 
     fn name(&self) -> &str {
@@ -1534,7 +1524,11 @@ fn extract_text_from_node(node: &Node) -> Option<String> {
     match &node.content {
         NodeContent::SystemMessage { content } | NodeContent::UserMessage { content, .. } => {
             let texts: Vec<&str> = content.iter().filter_map(|b| b.as_text()).collect();
-            if texts.is_empty() { None } else { Some(texts.join("\n")) }
+            if texts.is_empty() {
+                None
+            } else {
+                Some(texts.join("\n"))
+            }
         }
         _ => None,
     }
@@ -1545,7 +1539,11 @@ fn last_user_text(messages: &[Message]) -> Option<String> {
         .iter()
         .rev()
         .find(|m| m.role == Role::User)
-        .and_then(|m| m.content.iter().find_map(|b| b.as_text().map(ToString::to_string)))
+        .and_then(|m| {
+            m.content
+                .iter()
+                .find_map(|b| b.as_text().map(ToString::to_string))
+        })
 }
 
 fn estimate_single_message_tokens(msg: &Message) -> u64 {
@@ -1582,14 +1580,21 @@ fn estimate_message_tokens(messages: &[Message], system: Option<&str>) -> u64 {
 /// O(n): token counts are computed once, removal is a single-pass retain.
 /// The `pinned` vec is kept in sync so callers can reuse it after truncation.
 fn truncate_messages(messages: &mut Vec<Message>, pinned: &mut Vec<bool>, max_tokens: u64) {
-    debug_assert_eq!(messages.len(), pinned.len(), "pinned must be parallel to messages");
+    debug_assert_eq!(
+        messages.len(),
+        pinned.len(),
+        "pinned must be parallel to messages"
+    );
 
     if estimate_message_tokens(messages, None) <= max_tokens {
         return;
     }
 
     // Pre-compute per-message token counts to avoid O(n²) re-estimation.
-    let token_counts: Vec<u64> = messages.iter().map(estimate_single_message_tokens).collect();
+    let token_counts: Vec<u64> = messages
+        .iter()
+        .map(estimate_single_message_tokens)
+        .collect();
     let mut total: u64 = token_counts.iter().sum();
 
     // Mark messages to remove in a single forward pass (oldest first).
@@ -1702,7 +1707,14 @@ mod tests {
         let result = mgr.build_context().await.unwrap();
         assert!(result.system.is_some());
         // System message removed from messages list when system is Some.
-        assert_eq!(result.messages.iter().filter(|m| m.role == Role::System).count(), 0);
+        assert_eq!(
+            result
+                .messages
+                .iter()
+                .filter(|m| m.role == Role::System)
+                .count(),
+            0
+        );
         assert_eq!(result.messages.len(), 2);
         assert!(result.estimated_tokens > 0);
     }
@@ -1801,7 +1813,9 @@ mod tests {
         let conv = Conversation::new("load-test");
         let conv_id = conv.id.clone();
 
-        let mgr = ContextManager::new(Arc::clone(&backend), conv).await.unwrap();
+        let mgr = ContextManager::new(Arc::clone(&backend), conv)
+            .await
+            .unwrap();
         mgr.add_user_message(vec![ContentBlock::text("hello")], NodeParams::default())
             .await
             .unwrap();
@@ -1837,8 +1851,12 @@ mod tests {
         let id1 = conv1.id.clone();
         let id2 = conv2.id.clone();
 
-        ContextManager::new(Arc::clone(&backend), conv1).await.unwrap();
-        ContextManager::new(Arc::clone(&backend), conv2).await.unwrap();
+        ContextManager::new(Arc::clone(&backend), conv1)
+            .await
+            .unwrap();
+        ContextManager::new(Arc::clone(&backend), conv2)
+            .await
+            .unwrap();
 
         let ids = ContextManager::list_conversations(&backend).await.unwrap();
         assert!(ids.iter().any(|id| id == &id1));
@@ -1941,10 +1959,12 @@ mod tests {
 
         let result = mgr.build_context().await.unwrap();
         assert_eq!(result.messages.len(), 1);
-        assert!(result.messages[0]
-            .content
-            .iter()
-            .any(|b| b.as_text().is_some_and(|t| t == "keep")));
+        assert!(
+            result.messages[0]
+                .content
+                .iter()
+                .any(|b| b.as_text().is_some_and(|t| t == "keep"))
+        );
     }
 
     #[tokio::test]
@@ -1954,7 +1974,9 @@ mod tests {
 
         let compression = CompressionConfig {
             max_tokens: 1,
-            strategy: CompressionStrategy::ServerCompaction { compact_threshold: 10 },
+            strategy: CompressionStrategy::ServerCompaction {
+                compact_threshold: 10,
+            },
             system_mode: SystemMode::None,
             pinned_node_ids: Vec::new(),
             summarizer: None,
@@ -1989,10 +2011,7 @@ mod tests {
             relevance_score: None,
             metadata: HashMap::new(),
         };
-        mem_src
-            .store(&ConversationId::new(), &item)
-            .await
-            .unwrap();
+        mem_src.store(&ConversationId::new(), &item).await.unwrap();
 
         let mgr = ContextManager::new(Arc::clone(&backend), conv)
             .await
@@ -2002,9 +2021,12 @@ mod tests {
                 scope_id.as_str(),
             )));
 
-        mgr.add_user_message(vec![ContentBlock::text("short answer")], NodeParams::default())
-            .await
-            .unwrap();
+        mgr.add_user_message(
+            vec![ContentBlock::text("short answer")],
+            NodeParams::default(),
+        )
+        .await
+        .unwrap();
 
         let result = mgr.build_context().await.unwrap();
         // Memory is injected into system prompt regardless of system mode.
@@ -2042,7 +2064,10 @@ mod tests {
         // CRDT state should be visible on child.
         if let Some(crdt) = mgr.extension::<CrdtExtension>() {
             let entries = crdt.map_entries("items");
-            assert!(entries.contains_key("k1"), "fork must inherit parent CRDT state");
+            assert!(
+                entries.contains_key("k1"),
+                "fork must inherit parent CRDT state"
+            );
         }
     }
 
@@ -2077,7 +2102,10 @@ mod tests {
         // CRDT state must be restored after checkout.
         let crdt2 = mgr2.extension::<CrdtExtension>().unwrap();
         let entries = crdt2.map_entries("ns");
-        assert!(entries.contains_key("key"), "CRDT state must survive load+checkout");
+        assert!(
+            entries.contains_key("key"),
+            "CRDT state must survive load+checkout"
+        );
         assert_eq!(entries["key"], "value");
     }
 
@@ -2211,9 +2239,14 @@ mod tests {
         let conv = Conversation::new("sft-test");
         let conv_id = conv.id.clone();
 
-        let mgr = ContextManager::new(Arc::clone(&backend), conv).await.unwrap();
+        let mgr = ContextManager::new(Arc::clone(&backend), conv)
+            .await
+            .unwrap();
         let input_id = mgr
-            .add_user_message(vec![ContentBlock::text("What is 2+2?")], NodeParams::default())
+            .add_user_message(
+                vec![ContentBlock::text("What is 2+2?")],
+                NodeParams::default(),
+            )
             .await
             .unwrap();
         let output_id = mgr
@@ -2275,7 +2308,10 @@ mod tests {
         // First level sub-agent.
         let child = root.spawn_agent(AgentId::new(), None).await.unwrap();
         child
-            .add_user_message(vec![ContentBlock::text("child work")], NodeParams::default())
+            .add_user_message(
+                vec![ContentBlock::text("child work")],
+                NodeParams::default(),
+            )
             .await
             .unwrap();
 
@@ -2306,19 +2342,28 @@ mod tests {
 
         // Spawn child and equip it with its own CRDT extension.
         let child_branch = parent.active_branch();
-        let child = parent.spawn_agent(AgentId::new(), None).await.unwrap()
+        let child = parent
+            .spawn_agent(AgentId::new(), None)
+            .await
+            .unwrap()
             .with_extension(Arc::new(CrdtExtension::new("agent")));
         child.checkout(&child.active_branch()).await.unwrap();
 
         // Agent writes a kanban update on its own branch.
         if let Some(crdt) = child.extension::<CrdtExtension>() {
-            crdt.map_set("kanban:board1:cpos", "card-1", r#"{"column_id":"done","position":0}"#);
+            crdt.map_set(
+                "kanban:board1:cpos",
+                "card-1",
+                r#"{"column_id":"done","position":0}"#,
+            );
         }
         // Persist agent's CRDT to backend.
         if let Some(crdt) = child.extension::<CrdtExtension>() {
             let conv_id = child.conversation().id.clone();
             let branch_id = child.active_branch();
-            crdt.push(&conv_id, &branch_id, child.backend().as_ref()).await.unwrap();
+            crdt.push(&conv_id, &branch_id, child.backend().as_ref())
+                .await
+                .unwrap();
         }
 
         let agent_branch = child.active_branch();

@@ -558,6 +558,7 @@ fn try_openai_format(block: &JsonValue) -> Option<JsonValue> {
 }
 
 /// Anthropic format: {"type": "text|image|document|tool_use|tool_result", ...}
+/// Also handles Strands JS SDK camelCase variants: {"type": "toolUse|toolResult", ...}
 fn try_anthropic_format(block: &JsonValue) -> Option<JsonValue> {
     let block_type = block.get("type")?.as_str()?;
     match block_type {
@@ -569,6 +570,13 @@ fn try_anthropic_format(block: &JsonValue) -> Option<JsonValue> {
             "name": block.get("name"),
             "input": block.get("input").cloned().unwrap_or(json!({}))
         })),
+        // Strands JS SDK flat camelCase format: {"type": "toolUse", "toolUseId": "...", "name": "...", "input": {...}}
+        "toolUse" => Some(json!({
+            "type": "tool_use",
+            "id": block.get("toolUseId"),
+            "name": block.get("name"),
+            "input": block.get("input").cloned().unwrap_or(json!({}))
+        })),
         "tool_result" => {
             let raw_content = block.get("content").cloned();
             let normalized_content = normalize_tool_result_content(raw_content);
@@ -577,6 +585,17 @@ fn try_anthropic_format(block: &JsonValue) -> Option<JsonValue> {
                 "tool_use_id": block.get("tool_use_id"),
                 "content": normalized_content,
                 "is_error": block.get("is_error").and_then(|e| e.as_bool()).unwrap_or(false)
+            }))
+        }
+        // Strands JS SDK flat camelCase format: {"type": "toolResult", "toolUseId": "...", "content": [...], "status": "..."}
+        "toolResult" => {
+            let raw_content = block.get("content").cloned();
+            let normalized_content = normalize_tool_result_content(raw_content);
+            Some(json!({
+                "type": "tool_result",
+                "tool_use_id": block.get("toolUseId"),
+                "content": normalized_content,
+                "is_error": block.get("status").and_then(|s| s.as_str()) == Some("error")
             }))
         }
         _ => None, // "text" handled by try_openai_format
@@ -1762,6 +1781,45 @@ mod tests {
 
         assert_eq!(normalized["type"], "tool_use");
         assert_eq!(normalized["id"], "anthropic_call_1");
+    }
+
+    #[test]
+    fn test_strands_js_tool_use_format() {
+        // Strands JS SDK flat camelCase format
+        let block = json!({
+            "type": "toolUse",
+            "name": "temperature_forecast",
+            "toolUseId": "tooluse_8C2XVjwnvbo8lFo7o8ysEL",
+            "input": {"city": "New York City", "days": 3}
+        });
+
+        let result = normalize_content_block(&block);
+        assert!(result.is_some());
+        let normalized = result.unwrap();
+
+        assert_eq!(normalized["type"], "tool_use");
+        assert_eq!(normalized["id"], "tooluse_8C2XVjwnvbo8lFo7o8ysEL");
+        assert_eq!(normalized["name"], "temperature_forecast");
+        assert_eq!(normalized["input"]["city"], "New York City");
+    }
+
+    #[test]
+    fn test_strands_js_tool_result_format() {
+        // Strands JS SDK flat camelCase format for tool results
+        let block = json!({
+            "type": "toolResult",
+            "toolUseId": "tooluse_8C2XVjwnvbo8lFo7o8ysEL",
+            "content": [{"text": "72F, partly cloudy"}],
+            "status": "success"
+        });
+
+        let result = normalize_content_block(&block);
+        assert!(result.is_some());
+        let normalized = result.unwrap();
+
+        assert_eq!(normalized["type"], "tool_result");
+        assert_eq!(normalized["tool_use_id"], "tooluse_8C2XVjwnvbo8lFo7o8ysEL");
+        assert_eq!(normalized["is_error"], false);
     }
 
     #[test]

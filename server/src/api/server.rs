@@ -329,8 +329,8 @@ impl ApiServer {
         };
 
         // Build credentials routes (rate limited by IP if enabled)
-        let credentials_routes =
-            credentials::routes(app.credentials.clone()).layer(axum::middleware::from_fn_with_state(
+        let credentials_routes = credentials::routes(app.credentials.clone()).layer(
+            axum::middleware::from_fn_with_state(
                 AuthState {
                     auth_manager: auth_manager.clone(),
                     allowed_origins: allowed_origins.clone(),
@@ -339,7 +339,8 @@ impl ApiServer {
                     api_key_secret: api_key_secret.clone(),
                 },
                 require_auth,
-            ));
+            ),
+        );
         let credentials_routes = if rate_limit_per_ip {
             credentials_routes.layer(axum::middleware::from_fn_with_state(
                 make_rate_limit_state(

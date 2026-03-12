@@ -60,15 +60,6 @@ export default function HomePage() {
                 </Button>
               </div>
             </div>
-            <div className="flex w-full min-w-70 flex-col items-center rounded-2xl border border-border/60 bg-card/80 px-12 py-8 shadow-lg backdrop-blur sm:w-auto">
-              <p className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-                Projects
-              </p>
-              <p className="mt-2 text-6xl font-bold tabular-nums">
-                {projects.length || (isLoading ? "—" : "0")}
-              </p>
-              <p className="mt-3 text-sm text-muted-foreground">Workspaces managed</p>
-            </div>
           </div>
         </section>
 

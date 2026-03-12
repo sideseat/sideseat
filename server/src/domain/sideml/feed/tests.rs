@@ -7033,7 +7033,113 @@ fn test_cross_trace_no_overlap() {
 }
 
 // ----------------------------------------------------------------------------
-// Test: Event-based (Strands) traces are independent → all preserved
+// Test: Strands JS bundled gen_ai.input.messages — cross-trace history stripped
+// ----------------------------------------------------------------------------
+//
+// Strands JS uses @opentelemetry/instrumentation-aws-sdk, which bundles all
+// messages into a single gen_ai.input.messages event (shared timestamp). This
+// means timestamp-based Phase 2 can't detect cross-trace history. The cross-
+// trace prefix mechanism must handle it instead.
+
+#[test]
+fn test_cross_trace_strands_js_bundled_messages_deduped() {
+    let t0 = fixed_time();
+    let t1 = t0 + chrono::Duration::seconds(60);
+
+    // Trace 1: user1 → assistant1 (single turn)
+    // Note: content values must be non-numeric strings to avoid normalize_content treating
+    // them as JSON numbers (which produces empty content and drops the block).
+    let trace1_msgs = json!([
+        {
+            // gen_ai.input.messages: just the user message (no history yet)
+            "source": {"event": {"name": "gen_ai.input.messages", "time": t0.to_rfc3339()}},
+            "content": [
+                {"role": "user", "content": "What is 2+2?"}
+            ]
+        },
+        {
+            // gen_ai.choice: assistant response
+            "source": {"event": {"name": "gen_ai.choice", "time": t0.to_rfc3339()}},
+            "content": {"role": "assistant", "content": "Two plus two is four"}
+        }
+    ]);
+
+    // Trace 2: user1 + assistant1 replayed + new user2 → assistant2
+    let trace2_msgs = json!([
+        {
+            // gen_ai.input.messages: includes full history from trace 1 + new user message
+            // All share the SAME event timestamp (t1), so Phase 2 timestamp check won't help
+            "source": {"event": {"name": "gen_ai.input.messages", "time": t1.to_rfc3339()}},
+            "content": [
+                {"role": "user", "content": "What is 2+2?"},                  // replayed from trace 1
+                {"role": "assistant", "content": "Two plus two is four"},      // replayed from trace 1
+                {"role": "user", "content": "And 3+3?"}                       // new user message
+            ]
+        },
+        {
+            // gen_ai.choice: new assistant response
+            "source": {"event": {"name": "gen_ai.choice", "time": t1.to_rfc3339()}},
+            "content": {"role": "assistant", "content": "Three plus three is six"}
+        }
+    ]);
+
+    let rows = vec![
+        make_span_row_full(
+            "trace1",
+            "s1",
+            None,
+            &trace1_msgs.to_string(),
+            t0,
+            Some(t0),
+            Some("generation"),
+        ),
+        make_span_row_full(
+            "trace2",
+            "s2",
+            None,
+            &trace2_msgs.to_string(),
+            t1,
+            Some(t1),
+            Some("generation"),
+        ),
+    ];
+
+    let options = FeedOptions::default();
+    let result = process_spans(rows, &options);
+
+    // Expected: user1, assistant1, user2, assistant2 — no duplicates
+    assert_eq!(
+        result.messages.len(),
+        4,
+        "Should have 4 unique messages (cross-trace history stripped). Got: {}",
+        result.messages.len()
+    );
+
+    let texts: Vec<_> = result
+        .messages
+        .iter()
+        .filter_map(|b| {
+            if let crate::domain::sideml::types::ContentBlock::Text { text } = &b.content {
+                Some(text.as_str())
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert!(texts.contains(&"What is 2+2?"), "user1 should appear once");
+    assert!(
+        texts.contains(&"Two plus two is four"),
+        "assistant1 should appear once"
+    );
+    assert!(texts.contains(&"And 3+3?"), "user2 should appear");
+    assert!(
+        texts.contains(&"Three plus three is six"),
+        "assistant2 should appear"
+    );
+}
+
+// ----------------------------------------------------------------------------
+// Test: Event-based (Strands Python) per-message events stay trace-independent
 // ----------------------------------------------------------------------------
 
 #[test]

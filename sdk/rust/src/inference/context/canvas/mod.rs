@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::crdt::CrdtExtension;
-use super::types::{ArtifactSetId, CanvasId, ConversationId, NodeId, StorageRef, UserId, now_micros};
+use super::types::{
+    ArtifactSetId, CanvasId, ConversationId, NodeId, StorageRef, UserId, now_micros,
+};
 
 // ---------------------------------------------------------------------------
 // Canvas
@@ -78,14 +80,35 @@ pub enum CanvasItemType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum CanvasItemContent {
-    RichText { text: String, format: Option<String> },
-    Media { storage_ref: StorageRef, mime_type: String },
-    ArtifactPreview { artifact_set_id: ArtifactSetId, version: u32 },
-    ChatRef { node_id: NodeId },
-    Connector { from_item_id: String, to_item_id: String, label: Option<String> },
-    Embed { url: String },
-    Shape { shape_type: String },
-    Unknown { data: Value },
+    RichText {
+        text: String,
+        format: Option<String>,
+    },
+    Media {
+        storage_ref: StorageRef,
+        mime_type: String,
+    },
+    ArtifactPreview {
+        artifact_set_id: ArtifactSetId,
+        version: u32,
+    },
+    ChatRef {
+        node_id: NodeId,
+    },
+    Connector {
+        from_item_id: String,
+        to_item_id: String,
+        label: Option<String>,
+    },
+    Embed {
+        url: String,
+    },
+    Shape {
+        shape_type: String,
+    },
+    Unknown {
+        data: Value,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -248,7 +271,13 @@ impl CanvasExtension {
         height: f64,
         rotation: f64,
     ) -> Result<(), super::error::CmError> {
-        let geo = ItemGeo { x, y, width, height, rotation };
+        let geo = ItemGeo {
+            x,
+            y,
+            width,
+            height,
+            rotation,
+        };
         let json = serde_json::to_string(&geo)
             .map_err(|e| super::error::CmError::Serialization(e.to_string()))?;
         crdt.map_set(&Self::geo_map(canvas_id), item_id, &json);
@@ -292,12 +321,25 @@ impl CanvasExtension {
         created_at: i64,
         created_by: Option<UserId>,
     ) -> Result<(), super::error::CmError> {
-        let imeta = ItemPropMeta { item_type, parent_item_id, created_at, created_by };
+        let imeta = ItemPropMeta {
+            item_type,
+            parent_item_id,
+            created_at,
+            created_by,
+        };
         let imeta_json = serde_json::to_string(&imeta)
             .map_err(|e| super::error::CmError::Serialization(e.to_string()))?;
         crdt.map_set(&Self::prop_imeta_map(canvas_id), item_id, &imeta_json);
-        crdt.map_set(&Self::prop_locked_map(canvas_id), item_id, if locked { "true" } else { "false" });
-        crdt.map_set(&Self::prop_deleted_map(canvas_id), item_id, if deleted { "true" } else { "false" });
+        crdt.map_set(
+            &Self::prop_locked_map(canvas_id),
+            item_id,
+            if locked { "true" } else { "false" },
+        );
+        crdt.map_set(
+            &Self::prop_deleted_map(canvas_id),
+            item_id,
+            if deleted { "true" } else { "false" },
+        );
         // Per-property style writes so concurrent field edits (e.g. fill vs stroke) don't clobber each other.
         Self::write_style_props(crdt, canvas_id, item_id, &style);
         Ok(())
@@ -406,9 +448,21 @@ impl CanvasExtension {
             &serde_json::to_string(&item.z_index)
                 .map_err(|e| super::error::CmError::Serialization(e.to_string()))?,
         );
-        crdt.map_set(&Self::prop_imeta_map(&item.canvas_id), &item.id, &imeta_json);
-        crdt.map_set(&Self::prop_locked_map(&item.canvas_id), &item.id, if item.locked { "true" } else { "false" });
-        crdt.map_set(&Self::prop_deleted_map(&item.canvas_id), &item.id, if item.deleted { "true" } else { "false" });
+        crdt.map_set(
+            &Self::prop_imeta_map(&item.canvas_id),
+            &item.id,
+            &imeta_json,
+        );
+        crdt.map_set(
+            &Self::prop_locked_map(&item.canvas_id),
+            &item.id,
+            if item.locked { "true" } else { "false" },
+        );
+        crdt.map_set(
+            &Self::prop_deleted_map(&item.canvas_id),
+            &item.id,
+            if item.deleted { "true" } else { "false" },
+        );
         Self::write_style_props(crdt, &item.canvas_id, &item.id, &item.style);
         // Route through patch_item_content so RichText goes into Y.Text.
         self.patch_item_content(crdt, &item.canvas_id, &item.id, &item.content)?;
@@ -474,7 +528,10 @@ impl CanvasExtension {
     ///
     /// New format: keys `{item_id}:{prop}` → JSON value (per-property, no LWW conflict).
     /// Legacy format: key `{item_id}` → full style JSON blob (backward compat read).
-    fn read_style_from_psty(item_id: &str, psty_entries: &std::collections::HashMap<String, String>) -> Value {
+    fn read_style_from_psty(
+        item_id: &str,
+        psty_entries: &std::collections::HashMap<String, String>,
+    ) -> Value {
         let prefix = format!("{}:", item_id);
         let mut props = serde_json::Map::new();
         for (key, val_json) in psty_entries {
@@ -517,10 +574,27 @@ impl CanvasExtension {
         let cnt_name = Self::cnt_map(canvas_id);
         let legacy_prop_name = Self::prop_map(canvas_id);
         let legacy_items_name = Self::legacy_items_map(canvas_id);
-        let [geo_entries, zgeo_entries, pimeta_entries, pdel_entries, plck_entries, psty_entries, cnt_entries, legacy_prop_entries, legacy_items]: [std::collections::HashMap<String, String>; 9] =
-            crdt.map_entries_batch(&[
-                &geo_name, &zgeo_name, &pimeta_name, &pdel_name, &plck_name,
-                &psty_name, &cnt_name, &legacy_prop_name, &legacy_items_name,
+        let [
+            geo_entries,
+            zgeo_entries,
+            pimeta_entries,
+            pdel_entries,
+            plck_entries,
+            psty_entries,
+            cnt_entries,
+            legacy_prop_entries,
+            legacy_items,
+        ]: [std::collections::HashMap<String, String>; 9] = crdt
+            .map_entries_batch(&[
+                &geo_name,
+                &zgeo_name,
+                &pimeta_name,
+                &pdel_name,
+                &plck_name,
+                &psty_name,
+                &cnt_name,
+                &legacy_prop_name,
+                &legacy_items_name,
             ])
             .try_into()
             .expect("batch length matches name count");
@@ -529,12 +603,18 @@ impl CanvasExtension {
         let mut items: Vec<CanvasItem> = pimeta_entries
             .iter()
             .filter_map(|(item_id, imeta_json)| {
-                let deleted = pdel_entries.get(item_id).map(|s| s == "true").unwrap_or(false);
+                let deleted = pdel_entries
+                    .get(item_id)
+                    .map(|s| s == "true")
+                    .unwrap_or(false);
                 if deleted {
                     return None;
                 }
                 let imeta: ItemPropMeta = serde_json::from_str(imeta_json).ok()?;
-                let locked = plck_entries.get(item_id).map(|s| s == "true").unwrap_or(false);
+                let locked = plck_entries
+                    .get(item_id)
+                    .map(|s| s == "true")
+                    .unwrap_or(false);
                 let style = Self::read_style_from_psty(item_id, &psty_entries);
                 let geo: ItemGeo = geo_entries
                     .get(item_id)
@@ -719,7 +799,8 @@ mod tests {
         let ext = CanvasExtension;
         let canvas_id = CanvasId::new();
 
-        ext.upsert_item(&crdt, &make_item(&canvas_id, "item-1", 0.0, 0.0)).unwrap();
+        ext.upsert_item(&crdt, &make_item(&canvas_id, "item-1", 0.0, 0.0))
+            .unwrap();
         ext.remove_item(&crdt, &canvas_id, "item-1");
 
         let items = ext.list_items(&crdt, &canvas_id, None);
@@ -732,12 +813,16 @@ mod tests {
         let ext = CanvasExtension;
         let canvas_id = CanvasId::new();
 
-        ext.upsert_item(&crdt, &make_item(&canvas_id, "item-1", 5.0, 10.0)).unwrap();
+        ext.upsert_item(&crdt, &make_item(&canvas_id, "item-1", 5.0, 10.0))
+            .unwrap();
         ext.remove_item(&crdt, &canvas_id, "item-1");
 
         // Geo map must still have the entry (remove_item only touches pdel).
         let geo_entries = crdt.map_entries(&CanvasExtension::geo_map(&canvas_id));
-        assert!(geo_entries.contains_key("item-1"), "geo must survive remove_item");
+        assert!(
+            geo_entries.contains_key("item-1"),
+            "geo must survive remove_item"
+        );
 
         // pdel map must have "true".
         let deleted = crdt
@@ -755,8 +840,10 @@ mod tests {
         let ext = CanvasExtension;
         let canvas_id = CanvasId::new();
 
-        ext.upsert_item(&crdt, &make_item(&canvas_id, "item-1", 0.0, 0.0)).unwrap();
-        ext.upsert_item(&crdt, &make_item(&canvas_id, "item-1", 5.0, 5.0)).unwrap(); // overwrite
+        ext.upsert_item(&crdt, &make_item(&canvas_id, "item-1", 0.0, 0.0))
+            .unwrap();
+        ext.upsert_item(&crdt, &make_item(&canvas_id, "item-1", 5.0, 5.0))
+            .unwrap(); // overwrite
 
         let items = ext.list_items(&crdt, &canvas_id, None);
         assert_eq!(items.len(), 1);
@@ -769,10 +856,17 @@ mod tests {
         let ext = CanvasExtension;
         let canvas_id = CanvasId::new();
 
-        ext.upsert_item(&crdt, &make_item(&canvas_id, "visible", 50.0, 50.0)).unwrap();
-        ext.upsert_item(&crdt, &make_item(&canvas_id, "outside", 2000.0, 2000.0)).unwrap();
+        ext.upsert_item(&crdt, &make_item(&canvas_id, "visible", 50.0, 50.0))
+            .unwrap();
+        ext.upsert_item(&crdt, &make_item(&canvas_id, "outside", 2000.0, 2000.0))
+            .unwrap();
 
-        let vp = Viewport { x: 0.0, y: 0.0, width: 500.0, height: 500.0 };
+        let vp = Viewport {
+            x: 0.0,
+            y: 0.0,
+            width: 500.0,
+            height: 500.0,
+        };
         let items = ext.list_items(&crdt, &canvas_id, Some(&vp));
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].id, "visible");
@@ -791,11 +885,20 @@ mod tests {
 
     #[test]
     fn viewport_contains_item_edges() {
-        let vp = Viewport { x: 0.0, y: 0.0, width: 1000.0, height: 1000.0 };
+        let vp = Viewport {
+            x: 0.0,
+            y: 0.0,
+            width: 1000.0,
+            height: 1000.0,
+        };
         let canvas_id = CanvasId::new();
 
         let inside = make_item(&canvas_id, "i", 100.0, 100.0);
-        let outside = CanvasItem { x: 2000.0, y: 2000.0, ..make_item(&canvas_id, "o", 0.0, 0.0) };
+        let outside = CanvasItem {
+            x: 2000.0,
+            y: 2000.0,
+            ..make_item(&canvas_id, "o", 0.0, 0.0)
+        };
 
         assert!(vp.contains_item(&inside));
         assert!(!vp.contains_item(&outside));
@@ -841,7 +944,11 @@ mod tests {
         crdt_b.merge_raw(&crdt_a.full_state()).unwrap();
 
         // A locks the item — targeted single-field write to plck only.
-        crdt_a.map_set(&CanvasExtension::prop_locked_map(&canvas_id), "item-1", "true");
+        crdt_a.map_set(
+            &CanvasExtension::prop_locked_map(&canvas_id),
+            "item-1",
+            "true",
+        );
 
         // B updates the style — per-property write to psty (key = "{item_id}:{prop}").
         // Concurrent writes to different properties don't clobber each other (C1 fix).
@@ -892,11 +999,18 @@ mod tests {
         crdt_b.merge_raw(&crdt_a.full_state()).unwrap();
 
         // A moves the item (geo only — no Y.Text change).
-        ext.move_item(&crdt_a, &canvas_id, "item-1", 100.0, 200.0, 120.0, 90.0, 0.0).unwrap();
+        ext.move_item(
+            &crdt_a, &canvas_id, "item-1", 100.0, 200.0, 120.0, 90.0, 0.0,
+        )
+        .unwrap();
 
         // B edits the text (Y.Text: delete A's "hello", insert "updated").
-        let new_content = CanvasItemContent::RichText { text: "updated".into(), format: None };
-        ext.patch_item_content(&crdt_b, &canvas_id, "item-1", &new_content).unwrap();
+        let new_content = CanvasItemContent::RichText {
+            text: "updated".into(),
+            format: None,
+        };
+        ext.patch_item_content(&crdt_b, &canvas_id, "item-1", &new_content)
+            .unwrap();
 
         // CRDT merge: exchange only the new ops (encode_diff against the other's sv).
         let sv_a = crdt_a.state_vector();
@@ -938,7 +1052,10 @@ mod tests {
         crdt_b.merge_raw(&crdt_a.full_state()).unwrap();
 
         // A drags (geo only — no z_index change).
-        ext.move_item(&crdt_a, &canvas_id, "item-1", 300.0, 400.0, 100.0, 80.0, 0.0).unwrap();
+        ext.move_item(
+            &crdt_a, &canvas_id, "item-1", 300.0, 400.0, 100.0, 80.0, 0.0,
+        )
+        .unwrap();
 
         // B brings to front (zgeo only — no position change).
         ext.set_z_index(&crdt_b, &canvas_id, "item-1", 99).unwrap();
@@ -991,7 +1108,10 @@ mod tests {
         // is deterministic via Lamport clock; content of both inserts is preserved).
         let text_a = crdt_a.text_read(&CanvasExtension::rich_text_key(&canvas_id, "note"));
         let text_b = crdt_b.text_read(&CanvasExtension::rich_text_key(&canvas_id, "note"));
-        assert_eq!(text_a, text_b, "concurrent text inserts must converge to identical state");
+        assert_eq!(
+            text_a, text_b,
+            "concurrent text inserts must converge to identical state"
+        );
         assert!(text_a.contains("hello"), "original text must be preserved");
         assert!(text_a.contains(" world"), "A's insert must be preserved");
         assert!(text_a.contains('!'), "B's insert must be preserved");
@@ -1006,7 +1126,11 @@ mod tests {
 
         let item = make_item(&canvas_id, "legacy-item", 5.0, 5.0);
         let json = serde_json::to_string(&item).unwrap();
-        crdt.map_set(&format!("canvas:{}:items", canvas_id.as_str()), "legacy-item", &json);
+        crdt.map_set(
+            &format!("canvas:{}:items", canvas_id.as_str()),
+            "legacy-item",
+            &json,
+        );
 
         let items = ext.list_items(&crdt, &canvas_id, None);
         assert_eq!(items.len(), 1);
@@ -1022,14 +1146,27 @@ mod tests {
         // Seed legacy map.
         let item = make_item(&canvas_id, "item-1", 3.0, 7.0);
         let json = serde_json::to_string(&item).unwrap();
-        crdt.map_set(&format!("canvas:{}:items", canvas_id.as_str()), "item-1", &json);
+        crdt.map_set(
+            &format!("canvas:{}:items", canvas_id.as_str()),
+            "item-1",
+            &json,
+        );
 
         ext.migrate_canvas_v1_to_v2(&crdt, &canvas_id);
 
         // After migration, geo/pimeta/cnt maps must have the item.
-        assert!(crdt.map_get(&CanvasExtension::geo_map(&canvas_id), "item-1").is_some());
-        assert!(crdt.map_get(&CanvasExtension::prop_imeta_map(&canvas_id), "item-1").is_some());
-        assert!(crdt.map_get(&CanvasExtension::cnt_map(&canvas_id), "item-1").is_some());
+        assert!(
+            crdt.map_get(&CanvasExtension::geo_map(&canvas_id), "item-1")
+                .is_some()
+        );
+        assert!(
+            crdt.map_get(&CanvasExtension::prop_imeta_map(&canvas_id), "item-1")
+                .is_some()
+        );
+        assert!(
+            crdt.map_get(&CanvasExtension::cnt_map(&canvas_id), "item-1")
+                .is_some()
+        );
 
         // Idempotent — second migration does not change anything.
         ext.migrate_canvas_v1_to_v2(&crdt, &canvas_id);
@@ -1050,12 +1187,19 @@ mod tests {
         let writer_crdt = CrdtExtension::new("writer");
         let canvas_id = CanvasId::new();
         let ext = CanvasExtension;
-        ext.upsert_item(&writer_crdt, &make_item(&canvas_id, "sync-item", 5.0, 5.0)).unwrap();
-        writer_crdt.push(&conv, &branch, backend.as_ref()).await.unwrap();
+        ext.upsert_item(&writer_crdt, &make_item(&canvas_id, "sync-item", 5.0, 5.0))
+            .unwrap();
+        writer_crdt
+            .push(&conv, &branch, backend.as_ref())
+            .await
+            .unwrap();
 
         // Reader: pull and verify item is visible.
         let reader_crdt = CrdtExtension::new("reader");
-        reader_crdt.pull(&conv, &branch, backend.as_ref()).await.unwrap();
+        reader_crdt
+            .pull(&conv, &branch, backend.as_ref())
+            .await
+            .unwrap();
 
         let items = ext.list_items(&reader_crdt, &canvas_id, None);
         assert_eq!(items.len(), 1);

@@ -6,7 +6,10 @@ use serde_json::{Value, json};
 
 use crate::{
     error::ProviderError,
-    provider::{ChatProvider, EmbeddingProvider, ImageProvider, AudioProvider, ModerationProvider, Provider, ProviderStream, StatefulProvider},
+    provider::{
+        AudioProvider, ChatProvider, EmbeddingProvider, ImageProvider, ModerationProvider,
+        Provider, ProviderStream, StatefulProvider,
+    },
     providers::{
         openai_common::OpenAIInnerClient,
         sse::{check_response, sse_data_stream},
@@ -37,7 +40,9 @@ pub struct OpenAIResponsesProvider {
 impl OpenAIResponsesProvider {
     /// Create a provider from the `OPENAI_API_KEY` environment variable.
     pub fn from_env() -> Result<Self, ProviderError> {
-        Ok(Self::new(crate::env::require(crate::env::keys::OPENAI_API_KEY)?))
+        Ok(Self::new(crate::env::require(
+            crate::env::keys::OPENAI_API_KEY,
+        )?))
     }
 
     pub fn new(api_key: impl Into<String>) -> Self {
@@ -96,8 +101,7 @@ impl OpenAIResponsesProvider {
     /// Use `openai.` prefixed model names, e.g. `"openai.gpt-oss-120b"`.
     pub fn for_bedrock_openai(region: impl Into<String>, api_key: impl Into<String>) -> Self {
         let region = region.into();
-        Self::new(api_key)
-            .with_api_base(format!("https://bedrock-mantle.{region}.api.aws/v1"))
+        Self::new(api_key).with_api_base(format!("https://bedrock-mantle.{region}.api.aws/v1"))
     }
 
     /// Create an Amazon Bedrock OpenAI-compatible API provider from environment variables.
@@ -114,7 +118,6 @@ impl OpenAIResponsesProvider {
             .unwrap_or_else(|| "us-east-1".to_string());
         Ok(Self::for_bedrock_openai(region, api_key))
     }
-
 }
 
 #[async_trait]
@@ -324,9 +327,19 @@ impl ChatProvider for OpenAIResponsesProvider {
         config: ProviderConfig,
     ) -> Result<TokenCount, ProviderError> {
         let url = format!("{}/responses/input_tokens", self.shared.api_base);
-        let body = build_request(&messages, &config, false, self.previous_response_id.as_deref())?;
+        let body = build_request(
+            &messages,
+            &config,
+            false,
+            self.previous_response_id.as_deref(),
+        )?;
 
-        let mut req_builder = self.shared.client.post(&url).bearer_auth(&self.shared.api_key).json(&body);
+        let mut req_builder = self
+            .shared
+            .client
+            .post(&url)
+            .bearer_auth(&self.shared.api_key)
+            .json(&body);
         if let Some(ms) = config.timeout_ms {
             req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
         }
@@ -523,8 +536,7 @@ fn build_request(
             ws_tool["search_context_size"] = json!(ctx_size);
         }
         if let Some(loc) = &ws.user_location {
-            ws_tool["user_location"] =
-                serde_json::to_value(loc).unwrap_or(serde_json::Value::Null);
+            ws_tool["user_location"] = serde_json::to_value(loc).unwrap_or(serde_json::Value::Null);
         }
         all_tools.push(ws_tool);
         req["tools"] = json!(all_tools);
@@ -564,8 +576,7 @@ fn build_request(
         req["background"] = json!(background);
     }
     if let Some(cm) = &config.context_management {
-        req["context_management"] =
-            serde_json::to_value(cm).unwrap_or_else(|_| json!({}));
+        req["context_management"] = serde_json::to_value(cm).unwrap_or_else(|_| json!({}));
     }
     if let Some(truncation) = &config.truncation {
         req["truncation"] = json!(truncation);
@@ -670,21 +681,21 @@ fn format_content_part(block: &ContentBlock) -> Result<Value, ProviderError> {
                 ImageDetail::High => "high",
             };
             match &img.source {
-            MediaSource::Url(url) => Ok(json!({
-                "type": "input_image",
-                "image_url": url,
-                "detail": detail,
-            })),
-            MediaSource::Base64(b64) => Ok(json!({
-                "type": "input_image",
-                "image_url": format!("data:{};base64,{}", b64.media_type, b64.data),
-                "detail": detail,
-            })),
-            _ => Err(ProviderError::Unsupported(
-                "Responses API images require URL or base64 source".into(),
-            )),
+                MediaSource::Url(url) => Ok(json!({
+                    "type": "input_image",
+                    "image_url": url,
+                    "detail": detail,
+                })),
+                MediaSource::Base64(b64) => Ok(json!({
+                    "type": "input_image",
+                    "image_url": format!("data:{};base64,{}", b64.media_type, b64.data),
+                    "detail": detail,
+                })),
+                _ => Err(ProviderError::Unsupported(
+                    "Responses API images require URL or base64 source".into(),
+                )),
             }
-        },
+        }
         ContentBlock::Document(doc) => match &doc.source {
             MediaSource::Base64(b64) => Ok(json!({
                 "type": "input_file",
@@ -837,8 +848,7 @@ mod tests {
 
     #[test]
     fn test_builtin_tool_file_search() {
-        let config = ProviderConfig::new("gpt-4.1")
-            .with_built_in_tool(BuiltinTool::file_search());
+        let config = ProviderConfig::new("gpt-4.1").with_built_in_tool(BuiltinTool::file_search());
         let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
         assert_eq!(req["tools"][0]["type"], "file_search");
     }
@@ -854,8 +864,8 @@ mod tests {
 
     #[test]
     fn test_builtin_tool_code_interpreter() {
-        let config = ProviderConfig::new("gpt-4.1")
-            .with_built_in_tool(BuiltinTool::code_interpreter());
+        let config =
+            ProviderConfig::new("gpt-4.1").with_built_in_tool(BuiltinTool::code_interpreter());
         let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
         assert_eq!(req["tools"][0]["type"], "code_interpreter");
         assert_eq!(req["tools"][0]["container"]["type"], "auto");
@@ -871,8 +881,8 @@ mod tests {
 
     #[test]
     fn test_builtin_tool_image_generation() {
-        let config = ProviderConfig::new("gpt-4.1")
-            .with_built_in_tool(BuiltinTool::image_generation());
+        let config =
+            ProviderConfig::new("gpt-4.1").with_built_in_tool(BuiltinTool::image_generation());
         let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
         assert_eq!(req["tools"][0]["type"], "image_generation");
     }
@@ -905,16 +915,15 @@ mod tests {
 
     #[test]
     fn test_builtin_tool_local_shell() {
-        let config = ProviderConfig::new("codex-mini-latest")
-            .with_built_in_tool(BuiltinTool::local_shell());
+        let config =
+            ProviderConfig::new("codex-mini-latest").with_built_in_tool(BuiltinTool::local_shell());
         let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
         assert_eq!(req["tools"][0]["type"], "local_shell");
     }
 
     #[test]
     fn test_builtin_tool_apply_patch() {
-        let config = ProviderConfig::new("gpt-5.1")
-            .with_built_in_tool(BuiltinTool::apply_patch());
+        let config = ProviderConfig::new("gpt-5.1").with_built_in_tool(BuiltinTool::apply_patch());
         let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
         assert_eq!(req["tools"][0]["type"], "apply_patch");
     }
@@ -923,7 +932,11 @@ mod tests {
     fn test_builtin_tools_combined_with_functions() {
         // Function tools and built-in tools should appear together in tools array
         let config = ProviderConfig::new("gpt-4.1")
-            .with_tools(vec![crate::types::Tool::new("search", "Search", json!({"type":"object"}))])
+            .with_tools(vec![crate::types::Tool::new(
+                "search",
+                "Search",
+                json!({"type":"object"}),
+            )])
             .with_built_in_tool(BuiltinTool::file_search());
         let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
         assert_eq!(req["tools"].as_array().unwrap().len(), 2);
@@ -949,9 +962,8 @@ mod tests {
 
     #[test]
     fn test_web_search_context_size() {
-        let config = ProviderConfig::new("gpt-4.1").with_web_search(
-            WebSearchConfig::new().with_search_context_size("high"),
-        );
+        let config = ProviderConfig::new("gpt-4.1")
+            .with_web_search(WebSearchConfig::new().with_search_context_size("high"));
         let req = build_request(&[Message::user("Hi")], &config, false, None).unwrap();
         assert_eq!(req["tools"][0]["search_context_size"], "high");
     }

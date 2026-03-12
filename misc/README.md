@@ -40,11 +40,12 @@ uv run --directory misc/samples/python strands all                    # Run all
 ### Other Frameworks
 
 ```bash
-uv run --directory misc/samples/python langgraph tool_use             # LangGraph ReAct agent
-uv run --directory misc/samples/python crewai tool_use                # CrewAI multi-agent
 uv run --directory misc/samples/python adk tool_use                   # Google ADK
-uv run --directory misc/samples/python autogen tool_use               # AutoGen chat
+uv run --directory misc/samples/python langgraph tool_use             # LangGraph ReAct agent
 uv run --directory misc/samples/python openai-agents tool_use         # OpenAI Agents SDK
+uv run --directory misc/samples/python agent-framework tool_use       # Microsoft Agent Framework
+uv run --directory misc/samples/python autogen tool_use               # AutoGen chat
+uv run --directory misc/samples/python crewai tool_use                # CrewAI multi-agent
 ```
 
 ### OpenAI Provider
@@ -111,7 +112,7 @@ Provider samples (OpenAI, Anthropic, Bedrock) always use SideSeat SDK — no `--
 | `openai-gpt5nano`  | OpenAI GPT-5 Nano                  |
 | `gemini-flash`     | Google Gemini Flash                |
 
-Default model varies by sample: Strands/LangGraph/CrewAI/ADK/Bedrock use `bedrock-haiku`, AutoGen uses `anthropic-haiku`, OpenAI Agents/OpenAI provider use `openai-gpt5nano`, Anthropic provider uses `anthropic-haiku`.
+Default model varies by sample: Strands/LangGraph/CrewAI/ADK/Bedrock use `bedrock-haiku`, AutoGen uses `anthropic-haiku`, OpenAI Agents/Microsoft Agent Framework/OpenAI provider use `openai-gpt5nano`, Anthropic provider uses `anthropic-haiku`.
 
 ### Run All Python Samples
 
@@ -230,11 +231,12 @@ misc/
     │   ├── openai_sample/
     │   ├── anthropic_sample/
     │   ├── bedrock_sample/
-    │   ├── langgraph_sample/
-    │   ├── crewai_sample/
     │   ├── adk_sample/
-    │   ├── autogen_sample/
+    │   ├── langgraph_sample/
     │   ├── openai_agents_sample/
+    │   ├── agent_framework_sample/
+    │   ├── autogen_sample/
+    │   ├── crewai_sample/
     │   └── common/
     └── js/src/
         ├── strands/

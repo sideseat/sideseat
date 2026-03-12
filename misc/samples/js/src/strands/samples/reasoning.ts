@@ -94,6 +94,7 @@ export async function run(modelId: string, options?: SampleOptions) {
 
   const agent = new Agent({
     model,
+    printer: false,
     systemPrompt: SYSTEM_PROMPT,
   });
 

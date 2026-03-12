@@ -11,7 +11,7 @@ SideSeat includes a built-in OpenTelemetry collector optimized for local AI deve
 flowchart LR
     subgraph Agents["AI Agents"]
         A1[Strands]
-        A2[Vercel AI]
+        A2[Vercel AI SDK]
         A3[Google ADK]
     end
 
@@ -50,7 +50,7 @@ flowchart LR
 ## Features
 
 - **OTLP-compatible**: Receives traces via standard OpenTelemetry protocol (HTTP JSON/Protobuf, gRPC)
-- **Framework detection**: Automatically detects Strands, LangGraph, Vercel AI, Google ADK, and other AI frameworks
+- **Framework detection**: Automatically detects Strands, LangGraph, Vercel AI SDK, Google ADK, and other AI frameworks
 - **GenAI field extraction**: Extracts token usage, model info, and other GenAI-specific fields
 - **Bounded memory**: Configurable buffer limits prevent memory exhaustion
 - **FIFO storage**: Automatic cleanup when storage limits are reached
@@ -193,13 +193,15 @@ SideSeat automatically detects and normalizes spans from popular AI frameworks:
 | Framework | Detection Method | Extracted Fields |
 |-----------|------------------|------------------|
 | Strands | Scope name, resource attrs | Cycle ID, agent info |
-| Vercel AI | Scope name, attributes | Model, tokens, telemetry |
+| Vercel AI SDK | Scope name, attributes | Model, tokens, telemetry |
 | LangGraph | Scope name, attributes | Node, edge, state |
 | LangChain | Scope name, attributes | Chain type, run ID |
 | CrewAI | Scope name, attributes | Crew, agent, task |
 | AutoGen | Scope name, attributes | Agent name, chat round |
 | Google ADK | Scope name, attributes | Agent name, model |
 | OpenAI Agents | Logfire span type | Agent name, model |
+| Microsoft Agent Framework | GenAI semantic conventions | Model, tokens, tool calls |
+| Google Vertex AI | `vertexai.*` span names | Model, tokens, tool calls |
 | OpenInference | Attribute prefix | Session ID, user ID |
 | Generic GenAI | `gen_ai.*` attributes | Model, tokens, system |
 

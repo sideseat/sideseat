@@ -32,7 +32,7 @@ Built on [OpenTelemetry](https://opentelemetry.io/) — the open standard for ob
 - **Message threading** — See full conversations, tool calls, and images
 - **Cost tracking** — Automatic token counting and cost calculation
 
-**Supported frameworks:** Vercel AI SDK, Strands Agents, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI
+**Supported frameworks:** Vercel AI SDK, Strands (TypeScript), and any framework emitting OpenTelemetry traces
 
 ## Quick Start
 
@@ -51,14 +51,14 @@ npm install ai @ai-sdk/amazon-bedrock @sideseat/sdk
 ```
 
 ```typescript
-import { init } from '@sideseat/sdk';
+import { init, Frameworks } from '@sideseat/sdk';
 import { generateText } from 'ai';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 
-init();
+init({ framework: Frameworks.VercelAI });
 
 const { text } = await generateText({
-  model: bedrock('anthropic.claude-sonnet-4-5-20250929-v1:0'),
+  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
   prompt: 'What is 2+2?',
   experimental_telemetry: { isEnabled: true },
 });
@@ -78,28 +78,45 @@ npm install @sideseat/sdk
 
 ## Framework Examples
 
+### Strands (TypeScript)
+
+```bash
+npm install @strands-agents/sdk @sideseat/sdk
+```
+
+```typescript
+import { init, Frameworks } from '@sideseat/sdk';
+import { Agent } from '@strands-agents/sdk';
+
+init({ framework: Frameworks.Strands });
+
+const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
+const result = await agent.invoke('What is 2+2?');
+console.log(result.toString());
+```
+
 ### Vercel AI SDK
 
 Vercel AI SDK has built-in OpenTelemetry support via `experimental_telemetry`. Enable it on each call:
 
 ```typescript
-import { init, shutdown } from '@sideseat/sdk';
+import { init, shutdown, Frameworks } from '@sideseat/sdk';
 import { generateText, generateObject, tool } from 'ai';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 import { z } from 'zod';
 
-init();
+init({ framework: Frameworks.VercelAI });
 
 // Text generation
 const { text } = await generateText({
-  model: bedrock('anthropic.claude-sonnet-4-5-20250929-v1:0'),
+  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
   prompt: 'What is the capital of France?',
   experimental_telemetry: { isEnabled: true },
 });
 
 // Structured output
 const { object } = await generateObject({
-  model: bedrock('anthropic.claude-sonnet-4-5-20250929-v1:0'),
+  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
   schema: z.object({ name: z.string(), age: z.number() }),
   prompt: 'Generate a person',
   experimental_telemetry: { isEnabled: true },
@@ -113,7 +130,7 @@ const weatherTool = tool({
 });
 
 const { text: weatherText } = await generateText({
-  model: bedrock('anthropic.claude-sonnet-4-5-20250929-v1:0'),
+  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
   tools: { weather: weatherTool },
   prompt: 'What is the weather in Paris?',
   experimental_telemetry: { isEnabled: true },
@@ -140,7 +157,7 @@ import { generateText } from 'ai';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 
 const { text } = await generateText({
-  model: bedrock('anthropic.claude-sonnet-4-5-20250929-v1:0'),
+  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
   prompt: 'What is 2+2?',
   experimental_telemetry: { isEnabled: true },
 });
@@ -189,7 +206,7 @@ init({
 | `endpoint`       | `string`   | `http://127.0.0.1:5388` | Server URL                 |
 | `projectId`      | `string`   | `default`               | Project identifier         |
 | `apiKey`         | `string`   | `undefined`             | Authentication key         |
-| `framework`      | `string`   | `sideseat`              | Framework identifier       |
+| `framework`      | `string`   | —                       | Framework identifier (**required**) |
 | `serviceName`    | `string`   | `npm_package_name`      | Application name in traces |
 | `serviceVersion` | `string`   | `npm_package_version`   | Application version        |
 | `enableTraces`   | `boolean`  | `true`                  | Export trace spans         |
@@ -217,7 +234,7 @@ const client = await createClient({ projectId: 'my-project' });
 ```typescript
 import { init, getClient, shutdown, isInitialized } from '@sideseat/sdk';
 
-init({ projectId: 'my-project' }); // Initialize once
+init({ framework: Frameworks.VercelAI, projectId: 'my-project' }); // Initialize once
 const client = getClient(); // Access anywhere
 await shutdown(); // Clean up
 ```
@@ -225,7 +242,7 @@ await shutdown(); // Clean up
 ### Custom Spans
 
 ```typescript
-const client = init();
+const client = init({ framework: Frameworks.VercelAI });
 
 // Async spans
 const result = await client.span('process-request', async (span) => {
@@ -244,7 +261,7 @@ const value = client.spanSync('compute', (span) => {
 ### Debug Exporters
 
 ```typescript
-const client = init();
+const client = init({ framework: Frameworks.VercelAI });
 client.setupConsoleExporter(); // Print to stdout
 client.setupFileExporter('traces.jsonl'); // Write to file
 ```
@@ -252,7 +269,7 @@ client.setupFileExporter('traces.jsonl'); // Write to file
 ### Disabled Mode
 
 ```typescript
-init({ disabled: true }); // Or set SIDESEAT_DISABLED=true
+init({ framework: Frameworks.VercelAI, disabled: true }); // Or set SIDESEAT_DISABLED=true
 ```
 
 ### Existing OpenTelemetry Setup
@@ -343,8 +360,8 @@ const client = new SideSeat(options);
 ### Frameworks
 
 ```typescript
+Frameworks.Strands      // "strands"
 Frameworks.VercelAI    // "vercel-ai"
-Frameworks.Strands     // "strands"
 Frameworks.LangChain   // "langchain"
 Frameworks.CrewAI      // "crewai"
 Frameworks.AutoGen     // "autogen"

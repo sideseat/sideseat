@@ -46,7 +46,15 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
         id: "bearer",
         label: "Bearer Token",
         fields: [
-          { name: "region", label: "Region", type: "text", required: true, placeholder: "us-east-1", defaultValue: "us-east-1", inExtraConfig: true },
+          {
+            name: "region",
+            label: "Region",
+            type: "text",
+            required: true,
+            placeholder: "us-east-1",
+            defaultValue: "us-east-1",
+            inExtraConfig: true,
+          },
           { name: "api_key", label: "Bearer Token", type: "api_key", required: true },
         ],
       },
@@ -54,12 +62,52 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
         id: "access_keys",
         label: "Access Keys",
         fields: [
-          { name: "region", label: "Region", type: "text", required: true, placeholder: "us-east-1", defaultValue: "us-east-1", inExtraConfig: true },
-          { name: "access_key_id", label: "Access Key ID", type: "text", required: true, placeholder: "AKIA..." },
-          { name: "secret_access_key", label: "Secret Access Key", type: "api_key", required: true },
-          { name: "session_token", label: "Session Token", type: "api_key", required: false, description: "Optional — for temporary credentials" },
-          { name: "role_arn", label: "Assume Role ARN", type: "text", required: false, placeholder: "arn:aws:iam::123456789012:role/MyRole", description: "Optional — assume a role after authenticating", inExtraConfig: true },
-          { name: "external_id", label: "External ID", type: "text", required: false, description: "Optional — for cross-account role assumption", inExtraConfig: true },
+          {
+            name: "region",
+            label: "Region",
+            type: "text",
+            required: true,
+            placeholder: "us-east-1",
+            defaultValue: "us-east-1",
+            inExtraConfig: true,
+          },
+          {
+            name: "access_key_id",
+            label: "Access Key ID",
+            type: "text",
+            required: true,
+            placeholder: "AKIA...",
+          },
+          {
+            name: "secret_access_key",
+            label: "Secret Access Key",
+            type: "api_key",
+            required: true,
+          },
+          {
+            name: "session_token",
+            label: "Session Token",
+            type: "api_key",
+            required: false,
+            description: "Optional — for temporary credentials",
+          },
+          {
+            name: "role_arn",
+            label: "Assume Role ARN",
+            type: "text",
+            required: false,
+            placeholder: "arn:aws:iam::123456789012:role/MyRole",
+            description: "Optional — assume a role after authenticating",
+            inExtraConfig: true,
+          },
+          {
+            name: "external_id",
+            label: "External ID",
+            type: "text",
+            required: false,
+            description: "Optional — for cross-account role assumption",
+            inExtraConfig: true,
+          },
         ],
       },
     ],
@@ -73,8 +121,22 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     abbrev: "AN",
     supportsEndpointOverride: true,
     fields: [
-      { name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "sk-ant-api..." },
-      { name: "endpoint_url", label: "Endpoint URL", type: "url", required: false, placeholder: "https://api.anthropic.com", description: "Override for proxies or self-hosted deployments", inEndpointUrl: true },
+      {
+        name: "api_key",
+        label: "API Key",
+        type: "api_key",
+        required: true,
+        placeholder: "sk-ant-api...",
+      },
+      {
+        name: "endpoint_url",
+        label: "Endpoint URL",
+        type: "url",
+        required: false,
+        placeholder: "https://api.anthropic.com",
+        description: "Override for proxies or self-hosted deployments",
+        inEndpointUrl: true,
+      },
     ],
   },
   {
@@ -99,7 +161,15 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
         ],
       },
       { name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "sk-..." },
-      { name: "endpoint_url", label: "Endpoint URL", type: "url", required: false, placeholder: "https://api.openai.com/v1", description: "Override for proxies or OpenAI-compatible APIs", inEndpointUrl: true },
+      {
+        name: "endpoint_url",
+        label: "Endpoint URL",
+        type: "url",
+        required: false,
+        placeholder: "https://api.openai.com/v1",
+        description: "Override for proxies or OpenAI-compatible APIs",
+        inEndpointUrl: true,
+      },
     ],
   },
   {
@@ -123,7 +193,13 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
           { value: "interactions", label: "Interactions API (stateful)" },
         ],
       },
-      { name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "AIzaSy..." },
+      {
+        name: "api_key",
+        label: "API Key",
+        type: "api_key",
+        required: true,
+        placeholder: "AIzaSy...",
+      },
     ],
   },
   {
@@ -139,18 +215,63 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
         id: "bearer",
         label: "Bearer Token",
         fields: [
-          { name: "project_id", label: "Project ID", type: "text", required: true, placeholder: "my-gcp-project", inExtraConfig: true },
-          { name: "location", label: "Region", type: "text", required: true, placeholder: "us-central1", defaultValue: "us-central1", inExtraConfig: true },
-          { name: "api_key", label: "Bearer Token", type: "api_key", required: true, description: "OAuth2 bearer token (e.g. `gcloud auth print-access-token`)", placeholder: "ya29...." },
+          {
+            name: "project_id",
+            label: "Project ID",
+            type: "text",
+            required: true,
+            placeholder: "my-gcp-project",
+            inExtraConfig: true,
+          },
+          {
+            name: "location",
+            label: "Region",
+            type: "text",
+            required: true,
+            placeholder: "us-central1",
+            defaultValue: "us-central1",
+            inExtraConfig: true,
+          },
+          {
+            name: "api_key",
+            label: "Bearer Token",
+            type: "api_key",
+            required: true,
+            description: "OAuth2 bearer token (e.g. `gcloud auth print-access-token`)",
+            placeholder: "ya29....",
+          },
         ],
       },
       {
         id: "service_account",
         label: "Service Account JSON",
         fields: [
-          { name: "service_account_json", label: "Service Account JSON", type: "json_secret", required: true, description: "Paste the JSON key file downloaded from GCP Console → IAM → Service Accounts" },
-          { name: "location", label: "Region", type: "text", required: true, placeholder: "us-central1", defaultValue: "us-central1", inExtraConfig: true },
-          { name: "project_id", label: "Project ID Override", type: "text", required: false, placeholder: "auto-detected from JSON", description: "Leave blank to use the project_id from the service account JSON", inExtraConfig: true },
+          {
+            name: "service_account_json",
+            label: "Service Account JSON",
+            type: "json_secret",
+            required: true,
+            description:
+              "Paste the JSON key file downloaded from GCP Console → IAM → Service Accounts",
+          },
+          {
+            name: "location",
+            label: "Region",
+            type: "text",
+            required: true,
+            placeholder: "us-central1",
+            defaultValue: "us-central1",
+            inExtraConfig: true,
+          },
+          {
+            name: "project_id",
+            label: "Project ID Override",
+            type: "text",
+            required: false,
+            placeholder: "auto-detected from JSON",
+            description: "Leave blank to use the project_id from the service account JSON",
+            inExtraConfig: true,
+          },
         ],
       },
     ],
@@ -177,8 +298,22 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
         ],
       },
       { name: "api_key", label: "API Key", type: "api_key", required: true },
-      { name: "endpoint_url", label: "Endpoint URL", type: "url", required: true, placeholder: "https://your-resource.openai.azure.com/", inEndpointUrl: true },
-      { name: "deployment_name", label: "Deployment Name", type: "text", required: false, description: "Required for Standard variant", inExtraConfig: true },
+      {
+        name: "endpoint_url",
+        label: "Endpoint URL",
+        type: "url",
+        required: true,
+        placeholder: "https://your-resource.openai.azure.com/",
+        inEndpointUrl: true,
+      },
+      {
+        name: "deployment_name",
+        label: "Deployment Name",
+        type: "text",
+        required: false,
+        description: "Required for Standard variant",
+        inExtraConfig: true,
+      },
     ],
   },
   {
@@ -189,7 +324,15 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     accentColor: "#334155",
     abbrev: "XA",
     supportsEndpointOverride: false,
-    fields: [{ name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "xai-..." }],
+    fields: [
+      {
+        name: "api_key",
+        label: "API Key",
+        type: "api_key",
+        required: true,
+        placeholder: "xai-...",
+      },
+    ],
   },
   {
     key: "mistral",
@@ -209,7 +352,9 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     accentColor: "#dc2626",
     abbrev: "CO",
     supportsEndpointOverride: false,
-    fields: [{ name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "..." }],
+    fields: [
+      { name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "..." },
+    ],
   },
   {
     key: "deepseek",
@@ -229,7 +374,15 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     accentColor: "#ea580c",
     abbrev: "OR",
     supportsEndpointOverride: false,
-    fields: [{ name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "sk-or-..." }],
+    fields: [
+      {
+        name: "api_key",
+        label: "API Key",
+        type: "api_key",
+        required: true,
+        placeholder: "sk-or-...",
+      },
+    ],
   },
   {
     key: "groq",
@@ -239,7 +392,15 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     accentColor: "#65a30d",
     abbrev: "GQ",
     supportsEndpointOverride: false,
-    fields: [{ name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "gsk_..." }],
+    fields: [
+      {
+        name: "api_key",
+        label: "API Key",
+        type: "api_key",
+        required: true,
+        placeholder: "gsk_...",
+      },
+    ],
   },
   {
     key: "cerebras",
@@ -249,7 +410,15 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     accentColor: "#0369a1",
     abbrev: "CB",
     supportsEndpointOverride: false,
-    fields: [{ name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "csk-..." }],
+    fields: [
+      {
+        name: "api_key",
+        label: "API Key",
+        type: "api_key",
+        required: true,
+        placeholder: "csk-...",
+      },
+    ],
   },
   {
     key: "fireworks",
@@ -259,7 +428,9 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     accentColor: "#c026d3",
     abbrev: "FW",
     supportsEndpointOverride: false,
-    fields: [{ name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "fw_..." }],
+    fields: [
+      { name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "fw_..." },
+    ],
   },
   {
     key: "together",
@@ -279,7 +450,15 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     accentColor: "#059669",
     abbrev: "PX",
     supportsEndpointOverride: false,
-    fields: [{ name: "api_key", label: "API Key", type: "api_key", required: true, placeholder: "pplx-..." }],
+    fields: [
+      {
+        name: "api_key",
+        label: "API Key",
+        type: "api_key",
+        required: true,
+        placeholder: "pplx-...",
+      },
+    ],
   },
   {
     key: "ollama",
@@ -291,7 +470,15 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     supportsEndpointOverride: false,
     defaultEndpoint: "http://localhost:11434",
     fields: [
-      { name: "endpoint_url", label: "Endpoint URL", type: "url", required: true, placeholder: "http://localhost:11434", defaultValue: "http://localhost:11434", inEndpointUrl: true },
+      {
+        name: "endpoint_url",
+        label: "Endpoint URL",
+        type: "url",
+        required: true,
+        placeholder: "http://localhost:11434",
+        defaultValue: "http://localhost:11434",
+        inEndpointUrl: true,
+      },
     ],
   },
   {
@@ -303,8 +490,21 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     abbrev: "CU",
     supportsEndpointOverride: false,
     fields: [
-      { name: "endpoint_url", label: "Endpoint URL", type: "url", required: true, placeholder: "https://your-server/v1", inEndpointUrl: true },
-      { name: "api_key", label: "API Key", type: "api_key", required: false, description: "Leave blank if the endpoint does not require authentication" },
+      {
+        name: "endpoint_url",
+        label: "Endpoint URL",
+        type: "url",
+        required: true,
+        placeholder: "https://your-server/v1",
+        inEndpointUrl: true,
+      },
+      {
+        name: "api_key",
+        label: "API Key",
+        type: "api_key",
+        required: false,
+        description: "Leave blank if the endpoint does not require authentication",
+      },
     ],
   },
 ];
@@ -328,7 +528,7 @@ export function buildCreatePayload(
 
   const fields =
     authModeId && provider.authModes
-      ? provider.authModes.find((m) => m.id === authModeId)?.fields ?? []
+      ? (provider.authModes.find((m) => m.id === authModeId)?.fields ?? [])
       : (provider.fields ?? []);
 
   // Bedrock access_keys: pack credential fields into JSON secret
@@ -341,13 +541,17 @@ export function buildCreatePayload(
     secret_value = JSON.stringify(payload);
   } else {
     // Standard: api_key field → secret_value
-    const apiKeyField = fields.find((f) => f.name === "api_key" && !f.inExtraConfig && !f.inEndpointUrl);
+    const apiKeyField = fields.find(
+      (f) => f.name === "api_key" && !f.inExtraConfig && !f.inEndpointUrl,
+    );
     if (apiKeyField && values["api_key"]) {
       secret_value = values["api_key"];
     }
     // json_secret fields that aren't in extra_config/endpoint_url → secret_value
     if (!secret_value) {
-      const jsonSecretField = fields.find((f) => f.type === "json_secret" && !f.inExtraConfig && !f.inEndpointUrl);
+      const jsonSecretField = fields.find(
+        (f) => f.type === "json_secret" && !f.inExtraConfig && !f.inEndpointUrl,
+      );
       if (jsonSecretField && values[jsonSecretField.name]) {
         secret_value = values[jsonSecretField.name];
       }
@@ -361,7 +565,9 @@ export function buildCreatePayload(
     if (
       provider.key === "bedrock" &&
       authModeId === "access_keys" &&
-      (field.name === "access_key_id" || field.name === "secret_access_key" || field.name === "session_token")
+      (field.name === "access_key_id" ||
+        field.name === "secret_access_key" ||
+        field.name === "session_token")
     )
       continue;
 

@@ -316,7 +316,11 @@ function AccessStep({
                     </span>
                     <button
                       type="button"
-                      onClick={() => setPendingPerms((prev) => prev.filter((p) => p.project_id !== perm.project_id))}
+                      onClick={() =>
+                        setPendingPerms((prev) =>
+                          prev.filter((p) => p.project_id !== perm.project_id),
+                        )
+                      }
                       className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -400,7 +404,7 @@ export function AddCredentialDialog({ open, onOpenChange, orgId }: AddCredential
 
   const currentFields = provider
     ? authModeId && provider.authModes
-      ? provider.authModes.find((m) => m.id === authModeId)?.fields ?? []
+      ? (provider.authModes.find((m) => m.id === authModeId)?.fields ?? [])
       : (provider.fields ?? [])
     : [];
 
@@ -559,7 +563,10 @@ export function AddCredentialDialog({ open, onOpenChange, orgId }: AddCredential
       for (const perm of newPerms) {
         patches.push(
           credClient
-            .createPermission(orgId, testedCredId, { project_id: perm.project_id, access: perm.access })
+            .createPermission(orgId, testedCredId, {
+              project_id: perm.project_id,
+              access: perm.access,
+            })
             .catch(() => undefined),
         );
       }
@@ -652,7 +659,10 @@ export function AddCredentialDialog({ open, onOpenChange, orgId }: AddCredential
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="flex w-full flex-col sm:max-w-3xl" style={{ height: "min(90vh, 760px)" }}>
+      <DialogContent
+        className="flex w-full flex-col sm:max-w-3xl"
+        style={{ height: "min(90vh, 760px)" }}
+      >
         <DialogHeader className="shrink-0">
           <DialogTitle>Add Model Provider</DialogTitle>
           <DialogDescription>{stepDescriptions[step]}</DialogDescription>
@@ -665,18 +675,10 @@ export function AddCredentialDialog({ open, onOpenChange, orgId }: AddCredential
           onBack={step > 0 ? handleBack : undefined}
           onCancel={() => handleClose()}
           canNext={
-            step === 0
-              ? !!selectedKey
-              : step === 1
-                ? !!provider && !!displayName.trim()
-                : true
+            step === 0 ? !!selectedKey : step === 1 ? !!provider && !!displayName.trim() : true
           }
           nextLabel={
-            step === WIZARD_STEPS.length - 1
-              ? testedCredId
-                ? "Save"
-                : "Add Provider"
-              : "Next"
+            step === WIZARD_STEPS.length - 1 ? (testedCredId ? "Save" : "Add Provider") : "Next"
           }
           nextLoading={isCreating && !testedCredId}
           extra={testButton}

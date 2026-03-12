@@ -22,8 +22,8 @@ pub use sideseat::{
     },
 };
 
-pub use httpmock::prelude::*;
 pub use httpmock::Mock;
+pub use httpmock::prelude::*;
 
 // ---------------------------------------------------------------------------
 // Legacy test helpers (retry, user_msg, etc.)
@@ -40,9 +40,10 @@ where
     for attempt in 0..5u32 {
         if attempt > 0 {
             let wait_ms = match &last {
-                Some(Err(ProviderError::TooManyRequests { retry_after_secs: Some(s), .. })) => {
-                    s.saturating_mul(1000)
-                }
+                Some(Err(ProviderError::TooManyRequests {
+                    retry_after_secs: Some(s),
+                    ..
+                })) => s.saturating_mul(1000),
                 Some(Err(ProviderError::TooManyRequests { .. })) => 15_000,
                 _ => 1_000u64 << (attempt - 1).min(3),
             };
@@ -90,8 +91,7 @@ pub fn echo_tool() -> Tool {
 }
 
 /// 64×64 solid-white PNG (base64). Used for vision / multimodal tests.
-pub const TINY_PNG_B64: &str =
-    "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAS0lEQVR42u3PMQ0AAAwDoPo33UrYvQQckD4XAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAYHLAMpT0sIcNbcEAAAAAElFTkSuQmCC";
+pub const TINY_PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAS0lEQVR42u3PMQ0AAAwDoPo33UrYvQQckD4XAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAYHLAMpT0sIcNbcEAAAAAElFTkSuQmCC";
 
 pub fn bedrock_region_prefix(region: &str) -> &'static str {
     if region.starts_with("eu-") {
@@ -132,7 +132,10 @@ pub fn bedrock_nova_micro(region: &str) -> String {
 }
 
 pub fn bedrock_haiku(region: &str) -> String {
-    format!("{}.anthropic.claude-haiku-4-5-20251001-v1:0", bedrock_region_prefix(region))
+    format!(
+        "{}.anthropic.claude-haiku-4-5-20251001-v1:0",
+        bedrock_region_prefix(region)
+    )
 }
 
 pub fn bedrock_region() -> String {
@@ -144,9 +147,7 @@ pub fn bedrock_region() -> String {
 
 #[macro_export]
 macro_rules! bedrock_iam_env {
-    () => {{
-        bedrock_region()
-    }};
+    () => {{ bedrock_region() }};
 }
 
 #[macro_export]
@@ -218,7 +219,8 @@ pub const OPENAI_STREAM_TOOL_EVENTS: &str = concat!(
     "data: [DONE]\n\n",
 );
 pub const OPENAI_EMBED_JSON: &str = r#"{"object":"list","data":[{"object":"embedding","embedding":[0.1,0.2,0.3],"index":0}],"usage":{"prompt_tokens":5,"total_tokens":5}}"#;
-pub const OPENAI_IMAGE_GEN_JSON: &str = r#"{"created":1234567890,"data":[{"url":"https://example.com/image.png"}]}"#;
+pub const OPENAI_IMAGE_GEN_JSON: &str =
+    r#"{"created":1234567890,"data":[{"url":"https://example.com/image.png"}]}"#;
 pub const OPENAI_LIST_MODELS_JSON: &str = r#"{"object":"list","data":[{"id":"gpt-4o-mini","object":"model","created":1234567890,"owned_by":"openai"}]}"#;
 pub const OPENAI_LOGPROBS_JSON: &str = r#"{"id":"chatcmpl-test","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop","logprobs":{"content":[{"token":"hello","logprob":-0.5,"top_logprobs":[{"token":"hello","logprob":-0.5},{"token":"hi","logprob":-1.2}]}]}}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}"#;
 pub const OPENAI_RESPONSES_JSON: &str = r#"{"id":"resp_test","object":"response","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}"#;
@@ -263,9 +265,12 @@ pub const INTERACTIONS_STREAM_EVENTS: &str = concat!(
 // ── Cohere ────────────────────────────────────────────────────────────────
 pub const COHERE_COMPLETE_JSON: &str = r#"{"id":"chat-test","finish_reason":"COMPLETE","message":{"role":"assistant","content":[{"type":"text","text":"hello"}]},"usage":{"billed_units":{"input_tokens":10,"output_tokens":5},"tokens":{"input_tokens":10,"output_tokens":5}}}"#;
 pub const COHERE_TOOL_JSON: &str = r#"{"id":"chat-test","finish_reason":"TOOL_CALL","message":{"role":"assistant","content":[],"tool_calls":[{"id":"call_1","type":"function","function":{"name":"echo","arguments":"{\"message\":\"hi\"}"}}]},"usage":{"billed_units":{"input_tokens":10,"output_tokens":5},"tokens":{"input_tokens":10,"output_tokens":5}}}"#;
-pub const COHERE_EMBED_JSON: &str = r#"{"id":"emb-test","embeddings":{"float":[[0.1,0.2,0.3]]},"texts":["hello"],"meta":{}}"#;
-pub const COHERE_TOKENIZE_JSON: &str = r#"{"tokens":[1,2,3,4,5,6],"token_strings":["hi","there"],"meta":{}}"#;
-pub const COHERE_LIST_MODELS_JSON: &str = r#"{"models":[{"name":"command-r-plus","endpoints":["chat"],"context_length":128000}]}"#;
+pub const COHERE_EMBED_JSON: &str =
+    r#"{"id":"emb-test","embeddings":{"float":[[0.1,0.2,0.3]]},"texts":["hello"],"meta":{}}"#;
+pub const COHERE_TOKENIZE_JSON: &str =
+    r#"{"tokens":[1,2,3,4,5,6],"token_strings":["hi","there"],"meta":{}}"#;
+pub const COHERE_LIST_MODELS_JSON: &str =
+    r#"{"models":[{"name":"command-r-plus","endpoints":["chat"],"context_length":128000}]}"#;
 
 // ── Mistral ────────────────────────────────────────────────────────────────
 pub const MISTRAL_EMBED_JSON: &str = r#"{"id":"emb-test","object":"list","data":[{"object":"embedding","embedding":[0.1,0.2,0.3],"index":0}],"usage":{"prompt_tokens":5,"total_tokens":5}}"#;
@@ -273,22 +278,28 @@ pub const MISTRAL_LIST_MODELS_JSON: &str = r#"{"data":[{"id":"mistral-small-late
 
 // ── xAI ────────────────────────────────────────────────────────────────────
 pub const XAI_EMBED_JSON: &str = r#"{"object":"list","data":[{"object":"embedding","embedding":[0.1,0.2,0.3],"index":0}],"usage":{"prompt_tokens":5,"total_tokens":5}}"#;
-pub const XAI_LIST_MODELS_JSON: &str = r#"{"data":[{"id":"grok-3-mini","object":"model","created":1234567890,"owned_by":"xai"}]}"#;
+pub const XAI_LIST_MODELS_JSON: &str =
+    r#"{"data":[{"id":"grok-3-mini","object":"model","created":1234567890,"owned_by":"xai"}]}"#;
 
 // ── Bedrock ────────────────────────────────────────────────────────────────
 pub const BEDROCK_COMPLETE_JSON: &str = r#"{"output":{"message":{"role":"assistant","content":[{"text":"hello"}]}},"stopReason":"end_turn","usage":{"inputTokens":10,"outputTokens":5,"totalTokens":15}}"#;
 pub const BEDROCK_COMPLETE_MAX_TOKENS_JSON: &str = r#"{"output":{"message":{"role":"assistant","content":[{"text":"hello"}]}},"stopReason":"max_tokens","usage":{"inputTokens":10,"outputTokens":5,"totalTokens":15}}"#;
 pub const BEDROCK_TOOL_JSON: &str = r#"{"output":{"message":{"role":"assistant","content":[{"toolUse":{"toolUseId":"tu_1","name":"echo","input":{"message":"hi"}}}]}},"stopReason":"tool_use","usage":{"inputTokens":10,"outputTokens":5,"totalTokens":15}}"#;
 pub const BEDROCK_EMBED_TITAN_JSON: &str = r#"{"embedding":[0.1,0.2,0.3],"inputTextTokenCount":5}"#;
-pub const BEDROCK_EMBED_TITAN_MULTIMODAL_JSON: &str = r#"{"embedding":[0.1,0.2,0.3],"inputTextTokenCount":5,"inputImageTokenCount":5}"#;
-pub const BEDROCK_EMBED_COHERE_JSON: &str = r#"{"embeddings":{"float":[[0.1,0.2,0.3]]},"texts":["test"]}"#;
+pub const BEDROCK_EMBED_TITAN_MULTIMODAL_JSON: &str =
+    r#"{"embedding":[0.1,0.2,0.3],"inputTextTokenCount":5,"inputImageTokenCount":5}"#;
+pub const BEDROCK_EMBED_COHERE_JSON: &str =
+    r#"{"embeddings":{"float":[[0.1,0.2,0.3]]},"texts":["test"]}"#;
 pub const BEDROCK_IMAGE_GEN_JSON: &str = r#"{"images":["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],"error":""}"#;
-pub const BEDROCK_ASYNC_INVOKE_JSON: &str = r#"{"invocationArn":"arn:aws:bedrock:us-east-1:123456789012:async-invoke/test-id"}"#;
+pub const BEDROCK_ASYNC_INVOKE_JSON: &str =
+    r#"{"invocationArn":"arn:aws:bedrock:us-east-1:123456789012:async-invoke/test-id"}"#;
 pub const BEDROCK_ASYNC_STATUS_JSON: &str = r#"{"invocationArn":"arn:aws:bedrock:us-east-1:123456789012:async-invoke/test-id","status":"Completed","outputDataConfig":{"s3OutputDataConfig":{"s3Uri":"s3://test-bucket/output/"}}}"#;
 pub const BEDROCK_COUNT_TOKENS_JSON: &str = r#"{"inputTokens":42}"#;
 pub const BEDROCK_LIST_MODELS_JSON: &str = r#"{"modelSummaries":[{"modelId":"amazon.nova-lite-v1:0","modelName":"Amazon Nova Lite","providerName":"Amazon","responseStreamingSupported":true}]}"#;
-pub const BEDROCK_VALIDATION_ERROR_JSON: &str = r#"{"__type":"ValidationException","message":"image not supported"}"#;
-pub const BEDROCK_ASYNC_INVOKE_ERROR_JSON: &str = r#"{"__type":"ValidationException","message":"S3 bucket does not exist"}"#;
+pub const BEDROCK_VALIDATION_ERROR_JSON: &str =
+    r#"{"__type":"ValidationException","message":"image not supported"}"#;
+pub const BEDROCK_ASYNC_INVOKE_ERROR_JSON: &str =
+    r#"{"__type":"ValidationException","message":"S3 bucket does not exist"}"#;
 
 // ---------------------------------------------------------------------------
 // EventStream binary encoding helpers (for Bedrock streaming)
@@ -336,7 +347,8 @@ pub fn bedrock_converse_stream_body() -> Vec<u8> {
     let mut body = Vec::new();
     body.extend(eventstream_event(
         "contentBlockDelta",
-        &serde_json::to_vec(&serde_json::json!({"contentBlockIndex":0,"delta":{"text":"hello"}})).unwrap(),
+        &serde_json::to_vec(&serde_json::json!({"contentBlockIndex":0,"delta":{"text":"hello"}}))
+            .unwrap(),
     ));
     body.extend(eventstream_event(
         "messageStop",
@@ -344,7 +356,10 @@ pub fn bedrock_converse_stream_body() -> Vec<u8> {
     ));
     body.extend(eventstream_event(
         "metadata",
-        &serde_json::to_vec(&serde_json::json!({"usage":{"inputTokens":10,"outputTokens":5,"totalTokens":15}})).unwrap(),
+        &serde_json::to_vec(
+            &serde_json::json!({"usage":{"inputTokens":10,"outputTokens":5,"totalTokens":15}}),
+        )
+        .unwrap(),
     ));
     body
 }
@@ -370,7 +385,10 @@ pub fn bedrock_converse_stream_tool_body() -> Vec<u8> {
     ));
     body.extend(eventstream_event(
         "metadata",
-        &serde_json::to_vec(&serde_json::json!({"usage":{"inputTokens":10,"outputTokens":5,"totalTokens":15}})).unwrap(),
+        &serde_json::to_vec(
+            &serde_json::json!({"usage":{"inputTokens":10,"outputTokens":5,"totalTokens":15}}),
+        )
+        .unwrap(),
     ));
     body
 }
@@ -540,23 +558,41 @@ pub fn mock_anthropic_bedrock() -> (MockServer, AnthropicProvider) {
 // ---------------------------------------------------------------------------
 
 /// Register a JSON response mock.
-pub fn mock_json<'a>(server: &'a MockServer, method: Method, path_pattern: &'a str, body: &'static str) -> Mock<'a> {
+pub fn mock_json<'a>(
+    server: &'a MockServer,
+    method: Method,
+    path_pattern: &'a str,
+    body: &'static str,
+) -> Mock<'a> {
     server.mock(|when, then| {
         when.method(method).path_includes(path_pattern);
-        then.status(200).header("content-type", "application/json").body(body);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(body);
     })
 }
 
 /// Register an SSE response mock.
-pub fn mock_sse<'a>(server: &'a MockServer, method: Method, path_pattern: &'a str, body: &'static str) -> Mock<'a> {
+pub fn mock_sse<'a>(
+    server: &'a MockServer,
+    method: Method,
+    path_pattern: &'a str,
+    body: &'static str,
+) -> Mock<'a> {
     server.mock(|when, then| {
         when.method(method).path_includes(path_pattern);
-        then.status(200).header("content-type", "text/event-stream").body(body);
+        then.status(200)
+            .header("content-type", "text/event-stream")
+            .body(body);
     })
 }
 
 /// Register an EventStream (binary) response mock for Bedrock streaming.
-pub fn mock_eventstream<'a>(server: &'a MockServer, path_pattern: &'a str, body: Vec<u8>) -> Mock<'a> {
+pub fn mock_eventstream<'a>(
+    server: &'a MockServer,
+    path_pattern: &'a str,
+    body: Vec<u8>,
+) -> Mock<'a> {
     server.mock(|when, then| {
         when.method(POST).path_includes(path_pattern);
         then.status(200)
@@ -566,10 +602,18 @@ pub fn mock_eventstream<'a>(server: &'a MockServer, path_pattern: &'a str, body:
 }
 
 /// Register a JSON error response mock.
-pub fn mock_json_error<'a>(server: &'a MockServer, method: Method, path_pattern: &'a str, status: u16, body: &'static str) -> Mock<'a> {
+pub fn mock_json_error<'a>(
+    server: &'a MockServer,
+    method: Method,
+    path_pattern: &'a str,
+    status: u16,
+    body: &'static str,
+) -> Mock<'a> {
     server.mock(|when, then| {
         when.method(method).path_includes(path_pattern);
-        then.status(status).header("content-type", "application/json").body(body);
+        then.status(status)
+            .header("content-type", "application/json")
+            .body(body);
     })
 }
 
@@ -583,11 +627,15 @@ pub fn mock_json_seq2<'a>(
 ) -> (Mock<'a>, Mock<'a>) {
     let m1 = server.mock(|when, then| {
         when.method(POST).path_includes(path_pattern);
-        then.status(200).header("content-type", "application/json").body(body1);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(body1);
     });
     let m2 = server.mock(|when, then| {
         when.method(POST).path_includes(path_pattern);
-        then.status(200).header("content-type", "application/json").body(body2);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(body2);
     });
     (m1, m2)
 }

@@ -4,19 +4,18 @@ use std::time::Duration;
 use async_stream::stream;
 use async_trait::async_trait;
 use aws_sdk_bedrock::Client as BedrockMgmtClient;
+use aws_sdk_bedrockruntime::types::error::InvokeModelWithBidirectionalStreamInputError;
 use aws_sdk_bedrockruntime::{
     Client,
     primitives::Blob,
     types::{
         AnyToolChoice, AudioBlock, AudioFormat as BAudioFmt, AudioSource as BAudioSource,
-        AutoToolChoice,
-        BidirectionalInputPayloadPart, CachePointBlock, CachePointType,
-        ContentBlock as BContent, ContentBlockDelta,
-        ContentBlockStart as BContentBlockStart, ConversationRole, ConverseOutput,
-        ConverseStreamOutput, ConverseTokensRequest, CountTokensInput, DocumentBlock,
-        DocumentFormat, DocumentSource, GuardrailConfiguration, GuardrailStreamConfiguration,
-        GuardrailTrace, ImageBlock, ImageFormat, ImageSource, InferenceConfiguration,
-        InvokeModelWithBidirectionalStreamInput,
+        AutoToolChoice, BidirectionalInputPayloadPart, CachePointBlock, CachePointType,
+        ContentBlock as BContent, ContentBlockDelta, ContentBlockStart as BContentBlockStart,
+        ConversationRole, ConverseOutput, ConverseStreamOutput, ConverseTokensRequest,
+        CountTokensInput, DocumentBlock, DocumentFormat, DocumentSource, GuardrailConfiguration,
+        GuardrailStreamConfiguration, GuardrailTrace, ImageBlock, ImageFormat, ImageSource,
+        InferenceConfiguration, InvokeModelWithBidirectionalStreamInput,
         InvokeModelWithBidirectionalStreamOutput as BidiStreamEvent, Message as BMessage,
         PerformanceConfigLatency, PerformanceConfiguration, PromptVariableValues,
         ReasoningContentBlock, ReasoningTextBlock, S3Location, SpecificToolChoice,
@@ -26,22 +25,23 @@ use aws_sdk_bedrockruntime::{
         ToolSpecification, ToolUseBlock as BToolUse, VideoBlock, VideoFormat, VideoSource,
     },
 };
-use aws_sdk_bedrockruntime::types::error::InvokeModelWithBidirectionalStreamInputError;
 use aws_smithy_http::event_stream::EventStreamSender;
 use aws_smithy_types::Document;
 use serde_json::{Value, json};
 
 use crate::{
     error::ProviderError,
-    provider::{AudioProvider, ChatProvider, EmbeddingProvider, ImageProvider, Provider, ProviderStream, VideoProvider},
+    provider::{
+        AudioProvider, ChatProvider, EmbeddingProvider, ImageProvider, Provider, ProviderStream,
+        VideoProvider,
+    },
     types::{
         AudioFormat as CAudioFmt, ContentBlock, ContentBlockStart, ContentDelta,
-        DocumentFormat as CDocFmt,
-        EmbeddingRequest, EmbeddingResponse, GeneratedImage, GeneratedVideo,
-        ImageFormat as CImgFmt, ImageGenerationRequest, ImageGenerationResponse, MediaSource,
-        Message, ModelInfo, ProviderConfig, ReasoningEffort, Role, SpeechRequest, SpeechResponse,
-        StopReason, StreamEvent, ThinkingBlock, TokenCount, ToolChoice, ToolUseBlock,
-        TranscriptionRequest, TranscriptionResponse, Usage, VideoFormat as CVidFmt,
+        DocumentFormat as CDocFmt, EmbeddingRequest, EmbeddingResponse, GeneratedImage,
+        GeneratedVideo, ImageFormat as CImgFmt, ImageGenerationRequest, ImageGenerationResponse,
+        MediaSource, Message, ModelInfo, ProviderConfig, ReasoningEffort, Role, SpeechRequest,
+        SpeechResponse, StopReason, StreamEvent, ThinkingBlock, TokenCount, ToolChoice,
+        ToolUseBlock, TranscriptionRequest, TranscriptionResponse, Usage, VideoFormat as CVidFmt,
         VideoGenerationRequest, VideoGenerationResponse,
     },
 };
@@ -108,7 +108,10 @@ impl BedrockProvider {
     }
 
     /// Create using a named AWS profile.
-    pub async fn with_profile(profile_name: impl Into<String>, region: impl Into<String>) -> Result<Self, ProviderError> {
+    pub async fn with_profile(
+        profile_name: impl Into<String>,
+        region: impl Into<String>,
+    ) -> Result<Self, ProviderError> {
         let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
             .region(aws_config::Region::new(region.into()))
             .profile_name(profile_name)
@@ -238,9 +241,10 @@ impl BedrockProvider {
 
     /// Call `invoke_model` with a JSON body and return the parsed JSON response.
     async fn invoke_model_json(&self, model: &str, body: &Value) -> Result<Value, ProviderError> {
-        let bytes = serde_json::to_vec(body)
-            .map_err(|e| ProviderError::Serialization(e.to_string()))?;
-        let resp = self.client
+        let bytes =
+            serde_json::to_vec(body).map_err(|e| ProviderError::Serialization(e.to_string()))?;
+        let resp = self
+            .client
             .invoke_model()
             .model_id(model)
             .content_type("application/json")
@@ -268,7 +272,8 @@ impl BedrockProvider {
             .build()
             .map_err(|e| ProviderError::Serialization(e.to_string()))?;
         let output_config = AsyncInvokeOutputDataConfig::S3OutputDataConfig(s3_config);
-        let resp = self.client
+        let resp = self
+            .client
             .start_async_invoke()
             .model_id(model)
             .model_input(json_to_document(model_input))
@@ -289,7 +294,8 @@ impl BedrockProvider {
         let max_polls = 120; // ~10 minutes at 5s intervals
         for _ in 0..max_polls {
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-            let resp = self.client
+            let resp = self
+                .client
                 .get_async_invoke()
                 .invocation_arn(arn)
                 .send()
@@ -334,14 +340,16 @@ impl BedrockProvider {
         // Build all input chunks eagerly (no errors at this stage).
         let chunks: Vec<InvokeModelWithBidirectionalStreamInput> = events
             .iter()
-            .map(|e| -> Result<InvokeModelWithBidirectionalStreamInput, ProviderError> {
-                let bytes = serde_json::to_vec(e)
-                    .map_err(|err| ProviderError::Serialization(err.to_string()))?;
-                let chunk = BidirectionalInputPayloadPart::builder()
-                    .bytes(Blob::new(bytes))
-                    .build();
-                Ok(InvokeModelWithBidirectionalStreamInput::Chunk(chunk))
-            })
+            .map(
+                |e| -> Result<InvokeModelWithBidirectionalStreamInput, ProviderError> {
+                    let bytes = serde_json::to_vec(e)
+                        .map_err(|err| ProviderError::Serialization(err.to_string()))?;
+                    let chunk = BidirectionalInputPayloadPart::builder()
+                        .bytes(Blob::new(bytes))
+                        .build();
+                    Ok(InvokeModelWithBidirectionalStreamInput::Chunk(chunk))
+                },
+            )
             .collect::<Result<Vec<_>, _>>()?;
 
         // Wrap in a futures stream — each item is already Ok, no stream errors.
@@ -351,7 +359,8 @@ impl BedrockProvider {
                 .map(Ok::<_, InvokeModelWithBidirectionalStreamInputError>),
         );
 
-        let resp = self.client
+        let resp = self
+            .client
             .invoke_model_with_bidirectional_stream()
             .model_id(model)
             .body(EventStreamSender::from(input_stream))
@@ -396,7 +405,8 @@ impl Provider for BedrockProvider {
     async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
         let Some(mgmt) = &self.mgmt_client else {
             return Err(ProviderError::Unsupported(
-                "list_models requires a management client (unavailable when using from_client())".into(),
+                "list_models requires a management client (unavailable when using from_client())"
+                    .into(),
             ));
         };
         let resp = mgmt
@@ -632,10 +642,7 @@ impl ChatProvider for BedrockProvider {
 
 #[async_trait]
 impl EmbeddingProvider for BedrockProvider {
-    async fn embed(
-        &self,
-        request: EmbeddingRequest,
-    ) -> Result<EmbeddingResponse, ProviderError> {
+    async fn embed(&self, request: EmbeddingRequest) -> Result<EmbeddingResponse, ProviderError> {
         let model = request.model.as_str();
         // Build the invoke_model request body based on the model family
         let body = if model.contains("cohere.embed") {
@@ -939,7 +946,10 @@ impl AudioProvider for BedrockProvider {
 // SDK stream event handler
 // ---------------------------------------------------------------------------
 
-fn handle_stream_event(event: ConverseStreamOutput, req_model: &str) -> Option<Result<StreamEvent, ProviderError>> {
+fn handle_stream_event(
+    event: ConverseStreamOutput,
+    req_model: &str,
+) -> Option<Result<StreamEvent, ProviderError>> {
     match event {
         ConverseStreamOutput::MessageStart(e) => {
             let role = match e.role() {
@@ -969,9 +979,9 @@ fn handle_stream_event(event: ConverseStreamOutput, req_model: &str) -> Option<R
                 Some(ContentBlockDelta::ReasoningContent(rc)) => {
                     use aws_sdk_bedrockruntime::types::ReasoningContentBlockDelta;
                     match rc {
-                        ReasoningContentBlockDelta::Text(t) => ContentDelta::Thinking {
-                            text: t.clone(),
-                        },
+                        ReasoningContentBlockDelta::Text(t) => {
+                            ContentDelta::Thinking { text: t.clone() }
+                        }
                         ReasoningContentBlockDelta::Signature(s) => ContentDelta::Signature {
                             signature: s.clone(),
                         },
@@ -1048,8 +1058,11 @@ fn build_messages_and_system(
                 } else {
                     ConversationRole::Assistant
                 };
-                let mut content: Vec<BContent> =
-                    msg.content.iter().map(block_to_bedrock).collect::<Result<_, _>>()?;
+                let mut content: Vec<BContent> = msg
+                    .content
+                    .iter()
+                    .map(block_to_bedrock)
+                    .collect::<Result<_, _>>()?;
                 if msg.cache_control.is_some() {
                     let cpb = CachePointBlock::builder()
                         .r#type(CachePointType::Default)
@@ -1222,7 +1235,11 @@ fn build_amr_paths(config: &ProviderConfig) -> Vec<String> {
         .extra
         .get("additional_model_response_field_paths")
         .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -1271,7 +1288,9 @@ fn build_tool_config(config: &ProviderConfig) -> Result<Option<ToolConfiguration
         let bc = match choice {
             ToolChoice::Auto => BToolChoice::Auto(AutoToolChoice::builder().build()),
             ToolChoice::Any => BToolChoice::Any(AnyToolChoice::builder().build()),
-            ToolChoice::None => unreachable!("ToolChoice::None handled at top of build_tool_config"),
+            ToolChoice::None => {
+                unreachable!("ToolChoice::None handled at top of build_tool_config")
+            }
             ToolChoice::Tool { name } => BToolChoice::Tool(
                 SpecificToolChoice::builder()
                     .name(name)
@@ -1284,11 +1303,9 @@ fn build_tool_config(config: &ProviderConfig) -> Result<Option<ToolConfiguration
         builder = builder.tool_choice(bc);
     }
 
-    Ok(Some(
-        builder
-            .build()
-            .map_err(|e| ProviderError::Serialization(e.to_string()))?,
-    ))
+    Ok(Some(builder.build().map_err(|e| {
+        ProviderError::Serialization(e.to_string())
+    })?))
 }
 
 // ---------------------------------------------------------------------------
@@ -1482,7 +1499,10 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                     let bytes = base64::engine::general_purpose::STANDARD
                         .decode(&b64.data)
                         .map_err(|e| ProviderError::Serialization(e.to_string()))?;
-                    (caudio_to_bedrock(&audio.format), BAudioSource::Bytes(Blob::new(bytes)))
+                    (
+                        caudio_to_bedrock(&audio.format),
+                        BAudioSource::Bytes(Blob::new(bytes)),
+                    )
                 }
                 MediaSource::S3(s3) => {
                     let s3_loc = S3Location::builder()
@@ -1490,7 +1510,10 @@ fn block_to_bedrock(block: &ContentBlock) -> Result<BContent, ProviderError> {
                         .set_bucket_owner(s3.bucket_owner.clone())
                         .build()
                         .map_err(|e| ProviderError::Serialization(e.to_string()))?;
-                    (caudio_to_bedrock(&audio.format), BAudioSource::S3Location(s3_loc))
+                    (
+                        caudio_to_bedrock(&audio.format),
+                        BAudioSource::S3Location(s3_loc),
+                    )
                 }
                 _ => {
                     return Err(ProviderError::Unsupported(
@@ -1647,7 +1670,10 @@ fn map_bedrock_error(e: aws_sdk_bedrockruntime::Error) -> ProviderError {
             {
                 ProviderError::Unsupported(msg)
             } else {
-                ProviderError::Api { status: 400, message: msg }
+                ProviderError::Api {
+                    status: 400,
+                    message: msg,
+                }
             }
         }
         e => {
@@ -1655,7 +1681,10 @@ fn map_bedrock_error(e: aws_sdk_bedrockruntime::Error) -> ProviderError {
             if msg.to_lowercase().contains("timeout") {
                 ProviderError::Timeout { ms: None }
             } else {
-                ProviderError::Api { status: 0, message: msg }
+                ProviderError::Api {
+                    status: 0,
+                    message: msg,
+                }
             }
         }
     }
@@ -1673,7 +1702,10 @@ fn map_bedrock_mgmt_error(e: aws_sdk_bedrock::Error) -> ProviderError {
         BE::ResourceNotFoundException(inner) => ProviderError::ModelNotFound {
             model: inner.to_string(),
         },
-        e => ProviderError::Api { status: 0, message: e.to_string() },
+        e => ProviderError::Api {
+            status: 0,
+            message: e.to_string(),
+        },
     }
 }
 

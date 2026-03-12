@@ -158,14 +158,21 @@ export function ManageCredentialDialog({
         </DialogHeader>
 
         {credential && (
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="flex min-h-0 flex-1 flex-col"
+          >
             <TabsList className="w-fit shrink-0">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="access">Access</TabsTrigger>
             </TabsList>
 
             <div className="mt-5 flex min-h-0 flex-1 flex-col px-0.5">
-              <TabsContent value="general" className="flex flex-1 flex-col data-[state=inactive]:hidden">
+              <TabsContent
+                value="general"
+                className="flex flex-1 flex-col data-[state=inactive]:hidden"
+              >
                 <GeneralTab
                   credential={credential}
                   provider={provider}
@@ -175,7 +182,10 @@ export function ManageCredentialDialog({
                   setEndpointUrl={setEndpointUrl}
                 />
               </TabsContent>
-              <TabsContent value="access" className="flex flex-1 flex-col data-[state=inactive]:hidden">
+              <TabsContent
+                value="access"
+                className="flex flex-1 flex-col data-[state=inactive]:hidden"
+              >
                 <AccessTab credential={credential} orgId={orgId} />
               </TabsContent>
             </div>
@@ -215,7 +225,11 @@ export function ManageCredentialDialog({
                 Test Connection
               </Button>
               {activeTab === "general" && (
-                <Button type="button" onClick={handleSave} disabled={isSaving || !displayName.trim()}>
+                <Button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSaving || !displayName.trim()}
+                >
                   {isSaving && <Spinner className="mr-2 h-4 w-4" />}
                   Save
                 </Button>
@@ -293,7 +307,8 @@ function GeneralTab({
               const label = fieldDef?.label ?? key.replace(/_/g, " ");
               const displayValue =
                 fieldDef?.type === "select"
-                  ? (fieldDef.options?.find((o) => o.value === String(val))?.label ?? String(val ?? ""))
+                  ? (fieldDef.options?.find((o) => o.value === String(val))?.label ??
+                    String(val ?? ""))
                   : String(val ?? "");
               return (
                 <Field key={key}>
@@ -311,13 +326,7 @@ function GeneralTab({
   );
 }
 
-function AccessTab({
-  credential,
-  orgId,
-}: {
-  credential: Credential;
-  orgId: string;
-}) {
+function AccessTab({ credential, orgId }: { credential: Credential; orgId: string }) {
   const [selectedProject, setSelectedProject] = useState("");
   const [access, setAccess] = useState<"allow" | "deny">("allow");
 
@@ -371,7 +380,9 @@ function AccessTab({
                   className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
                 >
                   <span className="font-medium">
-                    {perm.project_id ? (project?.name ?? perm.project_id) : "All projects (default)"}
+                    {perm.project_id
+                      ? (project?.name ?? perm.project_id)
+                      : "All projects (default)"}
                   </span>
                   <div className="flex items-center gap-2">
                     <span

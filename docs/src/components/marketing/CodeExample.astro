@@ -20,7 +20,9 @@
       <div class="code-tabs" role="tablist" aria-label="SDK selector">
         <button class="code-tab is-active" data-tab="python" role="tab" aria-selected="true">Strands Agents</button>
         <button class="code-tab" data-tab="bedrock" role="tab" aria-selected="false">Amazon Bedrock</button>
-        <button class="code-tab" data-tab="javascript" role="tab" aria-selected="false">Vercel AI</button>
+        <button class="code-tab" data-tab="openai" role="tab" aria-selected="false">OpenAI</button>
+        <button class="code-tab" data-tab="anthropic" role="tab" aria-selected="false">Anthropic</button>
+        <button class="code-tab" data-tab="vertex" role="tab" aria-selected="false">Google Vertex AI</button>
       </div>
     </div>
 
@@ -69,26 +71,77 @@ print(response["output"]["message"]["content"][0]["text"])</code></pre>
       </div>
     </div>
 
-    <div class="code-panel hidden" data-panel="javascript">
+    <div class="code-panel hidden" data-panel="openai">
       <div class="terminal">
         <div class="terminal-header">
           <div class="terminal-dot red"></div>
           <div class="terminal-dot yellow"></div>
           <div class="terminal-dot green"></div>
-          <span class="terminal-title">your_agent.js</span>
+          <span class="terminal-title">your_app.py</span>
         </div>
         <div class="terminal-body">
-          <pre><code>import &#123; generateText &#125; from "ai";
-import &#123; bedrock &#125; from "@ai-sdk/amazon-bedrock";
-<span class="text-accent">import &#123; init &#125; from "@sideseat/sdk";</span>
+          <pre><code>from openai import OpenAI
+<span class="text-accent">from sideseat import SideSeat, Frameworks</span>
 
-<span class="text-accent">init();</span>   <span class="text-muted">// add this</span>
+<span class="text-accent">SideSeat(framework=Frameworks.OpenAI)</span>   <span class="text-muted"># add this</span>
 
-const &#123; text &#125; = await generateText(&#123;
-  model: bedrock("anthropic.claude-sonnet-4-5-20250929-v1:0"),
-  prompt: "Analyze this dataset...",
-  experimental_telemetry: &#123; isEnabled: true &#125;,
-&#125;);</code></pre>
+client = OpenAI()
+response = client.chat.completions.create(
+    model="gpt-5-mini",
+    messages=[&#123;"role": "user", "content": "Analyze this dataset..."&#125;],
+)
+
+print(response.choices[0].message.content)</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="code-panel hidden" data-panel="anthropic">
+      <div class="terminal">
+        <div class="terminal-header">
+          <div class="terminal-dot red"></div>
+          <div class="terminal-dot yellow"></div>
+          <div class="terminal-dot green"></div>
+          <span class="terminal-title">your_app.py</span>
+        </div>
+        <div class="terminal-body">
+          <pre><code>import anthropic
+<span class="text-accent">from sideseat import SideSeat, Frameworks</span>
+
+<span class="text-accent">SideSeat(framework=Frameworks.Anthropic)</span>   <span class="text-muted"># add this</span>
+
+client = anthropic.Anthropic()
+message = client.messages.create(
+    model="claude-sonnet-4-5-20250929",
+    max_tokens=1024,
+    messages=[&#123;"role": "user", "content": "Analyze this dataset..."&#125;],
+)
+
+print(message.content[0].text)</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="code-panel hidden" data-panel="vertex">
+      <div class="terminal">
+        <div class="terminal-header">
+          <div class="terminal-dot red"></div>
+          <div class="terminal-dot yellow"></div>
+          <div class="terminal-dot green"></div>
+          <span class="terminal-title">your_app.py</span>
+        </div>
+        <div class="terminal-body">
+          <pre><code>import vertexai
+from vertexai.generative_models import GenerativeModel
+<span class="text-accent">from sideseat import SideSeat, Frameworks</span>
+
+<span class="text-accent">SideSeat(framework=Frameworks.VertexAI)</span>   <span class="text-muted"># add this</span>
+
+vertexai.init(project="your-project", location="us-central1")
+model = GenerativeModel("gemini-2.5-flash")
+response = model.generate_content("Analyze this dataset...")
+
+print(response.text)</code></pre>
         </div>
       </div>
     </div>

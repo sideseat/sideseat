@@ -8,6 +8,7 @@ import sys
 import traceback
 
 from adk_sample.cli import main as adk_main
+from agent_framework_sample.cli import main as agent_framework_main
 from autogen_sample.cli import main as autogen_main
 from crewai_sample.cli import main as crewai_main
 from langgraph_sample.cli import main as langgraph_main
@@ -23,6 +24,7 @@ FRAMEWORKS = [
     ("CrewAI", crewai_main),
     ("AutoGen", autogen_main),
     ("OpenAI Agents", openai_agents_main),
+    ("Microsoft Agent Framework", agent_framework_main),
 ]
 
 

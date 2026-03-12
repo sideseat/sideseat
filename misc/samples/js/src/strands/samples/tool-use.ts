@@ -152,21 +152,22 @@ export async function run(modelId: string) {
   const agent = new Agent({
     model: resolveModel(modelId),
     tools: [temperatureForecast, precipitationForecast],
+    printer: false,
     systemPrompt: SYSTEM_PROMPT,
   });
 
   // First call - cache miss (writes to cache)
   console.log('--- First call (cache write) ---');
   const result1 = await agent.invoke('Provide a 3-day weather forecast for New York City.');
-  console.log(result1);
+  console.log(result1.toString());
 
   // Second call - cache hit (reads from cache)
   console.log('\n--- Second call (cache read) ---');
   const result2 = await agent.invoke('Provide a 7-day weather forecast for Los Angeles.');
-  console.log(result2);
+  console.log(result2.toString());
 
   // Third call - cache hit (reads from cache)
   console.log('\n--- Third call (cache read) ---');
   const result3 = await agent.invoke('Provide a 14-day weather forecast for London.');
-  console.log(result3);
+  console.log(result3.toString());
 }
