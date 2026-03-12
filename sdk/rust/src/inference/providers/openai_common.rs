@@ -52,8 +52,12 @@ impl OpenAIInnerClient {
         let mut models = Vec::new();
         if let Some(arr) = json["data"].as_array() {
             for item in arr {
+                let id = item["id"].as_str().unwrap_or("").to_string();
+                if id.is_empty() {
+                    continue;
+                }
                 models.push(ModelInfo {
-                    id: item["id"].as_str().unwrap_or("").to_string(),
+                    id,
                     display_name: None,
                     description: None,
                     created_at: item["created"].as_u64(),

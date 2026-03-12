@@ -144,6 +144,22 @@ impl GeminiProvider {
         })
     }
 
+    /// Initialize a Vertex AI provider using Application Default Credentials.
+    ///
+    /// Resolves in order: `GOOGLE_APPLICATION_CREDENTIALS` (service account JSON) →
+    /// gcloud SDK credentials → GKE workload identity → GCE/Cloud Run metadata server.
+    pub async fn from_vertex_adc(
+        project_id: impl Into<String>,
+        location: impl Into<String>,
+    ) -> Result<Self, ProviderError> {
+        let token_provider = GcpAdcTokenProvider::try_new().await?;
+        Ok(Self::from_vertex_with_token_provider(
+            project_id,
+            location,
+            Arc::new(token_provider),
+        ))
+    }
+
     /// Replace the HTTP client. Useful for custom TLS, proxies, or testing.
     pub fn with_client(mut self, client: reqwest::Client) -> Self {
         self.client = Arc::new(client);
@@ -257,7 +273,7 @@ impl GeminiProvider {
             });
         }
 
-        // Generation config
+        // Generation config — build all fields in one pass, then set if non-empty
         let mut gen_config = json!({});
         if let Some(max_tokens) = config.max_tokens {
             gen_config["maxOutputTokens"] = json!(max_tokens);
@@ -273,6 +289,12 @@ impl GeminiProvider {
         }
         if !config.stop_sequences.is_empty() {
             gen_config["stopSequences"] = json!(config.stop_sequences);
+        }
+        if let Some(pp) = config.presence_penalty {
+            gen_config["presencePenalty"] = json!(pp);
+        }
+        if let Some(fp) = config.frequency_penalty {
+            gen_config["frequencyPenalty"] = json!(fp);
         }
 
         // Thinking config
@@ -303,28 +325,6 @@ impl GeminiProvider {
             .unwrap_or(false)
         {
             req["generationConfig"] = gen_config;
-        }
-
-        // Generation config: presence/frequency penalty
-        if config.presence_penalty.is_some() || config.frequency_penalty.is_some() {
-            let gen_cfg = req["generationConfig"].as_object_mut();
-            if let Some(gc) = gen_cfg {
-                if let Some(pp) = config.presence_penalty {
-                    gc.insert("presencePenalty".to_string(), json!(pp));
-                }
-                if let Some(fp) = config.frequency_penalty {
-                    gc.insert("frequencyPenalty".to_string(), json!(fp));
-                }
-            } else {
-                let mut gc = serde_json::Map::new();
-                if let Some(pp) = config.presence_penalty {
-                    gc.insert("presencePenalty".to_string(), json!(pp));
-                }
-                if let Some(fp) = config.frequency_penalty {
-                    gc.insert("frequencyPenalty".to_string(), json!(fp));
-                }
-                req["generationConfig"] = Value::Object(gc);
-            }
         }
 
         // Tools (function declarations + optional web search)
@@ -432,7 +432,9 @@ impl ChatProvider for GeminiProvider {
         let api_base = self.api_base.clone();
 
         Box::pin(stream! {
-            let provider = GeminiProvider { auth: auth.clone(), client: Arc::clone(&client), api_base };
+            // auth was already cloned/moved into this closure; move it (not clone) into
+            // the temporary GeminiProvider used to call build_request/build_url/add_auth_header.
+            let provider = GeminiProvider { auth, client: Arc::clone(&client), api_base };
             let body = match provider.build_request(&messages, &config) {
                 Ok(b) => b,
                 Err(e) => { yield Err(e); return; }

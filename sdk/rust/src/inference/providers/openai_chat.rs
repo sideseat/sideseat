@@ -209,6 +209,44 @@ impl OpenAIChatProvider {
             .unwrap_or_else(|| "us-east-1".to_string());
         Ok(Self::for_bedrock_openai(region, api_key))
     }
+
+    /// Initialize Azure AI Foundry with default credential discovery.
+    ///
+    /// Tries `AZURE_OPENAI_API_KEY` env var first; falls back to Azure Managed
+    /// Identity via the IMDS endpoint (Azure VMs, Container Apps, AKS pod identity).
+    pub async fn for_azure_default(endpoint: impl Into<String>) -> Result<Self, crate::error::ProviderError> {
+        let ep = endpoint.into();
+        if let Ok(key) = std::env::var("AZURE_OPENAI_API_KEY")
+            && !key.is_empty()
+        {
+            return Ok(Self::new(key).with_api_base(ep));
+        }
+        let token = fetch_azure_imds_token("https://cognitiveservices.azure.com").await?;
+        Ok(Self::new(token).with_api_base(ep))
+    }
+}
+
+async fn fetch_azure_imds_token(resource: &str) -> Result<String, crate::error::ProviderError> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .build()
+        .map_err(|e| crate::error::ProviderError::Auth(format!("HTTP client error: {e}")))?;
+    let resp: serde_json::Value = client
+        .get(format!(
+            "http://169.254.169.254/metadata/identity/oauth2/token\
+             ?api-version=2018-02-01&resource={resource}"
+        ))
+        .header("Metadata", "true")
+        .send()
+        .await
+        .map_err(|e| crate::error::ProviderError::Auth(format!("Azure IMDS unreachable (not an Azure host?): {e}")))?
+        .json()
+        .await
+        .map_err(|e| crate::error::ProviderError::Auth(format!("Azure IMDS response parse error: {e}")))?;
+    resp.get("access_token")
+        .and_then(|v| v.as_str())
+        .map(ToString::to_string)
+        .ok_or_else(|| crate::error::ProviderError::Auth(format!("Azure IMDS missing access_token: {resp}")))
 }
 
 #[async_trait]
@@ -877,7 +915,10 @@ fn format_content(blocks: &[ContentBlock]) -> Result<Value, ProviderError> {
         return Ok(json!(t.text));
     }
     let parts: Result<Vec<Value>, _> = blocks.iter().map(format_content_part).collect();
-    Ok(json!(parts?))
+    // ToolResult/ToolUse are handled by specialised paths in format_messages; filter their
+    // null sentinels so they never appear in the final content array sent to OpenAI.
+    let parts: Vec<Value> = parts?.into_iter().filter(|v| !v.is_null()).collect();
+    Ok(json!(parts))
 }
 
 fn format_content_part(block: &ContentBlock) -> Result<Value, ProviderError> {
@@ -973,11 +1014,10 @@ fn format_tool_choice(tc: &ToolChoice) -> Value {
         ToolChoice::Any => json!("required"),
         ToolChoice::None => json!("none"),
         ToolChoice::Tool { name } => json!({"type": "function", "function": {"name": name}}),
-        ToolChoice::AllowedTools { tools } => json!({
-            "type": "allowed_tools",
-            "mode": "auto",
-            "tools": tools.iter().map(|n| json!({"type": "function", "name": n})).collect::<Vec<_>>(),
-        }),
+        // OpenAI Chat Completions has no native "allowed tools" directive.
+        // Best approximation: auto mode — the model may call any tool in the list.
+        // Callers that need strict restriction should filter config.tools before calling.
+        ToolChoice::AllowedTools { .. } => json!("auto"),
     }
 }
 

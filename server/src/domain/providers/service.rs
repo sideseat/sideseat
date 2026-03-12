@@ -50,7 +50,7 @@ pub enum CredentialSource {
 /// Fully resolved credential (metadata + source, no secret value)
 #[derive(Debug, Clone)]
 pub struct ResolvedCredential {
-    /// UUID for stored; "env:{VAR_NAME}" for env-scanned
+    /// UUID for stored; `"env:{VAR_NAME}"` for env-scanned; `"ambient:{cloud}"` for ambient IAM
     pub id: String,
     pub provider_key: String,
     pub display_name: String,
@@ -58,7 +58,7 @@ pub struct ResolvedCredential {
     pub extra_config: Option<serde_json::Value>,
     pub key_preview: Option<String>,
     pub source: CredentialSource,
-    /// true for env-sourced credentials — cannot be modified or deleted
+    /// true for read-only credentials (env-scanned or ambient) — cannot be modified or deleted
     pub read_only: bool,
     pub created_at: Option<i64>,
     pub created_by: Option<String>,
@@ -103,7 +103,7 @@ impl CredentialService {
     /// List all credentials accessible by the organization.
     ///
     /// If `project_id` is `Some`, only returns credentials accessible to that project
-    /// (based on permission rules). Env-sourced credentials always appear regardless.
+    /// (based on permission rules). Read-only credentials (env-scanned, ambient) always appear regardless.
     ///
     /// If `project_id` is `None`, returns all stored credentials (admin view).
     pub async fn list_for_org(
@@ -623,10 +623,11 @@ fn detect_gcp_ambient() -> Option<ResolvedCredential> {
         return None;
     }
 
+    // project_id is required by Vertex AI — skip if not determinable from env
     let project_id = std::env::var("GOOGLE_CLOUD_PROJECT")
         .or_else(|_| std::env::var("GCLOUD_PROJECT"))
         .or_else(|_| std::env::var("GCP_PROJECT"))
-        .ok();
+        .ok()?;
 
     let description = if std::env::var("GOOGLE_APPLICATION_CREDENTIALS").is_ok() {
         "service account file (GOOGLE_APPLICATION_CREDENTIALS)"
@@ -640,13 +641,11 @@ fn detect_gcp_ambient() -> Option<ResolvedCredential> {
         "GCE instance identity"
     };
 
-    let mut extra = serde_json::json!({
+    let extra = serde_json::json!({
         "auth_mode": "adc",
         "location": "us-central1",
+        "project_id": project_id,
     });
-    if let Some(pid) = project_id {
-        extra["project_id"] = serde_json::Value::String(pid);
-    }
 
     Some(ResolvedCredential {
         id: "ambient:gcp".to_string(),
@@ -682,6 +681,11 @@ fn detect_azure_ambient() -> Option<ResolvedCredential> {
         return None;
     }
 
+    // Without an endpoint the credential is unusable for Azure AI Foundry
+    let endpoint_url = std::env::var("AZURE_OPENAI_ENDPOINT")
+        .or_else(|_| std::env::var("AZURE_OPENAI_ENDPOINT_URL"))
+        .ok()?;
+
     let description = if std::env::var("AZURE_FEDERATED_TOKEN_FILE").is_ok() {
         "AKS workload identity federation"
     } else if std::env::var("MSI_ENDPOINT").is_ok() || std::env::var("IDENTITY_ENDPOINT").is_ok()
@@ -697,9 +701,13 @@ fn detect_azure_ambient() -> Option<ResolvedCredential> {
         id: "ambient:azure".to_string(),
         provider_key: "azure-ai-foundry".to_string(),
         display_name: "Azure AI Foundry (ambient MI)".to_string(),
-        endpoint_url: None,
+        endpoint_url: Some(endpoint_url),
         extra_config: Some(serde_json::json!({
             "auth_mode": "managed_identity",
+            // Modern Foundry resources expose the /openai/v1/ path which does not
+            // require a deployment name baked into the URL. The deployment is passed
+            // as the model field in the request body instead.
+            "api_variant": "v1",
         })),
         key_preview: None,
         source: CredentialSource::Ambient {

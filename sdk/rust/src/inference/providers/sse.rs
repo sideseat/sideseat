@@ -61,6 +61,13 @@ pub(crate) async fn check_response(response: Response) -> Result<Response, Provi
         return Err(ProviderError::ContextWindowExceeded(body));
     }
 
+    // 404 on a model endpoint means the model doesn't exist (wrong name, not enabled,
+    // or not yet available in the selected region/tier). Surface as ModelNotFound so
+    // callers like try_test_provider can treat it as an auth-success signal.
+    if status_code == 404 {
+        return Err(ProviderError::ModelNotFound { model: body });
+    }
+
     Err(ProviderError::Api {
         status: status_code,
         message: body,
