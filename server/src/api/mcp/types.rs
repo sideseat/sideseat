@@ -75,3 +75,11 @@ pub struct GetStatsInput {
     /// IANA timezone for trend bucketing (default: UTC)
     pub timezone: Option<String>,
 }
+
+#[derive(Deserialize, JsonSchema)]
+pub struct SetupGuideArgs {
+    /// Framework: strands, langchain, langgraph, crewai, autogen, openai-agents,
+    /// pydantic-ai, google-adk, agent-framework, bedrock, openai, anthropic,
+    /// google-genai, vertex-ai. Omit for generic OTLP setup.
+    pub framework: Option<String>,
+}
