@@ -91,7 +91,10 @@ pub struct LocalSyncBackend {
 impl LocalSyncBackend {
     pub fn new() -> Self {
         Self {
-            state: RwLock::new(LocalSyncState { next_seq: 1, deltas: Vec::new() }),
+            state: RwLock::new(LocalSyncState {
+                next_seq: 1,
+                deltas: Vec::new(),
+            }),
         }
     }
 
@@ -205,8 +208,8 @@ impl<B: super::backend::ContextBackend> SyncBackend for StorageSyncBackend<B> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::types::{BranchId, ConversationId};
+    use super::*;
 
     #[tokio::test]
     async fn local_push_fetch_round_trip() {
@@ -214,8 +217,14 @@ mod tests {
         let conv = ConversationId::new();
         let branch = BranchId::new();
 
-        let seq1 = backend.push_delta(&conv, &branch, "client-a", b"delta1").await.unwrap();
-        let seq2 = backend.push_delta(&conv, &branch, "client-b", b"delta2").await.unwrap();
+        let seq1 = backend
+            .push_delta(&conv, &branch, "client-a", b"delta1")
+            .await
+            .unwrap();
+        let seq2 = backend
+            .push_delta(&conv, &branch, "client-b", b"delta2")
+            .await
+            .unwrap();
 
         assert!(seq2 > seq1);
 
@@ -234,8 +243,14 @@ mod tests {
         let branch_a = BranchId::new();
         let branch_b = BranchId::new();
 
-        backend.push_delta(&conv, &branch_a, "c1", b"for-a").await.unwrap();
-        backend.push_delta(&conv, &branch_b, "c1", b"for-b").await.unwrap();
+        backend
+            .push_delta(&conv, &branch_a, "c1", b"for-a")
+            .await
+            .unwrap();
+        backend
+            .push_delta(&conv, &branch_b, "c1", b"for-b")
+            .await
+            .unwrap();
 
         let a_deltas = backend.fetch_deltas(&conv, &branch_a, 0).await.unwrap();
         let b_deltas = backend.fetch_deltas(&conv, &branch_b, 0).await.unwrap();
@@ -254,13 +269,29 @@ mod tests {
         let conv = ConversationId::new();
         let branch = BranchId::new();
 
-        backend.push_delta(&conv, &branch, "self", b"mine").await.unwrap();
-        backend.push_delta(&conv, &branch, "other", b"theirs").await.unwrap();
+        backend
+            .push_delta(&conv, &branch, "self", b"mine")
+            .await
+            .unwrap();
+        backend
+            .push_delta(&conv, &branch, "other", b"theirs")
+            .await
+            .unwrap();
 
         let deltas = backend.fetch_deltas(&conv, &branch, 0).await.unwrap();
-        assert_eq!(deltas.len(), 2, "fetch_deltas must return own and foreign deltas");
-        assert!(deltas.iter().any(|d| d.delta == b"mine"), "own delta must be included");
-        assert!(deltas.iter().any(|d| d.delta == b"theirs"), "foreign delta must be included");
+        assert_eq!(
+            deltas.len(),
+            2,
+            "fetch_deltas must return own and foreign deltas"
+        );
+        assert!(
+            deltas.iter().any(|d| d.delta == b"mine"),
+            "own delta must be included"
+        );
+        assert!(
+            deltas.iter().any(|d| d.delta == b"theirs"),
+            "foreign delta must be included"
+        );
     }
 
     #[tokio::test]
@@ -270,7 +301,9 @@ mod tests {
         let conv = ConversationId::new();
         let branch = BranchId::new();
 
-        sync.push_delta(&conv, &branch, "writer", b"hello").await.unwrap();
+        sync.push_delta(&conv, &branch, "writer", b"hello")
+            .await
+            .unwrap();
 
         let deltas = sync2.fetch_deltas(&conv, &branch, 0).await.unwrap();
         assert_eq!(deltas.len(), 1);
@@ -282,9 +315,9 @@ mod tests {
 
     #[tokio::test]
     async fn storage_push_fetch_round_trip() {
-        use std::sync::Arc;
         use super::super::backend::InMemoryContextBackend;
         use super::StorageSyncBackend;
+        use std::sync::Arc;
 
         let backend = Arc::new(InMemoryContextBackend::new());
         let sync = StorageSyncBackend::new(backend);
@@ -306,9 +339,9 @@ mod tests {
 
     #[tokio::test]
     async fn storage_filters_by_branch() {
-        use std::sync::Arc;
         use super::super::backend::InMemoryContextBackend;
         use super::StorageSyncBackend;
+        use std::sync::Arc;
 
         let backend = Arc::new(InMemoryContextBackend::new());
         let sync = StorageSyncBackend::new(backend);
@@ -316,8 +349,12 @@ mod tests {
         let branch_a = BranchId::new();
         let branch_b = BranchId::new();
 
-        sync.push_delta(&conv, &branch_a, "c", b"for-a").await.unwrap();
-        sync.push_delta(&conv, &branch_b, "c", b"for-b").await.unwrap();
+        sync.push_delta(&conv, &branch_a, "c", b"for-a")
+            .await
+            .unwrap();
+        sync.push_delta(&conv, &branch_b, "c", b"for-b")
+            .await
+            .unwrap();
 
         let a = sync.fetch_deltas(&conv, &branch_a, 0).await.unwrap();
         let b = sync.fetch_deltas(&conv, &branch_b, 0).await.unwrap();
@@ -330,16 +367,18 @@ mod tests {
 
     #[tokio::test]
     async fn storage_delta_metadata_round_trip() {
-        use std::sync::Arc;
         use super::super::backend::InMemoryContextBackend;
         use super::StorageSyncBackend;
+        use std::sync::Arc;
 
         let backend = Arc::new(InMemoryContextBackend::new());
         let sync = StorageSyncBackend::new(backend);
         let conv = ConversationId::new();
         let branch = BranchId::new();
 
-        sync.push_delta(&conv, &branch, "writer", b"payload").await.unwrap();
+        sync.push_delta(&conv, &branch, "writer", b"payload")
+            .await
+            .unwrap();
 
         let deltas = sync.fetch_deltas(&conv, &branch, 0).await.unwrap();
         assert_eq!(deltas.len(), 1);

@@ -58,11 +58,7 @@ export class CredentialsClient {
     );
   }
 
-  async deletePermission(
-    orgId: string,
-    credentialId: string,
-    permId: string,
-  ): Promise<void> {
+  async deletePermission(orgId: string, credentialId: string, permId: string): Promise<void> {
     await this.client.delete(
       `/organizations/${orgId}/credentials/${encodeURIComponent(credentialId)}/permissions/${encodeURIComponent(permId)}`,
     );

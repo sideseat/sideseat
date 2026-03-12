@@ -26,7 +26,11 @@ pub(crate) struct OpenAIInnerClient {
 }
 
 impl OpenAIInnerClient {
-    pub fn new(api_key: impl Into<String>, client: Arc<reqwest::Client>, api_base: impl Into<String>) -> Self {
+    pub fn new(
+        api_key: impl Into<String>,
+        client: Arc<reqwest::Client>,
+        api_base: impl Into<String>,
+    ) -> Self {
         Self {
             api_key: api_key.into(),
             client,
@@ -71,7 +75,10 @@ impl OpenAIInnerClient {
     // embed
     // ---------------------------------------------------------------------------
 
-    pub async fn embed(&self, request: EmbeddingRequest) -> Result<EmbeddingResponse, ProviderError> {
+    pub async fn embed(
+        &self,
+        request: EmbeddingRequest,
+    ) -> Result<EmbeddingResponse, ProviderError> {
         let url = format!("{}/embeddings", self.api_base);
         let mut body = json!({
             "model": request.model,
@@ -197,7 +204,10 @@ impl OpenAIInnerClient {
             .part("image", image_part)
             .text("model", request.model)
             .text("prompt", request.prompt)
-            .text("response_format", request.output_format.as_str().to_string());
+            .text(
+                "response_format",
+                request.output_format.as_str().to_string(),
+            );
 
         if let Some(mask) = request.mask {
             let mask_part = reqwest::multipart::Part::bytes(mask)

@@ -36,7 +36,16 @@ pub async fn list_credential_permissions(
     Ok(rows
         .into_iter()
         .map(
-            |(id, credential_id, organization_id, project_id, access, created_by, created_at, updated_at)| {
+            |(
+                id,
+                credential_id,
+                organization_id,
+                project_id,
+                access,
+                created_by,
+                created_at,
+                updated_at,
+            )| {
                 CredentialPermissionRow {
                     id,
                     credential_id,
@@ -175,7 +184,15 @@ mod tests {
         let perm_id = cuid2::create_id();
 
         create_credential(
-            &pool, &cred_id, "default", "anthropic", "Key", None, None, None, None,
+            &pool,
+            &cred_id,
+            "default",
+            "anthropic",
+            "Key",
+            None,
+            None,
+            None,
+            None,
         )
         .await
         .unwrap();
@@ -293,13 +310,9 @@ mod tests {
         .await
         .unwrap();
 
-        delete_credential(&pool, &cred_id, "default")
-            .await
-            .unwrap();
+        delete_credential(&pool, &cred_id, "default").await.unwrap();
 
-        let after_cascade = list_credential_permissions(&pool, &cred_id)
-            .await
-            .unwrap();
+        let after_cascade = list_credential_permissions(&pool, &cred_id).await.unwrap();
         assert!(after_cascade.is_empty());
     }
 }

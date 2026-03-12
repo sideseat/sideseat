@@ -772,6 +772,49 @@ fn test_strands_agents_framework_detection_new_convention() {
 }
 
 #[test]
+fn test_strands_agents_framework_detection_via_span_name_and_agent_attr() {
+    let empty_attrs = HashMap::new();
+    let resource_attrs = HashMap::new();
+
+    // span name variants (space, hyphen, underscore, case-insensitive)
+    for span_name in &[
+        "invoke_agent Strands Agent",
+        "invoke_agent strands agent",
+        "invoke_agent Strands-Agent",
+        "invoke_agent strands_agent",
+        "Strands Agent runner",
+    ] {
+        assert_eq!(
+            detect_framework(span_name, &empty_attrs, &resource_attrs),
+            Framework::StrandsAgents,
+            "span name '{span_name}' should detect Strands"
+        );
+    }
+
+    // gen_ai.agent.name variants
+    for agent_name in &[
+        "Strands Agent",
+        "strands agent",
+        "Strands-Agent",
+        "strands_agent",
+    ] {
+        let attrs = make_attrs(&[("gen_ai.agent.name", agent_name)]);
+        assert_eq!(
+            detect_framework("chat", &attrs, &resource_attrs),
+            Framework::StrandsAgents,
+            "gen_ai.agent.name='{agent_name}' should detect Strands"
+        );
+    }
+
+    // bare invoke_agent without Strands in name should NOT match
+    assert_ne!(
+        detect_framework("invoke_agent", &empty_attrs, &resource_attrs),
+        Framework::StrandsAgents,
+        "bare 'invoke_agent' should not match"
+    );
+}
+
+#[test]
 fn test_strands_agents_performance_metrics() {
     // Strands sets TTFT and request duration
     let attrs = make_attrs(&[

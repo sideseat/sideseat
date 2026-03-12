@@ -17,7 +17,10 @@ async fn test_cohere_complete() {
     mock_json(&server, POST, "/chat", COHERE_COMPLETE_JSON);
     let config = default_config(COHERE_MODEL);
 
-    let resp = provider.complete(vec![user_msg("Say hello in one word.")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Say hello in one word.")], config)
+        .await
+        .unwrap();
 
     assert!(!resp.text().is_empty());
     assert!(resp.usage.input_tokens > 0);
@@ -34,7 +37,9 @@ async fn test_cohere_stream() {
     );
     server.mock(|when, then| {
         when.method(POST).path_includes("/chat");
-        then.status(200).header("content-type", "text/event-stream").body(stream_events);
+        then.status(200)
+            .header("content-type", "text/event-stream")
+            .body(stream_events);
     });
     let config = default_config(COHERE_MODEL);
 
@@ -51,7 +56,10 @@ async fn test_cohere_system_prompt() {
     let mut config = default_config(COHERE_MODEL);
     config.system = Some("You are a pirate. Respond only in pirate speak.".to_string());
 
-    let resp = provider.complete(vec![user_msg("Hello!")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Hello!")], config)
+        .await
+        .unwrap();
 
     assert!(!resp.text().is_empty());
 }
@@ -79,9 +87,15 @@ async fn test_cohere_tools() {
     let mut config = default_config(COHERE_MODEL);
     config.tools = vec![echo_tool()];
 
-    let resp = provider.complete(vec![user_msg("Please echo the word 'mango'")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Please echo the word 'mango'")], config)
+        .await
+        .unwrap();
 
-    let has_tool = resp.content.iter().any(|b| matches!(b, ContentBlock::ToolUse(_)));
+    let has_tool = resp
+        .content
+        .iter()
+        .any(|b| matches!(b, ContentBlock::ToolUse(_)));
     assert!(has_tool, "expected tool_use block, got: {:?}", resp.content);
 }
 
@@ -103,7 +117,10 @@ async fn test_cohere_count_tokens() {
     mock_json(&server, POST, "/tokenize", COHERE_TOKENIZE_JSON);
     let config = default_config(COHERE_MODEL);
 
-    let count = provider.count_tokens(vec![user_msg("Hello, world!")], config).await.unwrap();
+    let count = provider
+        .count_tokens(vec![user_msg("Hello, world!")], config)
+        .await
+        .unwrap();
     assert!(count.input_tokens > 0);
 }
 
@@ -126,11 +143,16 @@ async fn test_cohere_bedrock_complete() {
     let (server, provider) = mock_bedrock();
     server.mock(|when, then| {
         when.method(POST).path_matches(r".*\/converse$");
-        then.status(200).header("content-type", "application/json").body(BEDROCK_COMPLETE_JSON);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(BEDROCK_COMPLETE_JSON);
     });
     let config = default_config("cohere.command-r-v1:0");
 
-    let resp = provider.complete(vec![user_msg("Say hello in one word.")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Say hello in one word.")], config)
+        .await
+        .unwrap();
     assert!(!resp.text().is_empty());
 }
 
@@ -156,12 +178,17 @@ async fn test_cohere_bedrock_system_prompt() {
     let (server, provider) = mock_bedrock();
     server.mock(|when, then| {
         when.method(POST).path_matches(r".*\/converse$");
-        then.status(200).header("content-type", "application/json").body(BEDROCK_COMPLETE_JSON);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(BEDROCK_COMPLETE_JSON);
     });
     let mut config = default_config("cohere.command-r-v1:0");
     config.system = Some("You are a pirate.".to_string());
 
-    let resp = provider.complete(vec![user_msg("Hello!")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Hello!")], config)
+        .await
+        .unwrap();
     assert!(!resp.text().is_empty());
 }
 
@@ -170,7 +197,9 @@ async fn test_cohere_bedrock_multi_turn() {
     let (server, provider) = mock_bedrock();
     server.mock(|when, then| {
         when.method(POST).path_matches(r".*\/converse$");
-        then.status(200).header("content-type", "application/json").body(BEDROCK_COMPLETE_JSON);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(BEDROCK_COMPLETE_JSON);
     });
     let config = default_config("cohere.command-r-v1:0");
 
@@ -189,14 +218,22 @@ async fn test_cohere_bedrock_tools() {
     let (server, provider) = mock_bedrock();
     server.mock(|when, then| {
         when.method(POST).path_matches(r".*\/converse$");
-        then.status(200).header("content-type", "application/json").body(BEDROCK_TOOL_JSON);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(BEDROCK_TOOL_JSON);
     });
     let mut config = default_config("cohere.command-r-v1:0");
     config.tools = vec![echo_tool()];
 
-    let resp = provider.complete(vec![user_msg("Please echo the word 'mango'")], config).await.unwrap();
+    let resp = provider
+        .complete(vec![user_msg("Please echo the word 'mango'")], config)
+        .await
+        .unwrap();
 
-    let has_tool = resp.content.iter().any(|b| matches!(b, ContentBlock::ToolUse(_)));
+    let has_tool = resp
+        .content
+        .iter()
+        .any(|b| matches!(b, ContentBlock::ToolUse(_)));
     assert!(has_tool, "expected tool_use block, got: {:?}", resp.content);
 }
 
@@ -205,7 +242,9 @@ async fn test_cohere_bedrock_embed() {
     let (server, provider) = mock_bedrock();
     server.mock(|when, then| {
         when.method(POST).path_includes("/invoke");
-        then.status(200).header("content-type", "application/json").body(BEDROCK_EMBED_COHERE_JSON);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(BEDROCK_EMBED_COHERE_JSON);
     });
 
     let model = "cohere.embed-english-v3";

@@ -72,6 +72,7 @@ export async function run(modelId: string) {
   const agent = new Agent({
     model: resolveModel(modelId),
     tools: [searchTool],
+    printer: false,
     systemPrompt: SYSTEM_PROMPT,
   });
 

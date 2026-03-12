@@ -62,7 +62,8 @@ impl ProviderRegistry {
         provider: impl ChatProvider + 'static,
     ) -> &mut Self {
         let prefix = prefix.into();
-        self.default_models.insert(prefix.clone(), default_model.into());
+        self.default_models
+            .insert(prefix.clone(), default_model.into());
         self.providers.insert(prefix, Box::new(provider));
         self
     }
@@ -88,7 +89,11 @@ impl ProviderRegistry {
         // Fallback: model_id itself is a registered prefix (e.g. "openai" with no colon).
         // Use the registered default model when available; otherwise send empty string.
         if let Some(p) = self.providers.get(model_id) {
-            let model = self.default_models.get(model_id).cloned().unwrap_or_default();
+            let model = self
+                .default_models
+                .get(model_id)
+                .cloned()
+                .unwrap_or_default();
             return Some((p.as_ref(), model));
         }
         None

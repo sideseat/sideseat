@@ -1,15 +1,11 @@
 /**
- * Structured output sample using tool-based approach.
- *
- * Note: Strands JS SDK doesn't have native structured_output() like Python.
- * This sample uses a tool-based workaround where the tool receives validated input.
+ * Structured output sample using native structuredOutputSchema.
  */
 
-import { Agent, tool } from '@strands-agents/sdk';
+import { Agent } from '@strands-agents/sdk';
 import { z } from 'zod';
 import { resolveModel } from '../../shared/config.js';
 
-// Schema matching Python's Pydantic model
 const AddressSchema = z.object({
   street: z.string(),
   city: z.string(),
@@ -30,29 +26,18 @@ const PersonSchema = z.object({
   skills: z.array(z.string()).default([]).describe('Professional skills'),
 });
 
-type Person = z.infer<typeof PersonSchema>;
-
 export async function run(modelId: string) {
-  // Create a tool that receives structured output
-  const extractPersonTool = tool({
-    name: 'extract_person',
-    description:
-      'Extract complete person information from text. Always use this tool to return structured person data.',
-    inputSchema: PersonSchema,
-    callback: (input): Person => input,
-  });
-
   const agent = new Agent({
     model: resolveModel(modelId),
-    tools: [extractPersonTool],
-    systemPrompt: `You are an information extraction assistant.
-When asked to extract person information, ALWAYS use the extract_person tool to return the data.
-Never respond with plain text - always use the tool.`,
+    structuredOutputSchema: PersonSchema,
+    printer: false,
+    systemPrompt:
+      'You are an information extraction assistant. Extract the person information from the provided text.',
   });
 
   const result = await agent.invoke(
     'Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com'
   );
 
-  console.log(result);
+  console.log(JSON.stringify(result.structuredOutput, null, 2));
 }

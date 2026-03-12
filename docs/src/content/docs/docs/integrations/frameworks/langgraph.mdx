@@ -7,6 +7,12 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 
 [LangGraph](https://langchain-ai.github.io/langgraph/) is a library for building stateful, multi-actor applications with LLMs. SideSeat captures runs from graph steps so you can debug state transitions.
 
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- Python 3.9+
+- OpenAI API key (or another LangChain-supported model)
+
 ## Quick Start
 
 <Steps>
@@ -32,6 +38,10 @@ import { Aside, Steps } from '@astrojs/starlight/components';
    result = agent.invoke({"messages": [("user", "Hello!")]})
    print(result["messages"][-1].content)
    ```
+
+3. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
 </Steps>
 
 ## Without SideSeat SDK

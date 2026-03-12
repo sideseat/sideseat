@@ -423,10 +423,7 @@ impl<P: ChatProvider + Send + Sync + 'static> ChatProvider for InstrumentedProvi
 impl<P: Provider + EmbeddingProvider + Send + Sync + 'static> EmbeddingProvider
     for InstrumentedProvider<P>
 {
-    async fn embed(
-        &self,
-        request: EmbeddingRequest,
-    ) -> Result<EmbeddingResponse, ProviderError> {
+    async fn embed(&self, request: EmbeddingRequest) -> Result<EmbeddingResponse, ProviderError> {
         let started = Instant::now();
         let model = request.model.clone();
         let mut span = build_span(
@@ -829,7 +826,10 @@ impl SideSeat {
     /// `SIDESEAT_PROJECT_ID` (default: `default`).
     pub fn new() -> Self {
         Self {
-            endpoint: crate::env::optional_or(crate::env::keys::SIDESEAT_ENDPOINT, "http://localhost:5388"),
+            endpoint: crate::env::optional_or(
+                crate::env::keys::SIDESEAT_ENDPOINT,
+                "http://localhost:5388",
+            ),
             project_id: crate::env::optional_or(crate::env::keys::SIDESEAT_PROJECT_ID, "default"),
             api_key: crate::env::optional(crate::env::keys::SIDESEAT_API_KEY),
             capture_content: false,

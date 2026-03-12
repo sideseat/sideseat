@@ -25,11 +25,14 @@ class Frameworks:
     OpenAIAgents = "openai-agents"
     GoogleADK = "google-adk"
     PydanticAI = "pydantic-ai"
-    OpenAI = "openai"
-    Anthropic = "anthropic"
-    GoogleGenAI = "google_genai"
+    AgentFramework = "agent-framework"
+
     # Providers
     Bedrock = "bedrock"
+    Anthropic = "anthropic"
+    OpenAI = "openai"
+    GoogleGenAI = "google_genai"
+    VertexAI = "vertex-ai"
 
 
 FRAMEWORK_PACKAGES = [
@@ -41,9 +44,11 @@ FRAMEWORK_PACKAGES = [
     (Frameworks.OpenAIAgents, "agents"),
     (Frameworks.GoogleADK, "google-adk"),
     (Frameworks.PydanticAI, "pydantic-ai"),
+    (Frameworks.AgentFramework, "agent-framework-core"),
     (Frameworks.OpenAI, "openai"),
     (Frameworks.Anthropic, "anthropic"),
     (Frameworks.GoogleGenAI, "google-genai"),
+    (Frameworks.VertexAI, "vertexai"),
 ]
 
 _FRAMEWORK_KEYS = {key for key, _ in FRAMEWORK_PACKAGES}

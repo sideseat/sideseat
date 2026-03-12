@@ -54,7 +54,9 @@ pub struct CohereProvider {
 impl CohereProvider {
     /// Create a provider from the `COHERE_API_KEY` environment variable.
     pub fn from_env() -> Result<Self, ProviderError> {
-        Ok(Self::new(crate::env::require(crate::env::keys::COHERE_API_KEY)?))
+        Ok(Self::new(crate::env::require(
+            crate::env::keys::COHERE_API_KEY,
+        )?))
     }
 
     pub fn new(api_key: impl Into<String>) -> Self {
@@ -82,7 +84,12 @@ impl CohereProvider {
     /// - Embeddings: `{base}/embed`
     pub fn with_api_base(mut self, base: impl Into<String>) -> Self {
         let base = base.into();
-        if let CohereBackend::Direct { ref mut base_url, ref mut api_base, .. } = self.backend {
+        if let CohereBackend::Direct {
+            ref mut base_url,
+            ref mut api_base,
+            ..
+        } = self.backend
+        {
             *base_url = format!("{}/chat", base);
             *api_base = base;
         }
@@ -153,7 +160,9 @@ impl Provider for CohereProvider {
 
     async fn list_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
         match &self.backend {
-            CohereBackend::Direct { api_key, api_base, .. } => {
+            CohereBackend::Direct {
+                api_key, api_base, ..
+            } => {
                 let base_url = format!("{}/models", api_base);
                 let mut models = Vec::new();
                 let mut page_token: Option<String> = None;
@@ -506,14 +515,12 @@ impl ChatProvider for CohereProvider {
         config: ProviderConfig,
     ) -> Result<crate::types::Response, ProviderError> {
         match &self.backend {
-            CohereBackend::Direct { api_key, base_url, .. } => {
+            CohereBackend::Direct {
+                api_key, base_url, ..
+            } => {
                 let body = build_request(&messages, &config, false)?;
 
-                let mut req_builder = self
-                    .client
-                    .post(base_url)
-                    .bearer_auth(api_key)
-                    .json(&body);
+                let mut req_builder = self.client.post(base_url).bearer_auth(api_key).json(&body);
                 if let Some(ms) = config.timeout_ms {
                     req_builder = req_builder.timeout(std::time::Duration::from_millis(ms));
                 }
@@ -542,7 +549,8 @@ impl ChatProvider for CohereProvider {
                         .map_err(|_| ProviderError::Timeout { ms: Some(ms) })?
                         .map_err(|e| classify_bedrock_sdk_error(format!("{e:?}")))?
                 } else {
-                    fut.await.map_err(|e| classify_bedrock_sdk_error(format!("{e:?}")))?
+                    fut.await
+                        .map_err(|e| classify_bedrock_sdk_error(format!("{e:?}")))?
                 };
 
                 let json: Value = serde_json::from_slice(resp.body.as_ref())
@@ -558,7 +566,9 @@ impl ChatProvider for CohereProvider {
         config: ProviderConfig,
     ) -> Result<TokenCount, ProviderError> {
         match &self.backend {
-            CohereBackend::Direct { api_key, api_base, .. } => {
+            CohereBackend::Direct {
+                api_key, api_base, ..
+            } => {
                 let url = format!("{}/tokenize", api_base);
 
                 let text: String = messages
@@ -608,10 +618,7 @@ impl ChatProvider for CohereProvider {
 
 #[async_trait]
 impl EmbeddingProvider for CohereProvider {
-    async fn embed(
-        &self,
-        request: EmbeddingRequest,
-    ) -> Result<EmbeddingResponse, ProviderError> {
+    async fn embed(&self, request: EmbeddingRequest) -> Result<EmbeddingResponse, ProviderError> {
         let model = request.model.as_str();
 
         let input_type = request
@@ -633,7 +640,9 @@ impl EmbeddingProvider for CohereProvider {
             .unwrap_or("search_document");
 
         match &self.backend {
-            CohereBackend::Direct { api_key, api_base, .. } => {
+            CohereBackend::Direct {
+                api_key, api_base, ..
+            } => {
                 let url = format!("{}/embed", api_base);
 
                 let default_types = vec!["float".to_string()];
@@ -978,53 +987,54 @@ fn format_bedrock_messages(messages: &[Message]) -> (String, Vec<Value>, Vec<Val
 
 /// Format tools for Cohere v1 (Bedrock): `parameter_definitions` instead of JSON Schema.
 fn format_bedrock_tools(tools: &[Tool]) -> Value {
-    json!(tools
-        .iter()
-        .map(|t| {
-            let schema = &t.input_schema;
-            let required: Vec<&str> = schema["required"]
-                .as_array()
-                .map(|r| r.iter().filter_map(|v| v.as_str()).collect())
-                .unwrap_or_default();
+    json!(
+        tools
+            .iter()
+            .map(|t| {
+                let schema = &t.input_schema;
+                let required: Vec<&str> = schema["required"]
+                    .as_array()
+                    .map(|r| r.iter().filter_map(|v| v.as_str()).collect())
+                    .unwrap_or_default();
 
-            let param_defs: serde_json::Map<String, Value> = schema["properties"]
-                .as_object()
-                .map(|props| {
-                    props
-                        .iter()
-                        .map(|(name, prop)| {
-                            let cohere_type = match prop["type"].as_str().unwrap_or("str") {
-                                "string" => "str",
-                                "integer" => "int",
-                                "number" => "float",
-                                "boolean" => "bool",
-                                "array" => "List[str]",
-                                "object" => "Dict",
-                                other => other,
-                            };
-                            let desc =
-                                prop["description"].as_str().unwrap_or("").to_string();
-                            let is_required = required.contains(&name.as_str());
-                            (
-                                name.clone(),
-                                json!({
-                                    "description": desc,
-                                    "type": cohere_type,
-                                    "required": is_required,
-                                }),
-                            )
-                        })
-                        .collect()
+                let param_defs: serde_json::Map<String, Value> = schema["properties"]
+                    .as_object()
+                    .map(|props| {
+                        props
+                            .iter()
+                            .map(|(name, prop)| {
+                                let cohere_type = match prop["type"].as_str().unwrap_or("str") {
+                                    "string" => "str",
+                                    "integer" => "int",
+                                    "number" => "float",
+                                    "boolean" => "bool",
+                                    "array" => "List[str]",
+                                    "object" => "Dict",
+                                    other => other,
+                                };
+                                let desc = prop["description"].as_str().unwrap_or("").to_string();
+                                let is_required = required.contains(&name.as_str());
+                                (
+                                    name.clone(),
+                                    json!({
+                                        "description": desc,
+                                        "type": cohere_type,
+                                        "required": is_required,
+                                    }),
+                                )
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                json!({
+                    "name": t.name,
+                    "description": t.description,
+                    "parameter_definitions": param_defs,
                 })
-                .unwrap_or_default();
-
-            json!({
-                "name": t.name,
-                "description": t.description,
-                "parameter_definitions": param_defs,
             })
-        })
-        .collect::<Vec<_>>())
+            .collect::<Vec<_>>()
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -1371,7 +1381,11 @@ fn parse_cohere_v1_usage(json: &Value) -> Usage {
         .or_else(|| json["usage"]["tokens"]["output_tokens"].as_u64())
         .or_else(|| json["token_count"]["response_tokens"].as_u64())
         .unwrap_or(0);
-    Usage { input_tokens: input, output_tokens: output, ..Default::default() }
+    Usage {
+        input_tokens: input,
+        output_tokens: output,
+        ..Default::default()
+    }
 }
 
 fn parse_cohere_usage(usage: &Value) -> Usage {
@@ -1403,7 +1417,10 @@ fn parse_finish_reason(reason: &str) -> StopReason {
         "ERROR" => StopReason::Other("error".to_string()),
         "TIMEOUT" => StopReason::Other("timeout".to_string()),
         other => {
-            tracing::debug!("Cohere: unknown finish_reason {:?}, mapping to Other", other);
+            tracing::debug!(
+                "Cohere: unknown finish_reason {:?}, mapping to Other",
+                other
+            );
             StopReason::Other(other.to_string())
         }
     }
@@ -1421,11 +1438,22 @@ fn parse_logprobs(val: &Value) -> Option<Vec<TokenLogprob>> {
     let mut result = Vec::new();
     for item in items {
         let text = item["text"].as_str().unwrap_or("");
-        let lps = item["logprobs"].as_array().map(|a| a.as_slice()).unwrap_or(&[]);
-        let ids = item["token_ids"].as_array().map(|a| a.len()).unwrap_or(1).max(1);
+        let lps = item["logprobs"]
+            .as_array()
+            .map(|a| a.as_slice())
+            .unwrap_or(&[]);
+        let ids = item["token_ids"]
+            .as_array()
+            .map(|a| a.len())
+            .unwrap_or(1)
+            .max(1);
         for (i, lp) in lps.iter().enumerate().take(ids) {
             result.push(TokenLogprob {
-                token: if i == 0 { text.to_string() } else { String::new() },
+                token: if i == 0 {
+                    text.to_string()
+                } else {
+                    String::new()
+                },
                 logprob: lp.as_f64().unwrap_or(0.0),
                 bytes: None,
                 top_logprobs: vec![],
@@ -1440,7 +1468,11 @@ fn parse_logprobs(val: &Value) -> Option<Vec<TokenLogprob>> {
             });
         }
     }
-    if result.is_empty() { None } else { Some(result) }
+    if result.is_empty() {
+        None
+    } else {
+        Some(result)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1449,11 +1481,17 @@ fn parse_logprobs(val: &Value) -> Option<Vec<TokenLogprob>> {
 
 fn classify_bedrock_sdk_error(msg: String) -> ProviderError {
     if msg.contains("ThrottlingException") || msg.to_lowercase().contains("throttl") {
-        ProviderError::TooManyRequests { message: msg, retry_after_secs: None }
+        ProviderError::TooManyRequests {
+            message: msg,
+            retry_after_secs: None,
+        }
     } else if msg.contains("ModelTimeoutException") {
         ProviderError::Timeout { ms: None }
     } else {
-        ProviderError::Api { status: 0, message: msg }
+        ProviderError::Api {
+            status: 0,
+            message: msg,
+        }
     }
 }
 
@@ -1556,17 +1594,32 @@ mod tests {
 
     #[test]
     fn test_parse_finish_reasons() {
-        assert!(matches!(parse_finish_reason("COMPLETE"), StopReason::EndTurn));
-        assert!(matches!(parse_finish_reason("MAX_TOKENS"), StopReason::MaxTokens));
-        assert!(matches!(parse_finish_reason("TOOL_CALL"), StopReason::ToolUse));
-        assert!(matches!(parse_finish_reason("STOP_SEQUENCE"), StopReason::StopSequence(_)));
+        assert!(matches!(
+            parse_finish_reason("COMPLETE"),
+            StopReason::EndTurn
+        ));
+        assert!(matches!(
+            parse_finish_reason("MAX_TOKENS"),
+            StopReason::MaxTokens
+        ));
+        assert!(matches!(
+            parse_finish_reason("TOOL_CALL"),
+            StopReason::ToolUse
+        ));
+        assert!(matches!(
+            parse_finish_reason("STOP_SEQUENCE"),
+            StopReason::StopSequence(_)
+        ));
         assert!(matches!(parse_finish_reason("ERROR"), StopReason::Other(s) if s == "error"));
     }
 
     #[test]
     fn test_with_api_base() {
         let provider = CohereProvider::new("key").with_api_base("https://proxy.example.com/v2");
-        if let CohereBackend::Direct { base_url, api_base, .. } = &provider.backend {
+        if let CohereBackend::Direct {
+            base_url, api_base, ..
+        } = &provider.backend
+        {
             assert_eq!(base_url, "https://proxy.example.com/v2/chat");
             assert_eq!(api_base, "https://proxy.example.com/v2");
         } else {
@@ -1700,7 +1753,9 @@ mod tests {
             }
         });
         let resp = parse_bedrock_response(&json).unwrap();
-        assert!(matches!(&resp.content[0], ContentBlock::ToolUse(tu) if tu.name == "get_weather" && tu.input["location"] == "Paris"));
+        assert!(
+            matches!(&resp.content[0], ContentBlock::ToolUse(tu) if tu.name == "get_weather" && tu.input["location"] == "Paris")
+        );
         assert!(matches!(resp.stop_reason, StopReason::ToolUse));
     }
 

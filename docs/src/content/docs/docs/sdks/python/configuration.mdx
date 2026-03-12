@@ -90,9 +90,11 @@ Available frameworks:
 - `Frameworks.OpenAIAgents`
 - `Frameworks.GoogleADK`
 - `Frameworks.PydanticAI`
+- `Frameworks.AgentFramework`
 - `Frameworks.OpenAI`
 - `Frameworks.Anthropic`
 - `Frameworks.GoogleGenAI`
+- `Frameworks.VertexAI` — native Vertex AI SDK (`google-cloud-aiplatform`)
 
 If not specified, the SDK auto-detects in this order:
 1. Strands (`strands-agents`)
@@ -102,6 +104,7 @@ If not specified, the SDK auto-detects in this order:
 5. OpenAI Agents (`agents`)
 6. Google ADK (`google-adk`)
 7. PydanticAI (`pydantic-ai`)
+8. Microsoft Agent Framework (`agent-framework-core`)
 
 <Aside type="note">
 LangGraph is detected via `langchain-core` (its dependency). Use `framework=Frameworks.LangGraph` to explicitly select LangGraph instrumentation.

@@ -30,15 +30,8 @@ export function useUpdateCredential() {
   const client = useCredentialsClient();
 
   return useMutation({
-    mutationFn: ({
-      orgId,
-      id,
-      req,
-    }: {
-      orgId: string;
-      id: string;
-      req: UpdateCredentialRequest;
-    }) => client.update(orgId, id, req),
+    mutationFn: ({ orgId, id, req }: { orgId: string; id: string; req: UpdateCredentialRequest }) =>
+      client.update(orgId, id, req),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: credentialKeys.lists() });
       toast.success("Credential updated");

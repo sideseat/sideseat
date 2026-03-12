@@ -78,13 +78,7 @@ export function Wizard({
   );
 }
 
-function WizardStepIndicator({
-  steps,
-  currentStep,
-}: {
-  steps: WizardStep[];
-  currentStep: number;
-}) {
+function WizardStepIndicator({ steps, currentStep }: { steps: WizardStep[]; currentStep: number }) {
   return (
     <ol className="flex items-center">
       {steps.map((step, index) => {

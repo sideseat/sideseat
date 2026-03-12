@@ -210,10 +210,7 @@ impl CacheService {
     /// Get a typed value from the process-local cache (MessagePack).
     ///
     /// Use for sensitive data that must never leave the process.
-    pub async fn get_local<T: DeserializeOwned>(
-        &self,
-        key: &str,
-    ) -> Result<Option<T>, CacheError> {
+    pub async fn get_local<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>, CacheError> {
         match self.get_local_raw(key).await? {
             Some(bytes) => {
                 let value = rmp_serde::from_slice(&bytes)
@@ -355,17 +352,17 @@ mod tests {
 
         // Should NOT be present in primary backend
         let raw = service.get_raw("secret:key").await.unwrap();
-        assert!(raw.is_none(), "sensitive data must not reach primary backend");
+        assert!(
+            raw.is_none(),
+            "sensitive data must not reach primary backend"
+        );
     }
 
     #[tokio::test]
     async fn test_local_delete() {
         let service = CacheService::new(&test_config()).await.unwrap();
 
-        service
-            .set_local("k", &42u32, None)
-            .await
-            .unwrap();
+        service.set_local("k", &42u32, None).await.unwrap();
 
         let deleted = service.delete_local("k").await.unwrap();
         assert!(deleted);

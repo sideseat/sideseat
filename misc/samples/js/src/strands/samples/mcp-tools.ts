@@ -26,11 +26,12 @@ export async function run(modelId: string) {
     const agent = new Agent({
       model: resolveModel(modelId),
       tools: [calculatorTools],
+      printer: false,
       systemPrompt: 'You help users to calculate expressions.',
     });
 
     const result = await agent.invoke('Calculate an expression for me: What is 12345 plus 6789?');
-    console.log(result);
+    console.log(result.toString());
   } finally {
     await calculatorTools.disconnect();
   }

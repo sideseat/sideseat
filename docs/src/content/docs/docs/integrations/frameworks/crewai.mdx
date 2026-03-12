@@ -47,7 +47,30 @@ import { Aside, Steps } from '@astrojs/starlight/components';
    crew = Crew(agents=[researcher], tasks=[task])
    result = crew.kickoff()
    ```
+
+3. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
 </Steps>
+
+## Without SideSeat SDK
+
+Configure the OpenTelemetry SDK directly:
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+provider = TracerProvider()
+provider.add_span_processor(
+    BatchSpanProcessor(
+        OTLPSpanExporter(endpoint="http://localhost:5388/otel/default/v1/traces")
+    )
+)
+trace.set_tracer_provider(provider)
+```
 
 ## Multi-Agent Crews
 

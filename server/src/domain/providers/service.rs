@@ -41,10 +41,14 @@ pub enum CredentialError {
 pub enum CredentialSource {
     Stored,
     /// Static API key read from a named environment variable
-    Environment { var_name: String },
+    Environment {
+        var_name: String,
+    },
     /// Cloud-platform ambient identity (IAM role, workload identity, managed identity).
     /// No static secret — the SDK provider fetches and refreshes tokens internally.
-    Ambient { description: String },
+    Ambient {
+        description: String,
+    },
 }
 
 /// Fully resolved credential (metadata + source, no secret value)
@@ -128,11 +132,7 @@ impl CredentialService {
 
         let mut result: Vec<ResolvedCredential> = stored_rows
             .into_iter()
-            .filter(|row| {
-                accessible
-                    .as_ref()
-                    .is_none_or(|set| set.contains(&row.id))
-            })
+            .filter(|row| accessible.as_ref().is_none_or(|set| set.contains(&row.id)))
             .map(row_to_resolved)
             .collect();
 
@@ -404,11 +404,7 @@ impl CredentialService {
     // =========================================================================
 
     /// Test a credential by attempting to reach the provider API.
-    pub async fn test(
-        &self,
-        org_id: &str,
-        cred_id: &str,
-    ) -> Result<TestResult, CredentialError> {
+    pub async fn test(&self, org_id: &str, cred_id: &str) -> Result<TestResult, CredentialError> {
         let resolved = self
             .get_resolved(org_id, cred_id)
             .await?
@@ -555,11 +551,11 @@ fn detect_single_ambient(cloud: &str) -> Option<ResolvedCredential> {
 fn detect_aws_ambient() -> Option<ResolvedCredential> {
     const INDICATORS: &[&str] = &[
         "AWS_ACCESS_KEY_ID",
-        "AWS_WEB_IDENTITY_TOKEN_FILE",  // IRSA / EKS workload identity
-        "AWS_ROLE_ARN",                 // explicit assume-role
+        "AWS_WEB_IDENTITY_TOKEN_FILE", // IRSA / EKS workload identity
+        "AWS_ROLE_ARN",                // explicit assume-role
         "ECS_CONTAINER_METADATA_URI_V4",
         "ECS_CONTAINER_METADATA_URI",
-        "AWS_EXECUTION_ENV",            // Lambda / ECS
+        "AWS_EXECUTION_ENV", // Lambda / ECS
         "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
     ];
 
@@ -613,10 +609,10 @@ fn detect_gcp_ambient() -> Option<ResolvedCredential> {
         "GOOGLE_CLOUD_PROJECT",
         "GCLOUD_PROJECT",
         "GCP_PROJECT",
-        "K_SERVICE",        // Cloud Run service
-        "K_REVISION",       // Cloud Run revision
-        "CLOUD_RUN_JOB",    // Cloud Run Jobs
-        "FUNCTION_TARGET",  // Cloud Functions (2nd gen)
+        "K_SERVICE",       // Cloud Run service
+        "K_REVISION",      // Cloud Run revision
+        "CLOUD_RUN_JOB",   // Cloud Run Jobs
+        "FUNCTION_TARGET", // Cloud Functions (2nd gen)
     ];
 
     if !env_any(INDICATORS) {
@@ -670,11 +666,11 @@ fn detect_gcp_ambient() -> Option<ResolvedCredential> {
 /// Token is fetched live via IMDS or the workload identity OIDC endpoint.
 fn detect_azure_ambient() -> Option<ResolvedCredential> {
     const INDICATORS: &[&str] = &[
-        "AZURE_CLIENT_ID",          // user-assigned MI or workload identity client
+        "AZURE_CLIENT_ID",            // user-assigned MI or workload identity client
         "AZURE_FEDERATED_TOKEN_FILE", // AKS workload identity federation
-        "MSI_ENDPOINT",             // App Service / Azure Functions (legacy)
-        "IDENTITY_ENDPOINT",        // App Service / Container Apps (newer)
-        "IMDS_ENDPOINT",            // IMDS endpoint override (Azure Arc etc.)
+        "MSI_ENDPOINT",               // App Service / Azure Functions (legacy)
+        "IDENTITY_ENDPOINT",          // App Service / Container Apps (newer)
+        "IMDS_ENDPOINT",              // IMDS endpoint override (Azure Arc etc.)
     ];
 
     if !env_any(INDICATORS) {
@@ -688,8 +684,7 @@ fn detect_azure_ambient() -> Option<ResolvedCredential> {
 
     let description = if std::env::var("AZURE_FEDERATED_TOKEN_FILE").is_ok() {
         "AKS workload identity federation"
-    } else if std::env::var("MSI_ENDPOINT").is_ok() || std::env::var("IDENTITY_ENDPOINT").is_ok()
-    {
+    } else if std::env::var("MSI_ENDPOINT").is_ok() || std::env::var("IDENTITY_ENDPOINT").is_ok() {
         "Azure Managed Identity endpoint"
     } else if std::env::var("AZURE_CLIENT_ID").is_ok() {
         "Azure Managed Identity (user-assigned)"

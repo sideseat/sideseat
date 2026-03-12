@@ -61,8 +61,8 @@
 //!     }
 //! }
 //! ```
-mod sse;
 pub(crate) mod openai_common;
+mod sse;
 
 pub mod anthropic;
 pub mod bedrock;

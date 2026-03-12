@@ -73,6 +73,27 @@ response = query_engine.query("What is this about?")
 print(response)
 ```
 
+## AutoGen
+
+```bash
+pip install autogen-agentchat "sideseat[autogen]"
+# or
+uv add autogen-agentchat "sideseat[autogen]"
+```
+
+```python
+from sideseat import SideSeat, Frameworks
+from autogen import AssistantAgent, UserProxyAgent
+
+SideSeat(framework=Frameworks.AutoGen)
+
+config_list = [{"model": "gpt-5-mini", "api_key": "sk-xxx"}]
+assistant = AssistantAgent("assistant", llm_config={"config_list": config_list})
+user = UserProxyAgent("user", human_input_mode="NEVER")
+
+user.initiate_chat(assistant, message="Hello!")
+```
+
 ## Generic OpenTelemetry
 
 For frameworks not listed above, send traces directly via the OpenTelemetry SDK:

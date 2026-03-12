@@ -6,16 +6,17 @@ use serde_json::{Value, json};
 
 use crate::{
     error::ProviderError,
-    provider::{ChatProvider, EmbeddingProvider, ImageProvider, Provider, ProviderStream, VideoProvider},
+    provider::{
+        ChatProvider, EmbeddingProvider, ImageProvider, Provider, ProviderStream, VideoProvider,
+    },
     providers::sse::{check_response, sse_data_stream},
     types::{
         AudioContent, ContentBlock, ContentBlockStart, ContentDelta, DocumentContent,
         EmbeddingRequest, EmbeddingResponse, EmbeddingTaskType, GeneratedImage, GeneratedVideo,
         GroundingChunk, GroundingMetadata, ImageContent, ImageGenerationRequest,
         ImageGenerationResponse, MediaSource, Message, ModelInfo, ProviderConfig, ResponseFormat,
-        Role, StaticTokenProvider, StopReason, StreamEvent, TokenCount, TokenProvider, ToolUseBlock,
-        Usage, VideoContent, VideoGenerationRequest,
-        VideoGenerationResponse,
+        Role, StaticTokenProvider, StopReason, StreamEvent, TokenCount, TokenProvider,
+        ToolUseBlock, Usage, VideoContent, VideoGenerationRequest, VideoGenerationResponse,
     },
 };
 
@@ -374,9 +375,10 @@ impl GeminiProvider {
                 crate::types::ToolChoice::None => ("NONE", None),
                 crate::types::ToolChoice::Tool { name } => ("ANY", Some(vec![name.as_str()])),
                 // AllowedTools maps naturally to Gemini's allowedFunctionNames
-                crate::types::ToolChoice::AllowedTools { tools } => {
-                    ("ANY", Some(tools.iter().map(|s| s.as_str()).collect::<Vec<_>>()))
-                }
+                crate::types::ToolChoice::AllowedTools { tools } => (
+                    "ANY",
+                    Some(tools.iter().map(|s| s.as_str()).collect::<Vec<_>>()),
+                ),
             };
             let mut fc_config = json!({"mode": mode});
             if let Some(names) = allowed {
@@ -623,15 +625,11 @@ impl ChatProvider for GeminiProvider {
             input_tokens: json["totalTokens"].as_u64().unwrap_or(0),
         })
     }
-
 }
 
 #[async_trait]
 impl EmbeddingProvider for GeminiProvider {
-    async fn embed(
-        &self,
-        request: EmbeddingRequest,
-    ) -> Result<EmbeddingResponse, ProviderError> {
+    async fn embed(&self, request: EmbeddingRequest) -> Result<EmbeddingResponse, ProviderError> {
         let model = &request.model;
         if request.inputs.is_empty() {
             return Ok(EmbeddingResponse {
@@ -784,7 +782,6 @@ impl ImageProvider for GeminiProvider {
 
         Ok(ImageGenerationResponse { images })
     }
-
 }
 
 #[async_trait]

@@ -503,6 +503,26 @@ fn logfire_sdk_matcher(
         .is_some_and(|v| v.contains("logfire"))
 }
 
+/// Strands Agents custom matcher — case-insensitive search for "strands" + separator + "agent"
+/// in the span name or gen_ai.agent.name attribute.
+/// Separators: space, hyphen, underscore (e.g. "Strands Agent", "strands-agent", "strands_agent").
+fn strands_agents_matcher(
+    span_name: &str,
+    span_attrs: &HashMap<String, String>,
+    _: &HashMap<String, String>,
+) -> bool {
+    let contains_strands_agent = |s: &str| {
+        let lower = s.to_lowercase();
+        lower.contains("strands agent")
+            || lower.contains("strands-agent")
+            || lower.contains("strands_agent")
+    };
+    contains_strands_agent(span_name)
+        || span_attrs
+            .get("gen_ai.agent.name")
+            .is_some_and(|v| contains_strands_agent(v))
+}
+
 /// Traceloop SDK name matcher
 fn traceloop_sdk_matcher(
     _: &str,
@@ -562,8 +582,8 @@ const FRAMEWORK_RULES: &[FrameworkRule] = &[
     ),
     // Azure AI Foundry
     rule!(Framework::AzureAIFoundry, attr_prefix: &["az.ai."]),
-    // Vertex AI
-    rule!(Framework::VertexAI, attr_prefix: &["gcp.vertex_ai."]),
+    // Vertex AI — opentelemetry-instrumentation-vertexai (openllmetry) uses vertexai.* span names
+    rule!(Framework::VertexAI, span_name_match: &["vertexai."]),
     // Vercel AI SDK
     rule!(Framework::VercelAISdk,
         attr_exists: &["ai.operationId", "ai.telemetry.functionId", "ai.telemetry.metadata"],
@@ -588,10 +608,16 @@ const FRAMEWORK_RULES: &[FrameworkRule] = &[
         attr_equals: &[(keys::GEN_AI_SYSTEM, "aws_bedrock"), (keys::GEN_AI_SYSTEM, "aws.bedrock")],
     ),
     // Strands Agents - LAST because service.name="strands-agents" is the sideseat SDK default
-    // Only match if gen_ai.system explicitly says "strands-agents" or no other framework matched
+    // Only match if gen_ai.system explicitly says "strands-agents" or no other framework matched.
+    // Custom matcher does case-insensitive search for "strands" + separator + "agent"
+    // in the span name or gen_ai.agent.name attribute (covers space, hyphen, underscore).
     rule!(Framework::StrandsAgents,
-        attr_equals: &[(keys::GEN_AI_SYSTEM, "strands-agents"), (keys::GEN_AI_PROVIDER_NAME, "strands-agents")],
+        attr_equals: &[
+            (keys::GEN_AI_SYSTEM, "strands-agents"),
+            (keys::GEN_AI_PROVIDER_NAME, "strands-agents"),
+        ],
         service_name: &["strands-agents"],
+        custom: Some(strands_agents_matcher),
     ),
 ];
 

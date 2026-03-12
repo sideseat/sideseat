@@ -83,7 +83,8 @@ pub trait ContextBackend: Send + Sync {
 
     /// Returns ALL node headers for a conversation, across all branches.
     /// Required for `linearize()` to work after `load()`.
-    async fn list_node_headers(&self, conv_id: &ConversationId) -> Result<Vec<NodeHeader>, CmError>;
+    async fn list_node_headers(&self, conv_id: &ConversationId)
+    -> Result<Vec<NodeHeader>, CmError>;
 
     async fn list_nodes(&self, params: &ListNodesParams) -> Result<Vec<Node>, CmError>;
 
@@ -110,10 +111,7 @@ pub trait ContextBackend: Send + Sync {
 
     async fn save_branch(&self, branch: &BranchMeta) -> Result<(), CmError>;
 
-    async fn list_branches(
-        &self,
-        conv_id: &ConversationId,
-    ) -> Result<Vec<BranchMeta>, CmError>;
+    async fn list_branches(&self, conv_id: &ConversationId) -> Result<Vec<BranchMeta>, CmError>;
 
     async fn delete_branch(&self, id: &BranchId) -> Result<(), CmError>;
 
@@ -234,7 +232,9 @@ pub struct InMemoryContextBackend {
 
 impl InMemoryContextBackend {
     pub fn new() -> Self {
-        Self { state: Mutex::new(InMemoryState::new()) }
+        Self {
+            state: Mutex::new(InMemoryState::new()),
+        }
     }
 }
 
@@ -299,11 +299,7 @@ impl ContextBackend for InMemoryContextBackend {
         conv_id: &ConversationId,
     ) -> Result<Vec<NodeHeader>, CmError> {
         let state = self.state.lock();
-        Ok(state
-            .node_headers
-            .get(conv_id)
-            .cloned()
-            .unwrap_or_default())
+        Ok(state.node_headers.get(conv_id).cloned().unwrap_or_default())
     }
 
     async fn list_nodes(&self, params: &ListNodesParams) -> Result<Vec<Node>, CmError> {
@@ -389,13 +385,27 @@ impl ContextBackend for InMemoryContextBackend {
             let mut updated = current.clone();
             updated.version += 1;
 
-            if let Some(content) = patch.content.clone() { updated.content = content; }
-            if let Some(is_final) = patch.is_final { updated.is_final = is_final; }
-            if let Some(streaming) = patch.streaming.clone() { updated.streaming = streaming; }
-            if let Some(usage) = patch.usage.clone() { updated.usage = Some(usage); }
-            if let Some(meta) = patch.metadata.clone() { updated.metadata.extend(meta); }
-            if let Some(scores) = patch.eval_scores.clone() { updated.eval_scores = scores; }
-            if let Some(watermark) = patch.crdt_seq_watermark { updated.crdt_seq_watermark = watermark; }
+            if let Some(content) = patch.content.clone() {
+                updated.content = content;
+            }
+            if let Some(is_final) = patch.is_final {
+                updated.is_final = is_final;
+            }
+            if let Some(streaming) = patch.streaming.clone() {
+                updated.streaming = streaming;
+            }
+            if let Some(usage) = patch.usage.clone() {
+                updated.usage = Some(usage);
+            }
+            if let Some(meta) = patch.metadata.clone() {
+                updated.metadata.extend(meta);
+            }
+            if let Some(scores) = patch.eval_scores.clone() {
+                updated.eval_scores = scores;
+            }
+            if let Some(watermark) = patch.crdt_seq_watermark {
+                updated.crdt_seq_watermark = watermark;
+            }
             updated
         };
 
@@ -498,16 +508,9 @@ impl ContextBackend for InMemoryContextBackend {
         Ok(())
     }
 
-    async fn list_branches(
-        &self,
-        conv_id: &ConversationId,
-    ) -> Result<Vec<BranchMeta>, CmError> {
+    async fn list_branches(&self, conv_id: &ConversationId) -> Result<Vec<BranchMeta>, CmError> {
         let state = self.state.lock();
-        Ok(state
-            .branches
-            .get(conv_id)
-            .cloned()
-            .unwrap_or_default())
+        Ok(state.branches.get(conv_id).cloned().unwrap_or_default())
     }
 
     async fn delete_branch(&self, id: &BranchId) -> Result<(), CmError> {
@@ -596,8 +599,9 @@ impl ContextBackend for InMemoryContextBackend {
         snapshot_seq: u64,
     ) -> Result<(), CmError> {
         let mut state = self.state.lock();
-        if let Some(branch_deltas) =
-            state.crdt_deltas.get_mut(&(conv_id.clone(), branch_id.clone()))
+        if let Some(branch_deltas) = state
+            .crdt_deltas
+            .get_mut(&(conv_id.clone(), branch_id.clone()))
         {
             branch_deltas.retain(|d| d.global_seq > snapshot_seq);
         }
@@ -625,8 +629,11 @@ impl ContextBackend for InMemoryContextBackend {
         sv: &[u8],
     ) -> Result<(), CmError> {
         let mut s = self.state.lock();
-        let current_seq =
-            s.crdt_snapshots.get(branch_id).map(|(seq, _, _)| *seq).unwrap_or(0);
+        let current_seq = s
+            .crdt_snapshots
+            .get(branch_id)
+            .map(|(seq, _, _)| *seq)
+            .unwrap_or(0);
         if seq > current_seq {
             s.crdt_snapshots
                 .insert(branch_id.clone(), (seq, state.to_vec(), sv.to_vec()));
@@ -641,8 +648,8 @@ impl ContextBackend for InMemoryContextBackend {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::types::{BranchId, ConversationId, NodeContent, now_micros};
+    use super::*;
     use crate::types::ContentBlock;
 
     fn make_node(
@@ -685,7 +692,10 @@ mod tests {
         backend.kv_put("ns", "key1", b"value1").await.unwrap();
         backend.kv_put("ns", "key2", b"value2").await.unwrap();
 
-        assert_eq!(backend.kv_get("ns", "key1").await.unwrap(), Some(b"value1".to_vec()));
+        assert_eq!(
+            backend.kv_get("ns", "key1").await.unwrap(),
+            Some(b"value1".to_vec())
+        );
         assert_eq!(backend.kv_get("ns", "key3").await.unwrap(), None);
 
         let keys = backend.kv_list("ns", "").await.unwrap();
@@ -699,9 +709,18 @@ mod tests {
     async fn kv_zero_padded_key_ordering() {
         let backend = InMemoryContextBackend::new();
         // Zero-padded keys for lex == numeric order
-        backend.kv_put("art", "v00000000000000000001", b"v1").await.unwrap();
-        backend.kv_put("art", "v00000000000000000010", b"v10").await.unwrap();
-        backend.kv_put("art", "v00000000000000000002", b"v2").await.unwrap();
+        backend
+            .kv_put("art", "v00000000000000000001", b"v1")
+            .await
+            .unwrap();
+        backend
+            .kv_put("art", "v00000000000000000010", b"v10")
+            .await
+            .unwrap();
+        backend
+            .kv_put("art", "v00000000000000000002", b"v2")
+            .await
+            .unwrap();
 
         let keys = backend.kv_list("art", "v").await.unwrap();
         assert_eq!(keys[0], "v00000000000000000001");
@@ -757,8 +776,14 @@ mod tests {
         backend.append_nodes(&[node]).await.unwrap();
 
         // u64::MAX skips version check
-        let patch = NodePatch { is_final: Some(true), ..Default::default() };
-        backend.update_node(&node_id, &patch, u64::MAX).await.unwrap();
+        let patch = NodePatch {
+            is_final: Some(true),
+            ..Default::default()
+        };
+        backend
+            .update_node(&node_id, &patch, u64::MAX)
+            .await
+            .unwrap();
         let updated = backend.get_node(&node_id).await.unwrap().unwrap();
         assert_eq!(updated.version, 1);
     }
@@ -832,9 +857,18 @@ mod tests {
             created_at: 0,
         };
 
-        let s1 = backend.crdt_append(&make_delta(&conv_id, &branch_id)).await.unwrap();
-        let s2 = backend.crdt_append(&make_delta(&conv_id, &branch_id)).await.unwrap();
-        let s3 = backend.crdt_append(&make_delta(&conv_id, &branch_id)).await.unwrap();
+        let s1 = backend
+            .crdt_append(&make_delta(&conv_id, &branch_id))
+            .await
+            .unwrap();
+        let s2 = backend
+            .crdt_append(&make_delta(&conv_id, &branch_id))
+            .await
+            .unwrap();
+        let s3 = backend
+            .crdt_append(&make_delta(&conv_id, &branch_id))
+            .await
+            .unwrap();
 
         assert!(s1 < s2 && s2 < s3);
     }
@@ -845,14 +879,44 @@ mod tests {
         let ns = "conv:test";
 
         // Insert patches out of time order
-        backend.kv_put(ns, "patch:000000000000000002:c1:00000000000000000001", b"p2").await.unwrap();
-        backend.kv_put(ns, "patch:000000000000000001:c1:00000000000000000000", b"p1").await.unwrap();
-        backend.kv_put(ns, "patch:000000000000000003:c1:00000000000000000000", b"p3").await.unwrap();
+        backend
+            .kv_put(
+                ns,
+                "patch:000000000000000002:c1:00000000000000000001",
+                b"p2",
+            )
+            .await
+            .unwrap();
+        backend
+            .kv_put(
+                ns,
+                "patch:000000000000000001:c1:00000000000000000000",
+                b"p1",
+            )
+            .await
+            .unwrap();
+        backend
+            .kv_put(
+                ns,
+                "patch:000000000000000003:c1:00000000000000000000",
+                b"p3",
+            )
+            .await
+            .unwrap();
 
         let keys = backend.kv_list(ns, "patch:").await.unwrap();
         // Lex order = time order for zero-padded timestamps
-        assert_eq!(keys[0].as_str(), "patch:000000000000000001:c1:00000000000000000000");
-        assert_eq!(keys[1].as_str(), "patch:000000000000000002:c1:00000000000000000001");
-        assert_eq!(keys[2].as_str(), "patch:000000000000000003:c1:00000000000000000000");
+        assert_eq!(
+            keys[0].as_str(),
+            "patch:000000000000000001:c1:00000000000000000000"
+        );
+        assert_eq!(
+            keys[1].as_str(),
+            "patch:000000000000000002:c1:00000000000000000001"
+        );
+        assert_eq!(
+            keys[2].as_str(),
+            "patch:000000000000000003:c1:00000000000000000000"
+        );
     }
 }

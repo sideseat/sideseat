@@ -21,6 +21,17 @@ export const Frameworks = {
   PydanticAI: "pydantic-ai",
 } as const;
 
+// Maps framework identifiers to the service.name the server expects for detection.
+// When serviceName is not explicitly set, this is used as the default so the server
+// can identify framework via service.name (fallback when span attributes are absent).
+// Matches server/src/domain/traces/extract/attributes.rs FRAMEWORK_RULES service_name checks.
+export const FRAMEWORK_SERVICE_NAMES: Partial<
+  Record<Framework | string, string>
+> = {
+  strands: "strands-agents",
+  "openai-agents": "openai-agents",
+};
+
 export type Framework = (typeof Frameworks)[keyof typeof Frameworks];
 
 // Configuration options interface
@@ -123,15 +134,21 @@ export class Config {
       options.projectId ??
       process.env.SIDESEAT_PROJECT_ID ??
       DEFAULT_PROJECT_ID;
-    // npm_package_name only set when running via npm; fallback to OTEL standard
+    const framework = options.framework;
+    if (!framework) {
+      throw new SideSeatError(
+        "framework is required. Pass a Frameworks.* constant, e.g.: init({ framework: Frameworks.Strands })",
+      );
+    }
+    // Priority: explicit option > OTEL standard env > framework default > npm package name > fallback
     const serviceName =
       options.serviceName ??
-      process.env.npm_package_name ??
       process.env.OTEL_SERVICE_NAME ??
+      FRAMEWORK_SERVICE_NAMES[framework] ??
+      process.env.npm_package_name ??
       "unknown-service";
     const serviceVersion =
       options.serviceVersion ?? process.env.npm_package_version ?? "0.0.0";
-    const framework = options.framework ?? "sideseat";
     const enableTraces = options.enableTraces ?? true;
 
     return new Config({

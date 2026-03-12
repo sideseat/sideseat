@@ -27,10 +27,7 @@ export function DeleteCredentialDialog({
 
   const handleDelete = () => {
     if (!credential) return;
-    mutate(
-      { orgId, id: credential.id },
-      { onSuccess: () => onOpenChange(false) },
-    );
+    mutate({ orgId, id: credential.id }, { onSuccess: () => onOpenChange(false) });
   };
 
   return (

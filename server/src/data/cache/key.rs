@@ -255,10 +255,7 @@ mod tests {
 
     #[test]
     fn test_credential_keys() {
-        assert_eq!(
-            CacheKey::credentials_for_org("org1"),
-            "v1:creds:org:org1"
-        );
+        assert_eq!(CacheKey::credentials_for_org("org1"), "v1:creds:org:org1");
         assert_eq!(
             CacheKey::credential_secret("org1", "cred123"),
             "v1:cred:secret:org1:cred123"

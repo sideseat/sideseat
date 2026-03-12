@@ -10,12 +10,12 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.37.6",
+    "@astrojs/starlight": "^0.38.1",
     "@fontsource/ibm-plex-mono": "^5.1.1",
     "@fontsource/inter": "^5.1.1",
     "@fontsource/space-grotesk": "^5.1.1",
     "@pasqal-io/starlight-client-mermaid": "^0.1.0",
-    "astro": "^5.17.2",
+    "astro": "^6.0.3",
     "sharp": "^0.34.2"
   }
 }

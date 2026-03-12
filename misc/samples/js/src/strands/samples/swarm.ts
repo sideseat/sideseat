@@ -1,22 +1,21 @@
 /**
- * Multi-agent swarm orchestration sample.
+ * Multi-agent swarm orchestration sample using the native Swarm class.
  *
- * Note: Strands JS SDK doesn't have native Swarm class like Python.
- * This sample implements a similar pattern using tool-based handoffs
- * between specialized agents.
+ * Uses Swarm structured-output routing: each agent decides whether to
+ * hand off to another agent or produce a final response.
  *
  * Architecture:
- * - Planner: Entry point, breaks down tasks and routes to specialists
+ * - Planner: Entry point, coordinates tasks and routes to specialists
  * - Researcher: Gathers information using search and weather tools
  * - Coder: Writes code and implementations
  * - Reviewer: Reviews code and provides feedback
  */
 
-import { Agent, tool } from '@strands-agents/sdk';
+import { Agent, Swarm, tool } from '@strands-agents/sdk';
 import { z } from 'zod';
 import { resolveModel } from '../../shared/config.js';
+import type { ContentBlock } from '@strands-agents/sdk';
 
-// Shared tools that agents can use
 const calculator = tool({
   name: 'calculator',
   description: 'Perform basic arithmetic operations.',
@@ -85,10 +84,13 @@ export async function run(modelId: string) {
 
   console.log('Creating swarm agents...');
 
-  // Create specialist agents
   const researcher = new Agent({
+    agentId: 'researcher',
+    name: 'Researcher',
+    description: 'Research specialist that gathers information using web search and weather tools',
     model,
     tools: [webSearch, weatherForecast],
+    printer: false,
     systemPrompt: `You are a research specialist. Your role is to:
 1. Gather information on topics
 2. Provide factual, well-sourced answers
@@ -96,8 +98,12 @@ export async function run(modelId: string) {
   });
 
   const coder = new Agent({
+    agentId: 'coder',
+    name: 'Coder',
+    description: 'Coding specialist that writes clean, efficient code and implementations',
     model,
     tools: [calculator],
+    printer: false,
     systemPrompt: `You are a coding specialist. Your role is to:
 1. Write clean, efficient code
 2. Implement solutions based on requirements
@@ -105,71 +111,52 @@ export async function run(modelId: string) {
   });
 
   const reviewer = new Agent({
+    agentId: 'reviewer',
+    name: 'Reviewer',
+    description:
+      'Code reviewer that evaluates code quality, correctness, and suggests improvements',
     model,
     tools: [calculator],
+    printer: false,
     systemPrompt: `You are a code reviewer. Your role is to:
 1. Review code for quality and correctness
 2. Suggest improvements
 3. Verify calculations are correct`,
   });
 
-  // Create handoff tools for the planner
-  const handoffToResearcher = tool({
-    name: 'handoff_to_researcher',
-    description: 'Transfer task to researcher for information gathering',
-    inputSchema: z.object({ task: z.string().describe('Research task description') }),
-    callback: async ({ task }) => {
-      const result = await researcher.invoke(task);
-      return `[Researcher]: ${result}`;
-    },
-  });
-
-  const handoffToCoder = tool({
-    name: 'handoff_to_coder',
-    description: 'Transfer task to coder for implementation',
-    inputSchema: z.object({ task: z.string().describe('Coding task description') }),
-    callback: async ({ task }) => {
-      const result = await coder.invoke(task);
-      return `[Coder]: ${result}`;
-    },
-  });
-
-  const handoffToReviewer = tool({
-    name: 'handoff_to_reviewer',
-    description: 'Transfer task to reviewer for code review',
-    inputSchema: z.object({ task: z.string().describe('Review task description') }),
-    callback: async ({ task }) => {
-      const result = await reviewer.invoke(task);
-      return `[Reviewer]: ${result}`;
-    },
-  });
-
-  // Planner agent - entry point that routes to specialists
   const planner = new Agent({
+    agentId: 'planner',
+    name: 'Planner',
+    description: 'Project planner that breaks down complex tasks and coordinates specialists',
     model,
-    tools: [calculator, handoffToResearcher, handoffToCoder, handoffToReviewer],
+    tools: [calculator],
+    printer: false,
     systemPrompt: `You are a project planner. Your role is to:
 1. Break down complex tasks into steps
 2. Identify which specialist should handle each step
-3. Hand off to the appropriate agent:
-   - Research/information gathering -> handoff_to_researcher
-   - Code implementation -> handoff_to_coder
-   - Code review -> handoff_to_reviewer
+3. Delegate to: researcher (for research/info), coder (for implementation), reviewer (for code review)
 4. Use calculator directly for simple math
-5. Coordinate the overall workflow`,
+5. Coordinate the overall workflow and synthesize results`,
   });
 
-  // Run the swarm
-  console.log('Running swarm...\n');
+  const swarm = new Swarm({
+    nodes: [researcher, coder, reviewer, planner],
+    start: 'planner',
+    maxSteps: 20,
+  });
 
   const task =
     'Create a simple plan to build a weather app that shows forecasts for multiple cities';
   console.log(`Task: ${task}`);
   console.log('='.repeat(60));
 
-  const result = await planner.invoke(task);
+  const result = await swarm.invoke(task);
 
   console.log('\n' + '='.repeat(60));
   console.log('Swarm Result:');
-  console.log(result);
+  for (const block of result.content as ContentBlock[]) {
+    if (block.type === 'textBlock') {
+      console.log(block.text);
+    }
+  }
 }

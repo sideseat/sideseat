@@ -301,7 +301,15 @@ mod tests {
         let id = cuid2::create_id();
 
         create_credential(
-            &pool, &id, "default", "ollama", "Ollama Local", None, None, None, None,
+            &pool,
+            &id,
+            "default",
+            "ollama",
+            "Ollama Local",
+            None,
+            None,
+            None,
+            None,
         )
         .await
         .unwrap();
@@ -343,21 +351,20 @@ mod tests {
         .unwrap();
 
         // Clear endpoint_url via Some(None)
-        let updated = update_credential(
-            &pool,
-            &id,
-            "default",
-            None,
-            Some(None),
-            None,
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let updated = update_credential(&pool, &id, "default", None, Some(None), None)
+            .await
+            .unwrap()
+            .unwrap();
 
-        assert!(updated.endpoint_url.is_none(), "endpoint_url should be cleared");
+        assert!(
+            updated.endpoint_url.is_none(),
+            "endpoint_url should be cleared"
+        );
         // extra_config is untouched
-        assert!(updated.extra_config.is_some(), "extra_config should be unchanged");
+        assert!(
+            updated.extra_config.is_some(),
+            "extra_config should be unchanged"
+        );
     }
 
     #[tokio::test]

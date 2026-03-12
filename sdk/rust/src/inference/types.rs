@@ -319,7 +319,10 @@ pub struct AudioOutputConfig {
 
 impl AudioOutputConfig {
     pub fn new(voice: impl Into<String>) -> Self {
-        Self { voice: voice.into(), format: None }
+        Self {
+            voice: voice.into(),
+            format: None,
+        }
     }
     pub fn with_format(mut self, format: AudioFormat) -> Self {
         self.format = Some(format);
@@ -622,7 +625,11 @@ impl ContentBlock {
     ///
     /// Use `as_text()` for plain string access; use this when you need citations.
     pub fn as_text_block(&self) -> Option<&TextBlock> {
-        if let Self::Text(t) = self { Some(t) } else { None }
+        if let Self::Text(t) = self {
+            Some(t)
+        } else {
+            None
+        }
     }
 
     pub fn as_tool_use(&self) -> Option<&ToolUseBlock> {
@@ -668,19 +675,35 @@ impl ContentBlock {
 
     /// Returns the inner [`ImageContent`] if this is an `Image` block, otherwise `None`.
     pub fn as_image(&self) -> Option<&ImageContent> {
-        if let Self::Image(i) = self { Some(i) } else { None }
+        if let Self::Image(i) = self {
+            Some(i)
+        } else {
+            None
+        }
     }
     /// Returns the inner [`AudioContent`] if this is an `Audio` block, otherwise `None`.
     pub fn as_audio(&self) -> Option<&AudioContent> {
-        if let Self::Audio(a) = self { Some(a) } else { None }
+        if let Self::Audio(a) = self {
+            Some(a)
+        } else {
+            None
+        }
     }
     /// Returns the inner [`VideoContent`] if this is a `Video` block, otherwise `None`.
     pub fn as_video(&self) -> Option<&VideoContent> {
-        if let Self::Video(v) = self { Some(v) } else { None }
+        if let Self::Video(v) = self {
+            Some(v)
+        } else {
+            None
+        }
     }
     /// Returns the inner [`DocumentContent`] if this is a `Document` block, otherwise `None`.
     pub fn as_document(&self) -> Option<&DocumentContent> {
-        if let Self::Document(d) = self { Some(d) } else { None }
+        if let Self::Document(d) = self {
+            Some(d)
+        } else {
+            None
+        }
     }
 }
 
@@ -999,23 +1022,33 @@ impl JsonSchema {
     }
 
     pub fn string() -> Self {
-        Self { schema: serde_json::json!({"type": "string"}) }
+        Self {
+            schema: serde_json::json!({"type": "string"}),
+        }
     }
 
     pub fn number() -> Self {
-        Self { schema: serde_json::json!({"type": "number"}) }
+        Self {
+            schema: serde_json::json!({"type": "number"}),
+        }
     }
 
     pub fn integer() -> Self {
-        Self { schema: serde_json::json!({"type": "integer"}) }
+        Self {
+            schema: serde_json::json!({"type": "integer"}),
+        }
     }
 
     pub fn boolean() -> Self {
-        Self { schema: serde_json::json!({"type": "boolean"}) }
+        Self {
+            schema: serde_json::json!({"type": "boolean"}),
+        }
     }
 
     pub fn null() -> Self {
-        Self { schema: serde_json::json!({"type": "null"}) }
+        Self {
+            schema: serde_json::json!({"type": "null"}),
+        }
     }
 
     pub fn array(items: Self) -> Self {
@@ -1031,7 +1064,11 @@ impl JsonSchema {
 
     /// Add an optional property to an object schema.
     pub fn field(mut self, name: &str, schema: Self) -> Self {
-        if let Some(props) = self.schema.get_mut("properties").and_then(|v| v.as_object_mut()) {
+        if let Some(props) = self
+            .schema
+            .get_mut("properties")
+            .and_then(|v| v.as_object_mut())
+        {
             props.insert(name.to_string(), schema.schema);
         }
         self
@@ -1039,10 +1076,18 @@ impl JsonSchema {
 
     /// Add a required property to an object schema.
     pub fn required_field(mut self, name: &str, schema: Self) -> Self {
-        if let Some(props) = self.schema.get_mut("properties").and_then(|v| v.as_object_mut()) {
+        if let Some(props) = self
+            .schema
+            .get_mut("properties")
+            .and_then(|v| v.as_object_mut())
+        {
             props.insert(name.to_string(), schema.schema);
         }
-        if let Some(req) = self.schema.get_mut("required").and_then(|v| v.as_array_mut()) {
+        if let Some(req) = self
+            .schema
+            .get_mut("required")
+            .and_then(|v| v.as_array_mut())
+        {
             req.push(serde_json::Value::String(name.to_string()));
         }
         self
@@ -1050,14 +1095,22 @@ impl JsonSchema {
 
     pub fn enum_values<S: AsRef<str>>(mut self, values: impl IntoIterator<Item = S>) -> Self {
         self.schema["enum"] = serde_json::Value::Array(
-            values.into_iter().map(|v| serde_json::Value::String(v.as_ref().to_string())).collect(),
+            values
+                .into_iter()
+                .map(|v| serde_json::Value::String(v.as_ref().to_string()))
+                .collect(),
         );
         self
     }
 
     /// Allow null in addition to the current type.
     pub fn nullable(mut self) -> Self {
-        if let Some(t) = self.schema.get("type").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+        if let Some(t) = self
+            .schema
+            .get("type")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+        {
             self.schema["type"] = serde_json::json!([t, "null"]);
         }
         self
@@ -1156,7 +1209,10 @@ pub struct WebSearchUserLocation {
 
 impl WebSearchUserLocation {
     pub fn new() -> Self {
-        Self { location_type: "approximate".into(), ..Default::default() }
+        Self {
+            location_type: "approximate".into(),
+            ..Default::default()
+        }
     }
     pub fn with_country(mut self, c: impl Into<String>) -> Self {
         self.country = Some(c.into());
@@ -1270,7 +1326,9 @@ pub struct ContextManagementConfig {
 
 impl ContextManagementConfig {
     pub fn with_compact_threshold(compact_threshold: u32) -> Self {
-        Self { compact_threshold: Some(compact_threshold) }
+        Self {
+            compact_threshold: Some(compact_threshold),
+        }
     }
 }
 
@@ -1292,7 +1350,9 @@ impl BuiltinTool {
     }
 
     /// Code interpreter with pre-uploaded file IDs available in the container.
-    pub fn code_interpreter_with_files(file_ids: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn code_interpreter_with_files(
+        file_ids: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
         let ids: Vec<String> = file_ids.into_iter().map(Into::into).collect();
         Self(serde_json::json!({
             "type": "code_interpreter",
@@ -1919,7 +1979,6 @@ impl ProviderConfig {
     }
 }
 
-
 // ---------------------------------------------------------------------------
 // Cost estimation
 // ---------------------------------------------------------------------------
@@ -2303,7 +2362,13 @@ pub fn truncate_messages(mut messages: Vec<Message>, max_tokens: usize) -> Vec<M
                 ContentBlock::Text(t) => estimate_tokens(&t.text),
                 ContentBlock::ToolUse(tu) => 15 + tu.input.to_string().len() / 4,
                 ContentBlock::ToolResult(tr) => {
-                    10 + tr.content.iter().filter_map(|c| c.as_text()).map(|t| t.len()).sum::<usize>() / 4
+                    10 + tr
+                        .content
+                        .iter()
+                        .filter_map(|c| c.as_text())
+                        .map(|t| t.len())
+                        .sum::<usize>()
+                        / 4
                 }
                 ContentBlock::Thinking(t) => 5 + t.text.len() / 4,
                 _ => 5,
@@ -2483,27 +2548,18 @@ impl ConversationBuilder {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StreamEvent {
     /// Signals the start of a new assistant response.
-    MessageStart {
-        role: Role,
-    },
+    MessageStart { role: Role },
     /// Opens a new content block at `index`. Must precede `ContentBlockDelta` for that index.
     ContentBlockStart {
         index: usize,
         block: ContentBlockStart,
     },
     /// Incremental content for the block at `index`.
-    ContentBlockDelta {
-        index: usize,
-        delta: ContentDelta,
-    },
+    ContentBlockDelta { index: usize, delta: ContentDelta },
     /// Closes the content block at `index`. No further deltas for that index will follow.
-    ContentBlockStop {
-        index: usize,
-    },
+    ContentBlockStop { index: usize },
     /// Signals the end of the response and the reason generation stopped.
-    MessageStop {
-        stop_reason: StopReason,
-    },
+    MessageStop { stop_reason: StopReason },
     /// Token usage, model name, and response ID. May arrive before or after `MessageStop`;
     /// some providers (Anthropic) send it split across two events which are merged by `collect_stream`.
     Metadata {
@@ -2933,9 +2989,20 @@ pub fn model_capabilities(model: &str) -> Vec<ModelCapability> {
         ("c4ai-aya", &[Streaming]),
         // ── xAI Grok ─────────────────────────────────────────────────────────
         // grok-4 supports vision
-        ("grok-4", &[Vision, FunctionCalling, Streaming, StructuredOutput]),
+        (
+            "grok-4",
+            &[Vision, FunctionCalling, Streaming, StructuredOutput],
+        ),
         // grok-3-mini has reasoning (reasoning_effort parameter)
-        ("grok-3-mini", &[FunctionCalling, Streaming, StructuredOutput, ExtendedThinking]),
+        (
+            "grok-3-mini",
+            &[
+                FunctionCalling,
+                Streaming,
+                StructuredOutput,
+                ExtendedThinking,
+            ],
+        ),
         ("grok-3", &[FunctionCalling, Streaming, StructuredOutput]),
         // grok-2-vision models support image input
         ("grok-2-vision", &[Vision, FunctionCalling, Streaming]),
@@ -2946,9 +3013,18 @@ pub fn model_capabilities(model: &str) -> Vec<ModelCapability> {
         ("grok-embed", &[Embeddings]),
         // ── Mistral ──────────────────────────────────────────────────────────
         // pixtral has vision; must be before mistral-large
-        ("pixtral", &[Vision, FunctionCalling, Streaming, StructuredOutput]),
-        ("mistral-large", &[Vision, FunctionCalling, Streaming, StructuredOutput]),
-        ("mistral-small", &[FunctionCalling, Streaming, StructuredOutput]),
+        (
+            "pixtral",
+            &[Vision, FunctionCalling, Streaming, StructuredOutput],
+        ),
+        (
+            "mistral-large",
+            &[Vision, FunctionCalling, Streaming, StructuredOutput],
+        ),
+        (
+            "mistral-small",
+            &[FunctionCalling, Streaming, StructuredOutput],
+        ),
         ("mistral-medium", &[FunctionCalling, Streaming]),
         ("mistral-saba", &[FunctionCalling, Streaming]),
         ("codestral", &[FunctionCalling, Streaming]),
@@ -3549,11 +3625,17 @@ pub struct ModerationRequest {
 
 impl ModerationRequest {
     pub fn new(input: impl Into<String>) -> Self {
-        Self { input: vec![input.into()], model: None }
+        Self {
+            input: vec![input.into()],
+            model: None,
+        }
     }
 
     pub fn new_batch(inputs: Vec<String>) -> Self {
-        Self { input: inputs, model: None }
+        Self {
+            input: inputs,
+            model: None,
+        }
     }
 
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
@@ -3565,37 +3647,63 @@ impl ModerationRequest {
 /// Boolean category flags from a moderation result.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ModerationCategories {
-    #[serde(default)] pub harassment: bool,
-    #[serde(default, rename = "harassment/threatening")] pub harassment_threatening: bool,
-    #[serde(default)] pub hate: bool,
-    #[serde(default, rename = "hate/threatening")] pub hate_threatening: bool,
-    #[serde(default)] pub illicit: bool,
-    #[serde(default, rename = "illicit/violent")] pub illicit_violent: bool,
-    #[serde(default, rename = "self-harm")] pub self_harm: bool,
-    #[serde(default, rename = "self-harm/instructions")] pub self_harm_instructions: bool,
-    #[serde(default, rename = "self-harm/intent")] pub self_harm_intent: bool,
-    #[serde(default)] pub sexual: bool,
-    #[serde(default, rename = "sexual/minors")] pub sexual_minors: bool,
-    #[serde(default)] pub violence: bool,
-    #[serde(default, rename = "violence/graphic")] pub violence_graphic: bool,
+    #[serde(default)]
+    pub harassment: bool,
+    #[serde(default, rename = "harassment/threatening")]
+    pub harassment_threatening: bool,
+    #[serde(default)]
+    pub hate: bool,
+    #[serde(default, rename = "hate/threatening")]
+    pub hate_threatening: bool,
+    #[serde(default)]
+    pub illicit: bool,
+    #[serde(default, rename = "illicit/violent")]
+    pub illicit_violent: bool,
+    #[serde(default, rename = "self-harm")]
+    pub self_harm: bool,
+    #[serde(default, rename = "self-harm/instructions")]
+    pub self_harm_instructions: bool,
+    #[serde(default, rename = "self-harm/intent")]
+    pub self_harm_intent: bool,
+    #[serde(default)]
+    pub sexual: bool,
+    #[serde(default, rename = "sexual/minors")]
+    pub sexual_minors: bool,
+    #[serde(default)]
+    pub violence: bool,
+    #[serde(default, rename = "violence/graphic")]
+    pub violence_graphic: bool,
 }
 
 /// Confidence scores (0–1) for each moderation category.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ModerationCategoryScores {
-    #[serde(default)] pub harassment: f64,
-    #[serde(default, rename = "harassment/threatening")] pub harassment_threatening: f64,
-    #[serde(default)] pub hate: f64,
-    #[serde(default, rename = "hate/threatening")] pub hate_threatening: f64,
-    #[serde(default)] pub illicit: f64,
-    #[serde(default, rename = "illicit/violent")] pub illicit_violent: f64,
-    #[serde(default, rename = "self-harm")] pub self_harm: f64,
-    #[serde(default, rename = "self-harm/instructions")] pub self_harm_instructions: f64,
-    #[serde(default, rename = "self-harm/intent")] pub self_harm_intent: f64,
-    #[serde(default)] pub sexual: f64,
-    #[serde(default, rename = "sexual/minors")] pub sexual_minors: f64,
-    #[serde(default)] pub violence: f64,
-    #[serde(default, rename = "violence/graphic")] pub violence_graphic: f64,
+    #[serde(default)]
+    pub harassment: f64,
+    #[serde(default, rename = "harassment/threatening")]
+    pub harassment_threatening: f64,
+    #[serde(default)]
+    pub hate: f64,
+    #[serde(default, rename = "hate/threatening")]
+    pub hate_threatening: f64,
+    #[serde(default)]
+    pub illicit: f64,
+    #[serde(default, rename = "illicit/violent")]
+    pub illicit_violent: f64,
+    #[serde(default, rename = "self-harm")]
+    pub self_harm: f64,
+    #[serde(default, rename = "self-harm/instructions")]
+    pub self_harm_instructions: f64,
+    #[serde(default, rename = "self-harm/intent")]
+    pub self_harm_intent: f64,
+    #[serde(default)]
+    pub sexual: f64,
+    #[serde(default, rename = "sexual/minors")]
+    pub sexual_minors: f64,
+    #[serde(default)]
+    pub violence: f64,
+    #[serde(default, rename = "violence/graphic")]
+    pub violence_graphic: f64,
 }
 
 /// Moderation result for a single input.
@@ -3684,7 +3792,6 @@ impl FallbackTrigger {
         }
     }
 }
-
 
 // ---------------------------------------------------------------------------
 // Agent loop types

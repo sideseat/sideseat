@@ -1,0 +1,99 @@
+---
+title: Google Vertex AI
+description: Instrument the Vertex AI SDK with SideSeat for full observability of Gemini calls on Google Cloud.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+SideSeat instruments the native Vertex AI SDK (`vertexai` / `google-cloud-aiplatform`) to capture model information, token usage, messages, and costs from Gemini models on Google Cloud.
+
+<Aside type="note">
+This page covers the native `vertexai` Python SDK (`google-cloud-aiplatform`). If you use the Google Gen AI SDK (`google-genai`) with `vertexai=True`, see [Google Gemini](/docs/integrations/providers/google-gemini/#vertex-ai) instead.
+</Aside>
+
+## Prerequisites
+
+- SideSeat running locally (`sideseat`)
+- Python SDK installed with the Vertex AI extra (`pip install "sideseat[vertex-ai]" vertexai`)
+- Google Cloud project with Vertex AI API enabled
+- Google Cloud credentials configured
+
+## Quick Start
+
+```python
+import vertexai
+from vertexai.generative_models import GenerativeModel
+from sideseat import SideSeat, Frameworks
+
+SideSeat(framework=Frameworks.VertexAI)
+
+vertexai.init(project="your-project", location="us-central1")
+model = GenerativeModel("gemini-2.5-flash")
+response = model.generate_content("What is the speed of light?")
+print(response.text)
+```
+
+## Streaming
+
+Streaming responses are fully captured, including token counts aggregated from stream chunks:
+
+```python
+import vertexai
+from vertexai.generative_models import GenerativeModel
+from sideseat import SideSeat, Frameworks
+
+SideSeat(framework=Frameworks.VertexAI)
+
+vertexai.init(project="your-project", location="us-central1")
+model = GenerativeModel("gemini-2.5-flash")
+
+for chunk in model.generate_content("Explain quantum computing.", stream=True):
+    print(chunk.text, end="", flush=True)
+```
+
+## Tool Use
+
+Tool definitions and function call results are captured:
+
+```python
+import vertexai
+from vertexai.generative_models import FunctionDeclaration, GenerativeModel, Tool
+from sideseat import SideSeat, Frameworks
+
+SideSeat(framework=Frameworks.VertexAI)
+
+vertexai.init(project="your-project", location="us-central1")
+
+get_weather = FunctionDeclaration(
+    name="get_weather",
+    description="Get the current weather for a location.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "location": {"type": "string", "description": "City name"}
+        },
+        "required": ["location"],
+    },
+)
+
+tool = Tool(function_declarations=[get_weather])
+model = GenerativeModel("gemini-2.5-flash", tools=[tool])
+response = model.generate_content("What's the weather in London?")
+```
+
+## Authentication
+
+```bash
+# Application Default Credentials (recommended for local dev)
+gcloud auth application-default login
+
+# Service account key
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+```
+
+The Vertex AI SDK uses Application Default Credentials (ADC) automatically. Run `gcloud auth application-default login` for local development, or configure a service account key for CI/production.
+
+## Next Steps
+
+- [Google Gemini](/docs/integrations/providers/google-gemini/) — use the unified Google Gen AI SDK with Vertex AI or Developer API
+- [Python SDK](/docs/sdks/python/) — SDK configuration and API reference
