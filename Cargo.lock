@@ -5306,6 +5306,7 @@ dependencies = [
  "duckdb",
  "fs2",
  "futures",
+ "gcp_auth",
  "hex",
  "hmac",
  "jsonwebtoken",

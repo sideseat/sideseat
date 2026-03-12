@@ -730,11 +730,9 @@ fn format_tool_choice(tc: &crate::types::ToolChoice) -> Value {
         crate::types::ToolChoice::Any => json!("required"),
         crate::types::ToolChoice::None => json!("none"),
         crate::types::ToolChoice::Tool { name } => json!({"type": "function", "name": name}),
-        crate::types::ToolChoice::AllowedTools { tools } => json!({
-            "type": "allowed_tools",
-            "mode": "auto",
-            "tools": tools.iter().map(|n| json!({"type": "function", "name": n})).collect::<Vec<_>>(),
-        }),
+        // Responses API has no native "allowed tools" directive.
+        // Best approximation: auto mode — the model may call any tool in the list.
+        crate::types::ToolChoice::AllowedTools { .. } => json!("auto"),
     }
 }
 
