@@ -184,7 +184,7 @@ pub async fn create_credential(
     request_body = UpdateCredentialRequest,
     responses(
         (status = 200, body = CredentialDto, description = "Credential updated"),
-        (status = 400, description = "Cannot update env-sourced credential"),
+        (status = 400, description = "Cannot modify a read-only credential"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Insufficient permissions"),
         (status = 404, description = "Credential not found"),
@@ -197,10 +197,10 @@ pub async fn update_credential(
     Path(path): Path<CredentialIdPath>,
     ValidatedJson(req): ValidatedJson<UpdateCredentialRequest>,
 ) -> Result<Json<CredentialDto>, ApiError> {
-    if path.id.starts_with("env:") {
+    if path.id.starts_with("env:") || path.id.starts_with("ambient:") {
         return Err(ApiError::bad_request(
             "READ_ONLY_CREDENTIAL",
-            "Cannot update environment-sourced credential",
+            "Cannot modify a read-only credential",
         ));
     }
 
@@ -236,7 +236,7 @@ pub async fn update_credential(
     tag = "credentials",
     responses(
         (status = 204, description = "Credential deleted"),
-        (status = 400, description = "Cannot delete env-sourced credential"),
+        (status = 400, description = "Cannot modify a read-only credential"),
         (status = 401, description = "Not authenticated"),
         (status = 403, description = "Insufficient permissions"),
         (status = 404, description = "Credential not found"),
@@ -248,10 +248,10 @@ pub async fn delete_credential(
     org: OrgAdmin,
     Path(path): Path<CredentialIdPath>,
 ) -> Result<StatusCode, ApiError> {
-    if path.id.starts_with("env:") {
+    if path.id.starts_with("env:") || path.id.starts_with("ambient:") {
         return Err(ApiError::bad_request(
             "READ_ONLY_CREDENTIAL",
-            "Cannot delete environment-sourced credential",
+            "Cannot modify a read-only credential",
         ));
     }
 
@@ -264,7 +264,7 @@ pub async fn delete_credential(
     if !deleted {
         return Err(ApiError::not_found(
             "CREDENTIAL_NOT_FOUND",
-            format!("Credential not found: {}", path.id),
+            "Credential not found",
         ));
     }
 
@@ -327,6 +327,13 @@ pub async fn list_permissions(
     org: OrgRead,
     Path(path): Path<CredentialIdPath>,
 ) -> Result<Json<Vec<CredentialPermissionDto>>, ApiError> {
+    if path.id.starts_with("env:") || path.id.starts_with("ambient:") {
+        return Err(ApiError::bad_request(
+            "READ_ONLY_CREDENTIAL",
+            "Cannot manage permissions for a read-only credential",
+        ));
+    }
+
     let perms = state
         .service
         .list_permissions(&path.id, &org.org_id)
@@ -359,6 +366,13 @@ pub async fn create_permission(
     Path(path): Path<CredentialIdPath>,
     ValidatedJson(req): ValidatedJson<CreatePermissionRequest>,
 ) -> Result<(StatusCode, Json<CredentialPermissionDto>), ApiError> {
+    if path.id.starts_with("env:") || path.id.starts_with("ambient:") {
+        return Err(ApiError::bad_request(
+            "READ_ONLY_CREDENTIAL",
+            "Cannot manage permissions for a read-only credential",
+        ));
+    }
+
     let user_id = org.auth.user_id();
     let id = cuid2::create_id();
 
@@ -396,6 +410,13 @@ pub async fn delete_permission(
     org: OrgAdmin,
     Path(path): Path<PermissionIdPath>,
 ) -> Result<StatusCode, ApiError> {
+    if path.id.starts_with("env:") || path.id.starts_with("ambient:") {
+        return Err(ApiError::bad_request(
+            "READ_ONLY_CREDENTIAL",
+            "Cannot manage permissions for a read-only credential",
+        ));
+    }
+
     let deleted = state
         .service
         .delete_permission(&path.perm_id, &path.id, &org.org_id)

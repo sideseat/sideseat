@@ -162,12 +162,23 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     group: "Cloud APIs",
     accentColor: "#0284c7",
     abbrev: "AZ",
-    supportsEndpointOverride: false,
+    supportsEndpointOverride: true,
     fields: [
       { name: "api_key", label: "API Key", type: "api_key", required: true },
       { name: "endpoint_url", label: "Endpoint URL", type: "url", required: true, placeholder: "https://your-resource.openai.azure.com/", inEndpointUrl: true },
-      { name: "deployment_name", label: "Deployment Name", type: "text", required: false, inExtraConfig: true },
-      { name: "api_version", label: "API Version", type: "text", required: false, placeholder: "2024-02-01", inExtraConfig: true },
+      {
+        name: "api_variant",
+        label: "API Variant",
+        type: "select",
+        required: true,
+        defaultValue: "standard",
+        inExtraConfig: true,
+        options: [
+          { value: "standard", label: "Standard (deployment name in URL)" },
+          { value: "v1", label: "Modern Foundry (model in request body)" },
+        ],
+      },
+      { name: "deployment_name", label: "Deployment Name", type: "text", required: false, description: "Required for Standard variant", inExtraConfig: true },
     ],
   },
   {
@@ -281,6 +292,19 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     defaultEndpoint: "http://localhost:11434",
     fields: [
       { name: "endpoint_url", label: "Endpoint URL", type: "url", required: true, placeholder: "http://localhost:11434", defaultValue: "http://localhost:11434", inEndpointUrl: true },
+    ],
+  },
+  {
+    key: "custom",
+    displayName: "Custom (OpenAI-compatible)",
+    description: "Any OpenAI-compatible endpoint — self-hosted models, proxies, or private APIs",
+    group: "OpenAI-compatible",
+    accentColor: "#6b7280",
+    abbrev: "CU",
+    supportsEndpointOverride: false,
+    fields: [
+      { name: "endpoint_url", label: "Endpoint URL", type: "url", required: true, placeholder: "https://your-server/v1", inEndpointUrl: true },
+      { name: "api_key", label: "API Key", type: "api_key", required: false, description: "Leave blank if the endpoint does not require authentication" },
     ],
   },
 ];

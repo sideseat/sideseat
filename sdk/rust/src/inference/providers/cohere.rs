@@ -1224,7 +1224,9 @@ fn format_tool_choice(tc: &ToolChoice) -> Value {
         ToolChoice::Auto => json!("auto"),
         ToolChoice::Any => json!("required"),
         ToolChoice::None => json!("none"),
-        ToolChoice::Tool { .. } | ToolChoice::AllowedTools { .. } => json!("required"),
+        ToolChoice::Tool { .. } => json!("required"),
+        // Cohere has no subset-restriction mode; "auto" preserves optional-tool semantics.
+        ToolChoice::AllowedTools { .. } => json!("auto"),
     }
 }
 
