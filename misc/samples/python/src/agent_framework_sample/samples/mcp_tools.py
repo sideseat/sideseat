@@ -3,7 +3,7 @@
 import shutil
 from pathlib import Path
 
-from agent_framework import Agent, MCPStdioTool
+from agent_framework import ChatAgent, MCPStdioTool
 from opentelemetry import trace
 
 
@@ -22,8 +22,8 @@ async def run(client, trace_attrs: dict):
         approval_mode="never_require",
     )
 
-    agent = Agent(
-        client=client,
+    agent = ChatAgent(
+        chat_client=client,
         instructions="You help users to calculate expressions.",
         tools=[mcp_tool],
     )

@@ -441,72 +441,40 @@ print(result.final_output)`,
     docUrl: "https://sideseat.ai/docs/integrations/frameworks/agent-framework/",
     install: "pip install agent-framework sideseat",
     code: () => `import asyncio
-from agent_framework import Agent
+from agent_framework import ChatAgent
 from agent_framework.openai import OpenAIChatClient
 from sideseat import SideSeat, Frameworks
 
 SideSeat(framework=Frameworks.AgentFramework)
 
 client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
-agent = Agent(client=client, instructions="You are a helpful assistant.")
+agent = ChatAgent(chat_client=client, instructions="You are a helpful assistant.")
 result = asyncio.run(agent.run("What is 2+2?"))
 print(result.text)`,
     altInstall: "pip install agent-framework opentelemetry-sdk opentelemetry-exporter-otlp",
     altCode: () => `import asyncio
+from agent_framework.observability import OBSERVABILITY_SETTINGS
+from agent_framework import ChatAgent
+from agent_framework.openai import OpenAIChatClient
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
+OBSERVABILITY_SETTINGS.enable_otel = True
+OBSERVABILITY_SETTINGS.enable_sensitive_data = True
+
 provider = TracerProvider()
-provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(
+    endpoint="http://localhost:5388/otel/default/v1/traces"
+)))
 trace.set_tracer_provider(provider)
 
-from agent_framework import Agent
-from agent_framework.openai import OpenAIChatClient
-
 client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
-agent = Agent(client=client, instructions="You are a helpful assistant.")
+agent = ChatAgent(chat_client=client, instructions="You are a helpful assistant.")
 result = asyncio.run(agent.run("What is 2+2?"))
 print(result.text)`,
     run: "python agent.py",
-  },
-  {
-    id: "autogen",
-    name: "AutoGen",
-    group: "Frameworks",
-    lang: "python",
-    docUrl: "https://microsoft.github.io/autogen/",
-    install: 'pip install autogen-agentchat "sideseat[autogen]"',
-    code: () => `from autogen import AssistantAgent, UserProxyAgent
-from sideseat import SideSeat, Frameworks
-
-SideSeat(framework=Frameworks.AutoGen)
-
-llm_config = {"config_list": [{"model": "gpt-5-mini"}]}
-assistant = AssistantAgent("assistant", llm_config=llm_config)
-user = UserProxyAgent("user", human_input_mode="NEVER")
-user.initiate_chat(assistant, message="Hello!")`,
-    altInstall:
-      "pip install autogen-agentchat openinference-instrumentation-autogen-agentchat opentelemetry-exporter-otlp",
-    altCode: () => `from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from openinference.instrumentation.autogen_agentchat import AutogenInstrumentor
-
-provider = TracerProvider()
-provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-trace.set_tracer_provider(provider)
-AutogenInstrumentor().instrument()
-
-from autogen import AssistantAgent, UserProxyAgent
-
-llm_config = {"config_list": [{"model": "gpt-5-mini"}]}
-assistant = AssistantAgent("assistant", llm_config=llm_config)
-user = UserProxyAgent("user", human_input_mode="NEVER")
-user.initiate_chat(assistant, message="Hello!")`,
-    run: "python autogen_app.py",
   },
   {
     id: "crewai",
