@@ -24,7 +24,7 @@ Dev server runs at http://localhost:5389 (UI) and http://localhost:5388 (API).
 server/     Rust backend (Axum)
 web/        React frontend (Vite)
 cli/        NPM distribution
-sdk/        Python and JavaScript SDKs
+sdk/        Python and TypeScript SDKs
 docs/       Documentation site
 misc/       Samples, test fixtures, scripts, and resources
 ```
