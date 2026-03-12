@@ -1,11 +1,11 @@
 ---
 title: init() / createClient()
-description: API reference for the SideSeat JavaScript SDK initialization functions.
+description: API reference for the SideSeat TypeScript SDK initialization functions.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-The JavaScript SDK provides two initialization functions: `init()` for synchronous setup and `createClient()` for async setup with connection validation.
+The TypeScript SDK provides two initialization functions: `init()` for synchronous setup and `createClient()` for async setup with connection validation.
 
 ## init()
 
@@ -36,7 +36,7 @@ interface SideSeatOptions {
 
 `framework` is required. Omitting it throws a `SideSeatError` at runtime. Use a `Frameworks.*` constant.
 
-See [Configuration](/docs/sdks/javascript/configuration/) for details on each option.
+See [Configuration](/docs/sdks/typescript/configuration/) for details on each option.
 
 ### Returns
 
@@ -228,5 +228,5 @@ if ('forceFlush' in provider) {
 
 ## Next Steps
 
-- [Configuration](/docs/sdks/javascript/configuration/) — all configuration options
+- [Configuration](/docs/sdks/typescript/configuration/) — all configuration options
 - [Integrations](/docs/integrations/) — framework-specific guides

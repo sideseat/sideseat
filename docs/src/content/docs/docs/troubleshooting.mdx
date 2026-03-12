@@ -11,7 +11,7 @@ Quick fixes for common issues with the local AI development workbench.
 
 1. **Confirm SideSeat is running** — you should see `Local: http://127.0.0.1:5388` in the terminal
 2. **Check the OTLP endpoint** — default is `http://localhost:5388/otel/default/v1/traces`
-3. **Flush before exit** — call `client.shutdown()` (Python) or `await shutdown()` (JavaScript) before the script exits
+3. **Flush before exit** — call `client.shutdown()` (Python) or `await shutdown()` (TypeScript) before the script exits
 
 <Aside type="tip">
 You can set `SIDESEAT_ENDPOINT` or the standard `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable to configure the endpoint. The OpenTelemetry variable takes precedence if both are set.
