@@ -7,7 +7,7 @@ Demonstrates:
 
 from pathlib import Path
 
-from agent_framework import Agent, Content, Message
+from agent_framework import ChatAgent, ChatMessage, DataContent, TextContent
 from opentelemetry import trace
 
 
@@ -23,20 +23,20 @@ async def run(client, trace_attrs: dict):
     image_bytes = img_path.read_bytes()
     pdf_bytes = pdf_path.read_bytes()
 
-    agent = Agent(
-        client=client,
+    agent = ChatAgent(
+        chat_client=client,
         instructions="You are a file analysis AI that can read images and documents.",
     )
 
-    message = Message(
+    message = ChatMessage(
         role="user",
         contents=[
-            Content.from_text(
-                f"Read the image '{img_path.name}'. "
+            TextContent(
+                text=f"Read the image '{img_path.name}'. "
                 "Describe its contents in detail using instructions from the PDF."
             ),
-            Content.from_data(data=image_bytes, media_type="image/jpeg"),
-            Content.from_data(
+            DataContent(data=image_bytes, media_type="image/jpeg"),
+            DataContent(
                 data=pdf_bytes,
                 media_type="application/pdf",
                 additional_properties={"filename": "task.pdf"},

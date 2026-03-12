@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from agent_framework import Agent, tool
+from agent_framework import ChatAgent, ai_function
 from opentelemetry import trace
 from pydantic import Field
 
@@ -51,7 +51,7 @@ Guidelines (Important!!!):
 40. Sign off with a friendly closing."""
 
 
-@tool(approval_mode="never_require")
+@ai_function(approval_mode="never_require")
 def temperature_forecast(
     city: Annotated[str, Field(description="The name of the city")],
     days: Annotated[int, Field(description="Number of days for the forecast")] = 3,
@@ -72,7 +72,7 @@ def temperature_forecast(
     }
 
 
-@tool(approval_mode="never_require")
+@ai_function(approval_mode="never_require")
 def precipitation_forecast(
     city: Annotated[str, Field(description="The name of the city")] = "New York City",
     days: Annotated[int, Field(description="Number of days for the forecast")] = 3,
@@ -88,8 +88,8 @@ async def run(client, trace_attrs: dict):
     """Run the tool_use sample with prompt caching."""
     tracer = trace.get_tracer(__name__)
 
-    agent = Agent(
-        client=client,
+    agent = ChatAgent(
+        chat_client=client,
         instructions=SYSTEM_PROMPT,
         tools=[temperature_forecast, precipitation_forecast],
     )

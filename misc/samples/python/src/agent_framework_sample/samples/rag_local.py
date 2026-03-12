@@ -17,7 +17,7 @@ from typing import Annotated
 
 import boto3
 import numpy as np
-from agent_framework import Agent, tool
+from agent_framework import ChatAgent, ai_function
 from opentelemetry import trace
 from pydantic import Field
 
@@ -102,7 +102,7 @@ class RAGKnowledgeBase:
 def create_search_tool(kb: RAGKnowledgeBase):
     """Create a search tool bound to the knowledge base instance."""
 
-    @tool(approval_mode="never_require")
+    @ai_function(approval_mode="never_require")
     def search_knowledge(
         query: Annotated[str, Field(description="The search query to find relevant information")],
         num_results: Annotated[int, Field(description="Number of results to return")] = 3,
@@ -139,8 +139,8 @@ async def run(client, trace_attrs: dict):
     print("Knowledge base ready")
 
     print("\nCreating RAG agent...")
-    agent = Agent(
-        client=client,
+    agent = ChatAgent(
+        chat_client=client,
         instructions=SYSTEM_PROMPT,
         tools=[create_search_tool(kb)],
     )

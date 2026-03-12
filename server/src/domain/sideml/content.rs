@@ -452,8 +452,79 @@ fn try_openai_format(block: &JsonValue) -> Option<JsonValue> {
     let block_type = block.get("type")?.as_str()?;
     match block_type {
         "text" | "input_text" | "output_text" => {
-            let text = block.get("text")?.as_str()?;
+            // Standard: "text" field (OpenAI, Anthropic, etc.)
+            // Agent Framework uses "content" field instead of "text"
+            let text = block
+                .get("text")
+                .or_else(|| block.get("content"))
+                .and_then(|t| t.as_str())?;
             Some(json!({"type": "text", "text": text}))
+        }
+        // Agent Framework binary data: {"type": "data", "uri": "#!B64!#...", "media_type": "...", "filename"?: "..."}
+        "data" => {
+            let uri = block.get("uri").and_then(|u| u.as_str())?;
+            let media_type = block.get("media_type").and_then(|m| m.as_str());
+            let content_type = mime_to_content_type(media_type.unwrap_or(""));
+            let mut result = json!({
+                "type": content_type,
+                "media_type": media_type,
+                "source": if files::is_file_uri(uri) { "file" } else { "url" },
+                "data": uri
+            });
+            if let Some(name) = block.get("filename").and_then(|n| n.as_str()) {
+                result["name"] = json!(name);
+            }
+            Some(result)
+        }
+        // Agent Framework tool call: {"type": "tool_call", "id": "...", "name": "...", "arguments": {...}}
+        // arguments may be a JSON-encoded string or an object
+        "tool_call" => {
+            let name = block.get("name").and_then(|n| n.as_str())?;
+            let id = block.get("id").and_then(|i| i.as_str());
+            let input = block
+                .get("arguments")
+                .map(|a| {
+                    if let Some(s) = a.as_str() {
+                        serde_json::from_str::<JsonValue>(s).unwrap_or_else(|_| json!(s))
+                    } else {
+                        a.clone()
+                    }
+                })
+                .unwrap_or(json!({}));
+            Some(json!({
+                "type": "tool_use",
+                "id": id,
+                "name": name,
+                "input": input
+            }))
+        }
+        // Agent Framework tool result: {"type": "tool_call_response", "id": "...", "response": "..."}
+        // response is json.dumps(result) — may be a JSON string of an object, array, or plain string
+        "tool_call_response" => {
+            let id = block.get("id").and_then(|i| i.as_str());
+            let response = block.get("response");
+            let content = if let Some(s) = response.and_then(|r| r.as_str()) {
+                match serde_json::from_str::<JsonValue>(s) {
+                    // Object or array → render as json block
+                    Ok(v @ (JsonValue::Object(_) | JsonValue::Array(_))) => {
+                        json!([{"type": "json", "data": v}])
+                    }
+                    // JSON-encoded string (e.g. json.dumps("text result")) → unwrap to text
+                    Ok(JsonValue::String(text)) => json!([{"type": "text", "text": text}]),
+                    // Non-parseable or scalar → plain text
+                    _ => json!([{"type": "text", "text": s}]),
+                }
+            } else if let Some(v) = response {
+                json!([{"type": "json", "data": v}])
+            } else {
+                json!([])
+            };
+            Some(json!({
+                "type": "tool_result",
+                "tool_use_id": id,
+                "content": content,
+                "is_error": false
+            }))
         }
         "image_url" | "input_image" => {
             let image_obj = block.get("image_url")?;
@@ -1046,6 +1117,7 @@ const PROVIDER_CONTENT_FIELDS: &[&str] = &[
     "toolUse",
     "toolResult",
     "reasoningContent", // Bedrock extended thinking
+    "reasoning",        // Strands TypeScript extended thinking
     // Gemini
     "inline_data",
     "file_data",
@@ -1086,18 +1158,20 @@ fn try_openinference_message_content(block: &JsonValue) -> Option<JsonValue> {
     }
 
     // Check for reasoning_content wrapper (extended thinking - special handling)
-    if let Some(inner) = block.get("reasoning_content") {
-        // Extract thinking text from the reasoning content
-        let text = inner
-            .get("text")
-            .and_then(|t| t.as_str())
-            .unwrap_or_default();
-        let signature = inner.get("signature").and_then(|s| s.as_str());
-        return Some(json!({
-            "type": "thinking",
-            "text": text,
-            "signature": signature
-        }));
+    // Also handles Strands TypeScript "reasoning" key (same structure)
+    for reasoning_key in &["reasoning_content", "reasoning"] {
+        if let Some(inner) = block.get(*reasoning_key) {
+            let text = inner
+                .get("text")
+                .and_then(|t| t.as_str())
+                .unwrap_or_default();
+            let signature = inner.get("signature").and_then(|s| s.as_str());
+            return Some(json!({
+                "type": "thinking",
+                "text": text,
+                "signature": signature
+            }));
+        }
     }
 
     // Check for LangChain kwargs wrapper (common in LangChain message serialization)

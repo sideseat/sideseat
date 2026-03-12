@@ -1,6 +1,6 @@
 """Error sample — queries agent with nonexistent model ID to generate error telemetry."""
 
-from agent_framework import Agent
+from agent_framework import ChatAgent
 from agent_framework.openai import OpenAIChatClient
 from opentelemetry import trace
 
@@ -14,8 +14,8 @@ async def run(client, trace_attrs: dict):
     # Always use an invalid OpenAI client regardless of the passed client
     invalid_client = OpenAIChatClient(model_id=INVALID_MODEL_ID)
 
-    agent = Agent(
-        client=invalid_client,
+    agent = ChatAgent(
+        chat_client=invalid_client,
         instructions="You are a helpful assistant.",
     )
 
