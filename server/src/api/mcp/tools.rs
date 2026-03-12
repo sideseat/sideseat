@@ -1,12 +1,16 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
+use rmcp::handler::server::router::prompt::PromptRouter;
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, ServerCapabilities, ServerInfo, ToolsCapability,
+    CallToolResult, Content, GetPromptRequestParams, GetPromptResult, Implementation,
+    ListPromptsResult, PaginatedRequestParams, PromptMessage, PromptMessageRole,
+    PromptsCapability, ServerCapabilities, ServerInfo, ToolsCapability,
 };
-use rmcp::{ServerHandler, tool, tool_handler, tool_router};
+use rmcp::service::RequestContext;
+use rmcp::{RoleServer, ServerHandler, prompt, prompt_handler, prompt_router, tool, tool_handler, tool_router};
 
 use crate::api::routes::otel::messages::{build_messages_response, scope_feed_to_trace};
 use crate::api::routes::otel::sessions::session_row_to_summary;
@@ -32,6 +36,7 @@ pub struct McpServer {
     analytics: Arc<AnalyticsService>,
     project_id: String,
     tool_router: ToolRouter<Self>,
+    prompt_router: PromptRouter<Self>,
 }
 
 impl McpServer {
@@ -40,17 +45,20 @@ impl McpServer {
             analytics,
             project_id,
             tool_router: Self::tool_router(),
+            prompt_router: Self::prompt_router(),
         }
     }
 }
 
 #[tool_handler]
+#[prompt_handler]
 impl ServerHandler for McpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             instructions: Some(INSTRUCTIONS.to_string()),
             capabilities: ServerCapabilities {
                 tools: Some(ToolsCapability::default()),
+                prompts: Some(PromptsCapability::default()),
                 ..Default::default()
             },
             server_info: Implementation {
@@ -330,6 +338,23 @@ impl McpServer {
     }
 }
 
+#[prompt_router]
+impl McpServer {
+    #[prompt(
+        description = "Get setup instructions for integrating SideSeat telemetry. Specify a framework for tailored code examples (SDK one-liner + direct OTLP fallback)."
+    )]
+    async fn setup_guide(
+        &self,
+        Parameters(args): Parameters<SetupGuideArgs>,
+    ) -> GetPromptResult {
+        let content = build_setup_guide(&self.project_id, args.framework.as_deref());
+        GetPromptResult {
+            description: Some("SideSeat integration guide".to_string()),
+            messages: vec![PromptMessage::new_text(PromptMessageRole::User, content)],
+        }
+    }
+}
+
 /// Fetch event/link counts and build SpanSummaryDto for a slice of spans.
 async fn spans_to_dtos(
     repo: &(dyn AnalyticsRepository + Send + Sync),
@@ -359,6 +384,97 @@ async fn spans_to_dtos(
             )
         })
         .collect())
+}
+
+#[derive(Copy, Clone)]
+struct FrameworkSetup {
+    display: &'static str,
+    pip_pkg: &'static str,
+    sdk_variant: &'static str,
+    sdk_snippet: &'static str,
+    no_sdk_extra_pkgs: &'static str,
+    no_sdk_extra_setup: &'static str,
+}
+
+fn get_framework(name: &str) -> Option<FrameworkSetup> {
+    const FRAMEWORKS: &[FrameworkSetup] = &[
+        FrameworkSetup { display: "Strands Agents",            pip_pkg: "strands-agents",                    sdk_variant: "Strands",        sdk_snippet: "agent = Agent()\nprint(agent(\"Hello\"))",                                                                                                                                                                                                     no_sdk_extra_pkgs: "",                                                    no_sdk_extra_setup: "" },
+        FrameworkSetup { display: "LangChain",                 pip_pkg: "langchain-openai",                  sdk_variant: "LangChain",      sdk_snippet: "from langchain_openai import ChatOpenAI\nllm = ChatOpenAI(model=\"gpt-4o-mini\")\nprint(llm.invoke(\"Hello\").content)",                                                                                                                        no_sdk_extra_pkgs: "openinference-instrumentation-langchain",             no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider)" },
+        FrameworkSetup { display: "LangGraph",                 pip_pkg: "langgraph langchain-openai",        sdk_variant: "LangGraph",      sdk_snippet: "from langgraph.prebuilt import create_react_agent\nfrom langchain_openai import ChatOpenAI\nagent = create_react_agent(ChatOpenAI(model=\"gpt-4o-mini\"), [])\nprint(agent.invoke({\"messages\": [(\"user\", \"Hello\")]}))",                  no_sdk_extra_pkgs: "openinference-instrumentation-langchain",             no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider)" },
+        FrameworkSetup { display: "CrewAI",                    pip_pkg: "crewai",                            sdk_variant: "CrewAI",         sdk_snippet: "from crewai import Agent, Task, Crew\na = Agent(role=\"R\", goal=\"G\", backstory=\"B\")\nt = Task(description=\"D\", expected_output=\"O\", agent=a)\nprint(Crew(agents=[a], tasks=[t]).kickoff())",                                              no_sdk_extra_pkgs: "openinference-instrumentation-crewai",               no_sdk_extra_setup: "from openinference.instrumentation.crewai import CrewAIInstrumentor\nCrewAIInstrumentor().instrument(tracer_provider=provider)" },
+        FrameworkSetup { display: "AutoGen",                   pip_pkg: "autogen-agentchat autogen-ext",     sdk_variant: "AutoGen",        sdk_snippet: "import asyncio\nfrom autogen_agentchat.agents import AssistantAgent\nfrom autogen_ext.models.openai import OpenAIChatCompletionClient\nagent = AssistantAgent(\"a\", model_client=OpenAIChatCompletionClient(model=\"gpt-4o-mini\"))\nasyncio.run(agent.run(task=\"Hello\"))", no_sdk_extra_pkgs: "openinference-instrumentation-autogen-agentchat",     no_sdk_extra_setup: "from openinference.instrumentation.autogen_agentchat import AutogenAgentChatInstrumentor\nAutogenAgentChatInstrumentor().instrument(tracer_provider=provider)" },
+        FrameworkSetup { display: "OpenAI Agents SDK",         pip_pkg: "openai-agents",                     sdk_variant: "OpenAIAgents",   sdk_snippet: "from agents import Agent, Runner\nprint(Runner.run_sync(Agent(name=\"A\", instructions=\"Helpful.\"), \"Hello\").final_output)",                                                                                                               no_sdk_extra_pkgs: "logfire[openai-agents]",                              no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_openai_agents()" },
+        FrameworkSetup { display: "PydanticAI",                pip_pkg: "pydantic-ai",                       sdk_variant: "PydanticAI",     sdk_snippet: "from pydantic_ai import Agent\nprint(Agent(\"openai:gpt-4o-mini\").run_sync(\"Hello\").data)",                                                                                                                                               no_sdk_extra_pkgs: "logfire[pydantic-ai]",                                no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_pydantic_ai()" },
+        FrameworkSetup { display: "Google ADK",                pip_pkg: "google-adk",                        sdk_variant: "GoogleADK",      sdk_snippet: "# See full async example: https://google.github.io/adk-docs/",                                                                                                                                                                               no_sdk_extra_pkgs: "",                                                    no_sdk_extra_setup: "" },
+        FrameworkSetup { display: "Microsoft Agent Framework", pip_pkg: "agent-framework",                   sdk_variant: "AgentFramework",  sdk_snippet: "import asyncio\nfrom agent_framework import ChatAgent\nfrom agent_framework.openai import OpenAIChatClient\nprint(asyncio.run(ChatAgent(chat_client=OpenAIChatClient(model_id=\"gpt-4o-mini\"), instructions=\"Helpful.\").run(\"Hello\")).text)", no_sdk_extra_pkgs: "",                                                    no_sdk_extra_setup: "from agent_framework.observability import OBSERVABILITY_SETTINGS\nOBSERVABILITY_SETTINGS.enable_otel = True\nOBSERVABILITY_SETTINGS.enable_sensitive_data = True" },
+        FrameworkSetup { display: "Amazon Bedrock",            pip_pkg: "boto3",                             sdk_variant: "Bedrock",        sdk_snippet: "import boto3\nr = boto3.client(\"bedrock-runtime\", region_name=\"us-east-1\").converse(modelId=\"anthropic.claude-haiku-4-5-20251001-v1:0\", messages=[{\"role\": \"user\", \"content\": [{\"text\": \"Hello\"}]}])\nprint(r[\"output\"][\"message\"][\"content\"][0][\"text\"])", no_sdk_extra_pkgs: "opentelemetry-instrumentation-botocore",               no_sdk_extra_setup: "from opentelemetry.instrumentation.botocore import BotocoreInstrumentor\nBotocoreInstrumentor().instrument(tracer_provider=provider)" },
+        FrameworkSetup { display: "Anthropic",                 pip_pkg: "anthropic",                         sdk_variant: "Anthropic",      sdk_snippet: "import anthropic\nprint(anthropic.Anthropic().messages.create(model=\"claude-haiku-4-5-20251001\", max_tokens=256, messages=[{\"role\": \"user\", \"content\": \"Hello\"}]).content[0].text)",                                               no_sdk_extra_pkgs: "logfire[anthropic]",                                  no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_anthropic()" },
+        FrameworkSetup { display: "OpenAI",                    pip_pkg: "openai",                            sdk_variant: "OpenAI",         sdk_snippet: "from openai import OpenAI\nprint(OpenAI().chat.completions.create(model=\"gpt-4o-mini\", messages=[{\"role\": \"user\", \"content\": \"Hello\"}]).choices[0].message.content)",                                                               no_sdk_extra_pkgs: "logfire[openai]",                                     no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_openai()" },
+        FrameworkSetup { display: "Google Gemini",             pip_pkg: "google-genai",                      sdk_variant: "GoogleGenAI",    sdk_snippet: "from google import genai\nprint(genai.Client(api_key=\"YOUR_KEY\").models.generate_content(model=\"gemini-2.5-flash\", contents=\"Hello\").text)",                                                                                           no_sdk_extra_pkgs: "logfire[google-genai]",                               no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_google_genai()" },
+        FrameworkSetup { display: "Google Vertex AI",          pip_pkg: "google-cloud-aiplatform vertexai",  sdk_variant: "VertexAI",       sdk_snippet: "import vertexai\nfrom vertexai.generative_models import GenerativeModel\nvertexai.init(project=\"PROJECT_ID\", location=\"us-central1\")\nprint(GenerativeModel(\"gemini-2.5-flash\").generate_content(\"Hello\").text)",                   no_sdk_extra_pkgs: "opentelemetry-instrumentation-vertexai",              no_sdk_extra_setup: "from opentelemetry.instrumentation.vertexai import VertexAIInstrumentor\nVertexAIInstrumentor().instrument(tracer_provider=provider)" },
+    ];
+    FRAMEWORKS
+        .iter()
+        .find(|f| {
+            f.display.to_lowercase().replace(' ', "-") == name
+                || f.sdk_variant.to_lowercase() == name
+                || f.sdk_variant.to_lowercase() == name.replace('-', "")
+                || f.pip_pkg.split_whitespace().any(|p| p == name)
+        })
+        .copied()
+}
+
+fn build_setup_guide(project_id: &str, framework: Option<&str>) -> String {
+    let otlp_url = format!("http://localhost:5388/otel/{project_id}/v1/traces");
+
+    match framework.and_then(|f| get_framework(&f.to_lowercase())) {
+        Some(fw) => {
+            let extra_pkgs = if fw.no_sdk_extra_pkgs.is_empty() {
+                String::new()
+            } else {
+                format!(" {}", fw.no_sdk_extra_pkgs)
+            };
+            format!(
+                "## With SideSeat SDK (recommended)\n\n\
+                 ```bash\npip install sideseat {pip}\n```\n\n\
+                 ```python\nfrom sideseat import SideSeat, Frameworks\n\
+                 SideSeat(framework=Frameworks.{variant})\n\n{snippet}\n```\n\n\
+                 ## Without SDK (direct OTLP)\n\n\
+                 ```bash\npip install {pip} opentelemetry-sdk opentelemetry-exporter-otlp-proto-http{extra_pkgs}\n```\n\n\
+                 ```python\nfrom opentelemetry import trace\n\
+                 from opentelemetry.sdk.trace import TracerProvider\n\
+                 from opentelemetry.sdk.trace.export import BatchSpanProcessor\n\
+                 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter\n\n\
+                 provider = TracerProvider()\n\
+                 provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(\n\
+                     endpoint=\"{otlp}\"\n)))\n\
+                 trace.set_tracer_provider(provider)\n\n\
+                 {extra_setup}\n\n{snippet}\n```",
+                pip = fw.pip_pkg,
+                variant = fw.sdk_variant,
+                snippet = fw.sdk_snippet,
+                extra_pkgs = extra_pkgs,
+                extra_setup = fw.no_sdk_extra_setup,
+                otlp = otlp_url,
+            )
+        }
+        None => format!(
+            "## Generic OTLP Setup\n\n\
+             ```bash\npip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http\n```\n\n\
+             ```python\nfrom opentelemetry import trace\n\
+             from opentelemetry.sdk.trace import TracerProvider\n\
+             from opentelemetry.sdk.trace.export import BatchSpanProcessor\n\
+             from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter\n\n\
+             provider = TracerProvider()\n\
+             provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(\n\
+                 endpoint=\"{otlp}\"\n)))\n\
+             trace.set_tracer_provider(provider)\n```\n\n\
+             Supported frameworks: strands, langchain, langgraph, crewai, autogen, \
+             openai-agents, pydantic-ai, google-adk, agent-framework, bedrock, \
+             openai, anthropic, google-genai, vertex-ai",
+            otlp = otlp_url,
+        ),
+    }
 }
 
 fn ok_json(value: &impl serde::Serialize) -> Result<CallToolResult, McpError> {
