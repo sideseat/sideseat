@@ -19,48 +19,38 @@ AI agents are hard to debug. Requests fly by, context builds up, and when someth
 
 2. **Install the SDK**
 
-   <Tabs>
-     <TabItem label="Python">
-       ```bash
-       pip install strands-agents sideseat
-       # or
-       uv add strands-agents sideseat
-       ```
-     </TabItem>
-     <TabItem label="TypeScript">
-       ```bash
-       npm install @strands-agents/sdk @sideseat/sdk
-       ```
-     </TabItem>
-   </Tabs>
+   ```bash
+   # Python
+   pip install strands-agents sideseat
+
+   # TypeScript
+   npm install @strands-agents/sdk @sideseat/sdk
+   ```
 
 3. **Initialize in your code**
 
-   <Tabs>
-     <TabItem label="Python">
-       ```python
-       from sideseat import SideSeat, Frameworks
-       from strands import Agent
+   ```python
+   # Python
+   from sideseat import SideSeat, Frameworks
+   from strands import Agent
 
-       SideSeat(framework=Frameworks.Strands)   # add this
+   SideSeat(framework=Frameworks.Strands)   # add this
 
-       agent = Agent()  # uses Amazon Bedrock by default
-       agent("Analyze this dataset...")
-       ```
-     </TabItem>
-     <TabItem label="TypeScript">
-       ```typescript
-       import { init, Frameworks } from "@sideseat/sdk";
-       import { Agent } from "@strands-agents/sdk";
+   agent = Agent()  # uses Amazon Bedrock by default
+   agent("Analyze this dataset...")
+   ```
 
-       init({ framework: Frameworks.Strands });   // add this
+   ```typescript
+   // TypeScript
+   import { init, Frameworks } from "@sideseat/sdk";
+   import { Agent } from "@strands-agents/sdk";
 
-       const agent = new Agent({ model: "global.anthropic.claude-haiku-4-5-20251001-v1:0" });
-       const result = await agent.invoke("Analyze this dataset...");
-       console.log(result.toString());
-       ```
-     </TabItem>
-   </Tabs>
+   init({ framework: Frameworks.Strands });   // add this
+
+   const agent = new Agent({ model: "global.anthropic.claude-haiku-4-5-20251001-v1:0" });
+   const result = await agent.invoke("Analyze this dataset...");
+   console.log(result.toString());
+   ```
 </Steps>
 
 Open [http://localhost:5388](http://localhost:5388). You'll see a live timeline of each prompt, tool call, and model response.
@@ -359,8 +349,8 @@ If you use cloud LLMs, those requests still go to your provider. SideSeat only s
   <Card title="Python SDK" icon="seti:python">
     [Full Python SDK reference](/docs/sdks/python/) with configuration and examples.
   </Card>
-  <Card title="JavaScript SDK" icon="seti:javascript">
-    [Full JavaScript SDK reference](/docs/sdks/javascript/) for Node.js apps.
+  <Card title="TypeScript SDK" icon="seti:typescript">
+    [Full TypeScript SDK reference](/docs/sdks/typescript/) for Node.js apps.
   </Card>
   <Card title="Integrations" icon="puzzle">
     [Connect your framework](/docs/integrations/) — Strands, LangGraph, CrewAI, and more.

@@ -81,11 +81,11 @@ export default defineConfig({
               ],
             },
             {
-              label: 'JavaScript',
+              label: 'TypeScript',
               items: [
-                { label: 'Overview', link: '/docs/sdks/javascript/' },
-                { label: 'Configuration', slug: 'docs/sdks/javascript/configuration' },
-                { label: 'init() / createClient()', slug: 'docs/sdks/javascript/init' },
+                { label: 'Overview', link: '/docs/sdks/typescript/' },
+                { label: 'Configuration', slug: 'docs/sdks/typescript/configuration' },
+                { label: 'init() / createClient()', slug: 'docs/sdks/typescript/init' },
               ],
             },
           ],
