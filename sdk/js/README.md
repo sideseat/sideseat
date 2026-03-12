@@ -1,4 +1,4 @@
-# SideSeat JavaScript SDK
+# SideSeat TypeScript SDK
 
 **AI Development Workbench** — Debug, trace, and understand your AI agents.
 
