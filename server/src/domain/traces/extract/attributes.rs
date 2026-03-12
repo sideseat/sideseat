@@ -602,6 +602,11 @@ const FRAMEWORK_RULES: &[FrameworkRule] = &[
         attr_prefix: &["openai.agents."],
         service_name: &["openai-agents", "openai_agents"],
     ),
+    // Microsoft Agent Framework
+    rule!(Framework::AgentFramework,
+        attr_equals: &[(keys::GEN_AI_PROVIDER_NAME, "microsoft.agent_framework")],
+        service_name: &["agent-framework-core"],
+    ),
     // AWS Bedrock
     rule!(Framework::AWSBedrock,
         attr_prefix: &["aws.bedrock."],

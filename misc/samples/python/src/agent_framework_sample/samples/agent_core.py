@@ -8,7 +8,7 @@ Demonstrates:
 
 from typing import Annotated
 
-from agent_framework import Agent, tool
+from agent_framework import ChatAgent, ai_function
 from opentelemetry import trace
 from pydantic import Field
 
@@ -26,7 +26,7 @@ MEMORY_STORE: dict[str, str] = {
 }
 
 
-@tool(approval_mode="never_require")
+@ai_function(approval_mode="never_require")
 def execute_python_code(
     code: Annotated[str, Field(description="Python code to execute")],
 ) -> str:
@@ -47,7 +47,7 @@ def execute_python_code(
         sys.stdout = old_stdout
 
 
-@tool(approval_mode="never_require")
+@ai_function(approval_mode="never_require")
 def retrieve_memory(
     key: Annotated[str, Field(description="The key to retrieve (e.g., 'favorite_number', 'name')")],
 ) -> str:
@@ -55,7 +55,7 @@ def retrieve_memory(
     return MEMORY_STORE.get(key, f"No memory found for key: {key}")
 
 
-@tool(approval_mode="never_require")
+@ai_function(approval_mode="never_require")
 def store_memory(
     key: Annotated[str, Field(description="The key to store under")],
     value: Annotated[str, Field(description="The value to store")],
@@ -77,8 +77,8 @@ async def run(client, trace_attrs: dict):
         print(f"  {key}: {value}")
     print()
 
-    agent = Agent(
-        client=client,
+    agent = ChatAgent(
+        chat_client=client,
         instructions=SYSTEM_PROMPT,
         tools=[execute_python_code, retrieve_memory, store_memory],
     )

@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from agent_framework import Agent
+from agent_framework import ChatAgent
 from opentelemetry import trace
 from pydantic import BaseModel, Field
 
@@ -33,8 +33,8 @@ async def run(client, trace_attrs: dict):
     """Run the structured_output sample."""
     tracer = trace.get_tracer(__name__)
 
-    agent = Agent(
-        client=client,
+    agent = ChatAgent(
+        chat_client=client,
         instructions="You are a helpful assistant that extracts structured information from text.",
     )
 
@@ -44,9 +44,10 @@ async def run(client, trace_attrs: dict):
     )
 
     with tracer.start_as_current_span("agent_framework.session", attributes=trace_attrs):
-        result = await agent.run(prompt, options={"response_format": Person})
+        result = await agent.run(prompt, response_format=Person)
 
-        if result.value is not None:
-            print(f"Parsed Person: {result.value}")
+        parsed = result.try_parse_value(Person)
+        if parsed is not None:
+            print(f"Parsed Person: {parsed}")
         else:
             print(f"Raw response: {result.text}")

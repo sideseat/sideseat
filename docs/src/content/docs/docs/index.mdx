@@ -172,29 +172,16 @@ print(result.final_output)`,
     label: "Microsoft Agent Framework",
     lang: "python",
     code: `import asyncio
-from sideseat import SideSeat, Frameworks
-from agent_framework import Agent
+from agent_framework import ChatAgent
 from agent_framework.openai import OpenAIChatClient
+from sideseat import SideSeat, Frameworks
 
 SideSeat(framework=Frameworks.AgentFramework)
 
 client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
-agent = Agent(client=client, instructions="You are helpful.")
+agent = ChatAgent(chat_client=client, instructions="You are helpful.")
 result = asyncio.run(agent.run("What is the capital of France?"))
 print(result.text)`,
-  },
-  {
-    label: "AutoGen",
-    lang: "python",
-    code: `from sideseat import SideSeat, Frameworks
-from autogen import AssistantAgent, UserProxyAgent
-
-SideSeat(framework=Frameworks.AutoGen)
-
-llm_config = {"config_list": [{"model": "gpt-5-mini"}]}
-assistant = AssistantAgent("assistant", llm_config=llm_config)
-user = UserProxyAgent("user", human_input_mode="NEVER")
-user.initiate_chat(assistant, message="Hello!")`,
   },
   {
     label: "CrewAI",
