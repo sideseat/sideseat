@@ -434,8 +434,7 @@ fn format_input(messages: &[Message]) -> Result<Value, ProviderError> {
     // Client-side history is not supported; extract only the last user message.
     let last_user = messages
         .iter()
-        .filter(|m| m.role == Role::User)
-        .next_back()
+        .rfind(|m| m.role == Role::User)
         .ok_or_else(|| ProviderError::InvalidRequest("No user message in input".into()))?;
 
     let all_text = last_user
