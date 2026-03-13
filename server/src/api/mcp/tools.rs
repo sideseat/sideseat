@@ -6,11 +6,14 @@ use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
     CallToolResult, Content, GetPromptRequestParams, GetPromptResult, Implementation,
-    ListPromptsResult, PaginatedRequestParams, PromptMessage, PromptMessageRole,
-    PromptsCapability, ServerCapabilities, ServerInfo, ToolsCapability,
+    ListPromptsResult, PaginatedRequestParams, PromptMessage, PromptMessageRole, PromptsCapability,
+    ServerCapabilities, ServerInfo, ToolsCapability,
 };
 use rmcp::service::RequestContext;
-use rmcp::{RoleServer, ServerHandler, prompt, prompt_handler, prompt_router, tool, tool_handler, tool_router};
+use rmcp::{
+    RoleServer, ServerHandler, prompt, prompt_handler, prompt_router, tool, tool_handler,
+    tool_router,
+};
 
 use crate::api::routes::otel::messages::{build_messages_response, scope_feed_to_trace};
 use crate::api::routes::otel::sessions::session_row_to_summary;
@@ -343,10 +346,7 @@ impl McpServer {
     #[prompt(
         description = "Get setup instructions for integrating SideSeat telemetry. Specify a framework for tailored code examples (SDK one-liner + direct OTLP fallback)."
     )]
-    async fn setup_guide(
-        &self,
-        Parameters(args): Parameters<SetupGuideArgs>,
-    ) -> GetPromptResult {
+    async fn setup_guide(&self, Parameters(args): Parameters<SetupGuideArgs>) -> GetPromptResult {
         let content = build_setup_guide(&self.project_id, args.framework.as_deref());
         GetPromptResult {
             description: Some("SideSeat integration guide".to_string()),
@@ -398,20 +398,118 @@ struct FrameworkSetup {
 
 fn get_framework(name: &str) -> Option<FrameworkSetup> {
     const FRAMEWORKS: &[FrameworkSetup] = &[
-        FrameworkSetup { display: "Strands Agents",            pip_pkg: "strands-agents",                    sdk_variant: "Strands",        sdk_snippet: "agent = Agent()\nprint(agent(\"Hello\"))",                                                                                                                                                                                                     no_sdk_extra_pkgs: "",                                                    no_sdk_extra_setup: "" },
-        FrameworkSetup { display: "LangChain",                 pip_pkg: "langchain-openai",                  sdk_variant: "LangChain",      sdk_snippet: "from langchain_openai import ChatOpenAI\nllm = ChatOpenAI(model=\"gpt-4o-mini\")\nprint(llm.invoke(\"Hello\").content)",                                                                                                                        no_sdk_extra_pkgs: "openinference-instrumentation-langchain",             no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider)" },
-        FrameworkSetup { display: "LangGraph",                 pip_pkg: "langgraph langchain-openai",        sdk_variant: "LangGraph",      sdk_snippet: "from langgraph.prebuilt import create_react_agent\nfrom langchain_openai import ChatOpenAI\nagent = create_react_agent(ChatOpenAI(model=\"gpt-4o-mini\"), [])\nprint(agent.invoke({\"messages\": [(\"user\", \"Hello\")]}))",                  no_sdk_extra_pkgs: "openinference-instrumentation-langchain",             no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider)" },
-        FrameworkSetup { display: "CrewAI",                    pip_pkg: "crewai",                            sdk_variant: "CrewAI",         sdk_snippet: "from crewai import Agent, Task, Crew\na = Agent(role=\"R\", goal=\"G\", backstory=\"B\")\nt = Task(description=\"D\", expected_output=\"O\", agent=a)\nprint(Crew(agents=[a], tasks=[t]).kickoff())",                                              no_sdk_extra_pkgs: "openinference-instrumentation-crewai",               no_sdk_extra_setup: "from openinference.instrumentation.crewai import CrewAIInstrumentor\nCrewAIInstrumentor().instrument(tracer_provider=provider)" },
-        FrameworkSetup { display: "AutoGen",                   pip_pkg: "autogen-agentchat autogen-ext",     sdk_variant: "AutoGen",        sdk_snippet: "import asyncio\nfrom autogen_agentchat.agents import AssistantAgent\nfrom autogen_ext.models.openai import OpenAIChatCompletionClient\nagent = AssistantAgent(\"a\", model_client=OpenAIChatCompletionClient(model=\"gpt-4o-mini\"))\nasyncio.run(agent.run(task=\"Hello\"))", no_sdk_extra_pkgs: "openinference-instrumentation-autogen-agentchat",     no_sdk_extra_setup: "from openinference.instrumentation.autogen_agentchat import AutogenAgentChatInstrumentor\nAutogenAgentChatInstrumentor().instrument(tracer_provider=provider)" },
-        FrameworkSetup { display: "OpenAI Agents SDK",         pip_pkg: "openai-agents",                     sdk_variant: "OpenAIAgents",   sdk_snippet: "from agents import Agent, Runner\nprint(Runner.run_sync(Agent(name=\"A\", instructions=\"Helpful.\"), \"Hello\").final_output)",                                                                                                               no_sdk_extra_pkgs: "logfire[openai-agents]",                              no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_openai_agents()" },
-        FrameworkSetup { display: "PydanticAI",                pip_pkg: "pydantic-ai",                       sdk_variant: "PydanticAI",     sdk_snippet: "from pydantic_ai import Agent\nprint(Agent(\"openai:gpt-4o-mini\").run_sync(\"Hello\").data)",                                                                                                                                               no_sdk_extra_pkgs: "logfire[pydantic-ai]",                                no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_pydantic_ai()" },
-        FrameworkSetup { display: "Google ADK",                pip_pkg: "google-adk",                        sdk_variant: "GoogleADK",      sdk_snippet: "# See full async example: https://google.github.io/adk-docs/",                                                                                                                                                                               no_sdk_extra_pkgs: "",                                                    no_sdk_extra_setup: "" },
-        FrameworkSetup { display: "Microsoft Agent Framework", pip_pkg: "agent-framework",                   sdk_variant: "AgentFramework",  sdk_snippet: "import asyncio\nfrom agent_framework import ChatAgent\nfrom agent_framework.openai import OpenAIChatClient\nprint(asyncio.run(ChatAgent(chat_client=OpenAIChatClient(model_id=\"gpt-4o-mini\"), instructions=\"Helpful.\").run(\"Hello\")).text)", no_sdk_extra_pkgs: "",                                                    no_sdk_extra_setup: "from agent_framework.observability import OBSERVABILITY_SETTINGS\nOBSERVABILITY_SETTINGS.enable_otel = True\nOBSERVABILITY_SETTINGS.enable_sensitive_data = True" },
-        FrameworkSetup { display: "Amazon Bedrock",            pip_pkg: "boto3",                             sdk_variant: "Bedrock",        sdk_snippet: "import boto3\nr = boto3.client(\"bedrock-runtime\", region_name=\"us-east-1\").converse(modelId=\"anthropic.claude-haiku-4-5-20251001-v1:0\", messages=[{\"role\": \"user\", \"content\": [{\"text\": \"Hello\"}]}])\nprint(r[\"output\"][\"message\"][\"content\"][0][\"text\"])", no_sdk_extra_pkgs: "opentelemetry-instrumentation-botocore",               no_sdk_extra_setup: "from opentelemetry.instrumentation.botocore import BotocoreInstrumentor\nBotocoreInstrumentor().instrument(tracer_provider=provider)" },
-        FrameworkSetup { display: "Anthropic",                 pip_pkg: "anthropic",                         sdk_variant: "Anthropic",      sdk_snippet: "import anthropic\nprint(anthropic.Anthropic().messages.create(model=\"claude-haiku-4-5-20251001\", max_tokens=256, messages=[{\"role\": \"user\", \"content\": \"Hello\"}]).content[0].text)",                                               no_sdk_extra_pkgs: "logfire[anthropic]",                                  no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_anthropic()" },
-        FrameworkSetup { display: "OpenAI",                    pip_pkg: "openai",                            sdk_variant: "OpenAI",         sdk_snippet: "from openai import OpenAI\nprint(OpenAI().chat.completions.create(model=\"gpt-4o-mini\", messages=[{\"role\": \"user\", \"content\": \"Hello\"}]).choices[0].message.content)",                                                               no_sdk_extra_pkgs: "logfire[openai]",                                     no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_openai()" },
-        FrameworkSetup { display: "Google Gemini",             pip_pkg: "google-genai",                      sdk_variant: "GoogleGenAI",    sdk_snippet: "from google import genai\nprint(genai.Client(api_key=\"YOUR_KEY\").models.generate_content(model=\"gemini-2.5-flash\", contents=\"Hello\").text)",                                                                                           no_sdk_extra_pkgs: "logfire[google-genai]",                               no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_google_genai()" },
-        FrameworkSetup { display: "Google Vertex AI",          pip_pkg: "google-cloud-aiplatform vertexai",  sdk_variant: "VertexAI",       sdk_snippet: "import vertexai\nfrom vertexai.generative_models import GenerativeModel\nvertexai.init(project=\"PROJECT_ID\", location=\"us-central1\")\nprint(GenerativeModel(\"gemini-2.5-flash\").generate_content(\"Hello\").text)",                   no_sdk_extra_pkgs: "opentelemetry-instrumentation-vertexai",              no_sdk_extra_setup: "from opentelemetry.instrumentation.vertexai import VertexAIInstrumentor\nVertexAIInstrumentor().instrument(tracer_provider=provider)" },
+        FrameworkSetup {
+            display: "Strands Agents",
+            pip_pkg: "strands-agents",
+            sdk_variant: "Strands",
+            sdk_snippet: "agent = Agent()\nprint(agent(\"Hello\"))",
+            no_sdk_extra_pkgs: "",
+            no_sdk_extra_setup: "",
+        },
+        FrameworkSetup {
+            display: "LangChain",
+            pip_pkg: "langchain-openai",
+            sdk_variant: "LangChain",
+            sdk_snippet: "from langchain_openai import ChatOpenAI\nllm = ChatOpenAI(model=\"gpt-4o-mini\")\nprint(llm.invoke(\"Hello\").content)",
+            no_sdk_extra_pkgs: "openinference-instrumentation-langchain",
+            no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider)",
+        },
+        FrameworkSetup {
+            display: "LangGraph",
+            pip_pkg: "langgraph langchain-openai",
+            sdk_variant: "LangGraph",
+            sdk_snippet: "from langgraph.prebuilt import create_react_agent\nfrom langchain_openai import ChatOpenAI\nagent = create_react_agent(ChatOpenAI(model=\"gpt-4o-mini\"), [])\nprint(agent.invoke({\"messages\": [(\"user\", \"Hello\")]}))",
+            no_sdk_extra_pkgs: "openinference-instrumentation-langchain",
+            no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider)",
+        },
+        FrameworkSetup {
+            display: "CrewAI",
+            pip_pkg: "crewai",
+            sdk_variant: "CrewAI",
+            sdk_snippet: "from crewai import Agent, Task, Crew\na = Agent(role=\"R\", goal=\"G\", backstory=\"B\")\nt = Task(description=\"D\", expected_output=\"O\", agent=a)\nprint(Crew(agents=[a], tasks=[t]).kickoff())",
+            no_sdk_extra_pkgs: "openinference-instrumentation-crewai",
+            no_sdk_extra_setup: "from openinference.instrumentation.crewai import CrewAIInstrumentor\nCrewAIInstrumentor().instrument(tracer_provider=provider)",
+        },
+        FrameworkSetup {
+            display: "AutoGen",
+            pip_pkg: "autogen-agentchat autogen-ext",
+            sdk_variant: "AutoGen",
+            sdk_snippet: "import asyncio\nfrom autogen_agentchat.agents import AssistantAgent\nfrom autogen_ext.models.openai import OpenAIChatCompletionClient\nagent = AssistantAgent(\"a\", model_client=OpenAIChatCompletionClient(model=\"gpt-4o-mini\"))\nasyncio.run(agent.run(task=\"Hello\"))",
+            no_sdk_extra_pkgs: "openinference-instrumentation-autogen-agentchat",
+            no_sdk_extra_setup: "from openinference.instrumentation.autogen_agentchat import AutogenAgentChatInstrumentor\nAutogenAgentChatInstrumentor().instrument(tracer_provider=provider)",
+        },
+        FrameworkSetup {
+            display: "OpenAI Agents SDK",
+            pip_pkg: "openai-agents",
+            sdk_variant: "OpenAIAgents",
+            sdk_snippet: "from agents import Agent, Runner\nprint(Runner.run_sync(Agent(name=\"A\", instructions=\"Helpful.\"), \"Hello\").final_output)",
+            no_sdk_extra_pkgs: "logfire[openai-agents]",
+            no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_openai_agents()",
+        },
+        FrameworkSetup {
+            display: "PydanticAI",
+            pip_pkg: "pydantic-ai",
+            sdk_variant: "PydanticAI",
+            sdk_snippet: "from pydantic_ai import Agent\nprint(Agent(\"openai:gpt-4o-mini\").run_sync(\"Hello\").data)",
+            no_sdk_extra_pkgs: "logfire[pydantic-ai]",
+            no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_pydantic_ai()",
+        },
+        FrameworkSetup {
+            display: "Google ADK",
+            pip_pkg: "google-adk",
+            sdk_variant: "GoogleADK",
+            sdk_snippet: "# See full async example: https://google.github.io/adk-docs/",
+            no_sdk_extra_pkgs: "",
+            no_sdk_extra_setup: "",
+        },
+        FrameworkSetup {
+            display: "Microsoft Agent Framework",
+            pip_pkg: "agent-framework",
+            sdk_variant: "AgentFramework",
+            sdk_snippet: "import asyncio\nfrom agent_framework import Agent\nfrom agent_framework.openai import OpenAIChatClient\nprint(asyncio.run(Agent(client=OpenAIChatClient(model_id=\"gpt-5-nano-2025-08-07\"), instructions=\"Helpful.\").run(\"Hello\")).text)",
+            no_sdk_extra_pkgs: "",
+            no_sdk_extra_setup: "from agent_framework.observability import OBSERVABILITY_SETTINGS\nOBSERVABILITY_SETTINGS.enable_otel = True\nOBSERVABILITY_SETTINGS.enable_sensitive_data = True",
+        },
+        FrameworkSetup {
+            display: "Amazon Bedrock",
+            pip_pkg: "boto3",
+            sdk_variant: "Bedrock",
+            sdk_snippet: "import boto3\nr = boto3.client(\"bedrock-runtime\", region_name=\"us-east-1\").converse(modelId=\"anthropic.claude-haiku-4-5-20251001-v1:0\", messages=[{\"role\": \"user\", \"content\": [{\"text\": \"Hello\"}]}])\nprint(r[\"output\"][\"message\"][\"content\"][0][\"text\"])",
+            no_sdk_extra_pkgs: "opentelemetry-instrumentation-botocore",
+            no_sdk_extra_setup: "from opentelemetry.instrumentation.botocore import BotocoreInstrumentor\nBotocoreInstrumentor().instrument(tracer_provider=provider)",
+        },
+        FrameworkSetup {
+            display: "Anthropic",
+            pip_pkg: "anthropic",
+            sdk_variant: "Anthropic",
+            sdk_snippet: "import anthropic\nprint(anthropic.Anthropic().messages.create(model=\"claude-haiku-4-5-20251001\", max_tokens=256, messages=[{\"role\": \"user\", \"content\": \"Hello\"}]).content[0].text)",
+            no_sdk_extra_pkgs: "logfire[anthropic]",
+            no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_anthropic()",
+        },
+        FrameworkSetup {
+            display: "OpenAI",
+            pip_pkg: "openai",
+            sdk_variant: "OpenAI",
+            sdk_snippet: "from openai import OpenAI\nprint(OpenAI().chat.completions.create(model=\"gpt-4o-mini\", messages=[{\"role\": \"user\", \"content\": \"Hello\"}]).choices[0].message.content)",
+            no_sdk_extra_pkgs: "logfire[openai]",
+            no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_openai()",
+        },
+        FrameworkSetup {
+            display: "Google Gemini",
+            pip_pkg: "google-genai",
+            sdk_variant: "GoogleGenAI",
+            sdk_snippet: "from google import genai\nprint(genai.Client(api_key=\"YOUR_KEY\").models.generate_content(model=\"gemini-2.5-flash\", contents=\"Hello\").text)",
+            no_sdk_extra_pkgs: "logfire[google-genai]",
+            no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_google_genai()",
+        },
+        FrameworkSetup {
+            display: "Google Vertex AI",
+            pip_pkg: "google-cloud-aiplatform vertexai",
+            sdk_variant: "VertexAI",
+            sdk_snippet: "import vertexai\nfrom vertexai.generative_models import GenerativeModel\nvertexai.init(project=\"PROJECT_ID\", location=\"us-central1\")\nprint(GenerativeModel(\"gemini-2.5-flash\").generate_content(\"Hello\").text)",
+            no_sdk_extra_pkgs: "opentelemetry-instrumentation-vertexai",
+            no_sdk_extra_setup: "from opentelemetry.instrumentation.vertexai import VertexAIInstrumentor\nVertexAIInstrumentor().instrument(tracer_provider=provider)",
+        },
     ];
     FRAMEWORKS
         .iter()

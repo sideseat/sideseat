@@ -6,7 +6,7 @@
  * 2. Critic agent evaluates and selects the best image
  */
 
-import { Agent, tool } from '@strands-agents/sdk';
+import { Agent, tool, ImageBlock, TextBlock } from '@strands-agents/sdk';
 import { z } from 'zod';
 import * as fs from 'fs';
 import { resolveModel } from '../../shared/config.js';
@@ -28,27 +28,6 @@ export async function run(modelId: string) {
     },
   });
 
-  // Image reader tool (returns base64 for multimodal analysis)
-  const imageReaderTool = tool({
-    name: 'image_reader',
-    description: 'Read an image file and return its contents for analysis.',
-    inputSchema: z.object({
-      path: z.string().describe('Filesystem path to the image file'),
-    }),
-    callback: ({ path: filePath }): Record<string, string> => {
-      if (!fs.existsSync(filePath)) {
-        return { error: `File not found: ${filePath}` };
-      }
-      const base64 = fs.readFileSync(filePath).toString('base64');
-      return {
-        type: 'image',
-        data: base64,
-        mediaType: 'image/png',
-        path: filePath,
-      };
-    },
-  });
-
   // Artist agent that generates images based on prompts
   const artist = new Agent({
     model,
@@ -62,12 +41,11 @@ Your final output must contain ONLY a comma-separated list of the filesystem pat
   // Critic agent that evaluates and selects the best image
   const critic = new Agent({
     model,
-    tools: [imageReaderTool],
     printer: false,
-    systemPrompt: `You will be provided with a list of filesystem paths, each containing an image.
+    systemPrompt: `You will be provided with a set of images.
 Describe each image, and then choose which one is best.
 Your final line of output must be as follows:
-FINAL DECISION: <path to final decision image>`,
+FINAL DECISION: <index of chosen image, 1-based>`,
   });
 
   // Generate multiple images using the artist agent
@@ -75,8 +53,30 @@ FINAL DECISION: <path to final decision image>`,
   const artistResult = await artist.invoke('Generate 3 images of a dog');
   console.log(`Artist result: ${artistResult.toString()}`);
 
-  // Pass the image paths to the critic agent for evaluation
+  // Parse paths and load images as native ImageBlock objects
+  const imagePaths = artistResult
+    .toString()
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  const content = [
+    new TextBlock(
+      `You will be provided with ${imagePaths.length} images.\n` +
+        `Describe each image, and then choose which one is best.\n` +
+        `Your final line of output must be as follows:\nFINAL DECISION: <index of chosen image, 1-based>`
+    ),
+    ...imagePaths.map(
+      (p) =>
+        new ImageBlock({
+          format: 'png',
+          source: { bytes: new Uint8Array(fs.readFileSync(p)) },
+        })
+    ),
+  ];
+
+  // Pass images directly to the critic agent for evaluation
   console.log('\nCritic evaluating images...');
-  const criticResult = await critic.invoke(artistResult.toString());
+  const criticResult = await critic.invoke(content);
   console.log(`Critic result: ${criticResult.toString()}`);
 }
