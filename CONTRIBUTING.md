@@ -43,7 +43,7 @@ make check                                # fmt-check + lint + test
 make build                                # Production build
 ```
 
-To generate test traces, run `uv run strands` from the `misc/samples/python/` directory.
+To generate test traces, run `uv run --directory misc/samples/python/strands strands tool_use --sideseat`.
 
 ### Release Workflow
 

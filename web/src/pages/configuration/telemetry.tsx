@@ -441,20 +441,20 @@ print(result.final_output)`,
     docUrl: "https://sideseat.ai/docs/integrations/frameworks/agent-framework/",
     install: "pip install agent-framework sideseat",
     code: () => `import asyncio
-from agent_framework import ChatAgent
+from agent_framework import Agent
 from agent_framework.openai import OpenAIChatClient
 from sideseat import SideSeat, Frameworks
 
 SideSeat(framework=Frameworks.AgentFramework)
 
 client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
-agent = ChatAgent(chat_client=client, instructions="You are a helpful assistant.")
+agent = Agent(client=client, instructions="You are a helpful assistant.")
 result = asyncio.run(agent.run("What is 2+2?"))
 print(result.text)`,
     altInstall: "pip install agent-framework opentelemetry-sdk opentelemetry-exporter-otlp",
     altCode: () => `import asyncio
 from agent_framework.observability import OBSERVABILITY_SETTINGS
-from agent_framework import ChatAgent
+from agent_framework import Agent
 from agent_framework.openai import OpenAIChatClient
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -471,7 +471,7 @@ provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(
 trace.set_tracer_provider(provider)
 
 client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
-agent = ChatAgent(chat_client=client, instructions="You are a helpful assistant.")
+agent = Agent(client=client, instructions="You are a helpful assistant.")
 result = asyncio.run(agent.run("What is 2+2?"))
 print(result.text)`,
     run: "python agent.py",

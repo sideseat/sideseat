@@ -1,5 +1,6 @@
 """Framework instrumentation with guards and graceful fallbacks."""
 
+import functools
 import logging
 import threading
 from typing import TYPE_CHECKING, Any
@@ -268,6 +269,50 @@ def _patch_logfire_wrappers(integration_module: str) -> None:
         if patched:
             cls.__abstractmethods__ = abstracts - patched
             logger.debug("Patched %s: %s", cls_name, ", ".join(sorted(patched)))
+
+
+def _wrap_logfire_instruments() -> None:
+    """Wrap logfire.instrument_* to auto-apply abstract-method fixes.
+
+    After any ``logfire.instrument_{x}()`` call, ``_patch_logfire_wrappers("{x}")``
+    runs automatically — resolving version-skew gaps (e.g. framework SDK adds a
+    new abstract method before logfire catches up) without requiring a manual
+    patch call at every callsite.
+
+    Called at module import time so the protection is active for any subsequent
+    logfire instrumentation, whether through SideSeat or called directly.
+    Idempotent: each logfire function is wrapped at most once.
+    No-op if logfire is not installed.
+    """
+    try:
+        import logfire  # type: ignore[import-not-found]
+    except ImportError:
+        return
+
+    for attr_name in [a for a in dir(logfire) if a.startswith("instrument_")]:
+        original = getattr(logfire, attr_name, None)
+        if not callable(original) or getattr(original, "_sideseat_wrapped", False):
+            continue
+
+        integration = attr_name[len("instrument_") :]
+
+        def _make_wrapper(orig: Any, integ: str) -> Any:
+            @functools.wraps(orig)
+            def wrapper(*args: Any, **kwargs: Any) -> Any:
+                result = orig(*args, **kwargs)
+                _patch_logfire_wrappers(integ)
+                return result
+
+            wrapper._sideseat_wrapped = True  # type: ignore[attr-defined]
+            return wrapper
+
+        setattr(logfire, attr_name, _make_wrapper(original, integration))
+
+
+# Wrap logfire instruments at module import time so the fix is in effect for
+# any logfire.instrument_*() call made after this module is loaded — regardless
+# of whether the caller goes through SideSeat or calls logfire directly.
+_wrap_logfire_instruments()
 
 
 def apply_framework_patches(framework: str, encode_binary: bool) -> None:

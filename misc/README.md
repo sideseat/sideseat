@@ -5,13 +5,27 @@ Shared resources, sample applications, and utilities for SideSeat development.
 ## Setup
 
 ```bash
-cp misc/.env.example misc/.env                     # Configure environment
-uv sync --directory misc/samples/python             # Install Python deps
-npm --prefix misc/samples/js install                # Install JS deps
-uv sync --directory misc/replay                     # Install replay deps
+cp misc/.env.example misc/.env                               # Configure environment
+npm --prefix misc/samples/js install                         # Install JS deps
+uv sync --directory misc/replay                              # Install replay deps
 
-# After SDK changes
-uv sync --directory misc/samples/python --reinstall-package sideseat
+# Install each Python sample package individually (isolated envs)
+uv sync --directory misc/samples/python/strands
+uv sync --directory misc/samples/python/adk
+uv sync --directory misc/samples/python/langgraph
+uv sync --directory misc/samples/python/crewai
+uv sync --directory misc/samples/python/autogen
+uv sync --directory misc/samples/python/openai-agents
+uv sync --directory misc/samples/python/agent-framework
+uv sync --directory misc/samples/python/bedrock
+uv sync --directory misc/samples/python/anthropic
+uv sync --directory misc/samples/python/openai
+uv sync --directory misc/samples/python/loadtest
+
+# After SDK structural changes (new deps, new extras, pyproject.toml edits)
+for d in strands adk langgraph crewai autogen openai-agents agent-framework bedrock anthropic openai loadtest; do
+  uv sync --directory misc/samples/python/$d --reinstall-package sideseat
+done
 ```
 
 ## Python Samples
@@ -20,72 +34,79 @@ Start SideSeat first: `make dev-server`
 
 View traces: http://localhost:5389/ui/projects/default/observability/traces
 
-### Strands Agents
-
-```bash
-uv run --directory misc/samples/python strands                        # List samples and models
-uv run --directory misc/samples/python strands tool_use               # Tool usage
-uv run --directory misc/samples/python strands mcp_tools              # MCP server integration
-uv run --directory misc/samples/python strands structured_output      # Structured data extraction
-uv run --directory misc/samples/python strands reasoning              # Extended thinking
-uv run --directory misc/samples/python strands files                  # Image/PDF analysis
-uv run --directory misc/samples/python strands image_gen              # Image generation
-uv run --directory misc/samples/python strands rag_local              # RAG with embeddings
-uv run --directory misc/samples/python strands swarm                  # Multi-agent swarm
-uv run --directory misc/samples/python strands agent_core             # AgentCore integration
-uv run --directory misc/samples/python strands error                  # Error handling
-uv run --directory misc/samples/python strands all                    # Run all
-```
-
 ### Other Frameworks
 
 ```bash
-uv run --directory misc/samples/python adk tool_use                   # Google ADK
-uv run --directory misc/samples/python langgraph tool_use             # LangGraph ReAct agent
-uv run --directory misc/samples/python openai-agents tool_use         # OpenAI Agents SDK
-uv run --directory misc/samples/python agent-framework tool_use       # Microsoft Agent Framework
-uv run --directory misc/samples/python autogen tool_use               # AutoGen chat
-uv run --directory misc/samples/python crewai tool_use                # CrewAI multi-agent
+uv run --directory misc/samples/python/strands strands tool_use
+uv run --directory misc/samples/python/adk telemetry-adk tool_use
+uv run --directory misc/samples/python/langgraph langgraph tool_use
+uv run --directory misc/samples/python/openai-agents openai-agents tool_use
+uv run --directory misc/samples/python/agent-framework agent-framework tool_use
+uv run --directory misc/samples/python/autogen autogen tool_use
+uv run --directory misc/samples/python/crewai crewai tool_use
+uv run --directory misc/samples/python/openai openai-provider chat_completions
+uv run --directory misc/samples/python/openai openai-provider responses
+uv run --directory misc/samples/python/anthropic anthropic-provider messages
+uv run --directory misc/samples/python/bedrock bedrock converse
+npm --prefix misc/samples/js run vercel-ai -- tool-use
+npm --prefix misc/samples/js run strands -- tool-use
+```
+
+### Strands Agents
+
+```bash
+uv run --directory misc/samples/python/strands strands                        # List samples and models
+uv run --directory misc/samples/python/strands strands tool_use               # Tool usage
+uv run --directory misc/samples/python/strands strands mcp_tools              # MCP server integration
+uv run --directory misc/samples/python/strands strands structured_output      # Structured data extraction
+uv run --directory misc/samples/python/strands strands reasoning              # Extended thinking
+uv run --directory misc/samples/python/strands strands files                  # Image/PDF analysis
+uv run --directory misc/samples/python/strands strands image_gen              # Image generation
+uv run --directory misc/samples/python/strands strands rag_local              # RAG with embeddings
+uv run --directory misc/samples/python/strands strands swarm                  # Multi-agent swarm
+uv run --directory misc/samples/python/strands strands agent_core             # AgentCore integration
+uv run --directory misc/samples/python/strands strands error                  # Error handling
+uv run --directory misc/samples/python/strands strands all                    # Run all
 ```
 
 ### OpenAI Provider
 
 ```bash
-uv run --directory misc/samples/python openai-provider                # List samples and models
-uv run --directory misc/samples/python openai-provider chat_completions  # Sync, streaming, tool use
-uv run --directory misc/samples/python openai-provider responses      # Responses API
-uv run --directory misc/samples/python openai-provider multi_turn     # Multi-turn (trace grouping)
-uv run --directory misc/samples/python openai-provider vision         # Image analysis
-uv run --directory misc/samples/python openai-provider session        # Session with multiple traces
-uv run --directory misc/samples/python openai-provider error          # Error handling
-uv run --directory misc/samples/python openai-provider all            # Run all
+uv run --directory misc/samples/python/openai openai-provider                # List samples and models
+uv run --directory misc/samples/python/openai openai-provider chat_completions  # Sync, streaming, tool use
+uv run --directory misc/samples/python/openai openai-provider responses      # Responses API
+uv run --directory misc/samples/python/openai openai-provider multi_turn     # Multi-turn (trace grouping)
+uv run --directory misc/samples/python/openai openai-provider vision         # Image analysis
+uv run --directory misc/samples/python/openai openai-provider session        # Session with multiple traces
+uv run --directory misc/samples/python/openai openai-provider error          # Error handling
+uv run --directory misc/samples/python/openai openai-provider all            # Run all
 ```
 
 ### Anthropic Provider
 
 ```bash
-uv run --directory misc/samples/python anthropic-provider             # List samples and models
-uv run --directory misc/samples/python anthropic-provider messages    # Sync, streaming, tool use
-uv run --directory misc/samples/python anthropic-provider multi_turn  # Multi-turn (trace grouping)
-uv run --directory misc/samples/python anthropic-provider thinking    # Extended thinking
-uv run --directory misc/samples/python anthropic-provider vision      # Image analysis
-uv run --directory misc/samples/python anthropic-provider document    # PDF analysis
-uv run --directory misc/samples/python anthropic-provider session     # Session with multiple traces
-uv run --directory misc/samples/python anthropic-provider error       # Error handling
-uv run --directory misc/samples/python anthropic-provider all         # Run all
+uv run --directory misc/samples/python/anthropic anthropic-provider             # List samples and models
+uv run --directory misc/samples/python/anthropic anthropic-provider messages    # Sync, streaming, tool use
+uv run --directory misc/samples/python/anthropic anthropic-provider multi_turn  # Multi-turn (trace grouping)
+uv run --directory misc/samples/python/anthropic anthropic-provider thinking    # Extended thinking
+uv run --directory misc/samples/python/anthropic anthropic-provider vision      # Image analysis
+uv run --directory misc/samples/python/anthropic anthropic-provider document    # PDF analysis
+uv run --directory misc/samples/python/anthropic anthropic-provider session     # Session with multiple traces
+uv run --directory misc/samples/python/anthropic anthropic-provider error       # Error handling
+uv run --directory misc/samples/python/anthropic anthropic-provider all         # Run all
 ```
 
 ### Bedrock Provider
 
 ```bash
-uv run --directory misc/samples/python bedrock                        # List samples and models
-uv run --directory misc/samples/python bedrock converse               # Sync, streaming, thinking, tool use
-uv run --directory misc/samples/python bedrock multi_turn             # Multi-turn (trace grouping)
-uv run --directory misc/samples/python bedrock invoke_model           # InvokeModel API
-uv run --directory misc/samples/python bedrock document               # PDF + image multimodal
-uv run --directory misc/samples/python bedrock session                # Session with multiple traces
-uv run --directory misc/samples/python bedrock error                  # Error handling
-uv run --directory misc/samples/python bedrock all                    # Run all
+uv run --directory misc/samples/python/bedrock bedrock                        # List samples and models
+uv run --directory misc/samples/python/bedrock bedrock converse               # Sync, streaming, thinking, tool use
+uv run --directory misc/samples/python/bedrock bedrock multi_turn             # Multi-turn (trace grouping)
+uv run --directory misc/samples/python/bedrock bedrock invoke_model           # InvokeModel API
+uv run --directory misc/samples/python/bedrock bedrock document               # PDF + image multimodal
+uv run --directory misc/samples/python/bedrock bedrock session                # Session with multiple traces
+uv run --directory misc/samples/python/bedrock bedrock error                  # Error handling
+uv run --directory misc/samples/python/bedrock bedrock all                    # Run all
 ```
 
 ### Options
@@ -114,17 +135,11 @@ Provider samples (OpenAI, Anthropic, Bedrock) always use SideSeat SDK — no `--
 
 Default model varies by sample: Strands/LangGraph/CrewAI/ADK/Bedrock use `bedrock-haiku`, AutoGen uses `anthropic-haiku`, OpenAI Agents/Microsoft Agent Framework/OpenAI provider use `openai-gpt5nano`, Anthropic provider uses `anthropic-haiku`.
 
-### Run All Python Samples
-
-```bash
-uv run --directory misc/samples/python telemetry-all
-```
-
 ### Load Testing
 
 ```bash
-uv run --directory misc/samples/python loadtest                       # Default: 1M spans
-uv run --directory misc/samples/python loadtest --spans 100000        # Custom span count
+uv run --directory misc/samples/python/loadtest loadtest              # Default: 1M spans
+uv run --directory misc/samples/python/loadtest loadtest --spans 100000  # Custom span count
 ```
 
 ## JavaScript Samples
@@ -226,18 +241,23 @@ misc/
 ├── screenshots/          # UI screenshots
 ├── scripts/              # Utility scripts
 └── samples/
-    ├── python/src/
-    │   ├── strands_sample/
-    │   ├── openai_sample/
-    │   ├── anthropic_sample/
-    │   ├── bedrock_sample/
-    │   ├── adk_sample/
-    │   ├── langgraph_sample/
-    │   ├── openai_agents_sample/
-    │   ├── agent_framework_sample/
-    │   ├── autogen_sample/
-    │   ├── crewai_sample/
-    │   └── common/
+    ├── python/              # Each framework is an isolated uv package
+    │   ├── common/          # Shared utilities (path dep for all packages)
+    │   │   ├── pyproject.toml
+    │   │   └── common/
+    │   ├── strands/         # Strands Agents
+    │   │   ├── pyproject.toml
+    │   │   └── strands_sample/
+    │   ├── adk/             # Google ADK
+    │   ├── langgraph/       # LangGraph
+    │   ├── crewai/          # CrewAI
+    │   ├── autogen/         # AutoGen
+    │   ├── openai-agents/   # OpenAI Agents SDK
+    │   ├── agent-framework/ # Microsoft Agent Framework (Python 3.12 only)
+    │   ├── bedrock/         # AWS Bedrock
+    │   ├── anthropic/       # Anthropic API
+    │   ├── openai/          # OpenAI API
+    │   └── loadtest/        # Load test (no framework deps)
     └── js/src/
         ├── strands/
         └── vercel-ai/

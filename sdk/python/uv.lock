@@ -523,6 +523,21 @@ wheels = [
 ]
 
 [[package]]
+name = "opentelemetry-instrumentation-vertexai"
+version = "0.53.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-instrumentation" },
+    { name = "opentelemetry-semantic-conventions" },
+    { name = "opentelemetry-semantic-conventions-ai" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9e/37/e05becd4adae6f6514d952ab020dc018c70ad8acc558c3a5afa61c4016bc/opentelemetry_instrumentation_vertexai-0.53.0.tar.gz", hash = "sha256:436ebbb284af8c067d5ea98e349c53692d801989f61769481b45b75774756fc8", size = 79154, upload-time = "2026-03-04T07:49:27.816Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/10/f7/67e809638c2793af5e356d312b09b8e2b175cab2ddbb7119c38a67f6aa80/opentelemetry_instrumentation_vertexai-0.53.0-py3-none-any.whl", hash = "sha256:8f2d610e3da3e717069a439d61a3adfa2b375d4658de03f2e05131a3cbbd4681", size = 10814, upload-time = "2026-03-04T07:48:52.82Z" },
+]
+
+[[package]]
 name = "opentelemetry-proto"
 version = "1.39.1"
 source = { registry = "https://pypi.org/simple" }
@@ -559,6 +574,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/91/df/553f93ed38bf22f4b999d9be9c185adb558982214f33eae539d3b5cd0858/opentelemetry_semantic_conventions-0.60b1.tar.gz", hash = "sha256:87c228b5a0669b748c76d76df6c364c369c28f1c465e50f661e39737e84bc953", size = 137935, upload-time = "2025-12-11T13:32:50.487Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7a/5e/5958555e09635d09b75de3c4f8b9cae7335ca545d77392ffe7331534c402/opentelemetry_semantic_conventions-0.60b1-py3-none-any.whl", hash = "sha256:9fa8c8b0c110da289809292b0591220d3a7b53c1526a23021e977d68597893fb", size = 219982, upload-time = "2025-12-11T13:32:36.955Z" },
+]
+
+[[package]]
+name = "opentelemetry-semantic-conventions-ai"
+version = "0.4.15"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-sdk" },
+    { name = "opentelemetry-semantic-conventions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e9/75/455c15f8360b475dd31101a87eab316420388486f7941bf019cbf4e63d5b/opentelemetry_semantic_conventions_ai-0.4.15.tar.gz", hash = "sha256:12de172d1e11d21c6e82bbf578c7e8a713589a7fda76af9ed785632564a28b81", size = 18595, upload-time = "2026-03-02T15:36:50.254Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/12/49/819fb212386f77cfd93f81bd916d674f0e735f87c8ac2262ed14e3b852c2/opentelemetry_semantic_conventions_ai-0.4.15-py3-none-any.whl", hash = "sha256:011461f1fba30f27035c49ab3b8344367adc72da0a6c8d3c7428303c6779edc9", size = 5999, upload-time = "2026-03-02T15:36:51.44Z" },
 ]
 
 [[package]]
@@ -929,6 +957,7 @@ all = [
     { name = "openinference-instrumentation-autogen-agentchat" },
     { name = "openinference-instrumentation-crewai" },
     { name = "openinference-instrumentation-langchain" },
+    { name = "opentelemetry-instrumentation-vertexai" },
     { name = "wrapt" },
 ]
 anthropic = [
@@ -963,6 +992,9 @@ openai = [
 pydantic-ai = [
     { name = "logfire" },
 ]
+vertex-ai = [
+    { name = "opentelemetry-instrumentation-vertexai" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -981,13 +1013,15 @@ requires-dist = [
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langgraph'", specifier = ">=0.1.0" },
     { name = "opentelemetry-api", specifier = ">=1.20.0" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.20.0" },
+    { name = "opentelemetry-instrumentation-vertexai", marker = "extra == 'all'", specifier = ">=0.40.0" },
+    { name = "opentelemetry-instrumentation-vertexai", marker = "extra == 'vertex-ai'", specifier = ">=0.40.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.20.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
     { name = "wrapt", marker = "extra == 'all'", specifier = ">=1.14.0" },
     { name = "wrapt", marker = "extra == 'aws'", specifier = ">=1.14.0" },
 ]
-provides-extras = ["all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "langchain", "langgraph", "openai", "pydantic-ai"]
+provides-extras = ["all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "langchain", "langgraph", "openai", "pydantic-ai", "vertex-ai"]
 
 [[package]]
 name = "tomli"
