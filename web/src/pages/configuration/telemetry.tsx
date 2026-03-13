@@ -829,9 +829,13 @@ export default function TelemetryPage() {
                   </p>
                 </div>
                 <div className="space-y-1.5">
-                  <p className="text-xs text-muted-foreground">Set the endpoint</p>
+                  <p className="text-xs text-muted-foreground">Set environment variables</p>
                   <CodeBlock
-                    code={`export OTEL_EXPORTER_OTLP_ENDPOINT=${endpoint}`}
+                    code={
+                      useApiKey
+                        ? `export OTEL_EXPORTER_OTLP_ENDPOINT=${endpoint}\nexport OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer $SIDESEAT_API_KEY"`
+                        : `export OTEL_EXPORTER_OTLP_ENDPOINT=${endpoint}`
+                    }
                     label="Environment variables"
                     lang="bash"
                   />
