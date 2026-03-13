@@ -37,10 +37,10 @@ crewai = ["openinference-instrumentation-crewai>=0.1.0"]
 autogen = ["openinference-instrumentation-autogen-agentchat>=0.1.0"]
 # logfire>=4.29.0 added instrument_openai_agents() using the official SDK hook
 openai-agents = ["logfire>=4.29.0"]
-pydantic-ai = ["logfire>=0.50.0"]
-openai = ["logfire>=0.50.0"]
-anthropic = ["logfire>=0.50.0"]
-google-genai = ["logfire>=0.50.0"]
+pydantic-ai = ["logfire>=4.29.0"]
+openai = ["logfire>=4.29.0"]
+anthropic = ["logfire>=4.29.0"]
+google-genai = ["logfire>=4.29.0"]
 vertex-ai = ["opentelemetry-instrumentation-vertexai>=0.40.0"]
 
 # Cloud provider instrumentation
