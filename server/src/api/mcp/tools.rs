@@ -443,7 +443,7 @@ fn get_framework(name: &str) -> Option<FrameworkSetup> {
             pip_pkg: "openai-agents",
             sdk_variant: "OpenAIAgents",
             sdk_snippet: "from agents import Agent, Runner\nprint(Runner.run_sync(Agent(name=\"A\", instructions=\"Helpful.\"), \"Hello\").final_output)",
-            no_sdk_extra_pkgs: "logfire[openai-agents]",
+            no_sdk_extra_pkgs: "\"logfire>=4.29.0\"",
             no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_openai_agents()",
         },
         FrameworkSetup {
@@ -468,7 +468,7 @@ fn get_framework(name: &str) -> Option<FrameworkSetup> {
             sdk_variant: "AgentFramework",
             sdk_snippet: "import asyncio\nfrom agent_framework import Agent\nfrom agent_framework.openai import OpenAIChatClient\nprint(asyncio.run(Agent(client=OpenAIChatClient(model_id=\"gpt-5-nano-2025-08-07\"), instructions=\"Helpful.\").run(\"Hello\")).text)",
             no_sdk_extra_pkgs: "",
-            no_sdk_extra_setup: "from agent_framework.observability import OBSERVABILITY_SETTINGS\nOBSERVABILITY_SETTINGS.enable_otel = True\nOBSERVABILITY_SETTINGS.enable_sensitive_data = True",
+            no_sdk_extra_setup: "from agent_framework.observability import OBSERVABILITY_SETTINGS\nOBSERVABILITY_SETTINGS.enable_instrumentation = True\nOBSERVABILITY_SETTINGS.enable_sensitive_data = True",
         },
         FrameworkSetup {
             display: "Amazon Bedrock",

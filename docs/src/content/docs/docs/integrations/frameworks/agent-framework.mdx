@@ -51,7 +51,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry import trace
 
-OBSERVABILITY_SETTINGS.enable_otel = True
+OBSERVABILITY_SETTINGS.enable_instrumentation = True
 OBSERVABILITY_SETTINGS.enable_sensitive_data = True
 
 provider = TracerProvider()

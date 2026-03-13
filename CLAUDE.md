@@ -271,6 +271,19 @@ omitPagination(params); // Remove page/limit for filter comparison
 - **State**: React Context only (no Redux/Zustand)
 - **Testing**: `cargo test` (Rust), `npm test` (web), `cargo clippy` (no warnings allowed)
 
+## Documentation Locations
+
+When updating framework integration docs (e.g., changing a package name, install command, or code snippet), update **all** of these locations:
+
+| Location | Path | Notes |
+|----------|------|-------|
+| Framework page | `docs/src/content/docs/docs/integrations/frameworks/<framework>.mdx` | Full guide with Quick Start + Without SDK sections |
+| Docs homepage tabs | `docs/src/content/docs/docs/index.mdx` | SDK tab (`install:`) + Direct OTLP tab |
+| Telemetry config UI | `web/src/pages/configuration/telemetry.tsx` | `install`, `altInstall`, `altCode()` per framework entry |
+| MCP setup prompt | `server/src/api/mcp/tools.rs` | `FrameworkSetup`: `no_sdk_extra_pkgs`, `no_sdk_extra_setup` |
+
+The telemetry config UI is served at `/organizations/default/configuration/telemetry`. The MCP `setup_guide` prompt is used by AI coding assistants to generate integration code.
+
 ## Development
 
 **Database**: `./.sideseat/duckdb/sideseat.duckdb` — DuckDB is locked while the server runs. Always check raw data via API, not direct DB access.

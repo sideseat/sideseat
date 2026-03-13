@@ -53,6 +53,7 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from openinference.instrumentation.langchain import LangChainInstrumentor
 
 provider = TracerProvider()
 provider.add_span_processor(
@@ -61,6 +62,7 @@ provider.add_span_processor(
     )
 )
 trace.set_tracer_provider(provider)
+LangChainInstrumentor().instrument()
 ```
 
 ## What You'll See

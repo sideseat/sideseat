@@ -294,7 +294,7 @@ wheels = [
 
 [[package]]
 name = "logfire"
-version = "4.20.0"
+version = "4.29.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "executing" },
@@ -306,9 +306,9 @@ dependencies = [
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/58/77/ffe5d45e28db9907ab4ae5e475522a69bfc71fa1bef91d38bf7e5434b394/logfire-4.20.0.tar.gz", hash = "sha256:9f0253b4b72543e9fd6ad6bebd4ca319f50c4407876958e26fbf3065d3cc8499", size = 648954, upload-time = "2026-01-26T10:59:25.722Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8f/40/3d09fe09cfa63753feada2d41dd909ce0741dd5731014a4b3eb31bdee977/logfire-4.29.0.tar.gz", hash = "sha256:18a306a0b5744aee8ad0a8f5d6b3a47a6d8951c340eaecc42dc5d0224f4bdca0", size = 1057563, upload-time = "2026-03-13T15:30:24.343Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/77/58/49d0a33b01ab85b96ece46775a879ea57429a468429af8565dccaec75981/logfire-4.20.0-py3-none-any.whl", hash = "sha256:ea492cace9b6e50399cc87b9d36abbc5f58af78839384c43a8c3d0fd14aeeffe", size = 240939, upload-time = "2026-01-26T10:59:22.565Z" },
+    { url = "https://files.pythonhosted.org/packages/73/aa/fb8102ea48924fbbb9dfced7bada5717875801808ad53f9a60b6b4fec440/logfire-4.29.0-py3-none-any.whl", hash = "sha256:8dd7fdf6bed21459b8893eaa290d61977b9ebcc901844e365ddee868b5d8bca8", size = 302227, upload-time = "2026-03-13T15:30:20.742Z" },
 ]
 
 [[package]]
@@ -989,6 +989,9 @@ langgraph = [
 openai = [
     { name = "logfire" },
 ]
+openai-agents = [
+    { name = "logfire" },
+]
 pydantic-ai = [
     { name = "logfire" },
 ]
@@ -998,10 +1001,11 @@ vertex-ai = [
 
 [package.metadata]
 requires-dist = [
-    { name = "logfire", marker = "extra == 'all'", specifier = ">=0.50.0" },
+    { name = "logfire", marker = "extra == 'all'", specifier = ">=4.29.0" },
     { name = "logfire", marker = "extra == 'anthropic'", specifier = ">=0.50.0" },
     { name = "logfire", marker = "extra == 'google-genai'", specifier = ">=0.50.0" },
     { name = "logfire", marker = "extra == 'openai'", specifier = ">=0.50.0" },
+    { name = "logfire", marker = "extra == 'openai-agents'", specifier = ">=4.29.0" },
     { name = "logfire", marker = "extra == 'pydantic-ai'", specifier = ">=0.50.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
     { name = "openinference-instrumentation-autogen-agentchat", marker = "extra == 'all'", specifier = ">=0.1.0" },
@@ -1021,7 +1025,7 @@ requires-dist = [
     { name = "wrapt", marker = "extra == 'all'", specifier = ">=1.14.0" },
     { name = "wrapt", marker = "extra == 'aws'", specifier = ">=1.14.0" },
 ]
-provides-extras = ["all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "langchain", "langgraph", "openai", "pydantic-ai", "vertex-ai"]
+provides-extras = ["all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "langchain", "langgraph", "openai", "openai-agents", "pydantic-ai", "vertex-ai"]
 
 [[package]]
 name = "tomli"
