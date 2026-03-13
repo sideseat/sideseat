@@ -13,7 +13,9 @@ def setup_telemetry(use_sideseat: bool = False):
     Optional: SideSeat SDK with automatic OTLP setup + file exporter.
     """
     return setup_base_telemetry(
-        instrumentor=lambda: CrewAIInstrumentor().instrument(),
+        instrumentor=lambda provider=None: CrewAIInstrumentor().instrument(
+            tracer_provider=provider, skip_dep_check=True
+        ),
         use_sideseat=use_sideseat,
         framework=Frameworks.CrewAI,
     )
