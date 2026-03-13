@@ -17,7 +17,9 @@ def setup_telemetry(use_sideseat: bool = False):
     """
 
     def instrumentor(provider=None):
-        LangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)
+        LangChainInstrumentor().instrument(
+            tracer_provider=provider, skip_dep_check=True
+        )
         BotocoreInstrumentor().instrument()
 
     return setup_base_telemetry(

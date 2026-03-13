@@ -127,7 +127,7 @@ async def run(model_client, trace_attrs: dict):
         print("-" * 50)
 
         _generated_paths.clear()
-        artist_result = await artist_team.run(
+        await artist_team.run(
             task="Generate 3 different creative images of a dog. "
             "Vary the style, setting, and mood for each."
         )

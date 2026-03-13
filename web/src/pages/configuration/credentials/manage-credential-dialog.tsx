@@ -93,7 +93,7 @@ export function ManageCredentialDialog({
       setTestResult(null);
       setIsTesting(false);
     }
-  }, [credential?.id]);
+  }, [credential]);
 
   const handleSave = () => {
     if (!credential) return;
