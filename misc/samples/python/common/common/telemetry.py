@@ -53,7 +53,17 @@ def setup_base_telemetry(
         provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
 
         if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
+            # SDK reads the env var and appends /v1/traces automatically
             provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+        else:
+            sideseat_base = os.getenv(
+                "SIDESEAT_ENDPOINT", "http://127.0.0.1:5388"
+            ).rstrip("/")
+            project_id = os.getenv("SIDESEAT_PROJECT_ID", "default")
+            endpoint = f"{sideseat_base}/otel/{project_id}/v1/traces"
+            provider.add_span_processor(
+                BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
+            )
 
         if instrumentor:
             instrumentor()

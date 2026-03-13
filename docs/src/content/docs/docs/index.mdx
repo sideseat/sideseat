@@ -6,9 +6,9 @@ description: Start here to run SideSeat locally, instrument your agent, and debu
 import { Card, CardGrid, Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 import FrameworkDropdown from '../../../components/FrameworkDropdown.astro';
 
-AI agents are hard to debug. Requests fly by, context builds up, and when something fails you're left guessing. SideSeat captures every LLM call, tool call, and agent decision, then displays them in a web UI as they happen.
+AI agents are hard to debug. Requests fly by, context builds up, and when something fails you're left guessing. SideSeat captures every LLM call, tool call, and agent decision, then displays them in a web UI as they happen. It works with the SideSeat SDK (one line of setup) or with any standard OpenTelemetry exporter — no SDK required.
 
-## Quick Start
+## Quick Start (With SDK)
 
 <Steps>
 1. **Start the server**
@@ -90,7 +90,7 @@ print(result["messages"][-1].content)`,
        label: "OpenAI Agents SDK",
        group: "Frameworks",
        lang: "python",
-       install: "pip install sideseat openai-agents\n# or\nuv add sideseat openai-agents",
+       install: 'pip install "sideseat[openai-agents]" openai-agents\n# or\nuv add "sideseat[openai-agents]" openai-agents',
        code: `from sideseat import SideSeat, Frameworks
 from agents import Agent, Runner
 
@@ -262,6 +262,206 @@ print(model.generate_content("What is 2+2?").text)`,
 ]} />
 
 See [all supported frameworks and providers](/docs/integrations/).
+
+## Quick Start (Without SDK)
+
+SideSeat accepts standard OpenTelemetry traces. Run `npx sideseat`, point your exporter at `http://localhost:5388/otel/default/v1/traces`, and open [http://localhost:5388](http://localhost:5388).
+
+<FrameworkDropdown label="Framework / Provider" items={[
+     {
+       label: "Strands (Python)",
+       group: "Frameworks",
+       lang: "python",
+       install: "pip install 'strands-agents[otel]' opentelemetry-instrumentation-botocore",
+       code: `from opentelemetry.instrumentation.botocore import BotocoreInstrumentor
+from strands.telemetry import StrandsTelemetry
+from strands import Agent
+
+BotocoreInstrumentor().instrument()
+
+telemetry = StrandsTelemetry()
+telemetry.setup_otlp_exporter()
+telemetry.setup_meter(enable_otlp_exporter=True)
+
+agent = Agent()
+response = agent("What is 2+2?")
+print(response)`,
+     },
+     {
+       label: "Strands (TypeScript)",
+       group: "Frameworks",
+       lang: "typescript",
+       install: "npm install @strands-agents/sdk @opentelemetry/sdk-trace-node @opentelemetry/sdk-trace-base @opentelemetry/exporter-trace-otlp-http",
+       code: `import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { Agent } from '@strands-agents/sdk';
+
+const provider = new NodeTracerProvider({
+  spanProcessors: [new BatchSpanProcessor(new OTLPTraceExporter())],
+});
+provider.register();
+
+const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
+const result = await agent.invoke('What is 2+2?');
+console.log(result.toString());
+
+await provider.shutdown();`,
+     },
+     {
+       label: "LangGraph",
+       group: "Frameworks",
+       lang: "python",
+       install: "pip install langgraph langchain-openai openinference-instrumentation-langchain opentelemetry-exporter-otlp",
+       code: `from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from openinference.instrumentation.langchain import LangChainInstrumentor
+
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+LangChainInstrumentor().instrument()
+
+from langgraph.prebuilt import create_react_agent
+from langchain_openai import ChatOpenAI
+
+llm = ChatOpenAI(model="gpt-4o-mini")
+agent = create_react_agent(llm, tools=[])
+result = agent.invoke({"messages": [("user", "What is 2+2?")]})
+print(result["messages"][-1].content)`,
+     },
+     {
+       label: "CrewAI",
+       group: "Frameworks",
+       lang: "python",
+       install: "pip install crewai openinference-instrumentation-crewai opentelemetry-exporter-otlp",
+       code: `from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from openinference.instrumentation.crewai import CrewAIInstrumentor
+
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+CrewAIInstrumentor().instrument()
+
+from crewai import Agent, Task, Crew
+
+researcher = Agent(role="Researcher", goal="Find information", backstory="Expert researcher")
+task = Task(description="What is 2+2?", expected_output="The answer", agent=researcher)
+result = Crew(agents=[researcher], tasks=[task]).kickoff()
+print(result)`,
+     },
+     {
+       label: "Google ADK",
+       group: "Frameworks",
+       lang: "python",
+       install: "pip install google-adk opentelemetry-sdk opentelemetry-exporter-otlp",
+       code: `import asyncio
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+
+from google.adk.agents import Agent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
+
+agent = Agent(model="gemini-2.5-flash", name="assistant", instruction="You are helpful.")
+
+async def main():
+    session_service = InMemorySessionService()
+    runner = Runner(agent=agent, app_name="app", session_service=session_service)
+    session = await session_service.create_session(app_name="app", user_id="user")
+    message = types.Content(role="user", parts=[types.Part(text="What is 2+2?")])
+    async for event in runner.run_async(session_id=session.id, user_id="user", new_message=message):
+        if event.content and event.content.parts:
+            for part in event.content.parts:
+                if hasattr(part, "text") and part.text:
+                    print(part.text)
+
+asyncio.run(main())`,
+     },
+     {
+       label: "Microsoft Agent Framework",
+       group: "Frameworks",
+       lang: "python",
+       install: "pip install agent-framework opentelemetry-sdk opentelemetry-exporter-otlp",
+       code: `import asyncio
+from agent_framework.observability import OBSERVABILITY_SETTINGS
+from agent_framework import Agent
+from agent_framework.openai import OpenAIChatClient
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+OBSERVABILITY_SETTINGS.enable_instrumentation = True
+OBSERVABILITY_SETTINGS.enable_sensitive_data = True
+
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(
+    endpoint="http://localhost:5388/otel/default/v1/traces"
+)))
+trace.set_tracer_provider(provider)
+
+client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
+agent = Agent(client=client, instructions="You are a helpful assistant.")
+result = asyncio.run(agent.run("What is 2+2?"))
+print(result.text)`,
+     },
+          {
+       label: "OpenAI Agents SDK",
+       group: "Frameworks",
+       lang: "python",
+       install: 'pip install openai-agents "logfire>=4.29.0" opentelemetry-exporter-otlp',
+       code: `import logfire
+from opentelemetry import trace
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+logfire.configure(send_to_logfire=False, console=False)
+logfire.instrument_openai_agents()
+
+provider = trace.get_tracer_provider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+
+from agents import Agent, Runner
+
+agent = Agent(name="Assistant", instructions="You are helpful.")
+result = Runner.run_sync(agent, "What is 2+2?")
+print(result.final_output)`,
+     },
+     {
+       label: "Vercel AI SDK",
+       group: "Frameworks",
+       lang: "typescript",
+       install: "npm install ai @ai-sdk/amazon-bedrock @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http",
+       code: `import { NodeSDK } from '@opentelemetry/sdk-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+
+const sdk = new NodeSDK({ traceExporter: new OTLPTraceExporter() });
+sdk.start();
+
+import { generateText } from 'ai';
+import { bedrock } from '@ai-sdk/amazon-bedrock';
+
+const { text } = await generateText({
+  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
+  prompt: 'What is 2+2?',
+  experimental_telemetry: { isEnabled: true },
+});
+console.log(text);`,
+     },
+]} />
 
 ## AI Agent Development with MCP
 

@@ -422,11 +422,28 @@ print(result["messages"][-1].content)`,
     group: "Frameworks",
     lang: "python",
     docUrl: "https://openai.github.io/openai-agents-python/",
-    install: 'pip install openai-agents "sideseat[openai]"',
+    install: 'pip install openai-agents "sideseat[openai-agents]"',
     code: () => `from agents import Agent, Runner
 from sideseat import SideSeat, Frameworks
 
 SideSeat(framework=Frameworks.OpenAIAgents)
+
+agent = Agent(name="Assistant", instructions="You are helpful.")
+result = Runner.run_sync(agent, "What is the capital of France?")
+print(result.final_output)`,
+    altInstall: 'pip install openai-agents "logfire>=4.29.0" opentelemetry-exporter-otlp',
+    altCode: () => `import logfire
+from opentelemetry import trace
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+logfire.configure(send_to_logfire=False, console=False)
+logfire.instrument_openai_agents()
+
+provider = trace.get_tracer_provider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+
+from agents import Agent, Runner
 
 agent = Agent(name="Assistant", instructions="You are helpful.")
 result = Runner.run_sync(agent, "What is the capital of France?")
@@ -461,7 +478,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
-OBSERVABILITY_SETTINGS.enable_otel = True
+OBSERVABILITY_SETTINGS.enable_instrumentation = True
 OBSERVABILITY_SETTINGS.enable_sensitive_data = True
 
 provider = TracerProvider()
