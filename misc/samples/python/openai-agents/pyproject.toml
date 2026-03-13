@@ -5,7 +5,7 @@ description = "SideSeat telemetry sample for OpenAI Agents SDK"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "telemetry-common",
-    "sideseat[openai]",
+    "sideseat[openai-agents]",
     "openai-agents>=0.12.1",
     "python-dotenv>=1.2.0",
 ]

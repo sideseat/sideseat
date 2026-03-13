@@ -1,7 +1,8 @@
 """Telemetry setup for OpenAI Agents samples.
 
-OpenAI Agents SDK uses logfire for instrumentation, which requires
-special handling since it manages its own TracerProvider.
+OpenAI Agents SDK uses logfire for instrumentation, which manages its own
+TracerProvider. logfire>=4.29.0 provides instrument_openai_agents() using
+the official agents SDK hook (set_trace_provider).
 """
 
 import os
@@ -24,7 +25,6 @@ def setup_telemetry(use_sideseat: bool = False):
     if use_sideseat:
         # SideSeat handles logfire.configure() + instrument_openai_agents() internally
         client = SideSeat(framework=Frameworks.OpenAIAgents)
-        # client.telemetry.setup_file_exporter()
         client.telemetry.setup_console_exporter()
         return client
     else:
@@ -35,14 +35,20 @@ def setup_telemetry(use_sideseat: bool = False):
             console=False,
         )
 
-        # Instrument OpenAI Agents SDK
+        # Instrument OpenAI Agents SDK via official SDK hook
         logfire.instrument_openai_agents()
 
         # Add our exporters to logfire's provider
         provider = trace.get_tracer_provider()
         if hasattr(provider, "add_span_processor"):
             provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
-            if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
-                provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+            sideseat_base = os.getenv(
+                "SIDESEAT_ENDPOINT", "http://127.0.0.1:5388"
+            ).rstrip("/")
+            project_id = os.getenv("SIDESEAT_PROJECT_ID", "default")
+            endpoint = f"{sideseat_base}/otel/{project_id}/v1/traces"
+            provider.add_span_processor(
+                BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
+            )
 
         return provider

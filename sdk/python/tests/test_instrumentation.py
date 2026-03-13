@@ -25,7 +25,7 @@ class TestIsLogfireFramework:
     """Tests for Logfire framework detection."""
 
     def test_openai_agents_is_logfire(self) -> None:
-        """OpenAI Agents should use Logfire."""
+        """OpenAI Agents uses Logfire (logfire.instrument_openai_agents)."""
         assert is_logfire_framework(Frameworks.OpenAIAgents) is True
 
     def test_pydantic_ai_is_logfire(self) -> None:

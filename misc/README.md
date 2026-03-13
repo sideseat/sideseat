@@ -34,7 +34,7 @@ Start SideSeat first: `make dev-server`
 
 View traces: http://localhost:5389/ui/projects/default/observability/traces
 
-### Other Frameworks
+### All Frameworks
 
 ```bash
 uv run --directory misc/samples/python/strands strands tool_use
