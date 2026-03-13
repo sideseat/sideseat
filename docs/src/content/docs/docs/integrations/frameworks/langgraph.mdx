@@ -62,7 +62,7 @@ provider.add_span_processor(
     )
 )
 trace.set_tracer_provider(provider)
-LangChainInstrumentor().instrument()
+LangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)
 ```
 
 ## What You'll See

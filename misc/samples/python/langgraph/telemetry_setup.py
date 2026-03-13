@@ -16,8 +16,8 @@ def setup_telemetry(use_sideseat: bool = False):
     Also instruments boto3/botocore for AWS call tracing.
     """
 
-    def instrumentor():
-        LangChainInstrumentor().instrument()
+    def instrumentor(provider=None):
+        LangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)
         BotocoreInstrumentor().instrument()
 
     return setup_base_telemetry(
