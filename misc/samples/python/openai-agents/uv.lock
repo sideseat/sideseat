@@ -847,11 +847,11 @@ openai-agents = [
 [package.metadata]
 requires-dist = [
     { name = "logfire", marker = "extra == 'all'", specifier = ">=4.29.0" },
-    { name = "logfire", marker = "extra == 'anthropic'", specifier = ">=0.50.0" },
-    { name = "logfire", marker = "extra == 'google-genai'", specifier = ">=0.50.0" },
-    { name = "logfire", marker = "extra == 'openai'", specifier = ">=0.50.0" },
+    { name = "logfire", marker = "extra == 'anthropic'", specifier = ">=4.29.0" },
+    { name = "logfire", marker = "extra == 'google-genai'", specifier = ">=4.29.0" },
+    { name = "logfire", marker = "extra == 'openai'", specifier = ">=4.29.0" },
     { name = "logfire", marker = "extra == 'openai-agents'", specifier = ">=4.29.0" },
-    { name = "logfire", marker = "extra == 'pydantic-ai'", specifier = ">=0.50.0" },
+    { name = "logfire", marker = "extra == 'pydantic-ai'", specifier = ">=4.29.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
     { name = "openinference-instrumentation-autogen-agentchat", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-autogen-agentchat", marker = "extra == 'autogen'", specifier = ">=0.1.0" },
