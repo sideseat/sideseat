@@ -66,6 +66,6 @@ def setup_base_telemetry(
             )
 
         if instrumentor:
-            instrumentor()
+            instrumentor(provider)
 
         return provider

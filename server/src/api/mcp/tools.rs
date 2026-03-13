@@ -412,7 +412,7 @@ fn get_framework(name: &str) -> Option<FrameworkSetup> {
             sdk_variant: "LangChain",
             sdk_snippet: "from langchain_openai import ChatOpenAI\nllm = ChatOpenAI(model=\"gpt-4o-mini\")\nprint(llm.invoke(\"Hello\").content)",
             no_sdk_extra_pkgs: "openinference-instrumentation-langchain",
-            no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider)",
+            no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
         },
         FrameworkSetup {
             display: "LangGraph",
@@ -420,7 +420,7 @@ fn get_framework(name: &str) -> Option<FrameworkSetup> {
             sdk_variant: "LangGraph",
             sdk_snippet: "from langgraph.prebuilt import create_react_agent\nfrom langchain_openai import ChatOpenAI\nagent = create_react_agent(ChatOpenAI(model=\"gpt-4o-mini\"), [])\nprint(agent.invoke({\"messages\": [(\"user\", \"Hello\")]}))",
             no_sdk_extra_pkgs: "openinference-instrumentation-langchain",
-            no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider)",
+            no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
         },
         FrameworkSetup {
             display: "CrewAI",
@@ -428,7 +428,7 @@ fn get_framework(name: &str) -> Option<FrameworkSetup> {
             sdk_variant: "CrewAI",
             sdk_snippet: "from crewai import Agent, Task, Crew\na = Agent(role=\"R\", goal=\"G\", backstory=\"B\")\nt = Task(description=\"D\", expected_output=\"O\", agent=a)\nprint(Crew(agents=[a], tasks=[t]).kickoff())",
             no_sdk_extra_pkgs: "openinference-instrumentation-crewai",
-            no_sdk_extra_setup: "from openinference.instrumentation.crewai import CrewAIInstrumentor\nCrewAIInstrumentor().instrument(tracer_provider=provider)",
+            no_sdk_extra_setup: "from openinference.instrumentation.crewai import CrewAIInstrumentor\nCrewAIInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
         },
         FrameworkSetup {
             display: "AutoGen",
@@ -436,7 +436,7 @@ fn get_framework(name: &str) -> Option<FrameworkSetup> {
             sdk_variant: "AutoGen",
             sdk_snippet: "import asyncio\nfrom autogen_agentchat.agents import AssistantAgent\nfrom autogen_ext.models.openai import OpenAIChatCompletionClient\nagent = AssistantAgent(\"a\", model_client=OpenAIChatCompletionClient(model=\"gpt-4o-mini\"))\nasyncio.run(agent.run(task=\"Hello\"))",
             no_sdk_extra_pkgs: "openinference-instrumentation-autogen-agentchat",
-            no_sdk_extra_setup: "from openinference.instrumentation.autogen_agentchat import AutogenAgentChatInstrumentor\nAutogenAgentChatInstrumentor().instrument(tracer_provider=provider)",
+            no_sdk_extra_setup: "from openinference.instrumentation.autogen_agentchat import AutogenAgentChatInstrumentor\nAutogenAgentChatInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
         },
         FrameworkSetup {
             display: "OpenAI Agents SDK",

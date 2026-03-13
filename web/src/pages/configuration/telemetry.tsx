@@ -405,7 +405,7 @@ from openinference.instrumentation.langchain import LangChainInstrumentor
 provider = TracerProvider()
 provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
 trace.set_tracer_provider(provider)
-LangChainInstrumentor().instrument()
+LangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)
 
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
@@ -532,7 +532,7 @@ from openinference.instrumentation.crewai import CrewAIInstrumentor
 provider = TracerProvider()
 provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
 trace.set_tracer_provider(provider)
-CrewAIInstrumentor().instrument()
+CrewAIInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)
 
 from crewai import Agent, Task, Crew
 
