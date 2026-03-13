@@ -111,7 +111,7 @@ async def run(client, trace_attrs: dict):
         print("-" * 50)
 
         _generated_paths.clear()
-        artist_result = await artist.run(
+        await artist.run(
             "Generate 3 different creative images of a dog. "
             "Vary the style, setting, and mood for each."
         )
