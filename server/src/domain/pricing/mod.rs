@@ -1952,9 +1952,7 @@ mod tests {
         let legacy_models = [
             "claude-3-opus-20240229",
             "claude-3-haiku-20240307",
-            "claude-3-5-sonnet-20240620",
-            "claude-3-5-sonnet-20241022",
-            "claude-3-5-haiku-20241022",
+            "claude-3-7-sonnet-20250219",
         ];
         for model in legacy_models {
             let result = data.lookup(Some("anthropic"), model);
@@ -1987,13 +1985,11 @@ mod tests {
         let data = PricingData::from_json_str(EMBEDDED_PRICING_JSON).unwrap();
         // Gemini models accessed via Vertex AI
         let vertex_gemini_models = [
-            "gemini-1.5-pro",
-            "gemini-1.5-flash",
-            "gemini-2.0-flash",
-            "gemini-2.5-pro",
-            "gemini-2.5-flash",
+            "gemini-2.5-flash-image",
             "gemini-3-flash-preview",
             "gemini-3-pro-preview",
+            "gemini-3.1-pro-preview",
+            "gemini-3.1-flash-lite-preview",
         ];
         for model in vertex_gemini_models {
             let result = data.lookup(Some("vertex_ai"), model);
@@ -2064,14 +2060,11 @@ mod tests {
         let data = PricingData::from_json_str(EMBEDDED_PRICING_JSON).unwrap();
         // Direct Gemini models (via Google AI Studio)
         let gemini_models = [
-            "gemini-pro",
-            "gemini-pro-vision",
-            "gemini-1.0-pro",
-            "gemini-1.5-pro",
-            "gemini-1.5-flash",
             "gemini-2.0-flash",
+            "gemini-2.0-flash-lite",
             "gemini-2.5-pro",
             "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
         ];
         for model in gemini_models {
             let result = data.lookup(Some("gemini"), model);
@@ -2087,13 +2080,7 @@ mod tests {
     fn test_lookup_gemini_dated_versions() {
         let data = PricingData::from_json_str(EMBEDDED_PRICING_JSON).unwrap();
         // Gemini dated versions
-        let dated_models = [
-            "gemini-1.5-pro-001",
-            "gemini-1.5-pro-002",
-            "gemini-1.5-flash-001",
-            "gemini-1.5-flash-002",
-            "gemini-2.0-flash-001",
-        ];
+        let dated_models = ["gemini-2.0-flash-001", "gemini-2.0-flash-lite-001"];
         for model in dated_models {
             let result = data.lookup(Some("gemini"), model);
             assert!(
@@ -2108,11 +2095,9 @@ mod tests {
     fn test_lookup_gemini_preview_and_experimental() {
         let data = PricingData::from_json_str(EMBEDDED_PRICING_JSON).unwrap();
         // Preview and experimental Gemini models with non-zero pricing
-        // Note: gemini-2.0-flash-thinking-exp has zero costs in LiteLLM and is skipped
         let preview_models = [
-            "gemini-1.5-pro-preview-0514",
-            "gemini-2.0-flash-exp",
-            "gemini-2.5-flash-preview-05-20",
+            "gemini-2.5-flash-preview-09-2025",
+            "gemini-2.5-flash-lite-preview-06-17",
         ];
         for model in preview_models {
             let result = data.lookup(Some("gemini"), model);
@@ -2861,8 +2846,9 @@ mod tests {
             "gpt-4o-mini",
             "gpt-4-turbo",
             "gpt-4-0125-preview",
-            "o1-mini",
-            "o1-preview",
+            "o1",
+            "o3-mini",
+            "o4-mini",
             "gpt-3.5-turbo",
             "gpt-3.5-turbo-16k",
         ];

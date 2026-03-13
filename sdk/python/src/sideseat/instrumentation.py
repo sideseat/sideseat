@@ -97,7 +97,7 @@ def _enable_agent_framework_otel() -> None:
     """Enable Agent Framework's built-in OTel gate and sensitive data capture."""
     from agent_framework.observability import OBSERVABILITY_SETTINGS
 
-    OBSERVABILITY_SETTINGS.enable_otel = True
+    OBSERVABILITY_SETTINGS.enable_instrumentation = True
     OBSERVABILITY_SETTINGS.enable_sensitive_data = True
 
 
@@ -222,9 +222,8 @@ def _make_delegate(name: str) -> Any:
 def _patch_logfire_wrappers(integration_module: str) -> None:
     """Resolve unimplemented abstract methods in logfire wrapper classes.
 
-    When a framework SDK evolves faster than logfire (e.g. openai-agents adds
-    ``tracing_api_key`` to ``Trace``/``Span`` but the pinned logfire hasn't
-    caught up), wrapper classes become un-instantiable.
+    When a framework SDK evolves faster than logfire, wrapper classes can
+    become un-instantiable due to unresolved abstract methods.
 
     This scans the logfire integration module for concrete classes that still
     have unresolved abstract methods, then adds delegation to ``self.wrapped``

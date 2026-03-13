@@ -19,8 +19,8 @@ def setup_telemetry(use_sideseat: bool = False):
     Agent Framework uses its own OBSERVABILITY_SETTINGS gate. We enable it
     here so spans flow through to the global OTel provider we configure below.
     """
-    # Enable agent_framework built-in OTel instrumentation
-    OBSERVABILITY_SETTINGS.enable_otel = True
+    # Enable agent_framework built-in OTel instrumentation (rc4 API)
+    OBSERVABILITY_SETTINGS.enable_instrumentation = True
     OBSERVABILITY_SETTINGS.enable_sensitive_data = True
 
     return setup_base_telemetry(
