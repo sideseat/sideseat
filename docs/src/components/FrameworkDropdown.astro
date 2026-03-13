@@ -5,21 +5,36 @@ interface Item {
   label: string;
   code: string;
   lang: string;
+  install?: string;
+  group?: string;
 }
 
-const { items } = Astro.props as { items: Item[] };
+const { items, label = 'Framework' } = Astro.props as { items: Item[]; label?: string };
+
+// Build ordered groups (preserving first-seen order)
+const groups = [...new Set(items.map(item => item.group).filter(Boolean))] as string[];
+const hasGroups = groups.length > 0;
 ---
 
 <framework-dropdown>
   <div class="fd-header">
-    <span class="fd-label">Framework</span>
-    <select class="fd-select" aria-label="Select framework">
-      {items.map((item, i) => <option value={String(i)}>{item.label}</option>)}
+    <span class="fd-label">{label}</span>
+    <select class="fd-select" aria-label={`Select ${label.toLowerCase()}`}>
+      {hasGroups ? (
+        groups.map(group => (
+          <optgroup label={group}>
+            {items.flatMap((item, i) => item.group === group ? [<option value={String(i)}>{item.label}</option>] : [])}
+          </optgroup>
+        ))
+      ) : (
+        items.map((item, i) => <option value={String(i)}>{item.label}</option>)
+      )}
     </select>
   </div>
   <div class="fd-body">
     {items.map((item, i) => (
       <div class="fd-panel" data-index={String(i)} hidden={i !== 0}>
+        {item.install && <Code code={item.install} lang="bash" />}
         <Code code={item.code} lang={item.lang} />
       </div>
     ))}
@@ -92,7 +107,7 @@ const { items } = Astro.props as { items: Item[] };
     display: none;
   }
 
-  /* Strip borders/radius from the inner Code block — the outer wrapper handles them */
+  /* Strip borders/radius from inner Code blocks — the outer wrapper handles them */
   .fd-body :global(.expressive-code) {
     border-radius: 0 !important;
   }
@@ -100,9 +115,17 @@ const { items } = Astro.props as { items: Item[] };
   .fd-body :global(.expressive-code .frame) {
     border-radius: 0 !important;
     box-shadow: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
   }
 
   .fd-body :global(.expressive-code pre) {
     border-radius: 0 !important;
+  }
+
+  /* Separator between install block and code block */
+  .fd-body :global(.expressive-code + .expressive-code) {
+    border-top: 1px solid var(--sl-color-hairline-light) !important;
   }
 </style>
