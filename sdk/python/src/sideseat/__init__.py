@@ -205,6 +205,17 @@ def is_initialized() -> bool:
         return _global_instance is not None
 
 
+# Wrap logfire.instrument_* early so abstract-method fixes apply to any
+# subsequent logfire instrumentation call, whether through SideSeat or not.
+try:
+    from sideseat.instrumentation import _wrap_logfire_instruments as _wli
+
+    _wli()
+    del _wli
+except ImportError:
+    pass
+
+
 __all__ = [
     "__version__",
     "SideSeat",

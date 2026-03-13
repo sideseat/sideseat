@@ -151,12 +151,12 @@ asyncio.run(main())`,
        install: "pip install sideseat agent-framework\n# or\nuv add sideseat agent-framework",
        code: `import asyncio
 from sideseat import SideSeat, Frameworks
-from agent_framework import ChatAgent
+from agent_framework import Agent
 from agent_framework.openai import OpenAIChatClient
 
 SideSeat(framework=Frameworks.AgentFramework)
 
-agent = ChatAgent(chat_client=OpenAIChatClient(model_id="gpt-4o-mini"), instructions="You are helpful.")
+agent = Agent(client=OpenAIChatClient(model_id="gpt-5-nano-2025-08-07"), instructions="You are helpful.")
 result = asyncio.run(agent.run("What is 2+2?"))
 print(result.text)`,
      },

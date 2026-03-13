@@ -3,7 +3,7 @@
 **AI Development Workbench** — Debug, trace, and understand your AI agents.
 
 [![PyPI](https://img.shields.io/pypi/v/sideseat)](https://pypi.org/project/sideseat/)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## Table of Contents
@@ -40,7 +40,7 @@ Built on [OpenTelemetry](https://opentelemetry.io/) — the open standard alread
 
 ## Quick Start
 
-**Requirements:** Python 3.9+, Node.js 18+ (for the server)
+**Requirements:** Python 3.10+, Node.js 18+ (for the server)
 
 **1. Start the server**
 
