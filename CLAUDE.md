@@ -275,7 +275,7 @@ omitPagination(params); // Remove page/limit for filter comparison
 
 **Database**: `./.sideseat/duckdb/sideseat.duckdb` — DuckDB is locked while the server runs. Always check raw data via API, not direct DB access.
 
-**Test data**: `uv run strands <sample> --sideseat` (from `misc/samples/python/`). Samples: tool_use, mcp_tools, structured_output, files, image_gen, agent_core, swarm, rag_local, reasoning, error. Provider samples: `uv run openai-provider <sample> --sideseat` and `uv run bedrock <sample> --sideseat`.
+**Test data**: `uv run --directory misc/samples/python/strands strands <sample> --sideseat`. Samples: tool_use, mcp_tools, structured_output, files, image_gen, agent_core, swarm, rag_local, reasoning, error. Provider samples: `uv run --directory misc/samples/python/openai openai-provider <sample> --sideseat` and `uv run --directory misc/samples/python/bedrock bedrock <sample> --sideseat`.
 
 **URLs**:
 

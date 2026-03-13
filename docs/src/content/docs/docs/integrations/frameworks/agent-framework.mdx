@@ -23,13 +23,13 @@ import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
    ```python
    import asyncio
    from sideseat import SideSeat, Frameworks
-   from agent_framework import ChatAgent
+   from agent_framework import Agent
    from agent_framework.openai import OpenAIChatClient
 
    SideSeat(framework=Frameworks.AgentFramework)
 
    client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
-   agent = ChatAgent(chat_client=client, instructions="You are a helpful assistant.")
+   agent = Agent(client=client, instructions="You are a helpful assistant.")
 
    result = asyncio.run(agent.run("What is the capital of France?"))
    print(result.text)
@@ -96,22 +96,22 @@ Agent Framework supports OpenAI, OpenAI Responses, and Anthropic:
 
 ## Tools
 
-Define tools with the `@ai_function` decorator using `Annotated` type hints:
+Define tools with the `@tool` decorator using `Annotated` type hints:
 
 ```python
 from typing import Annotated
-from agent_framework import ChatAgent, ai_function
+from agent_framework import Agent, tool
 from pydantic import Field
 
-@ai_function(approval_mode="never_require")
+@tool(approval_mode="never_require")
 def get_weather(
     city: Annotated[str, Field(description="The city name")],
 ) -> str:
     """Get weather for a city."""
     return f"Sunny in {city}, 72°F"
 
-agent = ChatAgent(
-    chat_client=client,
+agent = Agent(
+    client=client,
     instructions="You are a weather assistant.",
     tools=[get_weather],
 )
@@ -127,10 +127,10 @@ Run multiple specialized agents in parallel using `asyncio.gather()`:
 
 ```python
 import asyncio
-from agent_framework import ChatAgent
+from agent_framework import Agent
 
-researcher = ChatAgent(chat_client=client, instructions="You are a researcher.")
-technical = ChatAgent(chat_client=client, instructions="You are a technical expert.")
+researcher = Agent(client=client, instructions="You are a researcher.")
+technical = Agent(client=client, instructions="You are a technical expert.")
 
 prompt = "Evaluate building a weather app"
 
@@ -146,14 +146,14 @@ Extract structured data using Pydantic models via the `response_format` paramete
 
 ```python
 from pydantic import BaseModel
-from agent_framework import ChatAgent
+from agent_framework import Agent
 
 class Person(BaseModel):
     name: str
     age: int
     city: str
 
-agent = ChatAgent(chat_client=client, instructions="Extract structured information.")
+agent = Agent(client=client, instructions="Extract structured information.")
 result = await agent.run(
     "Jane Doe, 28, lives in New York.",
     response_format=Person,
@@ -172,10 +172,10 @@ Enable extended thinking for supported models via `additional_chat_options`:
   <TabItem label="OpenAI Responses">
     ```python
     from agent_framework.openai import OpenAIResponsesClient
-    from agent_framework import ChatAgent
+    from agent_framework import Agent
 
     client = OpenAIResponsesClient(model_id="gpt-5-nano-2025-08-07")
-    agent = ChatAgent(chat_client=client, instructions="Solve problems step by step.")
+    agent = Agent(client=client, instructions="Solve problems step by step.")
 
     result = await agent.run(
         "Solve this logic puzzle...",
@@ -186,10 +186,10 @@ Enable extended thinking for supported models via `additional_chat_options`:
   <TabItem label="Anthropic">
     ```python
     from agent_framework.anthropic import AnthropicClient
-    from agent_framework import ChatAgent
+    from agent_framework import Agent
 
     client = AnthropicClient(model_id="claude-sonnet-4-20250514")
-    agent = ChatAgent(chat_client=client, instructions="Solve problems step by step.")
+    agent = Agent(client=client, instructions="Solve problems step by step.")
 
     result = await agent.run(
         "Solve this logic puzzle...",
@@ -204,17 +204,17 @@ Enable extended thinking for supported models via `additional_chat_options`:
 Pass images and documents alongside text using `ChatMessage`, `DataContent`, and `TextContent`:
 
 ```python
-from agent_framework import ChatAgent, ChatMessage, DataContent, TextContent
+from agent_framework import Agent, Content, Message
 
-agent = ChatAgent(chat_client=client, instructions="You analyze images and documents.")
+agent = Agent(client=client, instructions="You analyze images and documents.")
 
 image_bytes = open("photo.jpg", "rb").read()
 pdf_bytes = open("report.pdf", "rb").read()
 
-message = ChatMessage(role="user", contents=[
-    TextContent(text="Describe the image and summarize the PDF."),
-    DataContent(data=image_bytes, media_type="image/jpeg"),
-    DataContent(data=pdf_bytes, media_type="application/pdf"),
+message = Message(role="user", contents=[
+    Content.from_text("Describe the image and summarize the PDF."),
+    Content.from_data(data=image_bytes, media_type="image/jpeg"),
+    Content.from_data(data=pdf_bytes, media_type="application/pdf"),
 ])
 
 result = await agent.run(message)
@@ -226,7 +226,7 @@ Connect to MCP servers using `MCPStdioTool`:
 
 ```python
 import shutil
-from agent_framework import ChatAgent, MCPStdioTool
+from agent_framework import Agent, MCPStdioTool
 
 mcp_tool = MCPStdioTool(
     name="calculator",
@@ -235,8 +235,8 @@ mcp_tool = MCPStdioTool(
     approval_mode="never_require",
 )
 
-agent = ChatAgent(
-    chat_client=client,
+agent = Agent(
+    client=client,
     instructions="You help users calculate.",
     tools=[mcp_tool],
 )
