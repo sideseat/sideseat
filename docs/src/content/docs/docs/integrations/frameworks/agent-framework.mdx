@@ -10,15 +10,28 @@ import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 ## Quick Start
 
 <Steps>
-1. **Install dependencies**
+1. **Start SideSeat**
 
    ```bash
-   pip install agent-framework sideseat
-   # or
-   uv add agent-framework sideseat
+   npx sideseat
    ```
 
-2. **Add telemetry**
+2. **Install dependencies**
+
+   <Tabs>
+     <TabItem label="pip">
+       ```bash
+       pip install agent-framework sideseat
+       ```
+     </TabItem>
+     <TabItem label="uv">
+       ```bash
+       uv add agent-framework sideseat
+       ```
+     </TabItem>
+   </Tabs>
+
+3. **Add telemetry**
 
    ```python
    import asyncio
@@ -35,33 +48,62 @@ import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
    print(result.text)
    ```
 
-3. **View runs**
+4. **View runs**
 
-   Open [http://localhost:5389](http://localhost:5389) to see your runs.
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
 </Steps>
 
 ## Without SideSeat SDK
 
-Configure the OpenTelemetry SDK directly:
+<Steps>
+1. **Start SideSeat**
 
-```python
-from agent_framework.observability import OBSERVABILITY_SETTINGS
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry import trace
+   ```bash
+   npx sideseat
+   ```
 
-OBSERVABILITY_SETTINGS.enable_instrumentation = True
-OBSERVABILITY_SETTINGS.enable_sensitive_data = True
+2. **Set the endpoint**
 
-provider = TracerProvider()
-provider.add_span_processor(
-    BatchSpanProcessor(OTLPSpanExporter(
-        endpoint="http://localhost:5388/otel/default/v1/traces"
-    ))
-)
-trace.set_tracer_provider(provider)
-```
+   ```bash
+   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+   ```
+
+3. **Install dependencies**
+
+   <Tabs>
+     <TabItem label="pip">
+       ```bash
+       pip install agent-framework opentelemetry-sdk opentelemetry-exporter-otlp
+       ```
+     </TabItem>
+     <TabItem label="uv">
+       ```bash
+       uv add agent-framework opentelemetry-sdk opentelemetry-exporter-otlp
+       ```
+     </TabItem>
+   </Tabs>
+
+4. **Add telemetry**
+
+   ```python
+   from agent_framework.observability import OBSERVABILITY_SETTINGS
+   from opentelemetry.sdk.trace import TracerProvider
+   from opentelemetry.sdk.trace.export import BatchSpanProcessor
+   from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+   from opentelemetry import trace
+
+   OBSERVABILITY_SETTINGS.enable_instrumentation = True
+   OBSERVABILITY_SETTINGS.enable_sensitive_data = True
+
+   provider = TracerProvider()
+   provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+   trace.set_tracer_provider(provider)
+   ```
+
+5. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
+</Steps>
 
 ## Providers
 

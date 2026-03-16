@@ -20,13 +20,19 @@ The Vercel AI SDK is TypeScript-only. For Python frameworks, see [Strands](/docs
 ## Quick Start
 
 <Steps>
-1. **Install dependencies**
+1. **Start SideSeat**
+
+   ```bash
+   npx sideseat
+   ```
+
+2. **Install dependencies**
 
    ```bash
    npm install @sideseat/sdk ai @ai-sdk/amazon-bedrock
    ```
 
-2. **Add telemetry**
+3. **Add telemetry**
 
    ```typescript
    import { init, Frameworks } from '@sideseat/sdk';
@@ -44,7 +50,7 @@ The Vercel AI SDK is TypeScript-only. For Python frameworks, see [Strands](/docs
    console.log(text);
    ```
 
-3. **View runs**
+4. **View runs**
 
    Open [http://localhost:5388](http://localhost:5388) to see your runs.
 </Steps>
@@ -55,33 +61,49 @@ The Vercel AI SDK is TypeScript-only. For Python frameworks, see [Strands](/docs
 
 ## Without SideSeat SDK
 
-Use the OpenTelemetry SDK directly:
+<Steps>
+1. **Start SideSeat**
 
-```bash
-npm install @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http ai @ai-sdk/amazon-bedrock
-```
+   ```bash
+   npx sideseat
+   ```
 
-```typescript
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { generateText } from 'ai';
-import { bedrock } from '@ai-sdk/amazon-bedrock';
+2. **Set the endpoint**
 
-const sdk = new NodeSDK({
-  traceExporter: new OTLPTraceExporter({
-    url: 'http://localhost:5388/otel/default/v1/traces',
-  }),
-});
-sdk.start();
+   ```bash
+   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+   ```
 
-const { text } = await generateText({
-  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
-  prompt: 'What is the capital of France?',
-  experimental_telemetry: { isEnabled: true },
-});
+3. **Install dependencies**
 
-console.log(text);
-```
+   ```bash
+   npm install @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http ai @ai-sdk/amazon-bedrock
+   ```
+
+4. **Add telemetry**
+
+   ```typescript
+   import { NodeSDK } from '@opentelemetry/sdk-node';
+   import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+   import { generateText } from 'ai';
+   import { bedrock } from '@ai-sdk/amazon-bedrock';
+
+   const sdk = new NodeSDK({ traceExporter: new OTLPTraceExporter() });
+   sdk.start();
+
+   const { text } = await generateText({
+     model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
+     prompt: 'What is the capital of France?',
+     experimental_telemetry: { isEnabled: true },
+   });
+
+   console.log(text);
+   ```
+
+5. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
+</Steps>
 
 ## What You'll See
 

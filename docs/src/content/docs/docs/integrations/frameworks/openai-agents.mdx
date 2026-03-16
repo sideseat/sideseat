@@ -3,7 +3,7 @@ title: OpenAI Agents SDK
 description: Integrate SideSeat with OpenAI Agents SDK for full agent-level tracing.
 ---
 
-import { Aside, Steps } from '@astrojs/starlight/components';
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) is OpenAI's framework for building AI agents. SideSeat captures full agent-level traces including tool calls, handoffs, and LLM calls.
 
@@ -16,15 +16,28 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 ## Quick Start
 
 <Steps>
-1. **Install dependencies**
+1. **Start SideSeat**
 
    ```bash
-   pip install openai-agents "sideseat[openai-agents]"
-   # or
-   uv add openai-agents "sideseat[openai-agents]"
+   npx sideseat
    ```
 
-2. **Add telemetry**
+2. **Install dependencies**
+
+   <Tabs>
+     <TabItem label="pip">
+       ```bash
+       pip install openai-agents "sideseat[openai-agents]"
+       ```
+     </TabItem>
+     <TabItem label="uv">
+       ```bash
+       uv add openai-agents "sideseat[openai-agents]"
+       ```
+     </TabItem>
+   </Tabs>
+
+3. **Add telemetry**
 
    ```python
    from sideseat import SideSeat, Frameworks
@@ -41,7 +54,7 @@ import { Aside, Steps } from '@astrojs/starlight/components';
    print(result.final_output)
    ```
 
-3. **View runs**
+4. **View runs**
 
    Open [http://localhost:5388](http://localhost:5388) to see your runs.
 </Steps>
@@ -50,26 +63,53 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 
 Use `logfire` to instrument the OpenAI Agents SDK via its official hook:
 
-```bash
-pip install openai-agents "logfire>=4.29.0" opentelemetry-exporter-otlp
-```
+<Steps>
+1. **Start SideSeat**
 
-```python
-import logfire
-from opentelemetry import trace
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+   ```bash
+   npx sideseat
+   ```
 
-logfire.configure(send_to_logfire=False, console=False)
-logfire.instrument_openai_agents()
+2. **Set the endpoint**
 
-provider = trace.get_tracer_provider()
-provider.add_span_processor(
-    BatchSpanProcessor(
-        OTLPSpanExporter(endpoint="http://localhost:5388/otel/default/v1/traces")
-    )
-)
-```
+   ```bash
+   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+   ```
+
+3. **Install dependencies**
+
+   <Tabs>
+     <TabItem label="pip">
+       ```bash
+       pip install openai-agents "logfire>=4.29.0" opentelemetry-exporter-otlp
+       ```
+     </TabItem>
+     <TabItem label="uv">
+       ```bash
+       uv add openai-agents "logfire>=4.29.0" opentelemetry-exporter-otlp
+       ```
+     </TabItem>
+   </Tabs>
+
+4. **Add telemetry**
+
+   ```python
+   import logfire
+   from opentelemetry import trace
+   from opentelemetry.sdk.trace.export import BatchSpanProcessor
+   from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+   logfire.configure(send_to_logfire=False, console=False)
+   logfire.instrument_openai_agents()
+
+   provider = trace.get_tracer_provider()
+   provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+   ```
+
+5. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
+</Steps>
 
 ## Tools
 

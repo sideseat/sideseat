@@ -11,7 +11,7 @@ AI agents are hard to debug. Requests fly by, context builds up, and when someth
 ## Quick Start (With SDK)
 
 <Steps>
-1. **Start the server**
+1. **Start SideSeat**
 
    ```bash
    npx sideseat
@@ -47,7 +47,8 @@ AI agents are hard to debug. Requests fly by, context builds up, and when someth
        label: "Strands (Python)",
        group: "Frameworks",
        lang: "python",
-       install: "pip install sideseat strands-agents\n# or\nuv add sideseat strands-agents",
+       install: "pip install sideseat strands-agents",
+       installUv: "uv add sideseat strands-agents",
        code: `from sideseat import SideSeat, Frameworks
 from strands import Agent
 
@@ -74,14 +75,15 @@ console.log(result.toString());`,
        label: "LangGraph",
        group: "Frameworks",
        lang: "python",
-       install: "pip install sideseat langgraph langchain-openai\n# or\nuv add sideseat langgraph langchain-openai",
+       install: "pip install sideseat langgraph langchain-openai",
+       installUv: "uv add sideseat langgraph langchain-openai",
        code: `from sideseat import SideSeat, Frameworks
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
 
 SideSeat(framework=Frameworks.LangGraph)
 
-llm = ChatOpenAI(model="gpt-4o-mini")
+llm = ChatOpenAI(model="gpt-5-mini")
 agent = create_react_agent(llm, tools=[])
 result = agent.invoke({"messages": [("user", "What is 2+2?")]})
 print(result["messages"][-1].content)`,
@@ -90,7 +92,8 @@ print(result["messages"][-1].content)`,
        label: "OpenAI Agents SDK",
        group: "Frameworks",
        lang: "python",
-       install: 'pip install "sideseat[openai-agents]" openai-agents\n# or\nuv add "sideseat[openai-agents]" openai-agents',
+       install: 'pip install "sideseat[openai-agents]" openai-agents',
+       installUv: 'uv add "sideseat[openai-agents]" openai-agents',
        code: `from sideseat import SideSeat, Frameworks
 from agents import Agent, Runner
 
@@ -104,7 +107,8 @@ print(result.final_output)`,
        label: "CrewAI",
        group: "Frameworks",
        lang: "python",
-       install: "pip install sideseat crewai\n# or\nuv add sideseat crewai",
+       install: "pip install sideseat crewai",
+       installUv: "uv add sideseat crewai",
        code: `from sideseat import SideSeat, Frameworks
 from crewai import Agent, Task, Crew
 
@@ -119,7 +123,8 @@ print(result)`,
        label: "Google ADK",
        group: "Frameworks",
        lang: "python",
-       install: "pip install sideseat google-adk\n# or\nuv add sideseat google-adk",
+       install: "pip install sideseat google-adk",
+       installUv: "uv add sideseat google-adk",
        code: `import asyncio
 from sideseat import SideSeat, Frameworks
 from google.adk.agents import Agent
@@ -148,7 +153,8 @@ asyncio.run(main())`,
        label: "Microsoft Agent Framework",
        group: "Frameworks",
        lang: "python",
-       install: "pip install sideseat agent-framework\n# or\nuv add sideseat agent-framework",
+       install: "pip install sideseat agent-framework",
+       installUv: "uv add sideseat agent-framework",
        code: `import asyncio
 from sideseat import SideSeat, Frameworks
 from agent_framework import Agent
@@ -182,7 +188,8 @@ console.log(text);`,
        label: "Amazon Bedrock",
        group: "Providers",
        lang: "python",
-       install: "pip install sideseat boto3\n# or\nuv add sideseat boto3",
+       install: "pip install sideseat boto3",
+       installUv: "uv add sideseat boto3",
        code: `from sideseat import SideSeat, Frameworks
 import boto3
 
@@ -199,7 +206,8 @@ print(response["output"]["message"]["content"][0]["text"])`,
        label: "Anthropic",
        group: "Providers",
        lang: "python",
-       install: "pip install sideseat anthropic\n# or\nuv add sideseat anthropic",
+       install: "pip install sideseat anthropic",
+       installUv: "uv add sideseat anthropic",
        code: `from sideseat import SideSeat, Frameworks
 import anthropic
 
@@ -217,7 +225,8 @@ print(message.content[0].text)`,
        label: "OpenAI",
        group: "Providers",
        lang: "python",
-       install: "pip install sideseat openai\n# or\nuv add sideseat openai",
+       install: "pip install sideseat openai",
+       installUv: "uv add sideseat openai",
        code: `from sideseat import SideSeat, Frameworks
 from openai import OpenAI
 
@@ -225,7 +234,7 @@ SideSeat(framework=Frameworks.OpenAI)
 
 client = OpenAI()
 response = client.chat.completions.create(
-    model="gpt-4o-mini",
+    model="gpt-5-mini",
     messages=[{"role": "user", "content": "What is 2+2?"}],
 )
 print(response.choices[0].message.content)`,
@@ -234,7 +243,8 @@ print(response.choices[0].message.content)`,
        label: "Google Gemini",
        group: "Providers",
        lang: "python",
-       install: "pip install sideseat google-genai\n# or\nuv add sideseat google-genai",
+       install: "pip install sideseat google-genai",
+       installUv: "uv add sideseat google-genai",
        code: `from sideseat import SideSeat, Frameworks
 from google import genai
 
@@ -248,7 +258,8 @@ print(response.text)`,
        label: "Google Vertex AI",
        group: "Providers",
        lang: "python",
-       install: "pip install sideseat google-cloud-aiplatform vertexai\n# or\nuv add sideseat google-cloud-aiplatform vertexai",
+       install: "pip install sideseat google-cloud-aiplatform vertexai",
+       installUv: "uv add sideseat google-cloud-aiplatform vertexai",
        code: `from sideseat import SideSeat, Frameworks
 import vertexai
 from vertexai.generative_models import GenerativeModel
@@ -265,19 +276,35 @@ See [all supported frameworks and providers](/docs/integrations/).
 
 ## Quick Start (Without SDK)
 
-SideSeat accepts standard OpenTelemetry traces. Run `npx sideseat`, point your exporter at `http://localhost:5388/otel/default/v1/traces`, and open [http://localhost:5388](http://localhost:5388).
+SideSeat accepts standard OpenTelemetry traces from any framework.
+
+<Steps>
+1. **Start SideSeat**
+
+   ```bash
+   npx sideseat
+   ```
+
+2. **Set the endpoint**
+
+   ```bash
+   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+   ```
+
+3. **Select your framework**, install it, and add the telemetry setup below.
+
+4. **Open [http://localhost:5388](http://localhost:5388)** — traces appear in real time.
+</Steps>
 
 <FrameworkDropdown label="Framework / Provider" items={[
      {
        label: "Strands (Python)",
        group: "Frameworks",
        lang: "python",
-       install: "pip install 'strands-agents[otel]' opentelemetry-instrumentation-botocore",
-       code: `from opentelemetry.instrumentation.botocore import BotocoreInstrumentor
-from strands.telemetry import StrandsTelemetry
+       install: "pip install 'strands-agents[otel]'",
+       installUv: "uv add 'strands-agents[otel]'",
+       code: `from strands.telemetry import StrandsTelemetry
 from strands import Agent
-
-BotocoreInstrumentor().instrument()
 
 telemetry = StrandsTelemetry()
 telemetry.setup_otlp_exporter()
@@ -313,6 +340,7 @@ await provider.shutdown();`,
        group: "Frameworks",
        lang: "python",
        install: "pip install langgraph langchain-openai openinference-instrumentation-langchain opentelemetry-exporter-otlp",
+       installUv: "uv add langgraph langchain-openai openinference-instrumentation-langchain opentelemetry-exporter-otlp",
        code: `from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -327,7 +355,7 @@ LangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
 
-llm = ChatOpenAI(model="gpt-4o-mini")
+llm = ChatOpenAI(model="gpt-5-mini")
 agent = create_react_agent(llm, tools=[])
 result = agent.invoke({"messages": [("user", "What is 2+2?")]})
 print(result["messages"][-1].content)`,
@@ -337,6 +365,7 @@ print(result["messages"][-1].content)`,
        group: "Frameworks",
        lang: "python",
        install: "pip install crewai openinference-instrumentation-crewai opentelemetry-exporter-otlp",
+       installUv: "uv add crewai openinference-instrumentation-crewai opentelemetry-exporter-otlp",
        code: `from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -360,6 +389,7 @@ print(result)`,
        group: "Frameworks",
        lang: "python",
        install: "pip install google-adk opentelemetry-sdk opentelemetry-exporter-otlp",
+       installUv: "uv add google-adk opentelemetry-sdk opentelemetry-exporter-otlp",
        code: `import asyncio
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -395,6 +425,7 @@ asyncio.run(main())`,
        group: "Frameworks",
        lang: "python",
        install: "pip install agent-framework opentelemetry-sdk opentelemetry-exporter-otlp",
+       installUv: "uv add agent-framework opentelemetry-sdk opentelemetry-exporter-otlp",
        code: `import asyncio
 from agent_framework.observability import OBSERVABILITY_SETTINGS
 from agent_framework import Agent
@@ -423,6 +454,7 @@ print(result.text)`,
        group: "Frameworks",
        lang: "python",
        install: 'pip install openai-agents "logfire>=4.29.0" opentelemetry-exporter-otlp',
+       installUv: 'uv add openai-agents "logfire>=4.29.0" opentelemetry-exporter-otlp',
        code: `import logfire
 from opentelemetry import trace
 from opentelemetry.sdk.trace.export import BatchSpanProcessor

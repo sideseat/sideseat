@@ -1,11 +1,12 @@
 ---
-import { Code } from '@astrojs/starlight/components';
+import { Code, Tabs, TabItem } from '@astrojs/starlight/components';
 
 interface Item {
   label: string;
   code: string;
   lang: string;
   install?: string;
+  installUv?: string;
   group?: string;
 }
 
@@ -34,7 +35,16 @@ const hasGroups = groups.length > 0;
   <div class="fd-body">
     {items.map((item, i) => (
       <div class="fd-panel" data-index={String(i)} hidden={i !== 0}>
-        {item.install && <Code code={item.install} lang="bash" />}
+        {item.install && (
+          item.installUv ? (
+            <Tabs>
+              <TabItem label="pip"><Code code={item.install} lang="bash" /></TabItem>
+              <TabItem label="uv"><Code code={item.installUv} lang="bash" /></TabItem>
+            </Tabs>
+          ) : (
+            <Code code={item.install} lang="bash" />
+          )
+        )}
         <Code code={item.code} lang={item.lang} />
       </div>
     ))}
@@ -44,6 +54,7 @@ const hasGroups = groups.length > 0;
 <script>
   class FrameworkDropdown extends HTMLElement {
     connectedCallback() {
+      // Framework selector
       const select = this.querySelector<HTMLSelectElement>('.fd-select')!;
       const panels = this.querySelectorAll<HTMLElement>('.fd-panel');
       select.addEventListener('change', () => {

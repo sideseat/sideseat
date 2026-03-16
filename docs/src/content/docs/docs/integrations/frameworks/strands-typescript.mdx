@@ -10,13 +10,19 @@ import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
 ## Quick Start
 
 <Steps>
-1. **Install dependencies**
+1. **Start SideSeat**
+
+   ```bash
+   npx sideseat
+   ```
+
+2. **Install dependencies**
 
    ```bash
    npm install @strands-agents/sdk @sideseat/sdk
    ```
 
-2. **Add telemetry**
+3. **Add telemetry**
 
    ```typescript
    import { init, Frameworks } from '@sideseat/sdk';
@@ -29,46 +35,62 @@ import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
    console.log(result.toString());
    ```
 
-3. **Run**
+4. **Run**
 
    ```bash
    npx tsx agent.ts
    ```
 
-4. **View runs**
+5. **View runs**
 
    Open [http://localhost:5388](http://localhost:5388) to see your runs.
 </Steps>
 
 ## Without SideSeat SDK
 
-Set up OpenTelemetry manually using the standard Node.js SDK:
+<Steps>
+1. **Start SideSeat**
 
-```bash
-# Set endpoint
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+   ```bash
+   npx sideseat
+   ```
 
-# Install
-npm install @strands-agents/sdk @opentelemetry/sdk-trace-node @opentelemetry/sdk-trace-base @opentelemetry/exporter-trace-otlp-http
-```
+2. **Set the endpoint**
 
-```typescript
-import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { Agent } from '@strands-agents/sdk';
+   ```bash
+   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+   ```
 
-const provider = new NodeTracerProvider({
-  spanProcessors: [new BatchSpanProcessor(new OTLPTraceExporter())],
-});
-provider.register();
+3. **Install dependencies**
 
-const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
-const result = await agent.invoke('What is the capital of France?');
-console.log(result.toString());
+   ```bash
+   npm install @strands-agents/sdk @opentelemetry/sdk-trace-node @opentelemetry/sdk-trace-base @opentelemetry/exporter-trace-otlp-http
+   ```
 
-await provider.shutdown();
-```
+4. **Add telemetry**
+
+   ```typescript
+   import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
+   import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
+   import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+   import { Agent } from '@strands-agents/sdk';
+
+   const provider = new NodeTracerProvider({
+     spanProcessors: [new BatchSpanProcessor(new OTLPTraceExporter())],
+   });
+   provider.register();
+
+   const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
+   const result = await agent.invoke('What is the capital of France?');
+   console.log(result.toString());
+
+   await provider.shutdown();
+   ```
+
+5. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
+</Steps>
 
 ## Tools
 

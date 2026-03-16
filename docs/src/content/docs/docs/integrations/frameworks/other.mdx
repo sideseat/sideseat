@@ -3,17 +3,24 @@ title: Other Frameworks
 description: Use SideSeat with LangChain, PydanticAI, LlamaIndex, or any OpenTelemetry-compatible framework.
 ---
 
-import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 SideSeat works with any framework that emits OpenTelemetry traces. This page covers frameworks without dedicated integration pages.
 
 ## LangChain
 
-```bash
-pip install langchain langchain-openai sideseat
-# or
-uv add langchain langchain-openai sideseat
-```
+<Tabs>
+  <TabItem label="pip">
+    ```bash
+    pip install langchain langchain-openai sideseat
+    ```
+  </TabItem>
+  <TabItem label="uv">
+    ```bash
+    uv add langchain langchain-openai sideseat
+    ```
+  </TabItem>
+</Tabs>
 
 ```python
 from sideseat import SideSeat, Frameworks
@@ -32,11 +39,18 @@ For stateful agent workflows, use [LangGraph](/docs/integrations/frameworks/lang
 
 ## PydanticAI
 
-```bash
-pip install pydantic-ai sideseat
-# or
-uv add pydantic-ai sideseat
-```
+<Tabs>
+  <TabItem label="pip">
+    ```bash
+    pip install pydantic-ai sideseat
+    ```
+  </TabItem>
+  <TabItem label="uv">
+    ```bash
+    uv add pydantic-ai sideseat
+    ```
+  </TabItem>
+</Tabs>
 
 ```python
 from sideseat import SideSeat, Frameworks
@@ -53,11 +67,18 @@ print(result.data)
 
 LlamaIndex emits OpenTelemetry traces natively. SideSeat captures them without framework-specific instrumentation.
 
-```bash
-pip install llama-index sideseat
-# or
-uv add llama-index sideseat
-```
+<Tabs>
+  <TabItem label="pip">
+    ```bash
+    pip install llama-index sideseat
+    ```
+  </TabItem>
+  <TabItem label="uv">
+    ```bash
+    uv add llama-index sideseat
+    ```
+  </TabItem>
+</Tabs>
 
 ```python
 from sideseat import SideSeat
@@ -75,11 +96,18 @@ print(response)
 
 ## AutoGen
 
-```bash
-pip install autogen-agentchat "sideseat[autogen]"
-# or
-uv add autogen-agentchat "sideseat[autogen]"
-```
+<Tabs>
+  <TabItem label="pip">
+    ```bash
+    pip install autogen-agentchat "sideseat[autogen]"
+    ```
+  </TabItem>
+  <TabItem label="uv">
+    ```bash
+    uv add autogen-agentchat "sideseat[autogen]"
+    ```
+  </TabItem>
+</Tabs>
 
 ```python
 from sideseat import SideSeat, Frameworks
@@ -98,20 +126,45 @@ user.initiate_chat(assistant, message="Hello!")
 
 For frameworks not listed above, send traces directly via the OpenTelemetry SDK:
 
-```python
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+<Steps>
+1. **Start SideSeat**
 
-provider = TracerProvider()
-provider.add_span_processor(
-    BatchSpanProcessor(
-        OTLPSpanExporter(endpoint="http://localhost:5388/otel/default/v1/traces")
-    )
-)
-trace.set_tracer_provider(provider)
-```
+   ```bash
+   npx sideseat
+   ```
+
+2. **Set the endpoint**
+
+   ```bash
+   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+   ```
+
+3. **Install and configure**
+
+   <Tabs>
+     <TabItem label="pip">
+       ```bash
+       pip install opentelemetry-sdk opentelemetry-exporter-otlp
+       ```
+     </TabItem>
+     <TabItem label="uv">
+       ```bash
+       uv add opentelemetry-sdk opentelemetry-exporter-otlp
+       ```
+     </TabItem>
+   </Tabs>
+
+   ```python
+   from opentelemetry import trace
+   from opentelemetry.sdk.trace import TracerProvider
+   from opentelemetry.sdk.trace.export import BatchSpanProcessor
+   from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+   provider = TracerProvider()
+   provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+   trace.set_tracer_provider(provider)
+   ```
+</Steps>
 
 SideSeat auto-detects framework spans and normalizes them into the workbench timeline.
 

@@ -3,7 +3,7 @@ title: CrewAI
 description: Integrate SideSeat with CrewAI for multi-agent run visibility.
 ---
 
-import { Aside, Steps } from '@astrojs/starlight/components';
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 [CrewAI](https://www.crewai.com/) is a framework for orchestrating role-playing AI agents. SideSeat captures runs (traces) from crews, agents, and tasks.
 
@@ -16,15 +16,28 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 ## Quick Start
 
 <Steps>
-1. **Install dependencies**
+1. **Start SideSeat**
 
    ```bash
-   pip install crewai "sideseat[crewai]"
-   # or
-   uv add crewai "sideseat[crewai]"
+   npx sideseat
    ```
 
-2. **Add telemetry**
+2. **Install dependencies**
+
+   <Tabs>
+     <TabItem label="pip">
+       ```bash
+       pip install crewai "sideseat[crewai]"
+       ```
+     </TabItem>
+     <TabItem label="uv">
+       ```bash
+       uv add crewai "sideseat[crewai]"
+       ```
+     </TabItem>
+   </Tabs>
+
+3. **Add telemetry**
 
    ```python
    from sideseat import SideSeat, Frameworks
@@ -48,31 +61,60 @@ import { Aside, Steps } from '@astrojs/starlight/components';
    result = crew.kickoff()
    ```
 
-3. **View runs**
+4. **View runs**
 
    Open [http://localhost:5388](http://localhost:5388) to see your runs.
 </Steps>
 
 ## Without SideSeat SDK
 
-Configure the OpenTelemetry SDK directly:
+<Steps>
+1. **Start SideSeat**
 
-```python
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from openinference.instrumentation.crewai import CrewAIInstrumentor
+   ```bash
+   npx sideseat
+   ```
 
-provider = TracerProvider()
-provider.add_span_processor(
-    BatchSpanProcessor(
-        OTLPSpanExporter(endpoint="http://localhost:5388/otel/default/v1/traces")
-    )
-)
-trace.set_tracer_provider(provider)
-CrewAIInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)
-```
+2. **Set the endpoint**
+
+   ```bash
+   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+   ```
+
+3. **Install dependencies**
+
+   <Tabs>
+     <TabItem label="pip">
+       ```bash
+       pip install crewai openinference-instrumentation-crewai opentelemetry-exporter-otlp
+       ```
+     </TabItem>
+     <TabItem label="uv">
+       ```bash
+       uv add crewai openinference-instrumentation-crewai opentelemetry-exporter-otlp
+       ```
+     </TabItem>
+   </Tabs>
+
+4. **Add telemetry**
+
+   ```python
+   from opentelemetry import trace
+   from opentelemetry.sdk.trace import TracerProvider
+   from opentelemetry.sdk.trace.export import BatchSpanProcessor
+   from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+   from openinference.instrumentation.crewai import CrewAIInstrumentor
+
+   provider = TracerProvider()
+   provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+   trace.set_tracer_provider(provider)
+   CrewAIInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)
+   ```
+
+5. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
+</Steps>
 
 ## Multi-Agent Crews
 

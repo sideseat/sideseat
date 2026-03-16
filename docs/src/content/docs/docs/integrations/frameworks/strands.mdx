@@ -10,15 +10,28 @@ import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
 ## Quick Start
 
 <Steps>
-1. **Install dependencies**
+1. **Start SideSeat**
 
    ```bash
-   pip install strands-agents sideseat
-   # or
-   uv add strands-agents sideseat
+   npx sideseat
    ```
 
-2. **Add telemetry**
+2. **Install dependencies**
+
+   <Tabs>
+     <TabItem label="pip">
+       ```bash
+       pip install strands-agents sideseat
+       ```
+     </TabItem>
+     <TabItem label="uv">
+       ```bash
+       uv add strands-agents sideseat
+       ```
+     </TabItem>
+   </Tabs>
+
+3. **Add telemetry**
 
    ```python
    from sideseat import SideSeat, Frameworks
@@ -31,23 +44,60 @@ import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
    print(response)
    ```
 
-3. **View runs**
+4. **View runs**
 
    Open [http://localhost:5388](http://localhost:5388) to see your runs.
 </Steps>
 
 ## Without SideSeat SDK
 
-Strands has its own telemetry class that's compatible with SideSeat:
+<Steps>
+1. **Start SideSeat**
 
-```python
-from strands.telemetry import StrandsTelemetry
+   ```bash
+   npx sideseat
+   ```
 
-telemetry = StrandsTelemetry()
-telemetry.setup_otlp_exporter(
-    endpoint="http://localhost:5388/otel/default/v1/traces"
-)
-```
+2. **Set the endpoint**
+
+   ```bash
+   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+   ```
+
+3. **Install dependencies**
+
+   <Tabs>
+     <TabItem label="pip">
+       ```bash
+       pip install 'strands-agents[otel]'
+       ```
+     </TabItem>
+     <TabItem label="uv">
+       ```bash
+       uv add 'strands-agents[otel]'
+       ```
+     </TabItem>
+   </Tabs>
+
+4. **Add telemetry**
+
+   ```python
+   from strands.telemetry import StrandsTelemetry
+   from strands import Agent
+
+   telemetry = StrandsTelemetry()
+   telemetry.setup_otlp_exporter()
+   telemetry.setup_meter(enable_otlp_exporter=True)
+
+   agent = Agent()
+   response = agent("What is the capital of France?")
+   print(response)
+   ```
+
+5. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
+</Steps>
 
 <Aside type="note">
 The SideSeat SDK includes additional features like binary data handling and framework auto-detection. Use it unless you need Strands-specific telemetry configuration.
