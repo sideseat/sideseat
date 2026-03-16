@@ -3,7 +3,7 @@ title: Google ADK
 description: Integrate SideSeat with Google Agent Development Kit for Gemini-powered agent visibility.
 ---
 
-import { Aside, Steps } from '@astrojs/starlight/components';
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 [Google ADK](https://google.github.io/adk-docs/) (Agent Development Kit) is Google's framework for building AI agents powered by Gemini models. It provides native OpenTelemetry support for tracing agent runs.
 
@@ -16,15 +16,28 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 ## Quick Start
 
 <Steps>
-1. **Install dependencies**
+1. **Start SideSeat**
 
    ```bash
-   pip install google-adk sideseat
-   # or
-   uv add google-adk sideseat
+   npx sideseat
    ```
 
-2. **Add telemetry**
+2. **Install dependencies**
+
+   <Tabs>
+     <TabItem label="pip">
+       ```bash
+       pip install google-adk sideseat
+       ```
+     </TabItem>
+     <TabItem label="uv">
+       ```bash
+       uv add google-adk sideseat
+       ```
+     </TabItem>
+   </Tabs>
+
+3. **Add telemetry**
 
    ```python
    from sideseat import SideSeat, Frameworks
@@ -40,29 +53,58 @@ import { Aside, Steps } from '@astrojs/starlight/components';
    )
    ```
 
-3. **View runs**
+4. **View runs**
 
    Open [http://localhost:5388](http://localhost:5388) to see your runs.
 </Steps>
 
 ## Without SideSeat SDK
 
-Use the OpenTelemetry SDK directly:
+<Steps>
+1. **Start SideSeat**
 
-```python
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+   ```bash
+   npx sideseat
+   ```
 
-provider = TracerProvider()
-provider.add_span_processor(
-    BatchSpanProcessor(
-        OTLPSpanExporter(endpoint="http://localhost:5388/otel/default/v1/traces")
-    )
-)
-trace.set_tracer_provider(provider)
-```
+2. **Set the endpoint**
+
+   ```bash
+   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+   ```
+
+3. **Install dependencies**
+
+   <Tabs>
+     <TabItem label="pip">
+       ```bash
+       pip install google-adk opentelemetry-sdk opentelemetry-exporter-otlp
+       ```
+     </TabItem>
+     <TabItem label="uv">
+       ```bash
+       uv add google-adk opentelemetry-sdk opentelemetry-exporter-otlp
+       ```
+     </TabItem>
+   </Tabs>
+
+4. **Add telemetry**
+
+   ```python
+   from opentelemetry import trace
+   from opentelemetry.sdk.trace import TracerProvider
+   from opentelemetry.sdk.trace.export import BatchSpanProcessor
+   from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+   provider = TracerProvider()
+   provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+   trace.set_tracer_provider(provider)
+   ```
+
+5. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
+</Steps>
 
 ## Tools
 

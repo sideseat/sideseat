@@ -200,23 +200,18 @@ print(response.text)`,
     lang: "python",
     docUrl:
       "https://strandsagents.com/latest/documentation/docs/user-guide/observability-evaluation/traces/",
-    install: "pip install strands-agents sideseat opentelemetry-instrumentation-botocore",
-    code: () => `from opentelemetry.instrumentation.botocore import BotocoreInstrumentor
-from strands import Agent
+    install: "pip install strands-agents sideseat",
+    code: () => `from strands import Agent
 from sideseat import SideSeat, Frameworks
 
-BotocoreInstrumentor().instrument()
 SideSeat(framework=Frameworks.Strands)
 
 agent = Agent()
 response = agent("What is 2+2?")
 print(response)`,
-    altInstall: "pip install 'strands-agents[otel]' opentelemetry-instrumentation-botocore",
-    altCode: () => `from opentelemetry.instrumentation.botocore import BotocoreInstrumentor
-from strands.telemetry import StrandsTelemetry
+    altInstall: "pip install 'strands-agents[otel]'",
+    altCode: () => `from strands.telemetry import StrandsTelemetry
 from strands import Agent
-
-BotocoreInstrumentor().instrument()
 
 telemetry = StrandsTelemetry()
 telemetry.setup_otlp_exporter()

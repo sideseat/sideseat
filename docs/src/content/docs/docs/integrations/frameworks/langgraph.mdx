@@ -3,7 +3,7 @@ title: LangGraph
 description: Integrate SideSeat with LangGraph for stateful agent run visibility.
 ---
 
-import { Aside, Steps } from '@astrojs/starlight/components';
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 [LangGraph](https://langchain-ai.github.io/langgraph/) is a library for building stateful, multi-actor applications with LLMs. SideSeat captures runs from graph steps so you can debug state transitions.
 
@@ -16,15 +16,28 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 ## Quick Start
 
 <Steps>
-1. **Install dependencies**
+1. **Start SideSeat**
 
    ```bash
-   pip install langgraph langchain-openai "sideseat[langgraph]"
-   # or
-   uv add langgraph langchain-openai "sideseat[langgraph]"
+   npx sideseat
    ```
 
-2. **Add telemetry**
+2. **Install dependencies**
+
+   <Tabs>
+     <TabItem label="pip">
+       ```bash
+       pip install langgraph langchain-openai "sideseat[langgraph]"
+       ```
+     </TabItem>
+     <TabItem label="uv">
+       ```bash
+       uv add langgraph langchain-openai "sideseat[langgraph]"
+       ```
+     </TabItem>
+   </Tabs>
+
+3. **Add telemetry**
 
    ```python
    from sideseat import SideSeat, Frameworks
@@ -39,31 +52,60 @@ import { Aside, Steps } from '@astrojs/starlight/components';
    print(result["messages"][-1].content)
    ```
 
-3. **View runs**
+4. **View runs**
 
    Open [http://localhost:5388](http://localhost:5388) to see your runs.
 </Steps>
 
 ## Without SideSeat SDK
 
-Use LangChain's OpenTelemetry integration directly:
+<Steps>
+1. **Start SideSeat**
 
-```python
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from openinference.instrumentation.langchain import LangChainInstrumentor
+   ```bash
+   npx sideseat
+   ```
 
-provider = TracerProvider()
-provider.add_span_processor(
-    BatchSpanProcessor(
-        OTLPSpanExporter(endpoint="http://localhost:5388/otel/default/v1/traces")
-    )
-)
-trace.set_tracer_provider(provider)
-LangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)
-```
+2. **Set the endpoint**
+
+   ```bash
+   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+   ```
+
+3. **Install dependencies**
+
+   <Tabs>
+     <TabItem label="pip">
+       ```bash
+       pip install langgraph langchain-openai openinference-instrumentation-langchain opentelemetry-exporter-otlp
+       ```
+     </TabItem>
+     <TabItem label="uv">
+       ```bash
+       uv add langgraph langchain-openai openinference-instrumentation-langchain opentelemetry-exporter-otlp
+       ```
+     </TabItem>
+   </Tabs>
+
+4. **Add telemetry**
+
+   ```python
+   from opentelemetry import trace
+   from opentelemetry.sdk.trace import TracerProvider
+   from opentelemetry.sdk.trace.export import BatchSpanProcessor
+   from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+   from openinference.instrumentation.langchain import LangChainInstrumentor
+
+   provider = TracerProvider()
+   provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+   trace.set_tracer_provider(provider)
+   LangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)
+   ```
+
+5. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
+</Steps>
 
 ## What You'll See
 
