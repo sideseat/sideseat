@@ -33,7 +33,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen overflow-y-scroll bg-background">
       <PageHeader />
 
       <div className="mx-auto flex w-full max-w-400 flex-col gap-8 px-4 py-6 sm:px-6">
