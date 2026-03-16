@@ -51,7 +51,7 @@ export default function ConfigurationLayout() {
   const buildUrl = (url: string) => `/organizations/${orgId}/configuration/${url}`;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen overflow-y-scroll bg-background">
       <PageHeader />
 
       {/* Main content */}

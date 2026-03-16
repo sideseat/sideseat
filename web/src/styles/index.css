@@ -56,6 +56,12 @@
   body {
     @apply bg-background text-foreground;
   }
+  :root {
+    color-scheme: light;
+  }
+  .dark {
+    color-scheme: dark;
+  }
 }
 
 /* Container queries for responsive thread layout */
