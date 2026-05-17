@@ -1,6 +1,7 @@
 """Sample runner with model and provider configuration."""
 
 import importlib
+import inspect
 import os
 
 from common.models import DEFAULT_THINKING_BUDGET
@@ -112,7 +113,7 @@ def run_sample(name: str, args):
     print(f"  SideSeat telemetry: {args.sideseat}")
     print()
 
-    setup_telemetry(use_sideseat=args.sideseat)
+    sideseat_client = setup_telemetry(use_sideseat=args.sideseat)
 
     enable_thinking = name == "reasoning"
     model = get_model(args.model, enable_thinking=enable_thinking)
@@ -120,7 +121,11 @@ def run_sample(name: str, args):
 
     # Strands is sync
     module = importlib.import_module(SAMPLES[name])
-    module.run(model, trace_attrs)
+    sig = inspect.signature(module.run)
+    if "client" in sig.parameters:
+        module.run(model, trace_attrs, client=sideseat_client)
+    else:
+        module.run(model, trace_attrs)
     return True
 
 

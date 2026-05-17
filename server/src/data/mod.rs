@@ -25,6 +25,7 @@ pub mod duckdb;
 pub mod error;
 pub mod files;
 pub mod postgres;
+pub mod registrations;
 pub mod secrets;
 pub mod sql;
 pub mod sqlite;

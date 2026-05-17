@@ -21,8 +21,9 @@ use super::rate_limit::{KeyExtractor, RateLimitState, rate_limit_middleware};
 use super::routes::otel::files::{FilesApiState, get_file, head_file};
 use super::routes::{
     api_keys, auth, credentials, favorites, health, organizations, otel, otlp_collector, pricing,
-    projects, users,
+    projects, users, ws,
 };
+use crate::data::registrations::MemoryRegistrationStore;
 use crate::core::CoreApp;
 use crate::core::constants::{AUTH_BODY_LIMIT, DEFAULT_BODY_LIMIT, OTLP_BODY_LIMIT};
 use crate::data::cache::RateLimitBucket;
@@ -397,6 +398,35 @@ impl ApiServer {
             None
         };
 
+        // Build SDK WebSocket + registrations listing (no auth in v1).
+        //
+        // Horizontal scaling caveat: the memory-backed store is per-process.
+        // Presence topic + connection_control topic ARE cluster-aware (they
+        // ride the configured `TopicService` backend, including Redis), so
+        // `replaced` flow and presence broadcasts work across instances. The
+        // `GET /registrations` listing, however, only reflects entries owned
+        // by SDKs connected to this instance. Operators running multiple
+        // instances behind a load balancer should pin SDK connections to a
+        // sticky instance OR wait for the cluster-aware Redis store
+        // (follow-up). Logged at WARN if running with Redis cache backend.
+        if matches!(
+            app.config.database.cache_config().backend,
+            crate::core::config::CacheBackendType::Redis,
+        ) {
+            tracing::warn!(
+                "ws: SDK registrations are tracked in a per-process memory store; \
+                 GET /registrations on a load-balanced instance will only return \
+                 SDKs connected to that specific instance. Use sticky LB sessions \
+                 or wait for the Redis-backed RegistrationStore."
+            );
+        }
+        let registrations_store = Arc::new(MemoryRegistrationStore::new());
+        let (ws_routes, _ws_state) = ws::routes(
+            app.topics.clone(),
+            registrations_store as Arc<dyn crate::data::registrations::RegistrationStore>,
+            app.shutdown.subscribe(),
+        );
+
         let router = Router::new()
             .route("/", get(|| async { Redirect::temporary("/ui") }))
             .route("/api/v1/health", get(health::health))
@@ -417,7 +447,8 @@ impl ApiServer {
                 "/api/v1/organizations/{org_id}/credentials",
                 credentials_routes,
             )
-            .nest("/api/v1/project/{project_id}/files", api_files_routes);
+            .nest("/api/v1/project/{project_id}/files", api_files_routes)
+            .nest("/api/v1", ws_routes);
 
         let router = if let Some(mcp) = mcp_routes {
             router.nest("/api/v1/projects/{project_id}/mcp", mcp)

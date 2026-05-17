@@ -87,6 +87,7 @@ class SideSeat:
             debug=debug,
         )
         self._telemetry = TelemetryClient(self._config)
+        self._runtime: Any | None = None
 
     def __enter__(self) -> SideSeat:
         return self
@@ -168,7 +169,113 @@ class SideSeat:
 
     def shutdown(self, timeout_millis: int = 30000) -> None:
         """Graceful shutdown with flush."""
+        if self._runtime is not None:
+            try:
+                self._runtime.disconnect()
+            except Exception:  # pragma: no cover - best-effort
+                logger.debug("runtime disconnect raised", exc_info=True)
         self._telemetry.shutdown(timeout_millis)
+
+    # ------------------------------------------------------------------
+    # SDK runtime channel (presence + introspection)
+    # ------------------------------------------------------------------
+
+    @property
+    def runtime(self) -> Any:
+        """Lazy-instantiated runtime client. Requires sideseat[ws] extra."""
+        if self._runtime is None:
+            from sideseat.runtime.client import RuntimeClient
+
+            self._runtime = RuntimeClient(
+                endpoint=self._config.endpoint,
+                project_id=self._config.project_id,
+            )
+        return self._runtime
+
+    def register(
+        self,
+        objects: Any,
+        *,
+        name: str | None = None,
+        runtime: str | dict[str, Any] = "inproc",
+        agentcore_endpoint: str | None = None,
+    ) -> SideSeat:
+        """Register one object or a list of objects.
+
+        Auto-detects whether each object is an agent or an MCP client via
+        the inspector registry, and uses `obj.name` (or the explicit `name=`
+        kwarg for a single object) as the registration identity.
+        Chainable: `client.register([a]).register([b, mcp]).connect()`.
+        """
+        self.runtime.register(
+            objects,
+            name=name,
+            runtime=runtime,
+            agentcore_endpoint=agentcore_endpoint,
+        )
+        return self
+
+    def agent(
+        self,
+        instance: Any,
+        *,
+        name: str,
+        runtime: str | dict[str, Any] = "inproc",
+        agentcore_endpoint: str | None = None,
+        tools: list[Any] | None = None,
+        system_prompt: str | None = None,
+        model: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> SideSeat:
+        """Register an agent for presence + introspection."""
+        self.runtime.add_agent(
+            instance,
+            name=name,
+            runtime=runtime,
+            agentcore_endpoint=agentcore_endpoint,
+            tools=tools,
+            system_prompt=system_prompt,
+            model=model,
+            metadata=metadata,
+        )
+        return self
+
+    def mcp(
+        self,
+        client: Any,
+        *,
+        name: str,
+        transport: str | None = None,
+        url: str | None = None,
+        tools: list[Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> SideSeat:
+        """Register an MCP client for presence + introspection."""
+        self.runtime.add_mcp(
+            client,
+            name=name,
+            transport=transport,
+            url=url,
+            tools=tools,
+            metadata=metadata,
+        )
+        return self
+
+    def connect(self, *, block: bool = True) -> SideSeat:
+        """Open the persistent WebSocket and re-flush the local registry.
+
+        When `block=True` (default), blocks the calling thread until
+        `disconnect()` is called or SIGINT/SIGTERM is received. Pass
+        `block=False` for embedding scenarios where the caller wants to
+        drive its own loop.
+        """
+        self.runtime.connect(block=block)
+        return self
+
+    def disconnect(self) -> None:
+        """Send unregisters and close the WebSocket."""
+        if self._runtime is not None:
+            self._runtime.disconnect()
 
 
 def init(**kwargs: Any) -> SideSeat:
@@ -205,6 +312,36 @@ def is_initialized() -> bool:
         return _global_instance is not None
 
 
+# ---------------------------------------------------------------------------
+# Module-level convenience helpers for the WS runtime channel.
+# ---------------------------------------------------------------------------
+
+
+def register(objects: Any, **kwargs: Any) -> SideSeat:
+    """Module-level shorthand for `sideseat.get_client().register(...)`."""
+    return get_client().register(objects, **kwargs)
+
+
+def agent(instance: Any, *, name: str, **kwargs: Any) -> SideSeat:
+    """Module-level shorthand for `sideseat.get_client().agent(...)`."""
+    return get_client().agent(instance, name=name, **kwargs)
+
+
+def mcp(client: Any, *, name: str, **kwargs: Any) -> SideSeat:
+    """Module-level shorthand for `sideseat.get_client().mcp(...)`."""
+    return get_client().mcp(client, name=name, **kwargs)
+
+
+def connect(*, block: bool = True) -> SideSeat:
+    """Module-level shorthand for `sideseat.get_client().connect(...)`."""
+    return get_client().connect(block=block)
+
+
+def disconnect() -> None:
+    """Module-level shorthand for `sideseat.get_client().disconnect()`."""
+    get_client().disconnect()
+
+
 # Wrap logfire.instrument_* early so abstract-method fixes apply to any
 # subsequent logfire instrumentation call, whether through SideSeat or not.
 try:
@@ -230,4 +367,9 @@ __all__ = [
     "is_initialized",
     "encode_value",
     "span_to_dict",
+    "register",
+    "agent",
+    "mcp",
+    "connect",
+    "disconnect",
 ]

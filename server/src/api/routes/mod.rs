@@ -11,3 +11,4 @@ pub mod otlp_collector;
 pub mod pricing;
 pub mod projects;
 pub mod users;
+pub mod ws;

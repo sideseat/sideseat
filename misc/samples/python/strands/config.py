@@ -26,5 +26,10 @@ REASONING_MODELS = {alias for alias in _ALL_REASONING if alias in MODEL_ALIASES}
 # Default model alias
 DEFAULT_MODEL = "bedrock-haiku"
 
+# Strands-only samples (not part of the cross-provider SAMPLE_NAMES set).
+# Demonstrate the SideSeat WS presence/introspection bridge.
+STRANDS_ONLY_SAMPLES = ["strands_ws"]
+
 # Sample module paths
 SAMPLES = {name: f"samples.{name}" for name in SAMPLE_NAMES}
+SAMPLES.update({name: f"samples.{name}" for name in STRANDS_ONLY_SAMPLES})
