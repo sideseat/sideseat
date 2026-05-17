@@ -117,16 +117,31 @@ impl TopicMessage for PresenceEvent {
     }
 }
 
-/// Cross-instance control message used to deliver `replaced` notices to the
-/// instance that still holds a displaced socket. Topic name:
-/// `connection_control:{instance_id}`.
+/// Cross-instance control message delivered to the instance that owns a
+/// connection. Topic name: `connection_control:{instance_id}`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)] // bounded by WS frame cap
 pub enum ConnectionControl {
+    /// Notify a socket that its registration was claimed by a different
+    /// `client_id`. Owning instance pushes `replaced` then closes the socket.
     Replaced {
         target_client_id: String,
         kind: RegistrationKind,
         name: String,
+    },
+    /// Ask the owning instance to dispatch an `agent.invoke` frame to the
+    /// socket bound to `target_client_id`.
+    Invoke {
+        target_client_id: String,
+        request_id: String,
+        agent_name: String,
+        run_input: serde_json::Value,
+    },
+    /// Ask the owning instance to dispatch an `agent.cancel` frame.
+    Cancel {
+        target_client_id: String,
+        request_id: String,
     },
 }
 
@@ -157,6 +172,14 @@ pub trait RegistrationStore: Send + Sync + 'static {
         &self,
         project_id: &str,
     ) -> Result<Vec<RegistrationEntry>, RegistrationStoreError>;
+
+    /// O(1) lookup for a single entry. Returns `None` if no entry matches.
+    async fn find(
+        &self,
+        project_id: &str,
+        kind: RegistrationKind,
+        name: &str,
+    ) -> Result<Option<RegistrationEntry>, RegistrationStoreError>;
 
     /// Remove and return every entry owned by `client_id`. Used on socket
     /// teardown to publish `Unregistered` events efficiently.
@@ -299,6 +322,16 @@ impl RegistrationStore for MemoryRegistrationStore {
             }
         }
         Ok(out)
+    }
+
+    async fn find(
+        &self,
+        project_id: &str,
+        kind: RegistrationKind,
+        name: &str,
+    ) -> Result<Option<RegistrationEntry>, RegistrationStoreError> {
+        let key = (project_id.to_string(), kind, name.to_string());
+        Ok(self.entries.get(&key).map(|e| e.clone()))
     }
 
     async fn touch(&self, client_id: &str) -> Result<(), RegistrationStoreError> {
@@ -536,6 +569,34 @@ mod tests {
         }
         assert_eq!(inserted, 1, "exactly one task should win the Inserted slot");
         assert_eq!(store.list("p").await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn find_returns_entry_or_none() {
+        let store = MemoryRegistrationStore::new();
+        store
+            .upsert(entry("p", "weather", "client-1", "inst-A"))
+            .await
+            .unwrap();
+
+        let hit = store
+            .find("p", RegistrationKind::Agent, "weather")
+            .await
+            .unwrap();
+        assert!(hit.is_some());
+        assert_eq!(hit.unwrap().owner_client_id, "client-1");
+
+        let miss = store
+            .find("p", RegistrationKind::Agent, "missing")
+            .await
+            .unwrap();
+        assert!(miss.is_none());
+
+        let wrong_kind = store
+            .find("p", RegistrationKind::Mcp, "weather")
+            .await
+            .unwrap();
+        assert!(wrong_kind.is_none());
     }
 
     #[tokio::test]

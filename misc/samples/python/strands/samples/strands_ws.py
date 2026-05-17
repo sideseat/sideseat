@@ -1,18 +1,22 @@
-"""SideSeat WS bridge: pure-Strands presence demo.
+"""SideSeat WS bridge: Strands presence + AG-UI invoke demo.
 
-Demonstrates `client.agent(agent, name=...)` + `client.connect()` against a
-running SideSeat server. The script blocks on `connect()`; the server exposes
-the agent via `GET /api/v1/project/{project_id}/registrations` and the
-`presence:{project_id}` topic.
+Registers a Strands agent with SideSeat over the persistent WebSocket and
+then waits. While idle, the agent shows up in
+`GET /api/v1/project/{project_id}/registrations` and on the
+`presence:{project_id}` broadcast topic.
 
-This sample does NOT invoke the agent. Other samples (e.g. `tool_use.py`)
-already cover invocation paths and span emission. The goal here is to show
-how an SDK-side process makes itself discoverable.
+When a frontend (or `curl`) hits the AG-UI run-agent endpoint
+(`POST /api/v1/project/{project_id}/agents/{name}/runs`), the SDK invokes
+the local Strands agent through `ag_ui_strands.StrandsAgent`, streams
+AG-UI events back over the same WebSocket, and paints the same stream
+in this terminal with the rich `AgUiRenderer`. See
+`strands_ws_invoke.md` for a copy-paste curl command.
 """
 
 from __future__ import annotations
 
 from strands import Agent, tool
+from strands.handlers.callback_handler import null_callback_handler
 
 
 @tool
@@ -50,6 +54,10 @@ def run(model, trace_attrs: dict, *, client=None) -> None:
         system_prompt="You are a friendly weather agent.",
         trace_attributes=trace_attrs,
         name=name,  # used by SideSeat.register() to derive the identity
+        # Mute Strands' default printing — `_run_invoke_async` mutes it
+        # again at invoke time, but pre-empting here keeps the registry
+        # banner clean too.
+        callback_handler=null_callback_handler,
     )
 
     client.register([agent]).connect()  # connect() prints a banner then blocks

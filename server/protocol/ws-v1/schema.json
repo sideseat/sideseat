@@ -58,7 +58,14 @@
         "hello_required",
         "replaced",
         "rate_limited",
-        "internal"
+        "internal",
+        "agent_not_registered",
+        "agent_busy",
+        "invoke_timeout",
+        "cancelled",
+        "agui_extra_missing",
+        "bad_run_input",
+        "unsupported_runtime"
       ]
     },
     "frames": {
@@ -129,6 +136,59 @@
         "properties": {
           "kind": { "type": "string", "enum": ["agent", "mcp", "swarm", "graph"] },
           "name": { "type": "string", "minLength": 1 }
+        }
+      },
+      "agentInvoke": {
+        "type": "object",
+        "required": ["request_id", "agent_name", "run_input"],
+        "properties": {
+          "request_id": { "type": "string", "minLength": 1 },
+          "agent_name": { "type": "string", "minLength": 1 },
+          "run_input": { "type": "object" }
+        }
+      },
+      "agentCancel": {
+        "type": "object",
+        "required": ["request_id"],
+        "properties": {
+          "request_id": { "type": "string", "minLength": 1 }
+        }
+      },
+      "agentEvent": {
+        "type": "object",
+        "required": ["request_id", "event"],
+        "properties": {
+          "request_id": { "type": "string", "minLength": 1 },
+          "event": { "type": "object" }
+        },
+        "description": "AG-UI event payload, alias-serialised (camelCase). Server forwards verbatim to the SSE consumer."
+      },
+      "agentEventChunk": {
+        "type": "object",
+        "required": ["request_id", "group_id", "idx", "total", "data_b64"],
+        "properties": {
+          "request_id": { "type": "string", "minLength": 1 },
+          "group_id": { "type": "string", "minLength": 1 },
+          "idx": { "type": "integer", "minimum": 0 },
+          "total": { "type": "integer", "minimum": 1 },
+          "data_b64": { "type": "string" }
+        },
+        "description": "One slice of a too-large AG-UI event. Server reassembles by (request_id, group_id) and forwards the merged event onto the SSE pipe as one frame."
+      },
+      "agentComplete": {
+        "type": "object",
+        "required": ["request_id"],
+        "properties": {
+          "request_id": { "type": "string", "minLength": 1 }
+        }
+      },
+      "agentError": {
+        "type": "object",
+        "required": ["request_id", "code", "message"],
+        "properties": {
+          "request_id": { "type": "string", "minLength": 1 },
+          "code": { "$ref": "#/$defs/errorCode" },
+          "message": { "type": "string" }
         }
       }
     }

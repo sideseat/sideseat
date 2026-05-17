@@ -24,6 +24,13 @@ class ErrorCode(str, enum.Enum):
     REPLACED = "replaced"
     RATE_LIMITED = "rate_limited"
     INTERNAL = "internal"
+    AGENT_NOT_REGISTERED = "agent_not_registered"
+    AGENT_BUSY = "agent_busy"
+    INVOKE_TIMEOUT = "invoke_timeout"
+    CANCELLED = "cancelled"
+    AGUI_EXTRA_MISSING = "agui_extra_missing"
+    BAD_RUN_INPUT = "bad_run_input"
+    UNSUPPORTED_RUNTIME = "unsupported_runtime"
 
 
 @dataclass

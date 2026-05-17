@@ -20,6 +20,13 @@ pub enum ErrorCode {
     Replaced,
     RateLimited,
     Internal,
+    AgentNotRegistered,
+    AgentBusy,
+    InvokeTimeout,
+    Cancelled,
+    AguiExtraMissing,
+    BadRunInput,
+    UnsupportedRuntime,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,6 +59,41 @@ pub struct UnregisterPayload {
 pub struct PongPayload {
     #[allow(dead_code)] // logged only
     pub id: String,
+}
+
+/// SDK→server: an AG-UI event flowing back from a running invoke.
+/// `event` is the alias-serialised AG-UI event JSON; the server forwards
+/// it verbatim onto the per-request topic for the SSE handler.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AgentEventPayload {
+    pub request_id: String,
+    pub event: serde_json::Value,
+}
+
+/// SDK→server: one slice of an AG-UI event that was too big to fit in a
+/// single WS frame. See `server/protocol/ws-v1/chunking.md`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AgentEventChunkPayload {
+    pub request_id: String,
+    pub group_id: String,
+    pub idx: usize,
+    pub total: usize,
+    pub data_b64: String,
+}
+
+/// SDK→server: terminal marker after the AG-UI stream ends naturally.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AgentCompletePayload {
+    pub request_id: String,
+}
+
+/// SDK→server: terminal error for an in-flight invoke.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AgentErrorPayload {
+    pub request_id: String,
+    pub code: ErrorCode,
+    #[serde(default)]
+    pub message: String,
 }
 
 // ============================================================================
@@ -90,6 +132,20 @@ pub struct ReplacedPayload {
     pub name: String,
 }
 
+/// Server→SDK: kick off an invocation against the named local agent.
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentInvokePayload {
+    pub request_id: String,
+    pub agent_name: String,
+    pub run_input: serde_json::Value,
+}
+
+/// Server→SDK: ask the SDK to abort an in-flight invoke.
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentCancelPayload {
+    pub request_id: String,
+}
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -126,6 +182,10 @@ pub enum InboundFrame {
     Register(RegistrationKind, RegistrationManifest),
     Unregister(RegistrationKind, UnregisterPayload),
     Pong(PongPayload),
+    AgentEvent(AgentEventPayload),
+    AgentEventChunk(AgentEventChunkPayload),
+    AgentComplete(AgentCompletePayload),
+    AgentError(AgentErrorPayload),
     Unknown(String),
 }
 
@@ -155,6 +215,14 @@ pub fn parse_inbound(env: &Envelope) -> Result<InboundFrame, FrameParseError> {
         "graph.unregister" => parse_payload::<UnregisterPayload>(env)
             .map(|p| InboundFrame::Unregister(RegistrationKind::Graph, p)),
         "pong" => parse_payload::<PongPayload>(env).map(InboundFrame::Pong),
+        "agent.event" => parse_payload::<AgentEventPayload>(env).map(InboundFrame::AgentEvent),
+        "agent.event.chunk" => {
+            parse_payload::<AgentEventChunkPayload>(env).map(InboundFrame::AgentEventChunk)
+        }
+        "agent.complete" => {
+            parse_payload::<AgentCompletePayload>(env).map(InboundFrame::AgentComplete)
+        }
+        "agent.error" => parse_payload::<AgentErrorPayload>(env).map(InboundFrame::AgentError),
         other => Ok(InboundFrame::Unknown(other.to_string())),
     }
 }

@@ -632,7 +632,25 @@ pub const WS_HEARTBEAT_INTERVAL_SECS: u64 = 20;
 pub const WS_PONG_GRACE_SECS: u64 = 10;
 
 /// Per-connection rolling rate limit applied to all client-initiated frames.
-pub const WS_FRAME_RATE_LIMIT_COUNT: u32 = 100;
+/// `agent.event` frames are exempt (they're SDK→server fan-out replies for
+/// in-flight invocations, not user-initiated traffic).
+pub const WS_FRAME_RATE_LIMIT_COUNT: u32 = 1_000;
+
+/// Default time the AG-UI HTTP route waits for the SDK to respond with the
+/// first `agent.event` after sending `agent.invoke` before timing out the
+/// SSE with a synthesised `RUN_ERROR`.
+pub const INVOKE_TIMEOUT_MS: u64 = 60_000;
+
+/// How long a partial chunk-group sits in the reassembly buffer before
+/// being discarded as orphaned. The server-side reassembler is the only
+/// reader of this constant; the SDK chunks events under its own size
+/// thresholds (`_AGUI_CHUNK_THRESHOLD_BYTES` in
+/// `sdk/python/.../runtime/client.py`).
+pub const AGUI_CHUNK_REASSEMBLY_TTL_SECS: u64 = 60;
+
+/// Per-request memory cap on partial reassembly bytes. Prevents a buggy
+/// or malicious SDK from holding gigabytes resident across stale chunks.
+pub const AGUI_CHUNK_MAX_PER_REQUEST_BYTES: usize = 64 * 1024 * 1024;
 
 /// Window for the rate limit counter.
 pub const WS_FRAME_RATE_LIMIT_WINDOW_SECS: u64 = 10;

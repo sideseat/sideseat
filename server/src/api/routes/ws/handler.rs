@@ -25,10 +25,12 @@ use crate::data::registrations::{
     RegistrationManifest, UpsertOutcome,
 };
 
+use super::invoke::{InvokeReply, publish_invoke_reply};
 use super::presence;
 use super::protocol::{
-    AckPayload, Envelope, ErrorCode, ErrorPayload, FrameParseError, InboundFrame, PingPayload,
-    PongPayload, ReplacedPayload, WelcomePayload, frame_string, parse_inbound,
+    AckPayload, AgentCancelPayload, AgentInvokePayload, Envelope, ErrorCode, ErrorPayload,
+    FrameParseError, InboundFrame, PingPayload, PongPayload, ReplacedPayload, WelcomePayload,
+    frame_string, parse_inbound,
 };
 use super::rate_limit::RateLimiter;
 use super::state::{ConnectionHandle, WsState};
@@ -180,16 +182,6 @@ async fn run_connection(socket: WebSocket, state: WsState, project_id: String) {
                 };
                 match message {
                     Message::Text(text) => {
-                        if !rl.allow() {
-                            send_error(
-                                &out_tx,
-                                None,
-                                ErrorCode::RateLimited,
-                                "frame rate limit exceeded",
-                            )
-                            .await;
-                            continue;
-                        }
                         let env: Envelope = match serde_json::from_str(&text) {
                             Ok(e) => e,
                             Err(e) => {
@@ -216,6 +208,20 @@ async fn run_connection(socket: WebSocket, state: WsState, project_id: String) {
                                 continue;
                             }
                         };
+                        // `agent.event` frames are exempt — they are
+                        // SDK→server fan-out replies for in-flight invokes,
+                        // not user-initiated traffic. All other frame types
+                        // burn a token from the per-connection bucket.
+                        if !matches!(parsed, InboundFrame::AgentEvent(_)) && !rl.allow() {
+                            send_error(
+                                &out_tx,
+                                None,
+                                ErrorCode::RateLimited,
+                                "frame rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         match parsed {
                             InboundFrame::Hello(payload) => {
                                 if hello_received {
@@ -267,6 +273,89 @@ async fn run_connection(socket: WebSocket, state: WsState, project_id: String) {
                                     tracing::debug!(error = %e, "ws: touch failed");
                                 }
                             }
+                            InboundFrame::AgentEvent(payload) => {
+                                publish_invoke_reply(
+                                    &state,
+                                    &payload.request_id,
+                                    InvokeReply::Event(payload.event),
+                                )
+                                .await;
+                            }
+                            InboundFrame::AgentEventChunk(payload) => {
+                                let request_id = payload.request_id.clone();
+                                match state.reassembler.feed(payload) {
+                                    super::chunks::FeedOutcome::Pending => {}
+                                    super::chunks::FeedOutcome::Complete(value) => {
+                                        publish_invoke_reply(
+                                            &state,
+                                            &request_id,
+                                            InvokeReply::Event(value),
+                                        )
+                                        .await;
+                                    }
+                                    super::chunks::FeedOutcome::Failed(err) => {
+                                        tracing::warn!(
+                                            error = %err,
+                                            request_id = %request_id,
+                                            "ws: chunk reassembly failed",
+                                        );
+                                        // 1. Surface the failure to the SSE
+                                        //    consumer so it sees a terminal
+                                        //    AG-UI RUN_ERROR.
+                                        publish_invoke_reply(
+                                            &state,
+                                            &request_id,
+                                            InvokeReply::Error {
+                                                code: ErrorCode::TooLarge,
+                                                message: err.to_string(),
+                                            },
+                                        )
+                                        .await;
+                                        // 2. Tell the SDK to abort this
+                                        //    invoke so it stops streaming
+                                        //    into the void and frees its
+                                        //    `busy_agents` slot for the
+                                        //    next request.
+                                        let frame = fresh_frame(
+                                            "agent.cancel",
+                                            &AgentCancelPayload {
+                                                request_id: request_id.clone(),
+                                            },
+                                        );
+                                        if let Err(e) = out_tx.try_send(frame) {
+                                            tracing::debug!(
+                                                error = %e,
+                                                "ws: cancel after reassembly fail dropped",
+                                            );
+                                        }
+                                        // 3. Drop any further partials we
+                                        //    might still be holding for
+                                        //    this request.
+                                        state.reassembler.drop_request(&request_id);
+                                    }
+                                }
+                            }
+                            InboundFrame::AgentComplete(payload) => {
+                                state.reassembler.drop_request(&payload.request_id);
+                                publish_invoke_reply(
+                                    &state,
+                                    &payload.request_id,
+                                    InvokeReply::Complete,
+                                )
+                                .await;
+                            }
+                            InboundFrame::AgentError(payload) => {
+                                state.reassembler.drop_request(&payload.request_id);
+                                publish_invoke_reply(
+                                    &state,
+                                    &payload.request_id.clone(),
+                                    InvokeReply::Error {
+                                        code: payload.code,
+                                        message: payload.message,
+                                    },
+                                )
+                                .await;
+                            }
                             InboundFrame::Unknown(t) => {
                                 send_error(
                                     &out_tx,
@@ -316,22 +405,7 @@ async fn handle_control(state: &WsState, msg: &ConnectionControl) {
             kind,
             name,
         } => {
-            // Find local connections owned by this client_id and notify them.
-            let to_close: Vec<Arc<ConnectionHandle>> = state
-                .connections
-                .iter()
-                .filter_map(|entry| {
-                    let h = entry.value().clone();
-                    let same = h
-                        .client_id
-                        .lock()
-                        .as_deref()
-                        .map(|id| id == target_client_id)
-                        .unwrap_or(false);
-                    if same { Some(h) } else { None }
-                })
-                .collect();
-            for h in to_close {
+            for h in find_local_connections_for_client(state, target_client_id) {
                 let frame = fresh_frame(
                     "replaced",
                     &ReplacedPayload {
@@ -344,7 +418,59 @@ async fn handle_control(state: &WsState, msg: &ConnectionControl) {
                 // channel drop or recv-loop end.
             }
         }
+        ConnectionControl::Invoke {
+            target_client_id,
+            request_id,
+            agent_name,
+            run_input,
+        } => {
+            for h in find_local_connections_for_client(state, target_client_id) {
+                let frame = fresh_frame(
+                    "agent.invoke",
+                    &AgentInvokePayload {
+                        request_id: request_id.clone(),
+                        agent_name: agent_name.clone(),
+                        run_input: run_input.clone(),
+                    },
+                );
+                let _ = h.outbound.send(frame).await;
+            }
+        }
+        ConnectionControl::Cancel {
+            target_client_id,
+            request_id,
+        } => {
+            for h in find_local_connections_for_client(state, target_client_id) {
+                let frame = fresh_frame(
+                    "agent.cancel",
+                    &AgentCancelPayload {
+                        request_id: request_id.clone(),
+                    },
+                );
+                let _ = h.outbound.send(frame).await;
+            }
+        }
     }
+}
+
+fn find_local_connections_for_client(
+    state: &WsState,
+    target_client_id: &str,
+) -> Vec<Arc<ConnectionHandle>> {
+    state
+        .connections
+        .iter()
+        .filter_map(|entry| {
+            let h = entry.value().clone();
+            let same = h
+                .client_id
+                .lock()
+                .as_deref()
+                .map(|id| id == target_client_id)
+                .unwrap_or(false);
+            if same { Some(h) } else { None }
+        })
+        .collect()
 }
 
 async fn handle_register(
