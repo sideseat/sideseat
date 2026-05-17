@@ -1571,6 +1571,9 @@ anthropic = [
 openai = [
     { name = "logfire" },
 ]
+ws = [
+    { name = "websockets" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1595,10 +1598,12 @@ requires-dist = [
     { name = "opentelemetry-sdk", specifier = ">=1.20.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
+    { name = "websockets", marker = "extra == 'all'", specifier = ">=12" },
+    { name = "websockets", marker = "extra == 'ws'", specifier = ">=12" },
     { name = "wrapt", marker = "extra == 'all'", specifier = ">=1.14.0" },
     { name = "wrapt", marker = "extra == 'aws'", specifier = ">=1.14.0" },
 ]
-provides-extras = ["all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "langchain", "langgraph", "openai", "openai-agents", "pydantic-ai", "vertex-ai"]
+provides-extras = ["all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "langchain", "langgraph", "openai", "openai-agents", "pydantic-ai", "vertex-ai", "ws"]
 
 [[package]]
 name = "six"
@@ -1736,7 +1741,7 @@ dependencies = [
     { name = "opentelemetry-instrumentation-botocore" },
     { name = "pymupdf" },
     { name = "python-dotenv" },
-    { name = "sideseat", extra = ["anthropic", "openai"] },
+    { name = "sideseat", extra = ["anthropic", "openai", "ws"] },
     { name = "strands-agents" },
     { name = "strands-agents-tools" },
     { name = "telemetry-common" },
@@ -1750,7 +1755,7 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-botocore", specifier = ">=0.58b0" },
     { name = "pymupdf", specifier = ">=1.25.0" },
     { name = "python-dotenv", specifier = ">=1.2.0" },
-    { name = "sideseat", extras = ["openai", "anthropic"], editable = "../../../../sdk/python" },
+    { name = "sideseat", extras = ["openai", "anthropic", "ws"], editable = "../../../../sdk/python" },
     { name = "strands-agents", specifier = ">=1.30.0" },
     { name = "strands-agents-tools", specifier = ">=0.2.22" },
     { name = "telemetry-common", editable = "../common" },
