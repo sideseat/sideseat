@@ -49,11 +49,10 @@ aws = ["wrapt>=1.14.0"]
 # Persistent WebSocket bridge (presence + introspection)
 ws = ["websockets>=12"]
 
-# AG-UI run-agent invoke flow + console renderer.
-# `ag_ui_strands` is published only as a subdirectory in the upstream
-# monorepo (no PyPI release). Users opting into [agui] need either a
-# pre-installed `ag_ui_strands` or a direct git URL — sample projects
-# pull it via `[tool.uv.sources]` (see misc/samples/python/strands).
+# AG-UI run-agent invoke flow + console renderer. Sample projects that
+# wire a Strands agent through SideSeat add `ag_ui_strands` themselves
+# (it pulls in fastapi); we don't pin it on the core SDK so non-Strands
+# users don't pay for unrelated deps.
 agui = ["rich>=13", "ag-ui-protocol>=0.1.18"]
 
 # Bundle all instrumentation extras
