@@ -1,12 +1,14 @@
 //! SDK WebSocket routes (registration + introspection).
 
+pub(crate) mod chunks;
 mod expiry;
 mod handler;
+pub(crate) mod invoke;
 mod listing;
 mod presence;
-mod protocol;
+pub(crate) mod protocol;
 mod rate_limit;
-mod state;
+pub(crate) mod state;
 
 use std::sync::Arc;
 

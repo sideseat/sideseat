@@ -421,11 +421,14 @@ impl ApiServer {
             );
         }
         let registrations_store = Arc::new(MemoryRegistrationStore::new());
-        let (ws_routes, _ws_state) = ws::routes(
+        let (ws_routes, ws_state) = ws::routes(
             app.topics.clone(),
             registrations_store as Arc<dyn crate::data::registrations::RegistrationStore>,
             app.shutdown.subscribe(),
         );
+        // AG-UI run-agent endpoint shares the WS state (same registrations
+        // store, same topics) so HTTP→WS bridging routes correctly.
+        let agui_routes = super::routes::agui::routes(ws_state);
 
         let router = Router::new()
             .route("/", get(|| async { Redirect::temporary("/ui") }))
@@ -448,7 +451,8 @@ impl ApiServer {
                 credentials_routes,
             )
             .nest("/api/v1/project/{project_id}/files", api_files_routes)
-            .nest("/api/v1", ws_routes);
+            .nest("/api/v1", ws_routes)
+            .nest("/api/v1", agui_routes);
 
         let router = if let Some(mcp) = mcp_routes {
             router.nest("/api/v1/projects/{project_id}/mcp", mcp)

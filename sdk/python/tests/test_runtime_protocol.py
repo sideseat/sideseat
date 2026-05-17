@@ -51,6 +51,13 @@ def test_error_codes_are_snake_case() -> None:
         "replaced",
         "rate_limited",
         "internal",
+        "agent_not_registered",
+        "agent_busy",
+        "invoke_timeout",
+        "cancelled",
+        "agui_extra_missing",
+        "bad_run_input",
+        "unsupported_runtime",
     }
     assert {c.value for c in ErrorCode} == expected
 

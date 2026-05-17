@@ -8,6 +8,7 @@ pub mod health;
 pub mod organizations;
 pub mod otel;
 pub mod otlp_collector;
+pub mod agui;
 pub mod pricing;
 pub mod projects;
 pub mod users;

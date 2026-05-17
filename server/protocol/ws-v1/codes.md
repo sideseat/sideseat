@@ -13,6 +13,13 @@ serialised as snake_case strings on the wire.
 | `replaced`            | Sent to a socket whose `(kind, name)` registration was claimed by a different client_id. | No (close 4000)      |
 | `rate_limited`        | Client exceeded the 100-frames / 10 s rolling token bucket.                              | Yes                  |
 | `internal`            | Server-side bug.                                                                         | Yes                  |
+| `agent_not_registered`| HTTP `POST /agents/{name}/runs` had no live registration matching `(project, agent, name)`. | n/a (404 before SDK reach) |
+| `agent_busy`          | A second invoke arrived while the agent was running. Strands enforces serial execution.  | Yes                  |
+| `invoke_timeout`      | Server didn't see any `agent.event` within `INVOKE_TIMEOUT_MS` after sending invoke.     | n/a (504 SSE close)  |
+| `cancelled`           | SDK aborted the run via `Strands.Agent.cancel()` after `agent.cancel` from server.       | Yes                  |
+| `agui_extra_missing`  | SDK received `agent.invoke` but the `[agui]` extra is not installed.                     | Yes                  |
+| `bad_run_input`       | `RunAgentInput` payload failed pydantic validation in the SDK.                           | Yes                  |
+| `unsupported_runtime` | The registered agent has a non-`inproc` runtime kind (v2 supports only inproc).          | Yes                  |
 
 ## Reserved frame types (v1: `error.unsupported` only)
 
