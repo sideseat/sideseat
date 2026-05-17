@@ -6,6 +6,28 @@ requires-python = ">=3.12, <3.14"
 prerelease-mode = "allow"
 
 [[package]]
+name = "ag-ui-protocol"
+version = "0.1.18"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4c/d7/5711eada86da9bd7684e58645653a1693ef20b66cc3efbb1deeafef80f8d/ag_ui_protocol-0.1.18.tar.gz", hash = "sha256:b37c672c3fd6bac12b316c39f45ad9db9f137bbb885489c79f268507029a22ff", size = 9937, upload-time = "2026-04-21T20:44:59.151Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d8/74/913c9b8fc566c6da650aecbddf25a5d8186b54138df265eb9eb546f56141/ag_ui_protocol-0.1.18-py3-none-any.whl", hash = "sha256:d151c0f0a34160647f1571163f7185746f4326b15a56d1560de5082a7a0e7a12", size = 12607, upload-time = "2026-04-21T20:45:00.097Z" },
+]
+
+[[package]]
+name = "ag-ui-strands"
+version = "0.1.8"
+source = { git = "https://github.com/ag-ui-protocol/ag-ui.git?subdirectory=integrations%2Faws-strands%2Fpython&rev=42c57161f1a8cdf3bbd0acb46915f9297deddc0b#42c57161f1a8cdf3bbd0acb46915f9297deddc0b" }
+dependencies = [
+    { name = "ag-ui-protocol" },
+    { name = "fastapi" },
+    { name = "strands-agents" },
+]
+
+[[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -369,6 +391,22 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/cc/28/c14e053b6762b1044f34a13aab6859bbf40456d37d23aa286ac24cfd9a5d/executing-2.2.1.tar.gz", hash = "sha256:3632cc370565f6648cc328b32435bd120a1e4ebb20c77e3fdde9a13cd1e533c4", size = 1129488, upload-time = "2025-09-01T09:48:10.866Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c1/ea/53f2148663b321f21b5a606bd5f191517cf40b7072c0497d3c92c4a13b1e/executing-2.2.1-py2.py3-none-any.whl", hash = "sha256:760643d3452b4d777d295bb167ccc74c64a81df23fb5e08eff250c425a4b2017", size = 28317, upload-time = "2025-09-01T09:48:08.5Z" },
+]
+
+[[package]]
+name = "fastapi"
+version = "0.136.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "annotated-doc" },
+    { name = "pydantic" },
+    { name = "starlette" },
+    { name = "typing-extensions" },
+    { name = "typing-inspection" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5d/45/c130091c2dfa061bbfe3150f2a5091ef1adf149f2a8d2ae769ecaf6e99a2/fastapi-0.136.1.tar.gz", hash = "sha256:7af665ad7acfa0a3baf8983d393b6b471b9da10ede59c60045f49fbc89a0fa7f", size = 397448, upload-time = "2026-04-23T16:49:44.046Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5a/ff/2e4eca3ade2c22fe1dea7043b8ee9dabe47753349eb1b56a202de8af6349/fastapi-0.136.1-py3-none-any.whl", hash = "sha256:a6e9d7eeada96c93a4d69cb03836b44fa34e2854accb7244a1ece36cd4781c3f", size = 117683, upload-time = "2026-04-23T16:49:42.437Z" },
 ]
 
 [[package]]
@@ -1565,6 +1603,10 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+agui = [
+    { name = "ag-ui-protocol" },
+    { name = "rich" },
+]
 anthropic = [
     { name = "logfire" },
 ]
@@ -1577,6 +1619,8 @@ ws = [
 
 [package.metadata]
 requires-dist = [
+    { name = "ag-ui-protocol", marker = "extra == 'agui'", specifier = ">=0.1.18" },
+    { name = "ag-ui-protocol", marker = "extra == 'all'", specifier = ">=0.1" },
     { name = "logfire", marker = "extra == 'all'", specifier = ">=4.29.0" },
     { name = "logfire", marker = "extra == 'anthropic'", specifier = ">=4.29.0" },
     { name = "logfire", marker = "extra == 'google-genai'", specifier = ">=4.29.0" },
@@ -1597,13 +1641,15 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-vertexai", marker = "extra == 'vertex-ai'", specifier = ">=0.40.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.20.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "rich", marker = "extra == 'agui'", specifier = ">=13" },
+    { name = "rich", marker = "extra == 'all'", specifier = ">=13" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
     { name = "websockets", marker = "extra == 'all'", specifier = ">=12" },
     { name = "websockets", marker = "extra == 'ws'", specifier = ">=12" },
     { name = "wrapt", marker = "extra == 'all'", specifier = ">=1.14.0" },
     { name = "wrapt", marker = "extra == 'aws'", specifier = ">=1.14.0" },
 ]
-provides-extras = ["all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "langchain", "langgraph", "openai", "openai-agents", "pydantic-ai", "vertex-ai", "ws"]
+provides-extras = ["agui", "all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "langchain", "langgraph", "openai", "openai-agents", "pydantic-ai", "vertex-ai", "ws"]
 
 [[package]]
 name = "six"
@@ -1735,13 +1781,14 @@ name = "strands-sample"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "ag-ui-strands" },
     { name = "bedrock-agentcore" },
     { name = "boto3" },
     { name = "litellm" },
     { name = "opentelemetry-instrumentation-botocore" },
     { name = "pymupdf" },
     { name = "python-dotenv" },
-    { name = "sideseat", extra = ["anthropic", "openai", "ws"] },
+    { name = "sideseat", extra = ["agui", "anthropic", "openai", "ws"] },
     { name = "strands-agents" },
     { name = "strands-agents-tools" },
     { name = "telemetry-common" },
@@ -1749,13 +1796,14 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "ag-ui-strands", git = "https://github.com/ag-ui-protocol/ag-ui.git?subdirectory=integrations%2Faws-strands%2Fpython&rev=42c57161f1a8cdf3bbd0acb46915f9297deddc0b" },
     { name = "bedrock-agentcore", specifier = ">=1.4.6" },
     { name = "boto3", specifier = ">=1.42.22" },
     { name = "litellm", specifier = ">=1.82.1" },
     { name = "opentelemetry-instrumentation-botocore", specifier = ">=0.58b0" },
     { name = "pymupdf", specifier = ">=1.25.0" },
     { name = "python-dotenv", specifier = ">=1.2.0" },
-    { name = "sideseat", extras = ["openai", "anthropic", "ws"], editable = "../../../../sdk/python" },
+    { name = "sideseat", extras = ["openai", "anthropic", "ws", "agui"], editable = "../../../../sdk/python" },
     { name = "strands-agents", specifier = ">=1.30.0" },
     { name = "strands-agents-tools", specifier = ">=0.2.22" },
     { name = "telemetry-common", editable = "../common" },
