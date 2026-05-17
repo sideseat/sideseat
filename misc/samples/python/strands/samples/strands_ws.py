@@ -52,10 +52,4 @@ def run(model, trace_attrs: dict, *, client=None) -> None:
         name=name,  # used by SideSeat.register() to derive the identity
     )
 
-    client.register([agent])
-    print(
-        f"Registered agent {name!r} on SideSeat. "
-        "Hit GET /api/v1/project/default/registrations to see it. "
-        "Ctrl-C to exit."
-    )
-    client.connect()  # blocks until SIGINT/SIGTERM
+    client.register([agent]).connect()  # connect() prints a banner then blocks

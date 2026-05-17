@@ -82,6 +82,8 @@ class RuntimeClient:
 
         self._last_server_message_at = 0.0
         self._heartbeat_interval = _DEFAULT_HEARTBEAT_INTERVAL
+        self._banner_enabled = False
+        self._banner_printed = False
 
     # ------------------------------------------------------------------
     # Public registration API
@@ -268,7 +270,7 @@ class RuntimeClient:
     # Connect / disconnect
     # ------------------------------------------------------------------
 
-    def connect(self, *, block: bool = True) -> None:
+    def connect(self, *, block: bool = True, banner: bool = True) -> None:
         """Open the persistent WS and (by default) block until disconnect.
 
         When `block=True` (the default), this method runs until
@@ -279,16 +281,27 @@ class RuntimeClient:
         `block=False` is intended for tests and embedding scenarios where
         the caller wants to drive its own loop and call `disconnect()`
         explicitly.
+
+        When `block=True`, a startup banner is printed on stdout once the
+        first welcome arrives. Pass `banner=False` to suppress it.
         """
         if not _module_available("websockets"):
             raise ImportError(
                 "sideseat[ws] extra is not installed. "
                 "Install with `pip install sideseat[ws]`."
             )
+        self._banner_enabled = banner and block
+        if self._banner_enabled:
+            # Print "connecting" line synchronously BEFORE the I/O thread
+            # starts, so the user always sees an indication of activity even
+            # when the server is unreachable.
+            self._print_connecting_line()
         self._ensure_thread_started()
         if not block:
             return
         self._install_signal_handlers()
+        if self._banner_enabled and not self.wait_until_connected(timeout=5.0):
+            self._print_unreachable_warning()
         try:
             self._stopped.wait()
         except KeyboardInterrupt:
@@ -453,6 +466,10 @@ class RuntimeClient:
                         )
                     )
 
+        if self._banner_enabled and not self._banner_printed:
+            self._banner_printed = True
+            self._print_banner()
+
         # Drive the recv loop with a watchdog.
         deadline_extra = self._heartbeat_interval + _DEFAULT_PONG_GRACE
         while not self._stop_event.is_set():
@@ -518,6 +535,79 @@ class RuntimeClient:
             if ws is None:
                 return
             ws.send(env.to_json())
+
+    def _print_connecting_line(self) -> None:
+        """One-line note printed BEFORE the I/O thread starts so the user
+        always sees something on stdout — even if the server is unreachable
+        and we never make it past reconnect-loop."""
+        with self._registry_lock:
+            registrations = list(self._registrations.values())
+        kinds_summary = ", ".join(
+            f"{kind} ({len([r for r in registrations if r.kind == kind])})"
+            for kind in ("agent", "swarm", "graph", "mcp")
+            if any(r.kind == kind for r in registrations)
+        ) or "no registrations"
+        print(
+            f"SideSeat: connecting to {self._endpoint} "
+            f"(project={self._project_id}, {kinds_summary}) ...",
+            flush=True,
+        )
+
+    def _print_unreachable_warning(self) -> None:
+        print(
+            f"SideSeat: still not connected after 5s -- is the server running at "
+            f"{self._endpoint}? Retrying in the background. "
+            "Press Ctrl-C to abort.",
+            flush=True,
+        )
+
+    def _print_banner(self) -> None:
+        """Print a friendly box on stdout listing what's been registered.
+
+        Stays ASCII-only and never colorises — the host terminal may not
+        support either, and CLAUDE.md forbids emojis in console output.
+        """
+        with self._registry_lock:
+            registrations = list(self._registrations.values())
+        by_kind: dict[str, list[_Registration]] = {}
+        for reg in registrations:
+            by_kind.setdefault(reg.kind, []).append(reg)
+
+        lines: list[str] = []
+        lines.append("SideSeat presence connected")
+        lines.append(f"  endpoint   : {self._endpoint}")
+        lines.append(f"  project    : {self._project_id}")
+        lines.append(f"  client_id  : {self._client_id}")
+
+        listing_base = self._endpoint.rstrip("/")
+        lines.append(
+            f"  listing    : {listing_base}/api/v1/project/{self._project_id}/registrations"
+        )
+
+        if registrations:
+            lines.append("")
+            lines.append("Registered:")
+            for kind in ("agent", "swarm", "graph", "mcp"):
+                items = by_kind.get(kind)
+                if not items:
+                    continue
+                names = ", ".join(sorted(r.name for r in items))
+                lines.append(f"  {kind:<10s} ({len(items)}): {names}")
+        else:
+            lines.append("")
+            lines.append(
+                "No registrations yet. Call client.register(...) before connect()."
+            )
+        lines.append("")
+        lines.append("Press Ctrl-C to disconnect.")
+
+        width = max(len(line) for line in lines)
+        bar = "+" + "-" * (width + 2) + "+"
+        framed = [bar]
+        for line in lines:
+            framed.append(f"| {line.ljust(width)} |")
+        framed.append(bar)
+        print("\n".join(framed), flush=True)
 
     def _install_signal_handlers(self) -> None:
         # `signal.signal()` only works on the main thread of the main

@@ -261,15 +261,16 @@ class SideSeat:
         )
         return self
 
-    def connect(self, *, block: bool = True) -> SideSeat:
+    def connect(self, *, block: bool = True, banner: bool = True) -> SideSeat:
         """Open the persistent WebSocket and re-flush the local registry.
 
         When `block=True` (default), blocks the calling thread until
         `disconnect()` is called or SIGINT/SIGTERM is received. Pass
         `block=False` for embedding scenarios where the caller wants to
-        drive its own loop.
+        drive its own loop. Pass `banner=False` to suppress the startup
+        banner printed on stdout.
         """
-        self.runtime.connect(block=block)
+        self.runtime.connect(block=block, banner=banner)
         return self
 
     def disconnect(self) -> None:
@@ -332,9 +333,9 @@ def mcp(client: Any, *, name: str, **kwargs: Any) -> SideSeat:
     return get_client().mcp(client, name=name, **kwargs)
 
 
-def connect(*, block: bool = True) -> SideSeat:
+def connect(*, block: bool = True, banner: bool = True) -> SideSeat:
     """Module-level shorthand for `sideseat.get_client().connect(...)`."""
-    return get_client().connect(block=block)
+    return get_client().connect(block=block, banner=banner)
 
 
 def disconnect() -> None:
