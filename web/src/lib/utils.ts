@@ -175,6 +175,11 @@ export function isPlaceholderData(data: string): boolean {
   return false;
 }
 
+/** Build URL to the CloudPrice page for a given model id. */
+export function cloudPriceModelUrl(modelId: string): string {
+  return `https://cloudprice.net/models/${encodeURIComponent(modelId)}`;
+}
+
 /** Get short type label from media type */
 export function getMediaTypeLabel(mediaType?: string, fallback = "FILE"): string {
   if (!mediaType) return fallback;
