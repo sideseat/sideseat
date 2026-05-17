@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sideseat.ai/protocol/ws-v1/schema.json",
+  "title": "SideSeat SDK WebSocket Protocol v1",
+  "description": "JSON Schema for envelope frames exchanged on /api/v1/project/{project_id}/ws.",
+  "type": "object",
+  "required": ["v", "type", "id"],
+  "properties": {
+    "v": {
+      "type": "integer",
+      "const": 1,
+      "description": "Protocol version. Bumped only on breaking changes within an existing field."
+    },
+    "type": {
+      "type": "string",
+      "description": "Frame type. Unknown types are tolerated and replied to with error.unsupported."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Per-frame UUID for ack/error correlation."
+    },
+    "payload": {
+      "description": "Frame-specific payload. Shape depends on type."
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "registrationManifest": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "framework": { "type": "string" },
+        "runtime": {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": { "type": "string" },
+            "endpoint": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "model": { "type": ["string", "null"] },
+        "system_prompt": { "type": ["string", "null"] },
+        "tools": { "type": "array" },
+        "metadata": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": true
+    },
+    "errorCode": {
+      "type": "string",
+      "enum": [
+        "unsupported",
+        "bad_payload",
+        "too_large",
+        "invalid_project_id",
+        "hello_required",
+        "replaced",
+        "rate_limited",
+        "internal"
+      ]
+    },
+    "frames": {
+      "hello": {
+        "type": "object",
+        "required": ["client_id", "sdk_version"],
+        "properties": {
+          "client_id": { "type": "string", "minLength": 1 },
+          "sdk_version": { "type": "string" }
+        },
+        "additionalProperties": true
+      },
+      "agentRegister": { "$ref": "#/$defs/registrationManifest" },
+      "agentUnregister": {
+        "type": "object",
+        "required": ["name"],
+        "properties": { "name": { "type": "string", "minLength": 1 } }
+      },
+      "mcpRegister": { "$ref": "#/$defs/registrationManifest" },
+      "mcpUnregister": {
+        "type": "object",
+        "required": ["name"],
+        "properties": { "name": { "type": "string", "minLength": 1 } }
+      },
+      "pong": {
+        "type": "object",
+        "required": ["id"],
+        "properties": { "id": { "type": "string", "minLength": 1 } }
+      },
+      "welcome": {
+        "type": "object",
+        "required": [
+          "connection_id",
+          "server_version",
+          "max_message_bytes",
+          "heartbeat_interval_secs"
+        ],
+        "properties": {
+          "connection_id": { "type": "string", "minLength": 1 },
+          "server_version": { "type": "string" },
+          "max_message_bytes": { "type": "integer", "minimum": 1 },
+          "heartbeat_interval_secs": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": true
+      },
+      "ack": {
+        "type": "object",
+        "required": ["ref_id"],
+        "properties": { "ref_id": { "type": "string", "minLength": 1 } }
+      },
+      "error": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "$ref": "#/$defs/errorCode" },
+          "message": { "type": "string" },
+          "ref_id": { "type": ["string", "null"] }
+        }
+      },
+      "ping": {
+        "type": "object",
+        "required": ["id"],
+        "properties": { "id": { "type": "string", "minLength": 1 } }
+      },
+      "replaced": {
+        "type": "object",
+        "required": ["kind", "name"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["agent", "mcp", "swarm", "graph"] },
+          "name": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

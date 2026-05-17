@@ -88,3 +88,25 @@ Supported models for extended thinking:
 - `anthropic-sonnet`, `anthropic-haiku` (via `thinking` parameter)
 
 Models without extended thinking support will still work but won't show thinking steps.
+
+## SDK WebSocket bridge (presence + introspection)
+
+`strands_ws` demonstrates the persistent SideSeat WebSocket bridge. The
+script registers an agent on the server and then blocks; list who is
+online with:
+
+```bash
+curl http://127.0.0.1:5388/api/v1/project/default/registrations
+```
+
+```bash
+uv run strands strands_ws --sideseat
+```
+
+The sample sets the `gen_ai.agent.name` trace attribute to the same name
+it registers under, so spans and registrations cross-reference cleanly.
+
+For Strands `Swarm` and `Graph`, `client.register([swarm])` /
+`client.register([graph])` records the composite plus every inner
+`Agent` automatically — the server returns them under `swarms` /
+`graphs` and `agents` respectively in the listing.

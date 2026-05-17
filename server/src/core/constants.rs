@@ -617,3 +617,28 @@ pub const CACHE_TTL_CRED_LIST: u64 = 60;
 /// This cache holds sensitive data like credential secrets that must never
 /// leave the process. Sized to hold secrets for many orgs comfortably.
 pub const LOCAL_CACHE_MAX_ENTRIES: u64 = 10_000;
+
+// =============================================================================
+// SDK WebSocket Protocol (registration + introspection)
+// =============================================================================
+
+/// Maximum WebSocket message size for the SDK channel (4 MiB).
+pub const WS_MAX_MESSAGE_BYTES: usize = 4 * 1024 * 1024;
+
+/// Server-initiated heartbeat ping interval.
+pub const WS_HEARTBEAT_INTERVAL_SECS: u64 = 20;
+
+/// Grace period after a ping before treating the connection as dead.
+pub const WS_PONG_GRACE_SECS: u64 = 10;
+
+/// Per-connection rolling rate limit applied to all client-initiated frames.
+pub const WS_FRAME_RATE_LIMIT_COUNT: u32 = 100;
+
+/// Window for the rate limit counter.
+pub const WS_FRAME_RATE_LIMIT_WINDOW_SECS: u64 = 10;
+
+/// TTL for stored registrations after the last heartbeat.
+pub const REGISTRATION_TTL_SECS: u64 = 60;
+
+/// Time within which the SDK must send `hello` after `welcome`.
+pub const WS_HELLO_TIMEOUT_SECS: u64 = 5;

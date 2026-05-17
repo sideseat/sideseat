@@ -5,7 +5,7 @@ description = "SideSeat telemetry sample for Strands Agents"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "telemetry-common",
-    "sideseat[openai,anthropic]",
+    "sideseat[openai,anthropic,ws]",
     "strands-agents>=1.30.0",
     "strands-agents-tools>=0.2.22",
     "opentelemetry-instrumentation-botocore>=0.58b0",

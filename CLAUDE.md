@@ -254,6 +254,11 @@ omitPagination(params); // Remove page/limit for filter comparison
 
 **Raw span data**: Add `?include_raw_span=true` to span/trace endpoints to get the full OTLP span JSON (attributes, events, links, resource).
 
+**SDK runtime channel** (presence + introspection, no auth in v1):
+
+- `GET /api/v1/project/{project_id}/ws` (persistent WebSocket; protocol in `server/protocol/ws-v1/`)
+- `GET /api/v1/project/{project_id}/registrations` (read-only snapshot)
+
 **Other**: `/api/v1/projects`, `/api/v1/auth/*`, `/api/v1/health`
 
 ## Conventions

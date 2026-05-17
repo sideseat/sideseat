@@ -3,7 +3,7 @@ members = ["server", "sdk/rust"]
 resolver = "2"
 
 [workspace.dependencies]
-axum = "0.8"
+axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1.49", features = ["full"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = [

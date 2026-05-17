@@ -46,6 +46,9 @@ vertex-ai = ["opentelemetry-instrumentation-vertexai>=0.40.0"]
 # Cloud provider instrumentation
 aws = ["wrapt>=1.14.0"]
 
+# Persistent WebSocket bridge (presence + introspection)
+ws = ["websockets>=12"]
+
 # Bundle all instrumentation extras
 all = [
     "openinference-instrumentation-langchain>=0.1.0",
@@ -54,6 +57,7 @@ all = [
     "opentelemetry-instrumentation-vertexai>=0.40.0",
     "logfire>=4.29.0",
     "wrapt>=1.14.0",
+    "websockets>=12",
 ]
 
 # Development dependencies
