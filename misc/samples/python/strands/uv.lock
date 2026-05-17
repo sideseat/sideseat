@@ -19,12 +19,16 @@ wheels = [
 
 [[package]]
 name = "ag-ui-strands"
-version = "0.1.8"
-source = { git = "https://github.com/ag-ui-protocol/ag-ui.git?subdirectory=integrations%2Faws-strands%2Fpython&rev=42c57161f1a8cdf3bbd0acb46915f9297deddc0b#42c57161f1a8cdf3bbd0acb46915f9297deddc0b" }
+version = "0.1.9"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ag-ui-protocol" },
     { name = "fastapi" },
     { name = "strands-agents" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9a/f8/4d85eaff00a8a9a849c74adaa214038707c8a0a2ed305353a7deb172939f/ag_ui_strands-0.1.9.tar.gz", hash = "sha256:ee5efc57210c574c98c6f2df511e141542853cf1adc084211d13332d0a295cb2", size = 214221, upload-time = "2026-05-15T16:22:22.107Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ed/e3/0f120cc56e94b7187504c4f2eab1575f832d12d61f5a0443b4199e6013bb/ag_ui_strands-0.1.9-py3-none-any.whl", hash = "sha256:cc207e6a4a6c409bce3ca2f0415711e042fce6a648e024fd22e9d49e016f95fd", size = 24311, upload-time = "2026-05-15T16:22:20.288Z" },
 ]
 
 [[package]]
@@ -1796,7 +1800,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "ag-ui-strands", git = "https://github.com/ag-ui-protocol/ag-ui.git?subdirectory=integrations%2Faws-strands%2Fpython&rev=42c57161f1a8cdf3bbd0acb46915f9297deddc0b" },
+    { name = "ag-ui-strands", specifier = ">=0.1.9" },
     { name = "bedrock-agentcore", specifier = ">=1.4.6" },
     { name = "boto3", specifier = ">=1.42.22" },
     { name = "litellm", specifier = ">=1.82.1" },

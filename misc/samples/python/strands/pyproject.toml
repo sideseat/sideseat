@@ -14,8 +14,7 @@ dependencies = [
     "bedrock-agentcore>=1.4.6",
     "pymupdf>=1.25.0",
     "python-dotenv>=1.2.0",
-    # ag_ui_strands lives only in the upstream monorepo subdirectory.
-    "ag-ui-strands",
+    "ag_ui_strands>=0.1.9",
 ]
 
 [project.scripts]
@@ -27,10 +26,6 @@ prerelease = "allow"
 [tool.uv.sources]
 telemetry-common = { path = "../common", editable = true }
 sideseat = { path = "../../../../sdk/python", editable = true }
-# `ag_ui_strands` lives only as a subdirectory in the upstream monorepo.
-# Pinned to a known-good revision so `uv run` doesn't refetch + rebuild
-# on every invocation.
-ag-ui-strands = { git = "https://github.com/ag-ui-protocol/ag-ui.git", subdirectory = "integrations/aws-strands/python", rev = "42c57161f1a8cdf3bbd0acb46915f9297deddc0b" }
 
 [build-system]
 requires = ["hatchling"]
