@@ -17,6 +17,7 @@ import { TimelineRow } from "./timeline-row";
 import { JsonContent } from "./content";
 import { getBlockKey, getBlockPreview, getBlockCopyText, renderBlockContent } from "./thread-utils";
 import { ImageGalleryProvider } from "./image-gallery-context";
+import { ModelLink } from "@/components/model-link";
 import type { ThreadViewProps, ThreadTab } from "./types";
 
 interface ToolCardProps {
@@ -289,7 +290,12 @@ export function ThreadView({
                       className={contextInfo.frameworks.length > 0 ? "ml-1 font-mono" : "font-mono"}
                     >
                       {contextInfo.frameworks.length > 0 && "("}
-                      {contextInfo.models.join(", ")}
+                      {contextInfo.models.map((model, i) => (
+                        <span key={model}>
+                          {i > 0 && ", "}
+                          <ModelLink model={model} />
+                        </span>
+                      ))}
                       {contextInfo.frameworks.length > 0 && ")"}
                     </span>
                   )}
