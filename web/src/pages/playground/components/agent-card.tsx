@@ -52,10 +52,10 @@ export function AgentCard({ agent, selected, onSelect }: Props) {
       )}
     >
       <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <Icon className="size-4 shrink-0 text-muted-foreground" />
         <span className="truncate text-sm font-medium">{agent.name}</span>
         <span
-          className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-green-500"
+          className="ml-auto size-1.5 shrink-0 rounded-full bg-green-500"
           aria-label="online"
           title="online"
         />

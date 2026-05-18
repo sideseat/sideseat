@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { QueryParamProvider } from "use-query-params";
 import { ReactRouter6Adapter } from "use-query-params/adapters/react-router-6";
@@ -29,6 +29,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { findNavigationTrail, mainNavigation, type NavigationItem } from "@/lib/navigation";
+import { PageToolbarProvider } from "@/lib/page-toolbar";
 import { prefetchOnIdle } from "@/lib/prefetch";
 
 export default function ProjectLayout() {
@@ -75,30 +76,40 @@ function ProjectLayoutContent() {
   }
 
   return (
-    <>
-      <AppSidebar />
-      <SidebarInset className="min-w-0">
-        <LayoutHeader navigationTrail={navigationTrail} />
-        <div className="flex flex-1 flex-col">
-          <Suspense
-            fallback={
-              <div className="flex h-64 w-full items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
-                  <div className="h-4 w-32 animate-pulse rounded-md bg-muted" />
-                </div>
-              </div>
-            }
-          >
-            <Outlet />
-          </Suspense>
-        </div>
-      </SidebarInset>
-    </>
+    <PageToolbarProvider>
+      {(toolbarNode) => (
+        <>
+          <AppSidebar />
+          <SidebarInset className="min-w-0">
+            <LayoutHeader navigationTrail={navigationTrail} toolbarNode={toolbarNode} />
+            <div className="flex flex-1 flex-col">
+              <Suspense
+                fallback={
+                  <div className="flex h-64 w-full items-center justify-center">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
+                      <div className="h-4 w-32 animate-pulse rounded-md bg-muted" />
+                    </div>
+                  </div>
+                }
+              >
+                <Outlet />
+              </Suspense>
+            </div>
+          </SidebarInset>
+        </>
+      )}
+    </PageToolbarProvider>
   );
 }
 
-function LayoutHeader({ navigationTrail }: { navigationTrail: NavigationItem[] }) {
+function LayoutHeader({
+  navigationTrail,
+  toolbarNode,
+}: {
+  navigationTrail: NavigationItem[];
+  toolbarNode: ReactNode;
+}) {
   const { state, isMobile } = useSidebar();
   const { projectId, traceId, sessionId, spanId } = useParams<{
     projectId: string;
@@ -222,6 +233,8 @@ function LayoutHeader({ navigationTrail }: { navigationTrail: NavigationItem[] }
           </BreadcrumbList>
         </Breadcrumb>
         <div className="ml-auto flex items-center gap-2">
+          {toolbarNode}
+          {toolbarNode && <Separator orientation="vertical" className="h-5" />}
           <Button variant="outline" size="sm" className="h-8 gap-1.5" asChild>
             <Link to={`/organizations/default/configuration/telemetry?project=${projectId}`}>
               <Plug className="h-3.5 w-3.5" />
