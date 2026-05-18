@@ -30,6 +30,7 @@ const McpPage = lazy(() => import("./pages/configuration/mcp"));
 const ApiKeysPage = lazy(() => import("./pages/configuration/api-keys"));
 const CredentialsPage = lazy(() => import("./pages/configuration/credentials"));
 const RealtimePage = lazy(() => import("./pages/observability/realtime"));
+const PlaygroundPage = lazy(() => import("./pages/playground"));
 
 const HIDE_QUERY_DEVTOOLS = true;
 
@@ -91,6 +92,7 @@ const router = createBrowserRouter(
       children: [
         { index: true, element: <Navigate to="home" replace /> },
         { path: "home", element: <ProjectHomePage /> },
+        { path: "playground", element: <PlaygroundPage /> },
         { path: "observability", element: <Navigate to="traces" replace /> },
         { path: "observability/traces", element: <TracesPage /> },
         { path: "observability/traces/:traceId", element: <TraceDetailPage /> },

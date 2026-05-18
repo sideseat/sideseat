@@ -1,4 +1,14 @@
-import { Eye, GitBranch, Home, Layers, Radio, Sparkles, UsersRound, Zap } from "lucide-react";
+import {
+  Eye,
+  GitBranch,
+  Home,
+  Layers,
+  MessageSquareCode,
+  Radio,
+  Sparkles,
+  UsersRound,
+  Zap,
+} from "lucide-react";
 
 import type { LucideIcon } from "lucide-react";
 
@@ -26,6 +36,12 @@ export const mainNavigation: NavigationItem[] = [
     title: "Home",
     url: "home",
     icon: Home,
+  },
+  {
+    title: "Playground",
+    url: "playground",
+    icon: MessageSquareCode,
+    exactMatch: false,
   },
   {
     id: "observability",

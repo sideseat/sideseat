@@ -13,8 +13,20 @@ import { FilesClient } from "./files/client";
 import { OrganizationsClient } from "./organizations/client";
 import { OtelClient } from "./otel/client";
 import { ProjectsClient } from "./projects/client";
+import { RegistrationsClient } from "./registrations/client";
 import type { ApiErrorResponse } from "./types";
-import type { SseSpanEvent, SSEHandlers } from "./otel/types";
+
+/**
+ * SSE subscription handler map. Each named event type maps to a handler that
+ * receives the raw `data` string (handlers parse JSON themselves so the
+ * primitive stays type-agnostic).
+ */
+export interface SSEEventHandlers {
+  events: Record<string, (data: string) => void>;
+  onOpen?: () => void;
+  onError?: (error: Error) => void;
+  onClose?: () => void;
+}
 
 function getApiBaseUrl(): string {
   if (import.meta.env.VITE_API_URL) {
@@ -120,6 +132,8 @@ export class ApiClient {
   readonly organizations: OrganizationsClient;
   /** Projects client */
   readonly projects: ProjectsClient;
+  /** Registrations + presence client */
+  readonly registrations: RegistrationsClient;
 
   constructor(baseUrl: string = API_BASE_URL, fetchFn: typeof fetch = fetch) {
     this.baseUrl = baseUrl;
@@ -132,6 +146,7 @@ export class ApiClient {
     this.organizations = new OrganizationsClient(this);
     this.otel = new OtelClient(this);
     this.projects = new ProjectsClient(this);
+    this.registrations = new RegistrationsClient(this);
   }
 
   /**
@@ -281,9 +296,10 @@ export class ApiClient {
   }
 
   /**
-   * Connect to SSE endpoint with automatic reconnection
+   * Connect to a named-event SSE endpoint with automatic reconnection.
+   * Each entry in `handlers.events` is wired via `addEventListener(name, ...)`.
    */
-  connectSSE(endpoint: string, handlers: SSEHandlers): () => void {
+  connectSSE(endpoint: string, handlers: SSEEventHandlers): () => void {
     let intentionallyClosed = false;
     let eventSource: EventSource | null = null;
     let reconnectAttempts = 0;
@@ -305,7 +321,6 @@ export class ApiClient {
 
       inactivityTimeout = setTimeout(() => {
         if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
-          // Null before close() prevents double-reconnect if onerror fires synchronously
           const es = eventSource;
           eventSource = null;
           es.close();
@@ -347,15 +362,16 @@ export class ApiClient {
         resetInactivityTimeout();
       };
 
-      eventSource.addEventListener("span", (event) => {
-        resetInactivityTimeout();
-        try {
-          const data: SseSpanEvent = JSON.parse(event.data);
-          handlers.onSpan(data);
-        } catch (error) {
-          handlers.onError?.(error instanceof Error ? error : new Error(String(error)));
-        }
-      });
+      for (const [name, fn] of Object.entries(handlers.events)) {
+        eventSource.addEventListener(name, (event) => {
+          resetInactivityTimeout();
+          try {
+            fn((event as MessageEvent).data);
+          } catch (error) {
+            handlers.onError?.(error instanceof Error ? error : new Error(String(error)));
+          }
+        });
+      }
 
       eventSource.addEventListener("terminate", () => {
         clearInactivityTimeout();

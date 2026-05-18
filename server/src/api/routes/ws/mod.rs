@@ -4,8 +4,9 @@ pub(crate) mod chunks;
 mod expiry;
 mod handler;
 pub(crate) mod invoke;
-mod listing;
-mod presence;
+pub(crate) mod listing;
+pub(crate) mod presence;
+mod presence_sse;
 pub(crate) mod protocol;
 mod rate_limit;
 pub(crate) mod state;
@@ -37,6 +38,10 @@ pub fn routes(
         .route(
             "/project/{project_id}/registrations",
             get(listing::list_registrations),
+        )
+        .route(
+            "/project/{project_id}/presence",
+            get(presence_sse::stream_presence),
         )
         .with_state(state.clone());
     (router, state)

@@ -18,6 +18,7 @@ import type {
   SpanDetail,
   SpanSummary,
   SseParams,
+  SseSpanEvent,
   SSEHandlers,
   TraceDetail,
   TraceSummary,
@@ -196,7 +197,20 @@ export class OtelClient {
     const endpoint = queryString
       ? `${this.basePath(projectId)}/sse?${queryString}`
       : `${this.basePath(projectId)}/sse`;
-    return this.client.connectSSE(endpoint, handlers);
+    return this.client.connectSSE(endpoint, {
+      events: {
+        span: (raw) => {
+          try {
+            handlers.onSpan(JSON.parse(raw) as SseSpanEvent);
+          } catch (error) {
+            handlers.onError?.(error instanceof Error ? error : new Error(String(error)));
+          }
+        },
+      },
+      onOpen: handlers.onOpen,
+      onError: handlers.onError,
+      onClose: handlers.onClose,
+    });
   }
 
   // === Delete ===
