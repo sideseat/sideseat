@@ -1,16 +1,16 @@
-import { Plus } from "lucide-react";
+import { Bug, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
 import { Button } from "@/components/ui/button";
-import { Toggle } from "@/components/ui/toggle";
 import { useAgentRun } from "@/api/agui/use-agent-run";
 import { useRegistrationsList, usePresenceStream } from "@/api/registrations/hooks";
+import { cn } from "@/lib/utils";
+import { usePageToolbar } from "@/lib/page-toolbar";
 import { AgentEmpty } from "./components/agent-empty";
-import { ChatView } from "./components/chat-view";
 import { Composer } from "./components/composer";
-import { ConnectionIndicator } from "./components/connection-indicator";
 import { DebugPanel } from "./components/debug-panel";
 import { LandingView } from "./components/landing-view";
+import { MessageList } from "./components/message-list";
 
 export default function PlaygroundPage() {
   const { projectId = "default" } = useParams<{ projectId: string }>();
@@ -34,6 +34,12 @@ export default function PlaygroundPage() {
   useEffect(() => {
     if (selectedName && !agents.some((a) => a.name === selectedName)) {
       setSelectedName(null);
+      return;
+    }
+    // Auto-select first agent (alphabetical) so the composer is usable
+    // immediately and the user doesn't have to click a card just to type.
+    if (!selectedName && agents.length > 0) {
+      setSelectedName(agents[0].name);
     }
   }, [agents, selectedName]);
 
@@ -51,50 +57,69 @@ export default function PlaygroundPage() {
 
   const showCenter = agents.length > 0 || loading;
 
-  const toolbar = (
-    <div className="flex items-center gap-2">
-      <ConnectionIndicator status={presence.status} />
-      {inChat && (
-        <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={handleNewChat}>
-          <Plus className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">New chat</span>
+  // Page-controlled actions in the layout's main toolbar (extensible slot).
+  // Debug is always available; New chat only when there's a chat to clear.
+  const toolbar = useMemo(
+    () => (
+      <>
+        {inChat && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={handleNewChat}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">New chat</span>
+          </Button>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn("h-8 gap-1.5", debugOpen && "bg-accent text-accent-foreground")}
+          onClick={() => setDebugOpen((v) => !v)}
+          aria-pressed={debugOpen}
+        >
+          <Bug className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Debug</span>
         </Button>
-      )}
-      <Toggle
-        size="sm"
-        pressed={debugOpen}
-        onPressedChange={setDebugOpen}
-        aria-label="Toggle debug panel"
-        className="h-8 px-2 text-xs"
-      >
-        Debug
-      </Toggle>
-    </div>
+      </>
+    ),
+    [inChat, handleNewChat, debugOpen],
   );
+  // Show toolbar in chat AND landing modes; only suppress on the AgentEmpty
+  // state where there's nothing to debug yet.
+  usePageToolbar(showCenter ? toolbar : null);
 
   return (
-    <div className="flex flex-1 flex-col min-h-0">
-      <div className="flex flex-1 flex-col items-center min-h-0 overflow-hidden">
-        {!showCenter ? (
-          <div className="flex flex-1 w-full max-w-4xl px-4 md:px-6">
-            <AgentEmpty />
+    <div className="flex flex-1 flex-col pt-header-offset sm:pt-header-offset-sm">
+      {!showCenter ? (
+        <div className="flex flex-1 items-center justify-center px-4 py-8">
+          <AgentEmpty />
+        </div>
+      ) : inChat ? (
+        // Chat mode: messages flex-1 to push the composer to the viewport
+        // bottom on short conversations; sticky keeps it visible once the
+        // page scrolls.
+        <>
+          <MessageList state={run.state} isStreaming={run.isStreaming} />
+          <div className="sticky bottom-0 z-20 border-t bg-background/85 backdrop-blur supports-backdrop-filter:bg-background/70">
+            <div className="mx-auto w-full max-w-4xl px-3 py-3 md:px-6 md:py-4">
+              <Composer
+                onSend={run.send}
+                onCancel={run.cancel}
+                isStreaming={run.isStreaming}
+                disabled={selectedName === null}
+                placeholder={`Message ${selectedName}…`}
+                focusKey={focusKey}
+              />
+            </div>
           </div>
-        ) : inChat ? (
-          <div className="flex flex-1 flex-col w-full max-w-4xl min-h-0 px-4 md:px-6 pt-3">
-            <div className="flex items-center justify-end pb-2">{toolbar}</div>
-            <ChatView state={run.state} isStreaming={run.isStreaming} />
-            <Composer
-              onSend={run.send}
-              onCancel={run.cancel}
-              isStreaming={run.isStreaming}
-              disabled={selectedName === null}
-              placeholder={`Message ${selectedName}…`}
-              focusKey={focusKey}
-            />
-          </div>
-        ) : (
-          <div className="flex flex-1 flex-col w-full max-w-2xl items-stretch justify-center min-h-0 px-4 md:px-6">
-            <div className="flex items-center justify-end pt-3">{toolbar}</div>
+        </>
+      ) : (
+        // Landing mode: cards + composer centered as one hero block.
+        <div className="flex flex-1 items-center justify-center px-4 py-8">
+          <div className="flex w-full max-w-2xl flex-col gap-4">
             <LandingView
               agents={agents}
               selected={selectedName}
@@ -112,10 +137,11 @@ export default function PlaygroundPage() {
                   : "Pick an agent above to start chatting"
               }
               focusKey={focusKey}
+              rows={4}
             />
           </div>
-        )}
-      </div>
+        </div>
+      )}
       <DebugPanel open={debugOpen} onOpenChange={setDebugOpen} state={run.state} />
     </div>
   );

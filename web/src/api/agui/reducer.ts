@@ -35,7 +35,6 @@ export function initialState(threadId: string): ChatState {
     messages: [],
     runState: "idle",
     latestState: null,
-    pendingMessagesSnapshot: null,
     customEvents: [],
     rawEvents: [],
     eventLog: [],
@@ -93,28 +92,26 @@ function applyEvent(state: ChatState, event: BaseEvent): ChatState {
   }
   if (t === "RUN_FINISHED") {
     const usage = parseUsage(event);
-    return flushPendingSnapshot(
-      pushMessage(
-        {
-          ...state,
-          runState: "finished",
-          tokenUsage: usage ? mergeUsage(state.tokenUsage, usage) : state.tokenUsage,
-        },
-        { kind: "run_status", id: `run-finished-${field(event, "run_id") ?? uuid()}`, phase: "finished" } satisfies RunStatusMessage,
-      ),
+    return pushMessage(
+      {
+        ...state,
+        runState: "finished",
+        tokenUsage: usage ? mergeUsage(state.tokenUsage, usage) : state.tokenUsage,
+      },
+      { kind: "run_status", id: `run-finished-${field(event, "run_id") ?? uuid()}`, phase: "finished" } satisfies RunStatusMessage,
     );
   }
   if (t === "RUN_ERROR") {
     const code = String(field(event, "code") ?? "internal");
     const message = String(field(event, "message") ?? "Run failed");
-    return flushPendingSnapshot({
+    return {
       ...state,
       runState: "errored",
       messages: [
         ...state.messages,
         { kind: "error", id: `err-${uuid()}`, code, message } satisfies ErrorMessage,
       ],
-    });
+    };
   }
 
   // Steps.
@@ -228,12 +225,14 @@ function applyEvent(state: ChatState, event: BaseEvent): ChatState {
     return { ...state, latestState: field(event, "delta") ?? state.latestState };
   }
 
-  // Messages snapshot.
+  // MESSAGES_SNAPSHOT carries the agent's view of full history (including
+  // tool-result rows and tool-use-only assistant rows with non-string
+  // `content`). The streaming event stream already drives every visible
+  // message, so applying the snapshot only causes duplicates and bogus
+  // "Thinking…" bubbles. We log it for the debug panel but never mutate
+  // `messages`. Re-enable selectively if a future agent depends on it.
   if (t === "MESSAGES_SNAPSHOT") {
-    if (state.runState === "running" || hasStreamingMessage(state)) {
-      return { ...state, pendingMessagesSnapshot: event };
-    }
-    return applyMessagesSnapshot(state, event);
+    return state;
   }
 
   // Custom.
@@ -328,47 +327,6 @@ function finalizeLastReasoning(state: ChatState): ChatState {
   const next = state.messages.slice();
   next[next.length - 1] = { ...last, streaming: false } satisfies ReasoningMessage;
   return { ...state, messages: next };
-}
-
-function hasStreamingMessage(state: ChatState): boolean {
-  for (const m of state.messages) {
-    if ((m.kind === "text" || m.kind === "reasoning") && m.streaming) return true;
-    if (m.kind === "tool_call" && !m.done) return true;
-  }
-  return false;
-}
-
-function applyMessagesSnapshot(state: ChatState, event: BaseEvent): ChatState {
-  const incoming = field(event, "messages");
-  if (!Array.isArray(incoming)) return state;
-  const fromSnapshot: Message[] = [];
-  for (const m of incoming) {
-    if (!m || typeof m !== "object") continue;
-    const msg = m as Record<string, unknown>;
-    const id = String(msg.id ?? `snap-${uuid()}`);
-    const role = msg.role === "user" ? "user" : "assistant";
-    const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content ?? "");
-    fromSnapshot.push({
-      kind: "text",
-      id,
-      role,
-      content,
-      streaming: false,
-    } satisfies TextMessage);
-  }
-  // Idempotent merge: keep existing entries by id, add missing ones at the front.
-  const existing = new Set(state.messages.map((m) => m.id));
-  const merged: Message[] = [
-    ...fromSnapshot.filter((m) => !existing.has(m.id)),
-    ...state.messages,
-  ];
-  return { ...state, messages: merged };
-}
-
-function flushPendingSnapshot(state: ChatState): ChatState {
-  if (!state.pendingMessagesSnapshot) return state;
-  const next = applyMessagesSnapshot(state, state.pendingMessagesSnapshot);
-  return { ...next, pendingMessagesSnapshot: null };
 }
 
 function parseUsage(event: unknown): { input?: number; output?: number; total?: number } | null {

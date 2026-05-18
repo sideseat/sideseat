@@ -124,7 +124,6 @@ export interface ChatState {
   messages: Message[];
   runState: "idle" | "running" | "errored" | "finished";
   latestState: unknown | null;
-  pendingMessagesSnapshot: BaseEvent | null;
   customEvents: CustomEventRecord[];
   rawEvents: RawEventRecord[];
   eventLog: BaseEvent[];

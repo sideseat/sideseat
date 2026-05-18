@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import { uuid } from "@/lib/utils";
-import { initialState, reduce, type Action } from "./reducer";
+import { initialState, reduce } from "./reducer";
 import { RunError, runAgentStream } from "./run-stream";
-import type { BaseEvent, ChatState, ErrorMessage, RunAgentInput } from "./types";
+import type { BaseEvent, ChatState, RunAgentInput } from "./types";
 
 export interface UseAgentRunResult {
   state: ChatState;
@@ -49,6 +49,18 @@ export function useAgentRun({ projectId, agentName }: UseAgentRunArgs): UseAgent
 
       const messageId = `u-${uuid()}`;
       dispatch({ type: "append_user", content: trimmed, id: messageId });
+
+      // Synthesise a STEP_STARTED tagged with the registered agent so the
+      // stream is always grouped under a sticky header naming whoever is
+      // running. Real STEP_STARTED events from swarms/graphs interleave
+      // naturally and can switch the header mid-run for sub-agents.
+      dispatch({
+        type: "event",
+        event: {
+          type: "STEP_STARTED",
+          stepName: agentName,
+        } as BaseEvent,
+      });
 
       const input: RunAgentInput = {
         thread_id: state.threadId,
@@ -115,16 +127,10 @@ export function useAgentRun({ projectId, agentName }: UseAgentRunArgs): UseAgent
   const error = useMemo<{ code: string; message: string } | null>(() => {
     for (let i = state.messages.length - 1; i >= 0; i--) {
       const m = state.messages[i];
-      if (m.kind === "error") {
-        const err = m as ErrorMessage;
-        return { code: err.code, message: err.message };
-      }
+      if (m.kind === "error") return { code: m.code, message: m.message };
     }
     return null;
   }, [state.messages]);
-
-  // Surface unused dispatch to satisfy strict mode if reducer Action type ever changes.
-  void (null as unknown as Action);
 
   return { state, send, cancel, clear, isStreaming, error };
 }

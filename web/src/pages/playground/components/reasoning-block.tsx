@@ -1,32 +1,49 @@
-import { Brain, Loader2 } from "lucide-react";
-import type { ReasoningMessage } from "@/api/agui/types";
+/* Adapted from engagement-mck/solution/site/src/components/chat/reasoning-block.tsx */
+import { Brain, ChevronRight } from "lucide-react";
+import { useMemo } from "react";
+import { cn } from "@/lib/utils";
+import { PulseDot } from "./pulse-dot";
 
 interface Props {
-  message: ReasoningMessage;
+  content: string;
+  streaming: boolean;
 }
 
-export function ReasoningBlock({ message }: Props) {
-  const lastLine = lastNonEmptyLine(message.content);
-  const summary = message.streaming ? lastLine || "Thinking…" : "Reasoning";
+export function ReasoningBlock({ content, streaming }: Props) {
+  const hasContent = content.trim().length > 0;
+  const preview = useMemo(() => {
+    if (!content) return streaming ? "Thinking…" : "";
+    const lines = content.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    return lines[lines.length - 1] ?? "";
+  }, [content, streaming]);
+
   return (
-    <details className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
-      <summary className="flex cursor-pointer items-center gap-2 text-muted-foreground">
-        <Brain className="size-4" />
-        <span className="flex-1 truncate">{summary}</span>
-        {message.streaming && <Loader2 className="size-3 animate-spin" />}
+    <details className="group rounded-lg border border-border/80 bg-muted/30 text-xs transition-colors hover:bg-muted/50">
+      <summary className="flex cursor-pointer select-none items-center gap-2 px-3 py-2 text-muted-foreground">
+        <ChevronRight className="size-3 shrink-0 transition-transform duration-200 ease-out group-open:rotate-90" />
+        <Brain
+          className={cn(
+            "size-3.5 shrink-0 transition-colors",
+            streaming ? "text-primary" : "text-muted-foreground",
+          )}
+        />
+        <span className="shrink-0 font-medium text-foreground/80">
+          {streaming ? "Thinking" : "Reasoning"}
+        </span>
+        {streaming ? <PulseDot /> : null}
+        {preview && hasContent ? (
+          <span className="min-w-0 flex-1 truncate italic text-muted-foreground/80">
+            {preview}
+          </span>
+        ) : null}
       </summary>
-      <pre className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground">
-        {message.content || "—"}
-      </pre>
+      {hasContent ? (
+        <div className="border-t px-3 py-2.5">
+          <pre className="m-0 whitespace-pre-wrap font-sans text-[12.5px] leading-relaxed text-muted-foreground">
+            {content}
+          </pre>
+        </div>
+      ) : null}
     </details>
   );
-}
-
-function lastNonEmptyLine(s: string): string {
-  const lines = s.split("\n");
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const l = lines[i].trim();
-    if (l) return l;
-  }
-  return "";
 }
