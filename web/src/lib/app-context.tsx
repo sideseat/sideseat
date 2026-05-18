@@ -8,6 +8,7 @@ import type { FilesClient } from "@/api/files/client";
 import type { OrganizationsClient } from "@/api/organizations/client";
 import type { OtelClient } from "@/api/otel/client";
 import type { ProjectsClient } from "@/api/projects/client";
+import type { RegistrationsClient } from "@/api/registrations/client";
 
 export interface AppContext {
   /** API client (includes auth, otel, etc.) */
@@ -73,4 +74,9 @@ export function useApiKeysClient(): ApiKeysClient {
 /** Convenience hook for credentials client (apiClient.credentials) */
 export function useCredentialsClient(): CredentialsClient {
   return useAppContext().api.credentials;
+}
+
+/** Convenience hook for registrations client (apiClient.registrations) */
+export function useRegistrationsClient(): RegistrationsClient {
+  return useAppContext().api.registrations;
 }

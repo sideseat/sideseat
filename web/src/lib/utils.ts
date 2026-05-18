@@ -180,6 +180,19 @@ export function cloudPriceModelUrl(modelId: string): string {
   return `https://cloudprice.net/models/${encodeURIComponent(modelId)}`;
 }
 
+/**
+ * Generate a UUID. Falls back to a Math.random-based composition if
+ * crypto.randomUUID is unavailable (insecure HTTP contexts in older browsers).
+ */
+export function uuid(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  const rnd = (n: number) =>
+    Array.from({ length: n }, () => ((Math.random() * 16) | 0).toString(16)).join("");
+  return `${rnd(8)}-${rnd(4)}-4${rnd(3)}-${rnd(4)}-${rnd(12)}`;
+}
+
 /** Get short type label from media type */
 export function getMediaTypeLabel(mediaType?: string, fallback = "FILE"): string {
   if (!mediaType) return fallback;
