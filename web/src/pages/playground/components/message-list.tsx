@@ -22,8 +22,7 @@ export function MessageList({ state, isStreaming }: Props) {
   useEffect(() => {
     const onScroll = () => {
       const scrollTop = window.scrollY;
-      const fromBottom =
-        document.documentElement.scrollHeight - scrollTop - window.innerHeight;
+      const fromBottom = document.documentElement.scrollHeight - scrollTop - window.innerHeight;
       atBottomRef.current = fromBottom < PIN_THRESHOLD_PX;
     };
     window.addEventListener("scroll", onScroll, { passive: true });

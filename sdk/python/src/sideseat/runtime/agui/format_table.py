@@ -10,6 +10,7 @@ Each row stores ``(style, inline_fn, payload_attr, block_renderer)``:
 
 Adding a new event type = one row in ``TABLE``.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -57,6 +58,7 @@ def _kv(**fields: str | None) -> str:
 
 # --- inline formatters ----------------------------------------------------
 
+
 def _inline_ids(e: BaseEvent) -> str:
     return _kv(thread=_attr(e, "thread_id"), run=_attr(e, "run_id"))
 
@@ -91,24 +93,24 @@ def _inline_custom(e: BaseEvent) -> str:
 
 TABLE: dict[EventType, FormatSpec] = {
     # Lifecycle
-    EventType.RUN_STARTED:    ("bold blue",   _inline_ids,    None,         None),
-    EventType.RUN_FINISHED:   ("bold green",  _inline_ids,    None,         None),
-    EventType.RUN_ERROR:      ("bold red",    _inline_error,  "message",    _TEXT),
-    EventType.STEP_STARTED:   ("bold blue",   _inline_step,   None,         None),
-    EventType.STEP_FINISHED:  ("bold blue",   _inline_step,   None,         None),
+    EventType.RUN_STARTED: ("bold blue", _inline_ids, None, None),
+    EventType.RUN_FINISHED: ("bold green", _inline_ids, None, None),
+    EventType.RUN_ERROR: ("bold red", _inline_error, "message", _TEXT),
+    EventType.STEP_STARTED: ("bold blue", _inline_step, None, None),
+    EventType.STEP_FINISHED: ("bold blue", _inline_step, None, None),
     # Text envelopes (content streamed separately by renderer)
-    EventType.TEXT_MESSAGE_START: ("cyan",    _inline_msg_role, None,       None),
-    EventType.TEXT_MESSAGE_END:   ("cyan",    _inline_msg_id,   None,       None),
+    EventType.TEXT_MESSAGE_START: ("cyan", _inline_msg_role, None, None),
+    EventType.TEXT_MESSAGE_END: ("cyan", _inline_msg_id, None, None),
     # Tools
-    EventType.TOOL_CALL_START:    ("bold yellow", _inline_tool_start,  None,      None),
-    EventType.TOOL_CALL_RESULT:   ("bold yellow", _inline_tool_result, "content", _TABLE_OR_JSON),
+    EventType.TOOL_CALL_START: ("bold yellow", _inline_tool_start, None, None),
+    EventType.TOOL_CALL_RESULT: ("bold yellow", _inline_tool_result, "content", _TABLE_OR_JSON),
     # State
-    EventType.STATE_SNAPSHOT:     ("dim", _EMPTY, "snapshot", _JSON),
-    EventType.STATE_DELTA:        ("dim", _EMPTY, "delta",    _JSON),
-    EventType.MESSAGES_SNAPSHOT:  ("dim", _EMPTY, "messages", _JSON),
+    EventType.STATE_SNAPSHOT: ("dim", _EMPTY, "snapshot", _JSON),
+    EventType.STATE_DELTA: ("dim", _EMPTY, "delta", _JSON),
+    EventType.MESSAGES_SNAPSHOT: ("dim", _EMPTY, "messages", _JSON),
     # Escape hatches
-    EventType.RAW:                ("dim", _EMPTY,         "event", _JSON),
-    EventType.CUSTOM:             ("dim", _inline_custom, "value", _JSON),
+    EventType.RAW: ("dim", _EMPTY, "event", _JSON),
+    EventType.CUSTOM: ("dim", _inline_custom, "value", _JSON),
 }
 
 

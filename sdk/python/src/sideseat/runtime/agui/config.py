@@ -4,6 +4,7 @@
 Decisions that used to live as `if t in (...)` in the renderer body are
 hoisted here so users can override behavior without forking the renderer.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -31,6 +32,6 @@ class RenderConfig:
     raw: bool = False  # bypass everything; print events as JSON
 
     @classmethod
-    def show_all(cls) -> "RenderConfig":
+    def show_all(cls) -> RenderConfig:
         """Disable drops + dedup for inspection (still pretty-formatted)."""
         return cls(drop=set(), dedup=set())

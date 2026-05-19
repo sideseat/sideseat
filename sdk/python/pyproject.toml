@@ -131,9 +131,13 @@ disallow_untyped_defs = true
 [[tool.mypy.overrides]]
 module = [
     "agent_framework.*",
+    "ag_ui.*",
+    "ag_ui_strands.*",
     "opentelemetry.instrumentation.vertexai",
     "logfire.*",
+    "rich.*",
     "strands.*",
+    "websockets.*",
     "wrapt",
 ]
 ignore_missing_imports = true

@@ -311,10 +311,8 @@ pub fn normalize(raw: &JsonValue) -> ChatMessage {
                         .filter_map(|v| v.as_str().map(String::from))
                         .collect(),
                 )
-            } else if let Some(s) = s.as_str() {
-                Some(vec![s.to_string()])
             } else {
-                None
+                s.as_str().map(|s| vec![s.to_string()])
             }
         });
 

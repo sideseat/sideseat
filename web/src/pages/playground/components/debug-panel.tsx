@@ -14,7 +14,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -39,7 +38,17 @@ interface EventGroup {
   payload: BaseEvent;
 }
 
-type EventCategory = "lifecycle" | "step" | "text" | "reasoning" | "tool" | "state" | "messages" | "custom" | "raw" | "other";
+type EventCategory =
+  | "lifecycle"
+  | "step"
+  | "text"
+  | "reasoning"
+  | "tool"
+  | "state"
+  | "messages"
+  | "custom"
+  | "raw"
+  | "other";
 
 const CATEGORY_META: Record<
   EventCategory,
@@ -135,9 +144,7 @@ const CATEGORY_ORDER: EventCategory[] = [
 
 export function DebugPanel({ open, onOpenChange, state }: Props) {
   const [filter, setFilter] = useState("");
-  const [activeCats, setActiveCats] = useState<Set<EventCategory>>(
-    () => new Set(CATEGORY_ORDER),
-  );
+  const [activeCats, setActiveCats] = useState<Set<EventCategory>>(() => new Set(CATEGORY_ORDER));
 
   // Counts per category for the chip filter row.
   const counts = useMemo(() => {
@@ -208,10 +215,7 @@ export function DebugPanel({ open, onOpenChange, state }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="flex w-full flex-col gap-0 p-0 sm:max-w-2xl"
-      >
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-2xl">
         <Tabs defaultValue="events" className="flex flex-1 min-h-0 flex-col">
           {/* HEADER: title + tabs side-by-side, like a real toolbar. */}
           <header className="flex shrink-0 items-center gap-3 border-b px-4 py-2.5">
@@ -299,7 +303,9 @@ export function DebugPanel({ open, onOpenChange, state }: Props) {
             {/* Timeline list */}
             <div className="flex-1 min-h-0 overflow-auto">
               {filtered.length === 0 ? (
-                <EmptyHint message={totalEvents === 0 ? "No events yet." : "No events match the filter."} />
+                <EmptyHint
+                  message={totalEvents === 0 ? "No events yet." : "No events match the filter."}
+                />
               ) : (
                 <ul className="divide-y">
                   {filtered.map((g) => (
@@ -381,7 +387,9 @@ function EventRow({ group }: { group: EventGroup }) {
     <li>
       <details className="group">
         <summary className="flex cursor-pointer select-none items-center gap-2 px-4 py-2 hover:bg-muted/40">
-          <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md", meta.tint)}>
+          <span
+            className={cn("flex size-6 shrink-0 items-center justify-center rounded-md", meta.tint)}
+          >
             <Icon className="size-3.5" />
           </span>
           <span className="min-w-0 flex-1">

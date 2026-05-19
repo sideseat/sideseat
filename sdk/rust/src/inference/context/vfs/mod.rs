@@ -80,7 +80,7 @@ impl Vfs {
         self.mounts.retain(|m| m.prefix != prefix);
         self.mounts.push(Mount { prefix, provider });
         self.mounts
-            .sort_by(|a, b| b.prefix.len().cmp(&a.prefix.len()));
+            .sort_by_key(|m| std::cmp::Reverse(m.prefix.len()));
     }
 
     pub fn unmount(&mut self, prefix: &str) -> bool {

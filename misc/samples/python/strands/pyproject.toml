@@ -15,6 +15,7 @@ dependencies = [
     "pymupdf>=1.25.0",
     "python-dotenv>=1.2.0",
     "ag_ui_strands>=0.1.9",
+    "duckdb>=1.5.2",
 ]
 
 [project.scripts]

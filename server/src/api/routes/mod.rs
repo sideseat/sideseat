@@ -1,5 +1,6 @@
 //! API route handlers
 
+pub mod agui;
 pub mod api_keys;
 pub mod auth;
 pub mod credentials;
@@ -8,7 +9,6 @@ pub mod health;
 pub mod organizations;
 pub mod otel;
 pub mod otlp_collector;
-pub mod agui;
 pub mod pricing;
 pub mod projects;
 pub mod users;

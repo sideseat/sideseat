@@ -85,10 +85,11 @@ function applyEvent(state: ChatState, event: BaseEvent): ChatState {
 
   // Run lifecycle.
   if (t === "RUN_STARTED") {
-    return pushMessage(
-      { ...state, runState: "running" },
-      { kind: "run_status", id: `run-started-${field(event, "run_id") ?? uuid()}`, phase: "started" } satisfies RunStatusMessage,
-    );
+    return pushMessage({ ...state, runState: "running" }, {
+      kind: "run_status",
+      id: `run-started-${field(event, "run_id") ?? uuid()}`,
+      phase: "started",
+    } satisfies RunStatusMessage);
   }
   if (t === "RUN_FINISHED") {
     const usage = parseUsage(event);
@@ -98,7 +99,11 @@ function applyEvent(state: ChatState, event: BaseEvent): ChatState {
         runState: "finished",
         tokenUsage: usage ? mergeUsage(state.tokenUsage, usage) : state.tokenUsage,
       },
-      { kind: "run_status", id: `run-finished-${field(event, "run_id") ?? uuid()}`, phase: "finished" } satisfies RunStatusMessage,
+      {
+        kind: "run_status",
+        id: `run-finished-${field(event, "run_id") ?? uuid()}`,
+        phase: "finished",
+      } satisfies RunStatusMessage,
     );
   }
   if (t === "RUN_ERROR") {
@@ -114,12 +119,15 @@ function applyEvent(state: ChatState, event: BaseEvent): ChatState {
     };
   }
 
-  // Steps.
+  // Steps. Use a uuid suffix so revisited nodes (Strands self-loops or
+  // any graph with a → cycle) don't collide on `state.messages.length`
+  // when STEP_STARTED arrives before any intervening message bumps
+  // the length.
   if (t === "STEP_STARTED") {
     const stepName = String(field(event, "step_name") ?? field(event, "stepName") ?? "step");
     return pushMessage(state, {
       kind: "step",
-      id: `step-${stepName}-${state.messages.length}`,
+      id: `step-${stepName}-${uuid()}`,
       stepName,
     } satisfies StepMessage);
   }
@@ -147,32 +155,19 @@ function applyEvent(state: ChatState, event: BaseEvent): ChatState {
   }
   if (t === "TEXT_MESSAGE_END") {
     const id = String(field(event, "message_id") ?? field(event, "messageId") ?? "");
-    return patchById(state, id, (m) =>
-      m.kind === "text" ? { ...m, streaming: false } : m,
-    );
+    return patchById(state, id, (m) => (m.kind === "text" ? { ...m, streaming: false } : m));
   }
 
   // Reasoning / thinking (treated identically).
-  if (
-    t === "REASONING_START" ||
-    t === "THINKING_START" ||
-    t === "THINKING_TEXT_MESSAGE_START"
-  ) {
+  if (t === "REASONING_START" || t === "THINKING_START" || t === "THINKING_TEXT_MESSAGE_START") {
     return openReasoning(state, event);
   }
-  if (
-    t === "REASONING_CONTENT" ||
-    t === "THINKING_TEXT_MESSAGE_CONTENT"
-  ) {
+  if (t === "REASONING_CONTENT" || t === "THINKING_TEXT_MESSAGE_CONTENT") {
     const delta = String(field(event, "delta") ?? "");
     if (!delta) return state;
     return appendToLastReasoning(state, delta);
   }
-  if (
-    t === "REASONING_END" ||
-    t === "THINKING_END" ||
-    t === "THINKING_TEXT_MESSAGE_END"
-  ) {
+  if (t === "REASONING_END" || t === "THINKING_END" || t === "THINKING_TEXT_MESSAGE_END") {
     return finalizeLastReasoning(state);
   }
 
@@ -204,17 +199,14 @@ function applyEvent(state: ChatState, event: BaseEvent): ChatState {
   }
   if (t === "TOOL_CALL_END") {
     const id = String(field(event, "tool_call_id") ?? field(event, "toolCallId") ?? "");
-    return patchById(state, id, (m) =>
-      m.kind === "tool_call" ? { ...m, done: true } : m,
-    );
+    return patchById(state, id, (m) => (m.kind === "tool_call" ? { ...m, done: true } : m));
   }
   if (t === "TOOL_CALL_RESULT") {
     const id = String(field(event, "tool_call_id") ?? field(event, "toolCallId") ?? "");
     const content = field(event, "content");
-    const result = content === undefined ? "" : typeof content === "string" ? content : JSON.stringify(content);
-    return patchById(state, id, (m) =>
-      m.kind === "tool_call" ? { ...m, result, done: true } : m,
-    );
+    const result =
+      content === undefined ? "" : typeof content === "string" ? content : JSON.stringify(content);
+    return patchById(state, id, (m) => (m.kind === "tool_call" ? { ...m, result, done: true } : m));
   }
 
   // State.
@@ -283,11 +275,7 @@ function pushMessage(state: ChatState, msg: Message): ChatState {
   return { ...state, messages: [...state.messages, msg] };
 }
 
-function patchById(
-  state: ChatState,
-  id: string,
-  patch: (m: Message) => Message,
-): ChatState {
+function patchById(state: ChatState, id: string, patch: (m: Message) => Message): ChatState {
   if (!id) return state;
   const idx = state.messages.findIndex((m) => m.id === id);
   if (idx < 0) return state;
@@ -336,7 +324,9 @@ function parseUsage(event: unknown): { input?: number; output?: number; total?: 
   const num = (v: unknown) => (typeof v === "number" ? v : undefined);
   const input = num(usage.input_tokens) ?? num(usage.prompt_tokens);
   const output = num(usage.output_tokens) ?? num(usage.completion_tokens);
-  const total = num(usage.total_tokens) ?? (input !== undefined && output !== undefined ? input + output : undefined);
+  const total =
+    num(usage.total_tokens) ??
+    (input !== undefined && output !== undefined ? input + output : undefined);
   if (input === undefined && output === undefined && total === undefined) return null;
   return { input, output, total };
 }

@@ -13,7 +13,10 @@ export function ReasoningBlock({ content, streaming }: Props) {
   const hasContent = content.trim().length > 0;
   const preview = useMemo(() => {
     if (!content) return streaming ? "Thinking…" : "";
-    const lines = content.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const lines = content
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
     return lines[lines.length - 1] ?? "";
   }, [content, streaming]);
 
@@ -32,9 +35,7 @@ export function ReasoningBlock({ content, streaming }: Props) {
         </span>
         {streaming ? <PulseDot /> : null}
         {preview && hasContent ? (
-          <span className="min-w-0 flex-1 truncate italic text-muted-foreground/80">
-            {preview}
-          </span>
+          <span className="min-w-0 flex-1 truncate italic text-muted-foreground/80">{preview}</span>
         ) : null}
       </summary>
       {hasContent ? (

@@ -25,9 +25,7 @@ use base64::engine::general_purpose::STANDARD as B64;
 use dashmap::DashMap;
 use parking_lot::Mutex;
 
-use crate::core::constants::{
-    AGUI_CHUNK_MAX_PER_REQUEST_BYTES, AGUI_CHUNK_REASSEMBLY_TTL_SECS,
-};
+use crate::core::constants::{AGUI_CHUNK_MAX_PER_REQUEST_BYTES, AGUI_CHUNK_REASSEMBLY_TTL_SECS};
 
 use super::protocol::AgentEventChunkPayload;
 
@@ -294,7 +292,13 @@ impl Reassembler {
 mod tests {
     use super::*;
 
-    fn payload(req: &str, group: &str, idx: usize, total: usize, raw: &[u8]) -> AgentEventChunkPayload {
+    fn payload(
+        req: &str,
+        group: &str,
+        idx: usize,
+        total: usize,
+        raw: &[u8],
+    ) -> AgentEventChunkPayload {
         AgentEventChunkPayload {
             request_id: req.into(),
             group_id: group.into(),
@@ -418,7 +422,10 @@ mod tests {
         let mut p = payload("r", "g", 0, 1, b"x");
         p.data_b64 = "!!!not base64!!!".into();
         let out = r.feed(p);
-        assert!(matches!(out, FeedOutcome::Failed(ReassemblyError::Base64 { .. })));
+        assert!(matches!(
+            out,
+            FeedOutcome::Failed(ReassemblyError::Base64 { .. })
+        ));
         // Bytes were never charged: base64 decode failed before reservation.
         assert_eq!(r.reserved_bytes("r"), 0);
     }

@@ -159,7 +159,9 @@ def inspect_strands_agent(
                 f"strands tool introspection raised {type(exc).__name__}: {exc}",
             )
 
-    inferred_model = model or getattr(obj, "model_id", None) or _stringify(getattr(obj, "model", None))
+    inferred_model = (
+        model or getattr(obj, "model_id", None) or _stringify(getattr(obj, "model", None))
+    )
     inferred_prompt = system_prompt or getattr(obj, "system_prompt", None)
 
     return RegistrationManifest(

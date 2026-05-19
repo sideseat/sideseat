@@ -9,16 +9,20 @@ import json
 import socket
 import threading
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, Iterator
+from typing import Any
 
 import pytest
 
 websockets = pytest.importorskip("websockets")
-from websockets.sync.server import ServerConnection, serve  # type: ignore[import-not-found]
+from websockets.sync.server import (  # type: ignore[import-not-found]  # noqa: E402
+    ServerConnection,
+    serve,
+)
 
-from sideseat.runtime.client import RuntimeClient
-from sideseat.runtime.protocol import make_envelope, parse_envelope
+from sideseat.runtime.client import RuntimeClient  # noqa: E402
+from sideseat.runtime.protocol import make_envelope  # noqa: E402
 
 
 def _free_port() -> int:
@@ -61,8 +65,12 @@ class _StubServer:
                     self.frames.append(data)
                 if data["type"] == "hello":
                     conn.send(make_envelope("ack", {"ref_id": data["id"]}).to_json())
-                elif data["type"] in ("agent.register", "mcp.register",
-                                      "agent.unregister", "mcp.unregister"):
+                elif data["type"] in (
+                    "agent.register",
+                    "mcp.register",
+                    "agent.unregister",
+                    "mcp.unregister",
+                ):
                     conn.send(make_envelope("ack", {"ref_id": data["id"]}).to_json())
         except Exception:
             pass
@@ -225,6 +233,7 @@ def test_register_dispatches_by_kind_with_chaining() -> None:
 
 def test_register_accepts_single_object_and_list_equivalently() -> None:
     """`register(swarm)` and `register([swarm])` produce the same wire frames."""
+
     class _Node:
         def __init__(self, node_id: str, executor: Any) -> None:
             self.node_id = node_id
@@ -273,6 +282,7 @@ def test_register_swarm_also_registers_inner_agents() -> None:
             project_id="default",
         )
         try:
+
             class _Node:
                 def __init__(self, node_id: str, executor: Any) -> None:
                     self.node_id = node_id
@@ -304,9 +314,7 @@ def test_register_swarm_also_registers_inner_agents() -> None:
 
             # Both inner agents should be registered separately.
             time.sleep(0.4)
-            agent_frames = [
-                f for f in srv.frames if f.get("type") == "agent.register"
-            ]
+            agent_frames = [f for f in srv.frames if f.get("type") == "agent.register"]
             agent_names = {f["payload"]["name"] for f in agent_frames}
             assert {"alice", "bob"}.issubset(agent_names)
         finally:
@@ -361,7 +369,9 @@ def test_replaced_frame_does_not_deadlock() -> None:
             elif data["type"].endswith(".register"):
                 conn.send(make_envelope("ack", {"ref_id": data["id"]}).to_json())
                 conn.send(
-                    make_envelope("replaced", {"kind": "agent", "name": data["payload"]["name"]}).to_json()
+                    make_envelope(
+                        "replaced", {"kind": "agent", "name": data["payload"]["name"]}
+                    ).to_json()
                 )
                 replaced_sent.set()
             elif data["type"].endswith(".unregister"):
@@ -395,6 +405,54 @@ def test_register_unknown_object_raises() -> None:
     rc = RuntimeClient(endpoint="http://127.0.0.1:1", project_id="default")
     with pytest.raises(ValueError, match="no inspector matched"):
         rc.register(object())
+
+
+def test_register_names_overrides_per_object() -> None:
+    """`names=[a, b]` assigns per-object names when registering a list;
+    `name=` is rejected for a list and `names=` for a single object."""
+    rc = RuntimeClient(endpoint="http://127.0.0.1:1", project_id="default")
+    a = _DummyStrandsAgent()
+    b = _DummyStrandsAgent()
+
+    rc.register([a, b], names=["alpha", "beta"])
+    keys = set(rc._registrations.keys())
+    assert ("agent", "alpha") in keys
+    assert ("agent", "beta") in keys
+
+    with pytest.raises(ValueError, match="name= is only valid for a single object"):
+        rc.register([_DummyStrandsAgent()], name="x")
+
+    with pytest.raises(ValueError, match="names= length"):
+        rc.register([_DummyStrandsAgent(), _DummyStrandsAgent()], names=["only-one"])
+
+    with pytest.raises(ValueError, match="names= is only valid for a list"):
+        rc.register(_DummyStrandsAgent(), names=["x"])
+
+
+def test_register_name_collision_across_kinds_raises() -> None:
+    """Names must be globally unique across kinds — the server resolves
+    by name only, so an agent and graph sharing a name would silently
+    shadow each other otherwise."""
+    rc = RuntimeClient(endpoint="http://127.0.0.1:1", project_id="default")
+    agent = _DummyStrandsAgent()
+    agent.name = "shared"
+    rc.register(agent)
+
+    class _Node:
+        def __init__(self, executor: Any) -> None:
+            self.executor = executor
+
+    class _Graph:
+        __module__ = "strands.multiagent.graph"
+        name = "shared"
+
+        def __init__(self) -> None:
+            self.nodes = {"a": _Node(_DummyStrandsAgent())}
+
+    _Graph.__name__ = "Graph"
+
+    with pytest.raises(ValueError, match="already registered as 'agent'"):
+        rc.register(_Graph())
 
 
 def test_connect_without_ws_extra_raises_clear_error(monkeypatch: pytest.MonkeyPatch) -> None:

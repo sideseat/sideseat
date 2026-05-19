@@ -32,7 +32,7 @@ use uuid::Uuid;
 use crate::api::extractors::is_valid_project_id;
 use crate::core::TopicError;
 use crate::core::constants::{INVOKE_TIMEOUT_MS, WS_MAX_MESSAGE_BYTES};
-use crate::data::registrations::{ConnectionControl, RegistrationKind};
+use crate::data::registrations::ConnectionControl;
 
 /// HTTP body limit for `/agents/{name}/runs`. Sized so that whatever
 /// passes here also fits in the WS frame that carries
@@ -127,13 +127,14 @@ async fn run_agent(
         ));
     }
 
-    // 1. Find the live registration.
+    // 1. Find the live registration. Resolves any invokable kind
+    //    (agent → graph → swarm) by name; mcp is skipped server-side.
     let entry = state
         .registrations
-        .find(&project_id, RegistrationKind::Agent, &name)
+        .find_by_name(&project_id, &name)
         .await
         .map_err(|e| ErrorResponse::internal(e.to_string()))?
-        .ok_or_else(|| ErrorResponse::not_found("agent_not_registered"))?;
+        .ok_or_else(|| ErrorResponse::not_found("registration_not_found"))?;
 
     let request_id = Uuid::new_v4().to_string();
     tracing::Span::current().record("request_id", tracing::field::display(&request_id));
@@ -153,10 +154,7 @@ async fn run_agent(
     // 3. Publish the invoke onto the owning instance's control topic.
     let control = state
         .topics
-        .broadcast_topic::<ConnectionControl>(&format!(
-            "connection_control:{}",
-            owning_instance
-        ));
+        .broadcast_topic::<ConnectionControl>(&format!("connection_control:{}", owning_instance));
     if let Err(e) = control
         .publish(&ConnectionControl::Invoke {
             target_client_id: target_client.clone(),
@@ -263,7 +261,10 @@ async fn run_agent(
     };
 
     let mut headers = HeaderMap::new();
-    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("text/event-stream"));
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/event-stream"),
+    );
     headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
     headers.insert(header::CONNECTION, HeaderValue::from_static("keep-alive"));
     // Disable buffering on common reverse proxies (nginx).
@@ -281,10 +282,7 @@ async fn publish_cancel(
 ) {
     let control = state
         .topics
-        .broadcast_topic::<ConnectionControl>(&format!(
-            "connection_control:{}",
-            owning_instance
-        ));
+        .broadcast_topic::<ConnectionControl>(&format!("connection_control:{}", owning_instance));
     if let Err(e) = control
         .publish(&ConnectionControl::Cancel {
             target_client_id: target_client_id.to_string(),

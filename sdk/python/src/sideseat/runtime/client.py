@@ -17,7 +17,8 @@ import socket
 import threading
 import time
 import uuid
-from contextlib import suppress
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse, urlunparse
@@ -32,9 +33,9 @@ from sideseat.runtime.adapters import (
     derive_default_name,
 )
 from sideseat.runtime.protocol import (
+    PROTOCOL_VERSION,
     Envelope,
     ErrorCode,
-    PROTOCOL_VERSION,
     RegistrationManifest,
     make_envelope,
     parse_envelope,
@@ -58,6 +59,65 @@ _RECONNECT_FAILURES_LOG_THRESHOLD = 30
 _DEFAULT_MAX_MESSAGE_BYTES = 4 * 1024 * 1024
 
 
+def _iter_strands_agents(obj: Any) -> list[Any]:
+    """Return the Strands `Agent` instances reachable from `obj`.
+
+    For a single Agent: just `[obj]`. For a Graph/Swarm: walks `obj.nodes`
+    and yields each node's executor when it's an Agent. Recursive — nested
+    composites surface their inner agents too. Used to mute every Agent's
+    `callback_handler` for the duration of an invoke so Strands' default
+    per-agent prints don't interleave with the AG-UI renderer.
+    """
+    out: list[Any] = []
+    seen: set[int] = set()
+
+    def visit(node: Any) -> None:
+        if node is None or id(node) in seen:
+            return
+        seen.add(id(node))
+        cls_name = type(node).__name__
+        if cls_name == "Agent":
+            out.append(node)
+            return
+        nodes = getattr(node, "nodes", None)
+        if isinstance(nodes, dict):
+            for n in nodes.values():
+                visit(getattr(n, "executor", None))
+
+    visit(obj)
+    return out
+
+
+@contextmanager
+def _mute_strands_callbacks(obj: Any) -> Iterator[None]:
+    """Context manager that swaps every reachable Strands Agent's
+    `callback_handler` for `null_callback_handler` and restores the
+    originals on exit. Quietly no-ops if Strands isn't importable
+    (e.g. non-Strands agents)."""
+    try:
+        from strands.handlers.callback_handler import null_callback_handler
+    except Exception:  # pragma: no cover — Strands is the only supported backend today
+        yield
+        return
+
+    agents = _iter_strands_agents(obj)
+    originals: list[tuple[Any, Any]] = []
+    try:
+        for ag in agents:
+            originals.append((ag, getattr(ag, "callback_handler", None)))
+            try:
+                ag.callback_handler = null_callback_handler
+            except Exception:
+                pass
+        yield
+    finally:
+        for ag, original in originals:
+            try:
+                ag.callback_handler = original
+            except Exception:
+                pass
+
+
 @dataclass
 class _Registration:
     kind: str  # "agent" | "mcp" | "swarm" | "graph"
@@ -73,6 +133,7 @@ class _Registration:
 class _Invocation:
     request_id: str
     agent_name: str
+    kind: str  # "agent" | "graph" | "swarm"
     worker: Any  # threading.Thread; type-quoted to avoid forward-ref clutter
     cancelled: bool = False
 
@@ -107,8 +168,12 @@ class RuntimeClient:
 
         # Invoke state for v2 AG-UI run-agent flow.
         self._invoke_lock = threading.RLock()
-        self._invocations: dict[str, _Invocation] = {}      # request_id -> state
-        self._busy_agents: set[str] = set()                  # active agent names
+        self._invocations: dict[str, _Invocation] = {}  # request_id -> state
+        # Active invocations keyed by (kind, name) so a graph and an agent
+        # sharing a name (defensive: collision guard normally prevents this)
+        # don't fight over a single slot, and so a composite invoke and an
+        # inner-agent direct invoke don't accidentally serialise.
+        self._busy_agents: set[tuple[str, str]] = set()
 
     # ------------------------------------------------------------------
     # Public registration API
@@ -175,6 +240,7 @@ class RuntimeClient:
         objects: Any,
         *,
         name: str | None = None,
+        names: list[str] | None = None,
         runtime: str | dict[str, Any] = "inproc",
         agentcore_endpoint: str | None = None,
     ) -> RuntimeClient:
@@ -185,27 +251,37 @@ class RuntimeClient:
         inspector registry. Swarm/Graph instances also auto-register every
         Strands ``Agent`` they contain.
 
-        When a list is passed, ``name`` cannot be supplied — per-object names
-        are derived from ``obj.name`` or, for callers that omit ``name=``,
-        from the local Python variable that holds the object.
+        Naming:
+        - Single object: pass ``name="..."`` to override.
+        - List/tuple: pass ``names=["a", "b", ...]`` (must match length) to
+          override per-object. Otherwise per-object names are derived from
+          ``obj.name`` or the caller-frame variable name.
         """
         var_names = _capture_caller_var_names(objects)
 
         if isinstance(objects, (list, tuple)):
-            if name is not None and len(objects) > 1:
+            if name is not None:
                 raise ValueError(
-                    "name= cannot be combined with a list of objects; "
-                    "set obj.name on each instance or call register() per object"
+                    "name= is only valid for a single object; pass names=[...] "
+                    "for a list (one entry per object) or call register() per object"
                 )
-            for obj in objects:
+            if names is not None and len(names) != len(objects):
+                raise ValueError(
+                    f"names= length ({len(names)}) must match objects length ({len(objects)})"
+                )
+            for idx, obj in enumerate(objects):
                 self._register_one(
                     obj,
-                    name=name if len(objects) == 1 else None,
+                    name=names[idx] if names is not None else None,
                     runtime=runtime,
                     agentcore_endpoint=agentcore_endpoint,
                     fallback_name=var_names.get(id(obj)),
                 )
             return self
+        if names is not None:
+            raise ValueError(
+                'names= is only valid for a list of objects; pass name="..." for a single object'
+            )
         self._register_one(
             objects,
             name=name,
@@ -231,11 +307,27 @@ class RuntimeClient:
                 "use sideseat.runtime.adapters.register_agent_inspector(...) "
                 "or call .agent(..., tools=[...]) explicitly"
             )
+        explicit_name = name is not None or isinstance(getattr(obj, "name", None), str)
         derived = name or derive_default_name(obj, kind) or fallback_name
         if not derived:
             raise ValueError(
                 f"register(): could not derive a name for {type(obj).__name__!r}; "
                 "pass name= or set obj.name"
+            )
+        # Composites (Graph/Swarm) often have no `.name`; the caller-frame
+        # variable name is the next-best label. Only warn when the derived
+        # name is generic (`graph`, `swarm`, single letters, etc.) so users
+        # who already named their variable meaningfully don't get pestered.
+        if (
+            kind in ("graph", "swarm")
+            and not explicit_name
+            and derived.lower() in {kind, "obj", "x", "g", "s"}
+        ):
+            logger.warning(
+                "Strands %s registered with generic derived name %r — pass "
+                "name= explicitly so the UI label is meaningful",
+                kind,
+                derived,
             )
 
         if kind == "agent":
@@ -251,10 +343,14 @@ class RuntimeClient:
             return
 
         # swarm / graph: register the composite, then walk inner agents.
+        # `live_instance=obj` lets `_handle_invoke` route AG-UI invokes to
+        # the multiagent converter without a second lookup.
         manifest = build_manifest_for_kind(
             kind, obj, name=derived, runtime=runtime, agentcore_endpoint=agentcore_endpoint
         )
-        self._upsert_registration(_Registration(kind=kind, name=derived, manifest=manifest))
+        self._upsert_registration(
+            _Registration(kind=kind, name=derived, manifest=manifest, live_instance=obj)
+        )
         seen: set[int] = {id(obj)}
         self._register_inner_agents(obj, runtime=runtime, seen=seen)
 
@@ -275,16 +371,10 @@ class RuntimeClient:
             seen.add(id(executor))
             inner_kind = classify(executor)
             if inner_kind == "agent":
-                inner_name = (
-                    derive_default_name(executor, "agent")
-                    or str(node_id)
-                )
+                inner_name = derive_default_name(executor, "agent") or str(node_id)
                 self.add_agent(executor, name=inner_name, runtime=runtime)
             elif inner_kind in ("swarm", "graph"):
-                inner_name = (
-                    derive_default_name(executor, inner_kind)
-                    or str(node_id)
-                )
+                inner_name = derive_default_name(executor, inner_kind) or str(node_id)
                 manifest = build_manifest_for_kind(
                     inner_kind, executor, name=inner_name, runtime=runtime
                 )
@@ -314,8 +404,7 @@ class RuntimeClient:
         """
         if not _module_available("websockets"):
             raise ImportError(
-                "sideseat[ws] extra is not installed. "
-                "Install with `pip install sideseat[ws]`."
+                "sideseat[ws] extra is not installed. Install with `pip install sideseat[ws]`."
             )
         self._banner_enabled = banner and block
         if self._banner_enabled:
@@ -388,6 +477,17 @@ class RuntimeClient:
         # _handle_connection re-flush sees a consistent snapshot (no
         # double-sent register, no missed entry between snapshot and append).
         with self._registry_lock:
+            # Names must be globally unique across kinds — the server's
+            # `find_by_name` (and `_resolve_invokable` here) walk by name
+            # only, so two registrations with the same name but different
+            # kinds would silently shadow each other. Catch the collision
+            # at the source with a clear error pointing at the offender.
+            for (other_kind, other_name), _existing in self._registrations.items():
+                if other_name == reg.name and other_kind != reg.kind:
+                    raise ValueError(
+                        f"name {reg.name!r} already registered as {other_kind!r}; "
+                        "names must be globally unique across kinds"
+                    )
             self._registrations[(reg.kind, reg.name)] = reg
             if self._connected_event.is_set():
                 with suppress(Exception):
@@ -403,9 +503,7 @@ class RuntimeClient:
             self._registrations.pop((kind, name), None)
             if self._connected_event.is_set():
                 with suppress(Exception):
-                    self._send_envelope(
-                        make_envelope(f"{kind}.unregister", {"name": name})
-                    )
+                    self._send_envelope(make_envelope(f"{kind}.unregister", {"name": name}))
 
     def _ws_url(self) -> str:
         parsed = urlparse(self._endpoint)
@@ -468,7 +566,9 @@ class RuntimeClient:
             logger.debug("expected welcome, got: %r", welcome)
             return
         if isinstance(welcome.payload, dict):
-            self._heartbeat_interval = int(welcome.payload.get("heartbeat_interval_secs", _DEFAULT_HEARTBEAT_INTERVAL))
+            self._heartbeat_interval = int(
+                welcome.payload.get("heartbeat_interval_secs", _DEFAULT_HEARTBEAT_INTERVAL)
+            )
         self._last_server_message_at = time.monotonic()
 
         self._send_envelope(
@@ -503,7 +603,9 @@ class RuntimeClient:
             env = self._recv_with_watchdog(ws, timeout=1.0)
             if env is None:
                 if (time.monotonic() - self._last_server_message_at) > deadline_extra:
-                    logger.debug("WS watchdog: no server message in %ds, reconnecting", deadline_extra)
+                    logger.debug(
+                        "WS watchdog: no server message in %ds, reconnecting", deadline_extra
+                    )
                     return
                 continue
             self._last_server_message_at = time.monotonic()
@@ -530,9 +632,7 @@ class RuntimeClient:
     def _dispatch(self, env: Envelope) -> None:
         if env.type == "ping":
             with suppress(Exception):
-                self._send_envelope(
-                    make_envelope("pong", {"id": env.id})
-                )
+                self._send_envelope(make_envelope("pong", {"id": env.id}))
         elif env.type == "ack":
             logger.debug("ack ref_id=%s", _payload_field(env, "ref_id"))
         elif env.type == "error":
@@ -579,11 +679,14 @@ class RuntimeClient:
         and we never make it past reconnect-loop."""
         with self._registry_lock:
             registrations = list(self._registrations.values())
-        kinds_summary = ", ".join(
-            f"{kind} ({len([r for r in registrations if r.kind == kind])})"
-            for kind in ("agent", "swarm", "graph", "mcp")
-            if any(r.kind == kind for r in registrations)
-        ) or "no registrations"
+        kinds_summary = (
+            ", ".join(
+                f"{kind} ({len([r for r in registrations if r.kind == kind])})"
+                for kind in ("agent", "swarm", "graph", "mcp")
+                if any(r.kind == kind for r in registrations)
+            )
+            or "no registrations"
+        )
         print(
             f"SideSeat: connecting to {self._endpoint} "
             f"(project={self._project_id}, {kinds_summary}) ...",
@@ -632,9 +735,7 @@ class RuntimeClient:
                 lines.append(f"  {kind:<10s} ({len(items)}): {names}")
         else:
             lines.append("")
-            lines.append(
-                "No registrations yet. Call client.register(...) before connect()."
-            )
+            lines.append("No registrations yet. Call client.register(...) before connect().")
         lines.append("")
         lines.append("Press Ctrl-C to disconnect.")
 
@@ -649,6 +750,22 @@ class RuntimeClient:
     # ------------------------------------------------------------------
     # AG-UI invoke flow (v2)
     # ------------------------------------------------------------------
+
+    # Walk order matches the server-side `find_by_name` so a name resolves
+    # to the same kind on both sides. `mcp` is intentionally excluded — it's
+    # not invokable through AG-UI run-agent.
+    _INVOKABLE_KINDS = ("agent", "graph", "swarm")
+
+    def _resolve_invokable(self, name: str) -> tuple[str, _Registration] | None:
+        """Look up an invokable registration by name. Returns (kind, reg)
+        for the first match, or None. Used by both _handle_invoke and
+        _handle_cancel so the two paths can't drift."""
+        with self._registry_lock:
+            for kind in self._INVOKABLE_KINDS:
+                reg = self._registrations.get((kind, name))
+                if reg is not None:
+                    return kind, reg
+        return None
 
     def _handle_invoke(
         self,
@@ -672,23 +789,42 @@ class RuntimeClient:
             )
             return
 
-        # 2. Resolve the live registration.
-        with self._registry_lock:
-            reg = self._registrations.get(("agent", agent_name))
-        if reg is None or reg.live_instance is None:
+        # 2. Resolve the live registration kind-agnostically (agent/graph/swarm).
+        resolved = self._resolve_invokable(agent_name)
+        if resolved is None:
+            # Distinguish "exists but not invokable" (mcp) from "not found".
+            with self._registry_lock:
+                exists_as_mcp = ("mcp", agent_name) in self._registrations
+            if exists_as_mcp:
+                self._send_invoke_error(
+                    request_id,
+                    "unsupported_backend",
+                    f"{agent_name!r} is registered as an mcp; not invokable via run-agent",
+                )
+            else:
+                self._send_invoke_error(
+                    request_id,
+                    "registration_not_found",
+                    f"no live registration named {agent_name!r}",
+                )
+            return
+        kind, reg = resolved
+        if reg.live_instance is None:
             self._send_invoke_error(
-                request_id, "agent_not_registered", f"no live agent named {agent_name!r}"
+                request_id,
+                "registration_not_found",
+                f"registration {agent_name!r} has no live instance",
             )
             return
 
         # 3. Reject non-inproc runtimes (v2 only supports in-process).
         runtime = reg.manifest.runtime or {}
-        kind = runtime.get("kind") if isinstance(runtime, dict) else None
-        if kind not in (None, "inproc"):
+        runtime_kind = runtime.get("kind") if isinstance(runtime, dict) else None
+        if runtime_kind not in (None, "inproc"):
             self._send_invoke_error(
                 request_id,
                 "unsupported_runtime",
-                f"runtime kind {kind!r} not supported in v2",
+                f"runtime kind {runtime_kind!r} not supported in v2",
             )
             return
 
@@ -702,25 +838,29 @@ class RuntimeClient:
             self._send_invoke_error(request_id, "bad_run_input", str(exc))
             return
 
-        # 5. Reject concurrent invokes of the same agent (Strands' own
-        #    `_invocation_lock` would also reject; we short-circuit so the
-        #    caller sees a clean error).
+        # 5. Reject concurrent invokes of the same (kind, name). Different
+        #    (kind, name) pairs run concurrently — invoking a graph composite
+        #    while one of its inner agents runs directly is allowed.
+        slot = (kind, agent_name)
         with self._invoke_lock:
-            if agent_name in self._busy_agents:
+            if slot in self._busy_agents:
                 self._send_invoke_error(
                     request_id, "agent_busy", "agent is already running an invocation"
                 )
                 return
-            self._busy_agents.add(agent_name)
+            self._busy_agents.add(slot)
 
             worker = threading.Thread(
                 target=self._invoke_worker_entry,
                 name=f"sideseat-invoke-{agent_name}-{request_id[:8]}",
-                args=(request_id, agent_name, reg.live_instance, run_in),
+                args=(request_id, agent_name, kind, reg.live_instance, run_in),
                 daemon=True,
             )
             self._invocations[request_id] = _Invocation(
-                request_id=request_id, agent_name=agent_name, worker=worker
+                request_id=request_id,
+                agent_name=agent_name,
+                kind=kind,
+                worker=worker,
             )
             worker.start()
 
@@ -733,7 +873,7 @@ class RuntimeClient:
             if inv is None:
                 return
             inv.cancelled = True
-            reg = self._registrations.get(("agent", inv.agent_name))
+            reg = self._registrations.get((inv.kind, inv.agent_name))
         if reg is not None and reg.live_instance is not None:
             cancel = getattr(reg.live_instance, "cancel", None)
             if callable(cancel):
@@ -746,7 +886,8 @@ class RuntimeClient:
         self,
         request_id: str,
         agent_name: str,
-        agent: Any,
+        kind: str,
+        live_instance: Any,
         run_in: Any,  # validated ag_ui.core.RunAgentInput
     ) -> None:
         """Outer wrapper around `_run_invoke_async` so a panic before
@@ -754,16 +895,15 @@ class RuntimeClient:
         import asyncio
 
         logger.info(
-            "invoke start agent=%s request_id=%s thread_id=%s run_id=%s",
+            "invoke start kind=%s name=%s request_id=%s thread_id=%s run_id=%s",
+            kind,
             agent_name,
             request_id,
             getattr(run_in, "thread_id", None),
             getattr(run_in, "run_id", None),
         )
         try:
-            asyncio.run(
-                self._run_invoke_async(request_id, agent_name, agent, run_in)
-            )
+            asyncio.run(self._run_invoke_async(request_id, agent_name, kind, live_instance, run_in))
         except BaseException as exc:  # noqa: BLE001 — we genuinely catch all
             logger.error("invoke worker crashed", exc_info=exc)
             with suppress(Exception):
@@ -771,9 +911,10 @@ class RuntimeClient:
         finally:
             with self._invoke_lock:
                 self._invocations.pop(request_id, None)
-                self._busy_agents.discard(agent_name)
+                self._busy_agents.discard((kind, agent_name))
             logger.info(
-                "invoke end agent=%s request_id=%s",
+                "invoke end kind=%s name=%s request_id=%s",
+                kind,
                 agent_name,
                 request_id,
             )
@@ -782,35 +923,53 @@ class RuntimeClient:
         self,
         request_id: str,
         agent_name: str,
-        agent: Any,
+        kind: str,
+        obj: Any,
         run_in: Any,  # already-validated `ag_ui.core.RunAgentInput`
     ) -> None:
         from ag_ui.core import RunErrorEvent
 
-        from sideseat.runtime.agui import AgUiRenderer, strands_run_to_agui
+        from sideseat.runtime.agui import (
+            AgUiRenderer,
+            strands_multiagent_to_agui,
+            strands_run_to_agui,
+        )
 
         renderer = AgUiRenderer(label=f"{agent_name}#{request_id[:8]}")
 
-        # `ag_ui_strands.StrandsAgent` emits its own RUN_STARTED/FINISHED;
-        # we trust those for AG-UI clients. SideSeat console renderer also
-        # paints them. We do NOT pre-emit a synthetic RUN_STARTED to avoid
-        # duplicates — the server's invoke-timeout watchdog clears as soon
-        # as the first real event arrives, which `ag_ui_strands` produces
-        # immediately.
+        # Lifecycle invariant: the chosen converter is the single source of
+        # `RUN_STARTED` and the terminal `RUN_FINISHED`/`RUN_ERROR`. The
+        # agent path delegates to `ag_ui_strands.StrandsAgent.run` (which
+        # emits both); the multiagent path emits them itself. This loop
+        # forwards events verbatim — never prepends or appends lifecycle.
 
-        # Snapshot and mute Strands' default callback handler so its prints
-        # don't interleave with our renderer.
-        from strands.handlers.callback_handler import null_callback_handler
-
-        original_handler = getattr(agent, "callback_handler", None)
-        try:
-            agent.callback_handler = null_callback_handler
+        if kind == "agent":
+            stream = strands_run_to_agui(obj, run_in, name=agent_name)
+        elif kind in ("graph", "swarm"):
+            stream = strands_multiagent_to_agui(obj, run_in, name=agent_name)
+        else:
+            err = RunErrorEvent(
+                message=f"unsupported backend kind {kind!r}",
+                code="unsupported_backend",
+            )
+            with suppress(Exception):
+                self._send_agui_event(request_id, err, renderer)
+            self._send_invoke_error(
+                request_id, "unsupported_backend", f"kind {kind!r} not invokable"
+            )
             try:
-                async for event in strands_run_to_agui(
-                    agent, run_in, name=agent_name
-                ):
+                renderer.finish()
+            except Exception:
+                pass
+            return
+
+        # Mute Strands' default callback handlers across the composite so
+        # their per-node prints don't interleave with our renderer.
+        with _mute_strands_callbacks(obj):
+            try:
+                async for event in stream:
                     if self._is_cancelled(request_id):
-                        cancel = getattr(agent, "cancel", None)
+                        cancel = getattr(obj, "cancel", None)
                         if callable(cancel):
                             with suppress(Exception):
                                 cancel()
@@ -831,24 +990,18 @@ class RuntimeClient:
                 with suppress(Exception):
                     self._send_agui_event(request_id, err, renderer)
                 self._send_invoke_error(request_id, "internal", str(exc))
-        finally:
-            try:
-                agent.callback_handler = original_handler
-            except Exception:
-                pass
-            try:
-                renderer.finish()
-            except Exception:
-                pass
+            finally:
+                try:
+                    renderer.finish()
+                except Exception:
+                    pass
 
     def _is_cancelled(self, request_id: str) -> bool:
         with self._invoke_lock:
             inv = self._invocations.get(request_id)
             return bool(inv and inv.cancelled)
 
-    def _send_agui_event(
-        self, request_id: str, event: Any, renderer: Any
-    ) -> None:
+    def _send_agui_event(self, request_id: str, event: Any, renderer: Any) -> None:
         try:
             payload = event.model_dump(mode="json", by_alias=True, exclude_none=True)
         except Exception:
@@ -858,9 +1011,7 @@ class RuntimeClient:
         with suppress(Exception):
             renderer.emit(event)
 
-    def _send_agui_event_payload(
-        self, request_id: str, payload: Any
-    ) -> None:
+    def _send_agui_event_payload(self, request_id: str, payload: Any) -> None:
         """Send an AG-UI event payload to the server. Splits into
         `agent.event.chunk` frames if the serialised JSON exceeds
         :data:`_AGUI_CHUNK_THRESHOLD_BYTES` so we never trip the WS frame
@@ -877,9 +1028,7 @@ class RuntimeClient:
         body = _json_dumps_compact(payload).encode("utf-8")
         if len(body) <= _AGUI_CHUNK_THRESHOLD_BYTES:
             self._send_envelope(
-                make_envelope(
-                    "agent.event", {"request_id": request_id, "event": payload}
-                )
+                make_envelope("agent.event", {"request_id": request_id, "event": payload})
             )
             return
 
@@ -907,9 +1056,7 @@ class RuntimeClient:
 
     def _send_invoke_complete(self, request_id: str) -> None:
         with suppress(Exception):
-            self._send_envelope(
-                make_envelope("agent.complete", {"request_id": request_id})
-            )
+            self._send_envelope(make_envelope("agent.complete", {"request_id": request_id}))
 
     def _send_invoke_error(self, request_id: str, code: str, message: str) -> None:
         with suppress(Exception):
@@ -960,10 +1107,30 @@ def _capture_caller_var_names(arg: Any) -> dict[int, str]:
     target_ids = {id(t) for t in targets}
     found: dict[int, str] = {}
 
-    frame = outer
+    # Names that aliased the targets inside our own machinery — they always
+    # point at the user's object via the caller's stack frame, but they're
+    # generic SDK parameter names that would mislead the UI ("objects"
+    # comes from `register(self, objects, ...)`). Skip them so the search
+    # falls through to the genuine user-side variable name.
+    _SKIP_VAR_NAMES = {
+        "self",
+        "obj",
+        "objects",
+        "arg",
+        "args",
+        "instance",
+        "fallback_name",
+        "var_names",
+    }
+
+    from types import FrameType
+
+    frame: FrameType | None = outer
     seen_frames = 0
     while frame is not None and seen_frames < 20 and target_ids:
         for var_name, var_val in frame.f_locals.items():
+            if var_name in _SKIP_VAR_NAMES:
+                continue
             vid = id(var_val)
             if vid in target_ids and vid not in found:
                 found[vid] = var_name

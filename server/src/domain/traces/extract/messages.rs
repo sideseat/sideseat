@@ -3041,13 +3041,11 @@ fn extract_balanced_braces(input: &str) -> Option<&str> {
                 }
                 depth += 1;
             }
-            '}' => {
-                if depth > 0 {
-                    depth -= 1;
-                    if depth == 0 {
-                        let s = start?;
-                        return Some(&input[s..=idx]);
-                    }
+            '}' if depth > 0 => {
+                depth -= 1;
+                if depth == 0 {
+                    let s = start?;
+                    return Some(&input[s..=idx]);
                 }
             }
             _ => {}
@@ -3790,19 +3788,19 @@ pub(super) fn extract_messages_for_span(
                 }
                 // Tool output events (gen_ai.choice in tool span)
                 // Role is derived at query-time as "tool" by role_from_event_name_with_context
-                Some(keys::EVENT_CHOICE) | Some(keys::EVENT_CONTENT_COMPLETION) => {
+                Some(keys::EVENT_CHOICE) | Some(keys::EVENT_CONTENT_COMPLETION)
                     // Add tool_call_id for correlation with tool call
                     // (extract_tool_use_id in sideml/tools.rs looks for tool_call_id)
-                    if msg.content.get("tool_call_id").is_none() {
-                        let id = msg
-                            .content
-                            .get("id")
-                            .and_then(|v| v.as_str())
-                            .map(String::from)
-                            .or_else(|| tool_call_id.cloned());
-                        if let Some(id) = id {
-                            msg.content["tool_call_id"] = json!(id);
-                        }
+                    if msg.content.get("tool_call_id").is_none() =>
+                {
+                    let id = msg
+                        .content
+                        .get("id")
+                        .and_then(|v| v.as_str())
+                        .map(String::from)
+                        .or_else(|| tool_call_id.cloned());
+                    if let Some(id) = id {
+                        msg.content["tool_call_id"] = json!(id);
                     }
                 }
                 _ => {}

@@ -181,6 +181,26 @@ pub trait RegistrationStore: Send + Sync + 'static {
         name: &str,
     ) -> Result<Option<RegistrationEntry>, RegistrationStoreError>;
 
+    /// Lookup a single invokable entry by name, walking kinds in fixed order
+    /// `Agent → Graph → Swarm`. `Mcp` entries are skipped (not invokable via
+    /// the AG-UI run-agent route). Returns the first match, or `None`.
+    async fn find_by_name(
+        &self,
+        project_id: &str,
+        name: &str,
+    ) -> Result<Option<RegistrationEntry>, RegistrationStoreError> {
+        for kind in [
+            RegistrationKind::Agent,
+            RegistrationKind::Graph,
+            RegistrationKind::Swarm,
+        ] {
+            if let Some(entry) = self.find(project_id, kind, name).await? {
+                return Ok(Some(entry));
+            }
+        }
+        Ok(None)
+    }
+
     /// Remove and return every entry owned by `client_id`. Used on socket
     /// teardown to publish `Unregistered` events efficiently.
     async fn remove_all_for_client(
@@ -597,6 +617,42 @@ mod tests {
             .await
             .unwrap();
         assert!(wrong_kind.is_none());
+    }
+
+    #[tokio::test]
+    async fn find_by_name_walks_kinds_and_skips_mcp() {
+        let store = MemoryRegistrationStore::new();
+
+        let mut graph = entry("p", "data_pipeline", "client-1", "inst-A");
+        graph.kind = RegistrationKind::Graph;
+        store.upsert(graph).await.unwrap();
+
+        let mut mcp = entry("p", "tools_server", "client-1", "inst-A");
+        mcp.kind = RegistrationKind::Mcp;
+        store.upsert(mcp).await.unwrap();
+
+        // Graph resolved by name without specifying kind.
+        let hit = store.find_by_name("p", "data_pipeline").await.unwrap();
+        assert!(hit.is_some());
+        assert_eq!(hit.as_ref().unwrap().kind, RegistrationKind::Graph);
+
+        // Mcp is intentionally skipped (not invokable).
+        let mcp_hit = store.find_by_name("p", "tools_server").await.unwrap();
+        assert!(mcp_hit.is_none());
+
+        // Both an agent and a graph share a name → agent wins (walk order).
+        let mut agent = entry("p", "shared", "client-1", "inst-A");
+        agent.kind = RegistrationKind::Agent;
+        store.upsert(agent).await.unwrap();
+        let mut graph2 = entry("p", "shared", "client-1", "inst-A");
+        graph2.kind = RegistrationKind::Graph;
+        store.upsert(graph2).await.unwrap();
+        let resolved = store.find_by_name("p", "shared").await.unwrap().unwrap();
+        assert_eq!(resolved.kind, RegistrationKind::Agent);
+
+        // Unknown name returns None.
+        let miss = store.find_by_name("p", "nope").await.unwrap();
+        assert!(miss.is_none());
     }
 
     #[tokio::test]

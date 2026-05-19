@@ -25,14 +25,7 @@ interface Props {
   scrollTargetId?: string;
 }
 
-export function ToolCallCard({
-  toolName,
-  args,
-  result,
-  done,
-  onOpenFull,
-  scrollTargetId,
-}: Props) {
+export function ToolCallCard({ toolName, args, result, done, onOpenFull, scrollTargetId }: Props) {
   const summary = useMemo(() => summaryFor(toolName, args), [toolName, args]);
   const status = !done || result === null ? "streaming" : "done";
 
@@ -77,11 +70,7 @@ export function ToolCallCard({
             {summary}
           </span>
         ) : null}
-        {streaming ? (
-          <PulseDot />
-        ) : (
-          <Check className="size-3 shrink-0 text-green-600" />
-        )}
+        {streaming ? <PulseDot /> : <Check className="size-3 shrink-0 text-green-600" />}
       </button>
     );
   }
@@ -102,9 +91,7 @@ export function ToolCallCard({
           {toolName}
         </span>
         {summary ? (
-          <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground">
-            {summary}
-          </span>
+          <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground">{summary}</span>
         ) : (
           <span className="flex-1" />
         )}
@@ -113,7 +100,11 @@ export function ToolCallCard({
       <div className="space-y-3 border-t bg-muted/30 px-3 py-3">
         <ArgsSection args={args} truncated={!done} />
         {result !== null ? (
-          oversize ? <OversizeResultHint bytes={result.length} /> : <ResultSection body={result} />
+          oversize ? (
+            <OversizeResultHint bytes={result.length} />
+          ) : (
+            <ResultSection body={result} />
+          )
         ) : null}
       </div>
     </details>
@@ -153,13 +144,7 @@ export function ArgsSection({
   );
 }
 
-export function ResultSection({
-  body,
-  unbounded,
-}: {
-  body: string;
-  unbounded?: boolean;
-}) {
+export function ResultSection({ body, unbounded }: { body: string; unbounded?: boolean }) {
   const unwrapped = unwrapJsonString(body);
   const mode: "json" | "text" = looksLikeJson(unwrapped) ? "json" : "text";
   return <Section label="Result" body={unwrapped} mode={mode} unbounded={unbounded} />;

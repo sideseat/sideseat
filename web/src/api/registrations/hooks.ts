@@ -68,18 +68,17 @@ export function usePresenceStream(projectId: string) {
   });
 }
 
-function applyPresence(
-  prev: ListingResponse | undefined,
-  ev: PresenceEvent,
-): ListingResponse {
+function applyPresence(prev: ListingResponse | undefined, ev: PresenceEvent): ListingResponse {
   // Snapshot has not landed yet — start from empty so the registered
   // agent isn't lost. Snapshot will overwrite on arrival.
   const base: ListingResponse = prev ?? EMPTY;
 
   switch (ev.event) {
     case "registered": {
-      const { event: _e, ...entry } = ev;
-      return upsert(base, entry as RegistrationEntry);
+      // Strip the discriminator field to recover the raw RegistrationEntry.
+      const entry: Record<string, unknown> = { ...ev };
+      delete entry.event;
+      return upsert(base, entry as unknown as RegistrationEntry);
     }
     case "replaced": {
       return updateOwner(base, ev.kind, ev.name, {
@@ -111,9 +110,7 @@ function upsert(prev: ListingResponse, entry: RegistrationEntry): ListingRespons
   const key = bucketName(entry.kind);
   const existing = prev[key];
   const idx = existing.findIndex((e) => e.name === entry.name);
-  const next = idx >= 0
-    ? existing.map((e, i) => (i === idx ? entry : e))
-    : [...existing, entry];
+  const next = idx >= 0 ? existing.map((e, i) => (i === idx ? entry : e)) : [...existing, entry];
   return { ...prev, [key]: next };
 }
 

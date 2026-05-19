@@ -16,6 +16,7 @@ Pipeline per event:
 `render_stream(events, ...)` is the consumer-facing function. The class
 form is kept for cases (HITL) that need to interleave events with prompts.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -26,11 +27,10 @@ from rich.console import Console
 from rich.json import JSON
 from rich.markup import escape as rich_escape
 
+from .block_renderers import JsonBlock
 from .config import RenderConfig
 from .format_table import SECTION_AFTER, SECTION_BEFORE, format_event
-from .block_renderers import JsonBlock
 from .state import RenderState
-
 
 _TOOL_ARGS_BLOCK = JsonBlock()
 
@@ -157,9 +157,7 @@ class AgUiRenderer:
             state.last_blank = True
 
         tag, inline, block, style = format_event(event)
-        label_prefix = (
-            f"[dim]\\[{state.current_label}][/dim] " if state.current_label else ""
-        )
+        label_prefix = f"[dim]\\[{state.current_label}][/dim] " if state.current_label else ""
         line = f"{label_prefix}[{style}][{tag}][/{style}]"
         if inline:
             line = f"{line} [dim]{inline}[/dim]"

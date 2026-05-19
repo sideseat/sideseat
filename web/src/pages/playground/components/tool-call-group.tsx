@@ -3,12 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ToolCallMessage } from "@/api/agui/types";
 import { cn } from "@/lib/utils";
-import {
-  ArgsSection,
-  ResultSection,
-  ToolCallCard,
-  ToolIcon,
-} from "./tool-call-card";
+import { ArgsSection, ResultSection, ToolCallCard, ToolIcon } from "./tool-call-card";
 
 export function ToolCallGroup({ tools }: { tools: ToolCallMessage[] }) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -88,10 +83,7 @@ function ToolSheetSection({
   return (
     <section
       id={`sheet-tool-${tool.id}`}
-      className={cn(
-        "scroll-mt-4 border-b px-5 py-5 last:border-b-0",
-        active && "bg-primary/5",
-      )}
+      className={cn("scroll-mt-4 border-b px-5 py-5 last:border-b-0", active && "bg-primary/5")}
     >
       <header className="mb-3 flex items-center gap-2.5">
         <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
