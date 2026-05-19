@@ -1,5 +1,6 @@
 # Adapted from observability-talk/demos/agent/agui/state.py
 """Per-run rendering state."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

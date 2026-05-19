@@ -45,11 +45,7 @@ export async function* runAgentStream(opts: RunAgentStreamOptions): AsyncGenerat
     if (opts.signal.aborted) {
       throw new RunError("client_aborted", "Cancelled by user", 0);
     }
-    throw new RunError(
-      "network_error",
-      e instanceof Error ? e.message : String(e),
-      0,
-    );
+    throw new RunError("network_error", e instanceof Error ? e.message : String(e), 0);
   }
 
   if (!res.ok) {

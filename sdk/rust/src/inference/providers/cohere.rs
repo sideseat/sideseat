@@ -330,13 +330,11 @@ impl ChatProvider for CohereProvider {
                                 }
                             }
 
-                            "content-end" => {
-                                if text_started {
-                                    let idx = parsed["index"].as_u64().unwrap_or(0) as usize;
-                                    if idx == 0 {
-                                        yield Ok(StreamEvent::ContentBlockStop { index: text_index });
-                                        text_started = false;
-                                    }
+                            "content-end" if text_started => {
+                                let idx = parsed["index"].as_u64().unwrap_or(0) as usize;
+                                if idx == 0 {
+                                    yield Ok(StreamEvent::ContentBlockStop { index: text_index });
+                                    text_started = false;
                                 }
                             }
 

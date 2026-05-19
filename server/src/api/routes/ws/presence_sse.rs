@@ -86,8 +86,11 @@ pub async fn stream_presence(
         }
     };
 
-    Ok(Sse::new(stream)
-        .keep_alive(KeepAlive::new().interval(Duration::from_secs(30)).text("keep-alive")))
+    Ok(Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(30))
+            .text("keep-alive"),
+    ))
 }
 
 async fn build_snapshot(state: &WsState, project_id: &str) -> Result<ListingResponse, ApiError> {

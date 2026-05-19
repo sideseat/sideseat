@@ -1,50 +1,46 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import type { RegistrationEntry } from "@/api/registrations/types";
-import { cn } from "@/lib/utils";
 import { AgentCard } from "./agent-card";
 
 interface Props {
-  agents: RegistrationEntry[];
+  entries: RegistrationEntry[];
   selected: string | null;
   onSelect: (name: string) => void;
   loading: boolean;
 }
 
-export function LandingView({ agents, selected, onSelect, loading }: Props) {
-  const cols = Math.min(Math.max(agents.length, 1), 3);
-  const gridCols =
-    cols === 1
-      ? "grid-cols-1"
-      : cols === 2
-        ? "grid-cols-1 sm:grid-cols-2"
-        : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
-
+export function LandingView({ entries, selected, onSelect, loading }: Props) {
   return (
-    <div className="w-full">
-      <div className="text-center">
-        <h1 className="text-xl font-semibold">Pick an agent to chat</h1>
-        <p className="mt-1 text-xs text-muted-foreground">
+    <section className="flex w-full flex-col gap-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">Pick an agent to chat</h1>
+        <p className="text-sm text-muted-foreground">
           {loading
-            ? "Looking for online agents…"
-            : agents.length === 1
-              ? "One agent is online in this project."
-              : `${agents.length} agents online in this project.`}
+            ? "Looking…"
+            : entries.length === 1
+              ? "1 registration"
+              : `${entries.length} registrations`}
         </p>
       </div>
-      <div className={cn("mt-4 grid gap-2", gridCols)}>
+
+      {/* Uniform grid: `auto-fit` gives every column the same width (1fr);
+          `auto-rows-fr` makes every row equal in height. Combined with the
+          card's `h-full`, every card ends up the same size. */}
+      <div
+        className="grid auto-rows-fr gap-3"
+        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))" }}
+        role="list"
+      >
         {loading
           ? Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-20 w-full rounded-lg" />
+              <Skeleton key={i} className="h-28 w-full rounded-xl" />
             ))
-          : agents.map((agent) => (
-              <AgentCard
-                key={agent.name}
-                agent={agent}
-                selected={selected === agent.name}
-                onSelect={onSelect}
-              />
+          : entries.map((entry) => (
+              <div role="listitem" className="h-full" key={`${entry.kind}:${entry.name}`}>
+                <AgentCard agent={entry} selected={selected === entry.name} onSelect={onSelect} />
+              </div>
             ))}
       </div>
-    </div>
+    </section>
   );
 }

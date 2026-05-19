@@ -23,11 +23,11 @@ use super::routes::{
     api_keys, auth, credentials, favorites, health, organizations, otel, otlp_collector, pricing,
     projects, users, ws,
 };
-use crate::data::registrations::MemoryRegistrationStore;
 use crate::core::CoreApp;
 use crate::core::constants::{AUTH_BODY_LIMIT, DEFAULT_BODY_LIMIT, OTLP_BODY_LIMIT};
 use crate::data::cache::RateLimitBucket;
 use crate::data::files::FileService;
+use crate::data::registrations::MemoryRegistrationStore;
 
 pub struct ApiServer {
     app: CoreApp,

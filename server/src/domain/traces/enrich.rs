@@ -183,13 +183,10 @@ fn extract_io_preview(messages: &[SideMLMessage]) -> (Option<String>, Option<Str
                     input_preview = Some(preview);
                 }
             }
-            MessageCategory::GenAISystemMessage => {
-                if input_preview.is_none() {
-                    let preview =
-                        extract_content_preview(&message.sideml, PREVIEW_MAX_LENGTH, true);
-                    if !preview.is_empty() {
-                        input_preview = Some(preview);
-                    }
+            MessageCategory::GenAISystemMessage if input_preview.is_none() => {
+                let preview = extract_content_preview(&message.sideml, PREVIEW_MAX_LENGTH, true);
+                if !preview.is_empty() {
+                    input_preview = Some(preview);
                 }
             }
             // Output: last text wins, tool call as fallback

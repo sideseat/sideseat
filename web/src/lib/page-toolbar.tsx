@@ -1,12 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 interface ToolbarSlotContextValue {
   setNode: (node: ReactNode) => void;
@@ -26,11 +19,7 @@ interface ProviderProps {
 export function PageToolbarProvider({ children }: ProviderProps) {
   const [node, setNode] = useState<ReactNode>(null);
   const value = useMemo<ToolbarSlotContextValue>(() => ({ setNode }), []);
-  return (
-    <ToolbarSlotContext.Provider value={value}>
-      {children(node)}
-    </ToolbarSlotContext.Provider>
-  );
+  return <ToolbarSlotContext.Provider value={value}>{children(node)}</ToolbarSlotContext.Provider>;
 }
 
 /**

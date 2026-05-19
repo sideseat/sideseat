@@ -8,9 +8,9 @@ from sideseat.runtime.adapters import (
 )
 from sideseat.runtime.client import RuntimeClient
 from sideseat.runtime.protocol import (
+    PROTOCOL_VERSION,
     Envelope,
     ErrorCode,
-    PROTOCOL_VERSION,
     RegistrationManifest,
     make_envelope,
     parse_envelope,

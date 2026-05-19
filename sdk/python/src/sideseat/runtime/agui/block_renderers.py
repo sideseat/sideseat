@@ -6,6 +6,7 @@ a list of pre-formatted lines (without the indent prefix — the caller adds
 it). Choosing the right one lets a 50-row pipe-delimited tool result land
 as a real table instead of grey indented text.
 """
+
 from __future__ import annotations
 
 import json

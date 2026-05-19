@@ -8,15 +8,17 @@ from pathlib import Path
 import pytest
 
 from sideseat.runtime.protocol import (
+    PROTOCOL_VERSION,
     Envelope,
     ErrorCode,
-    PROTOCOL_VERSION,
     RegistrationManifest,
     make_envelope,
     parse_envelope,
 )
 
-SCHEMA_PATH = Path(__file__).resolve().parent.parent / "src" / "sideseat" / "runtime" / "_schema.json"
+SCHEMA_PATH = (
+    Path(__file__).resolve().parent.parent / "src" / "sideseat" / "runtime" / "_schema.json"
+)
 
 
 def test_protocol_version_is_one() -> None:

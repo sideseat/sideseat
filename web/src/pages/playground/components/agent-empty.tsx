@@ -86,11 +86,7 @@ export function AgentEmpty() {
               ))}
             </TabsList>
             <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" asChild>
-              <a
-                href="https://sideseat.ai/docs"
-                target="_blank"
-                rel="noreferrer"
-              >
+              <a href="https://sideseat.ai/docs" target="_blank" rel="noreferrer">
                 Docs
                 <ExternalLink className="size-3" />
               </a>
@@ -120,15 +116,7 @@ export function AgentEmpty() {
   );
 }
 
-function Step({
-  n,
-  label,
-  children,
-}: {
-  n: number;
-  label: string;
-  children: React.ReactNode;
-}) {
+function Step({ n, label, children }: { n: number; label: string; children: React.ReactNode }) {
   return (
     <div>
       <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">

@@ -83,7 +83,9 @@ def test_register_custom_agent_inspector() -> None:
         return isinstance(obj, _Foreign)
 
     def fn(obj: Any, **kwargs: Any) -> RegistrationManifest:
-        return RegistrationManifest(name=kwargs["name"], framework="custom", runtime=kwargs["runtime"])
+        return RegistrationManifest(
+            name=kwargs["name"], framework="custom", runtime=kwargs["runtime"]
+        )
 
     register_agent_inspector(matcher, fn)
     manifest = build_agent_manifest(_Foreign(), name="x")

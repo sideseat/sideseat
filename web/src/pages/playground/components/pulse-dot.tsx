@@ -14,9 +14,7 @@ export function PulseDot({ size = 1.5, className }: Props) {
       style={{ width: px, height: px }}
       aria-hidden="true"
     >
-      <span
-        className="absolute inset-0 rounded-full bg-primary opacity-75 motion-safe:animate-ping"
-      />
+      <span className="absolute inset-0 rounded-full bg-primary opacity-75 motion-safe:animate-ping" />
       <span className="relative inline-flex size-full rounded-full bg-primary" />
     </span>
   );

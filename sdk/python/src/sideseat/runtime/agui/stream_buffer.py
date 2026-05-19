@@ -6,6 +6,7 @@ delta events. Rendering each delta as its own line spams the console with
 2-character JSON fragments. We buffer by key (typically tool_call_id or
 message_id) and flush as one block on the matching `_END` event.
 """
+
 from __future__ import annotations
 
 

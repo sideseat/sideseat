@@ -530,9 +530,7 @@ async fn handle_register(
             // Tell the previous owner's instance to displace its socket.
             let control_topic = state
                 .topics
-                .broadcast_topic::<ConnectionControl>(&connection_control_topic(
-                    &prev.instance_id,
-                ));
+                .broadcast_topic::<ConnectionControl>(&connection_control_topic(&prev.instance_id));
             if let Err(e) = control_topic
                 .publish(&ConnectionControl::Replaced {
                     target_client_id: prev.client_id.clone(),
@@ -561,7 +559,13 @@ async fn handle_register(
         }
         Err(e) => {
             tracing::error!(error = %e, "ws: upsert failed");
-            send_error(out_tx, Some(ref_id.into()), ErrorCode::Internal, "store error").await;
+            send_error(
+                out_tx,
+                Some(ref_id.into()),
+                ErrorCode::Internal,
+                "store error",
+            )
+            .await;
         }
     }
 }
@@ -601,7 +605,13 @@ async fn handle_unregister(
         }
         Err(e) => {
             tracing::error!(error = %e, "ws: remove failed");
-            send_error(out_tx, Some(ref_id.into()), ErrorCode::Internal, "store error").await;
+            send_error(
+                out_tx,
+                Some(ref_id.into()),
+                ErrorCode::Internal,
+                "store error",
+            )
+            .await;
         }
     }
 }
@@ -664,4 +674,3 @@ async fn send_error(
     );
     let _ = out.send(frame).await;
 }
-

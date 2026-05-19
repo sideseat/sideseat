@@ -5,6 +5,7 @@ Some adapters (ag-ui-strands) emit MESSAGES_SNAPSHOT after every message,
 each one a superset of the previous. Hashing the payload lets us drop
 true duplicates while still showing genuine state transitions.
 """
+
 from __future__ import annotations
 
 
