@@ -83,7 +83,7 @@ sha2 = "0.10"
 blake3 = "1"
 hmac = "0.12"
 dashmap = "6.1"
-duckdb = { version = "1.4.2", features = ["bundled", "json", "vtab"] }
+duckdb = { version = "1.10503.1", features = ["bundled", "json", "vtab"] }
 parking_lot = "0.12"
 rustc-hash = "2.1"
 validator = { version = "0.20", features = ["derive"] }
