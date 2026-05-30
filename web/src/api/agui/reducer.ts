@@ -159,16 +159,31 @@ function applyEvent(state: ChatState, event: BaseEvent): ChatState {
   }
 
   // Reasoning / thinking (treated identically).
-  if (t === "REASONING_START" || t === "THINKING_START" || t === "THINKING_TEXT_MESSAGE_START") {
+  // ag_ui.core emits BOTH REASONING_START / REASONING_END (lifecycle) AND
+  // REASONING_MESSAGE_START / _CONTENT / _END (the actual streaming
+  // wrapper with message_id + role). The wrapper events carry the
+  // deltas. Older variants (THINKING_*) come from upstream Strands
+  // before the rename — kept for back-compat.
+  if (
+    t === "REASONING_MESSAGE_START" ||
+    t === "THINKING_START" ||
+    t === "THINKING_TEXT_MESSAGE_START"
+  ) {
     return openReasoning(state, event);
   }
-  if (t === "REASONING_CONTENT" || t === "THINKING_TEXT_MESSAGE_CONTENT") {
+  if (t === "REASONING_MESSAGE_CONTENT" || t === "THINKING_TEXT_MESSAGE_CONTENT") {
     const delta = String(field(event, "delta") ?? "");
     if (!delta) return state;
     return appendToLastReasoning(state, delta);
   }
-  if (t === "REASONING_END" || t === "THINKING_END" || t === "THINKING_TEXT_MESSAGE_END") {
+  if (t === "REASONING_MESSAGE_END" || t === "THINKING_END" || t === "THINKING_TEXT_MESSAGE_END") {
     return finalizeLastReasoning(state);
+  }
+  // Lifecycle frames (REASONING_START / REASONING_END) are decorative —
+  // the wrapper events above already open/close the block. Drop them so
+  // we don't double-open.
+  if (t === "REASONING_START" || t === "REASONING_END") {
+    return state;
   }
 
   // Tool calls.
