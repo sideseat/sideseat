@@ -531,7 +531,9 @@ obj/
 .kiro
 traces.jsonl
 traces-openai.jsonl.gz
-misc/samples/*/output
+# Generated sample artifacts. Needs ** because the Python suites are one level deeper
+# (misc/samples/python/<suite>/output) than the JS one (misc/samples/js/output).
+misc/samples/**/output/
 web/coverage
 web/dist/
 !web/dist/.gitkeep
@@ -543,3 +545,24 @@ cli/platforms/*/sideseat
 cli/platforms/*/sideseat.exe
 cli/vendor/
 release/
+
+# Downloaded TLA+ toolchain (make harden fetches it); a third-party jar, not source.
+.tools/
+
+# TLC artifacts: error-trace dumps and states written by a failing model check.
+server/spec/*_TTrace_*.tla
+server/spec/*_TTrace_*.bin
+server/spec/states/
+
+# Message fixtures whose payload is mostly inlined base64 image data. The JS suites embed
+# generated images directly in the OTLP JSON (15MB and 7MB per request), which would sit in
+# git history forever for no extra parsing coverage - the Python image_gen fixtures exercise
+# the same path in under 100KB each because media is rewritten to file URIs. Capture these
+# locally when working on image handling; the harness simply skips fixtures that are absent.
+server/tests/fixtures/messages/strands-js/image-gen/
+server/tests/fixtures/messages/vercel-ai-js/image-gen/
+
+# Captured payload containing real credential material: CrewAI's agent_core sample dumps its
+# whole model config into a span attribute, including aws_secret_access_key and
+# aws_session_token. Never commit it - re-capture locally if you need the sample.
+server/tests/fixtures/messages/crewai/agent_core/
