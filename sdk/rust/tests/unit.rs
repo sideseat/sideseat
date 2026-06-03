@@ -1,3 +1,7 @@
+// env::set_var/remove_var are unsafe as of Rust 2024 and have no safe equivalent.
+// This is a single-threaded test binary and each test restores what it changes.
+#![allow(unsafe_code)]
+
 /// Unit tests — no API keys required. All tests use MockProvider.
 use std::collections::HashMap;
 
