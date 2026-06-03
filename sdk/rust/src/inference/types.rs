@@ -308,7 +308,7 @@ pub struct ImageContent {
 ///
 /// Setting this on [`ProviderConfig`] causes the Chat Completions request to include
 /// `modalities: ["text", "audio"]` and the `audio` config object automatically.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AudioOutputConfig {
     /// Voice to use for audio output (e.g. `"alloy"`, `"nova"`, `"shimmer"`, `"echo"`,
     /// `"fable"`, `"onyx"`, `"ash"`, `"ballad"`, `"coral"`, `"sage"`, `"verse"`).
@@ -1177,7 +1177,7 @@ impl std::fmt::Display for ServiceTier {
 ///
 /// Single-variant enum kept as enum for forward compatibility; future variants may add
 /// `Persistent` or `Ttl(Duration)`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CacheControl {
     /// Ephemeral cache (5-minute TTL, 1.25× token cost for cache writes)
     Ephemeral,
@@ -3770,7 +3770,7 @@ pub enum FallbackStrategy {
 ///
 /// Use `FallbackStrategy::AnyError` to fall back on all errors.
 /// Use `FallbackStrategy::OnTriggers(vec![...])` to fall back only on specific errors.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FallbackTrigger {
     ContextWindowExceeded,
     ContentFilterViolation,

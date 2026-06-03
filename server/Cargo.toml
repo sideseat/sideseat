@@ -1,20 +1,16 @@
 [package]
 name = "sideseat-server"
 version = "1.0.13"
+license = "Apache-2.0"
+publish = false
 edition = "2024"
 
 [[bin]]
 name = "sideseat"
 path = "src/main.rs"
 
-[lints.rust]
-dead_code = "deny"
-unused_imports = "deny"
-unused_variables = "deny"
-unused_mut = "deny"
-
-[lints.clippy]
-all = "warn"
+[lints]
+workspace = true
 
 [dependencies]
 axum = { workspace = true }
@@ -54,11 +50,9 @@ time = { workspace = true }
 opentelemetry-proto = { workspace = true }
 prost = { workspace = true }
 tonic = { workspace = true }
-tokio-stream = { workspace = true }
 base64 = { workspace = true }
 hex = { workspace = true }
 regex = { workspace = true }
-fs2 = { workspace = true }
 sha2 = { workspace = true }
 blake3 = { workspace = true }
 hmac = { workspace = true }
@@ -101,3 +95,4 @@ default = []
 
 [dev-dependencies]
 tempfile = "3"
+proptest = "1"

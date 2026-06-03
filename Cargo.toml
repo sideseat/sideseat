@@ -2,6 +2,80 @@
 members = ["server", "sdk/rust"]
 resolver = "2"
 
+# ---------------------------------------------------------------------------
+# Lint gates
+#
+# Levels are hand-picked rather than family-wide: a gate is only useful if a green
+# result means something, and a family that fires 4000 times on style gets muted or
+# worked around instead of fixed. Each `deny` below is a bug class that is currently at
+# zero, so it can only be reintroduced deliberately. Each `allow` says why.
+# ---------------------------------------------------------------------------
+[workspace.lints.rust]
+# Removes memory-unsafety as a class from shipped code. `deny` rather than `forbid`
+# because the test modules need a documented, local override: Rust 2024 made
+# env::set_var/remove_var unsafe, and there is no safe equivalent for a test that has to
+# set an env var. Non-test code has zero unsafe blocks and this keeps it that way.
+unsafe_code = "deny"
+dead_code = "deny"
+unused_imports = "deny"
+unused_variables = "deny"
+unused_mut = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -2 }
+
+# --- bug classes held at zero ---
+# A lock guard living for a whole match arm: safe today, deadlocks the moment an arm
+# grows an .await or a second lock.
+significant_drop_in_scrutinee = "deny"
+# Side effects inside debug_assert! - behaviour that differs between debug and release.
+debug_assert_with_mut_call = "deny"
+# A doc comment separated from its item by a blank line documents the wrong thing.
+empty_line_after_doc_comments = "deny"
+empty_line_after_outer_attr = "deny"
+derive_partial_eq_without_eq = "deny"
+# Panic paths that a Result would carry instead.
+unwrap_in_result = "deny"
+
+# --- advisory: real but non-blocking ---
+# `allow` here, not `warn`, because the gate is `clippy --all-targets -- -D warnings`:
+# a `warn` at workspace level becomes a hard error there, and these ~156 findings would
+# fail every `make lint` run. Run `make lint-advisory` to see them; it enables exactly
+# this list with `-W`, so the set stays in one place.
+#
+# Counts at the time of writing: significant_drop_tightening 95, redundant_clone 18,
+# needless_collect 15, or_fun_call 14, useless_let_if_seq 4, future_not_send 4,
+# trait_duplication_in_bounds 2, single_option_map 2, suboptimal_flops 1,
+# branches_sharing_code 1.
+redundant_clone = "allow"
+needless_collect = "allow"
+or_fun_call = "allow"
+useless_let_if_seq = "allow"
+significant_drop_tightening = "allow"
+branches_sharing_code = "allow"
+suboptimal_flops = "allow"
+trait_duplication_in_bounds = "allow"
+single_option_map = "allow"
+# 4 sites in the async cache/topics layer; making those futures Send is a design change,
+# not a lint fix.
+future_not_send = "allow"
+
+# --- style families deliberately not enabled ---
+# pedantic fires ~4100 times and nursery ~600 on this tree, almost entirely on style
+# (missing_const_for_fn, use_self, option_if_let_else, redundant_pub_crate). Turning
+# them on wholesale would bury the denies above in noise.
+#
+# multiple_crate_versions (170) and cargo_common_metadata come from the transitive
+# dependency graph and cannot be resolved from this workspace.
+multiple_crate_versions = "allow"
+cargo_common_metadata = "allow"
+# Braces in user-facing strings are literal - they document URL templates like
+# /{entity_type}/{entity_id}, they are not unformatted arguments.
+literal_string_with_formatting_args = "allow"
+# The CRDT document mutators take &mut self on purpose: yrs uses interior mutability, so
+# the compiler would otherwise permit concurrent mutation through shared references.
+needless_pass_by_ref_mut = "allow"
+
 [workspace.dependencies]
 axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1.49", features = ["full"] }
@@ -110,7 +184,7 @@ deadpool-redis = "0.18"
 clickhouse = { version = "0.14", features = ["lz4", "time"] }
 
 # MCP server
-rmcp = { version = "0.15", features = ["server", "macros", "transport-streamable-http-server"] }
+rmcp = { version = "3.1", features = ["server", "client", "macros", "transport-streamable-http-server"] }
 schemars = "1.0"
 tokio-util = { version = "0.7", features = ["rt"] }
 security-framework = { version = "3", features = ["OSX_10_15"] }

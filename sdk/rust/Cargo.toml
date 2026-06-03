@@ -22,7 +22,6 @@ async-stream = { workspace = true }
 futures = { workspace = true }
 thiserror = { workspace = true }
 base64 = { workspace = true }
-tokio-stream = { workspace = true }
 aws-config = { workspace = true }
 
 # AWS Bedrock
@@ -31,7 +30,15 @@ aws-sdk-bedrock = { workspace = true }
 aws-credential-types = { workspace = true }
 gcp_auth = { workspace = true }
 aws-smithy-types = "1"
-aws-smithy-http = "0.62"
+# event-stream gates the `event_stream` module used by the Bedrock streaming provider.
+# It was previously enabled only by feature unification from another crate in the
+# graph, so any dependency change could - and did - make the import vanish.
+# Must track the version aws-sdk-bedrockruntime resolves (^0.62.6): pinning 0.64 put two
+# aws-smithy-http versions in the graph, and EventStreamSender from one is a different type
+# from the other, so the streaming Bedrock call stopped compiling. The explicit event-stream
+# feature stays - it was previously satisfied only by unification from elsewhere in the graph,
+# so an unrelated dependency change could make the import vanish.
+aws-smithy-http = { version = "0.62.6", features = ["event-stream"] }
 
 # SSE streaming parser
 eventsource-stream = "0.2"
@@ -42,7 +49,6 @@ opentelemetry_sdk = { workspace = true }
 opentelemetry-otlp = { workspace = true }
 
 # Pin utilities
-pin-project-lite = "0.2"
 
 rand = { workspace = true }
 parking_lot = { workspace = true }
@@ -50,7 +56,7 @@ uuid = { version = "1.11", features = ["v7"] }
 yrs = "0.21"
 
 # MCP client integration
-rmcp = { version = "0.16.0", features = ["client"] }
+rmcp = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }
@@ -58,3 +64,6 @@ httpmock = "0.8.3"
 tempfile = "3"
 crc32fast = "1"
 base64 = { workspace = true }
+
+[lints]
+workspace = true

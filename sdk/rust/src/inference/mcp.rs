@@ -54,11 +54,13 @@ pub fn mcp_tool_handler(
             for tu in tool_uses {
                 let args = tu.input.as_object().cloned();
                 let result = client
-                    .call_tool(CallToolRequestParams {
-                        meta: None,
-                        name: tu.name.clone().into(),
-                        arguments: args,
-                        task: None,
+                    // rmcp 3 marks the params #[non_exhaustive], so they are built
+                    // through the constructor rather than a struct expression.
+                    .call_tool(match args {
+                        Some(arguments) => {
+                            CallToolRequestParams::new(tu.name.clone()).with_arguments(arguments)
+                        }
+                        None => CallToolRequestParams::new(tu.name.clone()),
                     })
                     .await;
                 let blocks = match result {
@@ -90,11 +92,13 @@ pub fn mcp_text_tool_handler(
             for tu in tool_uses {
                 let args = tu.input.as_object().cloned();
                 let result = client
-                    .call_tool(CallToolRequestParams {
-                        meta: None,
-                        name: tu.name.clone().into(),
-                        arguments: args,
-                        task: None,
+                    // rmcp 3 marks the params #[non_exhaustive], so they are built
+                    // through the constructor rather than a struct expression.
+                    .call_tool(match args {
+                        Some(arguments) => {
+                            CallToolRequestParams::new(tu.name.clone()).with_arguments(arguments)
+                        }
+                        None => CallToolRequestParams::new(tu.name.clone()),
                     })
                     .await;
                 let text = match result {
@@ -113,7 +117,7 @@ pub fn mcp_text_tool_handler(
     }
 }
 
-fn mcp_content_to_block(content: &rmcp::model::Content) -> ContentBlock {
+fn mcp_content_to_block(content: &rmcp::model::ContentBlock) -> ContentBlock {
     if let Some(text_content) = content.as_text() {
         return ContentBlock::text(text_content.text.clone());
     }
