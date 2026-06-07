@@ -159,7 +159,7 @@ export function formatBucketLabel(
   const bucketDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const dayDiff = Math.floor((today.getTime() - bucketDay.getTime()) / (1000 * 60 * 60 * 24));
 
-  let dayLabel = "";
+  let dayLabel: string;
   if (dayDiff === 0) {
     dayLabel = "Today";
   } else if (dayDiff === 1) {

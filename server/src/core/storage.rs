@@ -178,6 +178,10 @@ impl AppStorage {
 
 #[cfg(test)]
 mod tests {
+    // env::set_var/remove_var are unsafe as of Rust 2024 and have no safe
+    // equivalent. These tests are single-threaded and restore what they change.
+    #![allow(unsafe_code)]
+
     use super::*;
 
     #[test]

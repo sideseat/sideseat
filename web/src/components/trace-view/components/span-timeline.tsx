@@ -32,12 +32,10 @@ export function SpanTimeline() {
     if (!filteredTree || !traceStart) return [];
 
     const flatNodes = flattenTree(filteredTree, collapsedNodes);
-    return flatNodes.map(
-      (node): FlatTimelineNode => ({
-        node,
-        metrics: calculateTimelineMetrics(node.startTime, node.duration, traceStart, traceDuration),
-      }),
-    );
+    return flatNodes.map((node): FlatTimelineNode => ({
+      node,
+      metrics: calculateTimelineMetrics(node.startTime, node.duration, traceStart, traceDuration),
+    }));
   }, [filteredTree, collapsedNodes, traceStart, traceDuration]);
 
   const handleScaleScroll = (e: React.UIEvent<HTMLDivElement>) => {

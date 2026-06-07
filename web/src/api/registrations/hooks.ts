@@ -6,8 +6,7 @@ import { registrationsKeys } from "./keys";
 import type { ListingResponse, PresenceEvent, RegistrationEntry } from "./types";
 
 type PresenceUpdate =
-  | { kind: "snapshot"; snap: ListingResponse }
-  | { kind: "presence"; ev: PresenceEvent };
+  { kind: "snapshot"; snap: ListingResponse } | { kind: "presence"; ev: PresenceEvent };
 
 const EMPTY: ListingResponse = { agents: [], mcps: [], swarms: [], graphs: [] };
 
