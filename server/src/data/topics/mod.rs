@@ -371,7 +371,7 @@ impl TopicService {
         if let Some((existing_type, topic)) = topics.get(name)
             && *existing_type == type_id
         {
-            let inner = topic.as_any().downcast_ref::<TopicInner<T>>().unwrap();
+            let inner = topic.as_any().downcast_ref::<TopicInner<T>>()?;
             return Some(inner.publisher.clone());
         }
         None

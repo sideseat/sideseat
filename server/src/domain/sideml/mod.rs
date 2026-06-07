@@ -431,7 +431,7 @@ fn normalize_tools_message(raw: &JsonValue) -> ChatMessage {
     let tool_choice = parse_tool_choice(raw);
 
     let content = vec![ContentBlock::ToolDefinitions {
-        tools: tools_vec.clone(),
+        tools: tools_vec,
         tool_choice: tool_choice_value,
     }];
 

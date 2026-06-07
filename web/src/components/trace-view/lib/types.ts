@@ -1,14 +1,7 @@
 import type { SpanDetail } from "@/api/otel/types";
 
 export type SpanType =
-  | "llm"
-  | "tool"
-  | "agent"
-  | "embedding"
-  | "retriever"
-  | "http"
-  | "db"
-  | "span";
+  "llm" | "tool" | "agent" | "embedding" | "retriever" | "http" | "db" | "span";
 
 export interface TreeNode {
   id: string;

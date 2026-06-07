@@ -134,7 +134,7 @@ impl InMemoryCache {
 #[async_trait]
 impl CacheBackend for InMemoryCache {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, CacheError> {
-        Ok(self.cache.get(key).await.map(|entry| entry.data.clone()))
+        Ok(self.cache.get(key).await.map(|entry| entry.data))
     }
 
     async fn set(

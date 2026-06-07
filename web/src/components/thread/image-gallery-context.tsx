@@ -179,8 +179,7 @@ function findEmbeddedMedia(
   const dataField = obj.data ?? obj.image ?? obj.base64 ?? obj.content;
   if (typeof dataField === "string") {
     const mediaType = (obj.media_type ?? obj.mediaType ?? obj.mime_type ?? obj.mimeType) as
-      | string
-      | undefined;
+      string | undefined;
     // Check if it looks like base64 image data or a URL
     if (
       mediaType?.startsWith("image/") ||

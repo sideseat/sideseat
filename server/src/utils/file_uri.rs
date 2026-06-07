@@ -8,7 +8,7 @@
 pub const FILE_URI_PREFIX: &str = "#!B64!#";
 
 /// Parsed components of a `#!B64!#` file URI.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileUri<'a> {
     pub hash: &'a str,
     pub media_type: Option<&'a str>,

@@ -619,9 +619,11 @@ async fn handle_unregister(
 async fn cleanup(state: &WsState, handle: &Arc<ConnectionHandle>) {
     state.connections.remove(&handle.connection_id);
 
-    let client_id = match handle.client_id.lock().clone() {
-        Some(id) => id,
-        None => return,
+    // Bind first so the guard drops at the end of this statement rather than living for
+    // the whole match: an arm that later grows an .await or a second lock would deadlock.
+    let client_id = handle.client_id.lock().clone();
+    let Some(client_id) = client_id else {
+        return;
     };
 
     let removed = match state.registrations.remove_all_for_client(&client_id).await {

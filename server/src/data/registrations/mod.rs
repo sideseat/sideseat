@@ -286,7 +286,7 @@ impl RegistrationStore for MemoryRegistrationStore {
                     self.by_client
                         .entry(entry.owner_client_id.clone())
                         .or_default()
-                        .insert(key.clone());
+                        .insert(key);
                     UpsertOutcome::Replaced(prev)
                 };
                 *existing = entry;
@@ -302,7 +302,7 @@ impl RegistrationStore for MemoryRegistrationStore {
                 self.by_client
                     .entry(entry.owner_client_id.clone())
                     .or_default()
-                    .insert(key.clone());
+                    .insert(key);
                 vac.insert(entry);
                 Ok(UpsertOutcome::Inserted)
             }
