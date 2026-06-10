@@ -468,8 +468,8 @@
       "properties": {
         "backend": {
           "type": "string",
-          "enum": ["data-protection-keychain", "keychain", "credential-manager", "secret-service", "keyutils", "file", "env", "aws", "vault"],
-          "description": "Secrets backend. Defaults to platform auto-detection (data-protection-keychain on macOS, credential-manager on Windows, secret-service on Linux)."
+          "enum": ["keychain", "credential-manager", "secret-service", "keyutils", "file", "env", "aws", "vault"],
+          "description": "Secrets backend. Defaults to platform auto-detection (keychain on macOS, credential-manager on Windows, secret-service on Linux)."
         },
         "env": {
           "type": "object",
