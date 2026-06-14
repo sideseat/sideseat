@@ -1,0 +1,47 @@
+# gitleaks configuration for the `make harden` secret gate.
+#
+# The gate scans the working tree (`--no-git`), i.e. what is about to be committed.
+# Every allowlist entry names why the match is not a secret; an unexplained entry turns
+# this gate into decoration.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Build output and local state, plus known-synthetic test values"
+
+paths = [
+  # Vendored C/C++ and Rust build artifacts: DuckDB bundles mbedtls and parquet, whose
+  # sources contain key-shaped constants. Not ours, and gitignored.
+  '''^target/''',
+  '''^\.sideseat/''',
+  '''^docs/dist/''',
+  '''^node_modules/''',
+  '''/node_modules/''',
+  '''^\.venv/''',
+  '''/\.venv/''',
+]
+
+regexes = [
+  # Documentation placeholder in a curl example. gitleaks matches the captured secret
+  # rather than the whole line, so the pattern is the token itself.
+  '''your-token''',
+  # Synthetic API key used by the api_key unit tests. Matches the real key shape on
+  # purpose so the parser is exercised; the value is a keyboard walk.
+  '''pk-ss-a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5''',
+  # CrewAI emits `crew_key` / task `key` as content hashes identifying a crew or task
+  # definition. They are identifiers, not credentials, and these are captured fixtures.
+  '''13e3a57e3b2ed1f7f043b80d762f69e8''',
+  '''79861a87be85893981e6e32de034a9c9''',
+  '''2704760cd615ff308a4a362d20321071''',
+  # Same thing in the captured message fixtures: CrewAI puts an agent/crew fingerprint in
+  # `key` / `agent_key` next to the agent's uuid `id`, so generic-api-key fires on the field
+  # name plus the entropy. Listed individually rather than allowlisting the fixture tree, so a
+  # genuine leak in a future capture is still reported.
+  '''201b71bafa050dfe48c2b3d8e58be52a''',
+  '''6b5becc64d7e3c705a7d3784a5fab1d3''',
+  '''995832a12f1a6527c56cd55b30d2b02f''',
+  '''998011301e7c63e8d134e81fa548214e''',
+  '''bec4857e8531d2022ec65881ea369eb2''',
+  '''cd18405877ba8060474696314e4f834a''',
+]

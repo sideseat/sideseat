@@ -1,0 +1,63 @@
+# cargo-deny configuration - the supply-chain gate for `make harden`.
+#
+# Every ignore below names why it is ignored and what would clear it. An undocumented
+# ignore turns this gate into decoration.
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "warn"
+# Unmaintained transitive crates are reported, not blocked: they are pulled in by
+# dependencies and dropping them is not in this workspace's control.
+unmaintained = "workspace"
+
+ignore = [
+  # --- Reachable only through the AWS SDK's pinned old majors -------------------
+  # aws-smithy-http-client 1.4 still depends on hyper 0.14 / h2 0.3 / rustls 0.21,
+  # which pull rustls-webpki 0.101. None of these can be moved from this workspace;
+  # they clear when the AWS SDK moves to hyper 1.x / rustls 0.23.
+  "RUSTSEC-2026-0258", # h2 0.3: unbounded empty DATA frames
+  "RUSTSEC-2026-0098", # rustls-webpki 0.101: URI name constraints wrongly accepted
+  "RUSTSEC-2026-0099", # rustls-webpki 0.101: wildcard name constraints wrongly accepted
+  "RUSTSEC-2026-0104", # rustls-webpki 0.101: reachable panic parsing a CRL
+]
+
+[licenses]
+version = 2
+# Permissive licenses only. Anything outside this set must be reviewed before it is
+# added, which is the point of listing them explicitly rather than allowing all.
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "Unicode-3.0",
+  "Unicode-DFS-2016",
+  "CDLA-Permissive-2.0",
+  "MPL-2.0",
+  "OpenSSL",
+  "CC0-1.0",
+  "Unlicense",
+  "BSL-1.0",
+]
+confidence-threshold = 0.9
+
+[[licenses.clarify]]
+crate = "ring"
+expression = "MIT AND ISC AND OpenSSL"
+license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
+
+[bans]
+multiple-versions = "allow" # the dependency graph carries several old majors via the AWS SDK
+wildcards = "deny"
+# Intra-workspace path dependencies carry no version by design.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
