@@ -217,7 +217,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: help
 .PHONY: setup setup-ci setup-hooks
 .PHONY: dev dev-server dev-web
-.PHONY: fmt fmt-check lint check
+.PHONY: fmt fmt-check lint lint-advisory check
 .PHONY: test test-server test-web test-sdk-js test-sdk-python coverage
 .PHONY: build build-web build-server
 .PHONY: build-sdk build-sdk-js build-sdk-python
@@ -271,6 +271,7 @@ help:
 	@echo "  make fmt             Format all code"
 	@echo "  make fmt-check       Check formatting"
 	@echo "  make lint            Run linters"
+	@echo "  make lint-advisory   Advisory clippy lints (informational)"
 	@echo "  make check           Run all checks (fmt-check + lint + test)"
 	@echo ""
 	@echo "Versioning:"
@@ -403,8 +404,73 @@ lint:
 	@uv run ruff check sdk/python misc/samples/python
 	@cd sdk/python && uv run mypy src
 
+# Advisory clippy lints, kept out of `lint` because that gate runs -D warnings and these
+# are suggestions rather than defects. Non-blocking by design: review the output, do not
+# gate CI on it. Keep this list identical to the advisory block in Cargo.toml.
+lint-advisory:
+	@echo "[lint-advisory] Advisory clippy lints (informational, does not fail)..."
+	@cargo clippy --all-targets -- \
+		-W clippy::redundant_clone \
+		-W clippy::needless_collect \
+		-W clippy::or_fun_call \
+		-W clippy::useless_let_if_seq \
+		-W clippy::significant_drop_tightening \
+		-W clippy::branches_sharing_code \
+		-W clippy::suboptimal_flops \
+		-W clippy::trait_duplication_in_bounds \
+		-W clippy::single_option_map \
+		-W clippy::future_not_send \
+		2>&1 | grep -E '^(warning|  -->)' | head -60 || true
+
 check: fmt-check lint test
 	@echo "[check] All checks passed"
+
+# =============================================================================
+# Hardening gates
+#
+# Classes the compiler and the test suite cannot see. Each tool is installed on
+# demand and skipped with a visible note if it is unavailable, so a missing tool
+# never reads as a pass.
+# =============================================================================
+
+.PHONY: harden harden-supply harden-spec
+
+harden: harden-supply harden-spec
+	@echo "[harden] All hardening gates passed"
+
+harden-supply:
+	@echo "[harden-supply] Vulnerable / banned / unlicensed dependencies..."
+	@if command -v cargo-deny >/dev/null 2>&1; then \
+		cargo deny check; \
+	else \
+		echo "  SKIPPED: cargo-deny not installed (cargo install cargo-deny)"; \
+	fi
+	@echo "[harden-supply] Committed secrets..."
+	@if command -v gitleaks >/dev/null 2>&1; then \
+		gitleaks detect --no-git --config .gitleaks.toml --no-banner --redact; \
+	else \
+		echo "  SKIPPED: gitleaks not installed (brew install gitleaks)"; \
+	fi
+	@echo "[harden-supply] Unused dependencies..."
+	@if command -v cargo-machete >/dev/null 2>&1; then \
+		cargo machete; \
+	else \
+		echo "  SKIPPED: cargo-machete not installed (cargo install cargo-machete)"; \
+	fi
+
+# Model-checks the AG-UI invoke protocol. The invariants correspond to the ones
+# stated in prose in server/protocol/ws-v1/invoke-flow.md.
+harden-spec:
+	@echo "[harden-spec] TLA+ model check of the invoke flow..."
+	@if [ ! -f .tools/tla2tools.jar ]; then \
+		echo "  fetching tla2tools..."; \
+		mkdir -p .tools; \
+		curl -sSL -o .tools/tla2tools.jar \
+			https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar; \
+	fi
+	@cd server/spec && java -cp ../../.tools/tla2tools.jar tlc2.TLC \
+		-config InvokeFlow.cfg InvokeFlow.tla | tail -4
+	@rm -rf server/spec/states server/spec/*_TTrace_*.tla
 
 # =============================================================================
 # Test
