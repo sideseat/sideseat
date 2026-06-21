@@ -98,9 +98,9 @@ fn test_deduplicate_same_content() {
     let base64_data = make_base64_image(2048);
     let mut messages = json!({
         "images": [
-            { "data": base64_data.clone() },
-            { "data": base64_data.clone() },
-            { "data": base64_data.clone() }
+            { "data": base64_data },
+            { "data": base64_data },
+            { "data": base64_data }
         ]
     });
 
@@ -569,13 +569,13 @@ fn test_multiple_images_same_content_deduplicated() {
     // Same content appearing multiple times in different locations
     let base64 = make_raw_base64(2048);
     let stringified_inner = serde_json::to_string(&json!({
-        "bytes": base64.clone()
+        "bytes": base64
     }))
     .unwrap();
 
     let mut messages = json!({
-        "image1": { "bytes": base64.clone() },
-        "image2": { "bytes": base64.clone() },
+        "image1": { "bytes": base64 },
+        "image2": { "bytes": base64 },
         "nested": stringified_inner
     });
 
@@ -865,7 +865,7 @@ fn test_base64_with_tabs() {
 fn test_data_url_empty_media_type() {
     // data:;base64,{data} - no media type specified
     let data = vec![0xFF, 0xD8, 0xFF, 0xE0]; // JPEG magic
-    let mut jpeg_data = data.clone();
+    let mut jpeg_data = data;
     jpeg_data.extend(vec![0u8; 2048 - 4]);
     let base64 = BASE64_STANDARD.encode(&jpeg_data);
 
@@ -1172,7 +1172,7 @@ fn test_dedup_nested_json_still_replaces() {
             "source": {
                 "type": "base64",
                 "media_type": "image/png",
-                "data": image_b64.clone()
+                "data": image_b64
             }
         }],
         "type": "tool"
@@ -1622,7 +1622,7 @@ fn test_cached_extraction_produces_same_uri() {
     let cache = FileExtractionCache::new();
     let b64 = make_raw_base64(2048);
 
-    let mut msg1 = json!({ "bytes": b64.clone() });
+    let mut msg1 = json!({ "bytes": b64 });
     let result1 = extract_and_replace_files_cached(&mut msg1, &cache);
     let uri1 = msg1["bytes"].as_str().unwrap().to_string();
 
@@ -1649,7 +1649,7 @@ fn test_cache_hit_file_has_correct_metadata() {
     jpeg_data.extend(vec![0u8; 2048 - 4]);
     let b64 = BASE64_STANDARD.encode(&jpeg_data);
 
-    let mut msg1 = json!({ "bytes": b64.clone() });
+    let mut msg1 = json!({ "bytes": b64 });
     let r1 = extract_and_replace_files_cached(&mut msg1, &cache);
 
     let mut msg2 = json!({ "bytes": b64 });
@@ -1689,7 +1689,7 @@ fn test_embedded_data_url_cached_produces_same_uri() {
     let b64 = BASE64_STANDARD.encode(&data);
     let text = format!("Image: data:image/png;base64,{}", b64);
 
-    let mut msg1 = json!({ "output": text.clone() });
+    let mut msg1 = json!({ "output": text });
     extract_and_replace_files_cached(&mut msg1, &cache);
     let output1 = msg1["output"].as_str().unwrap().to_string();
 
@@ -1729,7 +1729,7 @@ fn test_hash_deterministic_across_calls() {
     // Same content must always produce same hash (no randomness)
     let b64 = make_raw_base64(2048);
 
-    let mut msg1 = json!({ "bytes": b64.clone() });
+    let mut msg1 = json!({ "bytes": b64 });
     let r1 = extract_and_replace_files(&mut msg1);
 
     let mut msg2 = json!({ "bytes": b64 });
@@ -1773,7 +1773,7 @@ fn test_extracted_file_data_is_raw_base64_bytes() {
     let binary = vec![0xFFu8; 2048];
     let b64 = BASE64_STANDARD.encode(&binary);
 
-    let mut messages = json!({ "bytes": b64.clone() });
+    let mut messages = json!({ "bytes": b64 });
     let result = extract_and_replace_files(&mut messages);
 
     assert!(!result.files[0].data.is_empty());
