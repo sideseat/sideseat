@@ -100,6 +100,14 @@ pub enum Framework {
     OpenAIAgents,
     AWSBedrock,
     AgentFramework,
+    ClaudeAgentSdk,
+    Agno,
+    Smolagents,
+    AgentScope,
+    Langflow,
+    Ag2,
+    Haystack,
+    BrowserUse,
     #[default]
     Unknown,
 }
@@ -127,6 +135,14 @@ impl Framework {
             Self::OpenAIAgents => "OpenAIAgents",
             Self::AWSBedrock => "AWSBedrock",
             Self::AgentFramework => "AgentFramework",
+            Self::ClaudeAgentSdk => "ClaudeAgentSDK",
+            Self::Agno => "Agno",
+            Self::Smolagents => "Smolagents",
+            Self::AgentScope => "AgentScope",
+            Self::Langflow => "Langflow",
+            Self::Ag2 => "AG2",
+            Self::Haystack => "Haystack",
+            Self::BrowserUse => "BrowserUse",
             Self::Unknown => "Unknown",
         }
     }
@@ -273,6 +289,7 @@ mod tests {
     fn test_framework_as_str() {
         assert_eq!(Framework::StrandsAgents.as_str(), "StrandsAgents");
         assert_eq!(Framework::LangChain.as_str(), "LangChain");
+        assert_eq!(Framework::ClaudeAgentSdk.as_str(), "ClaudeAgentSDK");
         assert_eq!(Framework::Unknown.as_str(), "Unknown");
     }
 

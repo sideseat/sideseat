@@ -6286,3 +6286,263 @@ fn test_logfire_streaming_response() {
     );
     assert!(messages[0].content.get("combined_chunk_content").is_some());
 }
+
+// ============================================================================
+// CLAUDE CODE CLI (CLAUDE AGENT SDK)
+// ============================================================================
+
+#[test]
+fn test_claude_code_strips_bracket_tags() {
+    assert_eq!(
+        strip_bracket_tag("[USER PROMPT]\nhello there"),
+        "hello there"
+    );
+    assert_eq!(
+        strip_bracket_tag("[TOOL INPUT: Glob]\n{\"pattern\":\"*.py\"}"),
+        "{\"pattern\":\"*.py\"}"
+    );
+    // No marker, and a bracket that is not a marker, both pass through.
+    assert_eq!(strip_bracket_tag("plain text"), "plain text");
+    assert_eq!(strip_bracket_tag("[not a marker"), "[not a marker");
+}
+
+#[test]
+fn test_claude_code_llm_request_messages() {
+    // Verbatim shape captured from a real detailed-beta-tracing span.
+    let attrs = make_attrs(&[
+        ("span.type", "llm_request"),
+        ("user_system_prompt", "Think the problem through."),
+        (
+            "new_context",
+            "[USER PROMPT]\nHow many Python files are here?",
+        ),
+        ("response.model_output", "There are 2 Python files."),
+    ]);
+    let mut messages = Vec::new();
+    let mut tools = Vec::new();
+    assert!(try_claude_code(
+        &mut messages,
+        &mut tools,
+        &attrs,
+        "claude_code.llm_request",
+        Utc::now()
+    ));
+
+    let roles: Vec<_> = messages
+        .iter()
+        .map(|m| m.content["role"].as_str().unwrap())
+        .collect();
+    assert_eq!(roles, vec!["system", "user", "assistant"]);
+    assert_eq!(
+        messages[1].content["content"],
+        json!("How many Python files are here?")
+    );
+    assert_eq!(
+        messages[2].content["content"],
+        json!("There are 2 Python files.")
+    );
+}
+
+#[test]
+fn test_claude_code_tool_call_becomes_tool_use_block() {
+    let attrs = make_attrs(&[
+        ("span.type", "tool"),
+        ("tool_name", "Glob"),
+        (
+            "tool_input",
+            "[TOOL INPUT: Glob]\n{\"pattern\":\"**/*.py\"}",
+        ),
+        ("tool_use_id", "toolu_abc123"),
+    ]);
+    let mut messages = Vec::new();
+    let mut tools = Vec::new();
+    assert!(try_claude_code(
+        &mut messages,
+        &mut tools,
+        &attrs,
+        "claude_code.tool",
+        Utc::now()
+    ));
+
+    assert_eq!(messages.len(), 1);
+    let block = &messages[0].content["content"][0];
+    assert_eq!(block["type"], json!("tool_use"));
+    assert_eq!(block["name"], json!("Glob"));
+    assert_eq!(block["id"], json!("toolu_abc123"));
+    assert_eq!(block["input"]["pattern"], json!("**/*.py"));
+}
+
+#[test]
+fn test_claude_code_requires_span_type_guard() {
+    // tool_name and span.type are both generic names; only the claude_code. span-name
+    // prefix gates this extractor, so other frameworks are never hijacked.
+    let attrs = make_attrs(&[
+        ("span.type", "tool"),
+        ("tool_name", "Glob"),
+        ("response.model_output", "hi"),
+    ]);
+    let mut messages = Vec::new();
+    let mut tools = Vec::new();
+    assert!(!try_claude_code(
+        &mut messages,
+        &mut tools,
+        &attrs,
+        "some.other.span",
+        Utc::now()
+    ));
+    assert!(messages.is_empty());
+}
+
+#[test]
+fn test_claude_code_ignores_redacted_and_empty_values() {
+    // With no content gates set the CLI still emits span.type, but nothing usable.
+    let attrs = make_attrs(&[("span.type", "llm_request"), ("new_context", "   ")]);
+    let mut messages = Vec::new();
+    let mut tools = Vec::new();
+    assert!(!try_claude_code(
+        &mut messages,
+        &mut tools,
+        &attrs,
+        "claude_code.llm_request",
+        Utc::now()
+    ));
+    assert!(messages.is_empty());
+}
+
+#[test]
+fn test_claude_code_tool_output_event_is_a_message_event() {
+    assert!(is_message_event("tool.output"));
+}
+
+#[test]
+fn test_claude_code_new_context_tag_drives_role() {
+    let now = Utc::now();
+
+    // Id-tagged TOOL RESULT becomes a tool_result block linked by tool_use_id.
+    let attrs = make_attrs(&[
+        ("span.type", "llm_request"),
+        (
+            "new_context",
+            "[TOOL RESULT: toolu_bdrk_01GJ]\nconfig.py\ninventory.py",
+        ),
+    ]);
+    let mut messages = Vec::new();
+    let mut tools = Vec::new();
+    assert!(try_claude_code(
+        &mut messages,
+        &mut tools,
+        &attrs,
+        "claude_code.llm_request",
+        now
+    ));
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages[0].content["role"], json!("tool"));
+    let block = &messages[0].content["content"][0];
+    assert_eq!(block["type"], json!("tool_result"));
+    assert_eq!(block["tool_use_id"], json!("toolu_bdrk_01GJ"));
+    assert_eq!(block["content"], json!("config.py\ninventory.py"));
+
+    // Name-tagged TOOL RESULT is the structured duplicate and is skipped.
+    let attrs = make_attrs(&[
+        ("span.type", "llm_request"),
+        ("new_context", "[TOOL RESULT: Glob]\n{\"numFiles\":2}"),
+    ]);
+    let mut messages = Vec::new();
+    let mut tools = Vec::new();
+    assert!(!try_claude_code(
+        &mut messages,
+        &mut tools,
+        &attrs,
+        "s",
+        now
+    ));
+    assert!(messages.is_empty());
+
+    // Both user tags stay user.
+    for tag in ["USER PROMPT", "USER"] {
+        let attrs = make_attrs(&[
+            ("span.type", "llm_request"),
+            ("new_context", &format!("[{tag}]\nhello")),
+        ]);
+        let mut messages = Vec::new();
+        let mut tools = Vec::new();
+        assert!(try_claude_code(
+            &mut messages,
+            &mut tools,
+            &attrs,
+            "claude_code.llm_request",
+            now
+        ));
+        assert_eq!(messages[0].content["role"], json!("user"), "tag {tag}");
+        assert_eq!(messages[0].content["content"], json!("hello"));
+    }
+}
+
+#[test]
+fn test_claude_code_splits_parallel_tool_results() {
+    // Verbatim shape from a subagents run: two parallel tool calls put both results
+    // in one new_context. Each must keep its own tool_use_id.
+    let attrs = make_attrs(&[
+        ("span.type", "llm_request"),
+        (
+            "new_context",
+            "[TOOL RESULT: toolu_first]\norders.ts\nshipping.ts\n\n---\n\n\
+             [TOOL RESULT: toolu_second]\nNo files found",
+        ),
+    ]);
+    let mut messages = Vec::new();
+    let mut tools = Vec::new();
+    assert!(try_claude_code(
+        &mut messages,
+        &mut tools,
+        &attrs,
+        "claude_code.llm_request",
+        Utc::now()
+    ));
+
+    assert_eq!(messages.len(), 2);
+    let ids: Vec<_> = messages
+        .iter()
+        .map(|m| m.content["content"][0]["tool_use_id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, vec!["toolu_first", "toolu_second"]);
+    assert_eq!(
+        messages[0].content["content"][0]["content"],
+        json!("orders.ts\nshipping.ts")
+    );
+    assert_eq!(
+        messages[1].content["content"][0]["content"],
+        json!("No files found")
+    );
+    // No leaked marker from the second section.
+    for m in &messages {
+        let body = m.content["content"][0]["content"].as_str().unwrap();
+        assert!(!body.contains("[TOOL RESULT"), "leaked marker in {body:?}");
+    }
+}
+
+#[test]
+fn test_claude_code_unknown_tool_id_prefix_degrades_instead_of_dropping() {
+    // If Anthropic ever changes the tool-use id prefix, a TOOL RESULT section must
+    // still reach the feed (unlinked) rather than being silently discarded — silent
+    // data loss is a far worse failure than a missing tool_use_id.
+    let attrs = make_attrs(&[(
+        "new_context",
+        "[TOOL RESULT: xyz_9f2b]\nconfig.py\ninventory.py",
+    )]);
+    let mut messages = Vec::new();
+    let mut tools = Vec::new();
+    assert!(try_claude_code(
+        &mut messages,
+        &mut tools,
+        &attrs,
+        "claude_code.llm_request",
+        Utc::now()
+    ));
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages[0].content["role"], json!("tool"));
+    assert_eq!(
+        messages[0].content["content"][0]["content"],
+        json!("config.py\ninventory.py")
+    );
+}

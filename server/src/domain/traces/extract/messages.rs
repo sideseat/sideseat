@@ -193,6 +193,8 @@ fn is_message_event(event_name: &str) -> bool {
             | keys::EVENT_CONTENT_COMPLETION
             | keys::EVENT_TOOL_MESSAGE
             | keys::EVENT_INFERENCE_OPERATION_DETAILS
+            // Claude Code CLI tool result body (needs OTEL_LOG_TOOL_CONTENT=1)
+            | keys::EVENT_TOOL_OUTPUT
     )
 }
 
@@ -394,6 +396,11 @@ const EXTRACTORS: &[NamedExtractor] = &[
     NamedExtractor {
         name: "crewai",
         extractor: try_crewai,
+    },
+    // Before raw_io: guarded on span.type, so it only claims Claude Code CLI spans.
+    NamedExtractor {
+        name: "claude_code",
+        extractor: try_claude_code,
     },
     NamedExtractor {
         name: "raw_io",
@@ -2126,7 +2133,7 @@ fn normalize_langchain_message(msg: &JsonValue) -> Option<JsonValue> {
                 .get("tool_calls")
                 .or_else(|| msg.get("kwargs").and_then(|k| k.get("tool_calls")))
             {
-                if tool_calls.is_array() && !tool_calls.as_array().unwrap().is_empty() {
+                if tool_calls.as_array().is_some_and(|a| !a.is_empty()) {
                     result["tool_calls"] = tool_calls.clone();
                 }
             }
@@ -3441,6 +3448,172 @@ pub(crate) fn try_crewai(
             }
             found = true;
         }
+    }
+
+    found
+}
+
+/// Prefix of a Claude tool-use id, used to tell an id-tagged `TOOL RESULT` apart from
+/// a tool-name-tagged one.
+const CLAUDE_CODE_TOOL_USE_ID_PREFIX: &str = "toolu";
+
+/// Span-name prefix the Claude Code CLI uses for every span it emits.
+const CLAUDE_CODE_SPAN_PREFIX: &str = "claude_code.";
+
+/// Separator between tagged sections inside one `new_context` value. Parallel tool
+/// calls put several results in a single attribute.
+const CLAUDE_CODE_SECTION_SEPARATOR: &str = "\n\n---\n\n";
+
+/// Split a Claude Code content attribute into its bracketed tag and body.
+///
+/// The CLI prefixes these values with a label, e.g. `"[USER PROMPT]\n..."`,
+/// `"[TOOL INPUT: Glob]\n{...}"` or `"[TOOL RESULT: toolu_abc]\n..."`. Values with no
+/// marker yield `(None, trimmed_value)`.
+fn split_bracket_tag(value: &str) -> (Option<&str>, &str) {
+    match value
+        .strip_prefix('[')
+        .and_then(|rest| rest.split_once("]\n"))
+    {
+        Some((tag, body)) => (Some(tag.trim()), body.trim()),
+        None => (None, value.trim()),
+    }
+}
+
+/// Strip a leading `[TAG]\n` marker, keeping only the body.
+fn strip_bracket_tag(value: &str) -> &str {
+    split_bracket_tag(value).1
+}
+
+/// Claude Code CLI (Claude Agent SDK).
+///
+/// The CLI names its conversation attributes outside the `gen_ai.*` conventions, and
+/// emits them only under detailed beta tracing (`ENABLE_BETA_TRACING_DETAILED=1` plus
+/// `BETA_TRACING_ENDPOINT`), so no other extractor recognises them:
+///
+/// | Attribute              | Shape                              |
+/// |------------------------|------------------------------------|
+/// | `user_system_prompt`   | plain text                         |
+/// | `new_context`          | `[USER PROMPT]\n<text>`            |
+/// | `response.model_output`| plain text (assistant reply)       |
+/// | `tool_input`           | `[TOOL INPUT: <name>]\n<json>`     |
+///
+/// Gated on the `claude_code.` span-name prefix. `span.type` alone is too generic a
+/// name to key on, and without a gate a bare `tool_name` would let this hijack spans
+/// from other frameworks.
+pub(crate) fn try_claude_code(
+    messages: &mut Vec<RawMessage>,
+    _tool_definitions: &mut Vec<RawToolDefinition>,
+    attrs: &HashMap<String, String>,
+    span_name: &str,
+    timestamp: DateTime<Utc>,
+) -> bool {
+    if !span_name.starts_with(CLAUDE_CODE_SPAN_PREFIX) {
+        return false;
+    }
+
+    let non_empty = |key: &str| attrs.get(key).filter(|v| !v.trim().is_empty());
+    let mut found = false;
+
+    // Caller-supplied system prompt. Emitted once per session, not per request.
+    if let Some(system) = non_empty(keys::CLAUDE_CODE_USER_SYSTEM_PROMPT) {
+        messages.push(RawMessage::from_attr(
+            keys::CLAUDE_CODE_USER_SYSTEM_PROMPT,
+            timestamp,
+            json!({"role": "system", "content": system}),
+        ));
+        found = true;
+    }
+
+    // new_context carries either side of the conversation, distinguished by its tag:
+    //   [USER PROMPT] / [USER]          the user turn
+    //   [TOOL RESULT: <tool_use_id>]    the result text the model was shown
+    //   [TOOL RESULT: <ToolName>]       the same result as raw structured telemetry
+    //
+    // Only the id-tagged form is emitted: it is what the model actually saw, and the
+    // id pairs it with the tool_use block. The name-tagged duplicate is skipped so the
+    // feed does not show every tool result twice; it remains on the tool span itself.
+    // A single new_context can hold several tagged sections, one per parallel tool
+    // call, joined by CLAUDE_CODE_SECTION_SEPARATOR. Each is parsed independently so
+    // every result keeps its own tool_use_id.
+    if let Some(context) = non_empty(keys::CLAUDE_CODE_NEW_CONTEXT) {
+        for section in context.split(CLAUDE_CODE_SECTION_SEPARATOR) {
+            let (tag, body) = split_bracket_tag(section);
+            if body.is_empty() {
+                continue;
+            }
+            let tool_result_target = tag
+                .and_then(|t| t.strip_prefix("TOOL RESULT:"))
+                .map(str::trim);
+
+            // A name-tagged section is the structured duplicate of an id-tagged one, so
+            // it is skipped — but only when it really looks like that duplicate (JSON
+            // body). If the id prefix ever changes, an unrecognised tag then still
+            // reaches the feed unlinked instead of vanishing from it.
+            let is_structured_duplicate = |target: &str, body: &str| {
+                !target.starts_with(CLAUDE_CODE_TOOL_USE_ID_PREFIX) && body.starts_with('{')
+            };
+
+            match tool_result_target {
+                Some(target) if !is_structured_duplicate(target, body) => {
+                    messages.push(RawMessage::from_attr(
+                        keys::CLAUDE_CODE_NEW_CONTEXT,
+                        timestamp,
+                        json!({
+                            "role": "tool",
+                            "content": [{
+                                "type": "tool_result",
+                                "tool_use_id": target,
+                                "content": body,
+                            }],
+                        }),
+                    ));
+                    found = true;
+                }
+                // Structured duplicate of a result already emitted above.
+                Some(_) => {}
+                None => {
+                    messages.push(RawMessage::from_attr(
+                        keys::CLAUDE_CODE_NEW_CONTEXT,
+                        timestamp,
+                        json!({"role": "user", "content": body}),
+                    ));
+                    found = true;
+                }
+            }
+        }
+    }
+
+    // Assistant reply text.
+    if let Some(output) = non_empty(keys::CLAUDE_CODE_MODEL_OUTPUT) {
+        messages.push(RawMessage::from_attr(
+            keys::CLAUDE_CODE_MODEL_OUTPUT,
+            timestamp,
+            json!({"role": "assistant", "content": output}),
+        ));
+        found = true;
+    }
+
+    // Tool call: rebuild an assistant tool_use block from the tool span.
+    if let Some(tool_name) = non_empty(keys::CLAUDE_CODE_TOOL_NAME) {
+        let input = non_empty(keys::CLAUDE_CODE_TOOL_INPUT)
+            .map(|raw| strip_bracket_tag(raw))
+            .and_then(|body| serde_json::from_str::<JsonValue>(body).ok())
+            .unwrap_or_else(|| json!({}));
+
+        let mut block = serde_json::Map::new();
+        block.insert("type".to_string(), json!("tool_use"));
+        block.insert("name".to_string(), json!(tool_name));
+        block.insert("input".to_string(), input);
+        if let Some(id) = non_empty(keys::CLAUDE_CODE_TOOL_USE_ID) {
+            block.insert("id".to_string(), json!(id));
+        }
+
+        messages.push(RawMessage::from_attr(
+            keys::CLAUDE_CODE_TOOL_NAME,
+            timestamp,
+            json!({"role": "assistant", "content": [JsonValue::Object(block)]}),
+        ));
+        found = true;
     }
 
     found

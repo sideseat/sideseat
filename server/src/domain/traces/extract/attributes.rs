@@ -270,23 +270,59 @@ pub struct SpanData {
 struct TokenConfig {
     primary: &'static str,
     fallbacks: &'static [&'static str],
+    /// Fallbacks whose names are too generic to consult globally (e.g. a bare
+    /// `input_tokens`). Only read for spans that `scope` accepts, so a framework that
+    /// happens to use the same name is never credited with tokens or cost.
+    scoped_fallbacks: &'static [&'static str],
 }
 
 impl TokenConfig {
     const fn new(primary: &'static str, fallbacks: &'static [&'static str]) -> Self {
-        Self { primary, fallbacks }
+        Self {
+            primary,
+            fallbacks,
+            scoped_fallbacks: &[],
+        }
+    }
+
+    const fn with_scoped(
+        primary: &'static str,
+        fallbacks: &'static [&'static str],
+        scoped_fallbacks: &'static [&'static str],
+    ) -> Self {
+        Self {
+            primary,
+            fallbacks,
+            scoped_fallbacks,
+        }
     }
 
     pub(super) fn extract(&self, attrs: &HashMap<String, String>) -> i64 {
+        self.extract_for_span(attrs, "")
+    }
+
+    pub(super) fn extract_for_span(&self, attrs: &HashMap<String, String>, span_name: &str) -> i64 {
+        let scoped = if is_claude_code_span(span_name) {
+            self.scoped_fallbacks
+        } else {
+            &[][..]
+        };
         attrs
             .get(self.primary)
             .or_else(|| self.fallbacks.iter().find_map(|k| attrs.get(*k)))
+            .or_else(|| scoped.iter().find_map(|k| attrs.get(*k)))
             .and_then(|v| v.parse().ok())
             .unwrap_or(0)
     }
 }
 
-const INPUT_TOKENS: TokenConfig = TokenConfig::new(
+/// Spans emitted by the Claude Code CLI, which names token attributes outside the
+/// `gen_ai.usage.*` conventions.
+fn is_claude_code_span(span_name: &str) -> bool {
+    span_name.starts_with("claude_code.")
+}
+
+const INPUT_TOKENS: TokenConfig = TokenConfig::with_scoped(
     "gen_ai.usage.input_tokens",
     &[
         "gen_ai.usage.prompt_tokens",
@@ -294,9 +330,10 @@ const INPUT_TOKENS: TokenConfig = TokenConfig::new(
         "llm.token_count.prompt",
         "ai.usage.promptTokens",
     ],
+    &["input_tokens"], // Claude Code CLI (Claude Agent SDK)
 );
 
-const OUTPUT_TOKENS: TokenConfig = TokenConfig::new(
+const OUTPUT_TOKENS: TokenConfig = TokenConfig::with_scoped(
     "gen_ai.usage.output_tokens",
     &[
         "gen_ai.usage.completion_tokens",
@@ -304,33 +341,42 @@ const OUTPUT_TOKENS: TokenConfig = TokenConfig::new(
         "llm.token_count.completion",
         "ai.usage.completionTokens",
     ],
+    &["output_tokens"], // Claude Code CLI (Claude Agent SDK)
 );
 
 const TOTAL_TOKENS: TokenConfig =
     TokenConfig::new("gen_ai.usage.total_tokens", &["llm.token_count.total"]);
 
-const CACHE_READ_TOKENS: TokenConfig = TokenConfig::new(
+const CACHE_READ_TOKENS: TokenConfig = TokenConfig::with_scoped(
     "gen_ai.usage.cache_read_input_tokens",
     &[
         "gen_ai.usage.cache_read_tokens",
+        // Dotted semconv spelling, used by Pipecat among others.
+        "gen_ai.usage.cache_read.input_tokens",
         "llm.usage.cache_read_input_tokens",
         "ai.usage.cachedInputTokens",
     ],
+    &["cache_read_tokens"], // Claude Code CLI (Claude Agent SDK)
 );
 
-const CACHE_WRITE_TOKENS: TokenConfig = TokenConfig::new(
+const CACHE_WRITE_TOKENS: TokenConfig = TokenConfig::with_scoped(
     "gen_ai.usage.cache_creation_input_tokens",
     &[
         "gen_ai.usage.cache_write_input_tokens", // Strands
         "gen_ai.usage.cache_write_tokens",
+        "gen_ai.usage.cache_creation.input_tokens",
         "llm.usage.cache_creation_input_tokens",
     ],
+    &["cache_creation_tokens"], // Claude Code CLI (Claude Agent SDK)
 );
 
 const REASONING_TOKENS: TokenConfig = TokenConfig::new(
     "gen_ai.usage.output_reasoning_tokens",
     &[
         "gen_ai.usage.thoughts_token_count",
+        // Dotted and bare semconv spellings.
+        "gen_ai.usage.reasoning.output_tokens",
+        "gen_ai.usage.reasoning_tokens",
         "ai.usage.reasoningTokens",
     ],
 );
@@ -567,6 +613,21 @@ const FRAMEWORK_RULES: &[FrameworkRule] = &[
     rule!(Framework::LangChain, attr_prefix: &["langchain.", "langsmith."]),
     // LlamaIndex
     rule!(Framework::LlamaIndex, attr_prefix: &["llama_index."]),
+    // Frameworks instrumented *through* OpenInference. Each emits its own `X.*`
+    // attributes alongside `openinference.*`, so these rules must precede the
+    // OpenInference rule below or that broader rule claims the spans first.
+    //
+    // Detection is by attribute prefix only, never service.name: service-name matching is
+    // a substring test (`svc.contains(s)`), so `"agno"` would also match a user service
+    // called `diagnostics`.
+    rule!(Framework::Agno, attr_prefix: &["agno."]),
+    rule!(Framework::Smolagents, attr_prefix: &["smolagents."]),
+    rule!(Framework::AgentScope, attr_prefix: &["agentscope."]),
+    rule!(Framework::Langflow, attr_prefix: &["langflow."]),
+    rule!(Framework::Ag2, attr_prefix: &["ag2."]),
+    rule!(Framework::Haystack, attr_prefix: &["haystack."]),
+    // browser-use sets gen_ai.provider.name unconditionally on every span it emits.
+    rule!(Framework::BrowserUse, attr_equals: &[(keys::GEN_AI_PROVIDER_NAME, "browser_use")]),
     // OpenInference
     rule!(Framework::OpenInference, attr_prefix: &["openinference."]),
     // Semantic Kernel
@@ -611,6 +672,14 @@ const FRAMEWORK_RULES: &[FrameworkRule] = &[
     rule!(Framework::AWSBedrock,
         attr_prefix: &["aws.bedrock."],
         attr_equals: &[(keys::GEN_AI_SYSTEM, "aws_bedrock"), (keys::GEN_AI_SYSTEM, "aws.bedrock")],
+    ),
+    // Claude Agent SDK - the Claude Code CLI subprocess emits claude_code.* spans
+    // (interaction, llm_request, tool, tool.execution, tool.blocked_on_user, hook).
+    // The prefix covers all of them. Two service names because the CLI reports
+    // "claude-code" while the host process wrapping it reports "claude-agent-sdk".
+    rule!(Framework::ClaudeAgentSdk,
+        span_name_match: &["claude_code."],
+        service_name: &["claude-code", "claude-agent-sdk"],
     ),
     // Strands Agents - LAST because service.name="strands-agents" is the sideseat SDK default
     // Only match if gen_ai.system explicitly says "strands-agents" or no other framework matched.
@@ -706,7 +775,10 @@ impl SemanticKind {
 pub(crate) fn categorize_span(span_name: &str, attrs: &HashMap<String, String>) -> SpanCategory {
     // Priority 0: External service indicators (HTTP/RPC/DB) are NEVER GenAI spans
     // This must be checked FIRST to prevent AWS Bedrock API calls (rpc.system=aws-api)
-    // from being classified as LLM even if they have gen_ai.* attributes.
+    // from being classified as LLM even if they have gen_ai.* attributes: when a framework
+    // SDK is also instrumenting, the transport span is a duplicate view of the real
+    // generation span. Traces whose ONLY span is one of these still appear in the trace
+    // list - that is handled by the list filter, not here.
     if attrs.contains_key(keys::HTTP_METHOD)
         || attrs.contains_key(keys::HTTP_REQUEST_METHOD)
         || attrs.contains_key(keys::RPC_SYSTEM)
@@ -784,9 +856,10 @@ pub(crate) fn detect_observation_type(
     span_name: &str,
     attrs: &HashMap<String, String>,
 ) -> ObservationType {
-    // Priority 0: External service calls (HTTP/RPC/DB) are NEVER GenAI spans
-    // This must be checked FIRST to prevent AWS Bedrock API calls (rpc.system=aws-api)
-    // from being classified as Generation even if they have gen_ai.* attributes.
+    // Priority 0: External service calls (HTTP/RPC/DB) are NEVER GenAI observations, for
+    // the same reason as in categorize_span - with a framework SDK present the transport
+    // span duplicates the real generation. Visibility of transport-only traces is handled
+    // by the trace-list filter.
     if attrs.contains_key(keys::HTTP_METHOD)
         || attrs.contains_key(keys::HTTP_REQUEST_METHOD)
         || attrs.contains_key(keys::RPC_SYSTEM)
@@ -923,6 +996,9 @@ pub(crate) fn extract_semantic(span: &mut SpanData, attrs: &HashMap<String, Stri
         attrs,
         &[
             keys::SESSION_ID,
+            // Standard semconv 1.37 conversation id - every compliant emitter sets this,
+            // and without it their spans do not group into sessions.
+            "gen_ai.conversation.id",
             keys::LANGSMITH_SESSION_ID,
             keys::LANGSMITH_TRACE_SESSION_ID, // LangSmith OTEL exporter
             keys::GCP_VERTEX_SESSION_ID,
@@ -1129,6 +1205,8 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
         attrs,
         &[
             keys::GEN_AI_AGENT_NAME,
+            // OpenInference agent span attribute.
+            "agent.name",
             "agent_role",
             "recipient_agent_class",
             "sender_agent_class",
@@ -1153,8 +1231,8 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     span.gen_ai_server_request_duration_ms = parse_opt(attrs, keys::GEN_AI_REQUEST_DURATION);
 
     // Token usage
-    span.gen_ai_usage_input_tokens = INPUT_TOKENS.extract(attrs);
-    span.gen_ai_usage_output_tokens = OUTPUT_TOKENS.extract(attrs);
+    span.gen_ai_usage_input_tokens = INPUT_TOKENS.extract_for_span(attrs, span_name);
+    span.gen_ai_usage_output_tokens = OUTPUT_TOKENS.extract_for_span(attrs, span_name);
 
     // MLflow token usage from JSON blob (if not already extracted)
     if span.gen_ai_usage_input_tokens == 0 || span.gen_ai_usage_output_tokens == 0 {
@@ -1219,8 +1297,8 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     span.gen_ai_usage_total_tokens = TOTAL_TOKENS
         .extract(attrs)
         .max(span.gen_ai_usage_input_tokens + span.gen_ai_usage_output_tokens);
-    span.gen_ai_usage_cache_read_tokens = CACHE_READ_TOKENS.extract(attrs);
-    span.gen_ai_usage_cache_write_tokens = CACHE_WRITE_TOKENS.extract(attrs);
+    span.gen_ai_usage_cache_read_tokens = CACHE_READ_TOKENS.extract_for_span(attrs, span_name);
+    span.gen_ai_usage_cache_write_tokens = CACHE_WRITE_TOKENS.extract_for_span(attrs, span_name);
     span.gen_ai_usage_reasoning_tokens = REASONING_TOKENS.extract(attrs);
 
     // Logfire: cache tokens from response_data.usage (after flat attribute extraction)

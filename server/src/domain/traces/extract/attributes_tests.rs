@@ -743,6 +743,107 @@ fn test_strands_agents_cache_write_tokens() {
 }
 
 #[test]
+fn test_claude_agent_sdk_token_extraction() {
+    // Verbatim attribute shape captured from a real claude_code.llm_request span.
+    // The CLI uses bare token names, not the gen_ai.usage.* convention, so without
+    // the fallbacks every token and cost is reported as 0.
+    let attrs = make_attrs(&[
+        (
+            "gen_ai.request.model",
+            "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+        ),
+        ("gen_ai.system", "anthropic"),
+        ("input_tokens", "10"),
+        ("output_tokens", "205"),
+        ("cache_creation_tokens", "17649"),
+        ("cache_read_tokens", "0"),
+        ("span.type", "llm_request"),
+    ]);
+    let mut span = SpanData::default();
+    extract_genai(&mut span, &attrs, "claude_code.llm_request");
+
+    assert_eq!(span.gen_ai_usage_input_tokens, 10);
+    assert_eq!(span.gen_ai_usage_output_tokens, 205);
+    assert_eq!(span.gen_ai_usage_cache_write_tokens, 17649);
+    assert_eq!(span.gen_ai_usage_cache_read_tokens, 0);
+}
+
+#[test]
+fn test_standard_usage_keys_win_over_bare_fallbacks() {
+    // The bare names sit last in the chain, so a framework emitting both must still
+    // resolve to the gen_ai.usage.* values.
+    let attrs = make_attrs(&[
+        ("gen_ai.usage.input_tokens", "100"),
+        ("gen_ai.usage.output_tokens", "200"),
+        ("input_tokens", "1"),
+        ("output_tokens", "2"),
+    ]);
+    let mut span = SpanData::default();
+    extract_genai(&mut span, &attrs, "chat");
+
+    assert_eq!(span.gen_ai_usage_input_tokens, 100);
+    assert_eq!(span.gen_ai_usage_output_tokens, 200);
+}
+
+#[test]
+fn test_claude_agent_sdk_framework_detection_via_span_names() {
+    let empty_attrs = HashMap::new();
+    let resource_attrs = HashMap::new();
+
+    // Every span the Claude Code CLI emits carries the claude_code. prefix
+    for span_name in &[
+        "claude_code.interaction",
+        "claude_code.llm_request",
+        "claude_code.tool",
+        "claude_code.tool.execution",
+        "claude_code.tool.blocked_on_user",
+        "claude_code.hook",
+    ] {
+        assert_eq!(
+            detect_framework(span_name, &empty_attrs, &resource_attrs),
+            Framework::ClaudeAgentSdk,
+            "span name '{span_name}' should detect Claude Agent SDK"
+        );
+    }
+}
+
+#[test]
+fn test_claude_agent_sdk_framework_detection_via_service_name() {
+    let empty_attrs = HashMap::new();
+
+    // CLI default, host-process default, plus an overridden one (matched by `contains`)
+    for service_name in &["claude-code", "claude-agent-sdk", "claude-code-sample"] {
+        let resource_attrs = make_attrs(&[("service.name", service_name)]);
+        assert_eq!(
+            detect_framework("chat", &empty_attrs, &resource_attrs),
+            Framework::ClaudeAgentSdk,
+            "service.name='{service_name}' should detect Claude Agent SDK"
+        );
+    }
+}
+
+#[test]
+fn test_claude_agent_sdk_does_not_shadow_other_frameworks() {
+    let empty_attrs = HashMap::new();
+    let resource_attrs = HashMap::new();
+
+    // A bare "claude_code" without the dot separator is not a CLI span name
+    assert_ne!(
+        detect_framework("claude_code", &empty_attrs, &resource_attrs),
+        Framework::ClaudeAgentSdk,
+        "bare 'claude_code' should not match"
+    );
+
+    // The rule sits before the Strands service-name fallback but must not steal its spans
+    let strands_attrs = make_attrs(&[("gen_ai.system", "strands-agents")]);
+    assert_eq!(
+        detect_framework("chat", &strands_attrs, &resource_attrs),
+        Framework::StrandsAgents,
+        "Strands spans should still detect as Strands"
+    );
+}
+
+#[test]
 fn test_strands_agents_framework_detection() {
     let span_attrs = make_attrs(&[("gen_ai.system", "strands-agents")]);
     let resource_attrs = HashMap::new();
@@ -1199,4 +1300,153 @@ fn test_resolve_span_name_braces_in_name_no_template() {
     resolve_span_name(&mut span, &attrs);
 
     assert_eq!(span.span_name, "process {\"key\": \"value\"}");
+}
+
+#[test]
+fn test_bare_token_names_are_scoped_to_claude_code_spans() {
+    // The Claude Code CLI uses bare token names. They are too generic to trust
+    // globally: another framework emitting `input_tokens` with unrelated semantics
+    // must not have tokens (and therefore cost) attributed to it.
+    let attrs = make_attrs(&[
+        ("input_tokens", "10"),
+        ("output_tokens", "205"),
+        ("cache_read_tokens", "7"),
+        ("cache_creation_tokens", "17649"),
+    ]);
+
+    let mut other = SpanData::default();
+    extract_genai(&mut other, &attrs, "some.other.framework.span");
+    assert_eq!(
+        other.gen_ai_usage_input_tokens, 0,
+        "must not leak to others"
+    );
+    assert_eq!(other.gen_ai_usage_output_tokens, 0);
+    assert_eq!(other.gen_ai_usage_cache_read_tokens, 0);
+    assert_eq!(other.gen_ai_usage_cache_write_tokens, 0);
+
+    let mut cc = SpanData::default();
+    extract_genai(&mut cc, &attrs, "claude_code.llm_request");
+    assert_eq!(cc.gen_ai_usage_input_tokens, 10);
+    assert_eq!(cc.gen_ai_usage_output_tokens, 205);
+    assert_eq!(cc.gen_ai_usage_cache_read_tokens, 7);
+    assert_eq!(cc.gen_ai_usage_cache_write_tokens, 17649);
+}
+
+#[test]
+fn test_semconv_conversation_id_populates_session() {
+    // gen_ai.conversation.id is the standard semconv session identifier. Without it in the
+    // fallback chain, spans from any compliant emitter never group into a session.
+    // session_id is populated by extract_semantic, not extract_genai.
+    let attrs = make_attrs(&[("gen_ai.conversation.id", "conv-42")]);
+    let mut span = SpanData::default();
+    extract_semantic(&mut span, &attrs);
+    assert_eq!(span.session_id.as_deref(), Some("conv-42"));
+}
+
+#[test]
+fn test_openinference_agent_name_is_extracted() {
+    let attrs = make_attrs(&[("agent.name", "ResearchAgent")]);
+    let mut span = SpanData::default();
+    extract_genai(&mut span, &attrs, "agent");
+    assert_eq!(span.gen_ai_agent_name.as_deref(), Some("ResearchAgent"));
+}
+
+#[test]
+fn test_openinference_agent_name_does_not_change_category() {
+    // categorize_span keys on the raw gen_ai.agent.name attribute, so adding agent.name to
+    // the extraction chain must not reclassify existing OpenInference spans.
+    let attrs = make_attrs(&[("agent.name", "ResearchAgent")]);
+    let mut with_alias = SpanData::default();
+    extract_genai(&mut with_alias, &attrs, "some.span");
+    let mut without = SpanData::default();
+    extract_genai(&mut without, &make_attrs(&[]), "some.span");
+    assert_eq!(with_alias.observation_type, without.observation_type);
+    assert_eq!(with_alias.span_category, without.span_category);
+}
+
+#[test]
+fn test_dotted_cache_and_reasoning_token_spellings() {
+    let attrs = make_attrs(&[
+        ("gen_ai.usage.cache_read.input_tokens", "11"),
+        ("gen_ai.usage.cache_creation.input_tokens", "22"),
+        ("gen_ai.usage.reasoning.output_tokens", "33"),
+    ]);
+    let mut span = SpanData::default();
+    extract_genai(&mut span, &attrs, "chat");
+    assert_eq!(span.gen_ai_usage_cache_read_tokens, 11);
+    assert_eq!(span.gen_ai_usage_cache_write_tokens, 22);
+    assert_eq!(span.gen_ai_usage_reasoning_tokens, 33);
+}
+
+#[test]
+fn test_openinference_instrumented_frameworks_are_detected_specifically() {
+    // Each of these is instrumented through OpenInference and emits both its own
+    // attributes and openinference.*. The specific rule must win, otherwise every one of
+    // them lands as the generic OpenInference framework.
+    for (attr, expected) in [
+        ("agno.agent.id", Framework::Agno),
+        ("smolagents.task", Framework::Smolagents),
+        ("agentscope.agent.reply_id", Framework::AgentScope),
+        ("langflow.flow_id", Framework::Langflow),
+        ("ag2.span.type", Framework::Ag2),
+    ] {
+        let attrs = make_attrs(&[(attr, "x"), ("openinference.span.kind", "AGENT")]);
+        assert_eq!(
+            detect_framework("some.span", &attrs, &HashMap::new()),
+            expected,
+            "{attr} should detect as {expected:?}, not OpenInference"
+        );
+    }
+}
+
+#[test]
+fn test_plain_openinference_still_detected() {
+    // The new rules must not steal spans that carry only openinference.*.
+    let attrs = make_attrs(&[("openinference.span.kind", "LLM")]);
+    assert_eq!(
+        detect_framework("some.span", &attrs, &HashMap::new()),
+        Framework::OpenInference
+    );
+}
+
+#[test]
+fn test_new_framework_rules_do_not_match_unrelated_services() {
+    // service.name matching is a substring test, so keying "agno" on service.name would
+    // also match "diagnostics". These rules use attribute prefixes only - prove it.
+    let resource = make_attrs(&[("service.name", "diagnostics-api")]);
+    assert_ne!(
+        detect_framework("some.span", &HashMap::new(), &resource),
+        Framework::Agno
+    );
+}
+
+#[test]
+fn test_haystack_and_browser_use_detection() {
+    let haystack = make_attrs(&[
+        ("haystack.component.name", "retriever"),
+        ("haystack.component.type", "InMemoryBM25Retriever"),
+    ]);
+    assert_eq!(
+        detect_framework("haystack.component.run", &haystack, &HashMap::new()),
+        Framework::Haystack
+    );
+
+    let browser = make_attrs(&[("gen_ai.provider.name", "browser_use")]);
+    assert_eq!(
+        detect_framework("agent.step", &browser, &HashMap::new()),
+        Framework::BrowserUse
+    );
+}
+
+#[test]
+fn test_browser_use_rule_does_not_capture_other_providers() {
+    // The rule is an exact attr_equals, so a different provider must not match it.
+    for provider in ["anthropic", "openai", "bedrock"] {
+        let attrs = make_attrs(&[("gen_ai.provider.name", provider)]);
+        assert_ne!(
+            detect_framework("chat", &attrs, &HashMap::new()),
+            Framework::BrowserUse,
+            "provider {provider} must not detect as BrowserUse"
+        );
+    }
 }
