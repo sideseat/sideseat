@@ -124,6 +124,8 @@ pub fn list_traces(
                 SELECT trace_id FROM otel_spans WHERE {}
                 GROUP BY trace_id
                 HAVING COUNT(*) FILTER (WHERE observation_type != 'span') > 0
+                    OR COUNT(*) FILTER (WHERE gen_ai_system IS NOT NULL
+                                          OR gen_ai_request_model IS NOT NULL) > 0
             ) t"#,
             span_where
         )
@@ -167,7 +169,10 @@ pub fn list_traces(
 
     // HAVING clause to filter traces with GenAI spans when not including non-GenAI traces
     let having_clause = if !params.include_nongenai {
-        "HAVING observation_count > 0"
+        // The second arm keeps the documented "without the SDK" path visible: a
+        // transport-tagged Bedrock span is classified as a plain span on purpose, so such a
+        // trace has no observations even though its GenAI data is present and aggregated.
+        "HAVING observation_count > 0 OR genai_span_count > 0"
     } else {
         ""
     };
@@ -228,7 +233,9 @@ pub fn list_traces(
                 MAX(COALESCE(sp.timestamp_end, sp.timestamp_start)) as max_ts,
                 DATE_DIFF('millisecond', MIN(sp.timestamp_start), MAX(COALESCE(sp.timestamp_end, sp.timestamp_start))) as duration_ms,
                 COALESCE(MAX(gt.total_cost), 0)::DOUBLE as total_cost,
-                COUNT(*) FILTER (WHERE sp.observation_type != 'span') as observation_count
+                COUNT(*) FILTER (WHERE sp.observation_type != 'span') as observation_count,
+                COUNT(*) FILTER (WHERE sp.gen_ai_system IS NOT NULL
+                                   OR sp.gen_ai_request_model IS NOT NULL) as genai_span_count
             FROM {DEDUP_SPANS} sp
             LEFT JOIN gen_totals gt ON sp.trace_id = gt.trace_id
             WHERE {span_where_sp}
@@ -2228,6 +2235,60 @@ mod tests {
         assert_eq!(
             session.total_tokens, 1000,
             "Session should not double-count tokens"
+        );
+    }
+
+    /// A trace whose only span is transport-tagged (the documented "without the SDK"
+    /// path: BotocoreInstrumentor sets rpc.system, so the span is deliberately classified
+    /// as a plain span) must still appear in the default GenAI-only listing. It used to be
+    /// filtered out entirely, so those users saw nothing even though tokens and costs were
+    /// aggregated correctly.
+    ///
+    /// This exercises the `include_nongenai: false` branch, which no other test covered -
+    /// the reason the original break slipped past the suite.
+    #[tokio::test]
+    async fn test_list_traces_includes_genai_trace_without_observation_span() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let project_id = "test-project";
+
+        let mut transport_only =
+            make_generation_span(project_id, "trace-nosdk", "sp-1", None, 0.02, 40);
+        // What the transport instrumentation produces: plain span, but real GenAI data.
+        transport_only.observation_type = Some(ObservationType::Span);
+        transport_only.gen_ai_system = Some("aws.bedrock".to_string());
+        transport_only.gen_ai_request_model = Some("global.anthropic.claude-haiku-4-5".to_string());
+
+        // A trace with neither observations nor GenAI attributes must stay hidden.
+        let mut plain = make_generation_span(project_id, "trace-plain", "sp-2", None, 0.0, 0);
+        plain.observation_type = Some(ObservationType::Span);
+        plain.gen_ai_usage_total_tokens = 0;
+        plain.gen_ai_usage_input_tokens = 0;
+        plain.gen_ai_usage_output_tokens = 0;
+        plain.gen_ai_cost_total = 0.0;
+
+        {
+            let conn = analytics.conn();
+            insert_batch(&conn, &[transport_only, plain]).expect("Insert should succeed");
+        }
+
+        let params = ListTracesParams {
+            project_id: project_id.to_string(),
+            page: 0,
+            limit: 100,
+            include_nongenai: false,
+            ..Default::default()
+        };
+        let conn = analytics.conn();
+        let (traces, _total) = list_traces(&conn, &params).expect("Query should succeed");
+
+        let ids: Vec<&str> = traces.iter().map(|t| t.trace_id.as_str()).collect();
+        assert!(
+            ids.contains(&"trace-nosdk"),
+            "a GenAI trace without an observation span must be listed, got {ids:?}"
+        );
+        assert!(
+            !ids.contains(&"trace-plain"),
+            "a trace with no GenAI evidence must stay hidden, got {ids:?}"
         );
     }
 
