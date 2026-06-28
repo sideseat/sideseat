@@ -555,3 +555,57 @@ mod tests {
         }
     }
 }
+
+/// A gzip-compressed OTLP request must reach the decoder already decompressed.
+///
+/// gzip is part of OTLP/HTTP and clients use it: the OpenTelemetry JS exporter compresses
+/// above a size threshold and the Claude Code CLI compresses too. The server had response
+/// compression but no *request* decompression, so those bodies arrived as raw gzip bytes and
+/// were rejected with 400 "Failed to decode JSON request" — the documented no-SDK JavaScript
+/// path failed for any payload big enough to be compressed, while small ones worked, which is
+/// what made it hard to see.
+///
+/// This asserts the decoder's contract (it must be handed plain bytes) and that the layer
+/// providing them is wired in `api/server.rs`.
+#[cfg(test)]
+mod decompression_tests {
+    use super::*;
+    use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+
+    #[test]
+    fn raw_gzip_bytes_do_not_decode() {
+        // Establishes the premise: without decompression the body is undecodable, so the layer
+        // is load-bearing rather than decorative. A gzip member always starts with the magic
+        // 1f 8b and the deflate method 08, which is enough to stand in for a real stream here -
+        // no compression library needed for a negative assertion.
+        let gz: Vec<u8> = vec![
+            0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xab, 0x56, 0x4a, 0x2d,
+        ];
+        let result: Result<ExportTraceServiceRequest, _> =
+            decode_request(&Bytes::from(gz), OtlpContentType::Json);
+        assert!(
+            result.is_err(),
+            "gzip bytes must not decode as JSON - if this passes, the premise of the layer is wrong"
+        );
+    }
+
+    #[test]
+    fn decompressed_json_decodes() {
+        let json = br#"{"resourceSpans":[]}"#;
+        let result: Result<ExportTraceServiceRequest, _> =
+            decode_request(&Bytes::from(json.to_vec()), OtlpContentType::Json);
+        assert!(result.is_ok(), "plain JSON must decode");
+    }
+
+    /// Guards the wiring itself: the decoder cannot tell whether the layer is installed, so
+    /// assert the layer is present in the router construction.
+    #[test]
+    fn request_decompression_layer_is_installed() {
+        let server_src = include_str!("../../server.rs");
+        assert!(
+            server_src.contains("RequestDecompressionLayer::new()"),
+            "api/server.rs must install RequestDecompressionLayer, or compressed OTLP \
+             requests are rejected with 400"
+        );
+    }
+}
