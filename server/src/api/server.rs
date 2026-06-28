@@ -11,6 +11,7 @@ use axum::routing::get;
 use tokio::net::TcpListener;
 
 use tower_http::compression::CompressionLayer;
+use tower_http::decompression::RequestDecompressionLayer;
 
 use super::auth::AuthManager;
 use super::auth::{AuthState, OtelAuthState, otel_auth_middleware, require_auth};
@@ -463,6 +464,13 @@ impl ApiServer {
         let router = router
             .fallback(middleware::handle_404)
             .layer(CompressionLayer::new())
+            // Decompress request bodies. gzip is part of OTLP/HTTP and clients use it: the
+            // OpenTelemetry JS exporter compresses above a size threshold, and the Claude Code
+            // CLI compresses too. Without this layer those requests reached the decoder as raw
+            // gzip bytes and were rejected with 400 "Failed to decode JSON request" - so the
+            // documented no-SDK JavaScript path failed for every payload large enough to be
+            // compressed, while small ones happened to work.
+            .layer(RequestDecompressionLayer::new())
             .layer(middleware::cors(&allowed_origins))
             .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT));
 
