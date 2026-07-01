@@ -220,6 +220,7 @@ pub fn normalize_content(content: Option<&JsonValue>) -> JsonValue {
                 .iter()
                 .filter(|v| !should_filter_placeholders || !is_sparse_array_placeholder(v))
                 .filter_map(normalize_content_block)
+                .filter(is_renderable_block)
                 .collect();
             json!(blocks)
         }
@@ -229,11 +230,47 @@ pub fn normalize_content(content: Option<&JsonValue>) -> JsonValue {
                 return json!([]);
             }
             match normalize_content_block(obj) {
-                Some(block) => json!([block]),
-                None => json!([]),
+                Some(block) if is_renderable_block(&block) => json!([block]),
+                _ => json!([]),
             }
         }
         _ => json!([]),
+    }
+}
+
+/// Whether a normalized block carries anything a reader could see.
+///
+/// Deliberately per block type rather than a blanket "has text" rule: an empty `tool_result`
+/// still records that a tool ran and must survive, while an empty `thinking` block renders as
+/// a blank reasoning bubble that is indistinguishable from a parsing failure.
+///
+/// The case this exists for: semconv 1.37 reasoning parts arrive as
+/// `{"type":"reasoning","content":""}` from models that return summarised or encrypted
+/// reasoning. With no text and no signature there is nothing to show and nothing to prove
+/// reasoning happened - reasoning token counts come from `gen_ai.usage.*` attributes, not from
+/// this block, so dropping it loses no accounting. A block that DOES carry a signature or
+/// redacted payload is kept: that is replay state a multi-turn request needs.
+fn is_renderable_block(block: &JsonValue) -> bool {
+    let block_type = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
+    match block_type {
+        "thinking" => {
+            let has_text = block
+                .get("text")
+                .and_then(|t| t.as_str())
+                .is_some_and(|t| !t.trim().is_empty());
+            let has_signature = block
+                .get("signature")
+                .and_then(|s| s.as_str())
+                .is_some_and(|s| !s.trim().is_empty());
+            has_text || has_signature
+        }
+        "redacted_thinking" => block
+            .get("data")
+            .and_then(|d| d.as_str())
+            .is_some_and(|d| !d.trim().is_empty()),
+        // Everything else is kept as-is. An empty text block can be a legitimate model
+        // response, and an empty tool_result records a completed invocation.
+        _ => true,
     }
 }
 
@@ -541,6 +578,37 @@ fn try_openai_format(block: &JsonValue) -> Option<JsonValue> {
                 result["detail"] = json!(d);
             }
             Some(result)
+        }
+        // semconv 1.37 reasoning part. Without this it fell through to the unknown
+        // passthrough and rendered as {"type":"unknown"} instead of a thinking block.
+        "reasoning" => {
+            let text = block
+                .get("text")
+                .or_else(|| block.get("content"))
+                .and_then(|t| t.as_str())?;
+            Some(json!({"type": "thinking", "text": text, "signature": null}))
+        }
+        // semconv 1.37 binary part: same shape as Agent Framework's "data", but the
+        // payload lives under `data` rather than `uri`.
+        "blob" => {
+            let raw = block
+                .get("data")
+                .or_else(|| block.get("uri"))
+                .and_then(|u| u.as_str())?;
+            let media_type = block
+                .get("media_type")
+                .or_else(|| block.get("mime_type"))
+                .and_then(|m| m.as_str())
+                .unwrap_or("application/octet-stream");
+            // parse_data_url returns the media type only when the payload carried one;
+            // fall back to the block's own field.
+            let (source, data, parsed_media) = parse_data_url(raw);
+            Some(json!({
+                "type": "document",
+                "media_type": parsed_media.as_deref().unwrap_or(media_type),
+                "source": source,
+                "data": data
+            }))
         }
         // Audio blocks: input_audio, audio (same pattern)
         "input_audio" | "audio" => {
@@ -889,16 +957,15 @@ fn try_gemini_format(block: &JsonValue) -> Option<JsonValue> {
     {
         let name = fr.get("name").and_then(|n| n.as_str()).unwrap_or("unknown");
         let raw_content = fr.get("response").cloned();
-        let response_hash = match &raw_content {
-            Some(content) => compute_short_hash(content),
-            None => compute_short_hash(&json!(null)),
-        };
-        let synthetic_id = format!("gemini_{name}_result_{response_hash}");
-
         let normalized_content = normalize_tool_result_content(raw_content);
+        // No `tool_use_id`: Gemini supplies none, and deriving one from the RESPONSE (as this
+        // did) produced an id no call ever had, so every ADK tool result was permanently
+        // dangling - correlating by it found nothing. The name is carried instead and the
+        // feed's correlation stage ties the result to its call, which is the only place both
+        // halves are visible at once.
         return Some(json!({
             "type": "tool_result",
-            "tool_use_id": synthetic_id,
+            "name": name,
             "content": normalized_content,
             "is_error": false
         }));
@@ -1453,6 +1520,46 @@ fn extract_thinking_text(block: &JsonValue) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ========== semconv 1.37 part types ==========
+
+    #[test]
+    fn test_semconv_reasoning_part_becomes_thinking() {
+        // Before this was handled, a reasoning part fell through to the unknown
+        // passthrough and the UI rendered {"type":"unknown"} instead of a thinking block.
+        let block = json!({"type": "reasoning", "text": "step by step"});
+        let out = normalize_content_block(&block).expect("reasoning part should normalize");
+        assert_eq!(out["type"], "thinking");
+        assert_eq!(out["text"], "step by step");
+    }
+
+    #[test]
+    fn test_semconv_reasoning_part_accepts_content_field() {
+        let block = json!({"type": "reasoning", "content": "thought"});
+        let out = normalize_content_block(&block).expect("reasoning part should normalize");
+        assert_eq!(out["type"], "thinking");
+        assert_eq!(out["text"], "thought");
+    }
+
+    #[test]
+    fn test_semconv_blob_part_becomes_document() {
+        let block = json!({
+            "type": "blob",
+            "data": "data:application/pdf;base64,JVBERi0=",
+            "media_type": "application/pdf"
+        });
+        let out = normalize_content_block(&block).expect("blob part should normalize");
+        assert_eq!(out["type"], "document");
+        assert_eq!(out["media_type"], "application/pdf");
+    }
+
+    #[test]
+    fn test_semconv_blob_part_falls_back_to_declared_media_type() {
+        // No data URL prefix, so the media type can only come from the block itself.
+        let block = json!({"type": "blob", "data": "cGxhaW4=", "media_type": "text/csv"});
+        let out = normalize_content_block(&block).expect("blob part should normalize");
+        assert_eq!(out["media_type"], "text/csv");
+    }
 
     // ========== OpenInference nested format tests ==========
 
@@ -3036,5 +3143,81 @@ mod tests {
         let result = try_anthropic_format(&block).unwrap();
         assert_eq!(result["type"], "image");
         assert_eq!(result["source"], "file");
+    }
+}
+
+#[cfg(test)]
+mod renderable_block_tests {
+    use super::*;
+
+    /// The captured shape that motivated the predicate: agent-framework via Bedrock's
+    /// OpenAI-compatible endpoint emits a reasoning part with no text and no signature, which
+    /// reached the feed as a blank reasoning bubble.
+    #[test]
+    fn empty_reasoning_part_is_dropped() {
+        let content = json!([{"type": "reasoning", "content": ""}]);
+        assert_eq!(normalize_content(Some(&content)), json!([]));
+    }
+
+    #[test]
+    fn whitespace_only_reasoning_is_dropped_in_every_source_shape() {
+        for shape in [
+            json!([{"type": "reasoning", "content": "   "}]),
+            json!([{"type": "reasoning", "text": "\n\t"}]),
+            json!([{"type": "thinking", "text": ""}]),
+            json!([{"thinking": ""}]),
+        ] {
+            let out = normalize_content(Some(&shape));
+            let blocks = out.as_array().expect("array");
+            assert!(
+                !blocks
+                    .iter()
+                    .any(|b| b.get("type").and_then(|t| t.as_str()) == Some("thinking")),
+                "a blank thinking block survived for {shape}"
+            );
+        }
+    }
+
+    #[test]
+    fn visible_reasoning_is_kept() {
+        let content = json!([{"type": "reasoning", "content": "Let me check the units."}]);
+        let out = normalize_content(Some(&content));
+        assert_eq!(out[0]["type"], "thinking");
+        assert_eq!(out[0]["text"], "Let me check the units.");
+    }
+
+    /// Signature-only reasoning is replay state a multi-turn request needs, so it must survive
+    /// even with no visible text.
+    #[test]
+    fn signature_only_thinking_is_kept() {
+        let content = json!([{"type": "thinking", "text": "", "signature": "abc123"}]);
+        let out = normalize_content(Some(&content));
+        assert_eq!(out.as_array().expect("array").len(), 1);
+        assert_eq!(out[0]["type"], "thinking");
+    }
+
+    #[test]
+    fn redacted_thinking_is_kept_when_it_carries_data() {
+        assert!(is_renderable_block(
+            &json!({"type": "redacted_thinking", "data": "opaque"})
+        ));
+        assert!(!is_renderable_block(
+            &json!({"type": "redacted_thinking", "data": ""})
+        ));
+    }
+
+    /// An empty tool result still records that the tool ran. A blanket "has text" rule would
+    /// have removed it.
+    #[test]
+    fn empty_tool_result_is_kept() {
+        assert!(is_renderable_block(
+            &json!({"type": "tool_result", "tool_use_id": "1", "content": []})
+        ));
+    }
+
+    /// An empty assistant text block is a legitimate response (e.g. a tool-only turn).
+    #[test]
+    fn empty_text_block_is_kept() {
+        assert!(is_renderable_block(&json!({"type": "text", "text": ""})));
     }
 }
