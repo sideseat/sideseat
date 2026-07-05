@@ -496,6 +496,7 @@ mod tests {
             role: ChatRole::Tool,
             content: vec![ContentBlock::ToolResult {
                 tool_use_id: Some("call_123".to_string()),
+                name: None,
                 content: serde_json::json!("Sunny, 22°C"),
                 is_error: false,
             }],
