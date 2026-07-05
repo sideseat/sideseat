@@ -247,6 +247,13 @@ pub enum ContentBlock {
     ToolResult {
         #[serde(skip_serializing_if = "Option::is_none")]
         tool_use_id: Option<String>,
+        /// Tool name, when the source reports it on the result.
+        ///
+        /// Gemini and Google ADK identify a result only by function name - they emit no call
+        /// id at all - so this is the only thing that can tie such a result back to its call.
+        /// Discarding it left the result permanently uncorrelated.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
         content: JsonValue,
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         is_error: bool,
@@ -336,6 +343,8 @@ enum KnownContentBlock {
     },
     ToolResult {
         tool_use_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
         content: JsonValue,
         #[serde(default)]
         is_error: bool,
@@ -424,10 +433,12 @@ impl From<KnownContentBlock> for ContentBlock {
             KnownContentBlock::ToolUse { id, name, input } => Self::ToolUse { id, name, input },
             KnownContentBlock::ToolResult {
                 tool_use_id,
+                name,
                 content,
                 is_error,
             } => Self::ToolResult {
                 tool_use_id,
+                name,
                 content,
                 is_error,
             },

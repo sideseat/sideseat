@@ -437,13 +437,16 @@ fn test_gemini_function_response() {
     let output = normalize(&input);
     let block = block_to_json(&output.content[0]);
     assert_eq!(block["type"], "tool_result");
-    // Gemini generates synthetic tool_use_id from function name + response hash
-    let tool_use_id = block["tool_use_id"].as_str().unwrap();
+    // Gemini supplies no call id, so none is invented here. Deriving one from the RESPONSE (as
+    // this used to) produced an id that no call ever had, leaving every ADK tool result
+    // pointing at nothing. The name is carried instead, and feed/correlate.rs resolves the id
+    // from the matching call.
     assert!(
-        tool_use_id.starts_with("gemini_get_weather_result_"),
-        "Expected synthetic ID starting with 'gemini_get_weather_result_', got: {}",
-        tool_use_id
+        block.get("tool_use_id").is_none() || block["tool_use_id"].is_null(),
+        "no id should be fabricated at normalization, got: {}",
+        block["tool_use_id"]
     );
+    assert_eq!(block["name"], "get_weather");
     assert_eq!(block["content"]["temp"], 72);
 }
 
@@ -694,7 +697,7 @@ fn test_unknown_content_block_roundtrip() {
     });
 
     // Deserialize into ContentBlock
-    let block: ContentBlock = serde_json::from_value(original.clone()).unwrap();
+    let block: ContentBlock = serde_json::from_value(original).unwrap();
 
     // Should be Unknown variant
     match &block {
@@ -3278,7 +3281,14 @@ fn test_mistral_nested_thinking_array_concatenates() {
 }
 
 #[test]
-fn test_mistral_empty_thinking_array_fallback() {
+fn test_mistral_empty_thinking_array_is_dropped() {
+    // Mistral's `thinking` array shape is still recognised (the point of the fallback: it
+    // must not fall through to {"type":"unknown"}), but an empty one carries no text and no
+    // signature, so it is dropped rather than rendered as a blank reasoning bubble. This test
+    // previously asserted a thinking block with text "" survived; that turned out to be the
+    // same defect found on real agent-framework captures. See is_renderable_block in
+    // content.rs. Extraction from a NON-empty array is covered by
+    // test_mistral_mixed_block_types_only_text_extracted.
     let input = json!({
         "role": "assistant",
         "content": [{
@@ -3287,8 +3297,11 @@ fn test_mistral_empty_thinking_array_fallback() {
         }]
     });
     let output = normalize(&input);
-    assert_eq!(block_to_json(&output.content[0])["type"], "thinking");
-    assert_eq!(block_to_json(&output.content[0])["text"], "");
+    assert!(
+        output.content.is_empty(),
+        "an empty thinking block should not reach the feed, got {:?}",
+        output.content
+    );
 }
 
 #[test]
@@ -3713,8 +3726,12 @@ fn test_gemini_multiple_function_calls_unique_ids() {
 }
 
 #[test]
-fn test_gemini_multiple_function_responses_unique_ids() {
-    // Multiple responses from the same function with different results should get unique IDs
+fn test_gemini_multiple_function_responses_stay_distinct() {
+    // The property this test protects: two results from the same function with different data
+    // must not collapse into one. It used to be guaranteed by hashing the response into a
+    // synthetic id; that id also had to reference a call, which it never did. Distinctness now
+    // comes from the content itself (dedup falls back to content for an unresolved result),
+    // and the id is filled in by feed/correlate.rs from the matching call when one exists.
     let input = json!({
         "role": "tool",
         "content": [
@@ -3728,17 +3745,11 @@ fn test_gemini_multiple_function_responses_unique_ids() {
     let block1 = block_to_json(&output.content[0]);
     let block2 = block_to_json(&output.content[1]);
 
-    let id1 = block1["tool_use_id"].as_str().unwrap();
-    let id2 = block2["tool_use_id"].as_str().unwrap();
-
-    // Both should be synthetic IDs for get_weather
-    assert!(id1.starts_with("gemini_get_weather_result_"));
-    assert!(id2.starts_with("gemini_get_weather_result_"));
-
-    // But they should be DIFFERENT (different response hash)
+    assert_eq!(block1["name"], "get_weather");
+    assert_eq!(block2["name"], "get_weather");
     assert_ne!(
-        id1, id2,
-        "Multiple responses with different data should have different IDs"
+        block1["content"], block2["content"],
+        "the two results must remain distinguishable by content"
     );
 }
 
@@ -3785,19 +3796,20 @@ fn test_gemini_function_call_empty_args() {
 }
 
 #[test]
-fn test_gemini_function_response_null_response() {
-    // Function response with null response should still get a valid synthetic ID
+fn test_gemini_function_response_null_response_carries_name() {
+    // A null response is still a result: it must survive and carry its tool name so
+    // correlation can pair it, but it must not acquire a fabricated id.
     let input = json!({
         "role": "tool",
         "content": [{"functionResponse": {"name": "delete_item", "response": null}}]
     });
     let output = normalize(&input);
     let block = block_to_json(&output.content[0]);
-    let id = block["tool_use_id"].as_str().unwrap();
+    assert_eq!(block["type"], "tool_result");
+    assert_eq!(block["name"], "delete_item");
     assert!(
-        id.starts_with("gemini_delete_item_result_"),
-        "Expected synthetic ID for null response, got: {}",
-        id
+        block.get("tool_use_id").is_none() || block["tool_use_id"].is_null(),
+        "no id should be fabricated for a null response"
     );
 }
 

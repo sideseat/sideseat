@@ -602,6 +602,10 @@ pub(crate) fn role_from_event_name_with_context(
         // Tool result is always OUTPUT (from tool call)
         "gen_ai.tool.result" => Some(ChatRole::Tool),
 
+        // Claude Code CLI emits the tool result body as a tool.output span event
+        // on claude_code.tool (requires OTEL_LOG_TOOL_CONTENT=1).
+        "tool.output" => Some(ChatRole::Tool),
+
         // Assistant message from conversation history - always assistant role
         // (This is an INPUT event containing prior assistant responses, not tool output)
         "gen_ai.assistant.message" => Some(ChatRole::Assistant),
@@ -1223,7 +1227,7 @@ mod tests {
             },
         };
 
-        let result = flatten_tool_blocks(vec![msg.clone()]);
+        let result = flatten_tool_blocks(vec![msg]);
 
         assert_eq!(result.len(), 1, "Single tool should not be flattened");
         assert_eq!(
@@ -1246,11 +1250,13 @@ mod tests {
                 content: vec![
                     ContentBlock::ToolResult {
                         tool_use_id: Some("call_1".to_string()),
+                        name: None,
                         content: json!({"result": "weather data"}),
                         is_error: false,
                     },
                     ContentBlock::ToolResult {
                         tool_use_id: Some("call_2".to_string()),
+                        name: None,
                         content: json!({"result": "time data"}),
                         is_error: false,
                     },
@@ -1305,6 +1311,7 @@ mod tests {
                     },
                     ContentBlock::ToolResult {
                         tool_use_id: Some("call_0".to_string()),
+                        name: None,
                         content: json!("previous result"),
                         is_error: false,
                     },
