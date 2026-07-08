@@ -690,7 +690,29 @@ fn deduplicate_blocks(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
             .or_insert((block, quality));
     }
 
-    let result: Vec<_> = candidates.into_values().map(|(block, _)| block).collect();
+    let mut result: Vec<_> = candidates.into_values().map(|(block, _)| block).collect();
+
+    // HashMap iteration order is arbitrary, and the feed sort downstream has ties it
+    // cannot break (same span, same timestamp, same indices). Leaving those ties to hash
+    // order lets two identical requests return the message list in different orders.
+    // Anchor it here so the pipeline is a pure function of its input.
+    result.sort_by(|a, b| {
+        a.trace_id
+            .cmp(&b.trace_id)
+            .then_with(|| a.span_id.cmp(&b.span_id))
+            .then_with(|| a.message_index.cmp(&b.message_index))
+            .then_with(|| a.entry_index.cmp(&b.entry_index))
+            .then_with(|| a.entry_type.cmp(&b.entry_type))
+            // Role next: two blocks can share span, indices and entry_type and still be
+            // distinct messages, and without this the tie falls back to hash order.
+            .then_with(|| a.role.as_str().cmp(b.role.as_str()))
+            // Content last, so the comparator is TOTAL. Everything above can be equal for two
+            // blocks that differ only in content - a span that emits several parts under one
+            // message/entry index - and those were left in HashMap order, so two identical
+            // requests returned the same messages in a different order. Observed directly:
+            // repeated runs over one fixture disagreed on 3 then 4 views.
+            .then_with(|| a.content_hash.cmp(&b.content_hash))
+    });
 
     tracing::trace!(
         input = input_count,
@@ -766,7 +788,12 @@ pub fn process_dedup(
         // Same-batch detection: same span + same event timestamp.
         // These blocks are from the same response and should preserve original order
         // regardless of their timestamp strategy (span_end vs event_time).
-        let same_batch = a.span_id == b.span_id && a.timestamp == b.timestamp;
+        // trace_id is part of batch identity: two blocks from different traces are never
+        // the same response. Without it the comparator is intransitive (one pair compared
+        // by batch rule, another by birth time), and `sort_by` may then return a
+        // different order for the same input.
+        let same_batch =
+            a.trace_id == b.trace_id && a.span_id == b.span_id && a.timestamp == b.timestamp;
 
         if same_batch {
             match a.message_index.cmp(&b.message_index) {
@@ -915,6 +942,7 @@ mod tests {
             entry_type: "tool_result".to_string(),
             content: ContentBlock::ToolResult {
                 tool_use_id: Some(tool_use_id.to_string()),
+                name: None,
                 content: serde_json::json!(content),
                 is_error: false,
             },
@@ -1294,7 +1322,7 @@ mod tests {
 
         // Process in random order
         let result = process_dedup(
-            vec![tool_use, user_msg.clone(), user_msg2.clone(), assistant_msg],
+            vec![tool_use, user_msg, user_msg2, assistant_msg],
             span_timestamps,
         );
 
@@ -1443,6 +1471,7 @@ mod tests {
         let mut transformed = BlockEntry {
             content: ContentBlock::ToolResult {
                 tool_use_id: Some("call_123".to_string()),
+                name: None,
                 content: serde_json::json!({"type": "content", "value": [{"type": "text", "text": "transformed result"}]}),
                 is_error: false,
             },
@@ -1517,6 +1546,7 @@ mod tests {
         let mut result1 = BlockEntry {
             content: ContentBlock::ToolResult {
                 tool_use_id: None,
+                name: None,
                 content: serde_json::json!("same content"),
                 is_error: false,
             },
@@ -1527,6 +1557,7 @@ mod tests {
         let mut result2 = BlockEntry {
             content: ContentBlock::ToolResult {
                 tool_use_id: None,
+                name: None,
                 content: serde_json::json!("same content"),
                 is_error: false,
             },
@@ -1809,7 +1840,7 @@ mod tests {
 
         // Process in random order
         let result = process_dedup(
-            vec![final_response, tool_result, user.clone(), tool_use.clone()],
+            vec![final_response, tool_result, user, tool_use],
             span_timestamps,
         );
 
@@ -1866,7 +1897,7 @@ mod tests {
         // Event source has higher quality than attribute
         let mut from_event = base.clone();
         from_event.source_type = "event".to_string();
-        let mut from_attribute = base.clone();
+        let mut from_attribute = base;
         from_attribute.source_type = "attribute".to_string();
         assert!(compute_quality(&from_event) > compute_quality(&from_attribute));
     }
