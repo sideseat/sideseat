@@ -102,6 +102,7 @@ mod tests {
             },
             "tool_result" => ContentBlock::ToolResult {
                 tool_use_id: Some("call_1".to_string()),
+                name: None,
                 content: serde_json::json!("result"),
                 is_error: false,
             },

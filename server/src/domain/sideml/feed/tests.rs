@@ -8885,7 +8885,7 @@ fn test_no_promotion_when_choice_exists() {
         is_history: false,
     };
 
-    let mut blocks = vec![assistant_block.clone(), choice_block.clone()];
+    let mut blocks = vec![assistant_block, choice_block];
     super::classify_blocks(&mut blocks, &span_timestamps);
 
     // gen_ai.choice should be classified normally (uses_span_end from is_protected)
