@@ -65,8 +65,11 @@
 //! - **Without history**: AutoGen, CrewAI (passes through unchanged)
 
 mod classify;
+mod correlate;
 mod dedup;
 mod history;
+#[cfg(test)]
+mod props;
 mod types;
 
 use std::collections::{HashMap, HashSet};
@@ -314,6 +317,14 @@ fn process_trace_spans_core(
             "Feed: after flatten_to_blocks"
         );
     }
+
+    // Stage 4.5: Correlate tool results to their calls.
+    //
+    // Must run AFTER classification (which needs source order intact) and BEFORE dedup, whose
+    // tool-result identity is `tool_use_id` when present and content otherwise: a result that
+    // reaches dedup without its call's id falls back to content and collapses with an
+    // identical result from a different call.
+    correlate::correlate_tool_results(&mut blocks);
 
     // Stages 5-6: Deduplicate by identity, sort by birth time
     let blocks = process_dedup(blocks, span_timestamps);
@@ -608,7 +619,12 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
 
         // Same-batch detection: same span + same event timestamp
         // These blocks are from the same response and should preserve original order
-        let same_batch = a.span_id == b.span_id && a.timestamp == b.timestamp;
+        // trace_id is part of batch identity: two blocks from different traces are never
+        // the same response. Without it the comparator is intransitive (one pair compared
+        // by batch rule, another by birth time), and `sort_by` may then return a
+        // different order for the same input.
+        let same_batch =
+            a.trace_id == b.trace_id && a.span_id == b.span_id && a.timestamp == b.timestamp;
 
         if same_batch {
             // Within a batch: ASC order (text before tool_use)
