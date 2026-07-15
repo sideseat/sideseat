@@ -1,0 +1,226 @@
+{
+  "label": "anthropic/multi_turn",
+  "request_count": 2,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 0,
+  "span_views": {
+    "01a04252/Message with 'us.anthropic.claude-sonnet-5'/6fe6": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful geography assistant. Answer in 1-2 sentences.",
+          "content_digest": "a33d755677ab7d94",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the capital of France?",
+          "content_digest": "b09c8017834e1de2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What about Germany?",
+          "content_digest": "c85588d35e7ac09f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The capital of Germany is **Berlin**.",
+          "content_digest": "014c33695ce6d7f3",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04252/Message with 'us.anthropic.claude-sonnet-5'/8f23": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful geography assistant. Answer in 1-2 sentences.",
+          "content_digest": "a33d755677ab7d94",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the capital of France?",
+          "content_digest": "b09c8017834e1de2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The capital of France is **Paris**.",
+          "content_digest": "878b886d999aa1e4",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04252/Message with 'us.anthropic.claude-sonnet-5'/b3c3": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful geography assistant. Answer in 1-2 sentences.",
+          "content_digest": "a33d755677ab7d94",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the capital of France?",
+          "content_digest": "b09c8017834e1de2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What about Germany?",
+          "content_digest": "c85588d35e7ac09f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Which of the two cities has a larger population?",
+          "content_digest": "cf8cf56a8704d905",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Berlin** has a larger population within city limits (about 3.7 million) compared to Paris (about 2.1 million), though Paris's metropolitan area is larger overall.",
+          "content_digest": "366d6e7b36c1facd",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04252/anthropic-chat/e4ee": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "01a04252": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful geography assistant. Answer in 1-2 sentences.",
+          "content_digest": "a33d755677ab7d94",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the capital of France?",
+          "content_digest": "b09c8017834e1de2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The capital of France is **Paris**.",
+          "content_digest": "878b886d999aa1e4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What about Germany?",
+          "content_digest": "c85588d35e7ac09f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The capital of Germany is **Berlin**.",
+          "content_digest": "014c33695ce6d7f3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Which of the two cities has a larger population?",
+          "content_digest": "cf8cf56a8704d905",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Berlin** has a larger population within city limits (about 3.7 million) compared to Paris (about 2.1 million), though Paris's metropolitan area is larger overall.",
+          "content_digest": "366d6e7b36c1facd",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {}
+}

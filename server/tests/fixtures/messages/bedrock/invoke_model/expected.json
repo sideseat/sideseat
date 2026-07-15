@@ -1,0 +1,564 @@
+{
+  "label": "bedrock/invoke_model",
+  "request_count": 3,
+  "span_count": 7,
+  "trace_count": 5,
+  "session_count": 1,
+  "span_views": {
+    "1ce87bdc/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/0786": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when available.",
+          "content_digest": "883a797be798921d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the weather in Paris?",
+          "content_digest": "85026bc2368bf644",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01CBd8fHEDfMzNYCSRoiS6xc\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "20446f8f769332a3",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22C, light breeze",
+          "content_digest": "d28e8a1e05733598",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The weather in Paris is currently **sunny** with a temperature of **22°C (about 72°F)** and a **light breeze**. It's a lovely day!",
+          "content_digest": "5d7fc13ad220263b",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "1ce87bdc/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/d618": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when available.",
+          "content_digest": "883a797be798921d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the weather in Paris?",
+          "content_digest": "85026bc2368bf644",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01CBd8fHEDfMzNYCSRoiS6xc\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "20446f8f769332a3",
+          "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "1ce87bdc/invoke-model-tool-use/8132": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "2fcc4354/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/6b6e": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a math tutor. Show your work.",
+          "content_digest": "47670ce1c7563f5c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 27 * 453?",
+          "content_digest": "2c10e33f6fa574dd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "I need to calculate 27 * 453. Let me break this down: 27 * 453 = 27 * (400 + 50 + 3) = 27 * 400 + 27 * 50 + 27 * 3 = 10,800 + 1,350 + 81 = 12,231 Let me verify this another way: 453 × 27 ----- 3171 (453 × 7) 9060 (453 × 20) ------ 12231 Let…[343 chars]",
+          "content_digest": "db41097905500401",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Calculating 27 × 453 I'll solve this by breaking it into simpler pieces: ## Method 1: Breaking down 27 27 × 453 = (20 + 7) × 453 **Step 1:** 20 × 453 = 9,060 **Step 2:** 7 × 453 = 3,171 **Step 3:** Add them together 9,060 + 3,171 = **12,2…[398 chars]",
+          "content_digest": "ed1da283b3267eaf",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "7252f282/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/b1c2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "49fd0fd68e3c2e94",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "64cf87cbf62b67a1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The boiling point of water is 100°C (212°F) at standard atmospheric pressure (1 atm).",
+          "content_digest": "fef5f04c858e3aa7",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "9ca0aba7/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/f5b8": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "49fd0fd68e3c2e94",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "ce6ec8cdd58f4825",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The speed of light is approximately 299,792 kilometers per second (or about 186,282 miles per second), commonly denoted as *c* in physics.",
+          "content_digest": "d6f705140cc85cd1",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "a22ec25d/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/6dc1": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a math tutor. Show your work.",
+          "content_digest": "47670ce1c7563f5c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 891 / 9?",
+          "content_digest": "65b94eee1202c24c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "I need to divide 891 by 9. Let me work through this step by step. 891 ÷ 9 I can break this down: - 9 × 100 = 900, which is too big - 9 × 90 = 810 - 891 - 810 = 81 - 9 × 9 = 81 So: 90 + 9 = 99 Let me verify: 99 × 9 = 891 99 × 9 = (100 - 1) ×…[276 chars]",
+          "content_digest": "e570ea7edbf71a74",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# 891 ÷ 9 Let me solve this step-by-step using long division: ``` 99 ______ 9 | 891 81↓ ___ 81 81 ___ 0 ``` **Step 1:** How many times does 9 go into 89? → 9 times (9 × 9 = 81) - Write 9 in the tens place - Subtract: 89 - 81 = 8 **Step 2:**…[430 chars]",
+          "content_digest": "4ecf6ef73aa3ac1f",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "1ce87bdc": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when available.",
+          "content_digest": "883a797be798921d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the weather in Paris?",
+          "content_digest": "85026bc2368bf644",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01CBd8fHEDfMzNYCSRoiS6xc\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "20446f8f769332a3",
+          "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22C, light breeze",
+          "content_digest": "d28e8a1e05733598",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The weather in Paris is currently **sunny** with a temperature of **22°C (about 72°F)** and a **light breeze**. It's a lovely day!",
+          "content_digest": "5d7fc13ad220263b",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "2fcc4354": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a math tutor. Show your work.",
+          "content_digest": "47670ce1c7563f5c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 27 * 453?",
+          "content_digest": "2c10e33f6fa574dd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "I need to calculate 27 * 453. Let me break this down: 27 * 453 = 27 * (400 + 50 + 3) = 27 * 400 + 27 * 50 + 27 * 3 = 10,800 + 1,350 + 81 = 12,231 Let me verify this another way: 453 × 27 ----- 3171 (453 × 7) 9060 (453 × 20) ------ 12231 Let…[343 chars]",
+          "content_digest": "db41097905500401",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Calculating 27 × 453 I'll solve this by breaking it into simpler pieces: ## Method 1: Breaking down 27 27 × 453 = (20 + 7) × 453 **Step 1:** 20 × 453 = 9,060 **Step 2:** 7 × 453 = 3,171 **Step 3:** Add them together 9,060 + 3,171 = **12,2…[398 chars]",
+          "content_digest": "ed1da283b3267eaf",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "7252f282": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "49fd0fd68e3c2e94",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "64cf87cbf62b67a1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The boiling point of water is 100°C (212°F) at standard atmospheric pressure (1 atm).",
+          "content_digest": "fef5f04c858e3aa7",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "9ca0aba7": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "49fd0fd68e3c2e94",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "ce6ec8cdd58f4825",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The speed of light is approximately 299,792 kilometers per second (or about 186,282 miles per second), commonly denoted as *c* in physics.",
+          "content_digest": "d6f705140cc85cd1",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "a22ec25d": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a math tutor. Show your work.",
+          "content_digest": "47670ce1c7563f5c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 891 / 9?",
+          "content_digest": "65b94eee1202c24c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "I need to divide 891 by 9. Let me work through this step by step. 891 ÷ 9 I can break this down: - 9 × 100 = 900, which is too big - 9 × 90 = 810 - 891 - 810 = 81 - 9 × 9 = 81 So: 90 + 9 = 99 Let me verify: 99 × 9 = 891 99 × 9 = (100 - 1) ×…[276 chars]",
+          "content_digest": "e570ea7edbf71a74",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# 891 ÷ 9 Let me solve this step-by-step using long division: ``` 99 ______ 9 | 891 81↓ ___ 81 81 ___ 0 ``` **Step 1:** How many times does 9 go into 89? → 9 times (9 × 9 = 81) - Write 9 in the tens place - Subtract: 89 - 81 = 8 **Step 2:**…[430 chars]",
+          "content_digest": "4ecf6ef73aa3ac1f",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "bedrock-invoke_model-4c6be840": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when available.",
+          "content_digest": "883a797be798921d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the weather in Paris?",
+          "content_digest": "85026bc2368bf644",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01CBd8fHEDfMzNYCSRoiS6xc\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "20446f8f769332a3",
+          "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22C, light breeze",
+          "content_digest": "d28e8a1e05733598",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The weather in Paris is currently **sunny** with a temperature of **22°C (about 72°F)** and a **light breeze**. It's a lovely day!",
+          "content_digest": "5d7fc13ad220263b",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  }
+}

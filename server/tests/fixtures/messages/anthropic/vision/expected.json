@@ -1,0 +1,181 @@
+{
+  "label": "anthropic/vision",
+  "request_count": 2,
+  "span_count": 3,
+  "trace_count": 1,
+  "session_count": 0,
+  "span_views": {
+    "01a04252/Message with 'us.anthropic.claude-sonnet-5'/1f24": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an image analyst. Describe content accurately and concisely.",
+          "content_digest": "5ce3280da309948d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe what you see in this image.",
+          "content_digest": "719464aa7a1e5eab",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+          "content_digest": "d472ce42cb6094f5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This image shows a peaceful park scene on a clear day. A curving asphalt path winds through a well-maintained green lawn, bordered on the left by a low stone retaining wall that separates a slightly elevated grassy area. In the background, …[874 chars]",
+          "content_digest": "722cac940367cb90",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04252/Message with 'us.anthropic.claude-sonnet-5'/4654": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an image analyst. Describe content accurately and concisely.",
+          "content_digest": "5ce3280da309948d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe what you see in this image.",
+          "content_digest": "719464aa7a1e5eab",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+          "content_digest": "d472ce42cb6094f5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Based on what you see, what is the main subject or theme of this image?",
+          "content_digest": "0981a3fd6adacb95",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The main subject of this image is a **park pathway**, capturing a quiet, tranquil urban green space. The winding paved path serves as the focal point, leading the eye through a landscaped lawn area bordered by a stone wall. The overall them…[696 chars]",
+          "content_digest": "b350e56e33a6d174",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04252/anthropic-vision/3ab9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "01a04252": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an image analyst. Describe content accurately and concisely.",
+          "content_digest": "5ce3280da309948d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe what you see in this image.",
+          "content_digest": "719464aa7a1e5eab",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+          "content_digest": "d472ce42cb6094f5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This image shows a peaceful park scene on a clear day. A curving asphalt path winds through a well-maintained green lawn, bordered on the left by a low stone retaining wall that separates a slightly elevated grassy area. In the background, …[874 chars]",
+          "content_digest": "722cac940367cb90",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Based on what you see, what is the main subject or theme of this image?",
+          "content_digest": "0981a3fd6adacb95",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The main subject of this image is a **park pathway**, capturing a quiet, tranquil urban green space. The winding paved path serves as the focal point, leading the eye through a landscaped lawn area bordered by a stone wall. The overall them…[696 chars]",
+          "content_digest": "b350e56e33a6d174",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {}
+}

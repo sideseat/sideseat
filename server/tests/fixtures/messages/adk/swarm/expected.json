@@ -1,0 +1,145 @@
+{
+  "label": "adk/swarm",
+  "request_count": 1,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "41bb1d53/call_llm/0c01": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Delegate tasks to appropriate specialists (researcher, coder, reviewer) 3. Coordinate the overall workflow 4. Synthesize results from specialists into a c…[1104 chars]",
+          "content_digest": "2ef4247ab464ade7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll create a comprehensive plan for building a weather app with multi-city forecasts. Let me break this down into structured phases: ## Weather App Development Plan ### **Phase 1: Project Setup & Planning** - **Define core features:** - Di…[2475 chars]",
+          "content_digest": "b22a6b915251b954",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "41bb1d53/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/de62": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "41bb1d53/invocation/8b9e": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "41bb1d53/invoke_agent planner/a535": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "41bb1d53": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Delegate tasks to appropriate specialists (researcher, coder, reviewer) 3. Coordinate the overall workflow 4. Synthesize results from specialists into a c…[1104 chars]",
+          "content_digest": "2ef4247ab464ade7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll create a comprehensive plan for building a weather app with multi-city forecasts. Let me break this down into structured phases: ## Weather App Development Plan ### **Phase 1: Project Setup & Planning** - **Define core features:** - Di…[2475 chars]",
+          "content_digest": "b22a6b915251b954",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "adk-swarm-96726039": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Delegate tasks to appropriate specialists (researcher, coder, reviewer) 3. Coordinate the overall workflow 4. Synthesize results from specialists into a c…[1104 chars]",
+          "content_digest": "2ef4247ab464ade7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll create a comprehensive plan for building a weather app with multi-city forecasts. Let me break this down into structured phases: ## Weather App Development Plan ### **Phase 1: Project Setup & Planning** - **Define core features:** - Di…[2475 chars]",
+          "content_digest": "b22a6b915251b954",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  }
+}

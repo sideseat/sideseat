@@ -1,0 +1,70 @@
+{
+  "label": "agent-framework/structured_output",
+  "request_count": 1,
+  "span_count": 1,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "b11b7e11/agent_framework.session/f126": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "TypeError: Agent.run() got an unexpected keyword argument 'response_format' ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/opentelemet…[799 chars]",
+          "content_digest": "f9cb4306168cf418",
+          "finish_reason": "Error",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "b11b7e11": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "TypeError: Agent.run() got an unexpected keyword argument 'response_format' ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/opentelemet…[799 chars]",
+          "content_digest": "f9cb4306168cf418",
+          "finish_reason": "Error",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "agent-framework-structured_output-ed726fe9": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "TypeError: Agent.run() got an unexpected keyword argument 'response_format' ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/opentelemet…[799 chars]",
+          "content_digest": "f9cb4306168cf418",
+          "finish_reason": "Error",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  }
+}

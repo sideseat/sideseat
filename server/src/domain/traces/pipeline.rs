@@ -497,6 +497,19 @@ impl TracePipeline {
 // PER-REQUEST PROCESSING (free function for thread safety)
 // ============================================================================
 
+/// Test-only wrapper over `process_request`, which is private to this module.
+///
+/// Used by `message_goldens_tests` to replay captured OTLP payloads through the real
+/// pipeline. File extraction is off: it performs disk writes and no message property under
+/// test depends on it.
+#[cfg(test)]
+pub(super) fn process_request_for_test(
+    request: &ExportTraceServiceRequest,
+    pricing: &PricingService,
+) -> Option<(Vec<NormalizedSpan>, Vec<PendingFileWrite>)> {
+    process_request(request, pricing, false, &FileExtractionCache::new())
+}
+
 /// Process a single OTLP request through stages 1-4.
 ///
 /// Pure CPU work: extract attributes, messages, sideml, enrich, prepare.

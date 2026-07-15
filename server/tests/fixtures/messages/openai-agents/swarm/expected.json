@@ -1,0 +1,628 @@
+{
+  "label": "openai-agents/swarm",
+  "request_count": 4,
+  "span_count": 14,
+  "trace_count": 1,
+  "session_count": 2,
+  "span_views": {
+    "01a04251/Agent run: 'planner'/73a2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/Agent run: 'researcher'/f09c": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/Function: web_search/9af0": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/Function: web_search/cbba": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/Handoff: planner → researcher/7181": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/OpenAI Agents trace: Agent workflow/d75b": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/Responses API with 'us.openai.gpt-5.6-luna'/0bb8": {
+      "message_count": 10,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a research specialist. Your role is to: 1. Gather information on topics 2. Provide factual, well-sourced answers 3. Hand off to coder if implementation is needed",
+          "content_digest": "72447aaa187cf0a5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_33f0e1e44dde54948a5a764835e91b8f\",\"name\":\"transfer_to_researcher\",\"input\":{}}",
+          "content_digest": "8e05eed7d283e280",
+          "tool_name": "transfer_to_researcher",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_33f0e1e44dde54948a5a764835e91b8f\",\"content\":{\"assistant\":\"researcher\"}}",
+          "content_digest": "8e0809a23af7bda7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_f7b176ff07da57218c5c1af3404c82ea\",\"name\":\"web_search\",\"input\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"max_results\":3}}",
+          "content_digest": "133d60df892813eb",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_3dfd279b76b35b578d0c81f998e35812\",\"name\":\"web_search\",\"input\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"max_results\":3}}",
+          "content_digest": "291e7bf273832c4e",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7b176ff07da57218c5c1af3404c82ea\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"results\":[{\"title\":\"Result 1 for 'Open-Met…[567 chars]",
+          "content_digest": "b60515c6e324c78d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_3dfd279b76b35b578d0c81f998e35812\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"results\":[{\"title\":\"Result 1 for 'MDN Fetch …[559 chars]",
+          "content_digest": "60dd079dc68fbfe8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## Simple plan for a multi-city weather app ### 1. Define the core features - Display current conditions and a 5–7 day forecast. - Support multiple saved cities. - Allow users to add, remove, and reorder cities. - Show temperature, weather …[3050 chars]",
+          "content_digest": "aa320b8c70d36bf4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'API key']",
+          "content_digest": "042cf9bdc12b2d0d",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04251/Responses API with 'us.openai.gpt-5.6-luna'/9119": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a research specialist. Your role is to: 1. Gather information on topics 2. Provide factual, well-sourced answers 3. Hand off to coder if implementation is needed",
+          "content_digest": "72447aaa187cf0a5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_33f0e1e44dde54948a5a764835e91b8f\",\"name\":\"transfer_to_researcher\",\"input\":{}}",
+          "content_digest": "8e05eed7d283e280",
+          "tool_name": "transfer_to_researcher",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_33f0e1e44dde54948a5a764835e91b8f\",\"content\":{\"assistant\":\"researcher\"}}",
+          "content_digest": "8e0809a23af7bda7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_f7b176ff07da57218c5c1af3404c82ea\",\"name\":\"web_search\",\"input\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"max_results\":3}}",
+          "content_digest": "133d60df892813eb",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_3dfd279b76b35b578d0c81f998e35812\",\"name\":\"web_search\",\"input\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"max_results\":3}}",
+          "content_digest": "291e7bf273832c4e",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04251/Responses API with 'us.openai.gpt-5.6-luna'/e672": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow St…[298 chars]",
+          "content_digest": "53db802710af9ddd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_33f0e1e44dde54948a5a764835e91b8f\",\"name\":\"transfer_to_researcher\",\"input\":{}}",
+          "content_digest": "8e05eed7d283e280",
+          "tool_name": "transfer_to_researcher",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04251/Task: Agent workflow/8220": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/Turn 1 for agent planner/9483": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/Turn 2 for agent researcher/54cb": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/Turn 3 for agent researcher/231e": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/openai_agents.session/b24b": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "01a04251": {
+      "message_count": 11,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "tool",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 6,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow St…[298 chars]",
+          "content_digest": "53db802710af9ddd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_33f0e1e44dde54948a5a764835e91b8f\",\"name\":\"transfer_to_researcher\",\"input\":{}}",
+          "content_digest": "8e05eed7d283e280",
+          "tool_name": "transfer_to_researcher",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a research specialist. Your role is to: 1. Gather information on topics 2. Provide factual, well-sourced answers 3. Hand off to coder if implementation is needed",
+          "content_digest": "72447aaa187cf0a5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_33f0e1e44dde54948a5a764835e91b8f\",\"content\":{\"assistant\":\"researcher\"}}",
+          "content_digest": "8e0809a23af7bda7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_f7b176ff07da57218c5c1af3404c82ea\",\"name\":\"web_search\",\"input\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"max_results\":3}}",
+          "content_digest": "133d60df892813eb",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_3dfd279b76b35b578d0c81f998e35812\",\"name\":\"web_search\",\"input\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"max_results\":3}}",
+          "content_digest": "291e7bf273832c4e",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7b176ff07da57218c5c1af3404c82ea\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"results\":[{\"title\":\"Result 1 for 'Open-Met…[567 chars]",
+          "content_digest": "b60515c6e324c78d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_3dfd279b76b35b578d0c81f998e35812\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"results\":[{\"title\":\"Result 1 for 'MDN Fetch …[559 chars]",
+          "content_digest": "60dd079dc68fbfe8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## Simple plan for a multi-city weather app ### 1. Define the core features - Display current conditions and a 5–7 day forecast. - Support multiple saved cities. - Allow users to add, remove, and reorder cities. - Show temperature, weather …[3050 chars]",
+          "content_digest": "aa320b8c70d36bf4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'API key']",
+          "content_digest": "042cf9bdc12b2d0d",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "[Scrubbed due to 'session']": {
+      "message_count": 11,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "tool",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 6,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow St…[298 chars]",
+          "content_digest": "53db802710af9ddd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_33f0e1e44dde54948a5a764835e91b8f\",\"name\":\"transfer_to_researcher\",\"input\":{}}",
+          "content_digest": "8e05eed7d283e280",
+          "tool_name": "transfer_to_researcher",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a research specialist. Your role is to: 1. Gather information on topics 2. Provide factual, well-sourced answers 3. Hand off to coder if implementation is needed",
+          "content_digest": "72447aaa187cf0a5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_33f0e1e44dde54948a5a764835e91b8f\",\"content\":{\"assistant\":\"researcher\"}}",
+          "content_digest": "8e0809a23af7bda7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_f7b176ff07da57218c5c1af3404c82ea\",\"name\":\"web_search\",\"input\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"max_results\":3}}",
+          "content_digest": "133d60df892813eb",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_3dfd279b76b35b578d0c81f998e35812\",\"name\":\"web_search\",\"input\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"max_results\":3}}",
+          "content_digest": "291e7bf273832c4e",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7b176ff07da57218c5c1af3404c82ea\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"results\":[{\"title\":\"Result 1 for 'Open-Met…[567 chars]",
+          "content_digest": "b60515c6e324c78d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_3dfd279b76b35b578d0c81f998e35812\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"results\":[{\"title\":\"Result 1 for 'MDN Fetch …[559 chars]",
+          "content_digest": "60dd079dc68fbfe8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## Simple plan for a multi-city weather app ### 1. Define the core features - Display current conditions and a 5–7 day forecast. - Support multiple saved cities. - Allow users to add, remove, and reorder cities. - Show temperature, weather …[3050 chars]",
+          "content_digest": "aa320b8c70d36bf4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'API key']",
+          "content_digest": "042cf9bdc12b2d0d",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "openai-agents-swarm-7b86dbb8": {
+      "message_count": 11,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "tool",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 6,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow St…[298 chars]",
+          "content_digest": "53db802710af9ddd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_33f0e1e44dde54948a5a764835e91b8f\",\"name\":\"transfer_to_researcher\",\"input\":{}}",
+          "content_digest": "8e05eed7d283e280",
+          "tool_name": "transfer_to_researcher",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a research specialist. Your role is to: 1. Gather information on topics 2. Provide factual, well-sourced answers 3. Hand off to coder if implementation is needed",
+          "content_digest": "72447aaa187cf0a5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_33f0e1e44dde54948a5a764835e91b8f\",\"content\":{\"assistant\":\"researcher\"}}",
+          "content_digest": "8e0809a23af7bda7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_f7b176ff07da57218c5c1af3404c82ea\",\"name\":\"web_search\",\"input\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"max_results\":3}}",
+          "content_digest": "133d60df892813eb",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_3dfd279b76b35b578d0c81f998e35812\",\"name\":\"web_search\",\"input\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"max_results\":3}}",
+          "content_digest": "291e7bf273832c4e",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7b176ff07da57218c5c1af3404c82ea\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"results\":[{\"title\":\"Result 1 for 'Open-Met…[567 chars]",
+          "content_digest": "b60515c6e324c78d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_3dfd279b76b35b578d0c81f998e35812\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"results\":[{\"title\":\"Result 1 for 'MDN Fetch …[559 chars]",
+          "content_digest": "60dd079dc68fbfe8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## Simple plan for a multi-city weather app ### 1. Define the core features - Display current conditions and a 5–7 day forecast. - Support multiple saved cities. - Allow users to add, remove, and reorder cities. - Show temperature, weather …[3050 chars]",
+          "content_digest": "aa320b8c70d36bf4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'API key']",
+          "content_digest": "042cf9bdc12b2d0d",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  }
+}

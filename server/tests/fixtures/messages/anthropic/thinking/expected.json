@@ -1,0 +1,147 @@
+{
+  "label": "anthropic/thinking",
+  "request_count": 2,
+  "span_count": 3,
+  "trace_count": 2,
+  "session_count": 0,
+  "span_views": {
+    "01a04252/Message with 'us.anthropic.claude-sonnet-5'/2b5f": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a math tutor. Show your work.",
+          "content_digest": "47670ce1c7563f5c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 891 / 9?",
+          "content_digest": "65b94eee1202c24c",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04252/Message with 'us.anthropic.claude-sonnet-5'/9e92": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a math tutor. Show your work.",
+          "content_digest": "47670ce1c7563f5c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 27 * 453?",
+          "content_digest": "2c10e33f6fa574dd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Calculating 27 × 453 I'll break this down using the distributive property, splitting 27 into 20 + 7. ## Step 1: Multiply by 20 $$453 \\times 20 = 9,060$$ ## Step 2: Multiply by 7 $$453 \\times 7 = 3,171$$ ## Step 3: Add the results $$9,060 …[452 chars]",
+          "content_digest": "59843e91291d653f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04252/streaming response from 'us.anthropic.claude-sonnet-5' took 2.99s/b9dd": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a math tutor. Show your work.",
+          "content_digest": "47670ce1c7563f5c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 891 / 9?",
+          "content_digest": "65b94eee1202c24c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Dividing 891 ÷ 9 **Step 1:** Divide the first digit(s) - 9 ÷ 9 = 1 - Write 1, subtract: 9 - 9 = 0 **Step 2:** Bring down the next digit (9) - 0 becomes 09, so we work with 9 - 9 ÷ 9 = 1 - Write 1, subtract: 9 - 9 = 0 **Step 3:** Bring dow…[584 chars]",
+          "content_digest": "804ee8086948c5b8",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "01a04252": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a math tutor. Show your work.",
+          "content_digest": "47670ce1c7563f5c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 891 / 9?",
+          "content_digest": "65b94eee1202c24c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Dividing 891 ÷ 9 **Step 1:** Divide the first digit(s) - 9 ÷ 9 = 1 - Write 1, subtract: 9 - 9 = 0 **Step 2:** Bring down the next digit (9) - 0 becomes 09, so we work with 9 - 9 ÷ 9 = 1 - Write 1, subtract: 9 - 9 = 0 **Step 3:** Bring dow…[584 chars]",
+          "content_digest": "804ee8086948c5b8",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {}
+}

@@ -1,0 +1,165 @@
+{
+  "label": "claude-agent-sdk/structured_output",
+  "request_count": 1,
+  "span_count": 5,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "dcfc6ed7/claude_code.interaction/a9ae": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+          "content_digest": "74780e0c8378c7bf",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.llm_request/5d05": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an information extraction assistant. Extract the person information from the provided text.",
+          "content_digest": "f94f208e1180003d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+          "content_digest": "74780e0c8378c7bf",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.tool.blocked_on_user/3e18": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool.execution/4ea9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool/315e": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013R81gJq1Bk82CUo3waAYGh\",\"name\":\"StructuredOutput\",\"input\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\"},\"contacts\":[{\"email\":\"jane@example.com\"}],\"skil…[263 chars]",
+          "content_digest": "13f134cadb7e9b0e",
+          "tool_name": "StructuredOutput",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "dcfc6ed7": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+          "content_digest": "74780e0c8378c7bf",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an information extraction assistant. Extract the person information from the provided text.",
+          "content_digest": "f94f208e1180003d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013R81gJq1Bk82CUo3waAYGh\",\"name\":\"StructuredOutput\",\"input\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\"},\"contacts\":[{\"email\":\"jane@example.com\"}],\"skil…[263 chars]",
+          "content_digest": "13f134cadb7e9b0e",
+          "tool_name": "StructuredOutput",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "cddbce3b-2c3b-4880-a702-6ac9ac3af66b": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+          "content_digest": "74780e0c8378c7bf",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an information extraction assistant. Extract the person information from the provided text.",
+          "content_digest": "f94f208e1180003d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013R81gJq1Bk82CUo3waAYGh\",\"name\":\"StructuredOutput\",\"input\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\"},\"contacts\":[{\"email\":\"jane@example.com\"}],\"skil…[263 chars]",
+          "content_digest": "13f134cadb7e9b0e",
+          "tool_name": "StructuredOutput",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  }
+}

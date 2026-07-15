@@ -1,0 +1,270 @@
+{
+  "label": "langgraph/reasoning",
+  "request_count": 3,
+  "span_count": 6,
+  "trace_count": 6,
+  "session_count": 0,
+  "span_views": {
+    "12bdfe4f/ChatBedrockConverse/49ef": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
+          "content_digest": "9a8b9fbc6dd10249",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The person with the…[414 chars]",
+          "content_digest": "da0bc3a7bed1dd69",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Logic Puzzle Solution Let me work through this systematically: ## Step 1: Establish Carol's location **From Clue 4:** Carol lives in the red house. - ✓ Carol → Red house ## Step 2: Determine what's in each house color **From Clue 2:** Cat…[1229 chars]",
+          "content_digest": "c9d208c72bcbeebd",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "1889602e/ChatBedrockConverse/bd37": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
+          "content_digest": "9a8b9fbc6dd10249",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Analyze this Python function and explain what it computes: ```python def mystery(n): if n <= 1: return n a, b = 0, 1 for _ in range(2, n + 1): a, b = b, a + b return b ``` What mathematical sequence does this implement? Prove your answer by…[265 chars]",
+          "content_digest": "bd60c08f80cc2af0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Analysis of the `mystery` Function ## What It Computes This function computes the **nth Fibonacci number**. ## Mathematical Sequence The Fibonacci sequence is defined as: - F(0) = 0 - F(1) = 1 - F(n) = F(n-1) + F(n-2) for n ≥ 2 The sequen…[1201 chars]",
+          "content_digest": "74fdf662d7f58caf",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "1ecce3f6/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/f3b2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "3d9073b7/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/6da2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "4f0a8337/ChatBedrockConverse/6388": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
+          "content_digest": "9a8b9fbc6dd10249",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "A water tank has two pipes. Pipe A can fill the tank in 6 hours. Pipe B can empty the tank in 8 hours. If both pipes are opened when the tank is half full, how long will it take to fill the tank completely? Show your reasoning step by step.",
+          "content_digest": "3d5067dbe82a700e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Solution: Tank Filling Problem ## Step 1: Determine Individual Rates **Pipe A (Filling):** - Fills the entire tank in 6 hours - Rate = 1/6 tank per hour **Pipe B (Emptying):** - Empties the entire tank in 8 hours - Rate = 1/8 tank per hou…[1063 chars]",
+          "content_digest": "8b1d262101ad599d",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "e3f67163/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/920f": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "12bdfe4f": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
+          "content_digest": "9a8b9fbc6dd10249",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The person with the…[414 chars]",
+          "content_digest": "da0bc3a7bed1dd69",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Logic Puzzle Solution Let me work through this systematically: ## Step 1: Establish Carol's location **From Clue 4:** Carol lives in the red house. - ✓ Carol → Red house ## Step 2: Determine what's in each house color **From Clue 2:** Cat…[1229 chars]",
+          "content_digest": "c9d208c72bcbeebd",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "1889602e": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
+          "content_digest": "9a8b9fbc6dd10249",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Analyze this Python function and explain what it computes: ```python def mystery(n): if n <= 1: return n a, b = 0, 1 for _ in range(2, n + 1): a, b = b, a + b return b ``` What mathematical sequence does this implement? Prove your answer by…[265 chars]",
+          "content_digest": "bd60c08f80cc2af0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Analysis of the `mystery` Function ## What It Computes This function computes the **nth Fibonacci number**. ## Mathematical Sequence The Fibonacci sequence is defined as: - F(0) = 0 - F(1) = 1 - F(n) = F(n-1) + F(n-2) for n ≥ 2 The sequen…[1201 chars]",
+          "content_digest": "74fdf662d7f58caf",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "1ecce3f6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "3d9073b7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "4f0a8337": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
+          "content_digest": "9a8b9fbc6dd10249",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "A water tank has two pipes. Pipe A can fill the tank in 6 hours. Pipe B can empty the tank in 8 hours. If both pipes are opened when the tank is half full, how long will it take to fill the tank completely? Show your reasoning step by step.",
+          "content_digest": "3d5067dbe82a700e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Solution: Tank Filling Problem ## Step 1: Determine Individual Rates **Pipe A (Filling):** - Fills the entire tank in 6 hours - Rate = 1/6 tank per hour **Pipe B (Emptying):** - Empties the entire tank in 8 hours - Rate = 1/8 tank per hou…[1063 chars]",
+          "content_digest": "8b1d262101ad599d",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "e3f67163": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "session_views": {}
+}

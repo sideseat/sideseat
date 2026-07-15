@@ -1,0 +1,236 @@
+{
+  "label": "_synthetic/tool_use",
+  "request_count": 1,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "5b8aa5a2/chat/b7ad": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a precise calculator.",
+          "content_digest": "6b20d67b3c2520d5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 17 * 23?",
+          "content_digest": "7a057ac42651e818",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_abc123\",\"name\":\"calculator\",\"input\":{\"expression\":\"17 * 23\"}}",
+          "content_digest": "4e43640812fa9c00",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_abc123\",\"content\":[{\"type\":\"text\",\"text\":\"391\"}]}",
+          "content_digest": "a46c0c92b705828b",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "5b8aa5a2/chat/d2ef": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a precise calculator.",
+          "content_digest": "6b20d67b3c2520d5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 17 * 23?",
+          "content_digest": "7a057ac42651e818",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "17 * 23 = 391.",
+          "content_digest": "571e6f0db4c9cc46",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "5b8aa5a2/execute_tool calculator/c1de": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "391",
+          "content_digest": "3224621fb5c9f417",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "5b8aa5a2/invoke_agent/0515": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "5b8aa5a2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a precise calculator.",
+          "content_digest": "6b20d67b3c2520d5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 17 * 23?",
+          "content_digest": "7a057ac42651e818",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_abc123\",\"name\":\"calculator\",\"input\":{\"expression\":\"17 * 23\"}}",
+          "content_digest": "4e43640812fa9c00",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "391",
+          "content_digest": "3224621fb5c9f417",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "17 * 23 = 391.",
+          "content_digest": "571e6f0db4c9cc46",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "sess-fixture-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a precise calculator.",
+          "content_digest": "6b20d67b3c2520d5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 17 * 23?",
+          "content_digest": "7a057ac42651e818",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_abc123\",\"name\":\"calculator\",\"input\":{\"expression\":\"17 * 23\"}}",
+          "content_digest": "4e43640812fa9c00",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "391",
+          "content_digest": "3224621fb5c9f417",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "17 * 23 = 391.",
+          "content_digest": "571e6f0db4c9cc46",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,881 @@
+{
+  "label": "langgraph/image_gen",
+  "request_count": 2,
+  "span_count": 32,
+  "trace_count": 8,
+  "session_count": 1,
+  "span_views": {
+    "1d1f493f/ChatBedrockConverse/0a20": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "read_image"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "41bbcd70eb1f8ea6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
+          "content_digest": "87d19d6e13d04cd7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I understand. Thank you for letting me know about this issue with the image generation service. However, I should clarify my role: I'm actually designed to **analyze** images that you provide to me, not to generate them. If you have images …[554 chars]",
+          "content_digest": "79b24f7102231dac",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "1d1f493f/LangGraph/deaa": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
+          "content_digest": "87d19d6e13d04cd7",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "1d1f493f/Prompt/beec": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
+          "content_digest": "87d19d6e13d04cd7",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "1d1f493f/RunnableSequence/ca40": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
+          "content_digest": "87d19d6e13d04cd7",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "1d1f493f/agent/44ae": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
+          "content_digest": "87d19d6e13d04cd7",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "1d1f493f/call_model/fa5c": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
+          "content_digest": "87d19d6e13d04cd7",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "1d1f493f/should_continue/912b": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
+          "content_digest": "87d19d6e13d04cd7",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "2d74a39d/text_completion amazon.titan-image-generator-v2:0/234b": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
+          "content_digest": "51efebae7cdc923f",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "72ac2bcd/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/3d46": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "78b5e739/text_completion amazon.titan-image-generator-v2:0/1bb0": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
+          "content_digest": "51efebae7cdc923f",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "822dc09c/text_completion amazon.titan-image-generator-v2:0/78a0": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
+          "content_digest": "51efebae7cdc923f",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "8d3b900c/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/41ee": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "917e6567/ChatBedrockConverse/2087": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "generate_image"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "e5de766cb0569906",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+          "content_digest": "0d667198ed732753",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
+          "content_digest": "87d19d6e13d04cd7",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "917e6567/ChatBedrockConverse/d246": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [
+        "generate_image"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "e5de766cb0569906",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_QAdTYCKKAOVkM4GjFlG9st\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A happy golden retriever playing in a sunny park with green grass and trees in the background\"}}",
+          "content_digest": "2b73fa02c90da5ac",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FK95G3Y0Z3jUFhYmiJ2DTA\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A cute corgi wearing a colorful collar, sitting and looking at the camera with a friendly expression\"}}",
+          "content_digest": "5ef0ee06852a7a0e",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_1UKnukpJ8askkqOT9I4ZBv\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic German Shepherd standing on a mountain overlooking a beautiful landscape\"}}",
+          "content_digest": "fe2bfa2deecca7ba",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "917e6567/LangGraph/f38c": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "917e6567/Prompt/1cf6": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "917e6567/Prompt/a429": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "917e6567/RunnableSequence/2e38": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "917e6567/RunnableSequence/9e0b": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "917e6567/agent/05cc": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "917e6567/agent/3ef7": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "917e6567/call_model/caab": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "917e6567/call_model/ff46": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "917e6567/generate_image/07fa": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "917e6567/generate_image/205d": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "917e6567/generate_image/2ee8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "917e6567/should_continue/7df1": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "917e6567/should_continue/9bb4": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "917e6567/tools/0632": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "917e6567/tools/0b32": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "917e6567/tools/508d": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "e38c8ea1/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/56e9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "1d1f493f": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant"
+      ],
+      "tool_names": [
+        "read_image"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
+          "content_digest": "87d19d6e13d04cd7",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "41bbcd70eb1f8ea6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I understand. Thank you for letting me know about this issue with the image generation service. However, I should clarify my role: I'm actually designed to **analyze** images that you provide to me, not to generate them. If you have images …[554 chars]",
+          "content_digest": "79b24f7102231dac",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "2d74a39d": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
+          "content_digest": "51efebae7cdc923f",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "72ac2bcd": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "78b5e739": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
+          "content_digest": "51efebae7cdc923f",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "822dc09c": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
+          "content_digest": "51efebae7cdc923f",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "8d3b900c": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "917e6567": {
+      "message_count": 7,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "generate_image"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "e5de766cb0569906",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_QAdTYCKKAOVkM4GjFlG9st\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A happy golden retriever playing in a sunny park with green grass and trees in the background\"}}",
+          "content_digest": "2b73fa02c90da5ac",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FK95G3Y0Z3jUFhYmiJ2DTA\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A cute corgi wearing a colorful collar, sitting and looking at the camera with a friendly expression\"}}",
+          "content_digest": "5ef0ee06852a7a0e",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_1UKnukpJ8askkqOT9I4ZBv\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic German Shepherd standing on a mountain overlooking a beautiful landscape\"}}",
+          "content_digest": "fe2bfa2deecca7ba",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+          "content_digest": "0d667198ed732753",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
+          "content_digest": "87d19d6e13d04cd7",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "e38c8ea1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "session_views": {
+    "langgraph-image_gen-64f68058": {
+      "message_count": 10,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "system",
+        "assistant"
+      ],
+      "tool_names": [
+        "generate_image",
+        "read_image"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "e5de766cb0569906",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_QAdTYCKKAOVkM4GjFlG9st\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A happy golden retriever playing in a sunny park with green grass and trees in the background\"}}",
+          "content_digest": "2b73fa02c90da5ac",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FK95G3Y0Z3jUFhYmiJ2DTA\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A cute corgi wearing a colorful collar, sitting and looking at the camera with a friendly expression\"}}",
+          "content_digest": "5ef0ee06852a7a0e",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_1UKnukpJ8askkqOT9I4ZBv\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic German Shepherd standing on a mountain overlooking a beautiful landscape\"}}",
+          "content_digest": "fe2bfa2deecca7ba",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+          "content_digest": "0d667198ed732753",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
+          "content_digest": "87d19d6e13d04cd7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
+          "content_digest": "87d19d6e13d04cd7",
+          "observation_type": "chain"
+        },
+        {
+          "index": 8,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "41bbcd70eb1f8ea6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I understand. Thank you for letting me know about this issue with the image generation service. However, I should clarify my role: I'm actually designed to **analyze** images that you provide to me, not to generate them. If you have images …[554 chars]",
+          "content_digest": "79b24f7102231dac",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  }
+}
