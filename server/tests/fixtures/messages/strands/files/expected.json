@@ -1,0 +1,440 @@
+{
+  "label": "strands/files",
+  "request_count": 2,
+  "span_count": 8,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "517022ff/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/2701": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "517022ff/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/ef73": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "517022ff/chat/0710": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a file analysis AI that can read images and documents.",
+          "content_digest": "8f2813e78c01f7bf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read the image '/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "aff346d02aaf7fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"<replaced>\"}",
+          "content_digest": "5965f2742c4c912d",
+          "tool_name": "task-document",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll read the image first, and then follow the instructions from the PDF to write a poem about it.",
+          "content_digest": "354a8c14c514815f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "55d960df37eebc40",
+          "tool_name": "image_reader",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "72c4cc687f25c78b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Perfect! Now I'll follow the instruction from the PDF (\"Write a poem!\") and create a poem based on the image contents: ## A Park in Spring's Gentle Embrace Upon a winding path of black so deep, Through verdant fields where morning light can…[1053 chars]",
+          "content_digest": "6b46c409f346429d",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "517022ff/chat/0e34": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a file analysis AI that can read images and documents.",
+          "content_digest": "8f2813e78c01f7bf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read the image '/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "aff346d02aaf7fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"<replaced>\"}",
+          "content_digest": "5965f2742c4c912d",
+          "tool_name": "task-document",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll read the image first, and then follow the instructions from the PDF to write a poem about it.",
+          "content_digest": "354a8c14c514815f",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "55d960df37eebc40",
+          "tool_name": "image_reader",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "517022ff/execute_event_loop_cycle/28b0": {
+      "message_count": 3,
+      "role_sequence": [
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll read the image first, and then follow the instructions from the PDF to write a poem about it.",
+          "content_digest": "354a8c14c514815f",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "55d960df37eebc40",
+          "tool_name": "image_reader",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "72c4cc687f25c78b",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "517022ff/execute_event_loop_cycle/752a": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "72c4cc687f25c78b",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "517022ff/execute_tool image_reader/4d9c": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "72c4cc687f25c78b",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "517022ff/invoke_agent Strands Agents/6038": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "image_reader"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a file analysis AI that can read images and documents.",
+          "content_digest": "8f2813e78c01f7bf",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read the image '/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "aff346d02aaf7fdf",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"<replaced>\"}",
+          "content_digest": "5965f2742c4c912d",
+          "tool_name": "task-document",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Perfect! Now I'll follow the instruction from the PDF (\"Write a poem!\") and create a poem based on the image contents: ## A Park in Spring's Gentle Embrace Upon a winding path of black so deep, Through verdant fields where morning light can…[1053 chars]",
+          "content_digest": "0ab5aeeb7880789d",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "517022ff": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "image_reader"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a file analysis AI that can read images and documents.",
+          "content_digest": "8f2813e78c01f7bf",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read the image '/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "aff346d02aaf7fdf",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"<replaced>\"}",
+          "content_digest": "5965f2742c4c912d",
+          "tool_name": "task-document",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll read the image first, and then follow the instructions from the PDF to write a poem about it.",
+          "content_digest": "354a8c14c514815f",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "55d960df37eebc40",
+          "tool_name": "image_reader",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "72c4cc687f25c78b",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Perfect! Now I'll follow the instruction from the PDF (\"Write a poem!\") and create a poem based on the image contents: ## A Park in Spring's Gentle Embrace Upon a winding path of black so deep, Through verdant fields where morning light can…[1053 chars]",
+          "content_digest": "0ab5aeeb7880789d",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "strands-files-74de5c9c": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "image_reader"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a file analysis AI that can read images and documents.",
+          "content_digest": "8f2813e78c01f7bf",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read the image '/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "aff346d02aaf7fdf",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"<replaced>\"}",
+          "content_digest": "5965f2742c4c912d",
+          "tool_name": "task-document",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll read the image first, and then follow the instructions from the PDF to write a poem about it.",
+          "content_digest": "354a8c14c514815f",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "55d960df37eebc40",
+          "tool_name": "image_reader",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "72c4cc687f25c78b",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Perfect! Now I'll follow the instruction from the PDF (\"Write a poem!\") and create a poem based on the image contents: ## A Park in Spring's Gentle Embrace Upon a winding path of black so deep, Through verdant fields where morning light can…[1053 chars]",
+          "content_digest": "0ab5aeeb7880789d",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  }
+}

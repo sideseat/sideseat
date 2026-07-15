@@ -1,0 +1,272 @@
+{
+  "label": "crewai/reasoning",
+  "request_count": 3,
+  "span_count": 7,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "d60d8af3/Analytical Problem Solver._execute_core/0ea2": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Analytical Problem Solver. You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First …[537 chars]",
+          "content_digest": "8131b627aa83e16d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Analyze this Python function and explain what it computes: ```python def mystery(n): if n <= 1: return n a, b = 0, 1 for _ in range(2, n + 1): a, b = b, a + b return b ``` What mathematical sequence does this implement? Prove …[509 chars]",
+          "content_digest": "9cf4b89905567e35",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "d60d8af3/Analytical Problem Solver._execute_core/75fc": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Analytical Problem Solver. You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First …[537 chars]",
+          "content_digest": "8131b627aa83e16d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: A water tank has two pipes. Pipe A can fill the tank in 6 hours. Pipe B can empty the tank in 8 hours. If both pipes are opened when the tank is half full, how long will it take to fill the tank completely? Show your reasoning…[484 chars]",
+          "content_digest": "0118fe753f9c056a",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "d60d8af3/Analytical Problem Solver._execute_core/cae2": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Analytical Problem Solver. You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First …[537 chars]",
+          "content_digest": "8131b627aa83e16d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The p…[658 chars]",
+          "content_digest": "f945c344217ce1f1",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "d60d8af3/Crew_0e7ff027-b445-4144-9bc5-1c83b561f389.kickoff/feaa": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Analytical Problem Solver. You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First …[537 chars]",
+          "content_digest": "8131b627aa83e16d",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Analyze this Python function and explain what it computes: ```python def mystery(n): if n <= 1: return n a, b = 0, 1 for _ in range(2, n + 1): a, b = b, a + b return b ``` What mathematical sequence does this implement? Prove …[509 chars]",
+          "content_digest": "9cf4b89905567e35",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "d60d8af3/Crew_84b997a5-7cf6-4089-87ae-d7474bcd1d8c.kickoff/0247": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Analytical Problem Solver. You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First …[537 chars]",
+          "content_digest": "8131b627aa83e16d",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: A water tank has two pipes. Pipe A can fill the tank in 6 hours. Pipe B can empty the tank in 8 hours. If both pipes are opened when the tank is half full, how long will it take to fill the tank completely? Show your reasoning…[484 chars]",
+          "content_digest": "0118fe753f9c056a",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "d60d8af3/Crew_a245d3bc-24af-4209-81e8-d14167e83aae.kickoff/733c": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Analytical Problem Solver. You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First …[537 chars]",
+          "content_digest": "8131b627aa83e16d",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The p…[658 chars]",
+          "content_digest": "f945c344217ce1f1",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "d60d8af3/crewai.session/c456": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "d60d8af3": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Analytical Problem Solver. You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First …[537 chars]",
+          "content_digest": "8131b627aa83e16d",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The p…[658 chars]",
+          "content_digest": "f945c344217ce1f1",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: A water tank has two pipes. Pipe A can fill the tank in 6 hours. Pipe B can empty the tank in 8 hours. If both pipes are opened when the tank is half full, how long will it take to fill the tank completely? Show your reasoning…[484 chars]",
+          "content_digest": "0118fe753f9c056a",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Analyze this Python function and explain what it computes: ```python def mystery(n): if n <= 1: return n a, b = 0, 1 for _ in range(2, n + 1): a, b = b, a + b return b ``` What mathematical sequence does this implement? Prove …[509 chars]",
+          "content_digest": "9cf4b89905567e35",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "crewai-reasoning-16d776d0": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Analytical Problem Solver. You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First …[537 chars]",
+          "content_digest": "8131b627aa83e16d",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The p…[658 chars]",
+          "content_digest": "f945c344217ce1f1",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: A water tank has two pipes. Pipe A can fill the tank in 6 hours. Pipe B can empty the tank in 8 hours. If both pipes are opened when the tank is half full, how long will it take to fill the tank completely? Show your reasoning…[484 chars]",
+          "content_digest": "0118fe753f9c056a",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Analyze this Python function and explain what it computes: ```python def mystery(n): if n <= 1: return n a, b = 0, 1 for _ in range(2, n + 1): a, b = b, a + b return b ``` What mathematical sequence does this implement? Prove …[509 chars]",
+          "content_digest": "9cf4b89905567e35",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  }
+}

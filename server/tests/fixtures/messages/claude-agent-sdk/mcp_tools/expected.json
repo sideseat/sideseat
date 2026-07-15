@@ -1,0 +1,703 @@
+{
+  "label": "claude-agent-sdk/mcp_tools",
+  "request_count": 2,
+  "span_count": 20,
+  "trace_count": 1,
+  "session_count": 2,
+  "span_views": {
+    "dcfc6ed7/claude_code.interaction/1cab": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate an expression for me: What is 12345 plus 6789?",
+          "content_digest": "4551b5f2dd3b7138",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.interaction/1cd9": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 987 multiplied by 654? Use the calculator.",
+          "content_digest": "65211e260497b216",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.llm_request/1130": {
+      "message_count": 2,
+      "role_sequence": [
+        "tool",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__calculator__calculate\"}]",
+          "content_digest": "8b7cd2354cae44d9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Tool loaded.",
+          "content_digest": "1199b78d74e75e3a",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.llm_request/1c3e": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You help users calculate expressions. Always use the calculate tool.",
+          "content_digest": "a5be986b646b4856",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate an expression for me: What is 12345 plus 6789?",
+          "content_digest": "4551b5f2dd3b7138",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.llm_request/51e8": {
+      "message_count": 2,
+      "role_sequence": [
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"result\":645498} <system-reminder> <total_tokens>14983039 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "8d26b5202bc67337",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**987 × 654 = 645,498**",
+          "content_digest": "d6ad0d7b1770e431",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.llm_request/5b5f": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You help users calculate expressions. Always use the calculate tool.",
+          "content_digest": "a5be986b646b4856",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 987 multiplied by 654? Use the calculator.",
+          "content_digest": "65211e260497b216",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.llm_request/9e5b": {
+      "message_count": 2,
+      "role_sequence": [
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"result\":19134} <system-reminder> <total_tokens>14983042 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "a34ed7d5ab825175",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**12345 + 6789 = 19134**",
+          "content_digest": "fe1bd36b214192a5",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.llm_request/fec2": {
+      "message_count": 2,
+      "role_sequence": [
+        "tool",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__calculator__calculate\"}]",
+          "content_digest": "0302aa4be1068638",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Tool loaded.",
+          "content_digest": "1199b78d74e75e3a",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.tool.blocked_on_user/2b95": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool.blocked_on_user/7cf2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool.blocked_on_user/a4d9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool.blocked_on_user/cfb0": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool.execution/0c5e": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool.execution/4354": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool.execution/5f42": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool.execution/f234": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool/4d35": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017a6VBt8ucbhjakMERoAy55\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"987 * 654\"}}",
+          "content_digest": "6a02283e8fa2c266",
+          "tool_name": "mcp__calculator__calculate",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.tool/5786": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_016yn4grGTjYKLg3reviuTTg\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__calculator__calculate\",\"max_results\":1}}",
+          "content_digest": "2d60e9efd8c9c938",
+          "tool_name": "ToolSearch",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.tool/9ae5": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01XCuWmCb7QRUfYDRy3wZKJj\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__calculator__calculate\",\"max_results\":1}}",
+          "content_digest": "951dbc3a44500088",
+          "tool_name": "ToolSearch",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.tool/f93c": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01UPTNCVekLqNF98PY2ZLM6T\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
+          "content_digest": "5534e8c25efb41a9",
+          "tool_name": "mcp__calculator__calculate",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "dcfc6ed7": {
+      "message_count": 12,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate an expression for me: What is 12345 plus 6789?",
+          "content_digest": "4551b5f2dd3b7138",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You help users calculate expressions. Always use the calculate tool.",
+          "content_digest": "a5be986b646b4856",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_016yn4grGTjYKLg3reviuTTg\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__calculator__calculate\",\"max_results\":1}}",
+          "content_digest": "2d60e9efd8c9c938",
+          "tool_name": "ToolSearch",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__calculator__calculate\"}]",
+          "content_digest": "8b7cd2354cae44d9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Tool loaded.",
+          "content_digest": "1199b78d74e75e3a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01UPTNCVekLqNF98PY2ZLM6T\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
+          "content_digest": "5534e8c25efb41a9",
+          "tool_name": "mcp__calculator__calculate",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"result\":19134} <system-reminder> <total_tokens>14983042 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "a34ed7d5ab825175",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**12345 + 6789 = 19134**",
+          "content_digest": "fe1bd36b214192a5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 987 multiplied by 654? Use the calculator.",
+          "content_digest": "65211e260497b216",
+          "observation_type": "span"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017a6VBt8ucbhjakMERoAy55\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"987 * 654\"}}",
+          "content_digest": "6a02283e8fa2c266",
+          "tool_name": "mcp__calculator__calculate",
+          "observation_type": "tool"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"result\":645498} <system-reminder> <total_tokens>14983039 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "8d26b5202bc67337",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**987 × 654 = 645,498**",
+          "content_digest": "d6ad0d7b1770e431",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "69ecfef7-c0df-418a-bff3-7977f4ebe5c5": {
+      "message_count": 12,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate an expression for me: What is 12345 plus 6789?",
+          "content_digest": "4551b5f2dd3b7138",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You help users calculate expressions. Always use the calculate tool.",
+          "content_digest": "a5be986b646b4856",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_016yn4grGTjYKLg3reviuTTg\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__calculator__calculate\",\"max_results\":1}}",
+          "content_digest": "2d60e9efd8c9c938",
+          "tool_name": "ToolSearch",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__calculator__calculate\"}]",
+          "content_digest": "8b7cd2354cae44d9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Tool loaded.",
+          "content_digest": "1199b78d74e75e3a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01UPTNCVekLqNF98PY2ZLM6T\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
+          "content_digest": "5534e8c25efb41a9",
+          "tool_name": "mcp__calculator__calculate",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"result\":19134} <system-reminder> <total_tokens>14983042 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "a34ed7d5ab825175",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**12345 + 6789 = 19134**",
+          "content_digest": "fe1bd36b214192a5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 987 multiplied by 654? Use the calculator.",
+          "content_digest": "65211e260497b216",
+          "observation_type": "span"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017a6VBt8ucbhjakMERoAy55\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"987 * 654\"}}",
+          "content_digest": "6a02283e8fa2c266",
+          "tool_name": "mcp__calculator__calculate",
+          "observation_type": "tool"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"result\":645498} <system-reminder> <total_tokens>14983039 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "8d26b5202bc67337",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**987 × 654 = 645,498**",
+          "content_digest": "d6ad0d7b1770e431",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "fb4ceaee-d944-4648-9e76-596b99958535": {
+      "message_count": 12,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate an expression for me: What is 12345 plus 6789?",
+          "content_digest": "4551b5f2dd3b7138",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You help users calculate expressions. Always use the calculate tool.",
+          "content_digest": "a5be986b646b4856",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_016yn4grGTjYKLg3reviuTTg\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__calculator__calculate\",\"max_results\":1}}",
+          "content_digest": "2d60e9efd8c9c938",
+          "tool_name": "ToolSearch",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__calculator__calculate\"}]",
+          "content_digest": "8b7cd2354cae44d9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Tool loaded.",
+          "content_digest": "1199b78d74e75e3a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01UPTNCVekLqNF98PY2ZLM6T\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
+          "content_digest": "5534e8c25efb41a9",
+          "tool_name": "mcp__calculator__calculate",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"result\":19134} <system-reminder> <total_tokens>14983042 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "a34ed7d5ab825175",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**12345 + 6789 = 19134**",
+          "content_digest": "fe1bd36b214192a5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 987 multiplied by 654? Use the calculator.",
+          "content_digest": "65211e260497b216",
+          "observation_type": "span"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017a6VBt8ucbhjakMERoAy55\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"987 * 654\"}}",
+          "content_digest": "6a02283e8fa2c266",
+          "tool_name": "mcp__calculator__calculate",
+          "observation_type": "tool"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"result\":645498} <system-reminder> <total_tokens>14983039 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "8d26b5202bc67337",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**987 × 654 = 645,498**",
+          "content_digest": "d6ad0d7b1770e431",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  }
+}

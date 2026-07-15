@@ -1,0 +1,308 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "strands-agents"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "strands.telemetry"
+          },
+          "spans": [
+            {
+              "traceId": "5b8aa5a2d2c872e8321cf37308d69df2",
+              "spanId": "051581bf3cb55c13",
+              "name": "invoke_agent",
+              "kind": 1,
+              "startTimeUnixNano": "1735689600000000000",
+              "endTimeUnixNano": "1735689604000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "calculator-agent"
+                  }
+                },
+                {
+                  "key": "session.id",
+                  "value": {
+                    "stringValue": "sess-fixture-1"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "5b8aa5a2d2c872e8321cf37308d69df2",
+              "spanId": "b7ad6b7169203331",
+              "parentSpanId": "051581bf3cb55c13",
+              "name": "chat",
+              "kind": 3,
+              "startTimeUnixNano": "1735689600500000000",
+              "endTimeUnixNano": "1735689602000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.provider.name",
+                  "value": {
+                    "stringValue": "aws.bedrock"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+                  }
+                },
+                {
+                  "key": "gen_ai.response.model",
+                  "value": {
+                    "stringValue": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "412"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "58"
+                  }
+                },
+                {
+                  "key": "session.id",
+                  "value": {
+                    "stringValue": "sess-fixture-1"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "name": "gen_ai.system.message",
+                  "timeUnixNano": "1735689600510000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "You are a precise calculator."
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.user.message",
+                  "timeUnixNano": "1735689600520000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "What is 17 * 23?"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.choice",
+                  "timeUnixNano": "1735689601900000000",
+                  "attributes": [
+                    {
+                      "key": "message",
+                      "value": {
+                        "stringValue": "[{\"toolUse\": {\"toolUseId\": \"tooluse_abc123\", \"name\": \"calculator\", \"input\": {\"expression\": \"17 * 23\"}}}]"
+                      }
+                    },
+                    {
+                      "key": "tool.result",
+                      "value": {
+                        "stringValue": "[{\"toolResult\": {\"toolUseId\": \"tooluse_abc123\", \"status\": \"success\", \"content\": [{\"text\": \"391\"}]}}]"
+                      }
+                    },
+                    {
+                      "key": "finish_reason",
+                      "value": {
+                        "stringValue": "tool_use"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "traceId": "5b8aa5a2d2c872e8321cf37308d69df2",
+              "spanId": "c1de9a8877665544",
+              "parentSpanId": "051581bf3cb55c13",
+              "name": "execute_tool calculator",
+              "kind": 1,
+              "startTimeUnixNano": "1735689602100000000",
+              "endTimeUnixNano": "1735689602300000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "calculator"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.id",
+                  "value": {
+                    "stringValue": "tooluse_abc123"
+                  }
+                },
+                {
+                  "key": "session.id",
+                  "value": {
+                    "stringValue": "sess-fixture-1"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "name": "gen_ai.choice",
+                  "timeUnixNano": "1735689602250000000",
+                  "attributes": [
+                    {
+                      "key": "message",
+                      "value": {
+                        "stringValue": "[{\"text\": \"391\"}]"
+                      }
+                    },
+                    {
+                      "key": "id",
+                      "value": {
+                        "stringValue": "tooluse_abc123"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "traceId": "5b8aa5a2d2c872e8321cf37308d69df2",
+              "spanId": "d2ef0b9988776655",
+              "parentSpanId": "051581bf3cb55c13",
+              "name": "chat",
+              "kind": 3,
+              "startTimeUnixNano": "1735689602400000000",
+              "endTimeUnixNano": "1735689603800000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.provider.name",
+                  "value": {
+                    "stringValue": "aws.bedrock"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+                  }
+                },
+                {
+                  "key": "gen_ai.response.model",
+                  "value": {
+                    "stringValue": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "498"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "17"
+                  }
+                },
+                {
+                  "key": "session.id",
+                  "value": {
+                    "stringValue": "sess-fixture-1"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "name": "gen_ai.system.message",
+                  "timeUnixNano": "1735689602410000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "You are a precise calculator."
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.user.message",
+                  "timeUnixNano": "1735689602420000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "What is 17 * 23?"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.choice",
+                  "timeUnixNano": "1735689603700000000",
+                  "attributes": [
+                    {
+                      "key": "message",
+                      "value": {
+                        "stringValue": "17 * 23 = 391."
+                      }
+                    },
+                    {
+                      "key": "finish_reason",
+                      "value": {
+                        "stringValue": "stop"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

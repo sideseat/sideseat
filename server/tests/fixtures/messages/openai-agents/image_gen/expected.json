@@ -1,0 +1,725 @@
+{
+  "label": "openai-agents/image_gen",
+  "request_count": 4,
+  "span_count": 16,
+  "trace_count": 1,
+  "session_count": 2,
+  "span_views": {
+    "01a04250/Agent run: 'artist'/f86e": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04250/Agent run: 'critic'/eb87": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04250/Function: generate_image failed: Error running tool (non-fatal)/34bc": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
+          "content_digest": "f7ef202613a5d1bb",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "01a04250/Function: generate_image failed: Error running tool (non-fatal)/6167": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
+          "content_digest": "f7ef202613a5d1bb",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "01a04250/Function: generate_image failed: Error running tool (non-fatal)/d883": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
+          "content_digest": "f7ef202613a5d1bb",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "01a04250/OpenAI Agents trace: Agent workflow/1f05": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04250/OpenAI Agents trace: Agent workflow/d59f": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04250/Responses API with 'us.openai.gpt-5.6-luna'/19ad": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI artist. When asked to generate images, use the generate_image tool with varied prompts for each image to create a diverse collection. Return a comma-separated list of the generated image paths.",
+          "content_digest": "7ca3c3a77a751a9a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 different images of a dog. Vary the style, setting, and mood for each image. Use different prompts like: playful puppy in a park, majestic dog portrait, dog playing in snow.",
+          "content_digest": "17fdbf1ec6fdf6fb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_b927172290845e3f82cdd316c2f64df1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful playful golden retriever puppy bounding through a sunny spring park, bright green grass, colorful wildflowers, a red frisbee…[354 chars]",
+          "content_digest": "ae36074112996894",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_cd488973791e5791b0a0df6b09b83697\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic adult German shepherd posed in a dramatic studio portrait, rich charcoal and tan fur, dignified expression, deep charcoal …[370 chars]",
+          "content_digest": "edd073399bdec6c6",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_917368052e0a580e855a2d3aa0b20d2b\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A fluffy Siberian husky joyfully playing in fresh powder snow during a gentle winter snowfall, snow-covered pine forest, cool blue tw…[362 chars]",
+          "content_digest": "d8659c048552cb11",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
+          "content_digest": "dae0a34d6ae1869f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Unable to generate the images because image-generation credentials are unavailable.",
+          "content_digest": "1f006ed3a538cbce",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "493be7099e1b0089",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04250/Responses API with 'us.openai.gpt-5.6-luna'/4299": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an experienced art critic. Use the read_image tool to load and visually inspect each image. Evaluate based on creativity, composition, and appeal. Your final line must include: FINAL DECISION: [path to best image]",
+          "content_digest": "b9d6248442097ebb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Evaluate these generated images and select the best one: Unable to generate the images because image-generation credentials are unavailable.",
+          "content_digest": "d0dbbc9ccdca2ba1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "493be7099e1b0089",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "No images were provided for evaluation; image generation failed because credentials were unavailable. Therefore, I cannot compare creativity, composition, or appeal. FINAL DECISION: No image available (generation failed)",
+          "content_digest": "1c576e3eb09c8997",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "493be7099e1b0089",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04250/Responses API with 'us.openai.gpt-5.6-luna'/7fe6": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI artist. When asked to generate images, use the generate_image tool with varied prompts for each image to create a diverse collection. Return a comma-separated list of the generated image paths.",
+          "content_digest": "7ca3c3a77a751a9a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 different images of a dog. Vary the style, setting, and mood for each image. Use different prompts like: playful puppy in a park, majestic dog portrait, dog playing in snow.",
+          "content_digest": "17fdbf1ec6fdf6fb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_b927172290845e3f82cdd316c2f64df1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful playful golden retriever puppy bounding through a sunny spring park, bright green grass, colorful wildflowers, a red frisbee…[354 chars]",
+          "content_digest": "ae36074112996894",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_cd488973791e5791b0a0df6b09b83697\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic adult German shepherd posed in a dramatic studio portrait, rich charcoal and tan fur, dignified expression, deep charcoal …[370 chars]",
+          "content_digest": "edd073399bdec6c6",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_917368052e0a580e855a2d3aa0b20d2b\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A fluffy Siberian husky joyfully playing in fresh powder snow during a gentle winter snowfall, snow-covered pine forest, cool blue tw…[362 chars]",
+          "content_digest": "d8659c048552cb11",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04250/Task: Agent workflow/5df6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04250/Task: Agent workflow/f031": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04250/Turn 1 for agent artist/9c0d": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04250/Turn 1 for agent critic/28d2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04250/Turn 2 for agent artist/6ef8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04250/openai_agents.session/7455": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "01a04250": {
+      "message_count": 13,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant",
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI artist. When asked to generate images, use the generate_image tool with varied prompts for each image to create a diverse collection. Return a comma-separated list of the generated image paths.",
+          "content_digest": "7ca3c3a77a751a9a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 different images of a dog. Vary the style, setting, and mood for each image. Use different prompts like: playful puppy in a park, majestic dog portrait, dog playing in snow.",
+          "content_digest": "17fdbf1ec6fdf6fb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_b927172290845e3f82cdd316c2f64df1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful playful golden retriever puppy bounding through a sunny spring park, bright green grass, colorful wildflowers, a red frisbee…[354 chars]",
+          "content_digest": "ae36074112996894",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_cd488973791e5791b0a0df6b09b83697\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic adult German shepherd posed in a dramatic studio portrait, rich charcoal and tan fur, dignified expression, deep charcoal …[370 chars]",
+          "content_digest": "edd073399bdec6c6",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_917368052e0a580e855a2d3aa0b20d2b\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A fluffy Siberian husky joyfully playing in fresh powder snow during a gentle winter snowfall, snow-covered pine forest, cool blue tw…[362 chars]",
+          "content_digest": "d8659c048552cb11",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
+          "content_digest": "f7ef202613a5d1bb",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
+          "content_digest": "dae0a34d6ae1869f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Unable to generate the images because image-generation credentials are unavailable.",
+          "content_digest": "1f006ed3a538cbce",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "493be7099e1b0089",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an experienced art critic. Use the read_image tool to load and visually inspect each image. Evaluate based on creativity, composition, and appeal. Your final line must include: FINAL DECISION: [path to best image]",
+          "content_digest": "b9d6248442097ebb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Evaluate these generated images and select the best one: Unable to generate the images because image-generation credentials are unavailable.",
+          "content_digest": "d0dbbc9ccdca2ba1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "user",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "493be7099e1b0089",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "No images were provided for evaluation; image generation failed because credentials were unavailable. Therefore, I cannot compare creativity, composition, or appeal. FINAL DECISION: No image available (generation failed)",
+          "content_digest": "1c576e3eb09c8997",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "[Scrubbed due to 'session']": {
+      "message_count": 13,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant",
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI artist. When asked to generate images, use the generate_image tool with varied prompts for each image to create a diverse collection. Return a comma-separated list of the generated image paths.",
+          "content_digest": "7ca3c3a77a751a9a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 different images of a dog. Vary the style, setting, and mood for each image. Use different prompts like: playful puppy in a park, majestic dog portrait, dog playing in snow.",
+          "content_digest": "17fdbf1ec6fdf6fb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_b927172290845e3f82cdd316c2f64df1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful playful golden retriever puppy bounding through a sunny spring park, bright green grass, colorful wildflowers, a red frisbee…[354 chars]",
+          "content_digest": "ae36074112996894",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_cd488973791e5791b0a0df6b09b83697\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic adult German shepherd posed in a dramatic studio portrait, rich charcoal and tan fur, dignified expression, deep charcoal …[370 chars]",
+          "content_digest": "edd073399bdec6c6",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_917368052e0a580e855a2d3aa0b20d2b\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A fluffy Siberian husky joyfully playing in fresh powder snow during a gentle winter snowfall, snow-covered pine forest, cool blue tw…[362 chars]",
+          "content_digest": "d8659c048552cb11",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
+          "content_digest": "f7ef202613a5d1bb",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
+          "content_digest": "dae0a34d6ae1869f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Unable to generate the images because image-generation credentials are unavailable.",
+          "content_digest": "1f006ed3a538cbce",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "493be7099e1b0089",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an experienced art critic. Use the read_image tool to load and visually inspect each image. Evaluate based on creativity, composition, and appeal. Your final line must include: FINAL DECISION: [path to best image]",
+          "content_digest": "b9d6248442097ebb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Evaluate these generated images and select the best one: Unable to generate the images because image-generation credentials are unavailable.",
+          "content_digest": "d0dbbc9ccdca2ba1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "user",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "493be7099e1b0089",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "No images were provided for evaluation; image generation failed because credentials were unavailable. Therefore, I cannot compare creativity, composition, or appeal. FINAL DECISION: No image available (generation failed)",
+          "content_digest": "1c576e3eb09c8997",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "openai-agents-image_gen-39f4d081": {
+      "message_count": 13,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant",
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI artist. When asked to generate images, use the generate_image tool with varied prompts for each image to create a diverse collection. Return a comma-separated list of the generated image paths.",
+          "content_digest": "7ca3c3a77a751a9a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 different images of a dog. Vary the style, setting, and mood for each image. Use different prompts like: playful puppy in a park, majestic dog portrait, dog playing in snow.",
+          "content_digest": "17fdbf1ec6fdf6fb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_b927172290845e3f82cdd316c2f64df1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful playful golden retriever puppy bounding through a sunny spring park, bright green grass, colorful wildflowers, a red frisbee…[354 chars]",
+          "content_digest": "ae36074112996894",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_cd488973791e5791b0a0df6b09b83697\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic adult German shepherd posed in a dramatic studio portrait, rich charcoal and tan fur, dignified expression, deep charcoal …[370 chars]",
+          "content_digest": "edd073399bdec6c6",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_917368052e0a580e855a2d3aa0b20d2b\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A fluffy Siberian husky joyfully playing in fresh powder snow during a gentle winter snowfall, snow-covered pine forest, cool blue tw…[362 chars]",
+          "content_digest": "d8659c048552cb11",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
+          "content_digest": "f7ef202613a5d1bb",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
+          "content_digest": "dae0a34d6ae1869f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Unable to generate the images because image-generation credentials are unavailable.",
+          "content_digest": "1f006ed3a538cbce",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "493be7099e1b0089",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an experienced art critic. Use the read_image tool to load and visually inspect each image. Evaluate based on creativity, composition, and appeal. Your final line must include: FINAL DECISION: [path to best image]",
+          "content_digest": "b9d6248442097ebb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Evaluate these generated images and select the best one: Unable to generate the images because image-generation credentials are unavailable.",
+          "content_digest": "d0dbbc9ccdca2ba1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "user",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "493be7099e1b0089",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "No images were provided for evaluation; image generation failed because credentials were unavailable. Therefore, I cannot compare creativity, composition, or appeal. FINAL DECISION: No image available (generation failed)",
+          "content_digest": "1c576e3eb09c8997",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  }
+}

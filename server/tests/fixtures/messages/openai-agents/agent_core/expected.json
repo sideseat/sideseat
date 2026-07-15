@@ -1,0 +1,384 @@
+{
+  "label": "openai-agents/agent_core",
+  "request_count": 3,
+  "span_count": 12,
+  "trace_count": 1,
+  "session_count": 2,
+  "span_views": {
+    "01a04251/Agent run: 'memory_code_assistant'/904f": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/Function: execute_python_code/d6da": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/Function: retrieve_user_preference/0308": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/OpenAI Agents trace: Agent workflow/947f": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/Responses API with 'us.openai.gpt-5.6-luna'/32b0": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI assistant that validates answers through code execution. When asked about code, algorithms, or calculations, write Python code to verify your answers. When asked about user preferences or personal information (like favorite nu…[327 chars]",
+          "content_digest": "8a14d1f4f3a25a24",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate my favorite number squared. First retrieve my favorite number using the retrieve_user_preference tool with 'favorite_number' as the argument. Then use the execute_python_code tool to compute and verify the square.",
+          "content_digest": "639746ac82d4b63e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_bba135355c155eedbf2f98c7fed08616\",\"name\":\"retrieve_user_preference\",\"input\":{\"preference_type\":\"favorite_number\"}}",
+          "content_digest": "657e4d41365496c4",
+          "tool_name": "retrieve_user_preference",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04251/Responses API with 'us.openai.gpt-5.6-luna'/62a9": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI assistant that validates answers through code execution. When asked about code, algorithms, or calculations, write Python code to verify your answers. When asked about user preferences or personal information (like favorite nu…[327 chars]",
+          "content_digest": "8a14d1f4f3a25a24",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate my favorite number squared. First retrieve my favorite number using the retrieve_user_preference tool with 'favorite_number' as the argument. Then use the execute_python_code tool to compute and verify the square.",
+          "content_digest": "639746ac82d4b63e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_bba135355c155eedbf2f98c7fed08616\",\"name\":\"retrieve_user_preference\",\"input\":{\"preference_type\":\"favorite_number\"}}",
+          "content_digest": "657e4d41365496c4",
+          "tool_name": "retrieve_user_preference",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_5ea33b13c1f058cf99a1e724661cccae\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"favorite_number = 7\\nsquared = favorite_number ** 2\\nassert squared == 49\\nprint(squared)\"}}",
+          "content_digest": "478e412d9f055930",
+          "tool_name": "execute_python_code",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04251/Responses API with 'us.openai.gpt-5.6-luna'/cd57": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI assistant that validates answers through code execution. When asked about code, algorithms, or calculations, write Python code to verify your answers. When asked about user preferences or personal information (like favorite nu…[327 chars]",
+          "content_digest": "8a14d1f4f3a25a24",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate my favorite number squared. First retrieve my favorite number using the retrieve_user_preference tool with 'favorite_number' as the argument. Then use the execute_python_code tool to compute and verify the square.",
+          "content_digest": "639746ac82d4b63e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_bba135355c155eedbf2f98c7fed08616\",\"name\":\"retrieve_user_preference\",\"input\":{\"preference_type\":\"favorite_number\"}}",
+          "content_digest": "657e4d41365496c4",
+          "tool_name": "retrieve_user_preference",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_5ea33b13c1f058cf99a1e724661cccae\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"favorite_number = 7\\nsquared = favorite_number ** 2\\nassert squared == 49\\nprint(squared)\"}}",
+          "content_digest": "478e412d9f055930",
+          "tool_name": "execute_python_code",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Your favorite number is **7**. Squared, it is **49**.",
+          "content_digest": "338a914fb753b674",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04251/Task: Agent workflow/ee67": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/Turn 1 for agent memory_code_assistant/2726": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/Turn 2 for agent memory_code_assistant/d36b": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/Turn 3 for agent memory_code_assistant/dc60": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04251/openai_agents.session/b919": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "01a04251": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI assistant that validates answers through code execution. When asked about code, algorithms, or calculations, write Python code to verify your answers. When asked about user preferences or personal information (like favorite nu…[327 chars]",
+          "content_digest": "8a14d1f4f3a25a24",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate my favorite number squared. First retrieve my favorite number using the retrieve_user_preference tool with 'favorite_number' as the argument. Then use the execute_python_code tool to compute and verify the square.",
+          "content_digest": "639746ac82d4b63e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_bba135355c155eedbf2f98c7fed08616\",\"name\":\"retrieve_user_preference\",\"input\":{\"preference_type\":\"favorite_number\"}}",
+          "content_digest": "657e4d41365496c4",
+          "tool_name": "retrieve_user_preference",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_5ea33b13c1f058cf99a1e724661cccae\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"favorite_number = 7\\nsquared = favorite_number ** 2\\nassert squared == 49\\nprint(squared)\"}}",
+          "content_digest": "478e412d9f055930",
+          "tool_name": "execute_python_code",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Your favorite number is **7**. Squared, it is **49**.",
+          "content_digest": "338a914fb753b674",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "[Scrubbed due to 'session']": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI assistant that validates answers through code execution. When asked about code, algorithms, or calculations, write Python code to verify your answers. When asked about user preferences or personal information (like favorite nu…[327 chars]",
+          "content_digest": "8a14d1f4f3a25a24",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate my favorite number squared. First retrieve my favorite number using the retrieve_user_preference tool with 'favorite_number' as the argument. Then use the execute_python_code tool to compute and verify the square.",
+          "content_digest": "639746ac82d4b63e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_bba135355c155eedbf2f98c7fed08616\",\"name\":\"retrieve_user_preference\",\"input\":{\"preference_type\":\"favorite_number\"}}",
+          "content_digest": "657e4d41365496c4",
+          "tool_name": "retrieve_user_preference",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_5ea33b13c1f058cf99a1e724661cccae\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"favorite_number = 7\\nsquared = favorite_number ** 2\\nassert squared == 49\\nprint(squared)\"}}",
+          "content_digest": "478e412d9f055930",
+          "tool_name": "execute_python_code",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Your favorite number is **7**. Squared, it is **49**.",
+          "content_digest": "338a914fb753b674",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "openai-agents-agent_core-f841d130": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI assistant that validates answers through code execution. When asked about code, algorithms, or calculations, write Python code to verify your answers. When asked about user preferences or personal information (like favorite nu…[327 chars]",
+          "content_digest": "8a14d1f4f3a25a24",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate my favorite number squared. First retrieve my favorite number using the retrieve_user_preference tool with 'favorite_number' as the argument. Then use the execute_python_code tool to compute and verify the square.",
+          "content_digest": "639746ac82d4b63e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_bba135355c155eedbf2f98c7fed08616\",\"name\":\"retrieve_user_preference\",\"input\":{\"preference_type\":\"favorite_number\"}}",
+          "content_digest": "657e4d41365496c4",
+          "tool_name": "retrieve_user_preference",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_5ea33b13c1f058cf99a1e724661cccae\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"favorite_number = 7\\nsquared = favorite_number ** 2\\nassert squared == 49\\nprint(squared)\"}}",
+          "content_digest": "478e412d9f055930",
+          "tool_name": "execute_python_code",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Your favorite number is **7**. Squared, it is **49**.",
+          "content_digest": "338a914fb753b674",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  }
+}

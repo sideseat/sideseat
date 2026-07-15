@@ -21,3 +21,69 @@ pub use pipeline::TracePipeline;
 
 // Internal re-exports for use within domain crate
 pub(crate) use extract::SpanData;
+
+// ============================================================================
+// Test-only replay bridge
+// ============================================================================
+
+/// Run the real ingestion path over one OTLP request and return the rows the message API
+/// would later read, paired with each span's name.
+///
+/// Exists so `message_goldens_tests` can replay captured sample payloads through the actual
+/// extraction, SideML conversion and enrichment stages rather than a reimplementation of
+/// them. Reimplementing would defeat the purpose: the point is to catch changes in this
+/// pipeline, so the test has to go through it.
+///
+/// File extraction is disabled - it writes to disk and none of the message properties under
+/// test depend on it.
+#[cfg(test)]
+pub(crate) fn normalize_for_test(
+    request: &opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest,
+    pricing: &crate::domain::pricing::PricingService,
+) -> Vec<(String, crate::data::types::MessageSpanRow)> {
+    use crate::data::types::MessageSpanRow;
+
+    let Some((spans, _pending)) = pipeline::process_request_for_test(request, pricing) else {
+        return Vec::new();
+    };
+
+    spans
+        .into_iter()
+        .map(|s| {
+            let row = MessageSpanRow {
+                trace_id: s.trace_id.clone(),
+                span_id: s.span_id.clone(),
+                parent_span_id: s.parent_span_id.clone(),
+                span_timestamp: s.timestamp_start,
+                span_end_timestamp: s.timestamp_end,
+                messages_json: s.messages.clone().unwrap_or_else(|| "[]".to_string()),
+                tool_definitions_json: s
+                    .tool_definitions
+                    .clone()
+                    .unwrap_or_else(|| "[]".to_string()),
+                tool_names_json: s.tool_names.clone().unwrap_or_else(|| "[]".to_string()),
+                model: s
+                    .gen_ai_response_model
+                    .clone()
+                    .or_else(|| s.gen_ai_request_model.clone()),
+                provider: s.gen_ai_system.clone(),
+                status_code: s.status_code.clone(),
+                exception_type: s.exception_type.clone(),
+                exception_message: s.exception_message.clone(),
+                exception_stacktrace: s.exception_stacktrace.clone(),
+                input_tokens: s.gen_ai_usage_input_tokens,
+                output_tokens: s.gen_ai_usage_output_tokens,
+                total_tokens: s.gen_ai_usage_total_tokens,
+                cost_total: s.gen_ai_cost_total,
+                observation_type: s.observation_type.map(|o| o.as_str().to_string()),
+                session_id: s.session_id.clone(),
+                ingested_at: s.timestamp_start,
+            };
+            (s.span_name.clone(), row)
+        })
+        .collect()
+}
+
+#[cfg(test)]
+#[path = "message_goldens_tests.rs"]
+mod message_goldens_tests;

@@ -1,0 +1,254 @@
+{
+  "label": "crewai/mcp_tools",
+  "request_count": 2,
+  "span_count": 5,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "3ddefa97//Users/pugachev/Desktop/dev/sideseat/misc/samples/python/crewai/.venv/bin/uv_run_--directory_/Users/pugachev/Desktop/dev/sideseat/misc/mcp_mcp-calculator_calculate.run/3997": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "3ddefa97//Users/pugachev/Desktop/dev/sideseat/misc/samples/python/crewai/.venv/bin/uv_run_--directory_/Users/pugachev/Desktop/dev/sideseat/misc/mcp_mcp-calculator_calculate.run/69a8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "3ddefa97/Calculator._execute_core/c886": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Calculator. You help users to calculate expressions. Your personal goal is: Help users calculate expressions accurately",
+          "content_digest": "e8a102c8ec699378",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Calculate an expression for me: What is 12345 plus 6789? This is the expected criteria for your final answer: The result of the calculation. you MUST return the actual complete content as the final answer, not a summary.",
+          "content_digest": "517fc99aa44c476f",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DcFPx3IcKOAywKOhtxdgMy\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "39b27a19c8e336e6",
+          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
+          "content_digest": "0f12ce0c249236c9",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I apologize for the confusion. It appears the function requires an expression parameter. However, based on the arithmetic calculation: 12345 + 6789 = **19134** This is the result of adding 12,345 and 6,789 together.",
+          "content_digest": "ec4c518b1b354d8f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "3ddefa97/Crew_47f668b0-fe2a-48a7-94b9-49343e566180.kickoff/b8b2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Calculator. You help users to calculate expressions. Your personal goal is: Help users calculate expressions accurately",
+          "content_digest": "e8a102c8ec699378",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Calculate an expression for me: What is 12345 plus 6789? This is the expected criteria for your final answer: The result of the calculation. you MUST return the actual complete content as the final answer, not a summary.",
+          "content_digest": "517fc99aa44c476f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DcFPx3IcKOAywKOhtxdgMy\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "39b27a19c8e336e6",
+          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
+          "content_digest": "0f12ce0c249236c9",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I apologize for the confusion. It appears the function requires an expression parameter. However, based on the arithmetic calculation: 12345 + 6789 = **19134** This is the result of adding 12,345 and 6,789 together.",
+          "content_digest": "ec4c518b1b354d8f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "3ddefa97/crewai.session/d91a": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "3ddefa97": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Calculator. You help users to calculate expressions. Your personal goal is: Help users calculate expressions accurately",
+          "content_digest": "e8a102c8ec699378",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Calculate an expression for me: What is 12345 plus 6789? This is the expected criteria for your final answer: The result of the calculation. you MUST return the actual complete content as the final answer, not a summary.",
+          "content_digest": "517fc99aa44c476f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DcFPx3IcKOAywKOhtxdgMy\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "39b27a19c8e336e6",
+          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
+          "content_digest": "0f12ce0c249236c9",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I apologize for the confusion. It appears the function requires an expression parameter. However, based on the arithmetic calculation: 12345 + 6789 = **19134** This is the result of adding 12,345 and 6,789 together.",
+          "content_digest": "ec4c518b1b354d8f",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "crewai-mcp_tools-e6d5c927": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Calculator. You help users to calculate expressions. Your personal goal is: Help users calculate expressions accurately",
+          "content_digest": "e8a102c8ec699378",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Calculate an expression for me: What is 12345 plus 6789? This is the expected criteria for your final answer: The result of the calculation. you MUST return the actual complete content as the final answer, not a summary.",
+          "content_digest": "517fc99aa44c476f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DcFPx3IcKOAywKOhtxdgMy\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "39b27a19c8e336e6",
+          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
+          "content_digest": "0f12ce0c249236c9",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I apologize for the confusion. It appears the function requires an expression parameter. However, based on the arithmetic calculation: 12345 + 6789 = **19134** This is the result of adding 12,345 and 6,789 together.",
+          "content_digest": "ec4c518b1b354d8f",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  }
+}

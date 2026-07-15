@@ -1,0 +1,135 @@
+{
+  "label": "crewai/error",
+  "request_count": 1,
+  "span_count": 3,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "2c4d029b/Assistant._execute_core/f1f7": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"agent\":{\"entity_type\":\"agent\",\"id\":\"c32551d5-0bfb-40de-b531-c5ed529f2af3\",\"role\":\"Assistant\",\"goal\":\"Answer questions\",\"backstory\":\"You are a helpful assistant.\",\"cache\":true,\"verbose\":false,\"max_rpm\":null,\"allow_del…[1302 chars]",
+          "content_digest": "985bc36371f01bb9",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[9614 chars]",
+          "content_digest": "5d6ac805b7095809",
+          "finish_reason": "Error",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "2c4d029b/Crew_29d25b91-955d-436f-a9bd-35792982fe36.kickoff/0025": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[10745 chars]",
+          "content_digest": "0f27659bdba53ae8",
+          "finish_reason": "Error",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "2c4d029b/crewai.session/26c2": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[11227 chars]",
+          "content_digest": "19ef51471a76566d",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "2c4d029b": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"agent\":{\"entity_type\":\"agent\",\"id\":\"c32551d5-0bfb-40de-b531-c5ed529f2af3\",\"role\":\"Assistant\",\"goal\":\"Answer questions\",\"backstory\":\"You are a helpful assistant.\",\"cache\":true,\"verbose\":false,\"max_rpm\":null,\"allow_del…[1302 chars]",
+          "content_digest": "985bc36371f01bb9",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[9614 chars]",
+          "content_digest": "5d6ac805b7095809",
+          "finish_reason": "Error",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "crewai-error-b9e390f4": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"agent\":{\"entity_type\":\"agent\",\"id\":\"c32551d5-0bfb-40de-b531-c5ed529f2af3\",\"role\":\"Assistant\",\"goal\":\"Answer questions\",\"backstory\":\"You are a helpful assistant.\",\"cache\":true,\"verbose\":false,\"max_rpm\":null,\"allow_del…[1302 chars]",
+          "content_digest": "985bc36371f01bb9",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[9614 chars]",
+          "content_digest": "5d6ac805b7095809",
+          "finish_reason": "Error",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  }
+}

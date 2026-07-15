@@ -1,0 +1,475 @@
+{
+  "label": "anthropic/session",
+  "request_count": 6,
+  "span_count": 9,
+  "trace_count": 3,
+  "session_count": 1,
+  "span_views": {
+    "01a04253/Message with 'us.anthropic.claude-sonnet-5'/100f": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a travel advisor. Be concise (2-3 sentences).",
+          "content_digest": "161118e3d09b0892",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I want to visit Japan for 5 days. What cities should I see?",
+          "content_digest": "a3a73680ced46b3b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Tell me more about Kyoto. What are the must-see spots?",
+          "content_digest": "e1636d985990dab7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Kyoto's top spots include Fushimi Inari Shrine (the iconic thousand torii gates), Kinkaku-ji (Golden Pavilion), and Arashiyama's bamboo grove paired with the nearby Tenryu-ji temple. Also worth it: Gion district for traditional geisha-era s…[428 chars]",
+          "content_digest": "1ab3f6e66bae7798",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04253/Message with 'us.anthropic.claude-sonnet-5'/2945": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a food expert specializing in Japanese cuisine. Be concise (2-3 sentences).",
+          "content_digest": "adcfc19a9cbe214d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What are the must-try dishes in Tokyo?",
+          "content_digest": "3808fec4a7fa8630",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "In Tokyo, don't miss sushi at Tsukiji/Toyosu market (fresh, melt-in-your-mouth nigiri), ramen (try shoyu or tonkotsu styles at spots like Ichiran), and tempura for perfectly crispy, light-battered seafood and vegetables. Also try monjayaki …[389 chars]",
+          "content_digest": "09c20f8f6ba06a67",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04253/Message with 'us.anthropic.claude-sonnet-5'/b7f4": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Japan travel logistics expert. Be concise (2-3 sentences).",
+          "content_digest": "8ba36bc4f02cb6a9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the best way to get around between cities in Japan?",
+          "content_digest": "596c245b8314a0e6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Should I get a Japan Rail Pass for 5 days?",
+          "content_digest": "73003835d377682e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The JR Pass comes in 7, 14, or 21-day increments—not 5 days—so you'd need the **7-day pass (~¥50,000)** even for a shorter trip. It's only worth it if your travel adds up close to or over that price; for example, a round-trip Tokyo-Kyoto Sh…[458 chars]",
+          "content_digest": "4ba504481a68ecad",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04253/Message with 'us.anthropic.claude-sonnet-5'/be6e": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a travel advisor. Be concise (2-3 sentences).",
+          "content_digest": "161118e3d09b0892",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I want to visit Japan for 5 days. What cities should I see?",
+          "content_digest": "a3a73680ced46b3b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "With only 5 days, focus on Tokyo (3 days) and Kyoto (2 days) via bullet train—this gives you the best mix of modern city life and traditional culture without too much rushed travel. If you want a quick side trip, Osaka or Nara are easy day …[368 chars]",
+          "content_digest": "bd24f82aeeb4d169",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04253/Message with 'us.anthropic.claude-sonnet-5'/c742": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a food expert specializing in Japanese cuisine. Be concise (2-3 sentences).",
+          "content_digest": "adcfc19a9cbe214d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What are the must-try dishes in Tokyo?",
+          "content_digest": "3808fec4a7fa8630",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What about street food in Osaka?",
+          "content_digest": "3e619c2831d0e782",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Osaka is Japan's street food capital—must-try items include takoyaki (octopus balls, crispy outside, gooey inside), okonomiyaki (savory cabbage pancake, Osaka-style is thicker than Hiroshima's), and kushikatsu (deep-fried skewered meats/veg…[435 chars]",
+          "content_digest": "0b079541f014d8e8",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04253/Message with 'us.anthropic.claude-sonnet-5'/d415": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Japan travel logistics expert. Be concise (2-3 sentences).",
+          "content_digest": "8ba36bc4f02cb6a9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the best way to get around between cities in Japan?",
+          "content_digest": "596c245b8314a0e6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The best way to get between cities in Japan is by **Shinkansen (bullet train)**—it's fast, reliable, and covers most major cities. If you're visiting multiple cities, a **Japan Rail Pass** (purchased before arrival) can offer significant sa…[424 chars]",
+          "content_digest": "6f7c171165abedac",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04253/food-recommendations/721e": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04253/practical-tips/5cc0": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04253/trip-planning/7345": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "01a04253": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Japan travel logistics expert. Be concise (2-3 sentences).",
+          "content_digest": "8ba36bc4f02cb6a9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the best way to get around between cities in Japan?",
+          "content_digest": "596c245b8314a0e6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The best way to get between cities in Japan is by **Shinkansen (bullet train)**—it's fast, reliable, and covers most major cities. If you're visiting multiple cities, a **Japan Rail Pass** (purchased before arrival) can offer significant sa…[424 chars]",
+          "content_digest": "6f7c171165abedac",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Should I get a Japan Rail Pass for 5 days?",
+          "content_digest": "73003835d377682e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The JR Pass comes in 7, 14, or 21-day increments—not 5 days—so you'd need the **7-day pass (~¥50,000)** even for a shorter trip. It's only worth it if your travel adds up close to or over that price; for example, a round-trip Tokyo-Kyoto Sh…[458 chars]",
+          "content_digest": "4ba504481a68ecad",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "anthropic-session-5be6f9c3": {
+      "message_count": 15,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a travel advisor. Be concise (2-3 sentences).",
+          "content_digest": "161118e3d09b0892",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I want to visit Japan for 5 days. What cities should I see?",
+          "content_digest": "a3a73680ced46b3b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "With only 5 days, focus on Tokyo (3 days) and Kyoto (2 days) via bullet train—this gives you the best mix of modern city life and traditional culture without too much rushed travel. If you want a quick side trip, Osaka or Nara are easy day …[368 chars]",
+          "content_digest": "bd24f82aeeb4d169",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Tell me more about Kyoto. What are the must-see spots?",
+          "content_digest": "e1636d985990dab7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Kyoto's top spots include Fushimi Inari Shrine (the iconic thousand torii gates), Kinkaku-ji (Golden Pavilion), and Arashiyama's bamboo grove paired with the nearby Tenryu-ji temple. Also worth it: Gion district for traditional geisha-era s…[428 chars]",
+          "content_digest": "1ab3f6e66bae7798",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a food expert specializing in Japanese cuisine. Be concise (2-3 sentences).",
+          "content_digest": "adcfc19a9cbe214d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What are the must-try dishes in Tokyo?",
+          "content_digest": "3808fec4a7fa8630",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "In Tokyo, don't miss sushi at Tsukiji/Toyosu market (fresh, melt-in-your-mouth nigiri), ramen (try shoyu or tonkotsu styles at spots like Ichiran), and tempura for perfectly crispy, light-battered seafood and vegetables. Also try monjayaki …[389 chars]",
+          "content_digest": "09c20f8f6ba06a67",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What about street food in Osaka?",
+          "content_digest": "3e619c2831d0e782",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Osaka is Japan's street food capital—must-try items include takoyaki (octopus balls, crispy outside, gooey inside), okonomiyaki (savory cabbage pancake, Osaka-style is thicker than Hiroshima's), and kushikatsu (deep-fried skewered meats/veg…[435 chars]",
+          "content_digest": "0b079541f014d8e8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Japan travel logistics expert. Be concise (2-3 sentences).",
+          "content_digest": "8ba36bc4f02cb6a9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the best way to get around between cities in Japan?",
+          "content_digest": "596c245b8314a0e6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The best way to get between cities in Japan is by **Shinkansen (bullet train)**—it's fast, reliable, and covers most major cities. If you're visiting multiple cities, a **Japan Rail Pass** (purchased before arrival) can offer significant sa…[424 chars]",
+          "content_digest": "6f7c171165abedac",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Should I get a Japan Rail Pass for 5 days?",
+          "content_digest": "73003835d377682e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 14,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The JR Pass comes in 7, 14, or 21-day increments—not 5 days—so you'd need the **7-day pass (~¥50,000)** even for a shorter trip. It's only worth it if your travel adds up close to or over that price; for example, a round-trip Tokyo-Kyoto Sh…[458 chars]",
+          "content_digest": "4ba504481a68ecad",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  }
+}

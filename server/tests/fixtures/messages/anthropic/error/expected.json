@@ -1,0 +1,87 @@
+{
+  "label": "anthropic/error",
+  "request_count": 1,
+  "span_count": 2,
+  "trace_count": 1,
+  "session_count": 0,
+  "span_views": {
+    "01a04254/Message with 'nonexistent-model-id-12345'/6d85": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Hello",
+          "content_digest": "0f486d29e2a68ca3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'The provided model identifier is invalid.'}} ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/side…[919 chars]",
+          "content_digest": "bba20a4eb104c5a2",
+          "finish_reason": "Error",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04254/anthropic-error/a48b": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'The provided model identifier is invalid.'}} ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/side…[2004 chars]",
+          "content_digest": "d0ff767497d4de0f",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "01a04254": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Hello",
+          "content_digest": "0f486d29e2a68ca3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'The provided model identifier is invalid.'}} ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/side…[919 chars]",
+          "content_digest": "bba20a4eb104c5a2",
+          "finish_reason": "Error",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {}
+}

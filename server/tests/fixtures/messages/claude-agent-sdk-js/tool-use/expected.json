@@ -1,0 +1,1016 @@
+{
+  "label": "claude-agent-sdk-js/tool-use",
+  "request_count": 3,
+  "span_count": 22,
+  "trace_count": 1,
+  "session_count": 3,
+  "span_views": {
+    "dcfc6ed7/claude_code.interaction/3096": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/config.ts and summarize what it configures in one sentence.",
+          "content_digest": "92f85517292cf9f8",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.interaction/4136": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How many TypeScript files are in this directory? Use Glob.",
+          "content_digest": "bd88e868bab37ca4",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.interaction/65da": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Which file under /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT mentions 'inventory'? Use Grep, then read that file.",
+          "content_digest": "d424920ccff26a47",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.llm_request/05a2": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise code explorer. Answer in one or two sentences.",
+          "content_digest": "6d727b41b6c7648c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Which file under /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT mentions 'inventory'? Use Grep, then read that file.",
+          "content_digest": "d424920ccff26a47",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.llm_request/421d": {
+      "message_count": 2,
+      "role_sequence": [
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Found 1 file /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/inventory.ts <system-reminder> <total_tokens>14981957 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "4334220a2047a5ac",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Now reading that file:",
+          "content_digest": "79cdab3c5db94895",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.llm_request/7961": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise code explorer. Answer in one or two sentences.",
+          "content_digest": "6d727b41b6c7648c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How many TypeScript files are in this directory? Use Glob.",
+          "content_digest": "bd88e868bab37ca4",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.llm_request/7ba7": {
+      "message_count": 2,
+      "role_sequence": [
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 // Warehouse inventory tracking. 2 export const ITEMS: Record<string, number> = { widget: 12, gasket: 4 }; 3 4 export function restock(name: string, count: number): void { 5 ITEMS[name] = (ITEMS[name] ?? 0) + count; 6 } 7 <system-reminder…[310 chars]",
+          "content_digest": "c4d8ce9adb3d7681",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**inventory.ts** mentions 'inventory' and contains a warehouse inventory tracking system with an ITEMS record (widget: 12, gasket: 4) and a restock function that increments item counts.",
+          "content_digest": "5c1393bab418859d",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.llm_request/a4a2": {
+      "message_count": 2,
+      "role_sequence": [
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "config.ts inventory.ts <system-reminder> <total_tokens>14982053 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "b713a3f30b769c89",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "There are **2 TypeScript files** in this directory: `config.ts` and `inventory.ts`.",
+          "content_digest": "f7497f8c623eb75f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.llm_request/db3b": {
+      "message_count": 2,
+      "role_sequence": [
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 export const DATABASE_URL = 'postgres://localhost/demo'; 2 export const POOL_SIZE = 10; 3 export const RETRY_ATTEMPTS = 3; 4 <system-reminder> <total_tokens>14982055 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "293574d7ca103bd8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The file configures PostgreSQL database connection settings with a local demo database URL, a connection pool size of 10, and a retry policy of 3 attempts.",
+          "content_digest": "a43c69bb169c9e90",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.llm_request/de25": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise code explorer. Answer in one or two sentences.",
+          "content_digest": "6d727b41b6c7648c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/config.ts and summarize what it configures in one sentence.",
+          "content_digest": "92f85517292cf9f8",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.tool.blocked_on_user/09b7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool.blocked_on_user/2b99": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool.blocked_on_user/6850": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool.blocked_on_user/9c7c": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool.execution/4278": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool.execution/5021": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool.execution/728f": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool.execution/7916": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "dcfc6ed7/claude_code.tool/054b": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01J2niEA3m76qvTpSaZ5pGbo\",\"name\":\"Read\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/config.ts\"}}",
+          "content_digest": "f1a3691dc162494e",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.tool/06ea": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01JGFUk7VjN7Xgjqd2ahysQM\",\"name\":\"Read\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/inventory.ts\"}}",
+          "content_digest": "7e4c3b7a53308036",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.tool/8dfd": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01RwW2LVzmufKkuUQGS3qg37\",\"name\":\"Glob\",\"input\":{\"pattern\":\"**/*.{ts,tsx}\"}}",
+          "content_digest": "0b32c8577afbdb88",
+          "tool_name": "Glob",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "dcfc6ed7/claude_code.tool/e1e2": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01JcF12LqHkNSFBA6DpcVPXM\",\"name\":\"Grep\",\"input\":{\"pattern\":\"inventory\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT\",\"output_mode\":\"files_with_matches\"}}",
+          "content_digest": "e01fcbe6d9895869",
+          "tool_name": "Grep",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "dcfc6ed7": {
+      "message_count": 16,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How many TypeScript files are in this directory? Use Glob.",
+          "content_digest": "bd88e868bab37ca4",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise code explorer. Answer in one or two sentences.",
+          "content_digest": "6d727b41b6c7648c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01RwW2LVzmufKkuUQGS3qg37\",\"name\":\"Glob\",\"input\":{\"pattern\":\"**/*.{ts,tsx}\"}}",
+          "content_digest": "0b32c8577afbdb88",
+          "tool_name": "Glob",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "config.ts inventory.ts <system-reminder> <total_tokens>14982053 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "b713a3f30b769c89",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "There are **2 TypeScript files** in this directory: `config.ts` and `inventory.ts`.",
+          "content_digest": "f7497f8c623eb75f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/config.ts and summarize what it configures in one sentence.",
+          "content_digest": "92f85517292cf9f8",
+          "observation_type": "span"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01J2niEA3m76qvTpSaZ5pGbo\",\"name\":\"Read\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/config.ts\"}}",
+          "content_digest": "f1a3691dc162494e",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 export const DATABASE_URL = 'postgres://localhost/demo'; 2 export const POOL_SIZE = 10; 3 export const RETRY_ATTEMPTS = 3; 4 <system-reminder> <total_tokens>14982055 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "293574d7ca103bd8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The file configures PostgreSQL database connection settings with a local demo database URL, a connection pool size of 10, and a retry policy of 3 attempts.",
+          "content_digest": "a43c69bb169c9e90",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Which file under /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT mentions 'inventory'? Use Grep, then read that file.",
+          "content_digest": "d424920ccff26a47",
+          "observation_type": "span"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01JcF12LqHkNSFBA6DpcVPXM\",\"name\":\"Grep\",\"input\":{\"pattern\":\"inventory\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT\",\"output_mode\":\"files_with_matches\"}}",
+          "content_digest": "e01fcbe6d9895869",
+          "tool_name": "Grep",
+          "observation_type": "tool"
+        },
+        {
+          "index": 11,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Found 1 file /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/inventory.ts <system-reminder> <total_tokens>14981957 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "4334220a2047a5ac",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Now reading that file:",
+          "content_digest": "79cdab3c5db94895",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01JGFUk7VjN7Xgjqd2ahysQM\",\"name\":\"Read\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/inventory.ts\"}}",
+          "content_digest": "7e4c3b7a53308036",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 14,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 // Warehouse inventory tracking. 2 export const ITEMS: Record<string, number> = { widget: 12, gasket: 4 }; 3 4 export function restock(name: string, count: number): void { 5 ITEMS[name] = (ITEMS[name] ?? 0) + count; 6 } 7 <system-reminder…[310 chars]",
+          "content_digest": "c4d8ce9adb3d7681",
+          "observation_type": "generation"
+        },
+        {
+          "index": 15,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**inventory.ts** mentions 'inventory' and contains a warehouse inventory tracking system with an ITEMS record (widget: 12, gasket: 4) and a restock function that increments item counts.",
+          "content_digest": "5c1393bab418859d",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "1249eefe-91c0-4f4c-b420-c511caa4ecc7": {
+      "message_count": 16,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How many TypeScript files are in this directory? Use Glob.",
+          "content_digest": "bd88e868bab37ca4",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise code explorer. Answer in one or two sentences.",
+          "content_digest": "6d727b41b6c7648c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01RwW2LVzmufKkuUQGS3qg37\",\"name\":\"Glob\",\"input\":{\"pattern\":\"**/*.{ts,tsx}\"}}",
+          "content_digest": "0b32c8577afbdb88",
+          "tool_name": "Glob",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "config.ts inventory.ts <system-reminder> <total_tokens>14982053 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "b713a3f30b769c89",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "There are **2 TypeScript files** in this directory: `config.ts` and `inventory.ts`.",
+          "content_digest": "f7497f8c623eb75f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/config.ts and summarize what it configures in one sentence.",
+          "content_digest": "92f85517292cf9f8",
+          "observation_type": "span"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01J2niEA3m76qvTpSaZ5pGbo\",\"name\":\"Read\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/config.ts\"}}",
+          "content_digest": "f1a3691dc162494e",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 export const DATABASE_URL = 'postgres://localhost/demo'; 2 export const POOL_SIZE = 10; 3 export const RETRY_ATTEMPTS = 3; 4 <system-reminder> <total_tokens>14982055 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "293574d7ca103bd8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The file configures PostgreSQL database connection settings with a local demo database URL, a connection pool size of 10, and a retry policy of 3 attempts.",
+          "content_digest": "a43c69bb169c9e90",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Which file under /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT mentions 'inventory'? Use Grep, then read that file.",
+          "content_digest": "d424920ccff26a47",
+          "observation_type": "span"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01JcF12LqHkNSFBA6DpcVPXM\",\"name\":\"Grep\",\"input\":{\"pattern\":\"inventory\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT\",\"output_mode\":\"files_with_matches\"}}",
+          "content_digest": "e01fcbe6d9895869",
+          "tool_name": "Grep",
+          "observation_type": "tool"
+        },
+        {
+          "index": 11,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Found 1 file /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/inventory.ts <system-reminder> <total_tokens>14981957 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "4334220a2047a5ac",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Now reading that file:",
+          "content_digest": "79cdab3c5db94895",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01JGFUk7VjN7Xgjqd2ahysQM\",\"name\":\"Read\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/inventory.ts\"}}",
+          "content_digest": "7e4c3b7a53308036",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 14,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 // Warehouse inventory tracking. 2 export const ITEMS: Record<string, number> = { widget: 12, gasket: 4 }; 3 4 export function restock(name: string, count: number): void { 5 ITEMS[name] = (ITEMS[name] ?? 0) + count; 6 } 7 <system-reminder…[310 chars]",
+          "content_digest": "c4d8ce9adb3d7681",
+          "observation_type": "generation"
+        },
+        {
+          "index": 15,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**inventory.ts** mentions 'inventory' and contains a warehouse inventory tracking system with an ITEMS record (widget: 12, gasket: 4) and a restock function that increments item counts.",
+          "content_digest": "5c1393bab418859d",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "9c252ae4-6a38-48ea-84b1-10a862d72c6f": {
+      "message_count": 16,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How many TypeScript files are in this directory? Use Glob.",
+          "content_digest": "bd88e868bab37ca4",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise code explorer. Answer in one or two sentences.",
+          "content_digest": "6d727b41b6c7648c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01RwW2LVzmufKkuUQGS3qg37\",\"name\":\"Glob\",\"input\":{\"pattern\":\"**/*.{ts,tsx}\"}}",
+          "content_digest": "0b32c8577afbdb88",
+          "tool_name": "Glob",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "config.ts inventory.ts <system-reminder> <total_tokens>14982053 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "b713a3f30b769c89",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "There are **2 TypeScript files** in this directory: `config.ts` and `inventory.ts`.",
+          "content_digest": "f7497f8c623eb75f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/config.ts and summarize what it configures in one sentence.",
+          "content_digest": "92f85517292cf9f8",
+          "observation_type": "span"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01J2niEA3m76qvTpSaZ5pGbo\",\"name\":\"Read\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/config.ts\"}}",
+          "content_digest": "f1a3691dc162494e",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 export const DATABASE_URL = 'postgres://localhost/demo'; 2 export const POOL_SIZE = 10; 3 export const RETRY_ATTEMPTS = 3; 4 <system-reminder> <total_tokens>14982055 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "293574d7ca103bd8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The file configures PostgreSQL database connection settings with a local demo database URL, a connection pool size of 10, and a retry policy of 3 attempts.",
+          "content_digest": "a43c69bb169c9e90",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Which file under /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT mentions 'inventory'? Use Grep, then read that file.",
+          "content_digest": "d424920ccff26a47",
+          "observation_type": "span"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01JcF12LqHkNSFBA6DpcVPXM\",\"name\":\"Grep\",\"input\":{\"pattern\":\"inventory\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT\",\"output_mode\":\"files_with_matches\"}}",
+          "content_digest": "e01fcbe6d9895869",
+          "tool_name": "Grep",
+          "observation_type": "tool"
+        },
+        {
+          "index": 11,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Found 1 file /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/inventory.ts <system-reminder> <total_tokens>14981957 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "4334220a2047a5ac",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Now reading that file:",
+          "content_digest": "79cdab3c5db94895",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01JGFUk7VjN7Xgjqd2ahysQM\",\"name\":\"Read\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/inventory.ts\"}}",
+          "content_digest": "7e4c3b7a53308036",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 14,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 // Warehouse inventory tracking. 2 export const ITEMS: Record<string, number> = { widget: 12, gasket: 4 }; 3 4 export function restock(name: string, count: number): void { 5 ITEMS[name] = (ITEMS[name] ?? 0) + count; 6 } 7 <system-reminder…[310 chars]",
+          "content_digest": "c4d8ce9adb3d7681",
+          "observation_type": "generation"
+        },
+        {
+          "index": 15,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**inventory.ts** mentions 'inventory' and contains a warehouse inventory tracking system with an ITEMS record (widget: 12, gasket: 4) and a restock function that increments item counts.",
+          "content_digest": "5c1393bab418859d",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "d5d1ce03-8b0e-481a-b0cd-26117616469a": {
+      "message_count": 16,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How many TypeScript files are in this directory? Use Glob.",
+          "content_digest": "bd88e868bab37ca4",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise code explorer. Answer in one or two sentences.",
+          "content_digest": "6d727b41b6c7648c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01RwW2LVzmufKkuUQGS3qg37\",\"name\":\"Glob\",\"input\":{\"pattern\":\"**/*.{ts,tsx}\"}}",
+          "content_digest": "0b32c8577afbdb88",
+          "tool_name": "Glob",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "config.ts inventory.ts <system-reminder> <total_tokens>14982053 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "b713a3f30b769c89",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "There are **2 TypeScript files** in this directory: `config.ts` and `inventory.ts`.",
+          "content_digest": "f7497f8c623eb75f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/config.ts and summarize what it configures in one sentence.",
+          "content_digest": "92f85517292cf9f8",
+          "observation_type": "span"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01J2niEA3m76qvTpSaZ5pGbo\",\"name\":\"Read\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/config.ts\"}}",
+          "content_digest": "f1a3691dc162494e",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 export const DATABASE_URL = 'postgres://localhost/demo'; 2 export const POOL_SIZE = 10; 3 export const RETRY_ATTEMPTS = 3; 4 <system-reminder> <total_tokens>14982055 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "293574d7ca103bd8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The file configures PostgreSQL database connection settings with a local demo database URL, a connection pool size of 10, and a retry policy of 3 attempts.",
+          "content_digest": "a43c69bb169c9e90",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Which file under /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT mentions 'inventory'? Use Grep, then read that file.",
+          "content_digest": "d424920ccff26a47",
+          "observation_type": "span"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01JcF12LqHkNSFBA6DpcVPXM\",\"name\":\"Grep\",\"input\":{\"pattern\":\"inventory\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT\",\"output_mode\":\"files_with_matches\"}}",
+          "content_digest": "e01fcbe6d9895869",
+          "tool_name": "Grep",
+          "observation_type": "tool"
+        },
+        {
+          "index": 11,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Found 1 file /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/inventory.ts <system-reminder> <total_tokens>14981957 tokens left</total_tokens> </system-reminder>",
+          "content_digest": "4334220a2047a5ac",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Now reading that file:",
+          "content_digest": "79cdab3c5db94895",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01JGFUk7VjN7Xgjqd2ahysQM\",\"name\":\"Read\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/inventory.ts\"}}",
+          "content_digest": "7e4c3b7a53308036",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 14,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 // Warehouse inventory tracking. 2 export const ITEMS: Record<string, number> = { widget: 12, gasket: 4 }; 3 4 export function restock(name: string, count: number): void { 5 ITEMS[name] = (ITEMS[name] ?? 0) + count; 6 } 7 <system-reminder…[310 chars]",
+          "content_digest": "c4d8ce9adb3d7681",
+          "observation_type": "generation"
+        },
+        {
+          "index": 15,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**inventory.ts** mentions 'inventory' and contains a warehouse inventory tracking system with an ITEMS record (widget: 12, gasket: 4) and a restock function that increments item counts.",
+          "content_digest": "5c1393bab418859d",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,311 @@
+{
+  "label": "anthropic/messages",
+  "request_count": 2,
+  "span_count": 6,
+  "trace_count": 3,
+  "session_count": 1,
+  "span_views": {
+    "01a04252/Message with 'us.anthropic.claude-sonnet-5'/2801": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "49fd0fd68e3c2e94",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "ce6ec8cdd58f4825",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The speed of light in a vacuum is approximately 299,792,458 meters per second (about 186,282 miles per second).",
+          "content_digest": "b9d673b56a5eed63",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04252/Message with 'us.anthropic.claude-sonnet-5'/2b2b": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "49fd0fd68e3c2e94",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "64cf87cbf62b67a1",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04252/Message with 'us.anthropic.claude-sonnet-5'/970b": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when available.",
+          "content_digest": "883a797be798921d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the weather in Paris?",
+          "content_digest": "85026bc2368bf644",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014STzXF7xmt4Kuz39vC3DZy\",\"name\":\"get_weather\",\"input\":{\"input\":{\"location\":\"Paris\"}}}",
+          "content_digest": "953eae35cf4f3c30",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04252/Message with 'us.anthropic.claude-sonnet-5'/a04e": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when available.",
+          "content_digest": "883a797be798921d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the weather in Paris?",
+          "content_digest": "85026bc2368bf644",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22C, light breeze",
+          "content_digest": "69d275383b204c5a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The weather in Paris is currently **sunny, 22°C (72°F)**, with a light breeze. A pleasant day overall!",
+          "content_digest": "811a50178291f5c0",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a04252/messages-tool-use/0dda": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a04252/streaming response from 'us.anthropic.claude-sonnet-5' took 0.21s/5f8c": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "49fd0fd68e3c2e94",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "64cf87cbf62b67a1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Water boils at 100°C (212°F) at standard atmospheric pressure (sea level).",
+          "content_digest": "e6a24559a5d9af8f",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "01a04252": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when available.",
+          "content_digest": "883a797be798921d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the weather in Paris?",
+          "content_digest": "85026bc2368bf644",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014STzXF7xmt4Kuz39vC3DZy\",\"name\":\"get_weather\",\"input\":{\"input\":{\"location\":\"Paris\"}}}",
+          "content_digest": "953eae35cf4f3c30",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22C, light breeze",
+          "content_digest": "69d275383b204c5a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The weather in Paris is currently **sunny, 22°C (72°F)**, with a light breeze. A pleasant day overall!",
+          "content_digest": "811a50178291f5c0",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "anthropic-messages-18024b77": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when available.",
+          "content_digest": "883a797be798921d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the weather in Paris?",
+          "content_digest": "85026bc2368bf644",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014STzXF7xmt4Kuz39vC3DZy\",\"name\":\"get_weather\",\"input\":{\"input\":{\"location\":\"Paris\"}}}",
+          "content_digest": "953eae35cf4f3c30",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22C, light breeze",
+          "content_digest": "69d275383b204c5a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The weather in Paris is currently **sunny, 22°C (72°F)**, with a light breeze. A pleasant day overall!",
+          "content_digest": "811a50178291f5c0",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  }
+}

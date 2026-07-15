@@ -1,0 +1,1437 @@
+{
+  "label": "langgraph/rag_local",
+  "request_count": 4,
+  "span_count": 60,
+  "trace_count": 18,
+  "session_count": 1,
+  "span_views": {
+    "1d841eab/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/235b": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "263fd87e/ChatBedrockConverse/9966": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "38c2cd200d1841a7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "ecbd7ed723fb2394",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Wxk3P8CANWrAh24fnIanEj\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
+          "content_digest": "8a1e74012c8d9328",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "263fd87e/ChatBedrockConverse/d41d": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "38c2cd200d1841a7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "ecbd7ed723fb2394",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1331 chars]",
+          "content_digest": "038ced5255e5b563",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the knowledge base, here's what SideSeat is and how it helps with AI observability: ## What is SideSeat? SideSeat is an **AI observability toolkit** designed specifically for monitoring and debugging AI applications. It works by co…[1328 chars]",
+          "content_digest": "53e5577f192e4b7b",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "263fd87e/LangGraph/d1f4": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "ecbd7ed723fb2394",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "263fd87e/Prompt/60e3": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "ecbd7ed723fb2394",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "263fd87e/Prompt/6304": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "ecbd7ed723fb2394",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "263fd87e/RunnableSequence/7da0": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "ecbd7ed723fb2394",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "263fd87e/RunnableSequence/de40": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "ecbd7ed723fb2394",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "263fd87e/agent/6add": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "ecbd7ed723fb2394",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "263fd87e/agent/d309": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "ecbd7ed723fb2394",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "263fd87e/call_model/8f76": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "ecbd7ed723fb2394",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "263fd87e/call_model/933c": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "ecbd7ed723fb2394",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "263fd87e/search_knowledge/e2de": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "263fd87e/should_continue/0e0d": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "ecbd7ed723fb2394",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "263fd87e/should_continue/b65f": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "ecbd7ed723fb2394",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "263fd87e/tools/d8b1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "2812e5b6/text_completion amazon.titan-embed-text-v2:0/b336": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "2b329848/text_completion amazon.titan-embed-text-v2:0/201f": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "337128e6/ChatBedrockConverse/06d7": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "38c2cd200d1841a7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "beb8650b80615429",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.64) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1338 chars]",
+          "content_digest": "db7e4c6892dd832a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## How RAG Works **RAG (Retrieval-Augmented Generation)** is a pattern that combines vector search with LLM generation to improve the quality and accuracy of AI-generated responses. Here's how it works: ### Key Components: 1. **Embeddings**…[1559 chars]",
+          "content_digest": "1a196917ee53bafd",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "337128e6/ChatBedrockConverse/f574": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "38c2cd200d1841a7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "beb8650b80615429",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_OjItENZS4tSmhGINCDsBXY\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"RAG how it works components\",\"num_results\":5}}",
+          "content_digest": "f08d7bf1619167d1",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "337128e6/LangGraph/3dd0": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "beb8650b80615429",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "337128e6/Prompt/5d5c": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "beb8650b80615429",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "337128e6/Prompt/9eb4": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "beb8650b80615429",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "337128e6/RunnableSequence/b97c": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "beb8650b80615429",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "337128e6/RunnableSequence/bf65": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "beb8650b80615429",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "337128e6/agent/375a": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "beb8650b80615429",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "337128e6/agent/6ec9": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "beb8650b80615429",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "337128e6/call_model/2fd3": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "beb8650b80615429",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "337128e6/call_model/6ce4": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "beb8650b80615429",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "337128e6/search_knowledge/203c": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "337128e6/should_continue/29da": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "beb8650b80615429",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "337128e6/should_continue/5491": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "beb8650b80615429",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "337128e6/tools/9e6b": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "34831a6c/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/10ae": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "448288ce/text_completion amazon.titan-embed-text-v2:0/9c18": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "47e4b34a/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/396d": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "581d28ec/text_completion amazon.titan-embed-text-v2:0/aee2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "5bab5395/text_completion amazon.titan-embed-text-v2:0/081e": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "662c1ad3/ChatBedrockConverse/01ac": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "38c2cd200d1841a7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "99591aaf305681dc",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_JJJcxGUIj3ePdulydgjAcP\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\",\"num_results\":5}}",
+          "content_digest": "dbf52e1fc7a5e185",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "662c1ad3/ChatBedrockConverse/8f31": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "38c2cd200d1841a7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "99591aaf305681dc",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity or L2 distance. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. Cosine similarity m…[1351 chars]",
+          "content_digest": "b02ea154d4d690c5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the knowledge base, here are the **embedding models available for vector search**: ## Common Embedding Models: 1. **Amazon Titan Embeddings** - AWS's embedding model 2. **OpenAI text-embedding-3** - OpenAI's embedding model 3. **Co…[1008 chars]",
+          "content_digest": "6d05d19986c9f9a4",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "662c1ad3/LangGraph/a62a": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "99591aaf305681dc",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "662c1ad3/Prompt/0e8b": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "99591aaf305681dc",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "662c1ad3/Prompt/6031": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "99591aaf305681dc",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "662c1ad3/RunnableSequence/76e0": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "99591aaf305681dc",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "662c1ad3/RunnableSequence/d8ca": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "99591aaf305681dc",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "662c1ad3/agent/0d42": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "99591aaf305681dc",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "662c1ad3/agent/72bb": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "99591aaf305681dc",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "662c1ad3/call_model/84d0": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "99591aaf305681dc",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "662c1ad3/call_model/c8eb": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "99591aaf305681dc",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "662c1ad3/search_knowledge/29a0": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "662c1ad3/should_continue/62f6": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "99591aaf305681dc",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "662c1ad3/should_continue/d449": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "99591aaf305681dc",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "662c1ad3/tools/1abf": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "887e107b/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/1efe": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "9cdc6a14/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/790b": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "9ee2e6c4/text_completion amazon.titan-embed-text-v2:0/097e": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "9fcd34b4/text_completion amazon.titan-embed-text-v2:0/a58c": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "a59793de/text_completion amazon.titan-embed-text-v2:0/503e": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "aa413567/text_completion amazon.titan-embed-text-v2:0/a74f": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "c888f522/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/006d": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "1d841eab": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "263fd87e": {
+      "message_count": 5,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "ecbd7ed723fb2394",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "38c2cd200d1841a7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Wxk3P8CANWrAh24fnIanEj\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
+          "content_digest": "8a1e74012c8d9328",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1331 chars]",
+          "content_digest": "038ced5255e5b563",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the knowledge base, here's what SideSeat is and how it helps with AI observability: ## What is SideSeat? SideSeat is an **AI observability toolkit** designed specifically for monitoring and debugging AI applications. It works by co…[1328 chars]",
+          "content_digest": "53e5577f192e4b7b",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "2812e5b6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "2b329848": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "337128e6": {
+      "message_count": 5,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "beb8650b80615429",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "38c2cd200d1841a7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_OjItENZS4tSmhGINCDsBXY\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"RAG how it works components\",\"num_results\":5}}",
+          "content_digest": "f08d7bf1619167d1",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.64) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1338 chars]",
+          "content_digest": "db7e4c6892dd832a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## How RAG Works **RAG (Retrieval-Augmented Generation)** is a pattern that combines vector search with LLM generation to improve the quality and accuracy of AI-generated responses. Here's how it works: ### Key Components: 1. **Embeddings**…[1559 chars]",
+          "content_digest": "1a196917ee53bafd",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "34831a6c": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "448288ce": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "47e4b34a": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "581d28ec": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "5bab5395": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "662c1ad3": {
+      "message_count": 5,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "99591aaf305681dc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "38c2cd200d1841a7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_JJJcxGUIj3ePdulydgjAcP\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\",\"num_results\":5}}",
+          "content_digest": "dbf52e1fc7a5e185",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity or L2 distance. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. Cosine similarity m…[1351 chars]",
+          "content_digest": "b02ea154d4d690c5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the knowledge base, here are the **embedding models available for vector search**: ## Common Embedding Models: 1. **Amazon Titan Embeddings** - AWS's embedding model 2. **OpenAI text-embedding-3** - OpenAI's embedding model 3. **Co…[1008 chars]",
+          "content_digest": "6d05d19986c9f9a4",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "887e107b": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "9cdc6a14": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "9ee2e6c4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "9fcd34b4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "a59793de": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "aa413567": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "c888f522": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "session_views": {
+    "langgraph-rag_local-6c8e31fc": {
+      "message_count": 15,
+      "role_sequence": [
+        "user",
+        "system",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "system",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "system",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "ecbd7ed723fb2394",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "38c2cd200d1841a7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Wxk3P8CANWrAh24fnIanEj\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
+          "content_digest": "8a1e74012c8d9328",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1331 chars]",
+          "content_digest": "038ced5255e5b563",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the knowledge base, here's what SideSeat is and how it helps with AI observability: ## What is SideSeat? SideSeat is an **AI observability toolkit** designed specifically for monitoring and debugging AI applications. It works by co…[1328 chars]",
+          "content_digest": "53e5577f192e4b7b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "beb8650b80615429",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "38c2cd200d1841a7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_OjItENZS4tSmhGINCDsBXY\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"RAG how it works components\",\"num_results\":5}}",
+          "content_digest": "f08d7bf1619167d1",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.64) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1338 chars]",
+          "content_digest": "db7e4c6892dd832a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## How RAG Works **RAG (Retrieval-Augmented Generation)** is a pattern that combines vector search with LLM generation to improve the quality and accuracy of AI-generated responses. Here's how it works: ### Key Components: 1. **Embeddings**…[1559 chars]",
+          "content_digest": "1a196917ee53bafd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "99591aaf305681dc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 11,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "38c2cd200d1841a7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_JJJcxGUIj3ePdulydgjAcP\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\",\"num_results\":5}}",
+          "content_digest": "dbf52e1fc7a5e185",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity or L2 distance. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. Cosine similarity m…[1351 chars]",
+          "content_digest": "b02ea154d4d690c5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 14,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the knowledge base, here are the **embedding models available for vector search**: ## Common Embedding Models: 1. **Amazon Titan Embeddings** - AWS's embedding model 2. **OpenAI text-embedding-3** - OpenAI's embedding model 3. **Co…[1008 chars]",
+          "content_digest": "6d05d19986c9f9a4",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,198 @@
+{
+  "label": "strands-js/files",
+  "request_count": 1,
+  "span_count": 4,
+  "trace_count": 2,
+  "session_count": 0,
+  "span_views": {
+    "51ab9294/chat/0e9b": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a file analysis AI that can read images and documents.",
+          "content_digest": "8f2813e78c01f7bf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Analyze the attached image and PDF document. Describe the image contents, then summarize the tasks or instructions from the PDF.",
+          "content_digest": "8cf00fda0321b567",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+          "content_digest": "d472ce42cb6094f5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+          "content_digest": "ebad4c24676ae05e",
+          "tool_name": "task",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Analysis ## Image Contents The image shows a beautiful park landscape on a clear day with: - **Foreground**: A dark asphalt walking path that curves gently through the park, bordered by a stone retaining wall on the left and manicured gre…[1104 chars]",
+          "content_digest": "a0f5bb3b0a186185",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "51ab9294/execute_agent_loop_cycle/b75a": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "51ab9294/invoke_agent Strands Agent/74c4": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a file analysis AI that can read images and documents.",
+          "content_digest": "8f2813e78c01f7bf",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Analyze the attached image and PDF document. Describe the image contents, then summarize the tasks or instructions from the PDF.",
+          "content_digest": "8cf00fda0321b567",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+          "content_digest": "d472ce42cb6094f5",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+          "content_digest": "ebad4c24676ae05e",
+          "tool_name": "task",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Analysis ## Image Contents The image shows a beautiful park landscape on a clear day with: - **Foreground**: A dark asphalt walking path that curves gently through the park, bordered by a stone retaining wall on the left and manicured gre…[1104 chars]",
+          "content_digest": "a0f5bb3b0a186185",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "cc7efc61/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/0e9a": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "51ab9294": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a file analysis AI that can read images and documents.",
+          "content_digest": "8f2813e78c01f7bf",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Analyze the attached image and PDF document. Describe the image contents, then summarize the tasks or instructions from the PDF.",
+          "content_digest": "8cf00fda0321b567",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+          "content_digest": "d472ce42cb6094f5",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+          "content_digest": "ebad4c24676ae05e",
+          "tool_name": "task",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Analysis ## Image Contents The image shows a beautiful park landscape on a clear day with: - **Foreground**: A dark asphalt walking path that curves gently through the park, bordered by a stone retaining wall on the left and manicured gre…[1104 chars]",
+          "content_digest": "a0f5bb3b0a186185",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "cc7efc61": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "session_views": {}
+}

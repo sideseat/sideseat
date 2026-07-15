@@ -1,0 +1,1170 @@
+{
+  "label": "strands/image_gen",
+  "request_count": 4,
+  "span_count": 23,
+  "trace_count": 2,
+  "session_count": 1,
+  "span_views": {
+    "8048cec7/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/1675": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "8048cec7/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/a857": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "8048cec7/chat stability.stable-image-core-v1:1/2266": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "8048cec7/chat stability.stable-image-core-v1:1/4044": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "8048cec7/chat stability.stable-image-core-v1:1/53d3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "8048cec7/chat/5908": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "e5de766cb0569906",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll generate 3 different images of dogs with varied prompts.",
+          "content_digest": "4572dd883d518a48",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2EHYcPwzDsxDRqNbuRG6i7\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A friendly golden retriever playing in a sunny meadow with flowers\"}}",
+          "content_digest": "1956a020038c538d",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_043hP1RJzP2tNQrAV9FRb9\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A noble German Shepherd sitting proudly in a forest setting\"}}",
+          "content_digest": "6afdc60cfaabd2d8",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_bdY3n9v29M5FTstNcp3SZu\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A cute small puppy, beagle mix, with soft fur sitting on a cozy rug indoors\"}}",
+          "content_digest": "ffe391245541cbf4",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "8048cec7/chat/9d98": {
+      "message_count": 10,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "e5de766cb0569906",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll generate 3 different images of dogs with varied prompts.",
+          "content_digest": "4572dd883d518a48",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2EHYcPwzDsxDRqNbuRG6i7\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A friendly golden retriever playing in a sunny meadow with flowers\"}}",
+          "content_digest": "1956a020038c538d",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_043hP1RJzP2tNQrAV9FRb9\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A noble German Shepherd sitting proudly in a forest setting\"}}",
+          "content_digest": "6afdc60cfaabd2d8",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_bdY3n9v29M5FTstNcp3SZu\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A cute small puppy, beagle mix, with soft fur sitting on a cozy rug indoors\"}}",
+          "content_digest": "ffe391245541cbf4",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2EHYcPwzDsxDRqNbuRG6i7\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_friendly_golden_retriever_playing.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpe…[283 chars]",
+          "content_digest": "875883ef8b0aa47c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_043hP1RJzP2tNQrAV9FRb9\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_noble_german_shepherd_sitting.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"…[279 chars]",
+          "content_digest": "ce3b3ccdc117a691",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_bdY3n9v29M5FTstNcp3SZu\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_cute_small_puppy_beagle.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source…[273 chars]",
+          "content_digest": "ccac721a8adc3442",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "output/a_friendly_golden_retriever_playing.jpeg, output/a_noble_german_shepherd_sitting.jpeg, output/a_cute_small_puppy_beagle.jpeg",
+          "content_digest": "6f1270e5b15c3433",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "8048cec7/execute_event_loop_cycle/4384": {
+      "message_count": 7,
+      "role_sequence": [
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll generate 3 different images of dogs with varied prompts.",
+          "content_digest": "4572dd883d518a48",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2EHYcPwzDsxDRqNbuRG6i7\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A friendly golden retriever playing in a sunny meadow with flowers\"}}",
+          "content_digest": "1956a020038c538d",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_043hP1RJzP2tNQrAV9FRb9\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A noble German Shepherd sitting proudly in a forest setting\"}}",
+          "content_digest": "6afdc60cfaabd2d8",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_bdY3n9v29M5FTstNcp3SZu\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A cute small puppy, beagle mix, with soft fur sitting on a cozy rug indoors\"}}",
+          "content_digest": "ffe391245541cbf4",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2EHYcPwzDsxDRqNbuRG6i7\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_friendly_golden_retriever_playing.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpe…[283 chars]",
+          "content_digest": "875883ef8b0aa47c",
+          "observation_type": "span"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_043hP1RJzP2tNQrAV9FRb9\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_noble_german_shepherd_sitting.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"…[279 chars]",
+          "content_digest": "ce3b3ccdc117a691",
+          "observation_type": "span"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_bdY3n9v29M5FTstNcp3SZu\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_cute_small_puppy_beagle.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source…[273 chars]",
+          "content_digest": "ccac721a8adc3442",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "8048cec7/execute_event_loop_cycle/57f7": {
+      "message_count": 3,
+      "role_sequence": [
+        "tool",
+        "tool",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2EHYcPwzDsxDRqNbuRG6i7\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_friendly_golden_retriever_playing.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpe…[283 chars]",
+          "content_digest": "875883ef8b0aa47c",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_043hP1RJzP2tNQrAV9FRb9\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_noble_german_shepherd_sitting.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"…[279 chars]",
+          "content_digest": "ce3b3ccdc117a691",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_bdY3n9v29M5FTstNcp3SZu\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_cute_small_puppy_beagle.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source…[273 chars]",
+          "content_digest": "ccac721a8adc3442",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "8048cec7/execute_tool generate_image/6fda": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_bdY3n9v29M5FTstNcp3SZu\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_cute_small_puppy_beagle.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source…[273 chars]",
+          "content_digest": "ccac721a8adc3442",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "8048cec7/execute_tool generate_image/e53c": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2EHYcPwzDsxDRqNbuRG6i7\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_friendly_golden_retriever_playing.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpe…[283 chars]",
+          "content_digest": "875883ef8b0aa47c",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "8048cec7/execute_tool generate_image/ee9e": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_043hP1RJzP2tNQrAV9FRb9\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_noble_german_shepherd_sitting.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"…[279 chars]",
+          "content_digest": "ce3b3ccdc117a691",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "8048cec7/invoke_agent Strands Agents/f10f": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "generate_image"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "e5de766cb0569906",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "output/a_friendly_golden_retriever_playing.jpeg, output/a_noble_german_shepherd_sitting.jpeg, output/a_cute_small_puppy_beagle.jpeg",
+          "content_digest": "0fb6be6104ea331d",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "c5826c3d/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/b108": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "c5826c3d/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/d2f1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "c5826c3d/chat/4934": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "41bbcd70eb1f8ea6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "output/a_friendly_golden_retriever_playing.jpeg, output/a_noble_german_shepherd_sitting.jpeg, output/a_cute_small_puppy_beagle.jpeg",
+          "content_digest": "0fb6be6104ea331d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll examine each of these three images for you.",
+          "content_digest": "06da5537b27facef",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DNud09RQAotFRpBxlAnWmN\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"output/a_friendly_golden_retriever_playing.jpeg\"}}",
+          "content_digest": "c3b38f58bdb37b3f",
+          "tool_name": "image_reader",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_GFxEvZHigrtcdo4DTFweB4\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"output/a_noble_german_shepherd_sitting.jpeg\"}}",
+          "content_digest": "d6a5630a3f973a17",
+          "tool_name": "image_reader",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_NEynJw6fK0toaYvzgwWo0O\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"output/a_cute_small_puppy_beagle.jpeg\"}}",
+          "content_digest": "b534a39aca6199c6",
+          "tool_name": "image_reader",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "c5826c3d/chat/5170": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "41bbcd70eb1f8ea6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "output/a_friendly_golden_retriever_playing.jpeg, output/a_noble_german_shepherd_sitting.jpeg, output/a_cute_small_puppy_beagle.jpeg",
+          "content_digest": "0fb6be6104ea331d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll examine each of these three images for you.",
+          "content_digest": "06da5537b27facef",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DNud09RQAotFRpBxlAnWmN\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"output/a_friendly_golden_retriever_playing.jpeg\"}}",
+          "content_digest": "c3b38f58bdb37b3f",
+          "tool_name": "image_reader",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_GFxEvZHigrtcdo4DTFweB4\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"output/a_noble_german_shepherd_sitting.jpeg\"}}",
+          "content_digest": "d6a5630a3f973a17",
+          "tool_name": "image_reader",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_NEynJw6fK0toaYvzgwWo0O\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"output/a_cute_small_puppy_beagle.jpeg\"}}",
+          "content_digest": "b534a39aca6199c6",
+          "tool_name": "image_reader",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_DNud09RQAotFRpBxlAnWmN\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "c1d3b38096280948",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Here are my descriptions of each image: **Image 1: output/a_friendly_golden_retriever_playing.jpeg** A beautiful golden retriever with a soft, golden coat and warm expression stands in a vibrant wildflower meadow. The dog has a happy, open-…[2028 chars]",
+          "content_digest": "1c8d5107a31ea367",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "c5826c3d/execute_event_loop_cycle/a746": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_DNud09RQAotFRpBxlAnWmN\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "c1d3b38096280948",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "c5826c3d/execute_event_loop_cycle/c345": {
+      "message_count": 5,
+      "role_sequence": [
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll examine each of these three images for you.",
+          "content_digest": "06da5537b27facef",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DNud09RQAotFRpBxlAnWmN\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"output/a_friendly_golden_retriever_playing.jpeg\"}}",
+          "content_digest": "c3b38f58bdb37b3f",
+          "tool_name": "image_reader",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_GFxEvZHigrtcdo4DTFweB4\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"output/a_noble_german_shepherd_sitting.jpeg\"}}",
+          "content_digest": "d6a5630a3f973a17",
+          "tool_name": "image_reader",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_NEynJw6fK0toaYvzgwWo0O\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"output/a_cute_small_puppy_beagle.jpeg\"}}",
+          "content_digest": "b534a39aca6199c6",
+          "tool_name": "image_reader",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_DNud09RQAotFRpBxlAnWmN\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "c1d3b38096280948",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "c5826c3d/execute_tool image_reader/5864": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_NEynJw6fK0toaYvzgwWo0O\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "fa908f3f9eb34a23",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "c5826c3d/execute_tool image_reader/76d4": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_GFxEvZHigrtcdo4DTFweB4\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "9a1d709c60458d54",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "c5826c3d/execute_tool image_reader/d08f": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_DNud09RQAotFRpBxlAnWmN\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "c1d3b38096280948",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "c5826c3d/invoke_agent Strands Agents/d7f9": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "image_reader"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "41bbcd70eb1f8ea6",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "output/a_friendly_golden_retriever_playing.jpeg, output/a_noble_german_shepherd_sitting.jpeg, output/a_cute_small_puppy_beagle.jpeg",
+          "content_digest": "0fb6be6104ea331d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Here are my descriptions of each image: **Image 1: output/a_friendly_golden_retriever_playing.jpeg** A beautiful golden retriever with a soft, golden coat and warm expression stands in a vibrant wildflower meadow. The dog has a happy, open-…[2028 chars]",
+          "content_digest": "9740f06280745fe5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "8048cec7": {
+      "message_count": 10,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "generate_image"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "e5de766cb0569906",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll generate 3 different images of dogs with varied prompts.",
+          "content_digest": "4572dd883d518a48",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2EHYcPwzDsxDRqNbuRG6i7\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A friendly golden retriever playing in a sunny meadow with flowers\"}}",
+          "content_digest": "1956a020038c538d",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_043hP1RJzP2tNQrAV9FRb9\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A noble German Shepherd sitting proudly in a forest setting\"}}",
+          "content_digest": "6afdc60cfaabd2d8",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_bdY3n9v29M5FTstNcp3SZu\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A cute small puppy, beagle mix, with soft fur sitting on a cozy rug indoors\"}}",
+          "content_digest": "ffe391245541cbf4",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_bdY3n9v29M5FTstNcp3SZu\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_cute_small_puppy_beagle.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source…[273 chars]",
+          "content_digest": "ccac721a8adc3442",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2EHYcPwzDsxDRqNbuRG6i7\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_friendly_golden_retriever_playing.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpe…[283 chars]",
+          "content_digest": "875883ef8b0aa47c",
+          "observation_type": "tool"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_043hP1RJzP2tNQrAV9FRb9\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_noble_german_shepherd_sitting.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"…[279 chars]",
+          "content_digest": "ce3b3ccdc117a691",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "output/a_friendly_golden_retriever_playing.jpeg, output/a_noble_german_shepherd_sitting.jpeg, output/a_cute_small_puppy_beagle.jpeg",
+          "content_digest": "0fb6be6104ea331d",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "c5826c3d": {
+      "message_count": 10,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "image_reader"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "41bbcd70eb1f8ea6",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "output/a_friendly_golden_retriever_playing.jpeg, output/a_noble_german_shepherd_sitting.jpeg, output/a_cute_small_puppy_beagle.jpeg",
+          "content_digest": "0fb6be6104ea331d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll examine each of these three images for you.",
+          "content_digest": "06da5537b27facef",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DNud09RQAotFRpBxlAnWmN\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"output/a_friendly_golden_retriever_playing.jpeg\"}}",
+          "content_digest": "c3b38f58bdb37b3f",
+          "tool_name": "image_reader",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_GFxEvZHigrtcdo4DTFweB4\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"output/a_noble_german_shepherd_sitting.jpeg\"}}",
+          "content_digest": "d6a5630a3f973a17",
+          "tool_name": "image_reader",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_NEynJw6fK0toaYvzgwWo0O\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"output/a_cute_small_puppy_beagle.jpeg\"}}",
+          "content_digest": "b534a39aca6199c6",
+          "tool_name": "image_reader",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_GFxEvZHigrtcdo4DTFweB4\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "9a1d709c60458d54",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_DNud09RQAotFRpBxlAnWmN\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "c1d3b38096280948",
+          "observation_type": "tool"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_NEynJw6fK0toaYvzgwWo0O\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "fa908f3f9eb34a23",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Here are my descriptions of each image: **Image 1: output/a_friendly_golden_retriever_playing.jpeg** A beautiful golden retriever with a soft, golden coat and warm expression stands in a vibrant wildflower meadow. The dog has a happy, open-…[2028 chars]",
+          "content_digest": "9740f06280745fe5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "strands-image_gen-2517bbbd": {
+      "message_count": 20,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "generate_image",
+        "image_reader"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "e5de766cb0569906",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "b42d2c6d9658b34b",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll generate 3 different images of dogs with varied prompts.",
+          "content_digest": "4572dd883d518a48",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2EHYcPwzDsxDRqNbuRG6i7\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A friendly golden retriever playing in a sunny meadow with flowers\"}}",
+          "content_digest": "1956a020038c538d",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_043hP1RJzP2tNQrAV9FRb9\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A noble German Shepherd sitting proudly in a forest setting\"}}",
+          "content_digest": "6afdc60cfaabd2d8",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_bdY3n9v29M5FTstNcp3SZu\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A cute small puppy, beagle mix, with soft fur sitting on a cozy rug indoors\"}}",
+          "content_digest": "ffe391245541cbf4",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_bdY3n9v29M5FTstNcp3SZu\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_cute_small_puppy_beagle.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source…[273 chars]",
+          "content_digest": "ccac721a8adc3442",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2EHYcPwzDsxDRqNbuRG6i7\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_friendly_golden_retriever_playing.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpe…[283 chars]",
+          "content_digest": "875883ef8b0aa47c",
+          "observation_type": "tool"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_043hP1RJzP2tNQrAV9FRb9\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_noble_german_shepherd_sitting.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"…[279 chars]",
+          "content_digest": "ce3b3ccdc117a691",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "output/a_friendly_golden_retriever_playing.jpeg, output/a_noble_german_shepherd_sitting.jpeg, output/a_cute_small_puppy_beagle.jpeg",
+          "content_digest": "0fb6be6104ea331d",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        },
+        {
+          "index": 10,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "41bbcd70eb1f8ea6",
+          "observation_type": "agent"
+        },
+        {
+          "index": 11,
+          "role": "user",
+          "entry_type": "text",
+          "content": "output/a_friendly_golden_retriever_playing.jpeg, output/a_noble_german_shepherd_sitting.jpeg, output/a_cute_small_puppy_beagle.jpeg",
+          "content_digest": "0fb6be6104ea331d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll examine each of these three images for you.",
+          "content_digest": "06da5537b27facef",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DNud09RQAotFRpBxlAnWmN\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"output/a_friendly_golden_retriever_playing.jpeg\"}}",
+          "content_digest": "c3b38f58bdb37b3f",
+          "tool_name": "image_reader",
+          "observation_type": "generation"
+        },
+        {
+          "index": 14,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_GFxEvZHigrtcdo4DTFweB4\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"output/a_noble_german_shepherd_sitting.jpeg\"}}",
+          "content_digest": "d6a5630a3f973a17",
+          "tool_name": "image_reader",
+          "observation_type": "generation"
+        },
+        {
+          "index": 15,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_NEynJw6fK0toaYvzgwWo0O\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"output/a_cute_small_puppy_beagle.jpeg\"}}",
+          "content_digest": "b534a39aca6199c6",
+          "tool_name": "image_reader",
+          "observation_type": "generation"
+        },
+        {
+          "index": 16,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_GFxEvZHigrtcdo4DTFweB4\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "9a1d709c60458d54",
+          "observation_type": "tool"
+        },
+        {
+          "index": 17,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_DNud09RQAotFRpBxlAnWmN\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "c1d3b38096280948",
+          "observation_type": "tool"
+        },
+        {
+          "index": 18,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_NEynJw6fK0toaYvzgwWo0O\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "fa908f3f9eb34a23",
+          "observation_type": "tool"
+        },
+        {
+          "index": 19,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Here are my descriptions of each image: **Image 1: output/a_friendly_golden_retriever_playing.jpeg** A beautiful golden retriever with a soft, golden coat and warm expression stands in a vibrant wildflower meadow. The dog has a happy, open-…[2028 chars]",
+          "content_digest": "9740f06280745fe5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  }
+}

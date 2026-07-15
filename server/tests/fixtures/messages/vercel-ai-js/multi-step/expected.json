@@ -1,0 +1,868 @@
+{
+  "label": "vercel-ai-js/multi-step",
+  "request_count": 2,
+  "span_count": 16,
+  "trace_count": 3,
+  "session_count": 0,
+  "span_views": {
+    "072138ce/ai.generateText.doGenerate/6c9a": {
+      "message_count": 5,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 15% of 240?",
+          "content_digest": "97b1b97898ca2082",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I need to calculate 15% of 240, which is the same as multiplying 240 by 0.15.",
+          "content_digest": "4ea436be37c1ae06",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_lzuo63RyKawL8zyyLXJBdM\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":240,\"b\":0.15}}",
+          "content_digest": "0078954c50cf3dc0",
+          "tool_name": "calculator",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_lzuo63RyKawL8zyyLXJBdM\",\"content\":{\"type\":\"json\",\"data\":{\"operation\":\"multiply\",\"a\":240,\"b\":0.15,\"result\":36}}}",
+          "content_digest": "3d1b877d703151e6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "15% of 240 is **36**.",
+          "content_digest": "bdef9c355ba9fc29",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "072138ce/ai.generateText.doGenerate/7c14": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 15% of 240?",
+          "content_digest": "97b1b97898ca2082",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I need to calculate 15% of 240, which is the same as multiplying 240 by 0.15.",
+          "content_digest": "4ea436be37c1ae06",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "072138ce/ai.generateText/70d7": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "15% of 240 is **36**.",
+          "content_digest": "bdef9c355ba9fc29",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "072138ce/ai.toolCall/e9ea": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_lzuo63RyKawL8zyyLXJBdM\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":240,\"b\":0.15}}",
+          "content_digest": "0078954c50cf3dc0",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_lzuo63RyKawL8zyyLXJBdM\",\"content\":{\"operation\":\"multiply\",\"a\":240,\"b\":0.15,\"result\":36}}",
+          "content_digest": "752fcc1c5485f899",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "91c13cd2/ai.generateText.doGenerate/8315": {
+      "message_count": 8,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate step by step: What is (123 + 456) * 2?",
+          "content_digest": "d80492eff18e9bb5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll calculate this step by step for you. **Step 1: First, calculate 123 + 456**",
+          "content_digest": "60f7cac1bef18c43",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"name\":\"calculator\",\"input\":{\"operation\":\"add\",\"a\":123,\"b\":456}}",
+          "content_digest": "0f6649566c68cc61",
+          "tool_name": "calculator",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"content\":{\"type\":\"json\",\"data\":{\"operation\":\"add\",\"a\":123,\"b\":456,\"result\":579}}}",
+          "content_digest": "3f920cb25b3586b6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Great! 123 + 456 = **579** **Step 2: Now multiply the result by 2**",
+          "content_digest": "cd2e537fc3c67d8d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pUHRgRAp85GmlCOLHT1mh9\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":579,\"b\":2}}",
+          "content_digest": "60cd30ce54bb90ce",
+          "tool_name": "calculator",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_pUHRgRAp85GmlCOLHT1mh9\",\"content\":{\"type\":\"json\",\"data\":{\"operation\":\"multiply\",\"a\":579,\"b\":2,\"result\":1158}}}",
+          "content_digest": "002c78c5d7e2c457",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Perfect! 579 × 2 = **1,158** **Answer: (123 + 456) * 2 = 1,158**",
+          "content_digest": "788918b0257bb787",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "91c13cd2/ai.generateText.doGenerate/a1fd": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate step by step: What is (123 + 456) * 2?",
+          "content_digest": "d80492eff18e9bb5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll calculate this step by step for you. **Step 1: First, calculate 123 + 456**",
+          "content_digest": "60f7cac1bef18c43",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "91c13cd2/ai.generateText.doGenerate/b85a": {
+      "message_count": 5,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate step by step: What is (123 + 456) * 2?",
+          "content_digest": "d80492eff18e9bb5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll calculate this step by step for you. **Step 1: First, calculate 123 + 456**",
+          "content_digest": "60f7cac1bef18c43",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"name\":\"calculator\",\"input\":{\"operation\":\"add\",\"a\":123,\"b\":456}}",
+          "content_digest": "0f6649566c68cc61",
+          "tool_name": "calculator",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"content\":{\"type\":\"json\",\"data\":{\"operation\":\"add\",\"a\":123,\"b\":456,\"result\":579}}}",
+          "content_digest": "3f920cb25b3586b6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Great! 123 + 456 = **579** **Step 2: Now multiply the result by 2**",
+          "content_digest": "cd2e537fc3c67d8d",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "91c13cd2/ai.generateText/05d7": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Perfect! 579 × 2 = **1,158** **Answer: (123 + 456) * 2 = 1,158**",
+          "content_digest": "788918b0257bb787",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "91c13cd2/ai.toolCall/3565": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pUHRgRAp85GmlCOLHT1mh9\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":579,\"b\":2}}",
+          "content_digest": "60cd30ce54bb90ce",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_pUHRgRAp85GmlCOLHT1mh9\",\"content\":{\"operation\":\"multiply\",\"a\":579,\"b\":2,\"result\":1158}}",
+          "content_digest": "cbc956a7832d2d11",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "91c13cd2/ai.toolCall/5169": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"name\":\"calculator\",\"input\":{\"operation\":\"add\",\"a\":123,\"b\":456}}",
+          "content_digest": "0f6649566c68cc61",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"content\":{\"operation\":\"add\",\"a\":123,\"b\":456,\"result\":579}}",
+          "content_digest": "5bcfbab012c4937d",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "d053f22f/ai.generateText.doGenerate/76db": {
+      "message_count": 5,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate the area of a circle with radius 5 (use 3.14159 for pi)",
+          "content_digest": "f092d0d61b7f42af",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll calculate the area of a circle with radius 5 using the formula A = πr².",
+          "content_digest": "878aca31d4be3420",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BHIUAiGmzhU4NhTZQ6O8qx\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":5,\"b\":5}}",
+          "content_digest": "f1ea4f8926bb07b2",
+          "tool_name": "calculator",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_BHIUAiGmzhU4NhTZQ6O8qx\",\"content\":{\"type\":\"json\",\"data\":{\"operation\":\"multiply\",\"a\":5,\"b\":5,\"result\":25}}}",
+          "content_digest": "6a5a712c1754a61b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Now I'll multiply that result by π:",
+          "content_digest": "2f64b04fbc0c9855",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "d053f22f/ai.generateText.doGenerate/8882": {
+      "message_count": 8,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate the area of a circle with radius 5 (use 3.14159 for pi)",
+          "content_digest": "f092d0d61b7f42af",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll calculate the area of a circle with radius 5 using the formula A = πr².",
+          "content_digest": "878aca31d4be3420",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BHIUAiGmzhU4NhTZQ6O8qx\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":5,\"b\":5}}",
+          "content_digest": "f1ea4f8926bb07b2",
+          "tool_name": "calculator",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_BHIUAiGmzhU4NhTZQ6O8qx\",\"content\":{\"type\":\"json\",\"data\":{\"operation\":\"multiply\",\"a\":5,\"b\":5,\"result\":25}}}",
+          "content_digest": "6a5a712c1754a61b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Now I'll multiply that result by π:",
+          "content_digest": "2f64b04fbc0c9855",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_T9cxj1TJQbxuClmq4Ei3sN\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":3.14159,\"b\":25}}",
+          "content_digest": "389bdaa6e6a7f9c7",
+          "tool_name": "calculator",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_T9cxj1TJQbxuClmq4Ei3sN\",\"content\":{\"type\":\"json\",\"data\":{\"operation\":\"multiply\",\"a\":3.14159,\"b\":25,\"result\":78.53975}}}",
+          "content_digest": "5c32dc1376f29cac",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**The area of a circle with radius 5 is 78.54 square units** (using π ≈ 3.14159) The calculation: - r² = 5² = 25 - A = π × r² = 3.14159 × 25 = 78.53975 ≈ **78.54**",
+          "content_digest": "eec1d53ba4ebf543",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "d053f22f/ai.generateText.doGenerate/9275": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate the area of a circle with radius 5 (use 3.14159 for pi)",
+          "content_digest": "f092d0d61b7f42af",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll calculate the area of a circle with radius 5 using the formula A = πr².",
+          "content_digest": "878aca31d4be3420",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "d053f22f/ai.generateText/02b7": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**The area of a circle with radius 5 is 78.54 square units** (using π ≈ 3.14159) The calculation: - r² = 5² = 25 - A = π × r² = 3.14159 × 25 = 78.53975 ≈ **78.54**",
+          "content_digest": "eec1d53ba4ebf543",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "d053f22f/ai.toolCall/044a": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_T9cxj1TJQbxuClmq4Ei3sN\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":3.14159,\"b\":25}}",
+          "content_digest": "389bdaa6e6a7f9c7",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_T9cxj1TJQbxuClmq4Ei3sN\",\"content\":{\"operation\":\"multiply\",\"a\":3.14159,\"b\":25,\"result\":78.53975}}",
+          "content_digest": "9e3247e9c3c47a97",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "d053f22f/ai.toolCall/3440": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BHIUAiGmzhU4NhTZQ6O8qx\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":5,\"b\":5}}",
+          "content_digest": "f1ea4f8926bb07b2",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_BHIUAiGmzhU4NhTZQ6O8qx\",\"content\":{\"operation\":\"multiply\",\"a\":5,\"b\":5,\"result\":25}}",
+          "content_digest": "12037da256dea0e0",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "072138ce": {
+      "message_count": 5,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 15% of 240?",
+          "content_digest": "97b1b97898ca2082",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_lzuo63RyKawL8zyyLXJBdM\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":240,\"b\":0.15}}",
+          "content_digest": "0078954c50cf3dc0",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "tool"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_lzuo63RyKawL8zyyLXJBdM\",\"content\":{\"operation\":\"multiply\",\"a\":240,\"b\":0.15,\"result\":36}}",
+          "content_digest": "752fcc1c5485f899",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I need to calculate 15% of 240, which is the same as multiplying 240 by 0.15.",
+          "content_digest": "4ea436be37c1ae06",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "15% of 240 is **36**.",
+          "content_digest": "bdef9c355ba9fc29",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "91c13cd2": {
+      "message_count": 8,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate step by step: What is (123 + 456) * 2?",
+          "content_digest": "d80492eff18e9bb5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"name\":\"calculator\",\"input\":{\"operation\":\"add\",\"a\":123,\"b\":456}}",
+          "content_digest": "0f6649566c68cc61",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "tool"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"content\":{\"operation\":\"add\",\"a\":123,\"b\":456,\"result\":579}}",
+          "content_digest": "5bcfbab012c4937d",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll calculate this step by step for you. **Step 1: First, calculate 123 + 456**",
+          "content_digest": "60f7cac1bef18c43",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pUHRgRAp85GmlCOLHT1mh9\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":579,\"b\":2}}",
+          "content_digest": "60cd30ce54bb90ce",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_pUHRgRAp85GmlCOLHT1mh9\",\"content\":{\"operation\":\"multiply\",\"a\":579,\"b\":2,\"result\":1158}}",
+          "content_digest": "cbc956a7832d2d11",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Great! 123 + 456 = **579** **Step 2: Now multiply the result by 2**",
+          "content_digest": "cd2e537fc3c67d8d",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Perfect! 579 × 2 = **1,158** **Answer: (123 + 456) * 2 = 1,158**",
+          "content_digest": "788918b0257bb787",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "d053f22f": {
+      "message_count": 8,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate the area of a circle with radius 5 (use 3.14159 for pi)",
+          "content_digest": "f092d0d61b7f42af",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll calculate the area of a circle with radius 5 using the formula A = πr².",
+          "content_digest": "878aca31d4be3420",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BHIUAiGmzhU4NhTZQ6O8qx\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":5,\"b\":5}}",
+          "content_digest": "f1ea4f8926bb07b2",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_BHIUAiGmzhU4NhTZQ6O8qx\",\"content\":{\"operation\":\"multiply\",\"a\":5,\"b\":5,\"result\":25}}",
+          "content_digest": "12037da256dea0e0",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Now I'll multiply that result by π:",
+          "content_digest": "2f64b04fbc0c9855",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_T9cxj1TJQbxuClmq4Ei3sN\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":3.14159,\"b\":25}}",
+          "content_digest": "389bdaa6e6a7f9c7",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_T9cxj1TJQbxuClmq4Ei3sN\",\"content\":{\"operation\":\"multiply\",\"a\":3.14159,\"b\":25,\"result\":78.53975}}",
+          "content_digest": "9e3247e9c3c47a97",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**The area of a circle with radius 5 is 78.54 square units** (using π ≈ 3.14159) The calculation: - r² = 5² = 25 - A = π × r² = 3.14159 × 25 = 78.53975 ≈ **78.54**",
+          "content_digest": "eec1d53ba4ebf543",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {}
+}

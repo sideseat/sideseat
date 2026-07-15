@@ -1,0 +1,311 @@
+{
+  "label": "openai/chat_completions",
+  "request_count": 1,
+  "span_count": 6,
+  "trace_count": 3,
+  "session_count": 1,
+  "span_views": {
+    "01a0424f/Chat Completion with 'us.openai.gpt-5.6-luna'/2693": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when available.",
+          "content_digest": "883a797be798921d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the weather in Paris?",
+          "content_digest": "85026bc2368bf644",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22C, light breeze",
+          "content_digest": "e9c6a7349c669e67",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Paris is sunny and 22°C, with a light breeze.",
+          "content_digest": "eddddfaf84865752",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a0424f/Chat Completion with 'us.openai.gpt-5.6-luna'/3c4c": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "49fd0fd68e3c2e94",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "64cf87cbf62b67a1",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a0424f/Chat Completion with 'us.openai.gpt-5.6-luna'/b025": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "49fd0fd68e3c2e94",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "ce6ec8cdd58f4825",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The speed of light in a vacuum is exactly 299,792,458 meters per second (approximately 300,000 kilometers per second).",
+          "content_digest": "ede0324ff949e81b",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a0424f/Chat Completion with 'us.openai.gpt-5.6-luna'/ca24": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when available.",
+          "content_digest": "883a797be798921d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the weather in Paris?",
+          "content_digest": "85026bc2368bf644",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_0\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "f15729ccb191c258",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "01a0424f/completions-tool-use/fdb9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "01a0424f/streaming response from 'us.openai.gpt-5.6-luna' took 0.01s/451d": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "49fd0fd68e3c2e94",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "64cf87cbf62b67a1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "At standard atmospheric pressure (1 atmosphere), water boils at 100°C (212°F).",
+          "content_digest": "a55aca1c5fd4a327",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "01a0424f": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when available.",
+          "content_digest": "883a797be798921d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the weather in Paris?",
+          "content_digest": "85026bc2368bf644",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_0\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "f15729ccb191c258",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22C, light breeze",
+          "content_digest": "e9c6a7349c669e67",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Paris is sunny and 22°C, with a light breeze.",
+          "content_digest": "eddddfaf84865752",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "openai-chat_completions-8b24d88d": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when available.",
+          "content_digest": "883a797be798921d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the weather in Paris?",
+          "content_digest": "85026bc2368bf644",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_0\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "f15729ccb191c258",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22C, light breeze",
+          "content_digest": "e9c6a7349c669e67",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Paris is sunny and 22°C, with a light breeze.",
+          "content_digest": "eddddfaf84865752",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,779 @@
+{
+  "label": "crewai/image_gen",
+  "request_count": 5,
+  "span_count": 10,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "0dc0c136/AI Artist._execute_core/46cc": {
+      "message_count": 9,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are AI Artist. You are an AI artist. When asked to generate images, create varied prompts for each image to produce a diverse collection. Use the generate_image tool to create actual images. Your personal goal is: Generate creative and …[270 chars]",
+          "content_digest": "f1d33f60bc3293db",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Generate 3 different images of a dog. Vary the style, setting, and mood for each image. Use different prompts like: playful puppy in a park, majestic dog portrait, dog playing in snow. Return a comma-separated list of the gene…[434 chars]",
+          "content_digest": "3d567b7c1617f70d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PvMYc8nEWN3y2BMCeHILOq\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"playful golden retriever puppy running through a sunny park with flowers blooming, joyful and energetic, bright cheerful atmosphere\"}}",
+          "content_digest": "72996aba083db9d2",
+          "tool_name": "generate_image",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_6N04CiJ7XPvnoLWav443Vi\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"majestic German Shepherd dog portrait with noble expression, professional studio lighting, dramatic dark background, dignified and powerful\"…[242 chars]",
+          "content_digest": "ddd27b5b24361827",
+          "tool_name": "generate_image",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_p2lr0aOu6oqoagLwf7dKLI\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"happy dog playing and jumping in fresh white snow during winter, snowy landscape with trees, playful joyful mood, cold crisp day\"}}",
+          "content_digest": "60034d61bf70b0ce",
+          "tool_name": "generate_image",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png",
+          "content_digest": "37aaf3dafed40e2a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png",
+          "content_digest": "067b26703319945c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_eqv4kuet/generated_ae068de4.png",
+          "content_digest": "08e9938a4bda3c10",
+          "observation_type": "agent"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T…[286 chars]",
+          "content_digest": "0bf504de13b090bf",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "0dc0c136/Art Critic._execute_core/c389": {
+      "message_count": 9,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Art Critic. You are an experienced art critic. Evaluate images based on creativity, composition, and appeal. Your final output must include: FINAL DECISION: [path to best image] Your personal goal is: Evaluate and select the best im…[261 chars]",
+          "content_digest": "11d2fe40c7ee0359",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Evaluate the generated images and select the best one. Consider creativity, composition, and visual appeal. Your final line must be: FINAL DECISION: [path to best image] This is the expected criteria for your final answer: Eva…[704 chars]",
+          "content_digest": "ed251c3e841ffb7e",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2rvU6KX5agS8r0E0AT8PRC\",\"name\":\"get_image_info\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png\"}}",
+          "content_digest": "c6599b0f17e78eec",
+          "tool_name": "get_image_info",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_vtJHayCLeHbxfwPwFYSRA1\",\"name\":\"get_image_info\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png\"}}",
+          "content_digest": "b0c6837c6af54ec0",
+          "tool_name": "get_image_info",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2SVTrjVHYR3K2H9zZkQzjz\",\"name\":\"get_image_info\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_eqv4kuet/generated_ae068de4.png\"}}",
+          "content_digest": "3fd33aee7140dc40",
+          "tool_name": "get_image_info",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image at /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png: 1795789 bytes, format: .PNG",
+          "content_digest": "756c70b9ba912991",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image at /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png: 1676062 bytes, format: .PNG",
+          "content_digest": "d03df9c73e0078ee",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image at /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_eqv4kuet/generated_ae068de4.png: 1759772 bytes, format: .PNG",
+          "content_digest": "0d6e7049fbc393e4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on my evaluation as an art critic, I have analyzed the three generated images: **Image 1: /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png** - File size: 1,795,789 bytes (largest file size…[1339 chars]",
+          "content_digest": "a3200f83d9146055",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "0dc0c136/Crew_74cf786e-13a9-41a9-8b20-68670d12ca11.kickoff/a41e": {
+      "message_count": 18,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are AI Artist. You are an AI artist. When asked to generate images, create varied prompts for each image to produce a diverse collection. Use the generate_image tool to create actual images. Your personal goal is: Generate creative and …[270 chars]",
+          "content_digest": "f1d33f60bc3293db",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Generate 3 different images of a dog. Vary the style, setting, and mood for each image. Use different prompts like: playful puppy in a park, majestic dog portrait, dog playing in snow. Return a comma-separated list of the gene…[434 chars]",
+          "content_digest": "3d567b7c1617f70d",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PvMYc8nEWN3y2BMCeHILOq\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"playful golden retriever puppy running through a sunny park with flowers blooming, joyful and energetic, bright cheerful atmosphere\"}}",
+          "content_digest": "72996aba083db9d2",
+          "tool_name": "generate_image",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_6N04CiJ7XPvnoLWav443Vi\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"majestic German Shepherd dog portrait with noble expression, professional studio lighting, dramatic dark background, dignified and powerful\"…[242 chars]",
+          "content_digest": "ddd27b5b24361827",
+          "tool_name": "generate_image",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_p2lr0aOu6oqoagLwf7dKLI\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"happy dog playing and jumping in fresh white snow during winter, snowy landscape with trees, playful joyful mood, cold crisp day\"}}",
+          "content_digest": "60034d61bf70b0ce",
+          "tool_name": "generate_image",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png",
+          "content_digest": "37aaf3dafed40e2a",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png",
+          "content_digest": "067b26703319945c",
+          "observation_type": "chain"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_eqv4kuet/generated_ae068de4.png",
+          "content_digest": "08e9938a4bda3c10",
+          "observation_type": "chain"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T…[286 chars]",
+          "content_digest": "0bf504de13b090bf",
+          "observation_type": "chain"
+        },
+        {
+          "index": 9,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Art Critic. You are an experienced art critic. Evaluate images based on creativity, composition, and appeal. Your final output must include: FINAL DECISION: [path to best image] Your personal goal is: Evaluate and select the best im…[261 chars]",
+          "content_digest": "11d2fe40c7ee0359",
+          "observation_type": "chain"
+        },
+        {
+          "index": 10,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Evaluate the generated images and select the best one. Consider creativity, composition, and visual appeal. Your final line must be: FINAL DECISION: [path to best image] This is the expected criteria for your final answer: Eva…[704 chars]",
+          "content_digest": "ed251c3e841ffb7e",
+          "observation_type": "chain"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2rvU6KX5agS8r0E0AT8PRC\",\"name\":\"get_image_info\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png\"}}",
+          "content_digest": "c6599b0f17e78eec",
+          "tool_name": "get_image_info",
+          "observation_type": "chain"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_vtJHayCLeHbxfwPwFYSRA1\",\"name\":\"get_image_info\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png\"}}",
+          "content_digest": "b0c6837c6af54ec0",
+          "tool_name": "get_image_info",
+          "observation_type": "chain"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2SVTrjVHYR3K2H9zZkQzjz\",\"name\":\"get_image_info\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_eqv4kuet/generated_ae068de4.png\"}}",
+          "content_digest": "3fd33aee7140dc40",
+          "tool_name": "get_image_info",
+          "observation_type": "chain"
+        },
+        {
+          "index": 14,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image at /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png: 1795789 bytes, format: .PNG",
+          "content_digest": "756c70b9ba912991",
+          "observation_type": "chain"
+        },
+        {
+          "index": 15,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image at /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png: 1676062 bytes, format: .PNG",
+          "content_digest": "d03df9c73e0078ee",
+          "observation_type": "chain"
+        },
+        {
+          "index": 16,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image at /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_eqv4kuet/generated_ae068de4.png: 1759772 bytes, format: .PNG",
+          "content_digest": "0d6e7049fbc393e4",
+          "observation_type": "chain"
+        },
+        {
+          "index": 17,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on my evaluation as an art critic, I have analyzed the three generated images: **Image 1: /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png** - File size: 1,795,789 bytes (largest file size…[1339 chars]",
+          "content_digest": "a3200f83d9146055",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "0dc0c136/crewai.session/1377": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "0dc0c136/generate_image.run/03b7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "0dc0c136/generate_image.run/8d6f": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "0dc0c136/generate_image.run/f324": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "0dc0c136/get_image_info.run/0b69": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "0dc0c136/get_image_info.run/b37a": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "0dc0c136/get_image_info.run/db40": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "0dc0c136": {
+      "message_count": 18,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are AI Artist. You are an AI artist. When asked to generate images, create varied prompts for each image to produce a diverse collection. Use the generate_image tool to create actual images. Your personal goal is: Generate creative and …[270 chars]",
+          "content_digest": "f1d33f60bc3293db",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Generate 3 different images of a dog. Vary the style, setting, and mood for each image. Use different prompts like: playful puppy in a park, majestic dog portrait, dog playing in snow. Return a comma-separated list of the gene…[434 chars]",
+          "content_digest": "3d567b7c1617f70d",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PvMYc8nEWN3y2BMCeHILOq\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"playful golden retriever puppy running through a sunny park with flowers blooming, joyful and energetic, bright cheerful atmosphere\"}}",
+          "content_digest": "72996aba083db9d2",
+          "tool_name": "generate_image",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_6N04CiJ7XPvnoLWav443Vi\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"majestic German Shepherd dog portrait with noble expression, professional studio lighting, dramatic dark background, dignified and powerful\"…[242 chars]",
+          "content_digest": "ddd27b5b24361827",
+          "tool_name": "generate_image",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_p2lr0aOu6oqoagLwf7dKLI\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"happy dog playing and jumping in fresh white snow during winter, snowy landscape with trees, playful joyful mood, cold crisp day\"}}",
+          "content_digest": "60034d61bf70b0ce",
+          "tool_name": "generate_image",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png",
+          "content_digest": "37aaf3dafed40e2a",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png",
+          "content_digest": "067b26703319945c",
+          "observation_type": "chain"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_eqv4kuet/generated_ae068de4.png",
+          "content_digest": "08e9938a4bda3c10",
+          "observation_type": "chain"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T…[286 chars]",
+          "content_digest": "0bf504de13b090bf",
+          "observation_type": "chain"
+        },
+        {
+          "index": 9,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Art Critic. You are an experienced art critic. Evaluate images based on creativity, composition, and appeal. Your final output must include: FINAL DECISION: [path to best image] Your personal goal is: Evaluate and select the best im…[261 chars]",
+          "content_digest": "11d2fe40c7ee0359",
+          "observation_type": "chain"
+        },
+        {
+          "index": 10,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Evaluate the generated images and select the best one. Consider creativity, composition, and visual appeal. Your final line must be: FINAL DECISION: [path to best image] This is the expected criteria for your final answer: Eva…[704 chars]",
+          "content_digest": "ed251c3e841ffb7e",
+          "observation_type": "chain"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2rvU6KX5agS8r0E0AT8PRC\",\"name\":\"get_image_info\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png\"}}",
+          "content_digest": "c6599b0f17e78eec",
+          "tool_name": "get_image_info",
+          "observation_type": "chain"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_vtJHayCLeHbxfwPwFYSRA1\",\"name\":\"get_image_info\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png\"}}",
+          "content_digest": "b0c6837c6af54ec0",
+          "tool_name": "get_image_info",
+          "observation_type": "chain"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2SVTrjVHYR3K2H9zZkQzjz\",\"name\":\"get_image_info\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_eqv4kuet/generated_ae068de4.png\"}}",
+          "content_digest": "3fd33aee7140dc40",
+          "tool_name": "get_image_info",
+          "observation_type": "chain"
+        },
+        {
+          "index": 14,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image at /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png: 1795789 bytes, format: .PNG",
+          "content_digest": "756c70b9ba912991",
+          "observation_type": "chain"
+        },
+        {
+          "index": 15,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image at /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png: 1676062 bytes, format: .PNG",
+          "content_digest": "d03df9c73e0078ee",
+          "observation_type": "chain"
+        },
+        {
+          "index": 16,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image at /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_eqv4kuet/generated_ae068de4.png: 1759772 bytes, format: .PNG",
+          "content_digest": "0d6e7049fbc393e4",
+          "observation_type": "chain"
+        },
+        {
+          "index": 17,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on my evaluation as an art critic, I have analyzed the three generated images: **Image 1: /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png** - File size: 1,795,789 bytes (largest file size…[1339 chars]",
+          "content_digest": "a3200f83d9146055",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "crewai-image_gen-47142d15": {
+      "message_count": 18,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are AI Artist. You are an AI artist. When asked to generate images, create varied prompts for each image to produce a diverse collection. Use the generate_image tool to create actual images. Your personal goal is: Generate creative and …[270 chars]",
+          "content_digest": "f1d33f60bc3293db",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Generate 3 different images of a dog. Vary the style, setting, and mood for each image. Use different prompts like: playful puppy in a park, majestic dog portrait, dog playing in snow. Return a comma-separated list of the gene…[434 chars]",
+          "content_digest": "3d567b7c1617f70d",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PvMYc8nEWN3y2BMCeHILOq\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"playful golden retriever puppy running through a sunny park with flowers blooming, joyful and energetic, bright cheerful atmosphere\"}}",
+          "content_digest": "72996aba083db9d2",
+          "tool_name": "generate_image",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_6N04CiJ7XPvnoLWav443Vi\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"majestic German Shepherd dog portrait with noble expression, professional studio lighting, dramatic dark background, dignified and powerful\"…[242 chars]",
+          "content_digest": "ddd27b5b24361827",
+          "tool_name": "generate_image",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_p2lr0aOu6oqoagLwf7dKLI\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"happy dog playing and jumping in fresh white snow during winter, snowy landscape with trees, playful joyful mood, cold crisp day\"}}",
+          "content_digest": "60034d61bf70b0ce",
+          "tool_name": "generate_image",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png",
+          "content_digest": "37aaf3dafed40e2a",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png",
+          "content_digest": "067b26703319945c",
+          "observation_type": "chain"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_eqv4kuet/generated_ae068de4.png",
+          "content_digest": "08e9938a4bda3c10",
+          "observation_type": "chain"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T…[286 chars]",
+          "content_digest": "0bf504de13b090bf",
+          "observation_type": "chain"
+        },
+        {
+          "index": 9,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Art Critic. You are an experienced art critic. Evaluate images based on creativity, composition, and appeal. Your final output must include: FINAL DECISION: [path to best image] Your personal goal is: Evaluate and select the best im…[261 chars]",
+          "content_digest": "11d2fe40c7ee0359",
+          "observation_type": "chain"
+        },
+        {
+          "index": 10,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Evaluate the generated images and select the best one. Consider creativity, composition, and visual appeal. Your final line must be: FINAL DECISION: [path to best image] This is the expected criteria for your final answer: Eva…[704 chars]",
+          "content_digest": "ed251c3e841ffb7e",
+          "observation_type": "chain"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2rvU6KX5agS8r0E0AT8PRC\",\"name\":\"get_image_info\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png\"}}",
+          "content_digest": "c6599b0f17e78eec",
+          "tool_name": "get_image_info",
+          "observation_type": "chain"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_vtJHayCLeHbxfwPwFYSRA1\",\"name\":\"get_image_info\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png\"}}",
+          "content_digest": "b0c6837c6af54ec0",
+          "tool_name": "get_image_info",
+          "observation_type": "chain"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2SVTrjVHYR3K2H9zZkQzjz\",\"name\":\"get_image_info\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_eqv4kuet/generated_ae068de4.png\"}}",
+          "content_digest": "3fd33aee7140dc40",
+          "tool_name": "get_image_info",
+          "observation_type": "chain"
+        },
+        {
+          "index": 14,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image at /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png: 1795789 bytes, format: .PNG",
+          "content_digest": "756c70b9ba912991",
+          "observation_type": "chain"
+        },
+        {
+          "index": 15,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image at /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_0hloyb5a/generated_3dbb21d9.png: 1676062 bytes, format: .PNG",
+          "content_digest": "d03df9c73e0078ee",
+          "observation_type": "chain"
+        },
+        {
+          "index": 16,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image at /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_eqv4kuet/generated_ae068de4.png: 1759772 bytes, format: .PNG",
+          "content_digest": "0d6e7049fbc393e4",
+          "observation_type": "chain"
+        },
+        {
+          "index": 17,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on my evaluation as an art critic, I have analyzed the three generated images: **Image 1: /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/crewai_images_g5mbgb1o/generated_f8f0ecb2.png** - File size: 1,795,789 bytes (largest file size…[1339 chars]",
+          "content_digest": "a3200f83d9146055",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  }
+}

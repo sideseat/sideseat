@@ -1,0 +1,167 @@
+{
+  "label": "strands/error",
+  "request_count": 1,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "3eb2ed34/chat nonexistent-model-id-12345/8453": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "3eb2ed34/chat/df0e": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant.",
+          "content_digest": "03af1e6370edeaf9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 2 + 2?",
+          "content_digest": "800863091eac4052",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev…[3407 chars]",
+          "content_digest": "774f23a935f449ab",
+          "finish_reason": "Error",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "3eb2ed34/execute_event_loop_cycle/bb3c": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev…[4219 chars]",
+          "content_digest": "5361047d679a121f",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "3eb2ed34/invoke_agent Strands Agents/d79d": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant.",
+          "content_digest": "03af1e6370edeaf9",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 2 + 2?",
+          "content_digest": "800863091eac4052",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev…[5574 chars]",
+          "content_digest": "a9908e6d8e752fe5",
+          "finish_reason": "Error",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "3eb2ed34": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant.",
+          "content_digest": "03af1e6370edeaf9",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 2 + 2?",
+          "content_digest": "800863091eac4052",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "strands-error-8e727ee3": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant.",
+          "content_digest": "03af1e6370edeaf9",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 2 + 2?",
+          "content_digest": "800863091eac4052",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  }
+}

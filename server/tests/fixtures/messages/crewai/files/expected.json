@@ -1,0 +1,330 @@
+{
+  "label": "crewai/files",
+  "request_count": 2,
+  "span_count": 5,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "e41ef07c/Crew_3ee51d73-dac6-4203-9865-a5e5a176a116.kickoff/67ee": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are File Analyzer. You are a file analysis AI that can read images and documents. Your personal goal is: Analyze files including images and documents",
+          "content_digest": "1988553fe7aa1236",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Analyze the image at /Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg. The task document (PDF at /Users/pugachev/Desktop/dev/sideseat/misc/content/task.pdf) contains the following instructions: \"Describe the image con…[783 chars]",
+          "content_digest": "79caa88bb11c1f6f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zVC4lDoyJgb5h84LfGuSiI\",\"name\":\"analyze_image_metadata\",\"input\":{\"image_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "30f1e00456462fa2",
+          "tool_name": "analyze_image_metadata",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image: img.jpg, size: 163966 bytes, format: .JPG",
+          "content_digest": "a52f832ae5ed52f9",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_XzAwZSHxM8Qu66LOZe6ORE\",\"name\":\"read_file_contents\",\"input\":{\"file_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/task.pdf\"}}",
+          "content_digest": "0d93b98007cf801e",
+          "tool_name": "read_file_contents",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Binary file: task.pdf, size: 13207 bytes, type: .pdf",
+          "content_digest": "e4174cd247b05769",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the metadata retrieved and the analysis requirements from the task instructions, here is my detailed analysis of the image at `/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg`: ## Detailed Image Analysis ### Image Technic…[2084 chars]",
+          "content_digest": "a13dd74719fce671",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "e41ef07c/File Analyzer._execute_core/b95d": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are File Analyzer. You are a file analysis AI that can read images and documents. Your personal goal is: Analyze files including images and documents",
+          "content_digest": "1988553fe7aa1236",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Analyze the image at /Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg. The task document (PDF at /Users/pugachev/Desktop/dev/sideseat/misc/content/task.pdf) contains the following instructions: \"Describe the image con…[783 chars]",
+          "content_digest": "79caa88bb11c1f6f",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zVC4lDoyJgb5h84LfGuSiI\",\"name\":\"analyze_image_metadata\",\"input\":{\"image_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "30f1e00456462fa2",
+          "tool_name": "analyze_image_metadata",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image: img.jpg, size: 163966 bytes, format: .JPG",
+          "content_digest": "a52f832ae5ed52f9",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_XzAwZSHxM8Qu66LOZe6ORE\",\"name\":\"read_file_contents\",\"input\":{\"file_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/task.pdf\"}}",
+          "content_digest": "0d93b98007cf801e",
+          "tool_name": "read_file_contents",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Binary file: task.pdf, size: 13207 bytes, type: .pdf",
+          "content_digest": "e4174cd247b05769",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the metadata retrieved and the analysis requirements from the task instructions, here is my detailed analysis of the image at `/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg`: ## Detailed Image Analysis ### Image Technic…[2084 chars]",
+          "content_digest": "a13dd74719fce671",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "e41ef07c/analyze_image_metadata.run/3344": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "e41ef07c/crewai.session/358a": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "e41ef07c/read_file_contents.run/335b": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "e41ef07c": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are File Analyzer. You are a file analysis AI that can read images and documents. Your personal goal is: Analyze files including images and documents",
+          "content_digest": "1988553fe7aa1236",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Analyze the image at /Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg. The task document (PDF at /Users/pugachev/Desktop/dev/sideseat/misc/content/task.pdf) contains the following instructions: \"Describe the image con…[783 chars]",
+          "content_digest": "79caa88bb11c1f6f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zVC4lDoyJgb5h84LfGuSiI\",\"name\":\"analyze_image_metadata\",\"input\":{\"image_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "30f1e00456462fa2",
+          "tool_name": "analyze_image_metadata",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image: img.jpg, size: 163966 bytes, format: .JPG",
+          "content_digest": "a52f832ae5ed52f9",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_XzAwZSHxM8Qu66LOZe6ORE\",\"name\":\"read_file_contents\",\"input\":{\"file_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/task.pdf\"}}",
+          "content_digest": "0d93b98007cf801e",
+          "tool_name": "read_file_contents",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Binary file: task.pdf, size: 13207 bytes, type: .pdf",
+          "content_digest": "e4174cd247b05769",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the metadata retrieved and the analysis requirements from the task instructions, here is my detailed analysis of the image at `/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg`: ## Detailed Image Analysis ### Image Technic…[2084 chars]",
+          "content_digest": "a13dd74719fce671",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "crewai-files-96e71d0b": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are File Analyzer. You are a file analysis AI that can read images and documents. Your personal goal is: Analyze files including images and documents",
+          "content_digest": "1988553fe7aa1236",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Analyze the image at /Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg. The task document (PDF at /Users/pugachev/Desktop/dev/sideseat/misc/content/task.pdf) contains the following instructions: \"Describe the image con…[783 chars]",
+          "content_digest": "79caa88bb11c1f6f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zVC4lDoyJgb5h84LfGuSiI\",\"name\":\"analyze_image_metadata\",\"input\":{\"image_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "30f1e00456462fa2",
+          "tool_name": "analyze_image_metadata",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Image: img.jpg, size: 163966 bytes, format: .JPG",
+          "content_digest": "a52f832ae5ed52f9",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_XzAwZSHxM8Qu66LOZe6ORE\",\"name\":\"read_file_contents\",\"input\":{\"file_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/task.pdf\"}}",
+          "content_digest": "0d93b98007cf801e",
+          "tool_name": "read_file_contents",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Binary file: task.pdf, size: 13207 bytes, type: .pdf",
+          "content_digest": "e4174cd247b05769",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the metadata retrieved and the analysis requirements from the task instructions, here is my detailed analysis of the image at `/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg`: ## Detailed Image Analysis ### Image Technic…[2084 chars]",
+          "content_digest": "a13dd74719fce671",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  }
+}

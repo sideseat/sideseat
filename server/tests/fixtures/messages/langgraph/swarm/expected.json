@@ -1,0 +1,3231 @@
+{
+  "label": "langgraph/swarm",
+  "request_count": 5,
+  "span_count": 151,
+  "trace_count": 16,
+  "session_count": 1,
+  "span_views": {
+    "032ba200/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/a862": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "0e961801/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/b018": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "314b7fef/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/338e": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "31ba9cd6/ChatBedrockConverse/0676": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "31ba9cd6/ChatBedrockConverse/2b4e": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "31ba9cd6/ChatBedrockConverse/2e47": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "31ba9cd6/ChatBedrockConverse/3582": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "31ba9cd6/ChatBedrockConverse/36f0": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "31ba9cd6/ChatBedrockConverse/837a": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "31ba9cd6/ChatBedrockConverse/9c9e": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "31ba9cd6/ChatBedrockConverse/9d16": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "31ba9cd6/ChatBedrockConverse/acd5": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "31ba9cd6/ChatBedrockConverse/bc3c": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "31ba9cd6/ChatBedrockConverse/c975": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "31ba9cd6/ChatBedrockConverse/d851": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "31ba9cd6/ChatBedrockConverse/da8f": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "31ba9cd6/ChatBedrockConverse/dd0a": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "31ba9cd6/ChatBedrockConverse/e1bc": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "31ba9cd6/LangGraph/0385": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/LangGraph/0bf9": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/LangGraph/0c40": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/LangGraph/0e29": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/LangGraph/1928": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/LangGraph/21a0": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/LangGraph/657b": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/LangGraph/6ef5": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/LangGraph/74cb": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/LangGraph/9ad7": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/LangGraph/af1a": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/LangGraph/b3e9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "31ba9cd6/LangGraph/ced7": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/LangGraph/cfa1": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/LangGraph/d6cf": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/LangGraph/db00": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/Prompt/2cc3": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/Prompt/363f": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/Prompt/39be": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/Prompt/3c5a": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/Prompt/3d11": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/Prompt/5945": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/Prompt/8dbd": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/Prompt/a38a": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/Prompt/a7cf": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/Prompt/cd59": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/Prompt/d126": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/Prompt/d2f3": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/Prompt/d497": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/Prompt/d4ca": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/Prompt/e9fe": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/RunnableSequence/088a": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/RunnableSequence/2ea1": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/RunnableSequence/4b72": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/RunnableSequence/4e53": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/RunnableSequence/5c1d": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/RunnableSequence/716c": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/RunnableSequence/7cfc": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/RunnableSequence/8621": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/RunnableSequence/88bc": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/RunnableSequence/9d1d": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/RunnableSequence/b598": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/RunnableSequence/bbbe": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/RunnableSequence/c601": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/RunnableSequence/cd41": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/RunnableSequence/e57a": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/agent/19cc": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "31ba9cd6/agent/2699": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "31ba9cd6/agent/41a0": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "31ba9cd6/agent/4f4f": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "31ba9cd6/agent/535d": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "31ba9cd6/agent/570a": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "31ba9cd6/agent/5cd9": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "31ba9cd6/agent/63f7": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "31ba9cd6/agent/6d68": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "31ba9cd6/agent/6ede": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "31ba9cd6/agent/7b74": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "31ba9cd6/agent/7dd0": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "31ba9cd6/agent/a276": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "31ba9cd6/agent/bb21": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "31ba9cd6/agent/fbc7": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "31ba9cd6/call_model/0c72": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/call_model/1f66": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/call_model/213f": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/call_model/4767": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/call_model/53bb": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/call_model/6e32": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/call_model/7fa8": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/call_model/8d5f": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/call_model/8f2a": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/call_model/9abf": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/call_model/a2cd": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/call_model/b48f": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/call_model/b726": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/call_model/c71f": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/call_model/ef53": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/planner/0368": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/planner/15bd": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/planner/1e0f": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/planner/1e50": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/planner/2c73": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/planner/4389": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/planner/466d": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/planner/6651": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/planner/8982": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/planner/9725": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/planner/9832": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/planner/d4dc": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/planner/dca2": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/planner/e68a": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/planner/e75d": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/router/0b4a": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/router/1155": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/router/4c2b": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/router/6db9": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/router/6fa1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/router/8860": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/router/8fb9": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/router/90d5": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/router/9409": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/router/9ba5": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/router/9e60": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/router/9f74": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/router/a488": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/router/d4bf": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/router/f938": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/should_continue/1806": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/should_continue/1cc3": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/should_continue/1e54": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/should_continue/4828": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/should_continue/5385": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/should_continue/59e7": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/should_continue/6665": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/should_continue/73dc": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/should_continue/8e52": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/should_continue/9a42": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/should_continue/b506": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/should_continue/bcf9": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/should_continue/bfe7": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/should_continue/cb50": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "31ba9cd6/should_continue/e705": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "4d56326a/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/c961": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "4d72e7b0/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/0f48": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "51b789c3/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/11e8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "5ace60fd/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/1a17": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "80572b35/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/7072": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "a9b8cc48/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/1360": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "b961f095/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/03b6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "bcb1ef7e/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/077f": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "d2879df8/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/2765": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "e516fc45/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/7bef": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "e6b495e4/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/2694": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "f52a951b/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/b70a": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "032ba200": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "0e961801": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "314b7fef": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "31ba9cd6": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "system"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "4d56326a": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "4d72e7b0": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "51b789c3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "5ace60fd": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "80572b35": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "a9b8cc48": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "b961f095": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "bcb1ef7e": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "d2879df8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "e516fc45": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "e6b495e4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "f52a951b": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "session_views": {
+    "langgraph-swarm-1a30e49f": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "system"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_coder",
+        "handoff_to_researcher",
+        "task_complete"
+      ],
+      "tool_definition_count": 4,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "02fce307ee71a55f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "317e7ee8fbed6269",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "6a461e24ee9a00ad",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  }
+}
