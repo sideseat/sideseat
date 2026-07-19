@@ -1,19 +1,12 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
-use rmcp::handler::server::router::prompt::PromptRouter;
-use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
-    CallToolResult, Content, GetPromptRequestParams, GetPromptResult, Implementation,
-    ListPromptsResult, PaginatedRequestParams, PromptMessage, PromptMessageRole, PromptsCapability,
-    ServerCapabilities, ServerInfo, ToolsCapability,
+    CallToolResult, ContentBlock, GetPromptResult, Implementation, PromptMessage, Role,
+    ServerCapabilities, ServerInfo,
 };
-use rmcp::service::RequestContext;
-use rmcp::{
-    RoleServer, ServerHandler, prompt, prompt_handler, prompt_router, tool, tool_handler,
-    tool_router,
-};
+use rmcp::{ServerHandler, prompt, prompt_handler, prompt_router, tool, tool_handler, tool_router};
 
 use crate::api::routes::otel::messages::{build_messages_response, scope_feed_to_trace};
 use crate::api::routes::otel::sessions::session_row_to_summary;
@@ -38,17 +31,16 @@ type McpError = rmcp::model::ErrorData;
 pub struct McpServer {
     analytics: Arc<AnalyticsService>,
     project_id: String,
-    tool_router: ToolRouter<Self>,
-    prompt_router: PromptRouter<Self>,
 }
 
 impl McpServer {
     pub fn new(analytics: Arc<AnalyticsService>, project_id: String) -> Self {
+        // rmcp 3: #[tool_router] / #[prompt_router] generate associated functions that
+        // #[tool_handler] / #[prompt_handler] call themselves, so the routers are no
+        // longer stored on the struct.
         Self {
             analytics,
             project_id,
-            tool_router: Self::tool_router(),
-            prompt_router: Self::prompt_router(),
         }
     }
 }
@@ -57,20 +49,16 @@ impl McpServer {
 #[prompt_handler]
 impl ServerHandler for McpServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            instructions: Some(INSTRUCTIONS.to_string()),
-            capabilities: ServerCapabilities {
-                tools: Some(ToolsCapability::default()),
-                prompts: Some(PromptsCapability::default()),
-                ..Default::default()
-            },
-            server_info: Implementation {
-                name: "SideSeat".to_string(),
-                version: env!("CARGO_PKG_VERSION").to_string(),
-                ..Default::default()
-            },
-            ..Default::default()
-        }
+        // rmcp 3 marks these #[non_exhaustive], so they are assembled through builders
+        // and field assignment rather than struct expressions.
+        let mut info = ServerInfo::default();
+        info.instructions = Some(INSTRUCTIONS.to_string());
+        info.capabilities = ServerCapabilities::builder()
+            .enable_tools()
+            .enable_prompts()
+            .build();
+        info.server_info = Implementation::new("SideSeat", env!("CARGO_PKG_VERSION"));
+        info
     }
 }
 
@@ -348,10 +336,9 @@ impl McpServer {
     )]
     async fn setup_guide(&self, Parameters(args): Parameters<SetupGuideArgs>) -> GetPromptResult {
         let content = build_setup_guide(&self.project_id, args.framework.as_deref());
-        GetPromptResult {
-            description: Some("SideSeat integration guide".to_string()),
-            messages: vec![PromptMessage::new_text(PromptMessageRole::User, content)],
-        }
+        let mut result = GetPromptResult::new(vec![PromptMessage::new_text(Role::User, content)]);
+        result.description = Some("SideSeat integration guide".to_string());
+        result
     }
 }
 
@@ -386,131 +373,320 @@ async fn spans_to_dtos(
         .collect())
 }
 
+/// Which ecosystem a framework belongs to. Determines whether the guide emits
+/// pip/Python or npm/TypeScript instructions.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Lang {
+    Python,
+    TypeScript,
+}
+
 #[derive(Copy, Clone)]
 struct FrameworkSetup {
     display: &'static str,
+    lang: Lang,
+    /// Package to install alongside the SDK. pip name for Python, npm name for TypeScript.
     pip_pkg: &'static str,
+    /// Optional-dependency extra the SDK needs for this framework's instrumentation.
+    /// Without it the import fails, `instrument()` logs a warning and returns false, and
+    /// the app runs with no spans at all - so the SDK install line must carry it.
+    sdk_extra: &'static str,
     sdk_variant: &'static str,
     sdk_snippet: &'static str,
     no_sdk_extra_pkgs: &'static str,
     no_sdk_extra_setup: &'static str,
 }
 
+/// Module scope rather than inside `get_framework` so tests can iterate the whole table.
+/// A hardcoded list in a test only covers the entries someone remembered to add to it.
+const FRAMEWORKS: &[FrameworkSetup] = &[
+    FrameworkSetup {
+        display: "Strands Agents",
+        lang: Lang::Python,
+        pip_pkg: "strands-agents",
+        sdk_extra: "",
+        sdk_variant: "Strands",
+        sdk_snippet: "from strands import Agent\n\nagent = Agent()\nprint(agent(\"Hello\"))",
+        no_sdk_extra_pkgs: "",
+        no_sdk_extra_setup: "",
+    },
+    FrameworkSetup {
+        display: "LangChain",
+        lang: Lang::Python,
+        pip_pkg: "langchain-openai",
+        sdk_extra: "langchain",
+        sdk_variant: "LangChain",
+        sdk_snippet: "from langchain_openai import ChatOpenAI\nllm = ChatOpenAI(model=\"gpt-4o-mini\")\nprint(llm.invoke(\"Hello\").content)",
+        no_sdk_extra_pkgs: "openinference-instrumentation-langchain",
+        no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
+    },
+    FrameworkSetup {
+        display: "LangGraph",
+        lang: Lang::Python,
+        pip_pkg: "langgraph langchain-openai",
+        sdk_extra: "langgraph",
+        sdk_variant: "LangGraph",
+        sdk_snippet: "from langgraph.prebuilt import create_react_agent\nfrom langchain_openai import ChatOpenAI\nagent = create_react_agent(ChatOpenAI(model=\"gpt-4o-mini\"), [])\nprint(agent.invoke({\"messages\": [(\"user\", \"Hello\")]}))",
+        no_sdk_extra_pkgs: "openinference-instrumentation-langchain",
+        no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
+    },
+    FrameworkSetup {
+        display: "CrewAI",
+        lang: Lang::Python,
+        pip_pkg: "crewai",
+        sdk_extra: "crewai",
+        sdk_variant: "CrewAI",
+        sdk_snippet: "from crewai import Agent, Task, Crew\na = Agent(role=\"R\", goal=\"G\", backstory=\"B\")\nt = Task(description=\"D\", expected_output=\"O\", agent=a)\nprint(Crew(agents=[a], tasks=[t]).kickoff())",
+        no_sdk_extra_pkgs: "openinference-instrumentation-crewai",
+        no_sdk_extra_setup: "from openinference.instrumentation.crewai import CrewAIInstrumentor\nCrewAIInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
+    },
+    FrameworkSetup {
+        display: "AutoGen",
+        lang: Lang::Python,
+        // autogen_ext.models.openai lives in autogen-ext, and the openai extra is what
+        // pulls its OpenAI client dependencies.
+        pip_pkg: "autogen-agentchat \"autogen-ext[openai]\"",
+        sdk_extra: "autogen",
+        sdk_variant: "AutoGen",
+        sdk_snippet: "import asyncio\nfrom autogen_agentchat.agents import AssistantAgent\nfrom autogen_ext.models.openai import OpenAIChatCompletionClient\nagent = AssistantAgent(\"a\", model_client=OpenAIChatCompletionClient(model=\"gpt-4o-mini\"))\nasyncio.run(agent.run(task=\"Hello\"))",
+        no_sdk_extra_pkgs: "openinference-instrumentation-autogen-agentchat",
+        no_sdk_extra_setup: "from openinference.instrumentation.autogen_agentchat import AutogenAgentChatInstrumentor\nAutogenAgentChatInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
+    },
+    FrameworkSetup {
+        display: "OpenAI Agents SDK",
+        lang: Lang::Python,
+        pip_pkg: "openai-agents",
+        sdk_extra: "openai-agents",
+        sdk_variant: "OpenAIAgents",
+        sdk_snippet: "from agents import Agent, Runner\nprint(Runner.run_sync(Agent(name=\"A\", instructions=\"Helpful.\"), \"Hello\").final_output)",
+        no_sdk_extra_pkgs: "\"logfire>=4.29.0\"",
+        no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_openai_agents()",
+    },
+    FrameworkSetup {
+        display: "PydanticAI",
+        lang: Lang::Python,
+        pip_pkg: "pydantic-ai",
+        sdk_extra: "pydantic-ai",
+        sdk_variant: "PydanticAI",
+        sdk_snippet: "from pydantic_ai import Agent\nprint(Agent(\"openai:gpt-4o-mini\").run_sync(\"Hello\").output)",
+        no_sdk_extra_pkgs: "logfire[pydantic-ai]",
+        no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_pydantic_ai()",
+    },
+    FrameworkSetup {
+        display: "Google ADK",
+        lang: Lang::Python,
+        pip_pkg: "google-adk",
+        sdk_extra: "",
+        sdk_variant: "GoogleADK",
+        sdk_snippet: "# See full async example: https://google.github.io/adk-docs/",
+        no_sdk_extra_pkgs: "",
+        no_sdk_extra_setup: "",
+    },
+    FrameworkSetup {
+        display: "Microsoft Agent Framework",
+        lang: Lang::Python,
+        pip_pkg: "agent-framework",
+        sdk_extra: "",
+        sdk_variant: "AgentFramework",
+        sdk_snippet: "import asyncio\nfrom agent_framework import Agent\nfrom agent_framework.openai import OpenAIChatClient\nprint(asyncio.run(Agent(client=OpenAIChatClient(model_id=\"gpt-5-nano-2025-08-07\"), instructions=\"Helpful.\").run(\"Hello\")).text)",
+        no_sdk_extra_pkgs: "",
+        no_sdk_extra_setup: "from agent_framework.observability import OBSERVABILITY_SETTINGS\nOBSERVABILITY_SETTINGS.enable_instrumentation = True\nOBSERVABILITY_SETTINGS.enable_sensitive_data = True",
+    },
+    FrameworkSetup {
+        display: "Amazon Bedrock",
+        lang: Lang::Python,
+        pip_pkg: "boto3",
+        sdk_extra: "aws",
+        sdk_variant: "Bedrock",
+        sdk_snippet: "import boto3\nr = boto3.client(\"bedrock-runtime\", region_name=\"us-east-1\").converse(modelId=\"anthropic.claude-haiku-4-5-20251001-v1:0\", messages=[{\"role\": \"user\", \"content\": [{\"text\": \"Hello\"}]}])\nprint(r[\"output\"][\"message\"][\"content\"][0][\"text\"])",
+        no_sdk_extra_pkgs: "opentelemetry-instrumentation-botocore",
+        no_sdk_extra_setup: "from opentelemetry.instrumentation.botocore import BotocoreInstrumentor\nBotocoreInstrumentor().instrument(tracer_provider=provider)",
+    },
+    FrameworkSetup {
+        display: "Claude Agent SDK",
+        lang: Lang::Python,
+        pip_pkg: "claude-agent-sdk",
+        sdk_extra: "",
+        sdk_variant: "ClaudeAgentSDK",
+        sdk_snippet: "import asyncio\nfrom claude_agent_sdk import query, ClaudeAgentOptions\n\n# The Agent SDK emits no telemetry itself: it spawns the Claude Code CLI, which\n# carries the OTel instrumentation and is configured via these env vars.\nOTEL_ENV = {\n    \"CLAUDE_CODE_ENABLE_TELEMETRY\": \"1\",\n    # Span tracing is beta and off without this flag.\n    \"CLAUDE_CODE_ENHANCED_TELEMETRY_BETA\": \"1\",\n    # Second beta tier. Without these two the message feed stays empty:\n    # assistant reply text exists nowhere else on the trace.\n    \"ENABLE_BETA_TRACING_DETAILED\": \"1\",\n    \"BETA_TRACING_ENDPOINT\": \"__OTLP_BASE__\",\n    # Never \"console\": the CLI writes telemetry to stdout, which is the SDK's\n    # message channel, and would corrupt the stream.\n    \"OTEL_TRACES_EXPORTER\": \"otlp\",\n    \"OTEL_EXPORTER_OTLP_TRACES_PROTOCOL\": \"http/protobuf\",\n    \"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT\": \"__OTLP_ENDPOINT__\",\n    # Content is redacted by default, leaving the message feed empty.\n    \"OTEL_LOG_USER_PROMPTS\": \"1\",\n    \"OTEL_LOG_TOOL_DETAILS\": \"1\",\n}\n\nasync def main():\n    options = ClaudeAgentOptions(env=OTEL_ENV, allowed_tools=[\"Read\", \"Glob\"])\n    async for message in query(prompt=\"What is 2+2?\", options=options):\n        print(message)\n\nasyncio.run(main())",
+        no_sdk_extra_pkgs: "",
+        no_sdk_extra_setup: "",
+    },
+    FrameworkSetup {
+        display: "Anthropic",
+        lang: Lang::Python,
+        pip_pkg: "anthropic",
+        sdk_extra: "anthropic",
+        sdk_variant: "Anthropic",
+        sdk_snippet: "import anthropic\nprint(anthropic.Anthropic().messages.create(model=\"claude-haiku-4-5-20251001\", max_tokens=256, messages=[{\"role\": \"user\", \"content\": \"Hello\"}]).content[0].text)",
+        no_sdk_extra_pkgs: "logfire[anthropic]",
+        no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_anthropic()",
+    },
+    FrameworkSetup {
+        display: "OpenAI",
+        lang: Lang::Python,
+        pip_pkg: "openai",
+        sdk_extra: "openai",
+        sdk_variant: "OpenAI",
+        sdk_snippet: "from openai import OpenAI\nprint(OpenAI().chat.completions.create(model=\"gpt-4o-mini\", messages=[{\"role\": \"user\", \"content\": \"Hello\"}]).choices[0].message.content)",
+        no_sdk_extra_pkgs: "logfire[openai]",
+        no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_openai()",
+    },
+    FrameworkSetup {
+        display: "Google Gemini",
+        lang: Lang::Python,
+        pip_pkg: "google-genai",
+        sdk_extra: "google-genai",
+        sdk_variant: "GoogleGenAI",
+        sdk_snippet: "from google import genai\nprint(genai.Client(api_key=\"YOUR_KEY\").models.generate_content(model=\"gemini-2.5-flash\", contents=\"Hello\").text)",
+        no_sdk_extra_pkgs: "logfire[google-genai]",
+        no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_google_genai()",
+    },
+    FrameworkSetup {
+        display: "Google Vertex AI",
+        lang: Lang::Python,
+        pip_pkg: "google-cloud-aiplatform vertexai",
+        sdk_extra: "vertex-ai",
+        sdk_variant: "VertexAI",
+        sdk_snippet: "import vertexai\nfrom vertexai.generative_models import GenerativeModel\nvertexai.init(project=\"PROJECT_ID\", location=\"us-central1\")\nprint(GenerativeModel(\"gemini-2.5-flash\").generate_content(\"Hello\").text)",
+        no_sdk_extra_pkgs: "opentelemetry-instrumentation-vertexai",
+        no_sdk_extra_setup: "from opentelemetry.instrumentation.vertexai import VertexAIInstrumentor\nVertexAIInstrumentor().instrument(tracer_provider=provider)",
+    },
+    FrameworkSetup {
+        display: "Azure OpenAI",
+        lang: Lang::Python,
+        pip_pkg: "openai",
+        // Azure OpenAI is reached through the OpenAI SDK, so it reuses the openai
+        // extra and Frameworks.OpenAI - there is no separate SDK constant for it.
+        sdk_extra: "openai",
+        sdk_variant: "OpenAI",
+        sdk_snippet: "from openai import AzureOpenAI\n\nazure = AzureOpenAI(\n    api_key=\"your-api-key\",\n    api_version=\"2024-02-01\",\n    azure_endpoint=\"https://your-resource.openai.azure.com\",\n)\nresponse = azure.chat.completions.create(\n    model=\"gpt-5-mini\",\n    messages=[{\"role\": \"user\", \"content\": \"Hello\"}],\n)\nprint(response.choices[0].message.content)",
+        no_sdk_extra_pkgs: "logfire",
+        no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_openai()",
+    },
+    FrameworkSetup {
+        display: "Agno",
+        lang: Lang::Python,
+        pip_pkg: "agno openai",
+        sdk_extra: "agno",
+        sdk_variant: "Agno",
+        sdk_snippet: "from agno.agent import Agent\nfrom agno.models.openai import OpenAIChat\n\nagent = Agent(model=OpenAIChat(id=\"gpt-5-mini\"))\nagent.print_response(\"Hello\")",
+        no_sdk_extra_pkgs: "openinference-instrumentation-agno",
+        no_sdk_extra_setup: "from openinference.instrumentation.agno import AgnoInstrumentor\nAgnoInstrumentor().instrument(tracer_provider=provider)",
+    },
+    FrameworkSetup {
+        display: "Smolagents",
+        lang: Lang::Python,
+        pip_pkg: "smolagents",
+        sdk_extra: "smolagents",
+        sdk_variant: "Smolagents",
+        sdk_snippet: "from smolagents import CodeAgent, InferenceClientModel\n\nagent = CodeAgent(tools=[], model=InferenceClientModel())\nprint(agent.run(\"What is 2+2?\"))",
+        no_sdk_extra_pkgs: "openinference-instrumentation-smolagents",
+        no_sdk_extra_setup: "from openinference.instrumentation.smolagents import SmolagentsInstrumentor\nSmolagentsInstrumentor().instrument(tracer_provider=provider)",
+    },
+    FrameworkSetup {
+        display: "AG2",
+        lang: Lang::Python,
+        pip_pkg: "\"ag2[openai]<1.0\"",
+        sdk_extra: "ag2",
+        sdk_variant: "AG2",
+        sdk_snippet: "from autogen import ConversableAgent\n\nassistant = ConversableAgent(\n    name=\"assistant\",\n    llm_config={\"model\": \"gpt-5-mini\"},\n)\nprint(assistant.generate_reply(messages=[{\"role\": \"user\", \"content\": \"Hello\"}]))",
+        no_sdk_extra_pkgs: "openinference-instrumentation-autogen",
+        no_sdk_extra_setup: "from openinference.instrumentation.autogen import AutogenInstrumentor\nAutogenInstrumentor().instrument(tracer_provider=provider)",
+    },
+    FrameworkSetup {
+        display: "AgentScope",
+        lang: Lang::Python,
+        pip_pkg: "agentscope",
+        sdk_extra: "",
+        sdk_variant: "AgentScope",
+        // Runnable as a script: AgentScope's agent call is async, so it needs an
+        // asyncio entry point rather than a bare top-level await.
+        sdk_snippet: "import asyncio\nimport os\nfrom agentscope.agent import Agent\nfrom agentscope.message import Msg, TextBlock\nfrom agentscope.model import OpenAIChatModel\n\n# AgentScope emits OpenTelemetry itself; it only needs the global provider.\nasync def main():\n    agent = Agent(\n        name=\"assistant\",\n        system_prompt=\"You are a helpful assistant.\",\n        model=OpenAIChatModel(credential=os.environ[\"OPENAI_API_KEY\"], model=\"gpt-5-mini\"),\n    )\n    reply = await agent(Msg(name=\"user\", content=[TextBlock(type=\"text\", text=\"Hello\")], role=\"user\"))\n    print(reply)\n\nasyncio.run(main())",
+        no_sdk_extra_pkgs: "",
+        no_sdk_extra_setup: "",
+    },
+    FrameworkSetup {
+        display: "Langflow",
+        lang: Lang::Python,
+        pip_pkg: "langflow",
+        sdk_extra: "",
+        sdk_variant: "Langflow",
+        sdk_snippet: "# Langflow emits OpenTelemetry itself; run it with the provider configured\n# in the same process, or point its OTLP exporter at SideSeat.",
+        no_sdk_extra_pkgs: "",
+        no_sdk_extra_setup: "",
+    },
+    FrameworkSetup {
+        display: "Haystack",
+        lang: Lang::Python,
+        pip_pkg: "haystack-ai",
+        sdk_extra: "haystack",
+        sdk_variant: "Haystack",
+        sdk_snippet: "from haystack import Pipeline\nfrom haystack.components.generators.chat import OpenAIChatGenerator\nfrom haystack.dataclasses import ChatMessage\n\npipeline = Pipeline()\npipeline.add_component(\"llm\", OpenAIChatGenerator(model=\"gpt-5-mini\"))\nresult = pipeline.run({\"llm\": {\"messages\": [ChatMessage.from_user(\"Hello\")]}})\nprint(result[\"llm\"][\"replies\"][0].text)",
+        no_sdk_extra_pkgs: "openinference-instrumentation-haystack",
+        no_sdk_extra_setup: "from openinference.instrumentation.haystack import HaystackInstrumentor\nHaystackInstrumentor().instrument(tracer_provider=provider)",
+    },
+    FrameworkSetup {
+        display: "browser-use",
+        lang: Lang::Python,
+        pip_pkg: "browser-use",
+        sdk_extra: "",
+        sdk_variant: "BrowserUse",
+        sdk_snippet: "import asyncio\nfrom browser_use import Agent, ChatOpenAI\n\n# browser-use emits OpenTelemetry itself and uses the global provider.\nasync def main():\n    agent = Agent(task=\"Find the docs\", llm=ChatOpenAI(model=\"gpt-5-mini\"))\n    print(await agent.run())\n\nasyncio.run(main())",
+        no_sdk_extra_pkgs: "",
+        no_sdk_extra_setup: "",
+    },
+    FrameworkSetup {
+        display: "Vercel AI SDK",
+        lang: Lang::TypeScript,
+        pip_pkg: "ai @ai-sdk/otel @ai-sdk/amazon-bedrock",
+        sdk_extra: "",
+        sdk_variant: "VercelAI",
+        sdk_snippet: "import { generateText, registerTelemetry } from 'ai';\n\
+                          import { LegacyOpenTelemetry } from '@ai-sdk/otel';\n\
+                          import { bedrock } from '@ai-sdk/amazon-bedrock';\n\n\
+                          // AI SDK 7 delivers telemetry only to registered integrations.\n\
+                          // Register after init(): the integration captures a tracer in its constructor.\n\
+                          registerTelemetry(new LegacyOpenTelemetry());\n\n\
+                          const { text } = await generateText({\n\
+                          \u{20}\u{20}model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),\n\
+                          \u{20}\u{20}prompt: 'What is 2+2?',\n\
+                          \u{20}\u{20}experimental_telemetry: { isEnabled: true },\n});\nconsole.log(text);",
+        no_sdk_extra_pkgs: "",
+        no_sdk_extra_setup: "import { registerTelemetry } from 'ai';\nimport { LegacyOpenTelemetry } from '@ai-sdk/otel';\n\nregisterTelemetry(new LegacyOpenTelemetry());",
+    },
+    FrameworkSetup {
+        display: "Strands TypeScript",
+        lang: Lang::TypeScript,
+        pip_pkg: "@strands-agents/sdk",
+        sdk_extra: "",
+        sdk_variant: "Strands",
+        sdk_snippet: "import { Agent } from '@strands-agents/sdk';\n\n\
+                          const agent = new Agent({ model });\n\
+                          const result = await agent.invoke('Hello');\n\
+                          console.log(result.toString());",
+        no_sdk_extra_pkgs: "",
+        no_sdk_extra_setup: "",
+    },
+    FrameworkSetup {
+        // No parentheses: the alias is derived from the display name by lowercasing and
+        // replacing spaces with hyphens, so "(TypeScript)" would make it unmatchable.
+        display: "Claude Agent SDK TypeScript",
+        lang: Lang::TypeScript,
+        pip_pkg: "@anthropic-ai/claude-agent-sdk",
+        sdk_extra: "",
+        sdk_variant: "ClaudeAgentSDK",
+        sdk_snippet: "import { query } from '@anthropic-ai/claude-agent-sdk';\n\n\
+                          // The Agent SDK emits no telemetry itself: the Claude Code CLI it spawns\n\
+                          // self-instruments and is configured through CLAUDE_CODE_* / OTEL_* env vars\n\
+                          // on the subprocess. See the Claude Agent SDK integration page.\n\
+                          for await (const msg of query({ prompt: 'Hello', options })) console.log(msg);",
+        no_sdk_extra_pkgs: "",
+        no_sdk_extra_setup: "",
+    },
+];
+
 fn get_framework(name: &str) -> Option<FrameworkSetup> {
-    const FRAMEWORKS: &[FrameworkSetup] = &[
-        FrameworkSetup {
-            display: "Strands Agents",
-            pip_pkg: "strands-agents",
-            sdk_variant: "Strands",
-            sdk_snippet: "agent = Agent()\nprint(agent(\"Hello\"))",
-            no_sdk_extra_pkgs: "",
-            no_sdk_extra_setup: "",
-        },
-        FrameworkSetup {
-            display: "LangChain",
-            pip_pkg: "langchain-openai",
-            sdk_variant: "LangChain",
-            sdk_snippet: "from langchain_openai import ChatOpenAI\nllm = ChatOpenAI(model=\"gpt-4o-mini\")\nprint(llm.invoke(\"Hello\").content)",
-            no_sdk_extra_pkgs: "openinference-instrumentation-langchain",
-            no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
-        },
-        FrameworkSetup {
-            display: "LangGraph",
-            pip_pkg: "langgraph langchain-openai",
-            sdk_variant: "LangGraph",
-            sdk_snippet: "from langgraph.prebuilt import create_react_agent\nfrom langchain_openai import ChatOpenAI\nagent = create_react_agent(ChatOpenAI(model=\"gpt-4o-mini\"), [])\nprint(agent.invoke({\"messages\": [(\"user\", \"Hello\")]}))",
-            no_sdk_extra_pkgs: "openinference-instrumentation-langchain",
-            no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
-        },
-        FrameworkSetup {
-            display: "CrewAI",
-            pip_pkg: "crewai",
-            sdk_variant: "CrewAI",
-            sdk_snippet: "from crewai import Agent, Task, Crew\na = Agent(role=\"R\", goal=\"G\", backstory=\"B\")\nt = Task(description=\"D\", expected_output=\"O\", agent=a)\nprint(Crew(agents=[a], tasks=[t]).kickoff())",
-            no_sdk_extra_pkgs: "openinference-instrumentation-crewai",
-            no_sdk_extra_setup: "from openinference.instrumentation.crewai import CrewAIInstrumentor\nCrewAIInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
-        },
-        FrameworkSetup {
-            display: "AutoGen",
-            pip_pkg: "autogen-agentchat autogen-ext",
-            sdk_variant: "AutoGen",
-            sdk_snippet: "import asyncio\nfrom autogen_agentchat.agents import AssistantAgent\nfrom autogen_ext.models.openai import OpenAIChatCompletionClient\nagent = AssistantAgent(\"a\", model_client=OpenAIChatCompletionClient(model=\"gpt-4o-mini\"))\nasyncio.run(agent.run(task=\"Hello\"))",
-            no_sdk_extra_pkgs: "openinference-instrumentation-autogen-agentchat",
-            no_sdk_extra_setup: "from openinference.instrumentation.autogen_agentchat import AutogenAgentChatInstrumentor\nAutogenAgentChatInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
-        },
-        FrameworkSetup {
-            display: "OpenAI Agents SDK",
-            pip_pkg: "openai-agents",
-            sdk_variant: "OpenAIAgents",
-            sdk_snippet: "from agents import Agent, Runner\nprint(Runner.run_sync(Agent(name=\"A\", instructions=\"Helpful.\"), \"Hello\").final_output)",
-            no_sdk_extra_pkgs: "\"logfire>=4.29.0\"",
-            no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_openai_agents()",
-        },
-        FrameworkSetup {
-            display: "PydanticAI",
-            pip_pkg: "pydantic-ai",
-            sdk_variant: "PydanticAI",
-            sdk_snippet: "from pydantic_ai import Agent\nprint(Agent(\"openai:gpt-4o-mini\").run_sync(\"Hello\").data)",
-            no_sdk_extra_pkgs: "logfire[pydantic-ai]",
-            no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_pydantic_ai()",
-        },
-        FrameworkSetup {
-            display: "Google ADK",
-            pip_pkg: "google-adk",
-            sdk_variant: "GoogleADK",
-            sdk_snippet: "# See full async example: https://google.github.io/adk-docs/",
-            no_sdk_extra_pkgs: "",
-            no_sdk_extra_setup: "",
-        },
-        FrameworkSetup {
-            display: "Microsoft Agent Framework",
-            pip_pkg: "agent-framework",
-            sdk_variant: "AgentFramework",
-            sdk_snippet: "import asyncio\nfrom agent_framework import Agent\nfrom agent_framework.openai import OpenAIChatClient\nprint(asyncio.run(Agent(client=OpenAIChatClient(model_id=\"gpt-5-nano-2025-08-07\"), instructions=\"Helpful.\").run(\"Hello\")).text)",
-            no_sdk_extra_pkgs: "",
-            no_sdk_extra_setup: "from agent_framework.observability import OBSERVABILITY_SETTINGS\nOBSERVABILITY_SETTINGS.enable_instrumentation = True\nOBSERVABILITY_SETTINGS.enable_sensitive_data = True",
-        },
-        FrameworkSetup {
-            display: "Amazon Bedrock",
-            pip_pkg: "boto3",
-            sdk_variant: "Bedrock",
-            sdk_snippet: "import boto3\nr = boto3.client(\"bedrock-runtime\", region_name=\"us-east-1\").converse(modelId=\"anthropic.claude-haiku-4-5-20251001-v1:0\", messages=[{\"role\": \"user\", \"content\": [{\"text\": \"Hello\"}]}])\nprint(r[\"output\"][\"message\"][\"content\"][0][\"text\"])",
-            no_sdk_extra_pkgs: "opentelemetry-instrumentation-botocore",
-            no_sdk_extra_setup: "from opentelemetry.instrumentation.botocore import BotocoreInstrumentor\nBotocoreInstrumentor().instrument(tracer_provider=provider)",
-        },
-        FrameworkSetup {
-            display: "Anthropic",
-            pip_pkg: "anthropic",
-            sdk_variant: "Anthropic",
-            sdk_snippet: "import anthropic\nprint(anthropic.Anthropic().messages.create(model=\"claude-haiku-4-5-20251001\", max_tokens=256, messages=[{\"role\": \"user\", \"content\": \"Hello\"}]).content[0].text)",
-            no_sdk_extra_pkgs: "logfire[anthropic]",
-            no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_anthropic()",
-        },
-        FrameworkSetup {
-            display: "OpenAI",
-            pip_pkg: "openai",
-            sdk_variant: "OpenAI",
-            sdk_snippet: "from openai import OpenAI\nprint(OpenAI().chat.completions.create(model=\"gpt-4o-mini\", messages=[{\"role\": \"user\", \"content\": \"Hello\"}]).choices[0].message.content)",
-            no_sdk_extra_pkgs: "logfire[openai]",
-            no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_openai()",
-        },
-        FrameworkSetup {
-            display: "Google Gemini",
-            pip_pkg: "google-genai",
-            sdk_variant: "GoogleGenAI",
-            sdk_snippet: "from google import genai\nprint(genai.Client(api_key=\"YOUR_KEY\").models.generate_content(model=\"gemini-2.5-flash\", contents=\"Hello\").text)",
-            no_sdk_extra_pkgs: "logfire[google-genai]",
-            no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_google_genai()",
-        },
-        FrameworkSetup {
-            display: "Google Vertex AI",
-            pip_pkg: "google-cloud-aiplatform vertexai",
-            sdk_variant: "VertexAI",
-            sdk_snippet: "import vertexai\nfrom vertexai.generative_models import GenerativeModel\nvertexai.init(project=\"PROJECT_ID\", location=\"us-central1\")\nprint(GenerativeModel(\"gemini-2.5-flash\").generate_content(\"Hello\").text)",
-            no_sdk_extra_pkgs: "opentelemetry-instrumentation-vertexai",
-            no_sdk_extra_setup: "from opentelemetry.instrumentation.vertexai import VertexAIInstrumentor\nVertexAIInstrumentor().instrument(tracer_provider=provider)",
-        },
-    ];
     FRAMEWORKS
         .iter()
         .find(|f| {
@@ -525,8 +701,50 @@ fn get_framework(name: &str) -> Option<FrameworkSetup> {
 fn build_setup_guide(project_id: &str, framework: Option<&str>) -> String {
     let otlp_url = format!("http://localhost:5388/otel/{project_id}/v1/traces");
 
+    // Snippets are inserted as values, not re-formatted, so a snippet that needs the
+    // endpoint carries this placeholder and is substituted after formatting.
+    let guide = build_setup_guide_template(&otlp_url, framework);
+    // BETA_TRACING_ENDPOINT takes the collector base URL, not the /v1/traces path.
+    let otlp_base = otlp_url.trim_end_matches("/v1/traces");
+    guide
+        .replace("__OTLP_ENDPOINT__", &otlp_url)
+        .replace("__OTLP_BASE__", otlp_base)
+}
+
+fn build_setup_guide_template(otlp_url: &str, framework: Option<&str>) -> String {
     match framework.and_then(|f| get_framework(&f.to_lowercase())) {
+        Some(fw) if fw.lang == Lang::TypeScript => {
+            let extra_setup = if fw.no_sdk_extra_setup.is_empty() {
+                String::new()
+            } else {
+                format!("{}\n\n", fw.no_sdk_extra_setup)
+            };
+            format!(
+                "## With SideSeat SDK (recommended)\n\n\
+                 ```bash\nnpm install @sideseat/sdk {npm}\n```\n\n\
+                 ```typescript\nimport {{ init, Frameworks }} from '@sideseat/sdk';\n\n\
+                 init({{ framework: Frameworks.{variant} }});\n\n{snippet}\n```\n\n\
+                 ## Without SDK (direct OTLP)\n\n\
+                 ```bash\nnpm install {npm} @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http\n```\n\n\
+                 ```typescript\nimport {{ NodeSDK }} from '@opentelemetry/sdk-node';\n\
+                 import {{ OTLPTraceExporter }} from '@opentelemetry/exporter-trace-otlp-http';\n\n\
+                 const sdk = new NodeSDK({{\n\
+                 \u{20}\u{20}traceExporter: new OTLPTraceExporter({{ url: '{otlp}' }}),\n}});\n\
+                 sdk.start();\n\n{extra_setup}{snippet}\n```",
+                npm = fw.pip_pkg,
+                variant = fw.sdk_variant,
+                snippet = fw.sdk_snippet,
+                extra_setup = extra_setup,
+                otlp = otlp_url,
+            )
+        }
         Some(fw) => {
+            // `sideseat[extra]` is quoted: bare brackets are glob metacharacters in zsh.
+            let sdk_pkg = if fw.sdk_extra.is_empty() {
+                "sideseat".to_string()
+            } else {
+                format!("\"sideseat[{}]\"", fw.sdk_extra)
+            };
             let extra_pkgs = if fw.no_sdk_extra_pkgs.is_empty() {
                 String::new()
             } else {
@@ -534,7 +752,7 @@ fn build_setup_guide(project_id: &str, framework: Option<&str>) -> String {
             };
             format!(
                 "## With SideSeat SDK (recommended)\n\n\
-                 ```bash\npip install sideseat {pip}\n```\n\n\
+                 ```bash\npip install {sdk_pkg} {pip}\n```\n\n\
                  ```python\nfrom sideseat import SideSeat, Frameworks\n\
                  SideSeat(framework=Frameworks.{variant})\n\n{snippet}\n```\n\n\
                  ## Without SDK (direct OTLP)\n\n\
@@ -568,8 +786,8 @@ fn build_setup_guide(project_id: &str, framework: Option<&str>) -> String {
                  endpoint=\"{otlp}\"\n)))\n\
              trace.set_tracer_provider(provider)\n```\n\n\
              Supported frameworks: strands, langchain, langgraph, crewai, autogen, \
-             openai-agents, pydantic-ai, google-adk, agent-framework, bedrock, \
-             openai, anthropic, google-genai, vertex-ai",
+             openai-agents, pydantic-ai, google-adk, agent-framework, \
+             claude-agent-sdk, bedrock, openai, anthropic, google-genai, vertex-ai",
             otlp = otlp_url,
         ),
     }
@@ -577,7 +795,7 @@ fn build_setup_guide(project_id: &str, framework: Option<&str>) -> String {
 
 fn ok_json(value: &impl serde::Serialize) -> Result<CallToolResult, McpError> {
     let json = serde_json::to_string(value).map_err(mcp_err)?;
-    Ok(CallToolResult::success(vec![Content::text(json)]))
+    Ok(CallToolResult::success(vec![ContentBlock::text(json)]))
 }
 
 fn mcp_err(e: impl std::fmt::Display) -> McpError {
@@ -604,6 +822,317 @@ fn parse_ts(s: &str) -> Option<DateTime<Utc>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_python_snippets_have_no_top_level_await() {
+        // A bare top-level `await` is a SyntaxError when the snippet is saved and run as a
+        // script, which is exactly how a user consumes this guide.
+        for name in [
+            "strands",
+            "langgraph",
+            "crewai",
+            "autogen",
+            "agno",
+            "smolagents",
+            "ag2",
+            "agentscope",
+            "langflow",
+            "haystack",
+            "browser-use",
+            "bedrock",
+            "anthropic",
+            "openai",
+            "google-adk",
+            "openai-agents",
+            "pydantic-ai",
+        ] {
+            let guide =
+                build_setup_guide_template("http://localhost:5388/otel/default", Some(name));
+            for line in guide.lines() {
+                let t = line.trim_start();
+                let indented = line.len() != t.len();
+                if (t.starts_with("await ") || t.contains("= await ")) && !indented {
+                    panic!("{name}: top-level await is not runnable as a script:\n  {line}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_typescript_frameworks_emit_npm_instructions() {
+        // The guide used to be Python-only, so a TypeScript framework silently produced
+        // pip instructions. Both paths must be present and in the right ecosystem.
+        for name in [
+            "vercel-ai",
+            "strands-typescript",
+            "claude-agent-sdk-typescript",
+        ] {
+            let guide =
+                build_setup_guide_template("http://localhost:5388/otel/default", Some(name));
+            assert!(
+                guide.contains("npm install @sideseat/sdk"),
+                "{name} should emit an npm SDK install, got:\n{guide}"
+            );
+            assert!(
+                guide.contains("```typescript"),
+                "{name} should emit TypeScript snippets, got:\n{guide}"
+            );
+            assert!(
+                !guide.contains("pip install"),
+                "{name} must not emit pip instructions, got:\n{guide}"
+            );
+            assert!(
+                guide.contains("## Without SDK (direct OTLP)")
+                    && guide.contains("@opentelemetry/sdk-node"),
+                "{name} needs a no-SDK path too, got:\n{guide}"
+            );
+            // Every symbol the snippet calls must be imported in the same snippet.
+            for symbol in ["registerTelemetry", "generateText", "Agent", "query"] {
+                if guide.contains(&format!("{symbol}(")) {
+                    assert!(
+                        guide.contains(&format!("import {{ {symbol}"))
+                            || guide.contains(&format!(", {symbol} }}"))
+                            || guide.contains(&format!("{symbol}, ")),
+                        "{name} uses {symbol} without importing it, got:\n{guide}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_python_frameworks_still_emit_pip_instructions() {
+        for name in ["strands", "langgraph", "crewai"] {
+            let guide =
+                build_setup_guide_template("http://localhost:5388/otel/default", Some(name));
+            assert!(guide.contains("pip install"), "{name} lost its pip install");
+            assert!(
+                guide.contains("```python"),
+                "{name} lost its Python snippets"
+            );
+            assert!(!guide.contains("npm install"), "{name} must not emit npm");
+        }
+    }
+
+    /// Every Python `sdk_snippet` must be self-contained: the guide template supplies only
+    /// the SideSeat/OTel imports, so a snippet that uses `Agent` without importing it
+    /// generates a NameError for the user. Eight frameworks shipped that way (Strands, Agno,
+    /// Smolagents, AG2, AgentScope, Haystack, browser-use, Azure OpenAI) before this test.
+    ///
+    /// Checked structurally rather than by running Python, so it needs no interpreter: every
+    /// capitalised name the snippet calls must be bound by an import or an assignment in the
+    /// same snippet.
+    /// Names bound by an import, assignment or def inside the snippet itself.
+    fn bound_names(snippet: &str) -> Vec<String> {
+        let mut bound: Vec<String> = Vec::new();
+        for line in snippet.lines() {
+            let t = line.trim();
+            if let Some(rest) = t
+                .strip_prefix("from ")
+                .and_then(|r| r.split(" import ").nth(1))
+            {
+                bound.extend(rest.split(',').map(|n| n.trim().to_string()));
+            } else if let Some(rest) = t.strip_prefix("import ") {
+                bound.extend(rest.split(',').map(|n| n.trim().to_string()));
+            } else if let Some(rest) = t.strip_prefix("async def ").or(t.strip_prefix("def ")) {
+                if let Some((name, _)) = rest.split_once('(') {
+                    bound.push(name.trim().to_string());
+                }
+            } else if let Some(rest) = t.strip_prefix("async for ").or(t.strip_prefix("for ")) {
+                if let Some((name, _)) = rest.split_once(" in ") {
+                    bound.extend(name.split(',').map(|n| n.trim().to_string()));
+                }
+            } else if let Some((lhs, _)) = t.split_once('=') {
+                let lhs = lhs.trim();
+                if !lhs.is_empty() && !lhs.contains(' ') && !lhs.contains('(') {
+                    bound.push(lhs.to_string());
+                }
+            }
+        }
+        bound
+    }
+
+    #[test]
+    fn test_python_snippets_define_every_name_they_use() {
+        for fw in FRAMEWORKS {
+            if fw.lang != Lang::Python {
+                continue;
+            }
+            let snippet = fw.sdk_snippet;
+            let bound = bound_names(snippet);
+            // Any Capitalised identifier immediately followed by `(` is a constructor call.
+            let mut used: Vec<String> = Vec::new();
+            let bytes: Vec<char> = snippet.chars().collect();
+            let mut i = 0;
+            while i < bytes.len() {
+                if bytes[i].is_ascii_uppercase()
+                    && (i == 0
+                        || !(bytes[i - 1].is_alphanumeric()
+                            || bytes[i - 1] == '_'
+                            || bytes[i - 1] == '.'))
+                {
+                    let start = i;
+                    while i < bytes.len() && (bytes[i].is_alphanumeric() || bytes[i] == '_') {
+                        i += 1;
+                    }
+                    if i < bytes.len() && bytes[i] == '(' {
+                        used.push(bytes[start..i].iter().collect());
+                    }
+                } else {
+                    i += 1;
+                }
+            }
+            for name in used {
+                assert!(
+                    bound.contains(&name),
+                    "{}: snippet calls `{}` but never imports or defines it:\n{}",
+                    fw.display,
+                    name,
+                    snippet
+                );
+            }
+        }
+    }
+
+    /// Lowercase names passed as keyword arguments must be bound in the snippet too.
+    /// `model=model`, `llm=llm`, `llm_config=llm_config` and `retriever` all shipped as
+    /// bare placeholders that read as if defined elsewhere, giving the user a NameError.
+    /// Unlike the check above this covers lowercase names, which are not constructor calls.
+    #[test]
+    fn test_python_snippets_have_no_unbound_placeholders() {
+        for fw in FRAMEWORKS {
+            if fw.lang != Lang::Python {
+                continue;
+            }
+            let bound = bound_names(fw.sdk_snippet);
+            for candidate in [
+                "model",
+                "llm",
+                "llm_config",
+                "retriever",
+                "options",
+                "tools",
+            ] {
+                let used = fw.sdk_snippet.contains(&format!("={candidate})"))
+                    || fw.sdk_snippet.contains(&format!("={candidate},"));
+                if used {
+                    assert!(
+                        bound.iter().any(|b| b == candidate),
+                        "{}: snippet passes `{}` but never binds it:\n{}",
+                        fw.display,
+                        candidate,
+                        fw.sdk_snippet
+                    );
+                }
+            }
+            assert!(
+                !fw.sdk_snippet.contains("[...]"),
+                "{}: snippet has an elided `[...]` argument, which is not runnable:\n{}",
+                fw.display,
+                fw.sdk_snippet
+            );
+        }
+    }
+
+    #[test]
+    fn test_documented_framework_values_all_resolve() {
+        // docs/src/content/docs/docs/mcp.mdx publishes this list to users. A value that
+        // does not resolve makes setup_guide silently fall back to the generic guide.
+        for name in [
+            "strands",
+            "langchain",
+            "langgraph",
+            "crewai",
+            "autogen",
+            "openai-agents",
+            "pydantic-ai",
+            "google-adk",
+            "agent-framework",
+            "claude-agent-sdk",
+            "bedrock",
+            "openai",
+            "anthropic",
+            "google-genai",
+            "vertex-ai",
+            "agno",
+            "smolagents",
+            "ag2",
+            "agentscope",
+            "langflow",
+            "haystack",
+            "browser-use",
+            "azure-openai",
+            // TypeScript
+            "vercel-ai",
+            "strands-typescript",
+            "claude-agent-sdk-typescript",
+        ] {
+            assert!(
+                get_framework(name).is_some(),
+                "documented framework value {name:?} does not resolve"
+            );
+        }
+    }
+
+    #[test]
+    fn test_setup_guide_carries_required_sdk_extra() {
+        // A framework whose instrumentation lives behind an optional extra must have it on
+        // the SDK install line. Without the extra the import fails, instrument() only logs a
+        // warning, and the user gets a running app that emits no spans at all.
+        for (name, extra) in [
+            ("langgraph", "langgraph"),
+            ("crewai", "crewai"),
+            ("autogen", "autogen"),
+            ("bedrock", "aws"),
+            ("anthropic", "anthropic"),
+            ("vertex-ai", "vertex-ai"),
+        ] {
+            let guide =
+                build_setup_guide_template("http://localhost:5388/otel/default", Some(name));
+            assert!(
+                guide.contains(&format!("pip install \"sideseat[{extra}]\"")),
+                "{name} must install sideseat[{extra}], got:\n{guide}"
+            );
+        }
+        // Frameworks that need no extra keep the bare package.
+        for name in ["strands", "google-adk", "claude-agent-sdk"] {
+            let guide =
+                build_setup_guide_template("http://localhost:5388/otel/default", Some(name));
+            assert!(
+                guide.contains("pip install sideseat "),
+                "{name} should install plain sideseat, got:\n{guide}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_setup_guide_resolves_claude_agent_sdk() {
+        let guide = build_setup_guide("demo", Some("claude-agent-sdk"));
+        assert!(guide.contains("Frameworks.ClaudeAgentSDK"));
+        assert!(guide.contains("CLAUDE_CODE_ENHANCED_TELEMETRY_BETA"));
+        // Snippets are inserted as values, so the endpoint placeholder must be
+        // substituted after formatting or it leaks into the output verbatim.
+        assert!(!guide.contains("__OTLP_ENDPOINT__"));
+        assert!(guide.contains("http://localhost:5388/otel/demo/v1/traces"));
+    }
+
+    #[test]
+    fn test_setup_guide_matches_framework_aliases() {
+        // get_framework() matches on the kebab-cased display name, the lowercased
+        // sdk_variant (with and without hyphens), and the pip package.
+        for name in [
+            "claude-agent-sdk",
+            "claudeagentsdk",
+            "Claude-Agent-SDK",
+            "CLAUDE-AGENT-SDK",
+        ] {
+            let guide = build_setup_guide("demo", Some(name));
+            assert!(
+                guide.contains("Frameworks.ClaudeAgentSDK"),
+                "'{name}' should resolve to the Claude Agent SDK entry"
+            );
+        }
+    }
 
     #[test]
     fn test_parse_opt_ts_valid_iso8601() {
