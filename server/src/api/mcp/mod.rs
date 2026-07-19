@@ -17,7 +17,8 @@ mod types;
 
 use self::tools::McpServer;
 
-type McpService = StreamableHttpService<McpServer>;
+// rmcp 3 parameterises the service by session manager as well as handler.
+type McpService = StreamableHttpService<McpServer, LocalSessionManager>;
 
 /// Shared state for MCP routes. Sessions are managed by a single shared
 /// `LocalSessionManager`; the per-request `StreamableHttpService` is cheap
@@ -58,9 +59,15 @@ async fn mcp_proxy(
     let svc = McpService::new(
         move || Ok(McpServer::new(analytics.clone(), project_id.clone())),
         state.session_manager.clone(),
-        StreamableHttpServerConfig {
-            cancellation_token: state.ct.clone(),
-            ..Default::default()
+        {
+            // rmcp 3 marks the config #[non_exhaustive]. Its defaults matter here: Host
+            // validation is restricted to loopback, which is the DNS-rebinding
+            // mitigation that RUSTSEC-2026-0189 was filed against. Left at the default
+            // deliberately - widen allowed_hosts only for a deployment that is reached
+            // by hostname.
+            let mut config = StreamableHttpServerConfig::default();
+            config.cancellation_token = state.ct.clone();
+            config
         },
     );
     svc.oneshot(req).await.unwrap().into_response()
