@@ -232,9 +232,12 @@ class TestFrameworks:
         assert Frameworks.OpenAIAgents == "openai-agents"
         assert Frameworks.GoogleADK == "google-adk"
         assert Frameworks.PydanticAI == "pydantic-ai"
+        assert Frameworks.ClaudeAgentSDK == "claude-agent-sdk"
         assert Frameworks.OpenAI == "openai"
         assert Frameworks.Anthropic == "anthropic"
-        assert Frameworks.GoogleGenAI == "google_genai"
+        # Hyphenated like the rest of the set, the JS SDK and the docs. This assertion
+        # previously pinned "google_genai", which is what let the mismatch survive.
+        assert Frameworks.GoogleGenAI == "google-genai"
 
     def test_all_providers_are_strings(self) -> None:
         """All provider constants should be strings."""
@@ -369,3 +372,232 @@ class TestSpanContextVars:
         with client.span("test"):
             assert _user_id_var.get() is None
         assert _user_id_var.get() is None
+
+
+def test_project_id_reads_sideseat_project_id(monkeypatch):
+    """SIDESEAT_PROJECT_ID is the name the TS SDK, samples and docs all use."""
+    from sideseat.config import Config
+
+    monkeypatch.delenv("SIDESEAT_PROJECT", raising=False)
+    monkeypatch.setenv("SIDESEAT_PROJECT_ID", "from-project-id")
+    assert Config.create(framework="strands").project_id == "from-project-id"
+
+
+def test_project_id_legacy_alias_still_works(monkeypatch):
+    from sideseat.config import Config
+
+    monkeypatch.delenv("SIDESEAT_PROJECT_ID", raising=False)
+    monkeypatch.setenv("SIDESEAT_PROJECT", "from-legacy")
+    assert Config.create(framework="strands").project_id == "from-legacy"
+
+
+def test_project_id_prefers_canonical_over_legacy(monkeypatch):
+    from sideseat.config import Config
+
+    monkeypatch.setenv("SIDESEAT_PROJECT_ID", "canonical")
+    monkeypatch.setenv("SIDESEAT_PROJECT", "legacy")
+    assert Config.create(framework="strands").project_id == "canonical"
+
+
+def test_google_genai_constant_is_hyphenated():
+    """The docs and the MCP setup_guide publish "google-genai"; the constant must match."""
+    from sideseat.config import Frameworks
+
+    assert Frameworks.GoogleGenAI == "google-genai"
+
+
+def test_google_genai_legacy_underscore_still_accepted():
+    """The constant used to be "google_genai"; existing code must keep working."""
+    from sideseat.config import Config
+
+    assert Config.create(framework="google_genai").framework == "google-genai"
+
+
+def test_all_framework_values_use_hyphens():
+    """A stray underscore silently breaks the framework comparison for anyone passing the
+    documented string, so keep the whole set on one spelling."""
+    from sideseat.config import Frameworks
+
+    values = [
+        v for k, v in vars(Frameworks).items() if not k.startswith("_") and isinstance(v, str)
+    ]
+    assert values, "no framework constants found"
+    offenders = [v for v in values if "_" in v]
+    assert not offenders, f"framework values must use hyphens, got {offenders}"
+
+
+def test_all_extra_is_complete():
+    """`sideseat[all]` is a promise. When a framework extra was added without updating
+    `all`, that framework silently went uninstrumented for everyone who installed `all`."""
+    from pathlib import Path
+
+    import tomllib
+
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    extras = tomllib.loads(pyproject.read_text())["project"]["optional-dependencies"]
+
+    def names(reqs):
+        return {r.split(">=")[0].split("==")[0].split("[")[0].strip().lower() for r in reqs}
+
+    all_names = names(extras["all"])
+    missing = {}
+    for extra, reqs in extras.items():
+        if extra in ("all", "dev"):  # dev is tooling, deliberately not in `all`
+            continue
+        gap = names(reqs) - all_names
+        if gap:
+            missing[extra] = sorted(gap)
+    assert not missing, f"`all` is missing deps from these extras: {missing}"
+
+
+def test_trace_starts_a_root_span_even_when_nested():
+    """`trace()` promises a root span. It used to delegate to `span()` verbatim, so nesting
+    it inside an active span produced a child and the "groups child spans into a single
+    trace" contract silently did not hold."""
+    from opentelemetry import trace as otel_trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+    from sideseat import SideSeat
+
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    tracer = provider.get_tracer("test")
+
+    client = SideSeat(framework="strands", disabled=True)
+    # Drive the assertion off a real provider rather than the disabled client's no-op tracer.
+    client._telemetry.get_tracer = lambda *_a, **_k: tracer  # type: ignore[method-assign]
+
+    with tracer.start_as_current_span("outer"):
+        outer_ctx = otel_trace.get_current_span().get_span_context()
+        with client.trace("new-trace") as rooted:
+            rooted_ctx = rooted.get_span_context()
+        with client.span("nested") as child:
+            child_ctx = child.get_span_context()
+
+    assert rooted_ctx.trace_id != outer_ctx.trace_id, "trace() must start its own trace"
+    assert child_ctx.trace_id == outer_ctx.trace_id, "span() must stay in the current trace"
+
+
+def test_otel_service_name_is_honoured(monkeypatch):
+    """Documented as "Override service name", and the TS SDK reads it. Python ignored it,
+    and `Resource.create` gives the explicit value precedence, so it silently did nothing."""
+    monkeypatch.setenv("OTEL_SERVICE_NAME", "from-otel-env")
+    assert Config.create(framework="strands").service_name == "from-otel-env"
+
+
+def test_explicit_service_name_beats_otel_env(monkeypatch):
+    monkeypatch.setenv("OTEL_SERVICE_NAME", "from-otel-env")
+    cfg = Config.create(framework="strands", service_name="explicit")
+    assert cfg.service_name == "explicit"
+
+
+def test_otel_service_name_absent_falls_back_to_framework_package(monkeypatch):
+    monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
+    assert Config.create(framework="strands").service_name == "strands-agents"
+
+
+class TestOtlpEnvVars:
+    """The docs advertise these OTEL_* variables; each was silently ignored."""
+
+    def test_timeout_env_is_honoured(self, monkeypatch):
+        from sideseat.telemetry.setup import build_timeout
+
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_TIMEOUT", "7")
+        assert build_timeout() == 7
+
+    def test_timeout_defaults_when_unset(self, monkeypatch):
+        from sideseat.telemetry.setup import build_timeout
+
+        monkeypatch.delenv("OTEL_EXPORTER_OTLP_TIMEOUT", raising=False)
+        assert build_timeout() == 30
+
+    @pytest.mark.parametrize("bad", ["abc", "0", "-5", ""])
+    def test_timeout_falls_back_on_invalid(self, monkeypatch, bad):
+        from sideseat.telemetry.setup import build_timeout
+
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_TIMEOUT", bad)
+        assert build_timeout() == 30
+
+    def test_env_headers_survive_alongside_api_key(self, monkeypatch):
+        """The exporter only reads the env var when `headers` is falsy, so returning just
+        the auth header dropped the user's env headers entirely."""
+        from sideseat.telemetry.setup import build_headers
+
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_HEADERS", "x-tenant=acme,x-team=platform")
+        headers = build_headers(Config.create(framework="strands", api_key="pk-123"))
+        assert headers["x-tenant"] == "acme"
+        assert headers["x-team"] == "platform"
+        assert headers["Authorization"] == "Bearer pk-123"
+
+    def test_signal_specific_headers_win(self, monkeypatch):
+        from sideseat.telemetry.setup import build_headers
+
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_HEADERS", "x-src=generic")
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_TRACES_HEADERS", "x-src=traces")
+        assert build_headers(Config.create(framework="strands"))["x-src"] == "traces"
+
+    def test_malformed_header_pairs_are_skipped(self, monkeypatch):
+        from sideseat.telemetry.setup import build_headers
+
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_HEADERS", "novalue,=noname,good=yes")
+        assert build_headers(Config.create(framework="strands")) == {"good": "yes"}
+
+
+def test_docs_auto_detection_order_matches_code():
+    """The documented detection order drifted from FRAMEWORK_PACKAGES twice (LangGraph moved
+    ahead of LangChain; seven frameworks were added without touching the docs). Parse the
+    published list and compare, so the docs cannot silently go stale again."""
+    import re
+    from pathlib import Path
+
+    from sideseat.config import _NO_AUTO_DETECT, FRAMEWORK_PACKAGES
+
+    doc = (
+        Path(__file__).resolve().parents[3]
+        / "docs/src/content/docs/docs/sdks/python/configuration.mdx"
+    )
+    if not doc.exists():  # docs are not shipped in the sdist
+        pytest.skip("docs tree not present")
+
+    text = doc.read_text()
+    section = text.split("auto-detects by looking for the first of these packages")[1]
+    section = section.split("If none match")[0]
+    documented = re.findall(r"^\d+\.\s+.*?\(`([^`]+)`\)", section, re.MULTILINE)
+
+    expected = [pkg for key, pkg in FRAMEWORK_PACKAGES if key not in _NO_AUTO_DETECT]
+    assert documented == expected, (
+        f"docs list {documented}\ncode order {expected}\n"
+        "update configuration.mdx to match FRAMEWORK_PACKAGES"
+    )
+
+
+def test_readme_documents_every_framework_constant():
+    """The README listed 8 of 22 constants. A user scanning it concluded the other 14
+    frameworks were unsupported."""
+    from pathlib import Path
+
+    from sideseat.config import Frameworks
+
+    readme = Path(__file__).resolve().parents[1] / "README.md"
+    if not readme.exists():
+        pytest.skip("README not present")
+    text = readme.read_text()
+    names = [k for k, v in vars(Frameworks).items() if not k.startswith("_") and isinstance(v, str)]
+    missing = sorted(n for n in names if f"Frameworks.{n}" not in text)
+    assert not missing, f"README does not mention: {missing}"
+
+
+def test_readme_typescript_examples_pass_required_framework():
+    """`framework` is required in the TypeScript SDK — a bare `init()` throws SideSeatError.
+    The README shipped one, so the copy-pasted Vercel example failed immediately."""
+    import re
+    from pathlib import Path
+
+    readme = Path(__file__).resolve().parents[1] / "README.md"
+    if not readme.exists():
+        pytest.skip("README not present")
+    offenders = re.findall(r"^\s*init\(\s*\)\s*;?\s*$", readme.read_text(), re.MULTILINE)
+    assert not offenders, f"bare init() calls in README: {offenders}"

@@ -47,6 +47,7 @@ class TestIsLogfireFramework:
         assert is_logfire_framework(Frameworks.CrewAI) is False
         assert is_logfire_framework(Frameworks.AutoGen) is False
         assert is_logfire_framework(Frameworks.GoogleADK) is False
+        assert is_logfire_framework(Frameworks.ClaudeAgentSDK) is False
 
     def test_google_genai_is_logfire(self) -> None:
         """Google GenAI should use Logfire."""
@@ -76,6 +77,12 @@ class TestInstrument:
         result = instrument(Frameworks.GoogleADK, None)
         assert result is True
         assert Frameworks.GoogleADK in _instrumented
+
+    def test_claude_agent_sdk_no_op(self) -> None:
+        """Claude Agent SDK is a no-op: the Claude Code CLI subprocess self-instruments."""
+        result = instrument(Frameworks.ClaudeAgentSDK, None)
+        assert result is True
+        assert Frameworks.ClaudeAgentSDK in _instrumented
 
     def test_double_instrumentation_blocked(self) -> None:
         """Second instrumentation attempt should be skipped."""
