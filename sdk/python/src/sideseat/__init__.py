@@ -151,11 +151,20 @@ class SideSeat:
     ) -> Iterator[Span]:
         """Start a trace (root span that groups child spans).
 
+        Unlike `span()`, this always starts a new trace: an empty context detaches any
+        active span, so the result is a root even when called inside one. Without that,
+        `trace()` was identical to `span()` and quietly became a child, splitting nothing
+        off into its own trace.
+
         Example:
             with client.trace("bedrock-converse"):
                 bedrock.client.converse(...)
                 bedrock.client.converse(...)
         """
+        from opentelemetry.context import Context
+
+        # setdefault: an explicit context= from the caller still wins.
+        kwargs.setdefault("context", Context())
         with self._telemetry.span(name, user_id=user_id, session_id=session_id, **kwargs) as s:
             yield s
 
