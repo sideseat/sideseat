@@ -78,9 +78,9 @@ npm install ai @ai-sdk/amazon-bedrock @sideseat/sdk
 ```typescript
 import { generateText } from "ai";
 import { bedrock } from "@ai-sdk/amazon-bedrock";
-import { init } from "@sideseat/sdk";
+import { init, Frameworks } from "@sideseat/sdk";
 
-init();
+init({ framework: Frameworks.VercelAI });
 
 const { text } = await generateText({
   model: bedrock("anthropic.claude-sonnet-4-5-20250929-v1:0"),
@@ -119,7 +119,7 @@ Strands Agents, Google ADK, and Microsoft Agent Framework require only the core 
 
 ## Framework Examples
 
-SideSeat auto-detects installed frameworks in this order: Strands, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI. When multiple frameworks are installed, use the `framework` parameter to select one explicitly. LangGraph is detected as LangChain — use `framework=Frameworks.LangGraph` to select it explicitly.
+SideSeat auto-detects the first installed framework in this order: Strands, LangGraph, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI, Microsoft Agent Framework, Claude Agent SDK, Agno, Smolagents, AgentScope, Langflow, AG2, Haystack, browser-use, Vertex AI. `openai`, `anthropic` and `google-genai` are never auto-detected — they are too common as transitive dependencies — so pass those explicitly. When several frameworks are installed, name the one you drive with the `framework` parameter.
 
 ### Strands Agents
 
@@ -174,18 +174,18 @@ agent = Agent(
     instruction="You are a helpful assistant.",
 )
 
+
 async def main():
     session_service = InMemorySessionService()
     runner = Runner(agent=agent, app_name="my_app", session_service=session_service)
     session = await session_service.create_session(app_name="my_app", user_id="user")
     message = types.Content(role="user", parts=[types.Part(text="What is 2+2?")])
-    async for event in runner.run_async(
-        session_id=session.id, user_id="user", new_message=message
-    ):
+    async for event in runner.run_async(session_id=session.id, user_id="user", new_message=message):
         if event.content and event.content.parts:
             for part in event.content.parts:
                 if hasattr(part, "text") and part.text:
                     print(part.text)
+
 
 asyncio.run(main())
 ```
@@ -446,8 +446,8 @@ with SideSeat() as client:
 import sideseat
 
 sideseat.init(project_id="my-project")  # Initialize once
-client = sideseat.get_client()          # Access anywhere
-sideseat.shutdown()                     # Clean up
+client = sideseat.get_client()  # Access anywhere
+sideseat.shutdown()  # Clean up
 ```
 
 ### Custom Spans
@@ -467,10 +467,12 @@ with client.span("process-request") as span:
 import asyncio
 from sideseat import SideSeat
 
+
 async def main():
     with SideSeat():
         result = await my_async_agent.run("Hello")
         print(result)
+
 
 asyncio.run(main())
 ```
@@ -479,7 +481,7 @@ asyncio.run(main())
 
 ```python
 client = SideSeat()
-client.telemetry.setup_console_exporter()             # Print to stdout
+client.telemetry.setup_console_exporter()  # Print to stdout
 client.telemetry.setup_file_exporter("traces.jsonl")  # Write to file
 ```
 
@@ -561,23 +563,33 @@ client = SideSeat(**kwargs)
 ### Frameworks
 
 ```python
-Frameworks.Strands
-Frameworks.LangGraph
-Frameworks.LangChain
-Frameworks.CrewAI
-Frameworks.AutoGen
-Frameworks.OpenAIAgents
-Frameworks.GoogleADK
-Frameworks.PydanticAI
+Frameworks.Strands  # "strands"
+Frameworks.LangGraph  # "langgraph"
+Frameworks.LangChain  # "langchain"
+Frameworks.CrewAI  # "crewai"
+Frameworks.AutoGen  # "autogen"          (autogen-agentchat)
+Frameworks.AG2  # "ag2"              (requires ag2 < 1.0)
+Frameworks.OpenAIAgents  # "openai-agents"
+Frameworks.GoogleADK  # "google-adk"
+Frameworks.PydanticAI  # "pydantic-ai"
+Frameworks.AgentFramework  # "agent-framework"  (Microsoft Agent Framework)
+Frameworks.ClaudeAgentSDK  # "claude-agent-sdk"
+Frameworks.Agno  # "agno"
+Frameworks.Smolagents  # "smolagents"
+Frameworks.AgentScope  # "agentscope"
+Frameworks.Langflow  # "langflow"
+Frameworks.Haystack  # "haystack"
+Frameworks.BrowserUse  # "browser-use"
 ```
 
 ### Providers (via Frameworks)
 
 ```python
-Frameworks.Bedrock    # Amazon Bedrock (patches botocore)
-Frameworks.OpenAI     # OpenAI (instruments openai SDK)
+Frameworks.Bedrock  # Amazon Bedrock (patches botocore)
+Frameworks.OpenAI  # OpenAI (instruments openai SDK)
 Frameworks.Anthropic  # Anthropic (instruments anthropic SDK)
-Frameworks.GoogleGenAI # Google Gemini (instruments google-genai SDK)
+Frameworks.GoogleGenAI  # Google Gemini (instruments google-genai SDK)
+Frameworks.VertexAI  # Google Vertex AI (instruments vertexai SDK)
 ```
 
 ### Module Functions
