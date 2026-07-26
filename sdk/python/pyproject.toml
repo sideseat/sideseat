@@ -24,9 +24,9 @@ classifiers = [
 keywords = ["opentelemetry", "observability", "llm", "ai", "tracing", "telemetry"]
 
 dependencies = [
-    "opentelemetry-api>=1.20.0",
-    "opentelemetry-sdk>=1.20.0",
-    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
+    "opentelemetry-api>=1.39.0",
+    "opentelemetry-sdk>=1.39.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.39.0",
 ]
 
 [project.optional-dependencies]
@@ -34,12 +34,23 @@ dependencies = [
 langchain = ["openinference-instrumentation-langchain>=0.1.0"]
 langgraph = ["openinference-instrumentation-langchain>=0.1.0"]
 crewai = ["openinference-instrumentation-crewai>=0.1.0"]
+agno = ["openinference-instrumentation-agno>=0.1.0"]
+smolagents = ["openinference-instrumentation-smolagents>=0.1.0"]
+# AG2 is the community AutoGen fork; its OpenInference instrumentor is the `autogen` one.
+ag2 = ["openinference-instrumentation-autogen>=0.1.0"]
+haystack = ["openinference-instrumentation-haystack>=0.1.0"]
 autogen = ["openinference-instrumentation-autogen-agentchat>=0.1.0"]
 # logfire>=4.29.0 added instrument_openai_agents() using the official SDK hook
 openai-agents = ["logfire>=4.29.0"]
 pydantic-ai = ["logfire>=4.29.0"]
 openai = ["logfire>=4.29.0"]
-anthropic = ["logfire>=4.29.0"]
+# httpx: anthropic >= 1.0 switched its HTTP client to httpx2, but logfire's Anthropic
+# integration still imports httpx at module level (for httpx.Headers()), so without
+# this the import fails, instrument() only logs a warning and no spans are produced.
+# logfire patches the Anthropic client's own _request method, so the underlying HTTP
+# library does not otherwise matter. Only the Anthropic integration needs this - the
+# openai one has no module-level httpx import.
+anthropic = ["logfire>=4.29.0", "httpx>=0.27"]
 google-genai = ["logfire>=4.29.0"]
 vertex-ai = ["opentelemetry-instrumentation-vertexai>=0.40.0"]
 
@@ -56,16 +67,23 @@ ws = ["websockets>=12"]
 agui = ["rich>=13", "ag-ui-protocol>=0.1.18"]
 
 # Bundle all instrumentation extras
+# Union of every framework/provider extra plus the runtime channel. Keep in sync when
+# adding an extra: test_all_extra_is_complete asserts this is a superset of the rest.
 all = [
     "openinference-instrumentation-langchain>=0.1.0",
     "openinference-instrumentation-crewai>=0.1.0",
     "openinference-instrumentation-autogen-agentchat>=0.1.0",
+    "openinference-instrumentation-autogen>=0.1.0",
+    "openinference-instrumentation-agno>=0.1.0",
+    "openinference-instrumentation-smolagents>=0.1.0",
+    "openinference-instrumentation-haystack>=0.1.0",
     "opentelemetry-instrumentation-vertexai>=0.40.0",
     "logfire>=4.29.0",
+    "httpx>=0.27",
     "wrapt>=1.14.0",
     "websockets>=12",
     "rich>=13",
-    "ag-ui-protocol>=0.1",
+    "ag-ui-protocol>=0.1.18",
 ]
 
 # Development dependencies

@@ -54,6 +54,24 @@ def instrument(
             _instrument_openinference("langchain", "LangChainInstrumentor", provider)
         elif framework == Frameworks.CrewAI:
             _instrument_openinference("crewai", "CrewAIInstrumentor", provider)
+        # These ship OpenInference instrumentors, so they reuse the same helper. Each
+        # needs its own extra: the import is what fails without it, and instrument()
+        # only warns, leaving the app running with no spans.
+        elif framework == Frameworks.Agno:
+            _instrument_openinference("agno", "AgnoInstrumentor", provider)
+        elif framework == Frameworks.Smolagents:
+            _instrument_openinference("smolagents", "SmolagentsInstrumentor", provider)
+        elif framework == Frameworks.AG2:
+            _instrument_openinference("autogen", "AutogenInstrumentor", provider)
+        elif framework == Frameworks.Haystack:
+            _instrument_openinference("haystack", "HaystackInstrumentor", provider)
+        elif framework in (
+            Frameworks.AgentScope,
+            Frameworks.Langflow,
+            Frameworks.BrowserUse,
+        ):
+            # These emit OpenTelemetry themselves and only need the global provider.
+            pass
         elif framework == Frameworks.AutoGen:
             _instrument_openinference("autogen_agentchat", "AutogenAgentChatInstrumentor", provider)
         elif framework == Frameworks.OpenAIAgents:
@@ -72,6 +90,10 @@ def instrument(
             pass  # Uses global provider
         elif framework == Frameworks.AgentFramework:
             _enable_agent_framework_otel()
+        elif framework == Frameworks.ClaudeAgentSDK:
+            # Nothing to patch: the SDK spawns the Claude Code CLI, which carries its
+            # own OTel instrumentation and is configured via subprocess env vars.
+            pass
         else:
             logger.debug("Unknown framework: %s", framework)
             with _lock:
@@ -266,7 +288,8 @@ def _patch_logfire_wrappers(integration_module: str) -> None:
             patched.add(method_name)
 
         if patched:
-            cls.__abstractmethods__ = abstracts - patched
+            # Runtime metaprogramming mypy can't model: cls is inferred as type[object].
+            cls.__abstractmethods__ = abstracts - patched  # type: ignore[attr-defined]
             logger.debug("Patched %s: %s", cls_name, ", ".join(sorted(patched)))
 
 
