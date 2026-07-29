@@ -1,6 +1,6 @@
 {
   "name": "@sideseat/sdk",
-  "version": "1.0.8",
+  "version": "2.0.0",
   "description": "SideSeat SDK for AI observability",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -25,22 +25,23 @@
     "fmt": "prettier --write src"
   },
   "dependencies": {
-    "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/core": "^1.30.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
-    "@opentelemetry/resources": "^1.30.0",
-    "@opentelemetry/sdk-trace-base": "^1.30.0",
-    "@opentelemetry/sdk-trace-node": "^1.30.0",
-    "@opentelemetry/semantic-conventions": "^1.28.0"
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/core": "^2.10.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.221.0",
+    "@opentelemetry/resources": "^2.10.0",
+    "@opentelemetry/sdk-trace-base": "^2.10.0",
+    "@opentelemetry/sdk-trace-node": "^2.10.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.2",
-    "eslint": "^9.0.0",
-    "prettier": "^3.0.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.3.0",
+    "eslint": "^10.9.1",
+    "prettier": "^3.9.6",
     "tsup": "^8.0.0",
-    "typescript": "^5.0.0",
-    "typescript-eslint": "^8.53.1",
-    "vitest": "^2.0.0"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.68.0",
+    "vitest": "^4.1.11"
   },
   "keywords": [
     "sideseat",
@@ -61,5 +62,6 @@
   },
   "engines": {
     "node": ">=18"
-  }
+  },
+  "//typescript": "Pinned to 5.x: TypeScript 7 breaks `npm run build` because tsup's bundled rollup-plugin-dts resolves typescript 5.7.3 internally and throws 'Cannot read properties of undefined (reading useCaseSensitiveFileNames)', so no .d.ts is emitted. Revisit once tsup supports TS 7."
 }

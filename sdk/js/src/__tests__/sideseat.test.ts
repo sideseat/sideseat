@@ -9,6 +9,7 @@ import {
   SideSeatError,
   Frameworks,
 } from "../index.js";
+import { resolveExportTimeoutMs } from "../sideseat.js";
 
 describe("SideSeat", () => {
   afterEach(async () => {
@@ -219,5 +220,63 @@ describe("setupFileExporter validation", () => {
     expect(() =>
       client.setupFileExporter("/nonexistent/path/traces.jsonl"),
     ).not.toThrow();
+  });
+});
+
+describe("package version", () => {
+  it("VERSION matches package.json", async () => {
+    // Nothing syncs these two: `make bump` only touches cli/ and server/, so they
+    // drifted apart once already (package.json 1.0.8 vs VERSION 1.0.7), which made
+    // telemetry.sdk.version and the User-Agent report the wrong version.
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const { dirname, resolve } = await import("node:path");
+    const here = dirname(fileURLToPath(import.meta.url));
+    const pkg = JSON.parse(
+      readFileSync(resolve(here, "../../package.json"), "utf8"),
+    ) as { version: string };
+    const { VERSION } = await import("../version.js");
+    expect(VERSION).toBe(pkg.version);
+  });
+});
+
+describe("resolveExportTimeoutMs", () => {
+  const original = process.env.OTEL_EXPORTER_OTLP_TIMEOUT;
+  afterEach(() => {
+    if (original === undefined) delete process.env.OTEL_EXPORTER_OTLP_TIMEOUT;
+    else process.env.OTEL_EXPORTER_OTLP_TIMEOUT = original;
+  });
+
+  it("defaults to 30s when unset", () => {
+    delete process.env.OTEL_EXPORTER_OTLP_TIMEOUT;
+    expect(resolveExportTimeoutMs()).toBe(30_000);
+  });
+
+  it("reads the value as milliseconds, matching OpenTelemetry JS", () => {
+    // Deliberately NOT seconds: OTel JS reads this variable as milliseconds (Python reads
+    // it as seconds). Multiplying here would disagree with the exporter it is paired with.
+    process.env.OTEL_EXPORTER_OTLP_TIMEOUT = "7000";
+    expect(resolveExportTimeoutMs()).toBe(7_000);
+  });
+
+  it.each(["abc", "0", "-5", ""])("falls back on invalid value %p", (bad) => {
+    process.env.OTEL_EXPORTER_OTLP_TIMEOUT = bad;
+    expect(resolveExportTimeoutMs()).toBe(30_000);
+  });
+});
+
+describe("README framework list", () => {
+  it("documents every exported Frameworks constant", async () => {
+    const fs = await import("node:fs");
+    const readme = fs.readFileSync(
+      new URL("../../README.md", import.meta.url),
+      "utf8",
+    );
+    const missing = Object.entries(Frameworks).filter(
+      ([name, value]) =>
+        !readme.includes(`Frameworks.${name}`) ||
+        !readme.includes(`"${value}"`),
+    );
+    expect(missing.map(([n]) => n)).toEqual([]);
   });
 });

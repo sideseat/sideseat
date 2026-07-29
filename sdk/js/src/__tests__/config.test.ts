@@ -37,9 +37,13 @@ describe("Config", () => {
   });
 
   it("throws when framework is not provided", () => {
-    expect(() => Config.create()).toThrow(SideSeatError);
-    expect(() => Config.create({})).toThrow(SideSeatError);
-    expect(() => Config.create({})).toThrow("framework is required");
+    // The type now requires `framework`, so these calls are cast: the runtime guard has
+    // to keep working for plain-JavaScript callers, who get no type checking.
+    const noOptions = Config.create as unknown as () => Config;
+    const withOptions = Config.create as unknown as (o: object) => Config;
+    expect(() => noOptions()).toThrow(SideSeatError);
+    expect(() => withOptions({})).toThrow(SideSeatError);
+    expect(() => withOptions({})).toThrow("framework is required");
   });
 
   it("uses defaults when framework is provided", () => {
@@ -229,5 +233,26 @@ describe("SideSeatError", () => {
     const error = new SideSeatError("test message");
     expect(error.name).toBe("SideSeatError");
     expect(error.message).toBe("test message");
+  });
+});
+
+describe("endpoint environment fallbacks", () => {
+  const saved = { ...process.env };
+  afterEach(() => {
+    process.env = { ...saved };
+  });
+
+  it("falls back to OTEL_EXPORTER_OTLP_ENDPOINT", () => {
+    delete process.env.SIDESEAT_ENDPOINT;
+    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://collector:4318";
+    const cfg = Config.create({ framework: Frameworks.Strands });
+    expect(cfg.endpoint).toBe("http://collector:4318");
+  });
+
+  it("prefers SIDESEAT_ENDPOINT over the OTel variable", () => {
+    process.env.SIDESEAT_ENDPOINT = "http://sideseat:5388";
+    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://collector:4318";
+    const cfg = Config.create({ framework: Frameworks.Strands });
+    expect(cfg.endpoint).toBe("http://sideseat:5388");
   });
 });

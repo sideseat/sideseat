@@ -14,7 +14,8 @@ import {
   ConsoleSpanExporter,
 } from "@opentelemetry/sdk-trace-base";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { Resource } from "@opentelemetry/resources";
+import { resourceFromAttributes } from "@opentelemetry/resources";
+import type { Resource } from "@opentelemetry/resources";
 import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
@@ -36,9 +37,71 @@ import {
 import { JsonFileSpanExporter } from "./exporters.js";
 import { VERSION } from "./version.js";
 
+/**
+ * Span processor that forwards to a mutable list of delegates.
+ *
+ * OTel JS 2.x removed NodeTracerProvider.addSpanProcessor: processors must be passed
+ * to the constructor. Registering one of these up front keeps this SDK's public
+ * addSpanProcessor / setupConsoleExporter / setupFileExporter API working.
+ */
+class ForwardingSpanProcessor implements SpanProcessor {
+  private _delegates: SpanProcessor[] = [];
+
+  add(processor: SpanProcessor): void {
+    this._delegates.push(processor);
+  }
+
+  onStart(
+    span: Parameters<SpanProcessor["onStart"]>[0],
+    parentContext: Parameters<SpanProcessor["onStart"]>[1],
+  ): void {
+    for (const d of this._delegates) d.onStart(span, parentContext);
+  }
+
+  onEnd(span: Parameters<SpanProcessor["onEnd"]>[0]): void {
+    for (const d of this._delegates) d.onEnd(span);
+  }
+
+  // allSettled, not all: one exporter rejecting must not stop the others from
+  // flushing, or pending spans in healthy exporters are lost on exit.
+  async forceFlush(): Promise<void> {
+    await Promise.allSettled(this._delegates.map((d) => d.forceFlush()));
+  }
+
+  async shutdown(): Promise<void> {
+    await Promise.allSettled(this._delegates.map((d) => d.shutdown()));
+    this._delegates = [];
+  }
+}
+
+export const DEFAULT_EXPORT_TIMEOUT_MS = 30_000;
+
+/**
+ * Batch export timeout in milliseconds, from OTEL_EXPORTER_OTLP_TIMEOUT.
+ *
+ * The value is read as **milliseconds**, which is how OpenTelemetry JS interprets it (its
+ * own default is 10000). Note this differs from OpenTelemetry Python, which reads the same
+ * variable as seconds — an upstream inconsistency, not a SideSeat one. Reading it as seconds
+ * here would disagree with the exporter this value is paired with.
+ *
+ * Falls back to the default on a missing, non-numeric or non-positive value.
+ */
+export function resolveExportTimeoutMs(): number {
+  const raw = process.env.OTEL_EXPORTER_OTLP_TIMEOUT;
+  if (!raw) return DEFAULT_EXPORT_TIMEOUT_MS;
+  const millis = Number(raw);
+  if (!Number.isFinite(millis) || millis <= 0) {
+    diag.warn(
+      `[sideseat] Invalid OTEL_EXPORTER_OTLP_TIMEOUT '${raw}', using ${DEFAULT_EXPORT_TIMEOUT_MS}ms`,
+    );
+    return DEFAULT_EXPORT_TIMEOUT_MS;
+  }
+  return millis;
+}
+
 // Create OTEL resource with standard attributes
 function createResource(config: Config): Resource {
-  return new Resource({
+  return resourceFromAttributes({
     [ATTR_SERVICE_NAME]: config.serviceName,
     [ATTR_SERVICE_VERSION]: config.serviceVersion,
     "telemetry.sdk.name": "sideseat",
@@ -50,12 +113,13 @@ function createResource(config: Config): Resource {
 export class SideSeat {
   private _config: Config;
   private _provider: NodeTracerProvider | null = null;
+  private _processors = new ForwardingSpanProcessor();
   private _fileExporterPaths: Set<string> = new Set();
   private _shutdownCalled = false;
   private _shutdownPromise: Promise<void> | null = null;
   private _cleanupHandlers: Array<() => void> = [];
 
-  constructor(options?: SideSeatOptions) {
+  constructor(options: SideSeatOptions) {
     this._config = Config.create(options);
     this._setupDiagLogger();
 
@@ -67,7 +131,7 @@ export class SideSeat {
   }
 
   // Async factory pattern (industry best practice)
-  static async create(options?: SideSeatOptions): Promise<SideSeat> {
+  static async create(options: SideSeatOptions): Promise<SideSeat> {
     const instance = new SideSeat(options);
     // Validate connection if not disabled
     if (!instance.isDisabled) {
@@ -101,7 +165,7 @@ export class SideSeat {
   // Plugin interface - expose addSpanProcessor for custom exporters
   addSpanProcessor(processor: SpanProcessor): this {
     if (this._provider) {
-      this._provider.addSpanProcessor(processor);
+      this._processors.add(processor);
     }
     return this;
   }
@@ -201,9 +265,7 @@ export class SideSeat {
   // Console exporter (SimpleSpanProcessor - immediate output)
   setupConsoleExporter(): this {
     if (this._config.disabled || !this._provider) return this;
-    this._provider.addSpanProcessor(
-      new SimpleSpanProcessor(new ConsoleSpanExporter()),
-    );
+    this._processors.add(new SimpleSpanProcessor(new ConsoleSpanExporter()));
     return this;
   }
 
@@ -229,7 +291,7 @@ export class SideSeat {
     }
 
     const exporter = new JsonFileSpanExporter(path);
-    this._provider.addSpanProcessor(new BatchSpanProcessor(exporter));
+    this._processors.add(new BatchSpanProcessor(exporter));
     this._fileExporterPaths.add(resolved);
     return this;
   }
@@ -257,20 +319,22 @@ export class SideSeat {
   private _setupProvider(): void {
     const resource = createResource(this._config);
 
-    // Check for existing SDK TracerProvider (e.g., from another SDK)
-    const existing = trace.getTracerProvider();
-    if (
-      existing &&
-      typeof (existing as NodeTracerProvider).addSpanProcessor === "function"
-    ) {
-      diag.warn(
-        "[sideseat] TracerProvider already exists; adding processors to existing",
-      );
-      this._provider = existing as NodeTracerProvider;
-      return;
-    }
+    // Whether another library already owns the global TracerProvider. The OTel API
+    // registers a ProxyTracerProvider and refuses a second registration, so we cannot
+    // detect this by type - but an unclaimed global hands out non-recording spans with
+    // an all-zero trace id, while a claimed one hands out real spans.
+    const probe = trace.getTracer("sideseat-detect").startSpan("probe");
+    const globalAlreadyOwned =
+      probe.spanContext().traceId !== "00000000000000000000000000000000";
+    probe.end();
 
-    this._provider = new NodeTracerProvider({ resource });
+    // Always own our provider: adopting a foreign one is pointless in OTel 2.x, where
+    // processors can only be supplied at construction. The forwarding processor is what
+    // keeps addSpanProcessor() working after construction.
+    this._provider = new NodeTracerProvider({
+      resource,
+      spanProcessors: [this._processors],
+    });
 
     // register() handles:
     // 1. Setting global tracer provider (trace.setGlobalTracerProvider)
@@ -285,7 +349,19 @@ export class SideSeat {
       }),
     });
 
-    diag.info("[sideseat] TracerProvider registered");
+    if (globalAlreadyOwned) {
+      // Our own spans (client.span/spanSync/getTracer) still export, because they go
+      // through this provider directly. What is lost is the global registration, which
+      // the OTel API will not hand over: spans created via the global tracer by other
+      // instrumentation keep going to whoever registered first.
+      diag.warn(
+        "[sideseat] Another library already registered the global TracerProvider. " +
+          "SideSeat's own spans are exported, but spans from instrumentation using the " +
+          "global tracer are not. Initialize SideSeat before that library to capture them.",
+      );
+    } else {
+      diag.info("[sideseat] TracerProvider registered");
+    }
   }
 
   private _setupOtlp(): void {
@@ -299,14 +375,17 @@ export class SideSeat {
       headers["Authorization"] = `Bearer ${this._config.apiKey}`;
     }
 
-    const exporter = new OTLPTraceExporter({ url, headers });
+    // One resolved value for both: left to their own devices the exporter defaults to
+    // 10s while the processor was hardcoded to 30s, so whichever was lower silently won.
+    const timeoutMillis = resolveExportTimeoutMs();
+    const exporter = new OTLPTraceExporter({ url, headers, timeoutMillis });
     const processor = new BatchSpanProcessor(exporter, {
       maxQueueSize: 2048,
       scheduledDelayMillis: 5000,
       maxExportBatchSize: 512,
-      exportTimeoutMillis: 30000,
+      exportTimeoutMillis: timeoutMillis,
     });
-    this._provider.addSpanProcessor(processor);
+    this._processors.add(processor);
 
     if (this._config.debug) {
       diag.debug(`[sideseat] Initialized - sending traces to ${url}`);

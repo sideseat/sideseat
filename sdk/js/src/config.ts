@@ -19,6 +19,24 @@ export const Frameworks = {
   OpenAIAgents: "openai-agents",
   GoogleADK: "google-adk",
   PydanticAI: "pydantic-ai",
+  ClaudeAgentSDK: "claude-agent-sdk",
+  // Python-only frameworks, listed so a JS caller can still tag spans consistently.
+  Agno: "agno",
+  Smolagents: "smolagents",
+  AgentScope: "agentscope",
+  Langflow: "langflow",
+  AG2: "ag2",
+  Haystack: "haystack",
+  BrowserUse: "browser-use",
+  LangGraph: "langgraph",
+  AgentFramework: "agent-framework",
+
+  // Providers
+  Bedrock: "bedrock",
+  Anthropic: "anthropic",
+  OpenAI: "openai",
+  GoogleGenAI: "google-genai",
+  VertexAI: "vertex-ai",
 } as const;
 
 // Maps framework identifiers to the service.name the server expects for detection.
@@ -30,20 +48,28 @@ export const FRAMEWORK_SERVICE_NAMES: Partial<
 > = {
   strands: "strands-agents",
   "openai-agents": "openai-agents",
+  // Host-process spans wrapping the Claude Code CLI subprocess, which reports
+  // service.name "claude-code" itself. Both are matched server-side.
+  "claude-agent-sdk": "claude-agent-sdk",
 };
 
 export type Framework = (typeof Frameworks)[keyof typeof Frameworks];
 
 // Configuration options interface
 export interface SideSeatOptions {
+  /**
+   * Framework identifier (use Frameworks.* constants or a custom string).
+   *
+   * Required: `Config.create` throws `SideSeatError` without it. It was previously typed
+   * as optional, so omitting it compiled cleanly and only failed at runtime.
+   */
+  framework: Framework | (string & {});
   disabled?: boolean;
   endpoint?: string;
   apiKey?: string;
   projectId?: string;
   serviceName?: string;
   serviceVersion?: string;
-  /** Framework identifier (use Frameworks.* constants or custom string) */
-  framework?: Framework | (string & {});
   enableTraces?: boolean;
   logLevel?: LogLevel;
   debug?: boolean;
@@ -100,7 +126,13 @@ export class Config {
     this.debug = props.debug;
   }
 
-  static create(options: SideSeatOptions = {}): Config {
+  // No default `= {}`: framework is required, so an empty call must not type-check. The
+  // runtime guard below still stands for plain-JavaScript callers.
+  static create(options: SideSeatOptions): Config {
+    // Normalised once: the type requires options, but a plain-JavaScript caller can still
+    // invoke this with nothing and must reach the "framework is required" error below
+    // rather than a TypeError on the first property read.
+    const opts = (options ?? {}) as SideSeatOptions;
     const parseBoolEnv = (key: string, def: boolean): boolean => {
       const val = process.env[key]?.toLowerCase();
       if (val === "1" || val === "true") return true;
@@ -116,25 +148,31 @@ export class Config {
       return undefined;
     };
 
-    const disabled =
-      options.disabled ?? parseBoolEnv("SIDESEAT_DISABLED", false);
-    const debug = options.debug ?? parseBoolEnv("SIDESEAT_DEBUG", false);
+    const disabled = opts.disabled ?? parseBoolEnv("SIDESEAT_DISABLED", false);
+    const debug = opts.debug ?? parseBoolEnv("SIDESEAT_DEBUG", false);
 
     // Log level: explicit option > env var > (debug ? 'debug' : 'none')
     const logLevel =
-      options.logLevel ??
+      opts.logLevel ??
       parseLogLevel(process.env.SIDESEAT_LOG_LEVEL) ??
       (debug ? "debug" : "none");
 
     const endpoint = normalizeEndpoint(
-      options.endpoint ?? process.env.SIDESEAT_ENDPOINT ?? DEFAULT_ENDPOINT,
+      opts.endpoint ??
+        process.env.SIDESEAT_ENDPOINT ??
+        // The standard OpenTelemetry variable, honoured after the SideSeat-specific one.
+        // The Python SDK has always fallen back to it, and it is what misc/.env.example
+        // and every "without SDK" example set, so a JS caller relying on it used to end
+        // up silently on the default endpoint.
+        process.env.OTEL_EXPORTER_OTLP_ENDPOINT ??
+        DEFAULT_ENDPOINT,
     );
-    const apiKey = options.apiKey ?? process.env.SIDESEAT_API_KEY;
+    const apiKey = opts.apiKey ?? process.env.SIDESEAT_API_KEY;
     const projectId =
-      options.projectId ??
-      process.env.SIDESEAT_PROJECT_ID ??
-      DEFAULT_PROJECT_ID;
-    const framework = options.framework;
+      opts.projectId ?? process.env.SIDESEAT_PROJECT_ID ?? DEFAULT_PROJECT_ID;
+    // Optional chaining: a plain-JavaScript caller can still invoke this with nothing,
+    // and must get the SideSeatError below rather than a TypeError.
+    const framework = opts.framework;
     if (!framework) {
       throw new SideSeatError(
         "framework is required. Pass a Frameworks.* constant, e.g.: init({ framework: Frameworks.Strands })",
@@ -142,14 +180,14 @@ export class Config {
     }
     // Priority: explicit option > OTEL standard env > framework default > npm package name > fallback
     const serviceName =
-      options.serviceName ??
+      opts.serviceName ??
       process.env.OTEL_SERVICE_NAME ??
       FRAMEWORK_SERVICE_NAMES[framework] ??
       process.env.npm_package_name ??
       "unknown-service";
     const serviceVersion =
-      options.serviceVersion ?? process.env.npm_package_version ?? "0.0.0";
-    const enableTraces = options.enableTraces ?? true;
+      opts.serviceVersion ?? process.env.npm_package_version ?? "0.0.0";
+    const enableTraces = opts.enableTraces ?? true;
 
     return new Config({
       disabled,
