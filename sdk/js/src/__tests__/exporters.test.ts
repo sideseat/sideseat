@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { encodeValue, spanToDict } from "../exporters.js";
 import { SpanKind, SpanStatusCode } from "@opentelemetry/api";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
-import { Resource } from "@opentelemetry/resources";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 
 describe("encodeValue", () => {
   it("passes through primitives", () => {
@@ -67,7 +67,11 @@ describe("spanToDict", () => {
         spanId: "0123456789abcdef",
         traceFlags: 1,
       }),
-      parentSpanId: "fedcba9876543210",
+      parentSpanContext: {
+        traceId: "0123456789abcdef0123456789abcdef",
+        spanId: "fedcba9876543210",
+        traceFlags: 1,
+      },
       kind: SpanKind.INTERNAL,
       startTime: [1700000000, 0] as [number, number],
       endTime: [1700000001, 500000000] as [number, number],
@@ -76,8 +80,8 @@ describe("spanToDict", () => {
       events: [],
       links: [],
       status: { code: SpanStatusCode.UNSET },
-      resource: new Resource({ "service.name": "test-service" }),
-      instrumentationLibrary: { name: "test-lib", version: "1.0.0" },
+      resource: resourceFromAttributes({ "service.name": "test-service" }),
+      instrumentationScope: { name: "test-lib", version: "1.0.0" },
       ended: true,
       droppedAttributesCount: 0,
       droppedEventsCount: 0,
@@ -117,7 +121,7 @@ describe("spanToDict", () => {
   });
 
   it("handles null parent_span_id", () => {
-    const mockSpan = createMockSpan({ parentSpanId: undefined });
+    const mockSpan = createMockSpan({ parentSpanContext: undefined });
     const result = spanToDict(mockSpan);
 
     expect(result.parent_span_id).toBe(null);
@@ -197,9 +201,9 @@ describe("spanToDict", () => {
     expect(result.status).toBe(null);
   });
 
-  it("encodes scope from instrumentationLibrary", () => {
+  it("encodes scope from instrumentationScope", () => {
     const mockSpan = createMockSpan({
-      instrumentationLibrary: {
+      instrumentationScope: {
         name: "test-lib",
         version: "2.0.0",
         schemaUrl: "https://schema.url",

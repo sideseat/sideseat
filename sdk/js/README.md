@@ -14,6 +14,7 @@
 - [Framework Examples](#framework-examples)
 - [Configuration](#configuration)
 - [Advanced Usage](#advanced-usage)
+- [Upgrading to 2.0](#upgrading-to-20)
 - [Data and Privacy](#data-and-privacy)
 - [Troubleshooting](#troubleshooting)
 - [API Reference](#api-reference)
@@ -97,15 +98,29 @@ console.log(result.toString());
 
 ### Vercel AI SDK
 
-Vercel AI SDK has built-in OpenTelemetry support via `experimental_telemetry`. Enable it on each call:
+AI SDK 7 hands telemetry to registered integrations rather than emitting OpenTelemetry
+spans itself, so two things are needed: `registerTelemetry(new LegacyOpenTelemetry())`
+once at startup, and `experimental_telemetry: { isEnabled: true }` on each call. On AI
+SDK 6 the per-call flag alone was enough.
+
+Use `LegacyOpenTelemetry` rather than `OpenTelemetry` — SideSeat's framework detection
+keys on the `ai.generateText` / `ai.*.doGenerate` span shape it preserves.
+
+```bash
+npm install @sideseat/sdk ai @ai-sdk/otel @ai-sdk/amazon-bedrock
+```
 
 ```typescript
 import { init, shutdown, Frameworks } from '@sideseat/sdk';
-import { generateText, generateObject, tool } from 'ai';
+import { generateText, generateObject, tool, registerTelemetry } from 'ai';
+import { LegacyOpenTelemetry } from '@ai-sdk/otel';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 import { z } from 'zod';
 
 init({ framework: Frameworks.VercelAI });
+
+// After init(): the integration captures a tracer in its constructor.
+registerTelemetry(new LegacyOpenTelemetry());
 
 // Text generation
 const { text } = await generateText({
@@ -184,6 +199,20 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
 | `SIDESEAT_DEBUG`      | `false`                 | Enable verbose logging                         |
 | `SIDESEAT_LOG_LEVEL`  | `none`                  | Log level (none/error/warn/info/debug/verbose) |
 
+Standard OpenTelemetry variables are also honoured:
+
+| Variable                       | Description                                              |
+| ------------------------------ | -------------------------------------------------------- |
+| `OTEL_SERVICE_NAME`            | Override service name                                    |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`  | Endpoint fallback, after `SIDESEAT_ENDPOINT`              |
+| `OTEL_EXPORTER_OTLP_HEADERS`   | Extra headers, merged with the API-key header             |
+| `OTEL_EXPORTER_OTLP_TIMEOUT`   | Export timeout in **milliseconds** (default `30000`)      |
+
+> **Units:** OpenTelemetry JS reads `OTEL_EXPORTER_OTLP_TIMEOUT` as milliseconds, while
+> OpenTelemetry Python reads it as seconds. Both SDKs follow their own ecosystem's convention,
+> so `30000` here and `30` in the Python SDK mean the same thing. This is an upstream
+> inconsistency, not a SideSeat one.
+
 ### Constructor Options
 
 ```typescript
@@ -223,16 +252,19 @@ init({
 Use `createClient()` for async initialization with connection validation:
 
 ```typescript
-import { createClient } from '@sideseat/sdk';
+import { createClient, Frameworks } from '@sideseat/sdk';
 
-const client = await createClient({ projectId: 'my-project' });
+const client = await createClient({
+  framework: Frameworks.VercelAI,
+  projectId: 'my-project',
+});
 // Connection validated before returning
 ```
 
 ### Global Instance
 
 ```typescript
-import { init, getClient, shutdown, isInitialized } from '@sideseat/sdk';
+import { init, getClient, shutdown, isInitialized, Frameworks } from '@sideseat/sdk';
 
 init({ framework: Frameworks.VercelAI, projectId: 'my-project' }); // Initialize once
 const client = getClient(); // Access anywhere
@@ -274,18 +306,51 @@ init({ framework: Frameworks.VercelAI, disabled: true }); // Or set SIDESEAT_DIS
 
 ### Existing OpenTelemetry Setup
 
-If a `TracerProvider` already exists, SideSeat adds its exporter to the existing provider.
+If another library has already registered the global `TracerProvider`, SideSeat cannot add
+its exporter to it — OpenTelemetry 2.x only accepts span processors at construction, and the
+API refuses a second global registration. SideSeat creates its own provider instead, so its
+own spans (`client.span`, `client.spanSync`, `client.getTracer`) are still exported; spans
+created by other instrumentation through the global tracer are not. A warning is logged.
+Initialize SideSeat first if you need those spans too.
 
 ### Direct Class Usage
 
 For multiple independent instances:
 
 ```typescript
-import { SideSeat } from '@sideseat/sdk';
+import { SideSeat, Frameworks } from '@sideseat/sdk';
 
-const client1 = new SideSeat({ projectId: 'project-a' });
-const client2 = new SideSeat({ projectId: 'project-b' });
+const client1 = new SideSeat({ framework: Frameworks.VercelAI, projectId: 'project-a' });
+const client2 = new SideSeat({ framework: Frameworks.Strands, projectId: 'project-b' });
 ```
+
+## Upgrading to 2.0
+
+2.0 moves the SDK onto the **OpenTelemetry JS 2.x** SDK packages. `@opentelemetry/api`
+stays on 1.x, so context propagation with other instrumentation is unaffected.
+
+**What changed for you:**
+
+- **`framework` is now required in the type.** It was already required at runtime — the
+  constructor threw `SideSeatError` without it — but `SideSeatOptions.framework` was typed
+  optional, so omitting it compiled and only failed when the process ran. `init()`,
+  `createClient()`, `new SideSeat()` and `Config.create()` now all require an options object
+  carrying `framework`. Plain-JavaScript callers still get the same runtime error.
+- **`client.addSpanProcessor(processor)` still works** and is the supported way to add
+  exporters. OpenTelemetry 2.x removed `TracerProvider.addSpanProcessor`, so if you
+  reached through to `client.tracerProvider.addSpanProcessor(...)` directly, switch to
+  the client method.
+- **Custom `SpanProcessor` implementations** must target OTel 2.x types. `ReadableSpan`
+  replaced `parentSpanId` with `parentSpanContext?: SpanContext` and
+  `instrumentationLibrary` with `instrumentationScope`.
+- **If another library registered a global `TracerProvider` before SideSeat**, the OTel
+  API refuses to hand the global over. SideSeat's own spans (`client.span`,
+  `client.spanSync`, `client.getTracer`) are still exported — they go through SideSeat's
+  own provider. What is lost is spans created by *other* instrumentation via the global
+  tracer: those keep going to whoever registered first. A warning is logged. Initialize
+  SideSeat before that library if you need those spans too.
+
+`spanToDict()` output is unchanged, including the `parent_span_id` key.
 
 ## Data and Privacy
 
@@ -322,8 +387,8 @@ All data is sent to your self-hosted server. Nothing leaves your infrastructure.
 
 | Function                 | Returns             | Description                    |
 | ------------------------ | ------------------- | ------------------------------ |
-| `init(options?)`         | `SideSeat`          | Create global instance (sync)  |
-| `createClient(options?)` | `Promise<SideSeat>` | Create global instance (async) |
+| `init(options)`          | `SideSeat`          | Create global instance (sync)  |
+| `createClient(options)`  | `Promise<SideSeat>` | Create global instance (async) |
 | `getClient()`            | `SideSeat`          | Get global instance            |
 | `shutdown()`             | `Promise<void>`     | Shut down global instance      |
 | `isInitialized()`        | `boolean`           | Check if initialized           |
@@ -339,7 +404,7 @@ const client = new SideSeat(options);
 | Name             | Type                 | Description                   |
 | ---------------- | -------------------- | ----------------------------- |
 | `config`         | `Config`             | Immutable configuration       |
-| `tracerProvider` | `NodeTracerProvider` | OpenTelemetry tracer provider |
+| `tracerProvider` | `NodeTracerProvider \| null` | OpenTelemetry tracer provider; `null` when disabled |
 | `isDisabled`     | `boolean`            | Whether telemetry is disabled |
 | `isReady`        | `boolean`            | Whether client is ready       |
 
@@ -359,16 +424,43 @@ const client = new SideSeat(options);
 
 ### Frameworks
 
+Frameworks instrumented by this SDK:
+
 ```typescript
-Frameworks.Strands      // "strands"
-Frameworks.VercelAI    // "vercel-ai"
-Frameworks.LangChain   // "langchain"
-Frameworks.CrewAI      // "crewai"
-Frameworks.AutoGen     // "autogen"
-Frameworks.OpenAIAgents // "openai-agents"
-Frameworks.GoogleADK   // "google-adk"
-Frameworks.PydanticAI  // "pydantic-ai"
+Frameworks.Strands        // "strands"
+Frameworks.VercelAI       // "vercel-ai"
+Frameworks.ClaudeAgentSDK // "claude-agent-sdk"
 ```
+
+The remaining constants exist so a Node process can tag spans with the same identifier the
+Python SDK uses — useful in a polyglot system, but they do not add instrumentation here:
+
+```typescript
+Frameworks.LangChain    // "langchain"
+Frameworks.LangGraph    // "langgraph"
+Frameworks.CrewAI       // "crewai"
+Frameworks.AutoGen      // "autogen"
+Frameworks.AG2          // "ag2"
+Frameworks.OpenAIAgents // "openai-agents"
+Frameworks.GoogleADK    // "google-adk"
+Frameworks.PydanticAI   // "pydantic-ai"
+Frameworks.AgentFramework // "agent-framework"
+Frameworks.Agno         // "agno"
+Frameworks.Smolagents   // "smolagents"
+Frameworks.AgentScope   // "agentscope"
+Frameworks.Langflow     // "langflow"
+Frameworks.Haystack     // "haystack"
+Frameworks.BrowserUse   // "browser-use"
+
+// Providers
+Frameworks.Bedrock      // "bedrock"
+Frameworks.Anthropic    // "anthropic"
+Frameworks.OpenAI       // "openai"
+Frameworks.GoogleGenAI  // "google-genai"
+Frameworks.VertexAI     // "vertex-ai"
+```
+
+Any string is also accepted, so a framework absent from this list can still be named.
 
 ### Utilities
 

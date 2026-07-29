@@ -12,7 +12,7 @@ let _initPromise: Promise<SideSeat> | null = null;
  * Returns the SideSeat instance synchronously.
  * Use createClient() for async initialization with connection validation.
  */
-export function init(options?: SideSeatOptions): SideSeat {
+export function init(options: SideSeatOptions): SideSeat {
   if (_instance !== null) {
     diag.warn("[sideseat] Already initialized; returning existing instance");
     return _instance;
@@ -31,7 +31,7 @@ export function init(options?: SideSeatOptions): SideSeat {
  * Preferred for production use to ensure endpoint is reachable.
  */
 export async function createClient(
-  options?: SideSeatOptions,
+  options: SideSeatOptions,
 ): Promise<SideSeat> {
   if (_instance !== null) {
     diag.warn("[sideseat] Already initialized; returning existing instance");

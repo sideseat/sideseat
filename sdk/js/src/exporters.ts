@@ -64,23 +64,14 @@ function encodeAttributes(
 // Convert ReadableSpan to dictionary format (match Python span_to_dict)
 export function spanToDict(span: ReadableSpan): Record<string, unknown> {
   const ctx = span.spanContext();
-  // instrumentationScope is newer name, instrumentationLibrary is deprecated
-  const scope =
-    (
-      span as ReadableSpan & {
-        instrumentationScope?: {
-          name: string;
-          version?: string;
-          schemaUrl?: string;
-        };
-      }
-    ).instrumentationScope ?? span.instrumentationLibrary;
+  const scope = span.instrumentationScope;
 
   return {
     name: span.name,
     trace_id: ctx.traceId,
     span_id: ctx.spanId,
-    parent_span_id: span.parentSpanId ?? null,
+    // OTel JS 2.x replaced the flat parentSpanId with a full parent SpanContext.
+    parent_span_id: span.parentSpanContext?.spanId ?? null,
     kind: SpanKind[span.kind],
     start_time: hrTimeToIso8601(span.startTime),
     end_time: hrTimeToIso8601(span.endTime),
