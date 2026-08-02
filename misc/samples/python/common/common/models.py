@@ -64,6 +64,40 @@ MODEL_ALIASES: dict[str, ModelInfo] = {
         litellm_id="openai/gpt-5-nano-2025-08-07",
         supports_thinking=True,
     ),
+    # Bedrock's OpenAI- and Anthropic-compatible endpoints. These let the provider
+    # suites run on Bedrock credentials alone - no OPENAI_API_KEY / ANTHROPIC_API_KEY.
+    # The provider stays "openai"/"anthropic" so the suites keep using those SDKs; only
+    # the base_url and auth differ (see common/bedrock_openai.py).
+    # gpt-5.6 via an inference profile: the only openai.* models on Bedrock that support
+    # image input and the Responses API. Plain `openai.gpt-5.6-*` ids are rejected -
+    # on-demand throughput is not offered for them, an inference profile is required.
+    "bedrock-openai-luna": ModelInfo(
+        provider="openai",
+        model_id="us.openai.gpt-5.6-luna",
+        litellm_id="bedrock/us.openai.gpt-5.6-luna",
+        supports_thinking=True,
+    ),
+    # gpt-oss is cheaper but text-only and has no Responses API support.
+    "bedrock-openai-oss20b": ModelInfo(
+        provider="openai",
+        model_id="openai.gpt-oss-20b-1:0",
+        litellm_id="bedrock/openai.gpt-oss-20b-1:0",
+        supports_thinking=False,
+    ),
+    "bedrock-openai-oss120b": ModelInfo(
+        provider="openai",
+        model_id="openai.gpt-oss-120b-1:0",
+        litellm_id="bedrock/openai.gpt-oss-120b-1:0",
+        supports_thinking=False,
+    ),
+    # Only inference-profile ids of the newer models work on the Anthropic-compatible
+    # surface; there is no haiku on it.
+    "bedrock-anthropic-sonnet5": ModelInfo(
+        provider="anthropic",
+        model_id="us.anthropic.claude-sonnet-5",
+        litellm_id="bedrock/us.anthropic.claude-sonnet-5",
+        supports_thinking=True,
+    ),
     # Gemini models (Strands only for now)
     "gemini-flash": ModelInfo(
         provider="gemini",
