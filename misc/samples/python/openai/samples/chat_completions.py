@@ -83,6 +83,11 @@ def run(openai_model, trace_attrs: dict, client: SideSeat):
             messages=messages,
             tools=tools,
             max_completion_tokens=1024,
+            # gpt-5.6 rejects function tools combined with a reasoning effort in
+            # /v1/chat/completions and points at /v1/responses instead. This demo is
+            # about Chat Completions, so reasoning is turned off here; the `responses`
+            # sample is the one that exercises reasoning.
+            reasoning_effort="none",
         )
         assistant_msg = response.choices[0].message
         messages.append(assistant_msg)
@@ -108,6 +113,7 @@ def run(openai_model, trace_attrs: dict, client: SideSeat):
                 messages=messages,
                 tools=tools,
                 max_completion_tokens=1024,
+                reasoning_effort="none",
             )
             print(f"Assistant: {response.choices[0].message.content}")
     print()

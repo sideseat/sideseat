@@ -11,6 +11,7 @@ Demonstrates:
 import json
 
 from sideseat import SideSeat
+from common import first_text_block
 
 
 def run(model, trace_attrs: dict, client: SideSeat):
@@ -24,7 +25,7 @@ def run(model, trace_attrs: dict, client: SideSeat):
         messages=[{"role": "user", "content": "What is the speed of light?"}],
         max_tokens=1024,
     )
-    print(f"Assistant: {response.content[0].text}")
+    print(f"Assistant: {first_text_block(response)}")
     print()
 
     # --- Messages (streaming) ---
@@ -103,5 +104,5 @@ def run(model, trace_attrs: dict, client: SideSeat):
                 tools=tools,
                 max_tokens=1024,
             )
-            print(f"Assistant: {response.content[0].text}")
+            print(f"Assistant: {first_text_block(response)}")
     print()

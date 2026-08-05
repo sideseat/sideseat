@@ -33,3 +33,7 @@ STRANDS_ONLY_SAMPLES = ["strands_ws"]
 # Sample module paths
 SAMPLES = {name: f"samples.{name}" for name in SAMPLE_NAMES}
 SAMPLES.update({name: f"samples.{name}" for name in STRANDS_ONLY_SAMPLES})
+
+# What `strands all` runs. strands_ws is excluded: it calls connect(block=True) and
+# blocks until SIGINT, so including it made `all` hang forever instead of finishing.
+BATCH_SAMPLES = {name: path for name, path in SAMPLES.items() if name in SAMPLE_NAMES}

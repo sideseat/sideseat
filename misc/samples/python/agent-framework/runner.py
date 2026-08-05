@@ -11,8 +11,9 @@ from common.runner import create_trace_attributes, run_all_samples_base
 def get_client(model_alias: str, enable_thinking: bool = False):
     """Create an Agent Framework client from alias or full model ID.
 
-    Returns an OpenAIChatClient, OpenAIResponsesClient (for reasoning), or
-    AnthropicClient depending on the provider.
+    agent-framework 1.15 renamed the constructor argument from `model_id` to `model` and
+    removed `OpenAIResponsesClient`; reasoning is now requested per call rather than by
+    picking a different client class.
     """
     if model_alias in MODEL_ALIASES:
         provider, model_id = MODEL_ALIASES[model_alias]
@@ -29,28 +30,37 @@ def get_client(model_alias: str, enable_thinking: bool = False):
 
     thinking_supported = model_alias in REASONING_MODELS
     use_thinking = enable_thinking and thinking_supported
+    if use_thinking:
+        print("  Extended thinking: enabled")
+
+    # bedrock-* aliases keep the suite runnable on AWS credentials alone.
+    if model_alias.startswith("bedrock-"):
+        if provider == "anthropic":
+            # Native Bedrock client - it signs with the ambient AWS credentials itself,
+            # so no SigV4 plumbing is needed on this path.
+            from agent_framework.anthropic import AnthropicBedrockClient
+
+            return AnthropicBedrockClient(model=model_id)
+
+        # Bedrock's OpenAI-compatible endpoint has no native client, so the SigV4-signing
+        # async client is injected instead.
+        from agent_framework.openai import OpenAIChatClient
+
+        from common.bedrock_openai import bedrock_async_openai_client
+
+        return OpenAIChatClient(
+            model=model_id, async_client=bedrock_async_openai_client()
+        )
 
     if provider == "openai":
-        # Use OpenAIResponsesClient for reasoning (supports reasoning_effort)
-        # Use OpenAIChatClient for standard tasks
-        if use_thinking:
-            from agent_framework.openai import OpenAIResponsesClient
+        from agent_framework.openai import OpenAIChatClient
 
-            print("  Extended thinking: enabled (reasoning_effort=medium)")
-            return OpenAIResponsesClient(model_id=model_id)
-        else:
-            from agent_framework.openai import OpenAIChatClient
+        return OpenAIChatClient(model=model_id)
 
-            return OpenAIChatClient(model_id=model_id)
-
-    elif provider == "anthropic":
+    if provider == "anthropic":
         from agent_framework.anthropic import AnthropicClient
 
-        if use_thinking:
-            print(
-                f"  Extended thinking: enabled (budget={DEFAULT_THINKING_BUDGET} tokens)"
-            )
-        return AnthropicClient(model_id=model_id)
+        return AnthropicClient(model=model_id)
 
     raise ValueError(f"Unknown provider: {provider}")
 

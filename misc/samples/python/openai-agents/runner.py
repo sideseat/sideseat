@@ -7,6 +7,32 @@ from config import MODEL_ALIASES, REASONING_MODELS, SAMPLES
 from telemetry_setup import setup_telemetry
 
 
+def configure_bedrock_client(model_alias: str) -> None:
+    """Route the Agents SDK through Bedrock's OpenAI-compatible endpoint.
+
+    The SDK takes the model as a bare string and resolves it against a global client, so
+    a bedrock-* alias is wired by swapping that client rather than per-agent. Tracing to
+    OpenAI is disabled at the same time: there is no OpenAI API key here, and SideSeat
+    collects the spans through logfire instead.
+    """
+    if not model_alias.startswith("bedrock-"):
+        return
+
+    from agents import set_default_openai_client
+
+    from common.bedrock_openai import bedrock_async_openai_client
+
+    set_default_openai_client(bedrock_async_openai_client(), use_for_tracing=False)
+    # The SDK's default Responses API is what we want: gpt-5.6 rejects function tools
+    # combined with a reasoning effort on /v1/chat/completions and points at
+    # /v1/responses instead.
+    #
+    # Tracing stays enabled: logfire's instrument_openai_agents() hooks into the SDK's
+    # own trace pipeline and replaces its processors, so nothing is sent to OpenAI.
+    # Calling set_tracing_disabled(True) here silences that pipeline and the run produces
+    # a single empty span instead of the agent's spans.
+
+
 def get_model_id(model_alias: str) -> str:
     """Resolve model alias to model ID.
 
@@ -33,6 +59,8 @@ def run_sample(name: str, args):
     print()
 
     setup_telemetry(use_sideseat=args.sideseat)
+    # After setup_telemetry so the instrumentation wraps the client we install.
+    configure_bedrock_client(args.model)
 
     enable_thinking = name == "reasoning" and args.model in REASONING_MODELS
     model_id = get_model_id(args.model)

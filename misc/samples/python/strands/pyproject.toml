@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "SideSeat telemetry sample for Strands Agents"
 requires-python = ">=3.12,<3.14"
 dependencies = [
+    "numpy>=1.26",
     "telemetry-common",
     "sideseat[openai,anthropic,ws,agui]",
     "strands-agents>=1.30.0",

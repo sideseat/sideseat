@@ -8,6 +8,7 @@ Demonstrates:
 """
 
 from sideseat import SideSeat
+from common import first_text_block
 
 
 def _chat(model, messages, query, system):
@@ -19,7 +20,7 @@ def _chat(model, messages, query, system):
         messages=messages,
         max_tokens=2048,
     )
-    assistant_text = response.content[0].text
+    assistant_text = first_text_block(response)
     messages.append({"role": "assistant", "content": assistant_text})
     return assistant_text
 

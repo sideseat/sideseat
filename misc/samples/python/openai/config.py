@@ -11,7 +11,7 @@ MODEL_ALIASES = {
     if info.provider in SUPPORTED_PROVIDERS
 }
 
-DEFAULT_MODEL = "openai-gpt5nano"
+DEFAULT_MODEL = "bedrock-openai-luna"
 
 SAMPLE_NAMES = [
     "chat_completions",

@@ -24,7 +24,7 @@ MODEL_ALIASES = {
 REASONING_MODELS = {alias for alias in _ALL_REASONING if alias in MODEL_ALIASES}
 
 # Default model alias
-DEFAULT_MODEL = "openai-gpt5nano"
+DEFAULT_MODEL = "bedrock-openai-luna"
 
 # Sample module paths
 SAMPLES = {name: f"samples.{name}" for name in SAMPLE_NAMES}
