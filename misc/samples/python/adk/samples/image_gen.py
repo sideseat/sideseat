@@ -1,7 +1,7 @@
 """Image generation and critic evaluation sample.
 
 Demonstrates:
-- Image generation using OpenAI DALL-E
+- Image generation using Amazon Bedrock
 - Image critique and selection with multimodal tool results
 """
 
@@ -15,7 +15,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.tools import FunctionTool
 from google.genai import types
-from openai import OpenAI
+from common import generate_image_bedrock
 from opentelemetry import trace
 
 # Buffer for image Parts (avoids ADK session state serialization issues)
@@ -23,7 +23,7 @@ _pending_image_parts: list = []
 
 
 def generate_image(prompt: str) -> str:
-    """Generate an image using OpenAI DALL-E.
+    """Generate an image using Amazon Bedrock.
 
     Args:
         prompt: The image description prompt
@@ -31,27 +31,7 @@ def generate_image(prompt: str) -> str:
     Returns:
         Path to the generated image file
     """
-    client = OpenAI()
-
-    response = client.images.generate(
-        model="dall-e-3",
-        prompt=prompt,
-        size="1024x1024",
-        quality="standard",
-        n=1,
-        response_format="b64_json",
-    )
-
-    image_data = base64.b64decode(response.data[0].b64_json)
-
-    output_dir = tempfile.mkdtemp(prefix="adk_images_")
-    filename = f"generated_{uuid.uuid4().hex[:8]}.png"
-    filepath = Path(output_dir) / filename
-
-    with open(filepath, "wb") as f:
-        f.write(image_data)
-
-    return str(filepath)
+    return generate_image_bedrock(prompt, prefix="adk_images_")
 
 
 def read_image(file_path: str) -> dict:

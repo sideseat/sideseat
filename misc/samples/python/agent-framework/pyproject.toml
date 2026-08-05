@@ -4,11 +4,18 @@ version = "0.1.0"
 description = "SideSeat telemetry sample for Microsoft Agent Framework"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "telemetry-common",
+    "boto3>=1.35",
+    "numpy>=1.26",
+    "telemetry-common[bedrock-openai]",
     "sideseat",
     # agent-framework requires opentelemetry-sdk>=1.39.0 (incompatible with google-adk)
-    "agent-framework>=1.0.0b0",
+    # agent-framework (the meta package) is just agent-framework-core[all], which drags in
+    # every provider sub-package - including chatkit, whose chain pulls openai-agents and
+    # claude-agent-sdk into a suite that neither imports. Depend on core plus only the two
+    # provider packages these samples actually import.
+    "agent-framework-core>=1.0.0b0",
     "agent-framework-anthropic>=1.0.0b0",
+    "agent-framework-openai>=1.0.0b0",
     "python-dotenv>=1.2.0",
 ]
 

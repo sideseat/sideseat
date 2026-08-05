@@ -4,11 +4,14 @@ version = "0.1.0"
 description = "SideSeat telemetry sample for Anthropic API"
 requires-python = ">=3.12,<3.14"
 dependencies = [
-    "telemetry-common",
+    "telemetry-common[bedrock-anthropic]",
     "sideseat[anthropic]",
     "anthropic>=0.84.0",
     "pymupdf>=1.25.0",
     "python-dotenv>=1.2.0",
+    # anthropic >= 1.0 uses httpx2; logfire's Anthropic instrumentation still imports
+    # httpx at module level, so it must be present or no spans are produced.
+    "httpx>=0.27",
 ]
 
 [project.scripts]

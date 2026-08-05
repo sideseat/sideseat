@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "SideSeat telemetry sample for OpenAI API"
 requires-python = ">=3.12,<3.14"
 dependencies = [
-    "telemetry-common",
+    "telemetry-common[bedrock-openai]",
     "sideseat[openai]",
     "openai>=1.80.0",
     "python-dotenv>=1.2.0",

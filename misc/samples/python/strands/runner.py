@@ -6,7 +6,7 @@ import os
 
 from common.models import DEFAULT_THINKING_BUDGET
 from common.runner import create_trace_attributes, run_all_samples_base
-from config import MODEL_ALIASES, REASONING_MODELS, SAMPLES
+from config import BATCH_SAMPLES, MODEL_ALIASES, REASONING_MODELS, SAMPLES
 from telemetry_setup import setup_telemetry
 
 
@@ -131,4 +131,4 @@ def run_sample(name: str, args):
 
 def run_all_samples(args):
     """Run all samples in sequence."""
-    run_all_samples_base(SAMPLES, run_sample, args)
+    run_all_samples_base(BATCH_SAMPLES, run_sample, args)

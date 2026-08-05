@@ -19,6 +19,7 @@ uv run --directory strands strands agent_core                # Core agent capabi
 uv run --directory strands strands swarm                     # Multi-agent swarm
 uv run --directory strands strands rag_local                 # Local RAG with embeddings
 uv run --directory strands strands reasoning                 # Extended thinking/reasoning
+uv run --directory strands strands strands_ws                # WS runtime channel: presence + AG-UI invoke
 uv run --directory strands strands all                       # Run all samples
 
 # Model selection
@@ -77,7 +78,79 @@ uv run --directory openai-agents openai-agents tool_use            # Tool usage
 uv run --directory openai-agents openai-agents all                 # Run all samples
 ```
 
-Default model: `openai-gpt5nano` (OpenAI models only).
+Default model: `openai-gpt5nano` (OpenAI models only). Requires `OPENAI_API_KEY`.
+
+### Claude Agent SDK
+
+```bash
+uv run --directory claude-agent-sdk claude-agent-sdk                        # List samples and models
+uv run --directory claude-agent-sdk claude-agent-sdk tool_use               # Built-in Read/Glob/Grep/Bash
+uv run --directory claude-agent-sdk claude-agent-sdk mcp_tools              # External stdio MCP server
+uv run --directory claude-agent-sdk claude-agent-sdk structured_output      # JSON schema output
+uv run --directory claude-agent-sdk claude-agent-sdk reasoning              # Extended thinking
+uv run --directory claude-agent-sdk claude-agent-sdk custom_tools           # In-process MCP via @tool
+uv run --directory claude-agent-sdk claude-agent-sdk subagents              # AgentDefinition delegation
+uv run --directory claude-agent-sdk claude-agent-sdk multi_turn             # ClaudeSDKClient session
+uv run --directory claude-agent-sdk claude-agent-sdk permissions            # can_use_tool gating
+uv run --directory claude-agent-sdk claude-agent-sdk all                    # Run all samples
+```
+
+Default model: `bedrock-haiku` (Bedrock models only).
+
+Unlike every other sample here, there is no instrumentor: the SDK spawns the Claude
+Code CLI, which carries its own OpenTelemetry instrumentation and is configured with
+the `CLAUDE_CODE_*` / `OTEL_*` environment variables built in `telemetry_setup.py`.
+Span tracing is beta, so `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1` is required, and the
+`console` exporter must never be used — the CLI writes telemetry to stdout, which is
+the SDK's message channel.
+
+The message feed needs a **second** beta tier on top of that:
+`ENABLE_BETA_TRACING_DETAILED=1` plus `BETA_TRACING_ENDPOINT` (a base URL, not a
+`/v1/traces` path). Only then does the CLI emit `response.model_output`,
+`new_context`, `user_system_prompt` and `tool_input` — without them you get spans,
+timings, tokens and costs but no conversation.
+
+On Bedrock, `WebSearch` is unavailable. The Agent SDK docs also say the `thinking`
+config is not forwarded to Bedrock, but the `reasoning` sample did return thinking
+blocks against `bedrock-haiku` — treat that support as version-dependent.
+
+### Microsoft Agent Framework
+
+```bash
+uv run --directory agent-framework agent-framework                    # List samples and models
+uv run --directory agent-framework agent-framework tool_use           # Tool calling
+uv run --directory agent-framework agent-framework mcp_tools          # MCP tool integration
+uv run --directory agent-framework agent-framework structured_output  # Structured output
+uv run --directory agent-framework agent-framework files              # Multimodal file input
+uv run --directory agent-framework agent-framework image_gen          # Image generation
+uv run --directory agent-framework agent-framework agent_core         # Memory and code execution
+uv run --directory agent-framework agent-framework swarm              # Multi-agent workflow
+uv run --directory agent-framework agent-framework rag_local          # Local RAG
+uv run --directory agent-framework agent-framework reasoning          # Extended thinking
+uv run --directory agent-framework agent-framework error              # Error handling
+uv run --directory agent-framework agent-framework all                # Run all samples
+```
+
+Default model: `openai-gpt5nano`. The suite only implements the `openai` and `anthropic`
+providers, so it needs `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` - it cannot run on Bedrock
+credentials alone.
+
+### Anthropic Provider (raw SDK)
+
+```bash
+uv run --directory anthropic anthropic-provider              # List samples and models
+uv run --directory anthropic anthropic-provider messages     # Messages API (sync, streaming, tool use)
+uv run --directory anthropic anthropic-provider multi_turn   # Multi-turn conversation (trace grouping)
+uv run --directory anthropic anthropic-provider thinking     # Extended thinking
+uv run --directory anthropic anthropic-provider vision       # Image analysis
+uv run --directory anthropic anthropic-provider document     # PDF analysis
+uv run --directory anthropic anthropic-provider session      # Session with multiple traces
+uv run --directory anthropic anthropic-provider error        # Error handling
+uv run --directory anthropic anthropic-provider all          # Run all samples
+```
+
+Default model: `anthropic-haiku`. Requires `ANTHROPIC_API_KEY` - this suite exercises the
+first-party Anthropic API, not Bedrock.
 
 ### OpenAI Provider (raw SDK)
 
@@ -92,7 +165,7 @@ uv run --directory openai openai-provider error             # Error handling
 uv run --directory openai openai-provider all               # Run all samples
 ```
 
-Default model: `openai-gpt5nano` (OpenAI models only).
+Default model: `openai-gpt5nano` (OpenAI models only). Requires `OPENAI_API_KEY`.
 
 ### Bedrock (raw boto3 API)
 
@@ -122,7 +195,7 @@ uv run --directory loadtest loadtest --workers 8        # Parallel workers
 
 | Alias              | Provider                 | Default For                      |
 | ------------------ | ------------------------ | -------------------------------- |
-| `bedrock-haiku`    | AWS Bedrock Claude Haiku | Strands, LangGraph, CrewAI, ADK  |
+| `bedrock-haiku`    | AWS Bedrock Claude Haiku | Strands, LangGraph, CrewAI, ADK, Claude Agent SDK |
 | `bedrock-sonnet`   | AWS Bedrock Claude Sonnet|                                  |
 | `bedrock-nova`     | AWS Bedrock Nova 2 Lite  |                                  |
 | `anthropic-haiku`  | Anthropic API Haiku      | AutoGen                          |
@@ -137,7 +210,7 @@ Not all models are available for all frameworks. Run `uv run --directory <framew
 | Variable                      | Description                     | Required For                          |
 | ----------------------------- | ------------------------------- | ------------------------------------- |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | SideSeat OTLP endpoint          | All                                   |
-| `AWS_REGION`                  | AWS region (default: us-east-1) | Strands, LangGraph, CrewAI, ADK       |
+| `AWS_REGION`                  | AWS region (default: us-east-1) | Strands, LangGraph, CrewAI, ADK, Claude Agent SDK |
 | `ANTHROPIC_API_KEY`           | Anthropic API key               | anthropic-* models, AutoGen           |
 | `OPENAI_API_KEY`              | OpenAI API key                  | openai-* models, AutoGen, OpenAI Agents, OpenAI Provider |
 | `GOOGLE_API_KEY`              | Google API key                  | gemini-* models, ADK                  |

@@ -24,7 +24,14 @@ def get_model(model_alias: str) -> AnthropicModel:
     else:
         model_id = model_alias
 
-    client = Anthropic()
+    # A bedrock-* alias routes through Bedrock's Anthropic-compatible endpoint, which
+    # needs SigV4 signing rather than an ANTHROPIC_API_KEY.
+    if model_alias.startswith("bedrock-"):
+        from common.bedrock_openai import bedrock_anthropic_client
+
+        client = bedrock_anthropic_client()
+    else:
+        client = Anthropic()
     return AnthropicModel(client=client, model_id=model_id)
 
 

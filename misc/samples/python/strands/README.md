@@ -3,8 +3,9 @@
 ## Setup
 
 ```bash
-cp .env.example .env
-# Edit .env with your API keys
+# Configuration is shared by all suites and lives one level up, in misc/
+cp ../../../.env.example ../../../.env
+# Edit misc/.env - at minimum AWS_REGION and AWS_DEFAULT_REGION for Bedrock
 uv sync
 ```
 

@@ -11,7 +11,7 @@ MODEL_ALIASES = {
     if info.provider in SUPPORTED_PROVIDERS
 }
 
-DEFAULT_MODEL = "anthropic-haiku"
+DEFAULT_MODEL = "bedrock-anthropic-sonnet5"
 
 SAMPLE_NAMES = [
     "messages",

@@ -24,7 +24,14 @@ def get_model(model_alias: str) -> OpenAIModel:
     else:
         model_id = model_alias
 
-    client = OpenAI()
+    # A bedrock-* alias routes through Bedrock's OpenAI-compatible endpoint, which needs
+    # SigV4 signing rather than an OPENAI_API_KEY.
+    if model_alias.startswith("bedrock-"):
+        from common.bedrock_openai import bedrock_openai_client
+
+        client = bedrock_openai_client()
+    else:
+        client = OpenAI()
     return OpenAIModel(client=client, model_id=model_id)
 
 

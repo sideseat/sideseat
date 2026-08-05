@@ -1,7 +1,7 @@
 """Extended thinking using the Anthropic Messages API.
 
 Demonstrates:
-- Extended thinking with budget_tokens (sync)
+- Extended thinking with adaptive effort (sync)
 - Extended thinking with streaming
 - Parsing thinking and text content blocks
 """
@@ -19,7 +19,10 @@ def run(model, trace_attrs: dict, client: SideSeat):
         system="You are a math tutor. Show your work.",
         messages=[{"role": "user", "content": "What is 27 * 453?"}],
         max_tokens=8192,
-        thinking={"type": "enabled", "budget_tokens": 1024},
+        # claude-sonnet-5 and newer reject thinking.type="enabled" with budget_tokens:
+        # they take thinking.type="adaptive" plus output_config.effort instead.
+        thinking={"type": "adaptive"},
+        output_config={"effort": "medium"},
     )
     for block in response.content:
         if block.type == "thinking":
@@ -37,7 +40,10 @@ def run(model, trace_attrs: dict, client: SideSeat):
         system="You are a math tutor. Show your work.",
         messages=[{"role": "user", "content": "What is 891 / 9?"}],
         max_tokens=8192,
-        thinking={"type": "enabled", "budget_tokens": 1024},
+        # claude-sonnet-5 and newer reject thinking.type="enabled" with budget_tokens:
+        # they take thinking.type="adaptive" plus output_config.effort instead.
+        thinking={"type": "adaptive"},
+        output_config={"effort": "medium"},
     ) as stream:
         for event in stream:
             if event.type == "content_block_delta":

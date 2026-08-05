@@ -10,6 +10,7 @@ import base64
 from pathlib import Path
 
 from sideseat import SideSeat
+from common import first_text_block
 
 # Content directory is at misc/content (5 levels up from this file)
 CONTENT_DIR = Path(__file__).parents[4] / "content"
@@ -57,7 +58,7 @@ def run(model, trace_attrs: dict, client: SideSeat):
             max_tokens=512,
         )
 
-        assistant_text = response.content[0].text
+        assistant_text = first_text_block(response)
         messages.append({"role": "assistant", "content": assistant_text})
         print(f"Assistant: {assistant_text}")
         print()
@@ -94,7 +95,7 @@ def run(model, trace_attrs: dict, client: SideSeat):
             max_tokens=512,
         )
 
-        assistant_text = response.content[0].text
+        assistant_text = first_text_block(response)
         messages.append({"role": "assistant", "content": assistant_text})
         print(f"Assistant: {assistant_text}")
         print()
@@ -115,6 +116,6 @@ def run(model, trace_attrs: dict, client: SideSeat):
             max_tokens=512,
         )
 
-        assistant_text = response.content[0].text
+        assistant_text = first_text_block(response)
         messages.append({"role": "assistant", "content": assistant_text})
         print(f"Assistant: {assistant_text}")

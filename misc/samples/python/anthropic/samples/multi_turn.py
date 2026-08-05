@@ -7,6 +7,7 @@ Demonstrates:
 """
 
 from sideseat import SideSeat
+from common import first_text_block
 
 
 def run(model, trace_attrs: dict, client: SideSeat):
@@ -33,7 +34,7 @@ def run(model, trace_attrs: dict, client: SideSeat):
                 max_tokens=1024,
             )
 
-            assistant_text = response.content[0].text
+            assistant_text = first_text_block(response)
             messages.append({"role": "assistant", "content": assistant_text})
 
             usage = response.usage

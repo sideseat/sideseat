@@ -50,6 +50,13 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--sideseat",
+        action="store_true",
+        help="No-op: these samples are always instrumented with the SideSeat SDK. "
+        "Accepted so the invocation matches the other sample suites.",
+    )
+
+    parser.add_argument(
         "--list",
         action="store_true",
         help="List available samples and model aliases",

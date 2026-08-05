@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "SideSeat telemetry sample for CrewAI"
 requires-python = ">=3.12,<3.14"
 dependencies = [
+    "numpy>=1.26",
     "telemetry-common",
     "sideseat[crewai]",
     "crewai>=1.10.1",
