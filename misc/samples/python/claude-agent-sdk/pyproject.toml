@@ -1,0 +1,29 @@
+[project]
+name = "claude-agent-sdk-sample"
+version = "0.1.0"
+description = "SideSeat telemetry sample for the Claude Agent SDK"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "telemetry-common",
+    # No extra: the Agent SDK spawns the Claude Code CLI, which self-instruments.
+    "sideseat",
+    "claude-agent-sdk>=0.2.0",
+    "python-dotenv>=1.2.0",
+]
+
+[project.scripts]
+claude-agent-sdk = "cli:main"
+
+[tool.uv]
+prerelease = "allow"
+
+[tool.uv.sources]
+telemetry-common = { path = "../common", editable = true }
+sideseat = { path = "../../../../sdk/python", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+include = ["*.py", "samples/"]
