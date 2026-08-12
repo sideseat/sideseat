@@ -11,15 +11,23 @@ import { resolveModel } from '../../shared/config.js';
 
 // Resolve paths relative to this file
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MCP_SERVER = path.resolve(__dirname, '../../../../../mcp/calculator.py');
+const MCP_SERVER_DIR = path.resolve(__dirname, '../../../../../mcp');
 
 export async function run(modelId: string) {
-  if (!fs.existsSync(MCP_SERVER)) {
-    throw new Error(`MCP server not found: ${MCP_SERVER}. Run from misc/samples/js directory.`);
+  if (!fs.existsSync(path.join(MCP_SERVER_DIR, 'calculator.py'))) {
+    throw new Error(
+      `MCP server not found in ${MCP_SERVER_DIR}. Run from misc/samples/js directory.`
+    );
   }
 
   const calculatorTools = new McpClient({
-    transport: new StdioClientTransport({ command: 'python', args: [MCP_SERVER] }),
+    // Launch via uv, matching the claude-agent-sdk suite: misc/mcp has its own venv with
+    // fastmcp, so a bare `python` would fail to import it - and on macOS the `python`
+    // command does not exist at all, only `python3`.
+    transport: new StdioClientTransport({
+      command: 'uv',
+      args: ['run', '--directory', MCP_SERVER_DIR, 'mcp-calculator'],
+    }),
   });
 
   try {

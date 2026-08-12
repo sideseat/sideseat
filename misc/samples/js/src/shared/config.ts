@@ -27,7 +27,11 @@ export const config = {
   sideseatProjectId: process.env.SIDESEAT_PROJECT_ID ?? 'default',
   models: {
     embedding: process.env.EMBEDDING_MODEL ?? 'amazon.titan-embed-text-v2:0',
-    imageGen: process.env.IMAGE_GEN_MODEL ?? 'amazon.titan-image-generator-v2:0',
+    // amazon.titan-image-generator-v2 has been retired and now returns
+    // ResourceNotFoundException in every region. Stability SD3.5 Large is the
+    // current on-demand image model; override with IMAGE_GEN_MODEL if your account
+    // has a different one enabled.
+    imageGen: process.env.IMAGE_GEN_MODEL ?? 'stability.sd3-5-large-v1:0',
   },
 } as const;
 

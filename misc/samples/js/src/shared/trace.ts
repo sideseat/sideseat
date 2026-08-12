@@ -14,8 +14,8 @@ export interface TraceAttributes {
  * Create trace attributes for a sample run.
  * Matches Python's create_trace_attributes() format.
  */
-export function createTraceAttributes(sampleName: string): TraceAttributes {
-  const sessionId = `strands-${sampleName}-${randomHex(8)}`;
+export function createTraceAttributes(sampleName: string, prefix = 'strands'): TraceAttributes {
+  const sessionId = `${prefix}-${sampleName}-${randomHex(8)}`;
   return {
     'session.id': sessionId,
     'user.id': 'demo-user',

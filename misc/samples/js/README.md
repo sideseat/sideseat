@@ -80,19 +80,53 @@ npm run vercel-ai -- structured-output
 npm run vercel-ai -- multi-step --model=bedrock-sonnet
 ```
 
+### Claude Agent SDK
+
+```bash
+npm run claude-agent-sdk -- <sample> [options]
+
+# Same options as Strands
+
+# Examples:
+npm run claude-agent-sdk -- tool-use
+npm run claude-agent-sdk -- subagents --sideseat
+```
+
+Unlike the other suites, there is no instrumentor: the SDK spawns the Claude Code CLI,
+which carries its own OpenTelemetry instrumentation and is configured with the
+`CLAUDE_CODE_*` / `OTEL_*` variables built by `buildClaudeCodeEnv()` in
+`src/shared/telemetry.ts`. Span tracing is beta, so `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`
+is required, and the `console` exporter must never be used — the CLI writes telemetry to
+stdout, which is the SDK's message channel.
+
+The message feed needs a **second** beta tier on top of that:
+`ENABLE_BETA_TRACING_DETAILED=1` plus `BETA_TRACING_ENDPOINT` (a base URL, not a
+`/v1/traces` path). Only then does the CLI emit `response.model_output`, `new_context`,
+`user_system_prompt` and `tool_input` — without them you get spans, timings, tokens and
+costs but no conversation.
+
+On Bedrock, `WebSearch` is unavailable. The Agent SDK docs also say the `thinking` config
+is not forwarded to Bedrock, but the `reasoning` sample did return thinking blocks against
+`bedrock-haiku` — treat that support as version-dependent.
+
 ## Available Samples
 
-| Sample              | Strands | Vercel AI | Description                                      |
-| ------------------- | :-----: | :-------: | ------------------------------------------------ |
-| `tool-use`          |   Yes   |    Yes    | Weather forecast tools with prompt caching       |
-| `mcp-tools`         |   Yes   |     -     | MCP server integration (Python calculator)       |
-| `reasoning`         |   Yes   |    Yes    | Chain-of-thought with extended thinking          |
-| `structured-output` |   Yes   |    Yes    | Zod schema validation for structured data        |
-| `rag-local`         |   Yes   |    Yes    | Vector search with Titan Embeddings              |
-| `files`             |   Yes   |    Yes    | Multimodal image analysis                        |
-| `image-gen`         |   Yes   |    Yes    | Titan Image generation with artist/critic agents |
-| `swarm`             |   Yes   |     -     | Multi-agent orchestration with handoffs          |
-| `multi-step`        |    -    |    Yes    | Agentic loop with step tracking                  |
+| Sample              | Strands | Vercel AI | Claude Agent SDK | Description                                      |
+| ------------------- | :-----: | :-------: | :--------------: | ------------------------------------------------ |
+| `tool-use`          |   Yes   |    Yes    |       Yes        | Weather forecast tools with prompt caching       |
+| `mcp-tools`         |   Yes   |     -     |       Yes        | MCP server integration (Python calculator)       |
+| `reasoning`         |   Yes   |    Yes    |       Yes        | Chain-of-thought with extended thinking          |
+| `structured-output` |   Yes   |    Yes    |       Yes        | Zod schema validation for structured data        |
+| `rag-local`         |   Yes   |    Yes    |        -         | Vector search with Titan Embeddings              |
+| `files`             |   Yes   |    Yes    |        -         | Multimodal image analysis                        |
+| `image-gen`         |   Yes   |    Yes    |        -         | Titan Image generation with artist/critic agents |
+| `swarm`             |   Yes   |     -     |        -         | Multi-agent orchestration with handoffs          |
+| `multi-step`        |    -    |    Yes    |        -         | Agentic loop with step tracking                  |
+| `custom-tools`      |    -    |     -     |       Yes        | In-process MCP server via `tool()`               |
+| `subagents`         |    -    |     -     |       Yes        | `AgentDefinition` delegation, nested spans       |
+| `multi-turn`        |    -    |     -     |       Yes        | Streaming input, one session across turns        |
+| `permissions`       |    -    |     -     |       Yes        | `canUseTool` gating and input rewriting          |
+| `error`             |   Yes   |    Yes    |       Yes        | Invalid model ID to generate error telemetry     |
 
 ### Sample Details
 
@@ -113,6 +147,14 @@ npm run vercel-ai -- multi-step --model=bedrock-sonnet
 **swarm** (Strands only): Planner agent routes tasks to specialist agents (researcher, coder, reviewer) via tool-based handoffs.
 
 **multi-step** (Vercel AI only): Demonstrates `generateText` with `maxSteps` for agentic loops with automatic tool execution.
+
+**custom-tools** (Claude Agent SDK only): Defines tools with `tool()` + `createSdkMcpServer()`, which run in-process — no subprocess, no stdio, unlike `mcp-tools`.
+
+**subagents** (Claude Agent SDK only): Delegates to two programmatically defined subagents. Their `llm_request` and `tool` spans nest under the parent's `claude_code.tool` span, so the whole delegation chain is one trace.
+
+**multi-turn** (Claude Agent SDK only): Uses streaming input so one `query()` call carries several turns over a single session. Each turn emits its own result message; `total_cost_usd` is the running total for the call.
+
+**permissions** (Claude Agent SDK only): Gates `Write` through `canUseTool` — redirects normal writes into `reviewed/` and denies anything matching a secrets path. Also shows a scoped `disallowedTools` rule.
 
 ## Telemetry
 

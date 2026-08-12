@@ -53,12 +53,22 @@ FINAL DECISION: <index of chosen image, 1-based>`,
   const artistResult = await artist.invoke('Generate 3 images of a dog');
   console.log(`Artist result: ${artistResult.toString()}`);
 
-  // Parse paths and load images as native ImageBlock objects
+  // Parse paths and load images as native ImageBlock objects.
+  // Only fragments that actually exist on disk count: when image generation is
+  // unavailable the model answers in prose ("I apologize, ..."), and treating those
+  // words as paths produced a confusing `ENOENT: open 'I apologize'` instead of saying
+  // what went wrong.
   const imagePaths = artistResult
     .toString()
     .split(',')
     .map((p) => p.trim())
-    .filter(Boolean);
+    .filter((p) => p.length > 0 && fs.existsSync(p));
+
+  if (imagePaths.length === 0) {
+    throw new Error(
+      `The artist agent produced no image files. It replied: ${artistResult.toString().slice(0, 200)}`
+    );
+  }
 
   const content = [
     new TextBlock(
