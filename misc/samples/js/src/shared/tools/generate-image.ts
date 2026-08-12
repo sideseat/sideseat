@@ -30,23 +30,35 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
     fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   }
 
-  const body = {
-    taskType: 'TEXT_IMAGE',
-    textToImageParams: {
-      text: options.prompt,
-      ...(options.negativePrompt && { negativeText: options.negativePrompt }),
-    },
-    imageGenerationConfig: {
-      numberOfImages: 1,
-      width: options.width ?? 512,
-      height: options.height ?? 512,
-      cfgScale: 8.0,
-      ...(options.seed !== undefined && { seed: options.seed }),
-    },
-  };
+  // Bedrock image models take incompatible request bodies. Stability uses a flat
+  // prompt/mode shape; Amazon's Titan and Nova Canvas use taskType/textToImageParams.
+  // Both return the PNG in `images[0]`, so only the request differs.
+  const modelId = config.models.imageGen;
+  const body = modelId.startsWith('stability.')
+    ? {
+        prompt: options.prompt,
+        mode: 'text-to-image',
+        output_format: 'png',
+        ...(options.negativePrompt && { negative_prompt: options.negativePrompt }),
+        ...(options.seed !== undefined && { seed: options.seed }),
+      }
+    : {
+        taskType: 'TEXT_IMAGE',
+        textToImageParams: {
+          text: options.prompt,
+          ...(options.negativePrompt && { negativeText: options.negativePrompt }),
+        },
+        imageGenerationConfig: {
+          numberOfImages: 1,
+          width: options.width ?? 512,
+          height: options.height ?? 512,
+          cfgScale: 8.0,
+          ...(options.seed !== undefined && { seed: options.seed }),
+        },
+      };
 
   const command = new InvokeModelCommand({
-    modelId: config.models.imageGen,
+    modelId,
     contentType: 'application/json',
     body: JSON.stringify(body),
   });

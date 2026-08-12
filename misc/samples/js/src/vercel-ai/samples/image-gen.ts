@@ -52,8 +52,9 @@ export async function run(modelId: string) {
         value: [
           { type: 'text' as const, text: `Image: ${output.path}` },
           {
-            type: 'media' as const,
-            data: output.base64,
+            // ai v7 replaced the flat 'media' part with 'file' + a tagged data union.
+            type: 'file' as const,
+            data: { type: 'data' as const, data: output.base64 },
             mediaType: output.mimeType,
           },
         ],

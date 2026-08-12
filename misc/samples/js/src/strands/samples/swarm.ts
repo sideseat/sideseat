@@ -85,7 +85,7 @@ export async function run(modelId: string) {
   console.log('Creating swarm agents...');
 
   const researcher = new Agent({
-    agentId: 'researcher',
+    id: 'researcher',
     name: 'Researcher',
     description: 'Research specialist that gathers information using web search and weather tools',
     model,
@@ -98,7 +98,7 @@ export async function run(modelId: string) {
   });
 
   const coder = new Agent({
-    agentId: 'coder',
+    id: 'coder',
     name: 'Coder',
     description: 'Coding specialist that writes clean, efficient code and implementations',
     model,
@@ -111,7 +111,7 @@ export async function run(modelId: string) {
   });
 
   const reviewer = new Agent({
-    agentId: 'reviewer',
+    id: 'reviewer',
     name: 'Reviewer',
     description:
       'Code reviewer that evaluates code quality, correctness, and suggests improvements',
@@ -125,7 +125,7 @@ export async function run(modelId: string) {
   });
 
   const planner = new Agent({
-    agentId: 'planner',
+    id: 'planner',
     name: 'Planner',
     description: 'Project planner that breaks down complex tasks and coordinates specialists',
     model,
