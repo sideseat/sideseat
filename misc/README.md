@@ -17,13 +17,19 @@ uv sync --directory misc/samples/python/crewai
 uv sync --directory misc/samples/python/autogen
 uv sync --directory misc/samples/python/openai-agents
 uv sync --directory misc/samples/python/agent-framework
+uv sync --directory misc/samples/python/claude-agent-sdk
 uv sync --directory misc/samples/python/bedrock
 uv sync --directory misc/samples/python/anthropic
 uv sync --directory misc/samples/python/openai
 uv sync --directory misc/samples/python/loadtest
 
+# OpenTelemetry versions differ between suites on purpose. Some frameworks cap them:
+# google-adk 2.7 requires opentelemetry-sdk >=1.39,<=1.42.1, and crewai and
+# agent-framework hold their own ceilings. Each suite is an isolated venv, so the split is
+# harmless - do not try to force them onto one version, the resolver will refuse.
+
 # After SDK structural changes (new deps, new extras, pyproject.toml edits)
-for d in strands adk langgraph crewai autogen openai-agents agent-framework bedrock anthropic openai loadtest; do
+for d in strands adk langgraph crewai autogen openai-agents agent-framework claude-agent-sdk bedrock anthropic openai loadtest; do
   uv sync --directory misc/samples/python/$d --reinstall-package sideseat
 done
 ```
