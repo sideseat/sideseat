@@ -1,4 +1,4 @@
-import { type ReactNode, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router";
 import { Check, ChevronsUpDown, Copy, ExternalLink, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -20,20 +20,7 @@ import {
 import { useProjects } from "@/api/projects/hooks/queries";
 import { cn } from "@/lib/utils";
 
-type Framework = {
-  id: string;
-  name: string;
-  group: "Providers" | "Frameworks";
-  lang: "python" | "javascript";
-  docUrl: string;
-  install: string;
-  code: () => string;
-  run: string;
-  note?: string;
-  banner?: ReactNode;
-  altInstall?: string;
-  altCode?: () => string;
-};
+import { FRAMEWORKS } from "./telemetry-frameworks";
 
 function usePorts() {
   return useMemo(() => {
@@ -47,506 +34,6 @@ function usePorts() {
 function getEndpoint(hostname: string, httpPort: string, projectId: string) {
   return `http://${hostname}:${httpPort}/otel/${projectId}`;
 }
-
-const FRAMEWORKS: Framework[] = [
-  // — Providers —
-  {
-    id: "bedrock",
-    name: "Amazon Bedrock",
-    group: "Providers",
-    lang: "python",
-    docUrl: "https://sideseat.ai/docs/integrations/providers/bedrock/",
-    install: "pip install sideseat boto3",
-    code: () => `import boto3
-from sideseat import SideSeat, Frameworks
-
-SideSeat(framework=Frameworks.Bedrock)
-
-bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
-
-response = bedrock.converse(
-    modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-    system=[{"text": "Answer in one sentence."}],
-    messages=[{"role": "user", "content": [{"text": "What is the speed of light?"}]}],
-    inferenceConfig={"maxTokens": 128},
-)
-
-print(response["output"]["message"]["content"][0]["text"])`,
-    run: "python app.py",
-  },
-  {
-    id: "anthropic",
-    name: "Anthropic",
-    group: "Providers",
-    lang: "python",
-    docUrl: "https://sideseat.ai/docs/integrations/providers/anthropic/",
-    install: 'pip install "sideseat[anthropic]"',
-    code: () => `import anthropic
-from sideseat import SideSeat, Frameworks
-
-SideSeat(framework=Frameworks.Anthropic)
-
-client = anthropic.Anthropic()
-message = client.messages.create(
-    model="claude-sonnet-4-5-20250929",
-    system="Answer in one sentence.",
-    max_tokens=1024,
-    messages=[{"role": "user", "content": "What is the speed of light?"}],
-)
-
-print(message.content[0].text)`,
-    run: "python app.py",
-  },
-  {
-    id: "openai",
-    name: "OpenAI",
-    group: "Providers",
-    lang: "python",
-    docUrl: "https://sideseat.ai/docs/integrations/providers/openai/",
-    install: 'pip install "sideseat[openai]"',
-    code: () => `from openai import OpenAI
-from sideseat import SideSeat, Frameworks
-
-SideSeat(framework=Frameworks.OpenAI)
-
-client = OpenAI()
-response = client.chat.completions.create(
-    model="gpt-5-mini",
-    messages=[
-        {"role": "system", "content": "Answer in one sentence."},
-        {"role": "user", "content": "What is the speed of light?"},
-    ],
-    max_completion_tokens=1024,
-)
-
-print(response.choices[0].message.content)`,
-    run: "python app.py",
-  },
-  {
-    id: "azure-openai",
-    name: "Azure OpenAI",
-    group: "Providers",
-    lang: "python",
-    docUrl: "https://sideseat.ai/docs/integrations/providers/azure/",
-    install: 'pip install "sideseat[openai]"',
-    code: () => `from openai import AzureOpenAI
-from sideseat import SideSeat, Frameworks
-
-SideSeat(framework=Frameworks.OpenAI)
-
-azure = AzureOpenAI(
-    api_key="your-api-key",
-    api_version="2024-02-01",
-    azure_endpoint="https://your-resource.openai.azure.com",
-)
-
-response = azure.chat.completions.create(
-    model="gpt-5-mini",  # Your deployment name
-    messages=[
-        {"role": "system", "content": "Answer in one sentence."},
-        {"role": "user", "content": "What is the speed of light?"},
-    ],
-)
-
-print(response.choices[0].message.content)`,
-    run: "python app.py",
-  },
-  {
-    id: "google-gemini",
-    name: "Google Gemini",
-    group: "Providers",
-    lang: "python",
-    docUrl: "https://sideseat.ai/docs/integrations/providers/google-gemini/",
-    install: 'pip install "sideseat[google-genai]"',
-    code: () => `from google import genai
-from sideseat import SideSeat, Frameworks
-
-SideSeat(framework=Frameworks.GoogleGenAI)
-
-client = genai.Client(api_key="your-api-key")
-
-response = client.models.generate_content(
-    model="gemini-2.5-flash",
-    contents="What is the speed of light?",
-)
-
-print(response.text)`,
-    run: "python app.py",
-  },
-  {
-    id: "vertex-ai",
-    name: "Google Vertex AI",
-    group: "Providers",
-    lang: "python",
-    docUrl: "https://sideseat.ai/docs/integrations/providers/vertex-ai/",
-    install: 'pip install "sideseat[vertex-ai]" vertexai',
-    code: () => `import vertexai
-from vertexai.generative_models import GenerativeModel
-from sideseat import SideSeat, Frameworks
-
-SideSeat(framework=Frameworks.VertexAI)
-
-vertexai.init(project="your-project", location="us-central1")
-model = GenerativeModel("gemini-2.5-flash")
-response = model.generate_content("What is 2+2?")
-print(response.text)`,
-    run: "python app.py",
-  },
-  // — Frameworks —
-  {
-    id: "strands-python",
-    name: "Strands (Python)",
-    group: "Frameworks",
-    lang: "python",
-    docUrl:
-      "https://strandsagents.com/latest/documentation/docs/user-guide/observability-evaluation/traces/",
-    install: "pip install strands-agents sideseat",
-    code: () => `from strands import Agent
-from sideseat import SideSeat, Frameworks
-
-SideSeat(framework=Frameworks.Strands)
-
-agent = Agent()
-response = agent("What is 2+2?")
-print(response)`,
-    altInstall: "pip install 'strands-agents[otel]'",
-    altCode: () => `from strands.telemetry import StrandsTelemetry
-from strands import Agent
-
-telemetry = StrandsTelemetry()
-telemetry.setup_otlp_exporter()
-telemetry.setup_meter(enable_otlp_exporter=True)
-
-agent = Agent()
-response = agent("What is 2+2?")
-print(response)`,
-    run: "python agent.py",
-  },
-  {
-    id: "strands-typescript",
-    name: "Strands (TypeScript)",
-    group: "Frameworks",
-    lang: "javascript",
-    docUrl:
-      "https://strandsagents.com/latest/documentation/docs/user-guide/observability-evaluation/traces/",
-    install: "npm install @strands-agents/sdk @sideseat/sdk",
-    code: () => `import { init, Frameworks } from '@sideseat/sdk';
-import { Agent } from '@strands-agents/sdk';
-
-init({ framework: Frameworks.Strands });
-
-const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
-const result = await agent.invoke('What is 2+2?');
-console.log(result.toString());`,
-    altInstall:
-      "npm install @strands-agents/sdk @opentelemetry/sdk-trace-node @opentelemetry/sdk-trace-base @opentelemetry/exporter-trace-otlp-http",
-    altCode: () => `import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { Agent } from '@strands-agents/sdk';
-
-const provider = new NodeTracerProvider({
-  spanProcessors: [new BatchSpanProcessor(new OTLPTraceExporter())],
-});
-provider.register();
-
-const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
-const result = await agent.invoke('What is 2+2?');
-console.log(result.toString());
-
-await provider.shutdown();`,
-    run: "npx tsx agent.ts",
-  },
-  {
-    id: "vercel-ai",
-    name: "Vercel AI SDK",
-    group: "Frameworks",
-    lang: "javascript",
-    docUrl: "https://sdk.vercel.ai",
-    install: "npm install ai @ai-sdk/amazon-bedrock @sideseat/sdk",
-    code: () => `import { generateText } from 'ai';
-import { bedrock } from '@ai-sdk/amazon-bedrock';
-import { init, Frameworks } from '@sideseat/sdk';
-
-init({ framework: Frameworks.VercelAI });
-
-const { text } = await generateText({
-  model: bedrock('anthropic.claude-sonnet-4-5-20250929-v1:0'),
-  prompt: 'What is 2+2?',
-  experimental_telemetry: { isEnabled: true },
-});
-
-console.log(text);`,
-    altInstall:
-      "npm install ai @ai-sdk/amazon-bedrock @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http",
-    altCode: () => `import { NodeSDK } from '@opentelemetry/sdk-node';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-
-const sdk = new NodeSDK({ traceExporter: new OTLPTraceExporter() });
-sdk.start();
-
-import { generateText } from 'ai';
-import { bedrock } from '@ai-sdk/amazon-bedrock';
-
-const { text } = await generateText({
-  model: bedrock('anthropic.claude-sonnet-4-5-20250929-v1:0'),
-  prompt: 'What is 2+2?',
-  experimental_telemetry: { isEnabled: true },
-});
-
-console.log(text);`,
-    run: "npx tsx agent.ts",
-    note: "Requires experimental_telemetry: { isEnabled: true } on each generateText/streamText call.",
-  },
-  {
-    id: "google-adk",
-    name: "Google ADK",
-    group: "Frameworks",
-    lang: "python",
-    docUrl: "https://google.github.io/adk-docs/",
-    install: "pip install google-adk sideseat",
-    code: () => `import asyncio
-from google.adk.agents import Agent
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types
-from sideseat import SideSeat, Frameworks
-
-SideSeat(framework=Frameworks.GoogleADK)
-
-agent = Agent(
-    model="gemini-2.5-flash",
-    name="assistant",
-    instruction="You are a helpful assistant.",
-)
-
-async def main():
-    session_service = InMemorySessionService()
-    runner = Runner(agent=agent, app_name="my_app", session_service=session_service)
-    session = await session_service.create_session(app_name="my_app", user_id="user")
-    message = types.Content(role="user", parts=[types.Part(text="What is 2+2?")])
-    async for event in runner.run_async(
-        session_id=session.id, user_id="user", new_message=message
-    ):
-        if event.content and event.content.parts:
-            for part in event.content.parts:
-                if hasattr(part, "text") and part.text:
-                    print(part.text)
-
-asyncio.run(main())`,
-    altInstall: "pip install google-adk opentelemetry-sdk opentelemetry-exporter-otlp",
-    altCode: () => `import asyncio
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-
-provider = TracerProvider()
-provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-trace.set_tracer_provider(provider)
-
-from google.adk.agents import Agent
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types
-
-agent = Agent(
-    model="gemini-2.5-flash",
-    name="assistant",
-    instruction="You are a helpful assistant.",
-)
-
-async def main():
-    session_service = InMemorySessionService()
-    runner = Runner(agent=agent, app_name="my_app", session_service=session_service)
-    session = await session_service.create_session(app_name="my_app", user_id="user")
-    message = types.Content(role="user", parts=[types.Part(text="What is 2+2?")])
-    async for event in runner.run_async(
-        session_id=session.id, user_id="user", new_message=message
-    ):
-        if event.content and event.content.parts:
-            for part in event.content.parts:
-                if hasattr(part, "text") and part.text:
-                    print(part.text)
-
-asyncio.run(main())`,
-    run: "python agent.py",
-  },
-  {
-    id: "langgraph",
-    name: "LangGraph",
-    group: "Frameworks",
-    lang: "python",
-    docUrl: "https://langchain-ai.github.io/langgraph/",
-    install: 'pip install langgraph langchain-openai "sideseat[langgraph]"',
-    code: () => `from langgraph.prebuilt import create_react_agent
-from langchain_openai import ChatOpenAI
-from sideseat import SideSeat, Frameworks
-
-SideSeat(framework=Frameworks.LangGraph)
-
-llm = ChatOpenAI(model="gpt-5-mini")
-agent = create_react_agent(llm, tools=[])
-result = agent.invoke({"messages": [("user", "What is 2+2?")]})
-print(result["messages"][-1].content)`,
-    altInstall:
-      "pip install langgraph langchain-openai openinference-instrumentation-langchain opentelemetry-exporter-otlp",
-    altCode: () => `from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from openinference.instrumentation.langchain import LangChainInstrumentor
-
-provider = TracerProvider()
-provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-trace.set_tracer_provider(provider)
-LangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)
-
-from langgraph.prebuilt import create_react_agent
-from langchain_openai import ChatOpenAI
-
-llm = ChatOpenAI(model="gpt-5-mini")
-agent = create_react_agent(llm, tools=[])
-result = agent.invoke({"messages": [("user", "What is 2+2?")]})
-print(result["messages"][-1].content)`,
-    run: "python agent.py",
-  },
-  {
-    id: "openai-agents",
-    name: "OpenAI Agents SDK",
-    group: "Frameworks",
-    lang: "python",
-    docUrl: "https://openai.github.io/openai-agents-python/",
-    install: 'pip install openai-agents "sideseat[openai-agents]"',
-    code: () => `from agents import Agent, Runner
-from sideseat import SideSeat, Frameworks
-
-SideSeat(framework=Frameworks.OpenAIAgents)
-
-agent = Agent(name="Assistant", instructions="You are helpful.")
-result = Runner.run_sync(agent, "What is the capital of France?")
-print(result.final_output)`,
-    altInstall: 'pip install openai-agents "logfire>=4.29.0" opentelemetry-exporter-otlp',
-    altCode: () => `import logfire
-from opentelemetry import trace
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-
-logfire.configure(send_to_logfire=False, console=False)
-logfire.instrument_openai_agents()
-
-provider = trace.get_tracer_provider()
-provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-
-from agents import Agent, Runner
-
-agent = Agent(name="Assistant", instructions="You are helpful.")
-result = Runner.run_sync(agent, "What is the capital of France?")
-print(result.final_output)`,
-    run: "python openai_agent.py",
-  },
-  {
-    id: "agent-framework",
-    name: "Microsoft Agent Framework",
-    group: "Frameworks",
-    lang: "python",
-    docUrl: "https://sideseat.ai/docs/integrations/frameworks/agent-framework/",
-    install: "pip install agent-framework sideseat",
-    code: () => `import asyncio
-from agent_framework import Agent
-from agent_framework.openai import OpenAIChatClient
-from sideseat import SideSeat, Frameworks
-
-SideSeat(framework=Frameworks.AgentFramework)
-
-client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
-agent = Agent(client=client, instructions="You are a helpful assistant.")
-result = asyncio.run(agent.run("What is 2+2?"))
-print(result.text)`,
-    altInstall: "pip install agent-framework opentelemetry-sdk opentelemetry-exporter-otlp",
-    altCode: () => `import asyncio
-from agent_framework.observability import OBSERVABILITY_SETTINGS
-from agent_framework import Agent
-from agent_framework.openai import OpenAIChatClient
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-
-OBSERVABILITY_SETTINGS.enable_instrumentation = True
-OBSERVABILITY_SETTINGS.enable_sensitive_data = True
-
-provider = TracerProvider()
-provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(
-    endpoint="http://localhost:5388/otel/default/v1/traces"
-)))
-trace.set_tracer_provider(provider)
-
-client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
-agent = Agent(client=client, instructions="You are a helpful assistant.")
-result = asyncio.run(agent.run("What is 2+2?"))
-print(result.text)`,
-    run: "python agent.py",
-  },
-  {
-    id: "crewai",
-    name: "CrewAI",
-    group: "Frameworks",
-    lang: "python",
-    docUrl: "https://docs.crewai.com",
-    install: 'pip install crewai "sideseat[crewai]"',
-    code: () => `from crewai import Agent, Task, Crew
-from sideseat import SideSeat, Frameworks
-
-SideSeat(framework=Frameworks.CrewAI)
-
-researcher = Agent(
-    role="Researcher",
-    goal="Find information",
-    backstory="Expert researcher",
-)
-
-task = Task(
-    description="Research AI trends",
-    expected_output="Summary of trends",
-    agent=researcher,
-)
-
-crew = Crew(agents=[researcher], tasks=[task])
-
-result = crew.kickoff()
-print(result)`,
-    altInstall:
-      "pip install crewai openinference-instrumentation-crewai opentelemetry-exporter-otlp",
-    altCode: () => `from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from openinference.instrumentation.crewai import CrewAIInstrumentor
-
-provider = TracerProvider()
-provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-trace.set_tracer_provider(provider)
-CrewAIInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)
-
-from crewai import Agent, Task, Crew
-
-researcher = Agent(
-    role="Researcher",
-    goal="Find information",
-    backstory="Expert researcher",
-)
-task = Task(
-    description="Research AI trends",
-    expected_output="Summary of trends",
-    agent=researcher,
-)
-crew = Crew(agents=[researcher], tasks=[task])
-result = crew.kickoff()
-print(result)`,
-    run: "python crew.py",
-  },
-];
 
 function CodeBlock({ code, label, lang }: { code: string; label: string; lang?: string }) {
   const [copied, setCopied] = useState(false);
@@ -677,6 +164,36 @@ function ProjectSelector({
       </PopoverContent>
     </Popover>
   );
+}
+
+/** Provider setup shared by every "without the SDK" snippet.
+ *
+ * The altCode entries only show the instrumentor call, which references `provider`. Without
+ * this block in front of them the snippet raises NameError when pasted. The endpoint comes
+ * from OTEL_EXPORTER_OTLP_ENDPOINT, shown just above in the same panel, which both OTel
+ * SDKs expand to `<base>/v1/traces` on their own.
+ */
+function providerSetup(lang: "python" | "javascript"): string {
+  if (lang === "javascript") {
+    return `import { NodeSDK } from '@opentelemetry/sdk-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+
+const sdk = new NodeSDK({ traceExporter: new OTLPTraceExporter() });
+sdk.start();
+
+// Flush before the process exits, or a short-lived script can lose its spans.
+process.on('beforeExit', async () => {
+  await sdk.shutdown();
+});`;
+  }
+  return `from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)`;
 }
 
 function transformCode(
@@ -856,9 +373,26 @@ export default function TelemetryPage() {
                   <p className="text-xs text-muted-foreground">Install</p>
                   <CodeBlock code={framework.altInstall} label="Install command" lang="bash" />
                 </div>
+                {!framework.altSkipProviderSetup && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground">Configure the exporter</p>
+                    <CodeBlock
+                      code={providerSetup(framework.lang)}
+                      label="Provider setup"
+                      lang={framework.lang}
+                    />
+                  </div>
+                )}
                 <div className="space-y-1.5">
-                  <p className="text-xs text-muted-foreground">Code</p>
-                  <CodeBlock code={framework.altCode()} label="Setup code" lang={framework.lang} />
+                  <p className="text-xs text-muted-foreground">Instrument the framework</p>
+                  <CodeBlock
+                    code={transformCode(framework.altCode(), framework.lang, {
+                      useApiKey,
+                      projectId,
+                    })}
+                    label="Setup code"
+                    lang={framework.lang}
+                  />
                 </div>
               </div>
             )}
