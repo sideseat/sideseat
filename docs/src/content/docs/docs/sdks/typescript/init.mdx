@@ -86,7 +86,7 @@ init({ framework: Frameworks.VercelAI, debug: process.env.NODE_ENV !== 'producti
 ## createClient()
 
 ```typescript
-function createClient(options?: SideSeatOptions): Promise<SideSeat>;
+function createClient(options: SideSeatOptions): Promise<SideSeat>;
 ```
 
 Async initialization with connection validation. Preferred for production use.
@@ -102,9 +102,10 @@ Same as `init()` but additionally validates the endpoint is reachable before ret
 ### Examples
 
 ```typescript
-import { createClient } from '@sideseat/sdk';
+import { createClient, Frameworks } from '@sideseat/sdk';
 
 const client = await createClient({
+  framework: Frameworks.VercelAI,
   endpoint: 'http://sideseat.internal:5388',
   projectId: 'production'
 });
@@ -151,7 +152,12 @@ Check whether SideSeat has been initialized.
 
 ## Global Registration
 
-After initialization, any code using `@opentelemetry/api` will use the configured provider:
+After initialization, code using `@opentelemetry/api` picks up SideSeat's provider — provided
+no other library registered the global `TracerProvider` first. If one did, the OTel API refuses
+a second registration: SideSeat keeps its own provider (so `client.span`, `client.spanSync` and
+`client.getTracer` still export), but tracers obtained from the global API keep going to
+whoever registered first, and a warning is logged. Initialize SideSeat before that library if
+you need those spans.
 
 ```typescript
 import { init, Frameworks } from '@sideseat/sdk';

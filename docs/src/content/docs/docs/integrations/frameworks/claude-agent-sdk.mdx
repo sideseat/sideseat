@@ -1,0 +1,287 @@
+---
+title: Claude Agent SDK
+description: Integrate SideSeat with the Claude Agent SDK (Python and TypeScript) to trace agent runs, tool calls, and subagent delegation.
+---
+
+import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
+
+The [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk) is Claude Code packaged as a library: built-in file and shell tools, the agent loop, subagents, hooks, and permissions.
+
+It differs from every other integration on this page in one important way. The SDK **emits no telemetry itself** — it spawns the Claude Code CLI as a child process, and the CLI carries the OpenTelemetry instrumentation. There is no instrumentor to install. You configure telemetry with environment variables passed into the subprocess.
+
+<Aside type="caution" title="Never use the console exporter">
+The CLI writes telemetry to stdout, and stdout is the Agent SDK's message channel. Setting any `OTEL_*_EXPORTER` to `console` corrupts the message stream. Use `otlp` and point it at SideSeat.
+</Aside>
+
+## Quick Start
+
+<Steps>
+1. **Start SideSeat**
+
+   ```bash
+   npx sideseat
+   ```
+
+2. **Install dependencies**
+
+   <Tabs syncKey="lang">
+     <TabItem label="Python">
+       ```bash
+       pip install claude-agent-sdk sideseat
+       ```
+     </TabItem>
+     <TabItem label="TypeScript">
+       ```bash
+       npm install @anthropic-ai/claude-agent-sdk @sideseat/sdk
+       ```
+     </TabItem>
+   </Tabs>
+
+3. **Add telemetry**
+
+   <Tabs syncKey="lang">
+     <TabItem label="Python">
+       ```python
+       import asyncio
+       from claude_agent_sdk import query, ClaudeAgentOptions
+       from sideseat import SideSeat, Frameworks
+
+       client = SideSeat(framework=Frameworks.ClaudeAgentSDK)
+
+       # Passed to the CLI subprocess, which exports OTLP directly.
+       OTEL_ENV = {
+           "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+           # Span tracing is beta and off without this flag.
+           "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA": "1",
+           # Second beta tier. Without these two the Messages tab stays empty:
+           # assistant reply text exists nowhere else on the trace.
+           "ENABLE_BETA_TRACING_DETAILED": "1",
+           "BETA_TRACING_ENDPOINT": "http://localhost:5388/otel/default",
+           "OTEL_TRACES_EXPORTER": "otlp",
+           "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
+           "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://localhost:5388/otel/default/v1/traces",
+           # Content is redacted by default.
+           "OTEL_LOG_USER_PROMPTS": "1",
+           "OTEL_LOG_TOOL_DETAILS": "1",
+       }
+
+
+       async def main():
+           options = ClaudeAgentOptions(env=OTEL_ENV, allowed_tools=["Read", "Glob"])
+           # client.trace() parents the run: the SDK injects TRACEPARENT.
+           with client.trace("agent-run"):
+               async for message in query(prompt="What is 2+2?", options=options):
+                   print(message)
+
+
+       asyncio.run(main())
+       ```
+     </TabItem>
+     <TabItem label="TypeScript">
+       ```typescript
+       import { query } from '@anthropic-ai/claude-agent-sdk';
+       import { init, Frameworks } from '@sideseat/sdk';
+
+       init({ framework: Frameworks.ClaudeAgentSDK });
+
+       // Passed to the CLI subprocess, which exports OTLP directly.
+       const otelEnv = {
+         CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+         // Span tracing is beta and off without this flag.
+         CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',
+         // Second beta tier. Without these two the Messages tab stays empty:
+         // assistant reply text exists nowhere else on the trace.
+         ENABLE_BETA_TRACING_DETAILED: '1',
+         BETA_TRACING_ENDPOINT: 'http://localhost:5388/otel/default',
+         OTEL_TRACES_EXPORTER: 'otlp',
+         OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: 'http/protobuf',
+         OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://localhost:5388/otel/default/v1/traces',
+         // Content is redacted by default.
+         OTEL_LOG_USER_PROMPTS: '1',
+         OTEL_LOG_TOOL_DETAILS: '1',
+       };
+
+       for await (const message of query({
+         prompt: 'What is 2+2?',
+         // env REPLACES the inherited environment in TypeScript, so spread process.env.
+         options: { env: { ...process.env, ...otelEnv }, allowedTools: ['Read', 'Glob'] },
+       })) {
+         console.log(message);
+       }
+       ```
+     </TabItem>
+   </Tabs>
+
+4. **View runs**
+
+   Open [http://localhost:5388](http://localhost:5388) to see your runs.
+</Steps>
+
+<Aside type="note" title="env merges in Python, replaces in TypeScript">
+`ClaudeAgentOptions.env` is merged on top of the inherited process environment. `options.env` in TypeScript **replaces** it entirely — omit `...process.env` and the subprocess loses `PATH` and your credentials.
+</Aside>
+
+## Without SideSeat SDK
+
+The SideSeat SDK is optional here. It provides a root span for the run and trace-context propagation, but the CLI exports on its own, so the environment variables alone are enough.
+
+<Steps>
+1. **Start SideSeat**
+
+   ```bash
+   npx sideseat
+   ```
+
+2. **Export the variables**
+
+   ```bash
+   export CLAUDE_CODE_ENABLE_TELEMETRY=1
+   export CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1
+   export OTEL_TRACES_EXPORTER=otlp
+   export OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+   export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:5388/otel/default/v1/traces
+
+   # Required for the Messages tab - see Capturing Content below
+   export ENABLE_BETA_TRACING_DETAILED=1
+   export BETA_TRACING_ENDPOINT=http://localhost:5388/otel/default
+   export OTEL_LOG_USER_PROMPTS=1
+   export OTEL_LOG_TOOL_DETAILS=1
+   ```
+
+   The child process inherits your environment, so no `env` option is needed.
+
+3. **Run your agent**
+
+   <Tabs syncKey="lang">
+     <TabItem label="Python">
+       ```python
+       import asyncio
+       from claude_agent_sdk import query
+
+       async def main():
+           async for message in query(prompt="What is 2+2?"):
+               print(message)
+
+       asyncio.run(main())
+       ```
+     </TabItem>
+     <TabItem label="TypeScript">
+       ```typescript
+       import { query } from '@anthropic-ai/claude-agent-sdk';
+
+       for await (const message of query({ prompt: 'What is 2+2?' })) {
+         console.log(message);
+       }
+       ```
+     </TabItem>
+   </Tabs>
+</Steps>
+
+## What You'll See
+
+Each step of the agent loop becomes a span:
+
+```
+claude_code.interaction              (one turn of the agent loop)
+├── claude_code.llm_request          (one Claude API call)
+├── claude_code.tool                 (one tool invocation)
+│   ├── claude_code.tool.blocked_on_user   (permission wait)
+│   └── claude_code.tool.execution         (the actual work)
+└── claude_code.hook                 (requires detailed beta tracing)
+```
+
+`llm_request` carries a few GenAI semantic conventions (`gen_ai.system`, `gen_ai.request.model`, `gen_ai.response.finish_reasons`) alongside its own fields (`stop_reason`, `ttft_ms`, `duration_ms`, `speed`); `tool` carries `gen_ai.tool.call.id` next to `tool_name` and `tool_use_id`. On Bedrock, `request_id` and `gen_ai.response.id` were not observed.
+
+Token counts use the CLI's own names (`input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_creation_tokens`) rather than `gen_ai.usage.*`. SideSeat reads both, so costs are attributed normally.
+
+When the agent delegates through a subagent, the subagent's `llm_request` and `tool` spans nest under the parent's `claude_code.tool` span, so the full delegation chain is one trace.
+
+## Capturing Content (required for the message feed)
+
+Telemetry is structural by default: durations, model names, and token counts only. Two separate opt-ins are needed before the SideSeat **Messages** tab shows anything.
+
+First, un-redact content:
+
+```bash
+OTEL_LOG_USER_PROMPTS=1   # prompt text
+OTEL_LOG_TOOL_DETAILS=1   # tool input arguments, file paths, commands
+```
+
+Second — and this is the one that is easy to miss — turn on **detailed beta tracing**. The attributes that carry the actual conversation are emitted *only* under this second tier:
+
+```bash
+ENABLE_BETA_TRACING_DETAILED=1
+BETA_TRACING_ENDPOINT=http://localhost:5388/otel/default   # base URL, not /v1/traces
+```
+
+| Attribute | Span | Becomes |
+|---|---|---|
+| `user_system_prompt` | `llm_request` | system message |
+| `new_context` | `llm_request` | user turn, or a tool result |
+| `response.model_output` | `llm_request` | **assistant reply text** |
+| `tool_input` | `tool` | the arguments on the tool call |
+
+Without `ENABLE_BETA_TRACING_DETAILED` you get spans, timings, tokens and costs, but no messages: assistant reply text exists nowhere else on the trace. The alternative surface is the OTLP **logs** signal (`claude_code.assistant_response`), which SideSeat accepts but does not persist.
+
+`BETA_TRACING_ENDPOINT` takes a base URL — passing a full `/v1/traces` path returns 404. Set `CLAUDE_CODE_OTEL_DIAG_STDERR=1` to see such errors instead of losing telemetry silently.
+
+<Aside type="caution">
+These put the content your agent reads and writes into your telemetry pipeline. Leave them unset unless that pipeline is approved to store it.
+</Aside>
+
+<Aside type="note" title="Skip OTEL_LOG_TOOL_CONTENT when detailed tracing is on">
+`OTEL_LOG_TOOL_CONTENT=1` adds a `tool.output` span event holding the tool result. With detailed beta tracing that result already arrives via `new_context`, carrying the `tool_use_id` that pairs it with its call, so enabling both shows every tool result twice. Use it only when running *without* detailed tracing.
+</Aside>
+
+## Short-Lived Runs
+
+The CLI batches spans and exports every 5 seconds. It flushes on a clean exit, but the flush is bounded by a timeout, and anything still buffered is lost if the process is killed. For short scripts, shorten the interval:
+
+```bash
+OTEL_TRACES_EXPORT_INTERVAL=1000
+```
+
+Export failures are silent by default. To surface them, set `CLAUDE_CODE_OTEL_DIAG_STDERR=1` and read the CLI's stderr through the `stderr` callback.
+
+## Amazon Bedrock
+
+Route the CLI at Bedrock with the standard AWS credential chain:
+
+```bash
+export CLAUDE_CODE_USE_BEDROCK=1
+export AWS_REGION=us-east-1
+export ANTHROPIC_MODEL='global.anthropic.claude-haiku-4-5-20251001-v1:0'
+# Background tasks default to Sonnet on Bedrock, which may not be enabled.
+export ANTHROPIC_DEFAULT_HAIKU_MODEL='global.anthropic.claude-haiku-4-5-20251001-v1:0'
+```
+
+One Bedrock limitation is easy to miss: **WebSearch is unavailable** on Bedrock.
+
+The Agent SDK docs also state the `thinking` config is not forwarded to Bedrock, but a run against `claude-haiku-4-5` on 2026-08-25 did return thinking blocks. Treat Bedrock thinking support as version-dependent rather than guaranteed.
+
+## Metrics and Events
+
+The CLI also exports metrics (token and cost counters) and log events
+(`claude_code.api_request`, `claude_code.tool_result`, and others) as independent signals.
+SideSeat ingests and stores metrics, but currently accepts the logs endpoint without
+persisting anything from it. The samples turn both off because the span data already
+carries the tokens and costs these signals duplicate:
+
+```bash
+OTEL_METRICS_EXPORTER=none
+OTEL_LOGS_EXPORTER=none
+```
+
+Token counts are recorded on `llm_request` spans, so per-request usage still reaches SideSeat, and SideSeat derives cost from those counts with its own pricing data — the Traces list shows tokens and cost normally.
+
+The CLI also computes its own USD figure, which it reports on the `claude_code.api_request` log event and on `ResultMessage.total_cost_usd`. That one is a client-side estimate rather than billing data, and it may differ slightly from what SideSeat calculates, so don't be surprised when the two disagree.
+
+<Aside type="note" title="Tracing is beta">
+Span names and attributes may change between Claude Code releases. See the [Agent SDK observability guide](https://code.claude.com/docs/en/agent-sdk/observability) for the current reference.
+</Aside>
+
+## Next Steps
+
+- [Python SDK](/docs/sdks/python/)
+- [TypeScript SDK](/docs/sdks/typescript/)
+- [Amazon Bedrock](/docs/integrations/providers/bedrock/)

@@ -50,7 +50,7 @@ flowchart LR
 ## Features
 
 - **OTLP-compatible**: Receives traces via standard OpenTelemetry protocol (HTTP JSON/Protobuf, gRPC)
-- **Framework detection**: Automatically detects Strands, LangGraph, Vercel AI SDK, Google ADK, and other AI frameworks
+- **Framework detection**: Automatically detects Strands, LangGraph, Vercel AI SDK, Google ADK, Claude Agent SDK, and other AI frameworks
 - **GenAI field extraction**: Extracts token usage, model info, and other GenAI-specific fields
 - **Bounded memory**: Configurable buffer limits prevent memory exhaustion
 - **FIFO storage**: Automatic cleanup when storage limits are reached
@@ -74,7 +74,7 @@ flowchart LR
 | `/api/v1/project/{project_id}/otel/traces` | GET | List traces with filtering |
 | `/api/v1/project/{project_id}/otel/traces/filter-options` | GET | Get available filter options |
 | `/api/v1/project/{project_id}/otel/traces/{trace_id}` | GET | Get single trace details |
-| `/api/v1/project/{project_id}/otel/traces/{trace_id}` | DELETE | Delete a trace and all associated data |
+| `/api/v1/project/{project_id}/otel/traces` | DELETE | Delete traces (batch) — JSON body `{"trace_ids": ["..."]}` |
 | `/api/v1/project/{project_id}/otel/traces/{trace_id}/spans` | GET | Get spans for a trace |
 | `/api/v1/project/{project_id}/otel/spans` | GET | Query spans with GenAI fields |
 | `/api/v1/project/{project_id}/otel/traces/{trace_id}/spans/{span_id}` | GET | Get span detail with events |
@@ -190,16 +190,20 @@ exporter = OTLPSpanExporter(endpoint="localhost:4317", insecure=True)
 
 SideSeat automatically detects and normalizes spans from popular AI frameworks:
 
+Detection uses the span name, span attributes, and resource attributes (notably
+`service.name`). The instrumentation scope name is not consulted.
+
 | Framework | Detection Method | Extracted Fields |
 |-----------|------------------|------------------|
-| Strands | Scope name, resource attrs | Cycle ID, agent info |
-| Vercel AI SDK | Scope name, attributes | Model, tokens, telemetry |
-| LangGraph | Scope name, attributes | Node, edge, state |
-| LangChain | Scope name, attributes | Chain type, run ID |
-| CrewAI | Scope name, attributes | Crew, agent, task |
-| AutoGen | Scope name, attributes | Agent name, chat round |
-| Google ADK | Scope name, attributes | Agent name, model |
-| OpenAI Agents | Logfire span type | Agent name, model |
+| Strands | `service.name`, `gen_ai.system`, span name | Cycle ID, agent info |
+| Vercel AI SDK | `ai.*` attributes | Model, tokens, telemetry |
+| LangGraph | `langgraph.*` attributes, span name | Node, edge, state |
+| LangChain | `langchain.*` / `langsmith.*` attributes | Chain type, run ID |
+| CrewAI | `crew_*` attributes, `service.name` | Crew, agent, task |
+| AutoGen | `autogen.*` attributes, span name | Agent name, chat round |
+| Google ADK | `google.adk.*` / `gcp.vertex.agent.*` attributes | Agent name, model |
+| OpenAI Agents | `openai.agents.*`, `service.name` | Agent name, model |
+| Claude Agent SDK | `claude_code.*` span names, `service.name` | Model, tokens, messages |
 | Microsoft Agent Framework | GenAI semantic conventions | Model, tokens, tool calls |
 | Google Vertex AI | `vertexai.*` span names | Model, tokens, tool calls |
 | OpenInference | Attribute prefix | Session ID, user ID |
@@ -217,14 +221,21 @@ The collector extracts and normalizes GenAI-specific fields:
 | `gen_ai_operation_name` | Operation type (chat, completion) |
 | `gen_ai_agent_name` | Agent name (for agent frameworks) |
 | `gen_ai_tool_name` | Tool name (for tool calls) |
-| `usage_input_tokens` | Input/prompt tokens |
-| `usage_output_tokens` | Output/completion tokens |
-| `usage_total_tokens` | Total tokens (computed if not provided) |
-| `usage_cache_read_tokens` | Cache read tokens (Anthropic) |
-| `usage_cache_write_tokens` | Cache write tokens (Anthropic) |
-| `time_to_first_token_ms` | Time to first token (TTFT) |
-| `request_duration_ms` | Total request duration |
+| `gen_ai_usage_input_tokens` | Input/prompt tokens |
+| `gen_ai_usage_output_tokens` | Output/completion tokens |
+| `gen_ai_usage_total_tokens` | Total tokens (computed if not provided) |
+| `gen_ai_usage_cache_read_tokens` | Cache read tokens (Anthropic) |
+| `gen_ai_usage_cache_write_tokens` | Cache write tokens (Anthropic) |
+| `gen_ai_usage_reasoning_tokens` | Reasoning tokens |
+| `gen_ai_cost_input` / `gen_ai_cost_output` / `gen_ai_cost_total` | Computed cost, USD |
+| `gen_ai_server_ttft_ms` | Time to first token (TTFT) |
+| `gen_ai_server_request_duration_ms` | Total request duration |
 | `session_id` | Session/conversation ID |
+
+These are the normalized storage field names. The trace and span **query** responses
+return shorter aliases for the same values — `input_tokens`, `output_tokens`,
+`total_tokens`, `cache_read_tokens`, `cache_write_tokens`, `reasoning_tokens`,
+`input_cost`, `output_cost`, `total_cost`, `model`, `agent_name`, `duration_ms`.
 
 ## Span Events
 
@@ -239,7 +250,11 @@ Span events (messages, tool calls, choices) are automatically categorized:
 | `tool_result` | tool | Tool execution results |
 | `choice` | assistant | Completion choices with finish_reason |
 
-Events include `content_preview` (first 500 chars) and tool correlation fields (`tool_name`, `tool_call_id`).
+Message content is not returned on the span record itself. Use the dedicated messages
+endpoints (`/traces/{id}/messages`, `/spans/{trace_id}/{span_id}/messages`) for
+normalized message content, or `?include_raw_span=true` for the untouched OTLP span
+with its events and attributes. Span records carry only the truncated `input_preview`
+and `output_preview` strings for list display.
 
 ## Storage
 
@@ -279,18 +294,40 @@ Use the `filters` query parameter on list endpoints to filter by attributes and 
 
 ### Filter Operators
 
-The attribute filter API supports these operators:
+Filters are a JSON array passed in the `filters` query parameter. Each entry is tagged by
+`type` and carries a `column`, an `operator`, and (except for `null`) a `value`. Operators
+are SQL-shaped literals, not names — `"="`, not `"eq"`.
 
-| Operator | Description | Example |
-|----------|-------------|---------|
-| `eq` | Equals | `{"key":"env","op":"eq","value":"prod"}` |
-| `ne` | Not equals | `{"key":"env","op":"ne","value":"dev"}` |
-| `contains` | Contains substring | `{"key":"user_id","op":"contains","value":"admin"}` |
-| `starts_with` | Starts with | `{"key":"session_id","op":"starts_with","value":"sess_"}` |
-| `in` | In list | `{"key":"env","op":"in","value":["prod","staging"]}` |
-| `gt`, `lt`, `gte`, `lte` | Numeric comparison | `{"key":"latency","op":"gt","value":1000}` |
-| `is_null` | Attribute not present | `{"key":"error","op":"is_null","value":null}` |
-| `is_not_null` | Attribute present | `{"key":"user_id","op":"is_not_null","value":null}` |
+| `type` | Operators | Value |
+|--------|-----------|-------|
+| `string` | `=`, `contains`, `starts_with`, `ends_with` | string |
+| `number` | `=`, `>`, `<`, `>=`, `<=` | number |
+| `datetime` | `>`, `<`, `>=`, `<=` | RFC 3339 string |
+| `string_options` | `any of`, `none of` | array of strings |
+| `boolean` | `=`, `<>` | boolean |
+| `null` | `is null`, `is not null` | omitted |
+
+Each endpoint allows its own set of columns and rejects the rest with
+`INVALID_FILTER_COLUMN`. Notably the timestamp column differs: `/traces` and `/sessions`
+use `start_time` / `end_time`, while `/spans` also accepts `timestamp_start` /
+`timestamp_end`.
+
+```bash
+# Traces slower than 1s
+curl -G "http://localhost:5388/api/v1/project/default/otel/traces" \
+  --data-urlencode 'filters=[{"type":"number","column":"duration_ms","operator":">","value":1000}]'
+
+# Traces from either framework, since a given date
+curl -G "http://localhost:5388/api/v1/project/default/otel/traces" \
+  --data-urlencode 'filters=[
+    {"type":"string_options","column":"framework","operator":"any of","value":["StrandsAgents","ClaudeAgentSDK"]},
+    {"type":"datetime","column":"start_time","operator":">=","value":"2026-01-01T00:00:00Z"}
+  ]'
+
+# Spans that belong to a session
+curl -G "http://localhost:5388/api/v1/project/default/otel/spans" \
+  --data-urlencode 'filters=[{"type":"null","column":"session_id","operator":"is not null"}]'
+```
 
 ## Query Examples
 
@@ -303,17 +340,21 @@ curl http://localhost:5388/api/v1/project/default/otel/traces
 ### Filter by Attributes
 
 ```bash
-# Filter traces where environment=production
-curl "http://localhost:5388/api/v1/project/default/otel/traces?filters=%5B%7B%22key%22%3A%22environment%22%2C%22op%22%3A%22eq%22%2C%22value%22%3A%22production%22%7D%5D"
-
-# Decoded: filters=[{\"key\":\"environment\",\"op\":\"eq\",\"value\":\"production\"}]
+# Traces where environment = production
+curl -G "http://localhost:5388/api/v1/project/default/otel/traces" \
+  --data-urlencode 'filters=[{"type":"string","column":"environment","operator":"=","value":"production"}]'
 ```
 
 ### Multiple Attribute Filters
 
+Entries in the array are combined with AND.
+
 ```bash
-# Filter by environment AND user_id
-curl "http://localhost:5388/api/v1/project/default/otel/traces?filters=%5B%7B%22key%22%3A%22environment%22%2C%22op%22%3A%22eq%22%2C%22value%22%3A%22production%22%7D%2C%7B%22key%22%3A%22user_id%22%2C%22op%22%3A%22eq%22%2C%22value%22%3A%22user-123%22%7D%5D"
+curl -G "http://localhost:5388/api/v1/project/default/otel/traces" \
+  --data-urlencode 'filters=[
+    {"type":"string","column":"environment","operator":"=","value":"production"},
+    {"type":"string","column":"user_id","operator":"=","value":"user-123"}
+  ]'
 ```
 
 ### Get Trace Details
@@ -330,19 +371,21 @@ Discover available filter values for building UI dropdowns:
 curl http://localhost:5388/api/v1/project/default/otel/traces/filter-options
 ```
 
-Response:
+The response is a single `options` map from filterable column name to the values present,
+each with an occurrence count:
+
 ```json
 {
-  "services": ["my-agent", "my-service"],
-  "frameworks": ["langchain", "openai"],
-  "attributes": [
-    {
-      "key": "environment",
-      "key_type": "string",
-      "entity_type": "trace",
-      "sample_values": ["production", "staging", "development"]
-    }
-  ]
+  "options": {
+    "trace_name": [
+      { "value": "invoke_agent Strands Agents", "count": 87 },
+      { "value": "chat global.anthropic.claude-haiku-4-5", "count": 104 }
+    ],
+    "environment": [{ "value": "production", "count": 42 }],
+    "session_id": [],
+    "user_id": [],
+    "tags": []
+  }
 }
 ```
 
@@ -356,18 +399,16 @@ Response:
 
 ### High Memory Usage
 
-Reduce buffer sizes in config:
+Ingestion buffers are sized with environment variables. There is no `otel.ingestion`
+section in the config file — unknown keys there are silently ignored, so setting them
+has no effect.
 
-```json
-{
-  "otel": {
-    "ingestion": {
-      "channel_capacity": 500,
-      "buffer_max_spans": 500,
-      "buffer_max_bytes": 5242880
-    }
-  }
-}
+```bash
+# In-memory ingest buffer per topic, in bytes (default: 104857600 = 100 MB)
+SIDESEAT_TOPIC_BUFFER_SIZE=5242880
+
+# Max queued messages per topic channel (default: 100000)
+SIDESEAT_TOPIC_CHANNEL_CAPACITY=500
 ```
 
 ### Disk Full

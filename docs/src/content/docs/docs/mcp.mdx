@@ -124,7 +124,14 @@ No authentication is required. SideSeat binds to `127.0.0.1` by default, so only
 |--------|----------|-------------|
 | `setup_guide` | `framework` (optional) | Installation and instrumentation instructions for adding SideSeat to an AI application. Returns SDK one-liner and direct OTLP setup. |
 
-Supported `framework` values: `strands`, `langchain`, `langgraph`, `crewai`, `autogen`, `openai-agents`, `pydantic-ai`, `google-adk`, `agent-framework`, `bedrock`, `openai`, `anthropic`, `google-genai`, `vertex-ai`.
+Supported `framework` values.
+
+Python: `strands`, `langchain`, `langgraph`, `crewai`, `autogen`, `openai-agents`,
+`pydantic-ai`, `google-adk`, `agent-framework`, `claude-agent-sdk`, `bedrock`, `openai`,
+`anthropic`, `google-genai`, `vertex-ai`.
+
+TypeScript: `vercel-ai`, `strands-typescript`, `claude-agent-sdk-typescript`. These emit
+`npm install` and TypeScript snippets instead of pip and Python.
 
 Example prompt to your coding agent:
 

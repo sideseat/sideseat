@@ -107,6 +107,10 @@ with client.span("user-request", user_id="user-456", session_id="session-xyz"):
 
 Create a root span that groups child spans into a single trace.
 
+Unlike `span()`, this always starts a **new** trace: any currently active span is detached, so
+the result is a root even when `trace()` is called inside another span. Use `span()` when you
+want to nest into the surrounding trace instead.
+
 **Parameters**:
 - `name` (str): Trace name
 - `user_id` (str, optional): User ID for this trace and its children

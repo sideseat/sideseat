@@ -12,12 +12,12 @@ SideSeat works with any framework that emits OpenTelemetry traces. This page cov
 <Tabs>
   <TabItem label="pip">
     ```bash
-    pip install langchain langchain-openai sideseat
+    pip install langchain langchain-openai "sideseat[langchain]"
     ```
   </TabItem>
   <TabItem label="uv">
     ```bash
-    uv add langchain langchain-openai sideseat
+    uv add langchain langchain-openai "sideseat[langchain]"
     ```
   </TabItem>
 </Tabs>
@@ -42,12 +42,12 @@ For stateful agent workflows, use [LangGraph](/docs/integrations/frameworks/lang
 <Tabs>
   <TabItem label="pip">
     ```bash
-    pip install pydantic-ai sideseat
+    pip install pydantic-ai "sideseat[pydantic-ai]"
     ```
   </TabItem>
   <TabItem label="uv">
     ```bash
-    uv add pydantic-ai sideseat
+    uv add pydantic-ai "sideseat[pydantic-ai]"
     ```
   </TabItem>
 </Tabs>
@@ -60,31 +60,37 @@ SideSeat(framework=Frameworks.PydanticAI)
 
 agent = Agent('openai:gpt-5-mini')
 result = agent.run_sync('What is the capital of France?')
-print(result.data)
+print(result.output)
 ```
 
 ## LlamaIndex
 
-LlamaIndex emits OpenTelemetry traces natively. SideSeat captures them without framework-specific instrumentation.
+LlamaIndex does **not** emit OpenTelemetry itself — it has its own instrumentation dispatcher
+and no `opentelemetry` dependency. Bridging it needs the OpenInference instrumentor, which
+SideSeat does not bundle as an extra, so install it alongside:
 
 <Tabs>
   <TabItem label="pip">
     ```bash
-    pip install llama-index sideseat
+    pip install llama-index sideseat openinference-instrumentation-llama-index
     ```
   </TabItem>
   <TabItem label="uv">
     ```bash
-    uv add llama-index sideseat
+    uv add llama-index sideseat openinference-instrumentation-llama-index
     ```
   </TabItem>
 </Tabs>
 
 ```python
 from sideseat import SideSeat
+from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
 
-SideSeat(auto_instrument=False)
+# auto_instrument=False: without a LlamaIndex branch the SDK would otherwise instrument
+# whichever framework it happens to auto-detect from your installed packages.
+client = SideSeat(auto_instrument=False)
+LlamaIndexInstrumentor().instrument(tracer_provider=client.telemetry.tracer_provider)
 
 documents = SimpleDirectoryReader("data").load_data()
 index = VectorStoreIndex.from_documents(documents)
@@ -94,33 +100,193 @@ response = query_engine.query("What is this about?")
 print(response)
 ```
 
+There is no `Frameworks.LlamaIndex` constant. Passing `framework="llama-index"` would not do
+what it looks like: an unrecognised value is recorded as a **provider**, and `framework` still
+falls back to auto-detection. Hence `auto_instrument=False` above. The resulting spans are
+classified as OpenInference, which is what the instrumentor emits.
+
 ## AutoGen
 
 <Tabs>
   <TabItem label="pip">
     ```bash
-    pip install autogen-agentchat "sideseat[autogen]"
+    pip install autogen-agentchat "autogen-ext[openai]" "sideseat[autogen]"
     ```
   </TabItem>
   <TabItem label="uv">
     ```bash
-    uv add autogen-agentchat "sideseat[autogen]"
+    uv add autogen-agentchat "autogen-ext[openai]" "sideseat[autogen]"
     ```
   </TabItem>
 </Tabs>
 
 ```python
+import asyncio
+
 from sideseat import SideSeat, Frameworks
-from autogen import AssistantAgent, UserProxyAgent
+from autogen_agentchat.agents import AssistantAgent
+from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 SideSeat(framework=Frameworks.AutoGen)
 
-config_list = [{"model": "gpt-5-mini", "api_key": "sk-xxx"}]
-assistant = AssistantAgent("assistant", llm_config={"config_list": config_list})
-user = UserProxyAgent("user", human_input_mode="NEVER")
 
-user.initiate_chat(assistant, message="Hello!")
+async def main():
+    model_client = OpenAIChatCompletionClient(model="gpt-5-mini", api_key="sk-xxx")
+    assistant = AssistantAgent("assistant", model_client=model_client)
+    result = await assistant.run(task="Hello!")
+    print(result.messages[-1].content)
+
+
+asyncio.run(main())
 ```
+
+## Agno
+
+```bash
+pip install agno openai "sideseat[agno]"
+```
+
+```python
+from sideseat import SideSeat, Frameworks
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+
+SideSeat(framework=Frameworks.Agno)
+
+agent = Agent(model=OpenAIChat(id="gpt-5-mini"), tools=[])
+agent.print_response("Hello!")
+```
+
+Agno is instrumented through OpenInference. Its spans carry `agno.*` attributes alongside
+`openinference.*`, and SideSeat's detection prefers the specific `agno.` prefix so runs are
+labelled Agno rather than the generic OpenInference.
+
+## Smolagents
+
+```bash
+pip install smolagents "sideseat[smolagents]"
+```
+
+```python
+from sideseat import SideSeat, Frameworks
+from smolagents import CodeAgent, InferenceClientModel
+
+SideSeat(framework=Frameworks.Smolagents)
+
+agent = CodeAgent(tools=[], model=InferenceClientModel())
+agent.run("What is 2+2?")
+```
+
+Only the agent run span carries `smolagents.*`; step, model and tool spans inside the run
+are attributed by their own attributes.
+
+## AG2
+
+```bash
+pip install "ag2[openai]<1.0" "sideseat[ag2]"
+```
+
+```python
+from sideseat import SideSeat, Frameworks
+from autogen import ConversableAgent
+
+SideSeat(framework=Frameworks.AG2)
+
+assistant = ConversableAgent(
+    name="assistant",
+    llm_config={"model": "gpt-5-mini"},
+)
+print(assistant.generate_reply(messages=[{"role": "user", "content": "Hello!"}]))
+```
+
+AG2 is the community fork of AutoGen and keeps the `autogen` import path, so its
+OpenInference instrumentor is `openinference-instrumentation-autogen`. Pin below 1.0: ag2 1.0
+renamed its top-level module from `autogen` to `ag2` and removed `ConversableAgent`, and the
+instrumentor patches `autogen`. SideSeat
+distinguishes the two by the `ag2.*` attribute prefix, so AG2 runs are not mislabelled
+AutoGen.
+
+## AgentScope
+
+```bash
+pip install agentscope sideseat
+```
+
+```python
+from sideseat import SideSeat, Frameworks
+
+SideSeat(framework=Frameworks.AgentScope)
+
+# AgentScope emits OpenTelemetry itself and only needs the provider SideSeat installs.
+```
+
+No extra is needed: AgentScope exports spans through the global tracer provider. Its spans
+carry `agentscope.*` attributes and `gen_ai.conversation.id`, which SideSeat reads as the
+session id.
+
+## Langflow
+
+```bash
+pip install langflow sideseat
+```
+
+Langflow emits OpenTelemetry itself. Either run it in a process where SideSeat has
+installed the provider, or point Langflow's own OTLP exporter at SideSeat:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+```
+
+Flow spans carry `langflow.flow_id`, `langflow.flow_name` and `langflow.session_id`.
+
+## Haystack
+
+```bash
+pip install haystack-ai "sideseat[haystack]"
+```
+
+```python
+from sideseat import SideSeat, Frameworks
+from haystack import Pipeline
+from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.dataclasses import ChatMessage
+
+SideSeat(framework=Frameworks.Haystack)
+
+pipeline = Pipeline()
+pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-5-mini"))
+result = pipeline.run({"llm": {"messages": [ChatMessage.from_user("Hello")]}})
+print(result["llm"]["replies"][0].text)
+```
+
+Component spans carry `haystack.component.name` and `haystack.component.type`, which
+SideSeat uses to label the run Haystack rather than generic OpenInference.
+
+## browser-use
+
+```bash
+pip install browser-use sideseat
+```
+
+```python
+import asyncio
+
+from sideseat import SideSeat, Frameworks
+from browser_use import Agent, ChatOpenAI
+
+SideSeat(framework=Frameworks.BrowserUse)
+
+
+async def main():
+    agent = Agent(task="Find the docs", llm=ChatOpenAI(model="gpt-5-mini"))
+    print(await agent.run())
+
+
+asyncio.run(main())
+```
+
+No extra is needed: browser-use exports OpenTelemetry through the global provider. Every
+span it emits sets `gen_ai.provider.name = "browser_use"`, which is how SideSeat detects it.
 
 ## Generic OpenTelemetry
 

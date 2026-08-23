@@ -29,17 +29,23 @@ The Vercel AI SDK is TypeScript-only. For Python frameworks, see [Strands](/docs
 2. **Install dependencies**
 
    ```bash
-   npm install @sideseat/sdk ai @ai-sdk/amazon-bedrock
+   npm install @sideseat/sdk ai @ai-sdk/otel @ai-sdk/amazon-bedrock
    ```
 
 3. **Add telemetry**
 
    ```typescript
    import { init, Frameworks } from '@sideseat/sdk';
-   import { generateText } from 'ai';
+   import { generateText, registerTelemetry } from 'ai';
+   import { LegacyOpenTelemetry } from '@ai-sdk/otel';
    import { bedrock } from '@ai-sdk/amazon-bedrock';
 
    init({ framework: Frameworks.VercelAI });
+
+   // AI SDK 7 delivers telemetry only to registered integrations - it no longer
+   // creates OpenTelemetry spans itself. Register after init(): the integration
+   // captures a tracer in its constructor.
+   registerTelemetry(new LegacyOpenTelemetry());
 
    const { text } = await generateText({
      model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
@@ -56,7 +62,18 @@ The Vercel AI SDK is TypeScript-only. For Python frameworks, see [Strands](/docs
 </Steps>
 
 <Aside type="caution">
-`experimental_telemetry: { isEnabled: true }` is required on each `generateText` or `streamText` call. Without it, no traces are emitted.
+Two things are required, and neither works without the other:
+
+1. `experimental_telemetry: { isEnabled: true }` on each `generateText` or `streamText` call.
+2. `registerTelemetry(new LegacyOpenTelemetry())` once at startup, after the tracer provider exists.
+
+As of AI SDK 7 the `ai` package contains no OpenTelemetry code and emits nothing on its
+own; telemetry is handed to registered integrations. On AI SDK 6 step 1 alone was enough.
+
+Use `LegacyOpenTelemetry`, not `OpenTelemetry`: SideSeat's framework detection keys on the
+`ai.generateText` / `ai.*.doGenerate` span shape that the legacy integration preserves.
+The newer integration emits a different shape, which currently lands as framework
+`Unknown`.
 </Aside>
 
 ## Without SideSeat SDK
@@ -77,7 +94,7 @@ The Vercel AI SDK is TypeScript-only. For Python frameworks, see [Strands](/docs
 3. **Install dependencies**
 
    ```bash
-   npm install @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http ai @ai-sdk/amazon-bedrock
+   npm install @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http ai @ai-sdk/otel @ai-sdk/amazon-bedrock
    ```
 
 4. **Add telemetry**
@@ -85,11 +102,16 @@ The Vercel AI SDK is TypeScript-only. For Python frameworks, see [Strands](/docs
    ```typescript
    import { NodeSDK } from '@opentelemetry/sdk-node';
    import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-   import { generateText } from 'ai';
+   import { generateText, registerTelemetry } from 'ai';
+   import { LegacyOpenTelemetry } from '@ai-sdk/otel';
    import { bedrock } from '@ai-sdk/amazon-bedrock';
 
    const sdk = new NodeSDK({ traceExporter: new OTLPTraceExporter() });
    sdk.start();
+
+   // Required on AI SDK 7: the ai package emits no spans itself. Must come after
+   // sdk.start(), since the integration captures a tracer in its constructor.
+   registerTelemetry(new LegacyOpenTelemetry());
 
    const { text } = await generateText({
      model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
@@ -111,6 +133,9 @@ SideSeat shows each `generateText`/`streamText` call with the model name, token 
 
 ## Streaming
 
+These snippets assume `registerTelemetry(new LegacyOpenTelemetry())` has already run
+once at startup, as in the Quick Start above. Without it `isEnabled: true` emits nothing.
+
 ```typescript
 import { init, Frameworks } from '@sideseat/sdk';
 import { streamText } from 'ai';
@@ -131,6 +156,9 @@ for await (const chunk of result.textStream) {
 
 ## Tool Calls
 
+These snippets assume `registerTelemetry(new LegacyOpenTelemetry())` has already run
+once at startup, as in the Quick Start above. Without it `isEnabled: true` emits nothing.
+
 ```typescript
 import { init, Frameworks } from '@sideseat/sdk';
 import { generateText, tool } from 'ai';
@@ -145,7 +173,7 @@ const { text } = await generateText({
   tools: {
     getWeather: tool({
       description: 'Get weather for a location',
-      parameters: z.object({ location: z.string() }),
+      inputSchema: z.object({ location: z.string() }),
       execute: async ({ location }) => `Sunny in ${location}`,
     }),
   },

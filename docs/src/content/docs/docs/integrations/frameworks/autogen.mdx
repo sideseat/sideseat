@@ -10,7 +10,7 @@ import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 ## Prerequisites
 
 - SideSeat running locally (`sideseat`)
-- Python 3.9+
+- Python 3.10+
 - Model/provider credentials configured
 
 ## Quick Start
@@ -27,12 +27,12 @@ import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
    <Tabs>
      <TabItem label="pip">
        ```bash
-       pip install autogen-agentchat "sideseat[autogen]"
+       pip install autogen-agentchat "autogen-ext[openai]" "sideseat[autogen]"
        ```
      </TabItem>
      <TabItem label="uv">
        ```bash
-       uv add autogen-agentchat "sideseat[autogen]"
+       uv add autogen-agentchat "autogen-ext[openai]" "sideseat[autogen]"
        ```
      </TabItem>
    </Tabs>
@@ -41,15 +41,16 @@ import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
    ```python
    from sideseat import SideSeat, Frameworks
-   from autogen import AssistantAgent, UserProxyAgent
-
+   from autogen_agentchat.agents import AssistantAgent
+   from autogen_ext.models.openai import OpenAIChatCompletionClient
+   
    SideSeat(framework=Frameworks.AutoGen)
-
-   llm_config = {"config_list": [{"model": "gpt-5-mini", "api_key": "sk-xxx"}]}
-   assistant = AssistantAgent("assistant", llm_config=llm_config)
-   user = UserProxyAgent("user", human_input_mode="NEVER")
-
-   user.initiate_chat(assistant, message="Hello!")
+   
+   model_client = OpenAIChatCompletionClient(model="gpt-5-mini", api_key="sk-xxx")
+   assistant = AssistantAgent("assistant", model_client=model_client)
+   
+   result = await assistant.run(task="Hello!")
+   print(result.messages[-1].content)
    ```
 
 4. **View runs**
@@ -77,12 +78,12 @@ import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
    <Tabs>
      <TabItem label="pip">
        ```bash
-       pip install autogen-agentchat openinference-instrumentation-autogen-agentchat opentelemetry-exporter-otlp
+       pip install autogen-agentchat "autogen-ext[openai]" openinference-instrumentation-autogen-agentchat opentelemetry-exporter-otlp
        ```
      </TabItem>
      <TabItem label="uv">
        ```bash
-       uv add autogen-agentchat openinference-instrumentation-autogen-agentchat opentelemetry-exporter-otlp
+       uv add autogen-agentchat "autogen-ext[openai]" openinference-instrumentation-autogen-agentchat opentelemetry-exporter-otlp
        ```
      </TabItem>
    </Tabs>
@@ -112,24 +113,19 @@ import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 Configure AutoGen agents with LLM settings:
 
 ```python
-from autogen import AssistantAgent, UserProxyAgent
+from autogen_agentchat.agents import AssistantAgent
+from autogen_ext.models.openai import OpenAIChatCompletionClient
 
-config_list = [
-    {"model": "gpt-5-mini", "api_key": "sk-xxx"}
-]
+model_client = OpenAIChatCompletionClient(model="gpt-5-mini", api_key="sk-xxx")
 
 assistant = AssistantAgent(
     name="assistant",
-    llm_config={"config_list": config_list}
+    model_client=model_client,
+    system_message="You are a helpful coding assistant.",
 )
 
-user = UserProxyAgent(
-    name="user",
-    human_input_mode="NEVER",
-    code_execution_config={"work_dir": "coding"}
-)
-
-user.initiate_chat(assistant, message="Write a Python hello world")
+result = await assistant.run(task="Write a Python hello world")
+print(result.messages[-1].content)
 ```
 
 ## Multi-Agent Conversations
@@ -137,23 +133,20 @@ user.initiate_chat(assistant, message="Write a Python hello world")
 Multi-agent chats are traced end-to-end:
 
 ```python
-from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.conditions import MaxMessageTermination
+from autogen_agentchat.teams import RoundRobinGroupChat
 
-# Create agents
-coder = AssistantAgent("coder", llm_config={"config_list": config_list})
-reviewer = AssistantAgent("reviewer", llm_config={"config_list": config_list})
-user = UserProxyAgent("user", human_input_mode="NEVER")
+coder = AssistantAgent("coder", model_client=model_client)
+reviewer = AssistantAgent("reviewer", model_client=model_client)
 
-# Create group chat
-groupchat = GroupChat(
-    agents=[user, coder, reviewer],
-    messages=[],
-    max_round=10
+team = RoundRobinGroupChat(
+    [coder, reviewer],
+    termination_condition=MaxMessageTermination(max_messages=6),
 )
-manager = GroupChatManager(groupchat=groupchat)
 
-# Start conversation
-user.initiate_chat(manager, message="Write and review a sorting function")
+result = await team.run(task="Write and review a sorting function")
+print(result.messages[-1].content)
 ```
 
 ## Extracted Attributes

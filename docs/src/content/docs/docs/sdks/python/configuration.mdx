@@ -9,8 +9,12 @@ This page covers all configuration options for the SideSeat Python SDK.
 
 ## Constructor Parameters
 
+Every parameter is keyword-only — the `*` means there are no positional arguments, so
+`SideSeat("http://localhost:5388")` raises `TypeError`.
+
 ```python
 SideSeat(
+    *,
     # Connection
     endpoint: str | None = None,
     project_id: str | None = None,
@@ -27,17 +31,23 @@ SideSeat(
     # Telemetry signals
     enable_traces: bool = True,
     enable_metrics: bool = True,
-    enable_logs: bool = False,
+    enable_logs: bool | None = None,   # None -> env var, else False
 
     # Content capture
     capture_content: bool = True,
     encode_binary: bool = True,
 
     # Control
-    disabled: bool = False,
-    debug: bool = False,
+    disabled: bool | None = None,      # None -> SIDESEAT_DISABLED, else False
+    debug: bool | None = None,         # None -> SIDESEAT_DEBUG, else False
 )
 ```
+
+<Aside>
+`disabled`, `enable_logs` and `debug` default to `None`, not `False`. `None` means "consult
+the environment"; passing `False` explicitly pins the value and overrides the env var. This is
+what lets `SIDESEAT_DISABLED=true` work without the constructor arguing with it.
+</Aside>
 
 ## Connection Parameters
 
@@ -87,27 +97,54 @@ Available frameworks:
 - `Frameworks.LangChain`
 - `Frameworks.CrewAI`
 - `Frameworks.AutoGen`
+- `Frameworks.AG2`
 - `Frameworks.OpenAIAgents`
 - `Frameworks.GoogleADK`
 - `Frameworks.PydanticAI`
 - `Frameworks.AgentFramework`
+- `Frameworks.ClaudeAgentSDK` — Claude Agent SDK (`claude-agent-sdk`)
+- `Frameworks.Agno`
+- `Frameworks.Smolagents`
+- `Frameworks.AgentScope`
+- `Frameworks.Langflow`
+- `Frameworks.Haystack`
+- `Frameworks.BrowserUse`
 - `Frameworks.OpenAI`
 - `Frameworks.Anthropic`
 - `Frameworks.GoogleGenAI`
-- `Frameworks.VertexAI` — native Vertex AI SDK (`google-cloud-aiplatform`)
+- `Frameworks.VertexAI` — native Vertex AI SDK (`vertexai`)
 
-If not specified, the SDK auto-detects in this order:
+If not specified, the SDK auto-detects by looking for the first of these packages that is
+installed, in this order:
+
 1. Strands (`strands-agents`)
-2. LangChain (`langchain-core`)
-3. CrewAI (`crewai`)
-4. AutoGen (`autogen-agentchat`)
-5. OpenAI Agents (`agents`)
-6. Google ADK (`google-adk`)
-7. PydanticAI (`pydantic-ai`)
-8. Microsoft Agent Framework (`agent-framework-core`)
+2. LangGraph (`langgraph`)
+3. LangChain (`langchain-core`)
+4. CrewAI (`crewai`)
+5. AutoGen (`autogen-agentchat`)
+6. OpenAI Agents (`agents`)
+7. Google ADK (`google-adk`)
+8. PydanticAI (`pydantic-ai`)
+9. Microsoft Agent Framework (`agent-framework-core`)
+10. Claude Agent SDK (`claude-agent-sdk`)
+11. Agno (`agno`)
+12. Smolagents (`smolagents`)
+13. AgentScope (`agentscope`)
+14. Langflow (`langflow`)
+15. AG2 (`ag2`)
+16. Haystack (`haystack-ai`)
+17. browser-use (`browser-use`)
+18. Vertex AI (`vertexai`)
+
+If none match, the framework falls back to `sideseat`.
 
 <Aside type="note">
-LangGraph is detected via `langchain-core` (its dependency). Use `framework=Frameworks.LangGraph` to explicitly select LangGraph instrumentation.
+`openai`, `anthropic` and `google-genai` are **never** auto-detected — they are too common as
+transitive dependencies, so their presence says nothing about what your app actually uses. Pass
+`framework=Frameworks.OpenAI` (or the relevant constant) explicitly to instrument them.
+
+LangGraph is checked before LangChain, so a LangGraph app is identified as `langgraph` even
+though `langchain-core` is also installed. Both map to the same instrumentor.
 </Aside>
 
 ### `auto_instrument`
@@ -149,14 +186,20 @@ Use provider identifiers when calling provider SDKs directly. Framework instrume
 
 ### `service_name`
 
-Override the auto-detected service name.
+Override the auto-detected service name. Resolved as: this argument → `OTEL_SERVICE_NAME` →
+the detected framework's package name.
 
 ```python
-# Auto-detect (default)
+# Auto-detect (default): the framework package name
 client = SideSeat()
 
 # Explicit name
 client = SideSeat(service_name="my-agent")
+```
+
+```bash
+# Same effect, without touching code
+export OTEL_SERVICE_NAME=my-agent
 ```
 
 ### `service_version`
@@ -254,7 +297,8 @@ The SDK respects these environment variables:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SIDESEAT_ENDPOINT` | `http://127.0.0.1:5388` | Server URL |
-| `SIDESEAT_PROJECT` | `default` | Project identifier |
+| `SIDESEAT_PROJECT_ID` | `default` | Project identifier |
+| `SIDESEAT_PROJECT` | `default` | Legacy alias for `SIDESEAT_PROJECT_ID` |
 | `SIDESEAT_API_KEY` | — | Authentication key |
 | `SIDESEAT_DISABLED` | `false` | Disable all telemetry |
 | `SIDESEAT_DEBUG` | `false` | Enable verbose logging |
@@ -265,8 +309,11 @@ Standard OpenTelemetry variables are also supported:
 |----------|-------------|
 | `OTEL_SERVICE_NAME` | Override service name |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Default OTLP endpoint |
-| `OTEL_EXPORTER_OTLP_HEADERS` | Default headers (comma-separated) |
-| `OTEL_EXPORTER_OTLP_TIMEOUT` | Request timeout |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Extra headers (comma-separated `k=v`), merged with the API-key header |
+| `OTEL_EXPORTER_OTLP_TRACES_HEADERS` | As above, trace-only; takes precedence |
+| `OTEL_EXPORTER_OTLP_TIMEOUT` | Export timeout in **seconds** (default `30`) — the TypeScript SDK reads this same variable in milliseconds, per each ecosystem's OpenTelemetry convention |
+| `OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED` | Enable log export (`enable_logs`) |
+| `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | Capture prompt/response content |
 
 ## Configuration Priority
 
@@ -275,6 +322,15 @@ Settings are resolved in this order (highest to lowest):
 2. `SIDESEAT_*` environment variables
 3. `OTEL_*` environment variables
 4. Defaults
+
+<Aside type="caution" title="One exception: content capture">
+`capture_content=True` sets `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` only when that
+variable is **not already set**, so a pre-existing value wins over the constructor — the reverse
+of the order above. This is deliberate: instrumentors read the variable directly, and an operator
+who has turned content capture off for a whole environment should not have it re-enabled by an
+application argument. To force it from code, set the variable yourself before constructing
+`SideSeat`.
+</Aside>
 
 ## Complete Example
 

@@ -106,12 +106,21 @@ Enable verbose logging:
 init({ framework: Frameworks.VercelAI, debug: true });
 ```
 
-Output:
+Logging goes through the OpenTelemetry diagnostic logger. Output:
+
 ```
-[SideSeat] Initializing with endpoint: http://127.0.0.1:5388
-[SideSeat] Project ID: default
-[SideSeat] Service name: my-app
+@opentelemetry/api: Registered a global for diag v1.9.1.
+@opentelemetry/api: Registered a global for trace v1.9.1.
+@opentelemetry/api: Registered a global for context v1.9.1.
+@opentelemetry/api: Registered a global for propagation v1.9.1.
+[sideseat] TracerProvider registered
+[sideseat] Initialized - sending traces to http://127.0.0.1:5388/otel/default/v1/traces
 ```
+
+The `@opentelemetry/api:` lines come from the OTel API registering its globals; SideSeat's own
+messages are prefixed `[sideseat]`.
+
+Use `logLevel` for finer control — `debug: true` implies `logLevel: 'debug'`.
 
 ## Resource Attributes
 
@@ -133,9 +142,14 @@ The SDK uses HTTP/1.1 OTLP export with:
 - **Compression**: Optional gzip compression
 
 The endpoint URL is constructed as:
+
 ```
-{endpoint}/otel/{projectId}/v1/traces
+{endpoint}/otel/{projectId}/v1/traces   # endpoint has no path
+{endpoint}/v1/traces                    # endpoint already has a path
 ```
+
+In the second case `projectId` is not inserted — the project is taken from the path you
+supplied. See [Configuration → endpoint](/docs/sdks/typescript/configuration/#endpoint).
 
 ## Example
 
