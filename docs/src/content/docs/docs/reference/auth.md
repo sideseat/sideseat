@@ -30,11 +30,7 @@ Click the URL with the token to authenticate automatically.
 For development or trusted environments, authentication can be disabled:
 
 ```bash
-# CLI flag
 sideseat start --no-auth
-
-# Environment variable
-SIDESEAT_AUTH_ENABLED=false sideseat start
 ```
 
 Or in configuration file:

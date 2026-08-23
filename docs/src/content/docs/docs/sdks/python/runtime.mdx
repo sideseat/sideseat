@@ -1,0 +1,221 @@
+---
+title: Runtime Channel
+description: Register agents, graphs, swarms and MCP clients with SideSeat over a persistent WebSocket for presence, introspection and AG-UI invocation.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Tracing is one-way: your app emits spans, SideSeat displays them. The **runtime channel** is
+the other direction — your process holds a persistent WebSocket to the server, publishes what
+agents it has, and accepts invocations from the SideSeat UI.
+
+That is what powers the Playground: agents you register show up as present, their tools and
+system prompts are introspectable, and you can run them from the browser.
+
+<Aside type="caution">
+This is a Python-only feature. The TypeScript SDK exports traces but does not open a runtime
+channel.
+</Aside>
+
+## Installation
+
+The channel lives behind optional extras, so the WebSocket and AG-UI dependencies are not
+pulled in unless you ask for them:
+
+```bash
+# presence + introspection
+pip install "sideseat[ws]"
+
+# additionally required to invoke agents from the UI
+pip install "sideseat[ws,agui]"
+```
+
+| Extra    | Adds                             | Needed for                              |
+| -------- | -------------------------------- | --------------------------------------- |
+| `ws`     | `websockets`                     | Connecting at all; presence             |
+| `agui`   | `ag-ui-protocol`, `rich`         | Running agents from the UI (AG-UI)      |
+
+Without `[ws]` the client raises when you call `connect()`. Without `[agui]` registration and
+presence work, but invocation requests are rejected.
+
+## Quick Start
+
+<Steps>
+
+1. **Register and connect**
+
+   ```python
+   import sideseat
+   from sideseat import Frameworks
+   from strands import Agent
+
+   client = sideseat.init(framework=Frameworks.Strands)
+
+   researcher = Agent(name="researcher", model="global.anthropic.claude-haiku-4-5-20251001-v1:0")
+
+   client.register(researcher).connect()
+   ```
+
+2. **Open the Playground**
+
+   Visit `http://localhost:5389/ui/projects/default/playground`. `researcher` is listed as
+   present, with its tools and system prompt, and can be invoked.
+
+3. **Stop with Ctrl-C**
+
+   `connect()` blocks and handles `SIGINT`/`SIGTERM`, sending unregisters on the way out so the
+   agent does not linger as present.
+
+</Steps>
+
+## What can be registered
+
+`register()` inspects each object and picks a kind. Composite kinds are checked first, so a
+graph is registered as a graph rather than as its first node:
+
+| Kind    | Auto-detected for            |
+| ------- | ---------------------------- |
+| `swarm` | Strands `Swarm`              |
+| `graph` | Strands `Graph`              |
+| `agent` | Strands `Agent`              |
+| `mcp`   | Any client exposing `list_tools_sync()` |
+
+Registering a graph also registers its inner agents, so each node is individually invokable
+while the graph itself shows up as one entry.
+
+```python
+client.register(car_sales_pipeline).connect()
+```
+
+`register()` accepts a list and is chainable:
+
+```python
+client.register([planner, writer]).register(mcp_client).connect()
+```
+
+## Other frameworks
+
+Only Strands has built-in inspectors. For any other framework, an inspector cannot read the
+object's tools, so you must supply them yourself — otherwise `agent()` raises `ValueError`:
+
+```python
+# Without tools=[...] this raises:
+#   no agent inspector matched 'CompiledStateGraph'; register one via
+#   sideseat.runtime.adapters.register_agent_inspector(...) or pass tools=[...]
+client.agent(
+    my_langgraph_app,
+    name="support-bot",
+    tools=[{"name": "lookup_order", "description": "Fetch an order by id"}],
+    system_prompt="You are a support agent.",
+    model="global.anthropic.claude-haiku-4-5-20251001-v1:0",
+)
+```
+
+Alternatively, teach the registry about your framework once:
+
+```python
+from sideseat.runtime.adapters import register_agent_inspector
+
+register_agent_inspector(
+    lambda obj: isinstance(obj, MyAgent),
+    lambda obj, *, name, runtime, **kw: build_manifest_for(obj, name),
+)
+```
+
+## API
+
+The registration methods return the client, so they chain. `disconnect()` returns `None`.
+
+| Method                                | Description                                              |
+| ------------------------------------- | -------------------------------------------------------- |
+| `register(objects, *, name=None, ...)` | Register one object or a list; kind is auto-detected      |
+| `agent(instance, *, name, tools=None, system_prompt=None, model=None, metadata=None)` | Register an agent explicitly |
+| `mcp(client, *, name, transport=None, url=None, tools=None, metadata=None)` | Register an MCP client |
+| `connect(*, block=True, banner=True)` | Open the WebSocket and flush the registry                |
+| `disconnect()`                        | Send unregisters and close the WebSocket                 |
+| `runtime`                             | The underlying `RuntimeClient`                            |
+
+Module-level shorthands exist for each, operating on the global instance created by
+`sideseat.init()`:
+
+```python
+import sideseat
+
+sideseat.init(framework="strands")
+sideseat.register(my_agent)
+sideseat.connect()
+```
+
+### Embedding in your own loop
+
+`connect(block=True)` is right for a script whose only job is to host agents. Inside a web
+server or an existing event loop, take over the lifecycle yourself:
+
+```python
+client.register(agent).connect(block=False, banner=False)
+try:
+    run_my_application()
+finally:
+    client.disconnect()
+```
+
+`shutdown()` also disconnects, so a single `client.shutdown()` is enough if you are already
+calling it.
+
+## Naming
+
+Identity comes from `obj.name`, or the `name=` keyword when registering a single object:
+
+```python
+client.register(agent, name="researcher")
+```
+
+Names are how the UI addresses an agent, so they must be unique within a project — across kinds,
+not just within one. Two collision cases behave differently:
+
+- **Same process, same name, different kind** — raises immediately, rather than letting one
+  registration silently shadow the other:
+
+  ```
+  ValueError: name 'pipeline' already registered as 'graph';
+  names must be globally unique across kinds
+  ```
+
+- **Different process, same name and kind** — the newcomer wins. The server sends the older
+  connection a `replaced` notice and that client disconnects itself. Restarting a script is
+  therefore safe: the stale registration steps aside instead of competing for invocations.
+
+## Server endpoints
+
+The channel is a normal part of the HTTP API, so you can inspect it without the UI:
+
+| Endpoint                                                | Purpose                                  |
+| ------------------------------------------------------- | ---------------------------------------- |
+| `GET /api/v1/project/{project_id}/ws`                   | The persistent WebSocket the SDK opens   |
+| `GET /api/v1/project/{project_id}/registrations`         | Read-only snapshot of what is present    |
+| `POST /api/v1/project/{project_id}/agents/{name}/runs`   | AG-UI run, streamed back as SSE          |
+
+```bash
+curl -s http://127.0.0.1:5388/api/v1/project/default/registrations | jq
+```
+
+Invocations are routed over the WebSocket to whichever process owns the registration, so the
+agent runs in your application — with your credentials and your tools — not on the server.
+
+## Runnable example
+
+A three-agent Strands graph over a DuckDB-backed tool, registered and invokable:
+
+```bash
+uv run --directory misc/samples/python/strands strands strands_ws --sideseat
+```
+
+## Troubleshooting
+
+| Problem                            | Cause                                                     |
+| ---------------------------------- | --------------------------------------------------------- |
+| `ModuleNotFoundError: websockets`  | Install `sideseat[ws]`                                    |
+| Agent absent from the Playground   | `connect()` not called, or the process exited             |
+| `no agent inspector matched ...`   | Non-Strands agent — pass `tools=[...]` or add an inspector |
+| Invocation rejected                | Install `sideseat[agui]`                                  |
+| Agent shown present after exit     | Process was killed with `SIGKILL`; no unregister was sent |

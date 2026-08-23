@@ -88,13 +88,18 @@ GET /api/v1/project/{project_id}/otel/traces/{trace_id}/messages
 
 Get normalized messages (SideML format) for a trace.
 
-## Delete Trace
+## Delete Traces
 
 ```
-DELETE /api/v1/project/{project_id}/otel/traces/{trace_id}
+DELETE /api/v1/project/{project_id}/otel/traces
 ```
 
-Delete a trace and all associated data.
+Delete traces in a batch. There is no per-trace `DELETE /traces/{trace_id}` route - that
+path is registered for `GET` only and answers `DELETE` with 405. Pass the ids in the body:
+
+```json
+{"trace_ids": ["4bf92f3577b34da6a3ce929d0e0e4736"]}
+```
 
 ## Get Filter Options
 
@@ -106,24 +111,34 @@ Get available filter values for building UI dropdowns.
 
 ## Advanced Filters
 
-Pass a JSON array in the `filters` query param:
+Pass a JSON array in the `filters` query param. Each entry is tagged by `type` and
+carries a `column`, an `operator`, and (except for `null`) a `value`. Operators are
+SQL-shaped literals, not names - `"="`, not `"eq"`.
 
 ```json
-[{"key": "environment", "op": "eq", "value": "production"}]
+[{"type": "string", "column": "environment", "operator": "=", "value": "production"}]
 ```
 
-### Operators
+### Types and operators
 
-| Operator | Description | Value Type |
-|----------|-------------|------------|
-| `eq` | Equals | string/number |
-| `ne` | Not equals | string/number |
-| `contains` | Contains substring | string |
-| `starts_with` | Starts with | string |
-| `in` | In list | array |
-| `gt`, `lt`, `gte`, `lte` | Numeric comparison | number |
-| `is_null` | Attribute not present | null |
-| `is_not_null` | Attribute present | null |
+| `type` | Operators | Value |
+|--------|-----------|-------|
+| `string` | `=`, `contains`, `starts_with`, `ends_with` | string |
+| `number` | `=`, `>`, `<`, `>=`, `<=` | number |
+| `datetime` | `>`, `<`, `>=`, `<=` | RFC 3339 string |
+| `string_options` | `any of`, `none of` | array of strings |
+| `boolean` | `=`, `<>` | boolean |
+| `null` | `is null`, `is not null` | omitted |
+
+Each endpoint allows its own set of columns and rejects the rest with
+`INVALID_FILTER_COLUMN`. The timestamp column differs by endpoint: `/traces` and
+`/sessions` use `start_time` / `end_time`, while `/spans` also accepts
+`timestamp_start` / `timestamp_end`.
+
+```bash
+curl -G "http://localhost:5388/api/v1/project/default/otel/traces" \
+  --data-urlencode 'filters=[{"type":"number","column":"duration_ms","operator":">","value":1000}]'
+```
 
 ## Next Steps
 

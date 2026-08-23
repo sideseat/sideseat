@@ -75,8 +75,8 @@ console.log(result.toString());`,
        label: "LangGraph",
        group: "Frameworks",
        lang: "python",
-       install: "pip install sideseat langgraph langchain-openai",
-       installUv: "uv add sideseat langgraph langchain-openai",
+       install: 'pip install "sideseat[langgraph]" langgraph langchain-openai',
+       installUv: 'uv add "sideseat[langgraph]" langgraph langchain-openai',
        code: `from sideseat import SideSeat, Frameworks
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
@@ -107,8 +107,8 @@ print(result.final_output)`,
        label: "CrewAI",
        group: "Frameworks",
        lang: "python",
-       install: "pip install sideseat crewai",
-       installUv: "uv add sideseat crewai",
+       install: 'pip install "sideseat[crewai]" crewai',
+       installUv: 'uv add "sideseat[crewai]" crewai',
        code: `from sideseat import SideSeat, Frameworks
 from crewai import Agent, Task, Crew
 
@@ -170,12 +170,16 @@ print(result.text)`,
        label: "Vercel AI SDK",
        group: "Frameworks",
        lang: "typescript",
-       install: "npm install @sideseat/sdk ai @ai-sdk/amazon-bedrock",
+       install: "npm install @sideseat/sdk ai @ai-sdk/otel @ai-sdk/amazon-bedrock",
        code: `import { init, Frameworks } from '@sideseat/sdk';
-import { generateText } from 'ai';
+import { generateText, registerTelemetry } from 'ai';
+import { LegacyOpenTelemetry } from '@ai-sdk/otel';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 
 init({ framework: Frameworks.VercelAI });
+
+// AI SDK 7 emits spans only through a registered integration.
+registerTelemetry(new LegacyOpenTelemetry());
 
 const { text } = await generateText({
   model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
@@ -185,11 +189,78 @@ const { text } = await generateText({
 console.log(text);`,
      },
      {
+       label: "Claude Agent SDK (Python)",
+       group: "Frameworks",
+       lang: "python",
+       install: "pip install sideseat claude-agent-sdk",
+       installUv: "uv add sideseat claude-agent-sdk",
+       code: `import asyncio
+from claude_agent_sdk import query, ClaudeAgentOptions
+from sideseat import SideSeat, Frameworks
+
+client = SideSeat(framework=Frameworks.ClaudeAgentSDK)
+
+# The Agent SDK spawns the Claude Code CLI, which exports OTLP itself.
+OTEL_ENV = {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA": "1",
+    # Second beta tier: required for the message feed.
+    "ENABLE_BETA_TRACING_DETAILED": "1",
+    "BETA_TRACING_ENDPOINT": "http://localhost:5388/otel/default",
+    "OTEL_TRACES_EXPORTER": "otlp",
+    "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
+    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://localhost:5388/otel/default/v1/traces",
+    "OTEL_LOG_USER_PROMPTS": "1",
+    "OTEL_LOG_TOOL_DETAILS": "1",
+}
+
+
+async def main():
+    options = ClaudeAgentOptions(env=OTEL_ENV, allowed_tools=["Read", "Glob"])
+    with client.trace("agent-run"):
+        async for message in query(prompt="What is 2+2?", options=options):
+            print(message)
+
+
+asyncio.run(main())`,
+     },
+     {
+       label: "Claude Agent SDK (TypeScript)",
+       group: "Frameworks",
+       lang: "typescript",
+       install: "npm install @sideseat/sdk @anthropic-ai/claude-agent-sdk",
+       code: `import { query } from '@anthropic-ai/claude-agent-sdk';
+import { init, Frameworks } from '@sideseat/sdk';
+
+init({ framework: Frameworks.ClaudeAgentSDK });
+
+const otelEnv = {
+  CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+  CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',
+  // Second beta tier: required for the message feed.
+  ENABLE_BETA_TRACING_DETAILED: '1',
+  BETA_TRACING_ENDPOINT: 'http://localhost:5388/otel/default',
+  OTEL_TRACES_EXPORTER: 'otlp',
+  OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: 'http/protobuf',
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://localhost:5388/otel/default/v1/traces',
+  OTEL_LOG_USER_PROMPTS: '1',
+  OTEL_LOG_TOOL_DETAILS: '1',
+};
+
+// env REPLACES the inherited environment in TypeScript, so spread process.env.
+for await (const message of query({
+  prompt: 'What is 2+2?',
+  options: { env: { ...process.env, ...otelEnv }, allowedTools: ['Read', 'Glob'] },
+})) {
+  console.log(message);
+}`,
+     },
+     {
        label: "Amazon Bedrock",
        group: "Providers",
        lang: "python",
-       install: "pip install sideseat boto3",
-       installUv: "uv add sideseat boto3",
+       install: 'pip install "sideseat[aws]" boto3',
+       installUv: 'uv add "sideseat[aws]" boto3',
        code: `from sideseat import SideSeat, Frameworks
 import boto3
 
@@ -206,8 +277,8 @@ print(response["output"]["message"]["content"][0]["text"])`,
        label: "Anthropic",
        group: "Providers",
        lang: "python",
-       install: "pip install sideseat anthropic",
-       installUv: "uv add sideseat anthropic",
+       install: 'pip install "sideseat[anthropic]" anthropic',
+       installUv: 'uv add "sideseat[anthropic]" anthropic',
        code: `from sideseat import SideSeat, Frameworks
 import anthropic
 
@@ -225,8 +296,8 @@ print(message.content[0].text)`,
        label: "OpenAI",
        group: "Providers",
        lang: "python",
-       install: "pip install sideseat openai",
-       installUv: "uv add sideseat openai",
+       install: 'pip install "sideseat[openai]" openai',
+       installUv: 'uv add "sideseat[openai]" openai',
        code: `from sideseat import SideSeat, Frameworks
 from openai import OpenAI
 
@@ -243,8 +314,8 @@ print(response.choices[0].message.content)`,
        label: "Google Gemini",
        group: "Providers",
        lang: "python",
-       install: "pip install sideseat google-genai",
-       installUv: "uv add sideseat google-genai",
+       install: 'pip install "sideseat[google-genai]" google-genai',
+       installUv: 'uv add "sideseat[google-genai]" google-genai',
        code: `from sideseat import SideSeat, Frameworks
 from google import genai
 
@@ -258,8 +329,8 @@ print(response.text)`,
        label: "Google Vertex AI",
        group: "Providers",
        lang: "python",
-       install: "pip install sideseat google-cloud-aiplatform vertexai",
-       installUv: "uv add sideseat google-cloud-aiplatform vertexai",
+       install: 'pip install "sideseat[vertex-ai]" google-cloud-aiplatform vertexai',
+       installUv: 'uv add "sideseat[vertex-ai]" google-cloud-aiplatform vertexai',
        code: `from sideseat import SideSeat, Frameworks
 import vertexai
 from vertexai.generative_models import GenerativeModel
@@ -271,6 +342,9 @@ model = GenerativeModel("gemini-2.5-flash")
 print(model.generate_content("What is 2+2?").text)`,
      },
 ]} />
+
+_Showing the most common integrations. SideSeat also supports LangChain, AutoGen, AG2, PydanticAI, Agno, Smolagents, AgentScope, Langflow, Haystack, browser-use and Azure OpenAI — see [all integrations](/docs/integrations/)._
+
 
 See [all supported frameworks and providers](/docs/integrations/).
 
@@ -476,15 +550,19 @@ print(result.final_output)`,
        label: "Vercel AI SDK",
        group: "Frameworks",
        lang: "typescript",
-       install: "npm install ai @ai-sdk/amazon-bedrock @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http",
+       install: "npm install ai @ai-sdk/otel @ai-sdk/amazon-bedrock @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http",
        code: `import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 
 const sdk = new NodeSDK({ traceExporter: new OTLPTraceExporter() });
 sdk.start();
 
-import { generateText } from 'ai';
+import { generateText, registerTelemetry } from 'ai';
+import { LegacyOpenTelemetry } from '@ai-sdk/otel';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
+
+// AI SDK 7 emits spans only through a registered integration.
+registerTelemetry(new LegacyOpenTelemetry());
 
 const { text } = await generateText({
   model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
@@ -493,7 +571,64 @@ const { text } = await generateText({
 });
 console.log(text);`,
      },
+     {
+       label: "Claude Agent SDK (Python)",
+       group: "Frameworks",
+       lang: "python",
+       install: "pip install claude-agent-sdk",
+       installUv: "uv add claude-agent-sdk",
+       code: `import asyncio
+from claude_agent_sdk import query
+
+# No instrumentor needed: the Claude Code CLI subprocess exports OTLP itself.
+# Export these first and the child process inherits them:
+#   CLAUDE_CODE_ENABLE_TELEMETRY=1
+#   CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1
+#   OTEL_TRACES_EXPORTER=otlp
+#   OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+#   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:5388/otel/default/v1/traces
+# Required for the message feed:
+#   ENABLE_BETA_TRACING_DETAILED=1
+#   BETA_TRACING_ENDPOINT=http://localhost:5388/otel/default
+#   OTEL_LOG_USER_PROMPTS=1
+#   OTEL_LOG_TOOL_DETAILS=1
+
+
+async def main():
+    async for message in query(prompt="What is 2+2?"):
+        print(message)
+
+
+asyncio.run(main())`,
+     },
+     {
+       label: "Claude Agent SDK (TypeScript)",
+       group: "Frameworks",
+       lang: "typescript",
+       install: "npm install @anthropic-ai/claude-agent-sdk",
+       code: `import { query } from '@anthropic-ai/claude-agent-sdk';
+
+// No instrumentor needed: the Claude Code CLI subprocess exports OTLP itself.
+// Export these first and the child process inherits them:
+//   CLAUDE_CODE_ENABLE_TELEMETRY=1
+//   CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1
+//   OTEL_TRACES_EXPORTER=otlp
+//   OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+//   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:5388/otel/default/v1/traces
+// Required for the message feed:
+//   ENABLE_BETA_TRACING_DETAILED=1
+//   BETA_TRACING_ENDPOINT=http://localhost:5388/otel/default
+//   OTEL_LOG_USER_PROMPTS=1
+//   OTEL_LOG_TOOL_DETAILS=1
+
+for await (const message of query({ prompt: 'What is 2+2?' })) {
+  console.log(message);
+}`,
+     },
 ]} />
+
+_Showing the most common integrations. SideSeat also supports LangChain, AutoGen, AG2, PydanticAI, Agno, Smolagents, AgentScope, Langflow, Haystack, browser-use and Azure OpenAI — see [all integrations](/docs/integrations/)._
+
 
 ## AI Agent Development with MCP
 

@@ -15,7 +15,7 @@ The SideSeat Python SDK (`sideseat`) provides OpenTelemetry instrumentation with
 ## Prerequisites
 
 - SideSeat running locally (`sideseat`)
-- Python 3.9+
+- Python 3.10+
 
 ## Installation
 
@@ -45,6 +45,39 @@ Or with your package manager:
   </TabItem>
 </Tabs>
 
+### Optional extras
+
+The base package exports traces on its own. Instrumenting a specific framework pulls in that
+framework's instrumentor, which ships as an extra:
+
+```bash
+pip install "sideseat[langchain]"
+pip install "sideseat[openai,anthropic]"   # combine freely
+pip install "sideseat[all]"                # every extra below
+```
+
+| Extra                                        | For                                        |
+| -------------------------------------------- | ------------------------------------------ |
+| `langchain`, `langgraph`                     | LangChain / LangGraph                      |
+| `crewai`                                     | CrewAI                                     |
+| `autogen`                                    | AutoGen (AgentChat)                        |
+| `ag2`                                        | AG2                                        |
+| `agno`                                       | Agno                                       |
+| `smolagents`                                 | Smolagents                                 |
+| `haystack`                                   | Haystack                                   |
+| `openai`, `openai-agents`                    | OpenAI SDK / OpenAI Agents SDK             |
+| `anthropic`                                  | Anthropic SDK                              |
+| `google-genai`, `vertex-ai`                  | Google GenAI / Vertex AI                   |
+| `pydantic-ai`                                | Pydantic AI                                |
+| `aws`                                        | Bedrock via boto3                          |
+| `ws`, `agui`                                 | [Runtime channel](/docs/sdks/python/runtime) — presence and invocation |
+
+<Aside>
+Frameworks that emit OpenTelemetry themselves — Strands, Google ADK, Agent Framework, Langflow,
+AgentScope, browser-use, the Claude Agent SDK — need no extra. They only need the global
+provider that `SideSeat(...)` installs.
+</Aside>
+
 ## Quick Start
 
 Add two lines at the top of your entry point:
@@ -65,24 +98,23 @@ That's it. Runs flow to SideSeat at `http://localhost:5388`.
 
 ### Automatic Framework Detection
 
-The SDK auto-detects your AI framework and sets the service name:
+When you do not pass `framework=`, the SDK looks for the first supported framework package
+that is installed and uses its distribution name as `service.name` — `strands-agents` for a
+Strands app, `langchain-core` for LangChain, and so on.
 
-| Priority | Package | Service Name |
-|----------|---------|--------------|
-| 1 | `strands-agents` | `strands-agents` |
-| 2 | `langchain-core` | `langchain-core` |
-| 3 | `crewai` | `crewai` |
-| 4 | `autogen-agentchat` | `autogen-agentchat` |
-| 5 | `agents` | `agents` |
-| 6 | `google-adk` | `google-adk` |
-| 7 | `pydantic-ai` | `pydantic-ai` |
-| 8 | `agent-framework-core` | `agent-framework` |
-| 9 | `vertexai` | `vertexai` |
+The full ordered list is in
+[Configuration → framework](/docs/sdks/python/configuration/#framework). Passing `framework=`
+explicitly is recommended for anything non-trivial: detection is a convenience, and it cannot
+tell which of several installed frameworks you actually drive.
 
-Override with:
+Override the service name with either of:
 
 ```python
 SideSeat(service_name="my-custom-service")
+```
+
+```bash
+export OTEL_SERVICE_NAME=my-custom-service
 ```
 
 ### Binary Data Handling
@@ -128,9 +160,13 @@ The SDK automatically sets these OpenTelemetry resource attributes:
 Use the context manager for automatic shutdown:
 
 ```python
-with SideSeat() as client:
-    # Your code here
-# Traces flushed and connection closed automatically
+from sideseat import SideSeat, Frameworks
+from strands import Agent
+
+with SideSeat(framework=Frameworks.Strands) as client:
+    agent = Agent()
+    print(agent("Hello!"))
+# Traces flushed and connection closed automatically on exit
 ```
 
 ## Graceful Shutdown

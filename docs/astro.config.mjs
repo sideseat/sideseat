@@ -50,8 +50,10 @@ export default defineConfig({
                 { label: 'Google ADK', slug: 'docs/integrations/frameworks/google-adk' },
                 { label: 'LangGraph', slug: 'docs/integrations/frameworks/langgraph' },
                 { label: 'OpenAI Agents SDK', slug: 'docs/integrations/frameworks/openai-agents' },
+                { label: 'Claude Agent SDK', slug: 'docs/integrations/frameworks/claude-agent-sdk' },
                 { label: 'Microsoft Agent Framework', slug: 'docs/integrations/frameworks/agent-framework' },
                 { label: 'CrewAI', slug: 'docs/integrations/frameworks/crewai' },
+                { label: 'AutoGen', slug: 'docs/integrations/frameworks/autogen' },
                 { label: 'Other Frameworks', slug: 'docs/integrations/frameworks/other' },
               ],
             },
@@ -78,6 +80,7 @@ export default defineConfig({
                 { label: 'Configuration', slug: 'docs/sdks/python/configuration' },
                 { label: 'SideSeat Class', slug: 'docs/sdks/python/telemetry' },
                 { label: 'Exporters', slug: 'docs/sdks/python/exporters' },
+                { label: 'Runtime Channel', slug: 'docs/sdks/python/runtime' },
               ],
             },
             {

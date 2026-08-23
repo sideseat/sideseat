@@ -9,8 +9,7 @@ The Secret Manager provides secure storage for sensitive data with support for m
 
 | Backend | CLI Value | Persistence | Notes |
 |---------|-----------|-------------|-------|
-| **macOS Data Protection Keychain** | `data-protection-keychain` | Persistent | Hardware-backed (Apple Silicon). Requires Developer ID signing. macOS default — auto-falls back to login keychain if unsigned. |
-| **macOS Keychain** | `keychain` | Persistent | System keychain integration |
+| **macOS Keychain** | `keychain` | Persistent | macOS default. System keychain integration |
 | **Windows Credential Manager** | `credential-manager` | Persistent | Protected by user account |
 | **Linux Secret Service** | `secret-service` | Persistent | GNOME Keyring, KWallet, etc. |
 | **Linux keyutils** | `keyutils` | Session-only | Kernel keyring, lost on reboot |
@@ -22,7 +21,7 @@ The Secret Manager provides secure storage for sensitive data with support for m
 ### Platform Auto-Detection
 
 When no backend is specified, the system auto-detects:
-- **macOS** → Data Protection Keychain (falls back to login Keychain if binary is unsigned)
+- **macOS** → Keychain
 - **Windows** → Credential Manager
 - **Linux** → Secret Service (falls back to File if D-Bus unavailable)
 
