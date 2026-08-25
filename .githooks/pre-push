@@ -65,4 +65,16 @@ npm test
 cd "$REPO_ROOT/sdk/python"
 uv run pytest
 
+# Secret scan over the commits being pushed. The pre-commit hook can be bypassed with
+# --no-verify, and a rebuilt or rebased series can reintroduce content, so this is the last
+# gate before anything becomes public.
+cd "$REPO_ROOT"
+if command -v gitleaks >/dev/null 2>&1; then
+    gitleaks git --config .gitleaks.toml --no-banner --redact \
+        --log-opts="origin/main..HEAD" \
+        || { echo "Error: possible secret in the commits being pushed (see above)."; exit 1; }
+else
+    echo "[pre-push] WARNING: gitleaks not installed, secret scan SKIPPED (brew install gitleaks)"
+fi
+
 echo "[pre-push] All checks passed"
