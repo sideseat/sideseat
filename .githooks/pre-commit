@@ -82,4 +82,19 @@ if [ "$PY_SDK_STAGED" -gt 0 ]; then
     uv run pytest
 fi
 
+# Secret scan on the staged content. A secret that reaches a commit is effectively public
+# even if it is never pushed: it survives in reflogs, stashes and any clone, and removing it
+# needs a history rewrite. Cheapest possible place to stop it.
+#
+# Captured telemetry is the realistic source here - a framework that serialises its model
+# config into a span attribute writes live credentials into a fixture. That is exactly how an
+# aws_secret_access_key and session token ended up in a CrewAI fixture.
+cd "$REPO_ROOT"
+if command -v gitleaks >/dev/null 2>&1; then
+    gitleaks git --staged --config .gitleaks.toml --no-banner --redact \
+        || { echo "Error: possible secret in staged changes (see above). If it is a false positive, add it to .gitleaks.toml."; exit 1; }
+else
+    echo "[pre-commit] WARNING: gitleaks not installed, secret scan SKIPPED (brew install gitleaks)"
+fi
+
 echo "[pre-commit] All checks passed"
