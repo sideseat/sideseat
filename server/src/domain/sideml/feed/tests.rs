@@ -349,6 +349,103 @@ fn test_role_filter() {
     assert_eq!(result.messages[0].role, ChatRole::User);
 }
 
+/// The role filter must be a view over the finished feed, not a stage inside it.
+///
+/// Filtering during flattening removed blocks the later stages read. `role=tool` deleted the
+/// assistant tool calls that correlation uses to give an id-less result its call's id; the two
+/// results then fell back to content identity, which is the same for both, and dedup collapsed
+/// them - so asking for the tool messages returned *fewer* than the unfiltered feed contains.
+///
+/// Stated as a property rather than a fixed count: for every role, filtering must return exactly
+/// the blocks of that role the unfiltered feed returns.
+#[test]
+fn role_filter_returns_exactly_the_unfiltered_blocks_of_that_role() {
+    // Two sequential calls to the same tool whose results are byte-identical and carry no id -
+    // the Gemini/ADK shape. Distinguishable only through their calls.
+    let msg = json!([
+        {
+            "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+            "content": {"role": "user", "content": "Weather in Paris and Lyon?"}
+        },
+        {
+            "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:01Z"}},
+            "content": {
+                "role": "assistant",
+                "content": [{"type": "tool_use", "id": "call-paris", "name": "get_weather",
+                             "input": {"city": "Paris"}}]
+            }
+        },
+        {
+            "source": {"event": {"name": "gen_ai.tool.message", "time": "2025-01-01T00:00:02Z"}},
+            "content": {
+                "role": "user",
+                "content": [{"type": "tool_result", "name": "get_weather", "content": "sunny"}]
+            }
+        },
+        {
+            "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:03Z"}},
+            "content": {
+                "role": "assistant",
+                "content": [{"type": "tool_use", "id": "call-lyon", "name": "get_weather",
+                             "input": {"city": "Lyon"}}]
+            }
+        },
+        {
+            "source": {"event": {"name": "gen_ai.tool.message", "time": "2025-01-01T00:00:04Z"}},
+            "content": {
+                "role": "user",
+                "content": [{"type": "tool_result", "name": "get_weather", "content": "sunny"}]
+            }
+        },
+        {
+            "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:05Z"}},
+            "content": {"role": "assistant", "content": "Both are sunny."}
+        }
+    ]);
+
+    let row = || make_span_row("trace1", "span1", None, &msg.to_string(), "[]", "[]");
+
+    let unfiltered = process_spans(vec![row()], &FeedOptions::new());
+    assert_eq!(
+        unfiltered
+            .messages
+            .iter()
+            .filter(|b| b.role == ChatRole::Tool)
+            .count(),
+        2,
+        "the fixture must produce two distinct tool results, or it cannot detect the collapse"
+    );
+
+    for role in ["user", "assistant", "tool", "system"] {
+        let expected: Vec<String> = unfiltered
+            .messages
+            .iter()
+            .filter(|b| b.role.as_str() == role)
+            .map(|b| format!("{:?}", b.content))
+            .collect();
+
+        let filtered = process_spans(
+            vec![row()],
+            &FeedOptions::new().with_role(Some(role.to_string())),
+        );
+        let actual: Vec<String> = filtered
+            .messages
+            .iter()
+            .map(|b| format!("{:?}", b.content))
+            .collect();
+
+        assert_eq!(
+            actual, expected,
+            "?role={role} must return exactly the {role} blocks of the unfiltered feed"
+        );
+        assert_eq!(
+            filtered.metadata.block_count,
+            filtered.messages.len(),
+            "?role={role} reported a block count that does not match what it returned"
+        );
+    }
+}
+
 #[test]
 fn test_block_entry_metadata() {
     let msg = json!([{
@@ -8848,6 +8945,7 @@ fn test_no_promotion_when_choice_exists() {
         is_semantic: true,
         uses_span_end: false,
         is_history: false,
+        tool_use_id_correlated: false,
     };
 
     let choice_block = BlockEntry {
@@ -8883,6 +8981,7 @@ fn test_no_promotion_when_choice_exists() {
         is_semantic: true,
         uses_span_end: false,
         is_history: false,
+        tool_use_id_correlated: false,
     };
 
     let mut blocks = vec![assistant_block, choice_block];
@@ -8903,5 +9002,74 @@ fn test_no_promotion_when_choice_exists() {
     assert!(
         !asst.uses_span_end,
         "gen_ai.assistant.message should NOT use span_end when choice exists"
+    );
+}
+
+// ============================================================================
+// Role filter
+// ============================================================================
+
+/// The Gemini/ADK shape: a tool result arrives inside a message whose raw role is `user`, and
+/// the pipeline derives the block's role as `tool` from its content.
+fn gemini_tool_result_row() -> MessageSpanRow {
+    let msg = json!([{
+        "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+        "content": {
+            "role": "user",
+            "content": [
+                {"functionResponse": {"name": "get_weather", "response": {"temp": 25}}}
+            ]
+        }
+    }]);
+    make_span_row(
+        "trace-role",
+        "span-role",
+        None,
+        &msg.to_string(),
+        "[]",
+        "[]",
+    )
+}
+
+/// `?role=tool` must return a Gemini tool result.
+///
+/// The filter used to be applied to the raw message role before the per-block role was
+/// derived, so `role=tool` dropped every Gemini and ADK tool result (raw role `user`) and
+/// `role=user` returned blocks whose role is `tool`.
+#[test]
+fn role_filter_matches_the_derived_role_not_the_raw_one() {
+    let rows = vec![gemini_tool_result_row()];
+
+    let unfiltered = process_spans(rows.clone(), &FeedOptions::new());
+    let derived: Vec<&str> = unfiltered
+        .messages
+        .iter()
+        .map(|b| b.role.as_str())
+        .collect();
+    assert_eq!(
+        derived,
+        vec!["tool"],
+        "precondition: the block's derived role is tool"
+    );
+
+    let as_tool = process_spans(
+        rows.clone(),
+        &FeedOptions::new().with_role(Some("tool".into())),
+    );
+    assert_eq!(
+        as_tool.messages.len(),
+        1,
+        "role=tool must return the tool result; the raw message role is user"
+    );
+
+    let as_user = process_spans(rows, &FeedOptions::new().with_role(Some("user".into())));
+    assert!(
+        as_user.messages.is_empty(),
+        "role=user must not return a block whose derived role is tool, got {:?}",
+        as_user
+            .messages
+            .iter()
+            .map(|b| b.role.as_str())
+            .collect::<Vec<_>>()
     );
 }
