@@ -1,13 +1,22 @@
 {
   "label": "agent-framework/structured_output",
   "request_count": 1,
-  "span_count": 1,
+  "span_count": 3,
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "b11b7e11/agent_framework.session/f126": {
-      "message_count": 1,
+    "trace-1/agent_framework.session/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/chat us.openai.gpt-5.6-luna/span-3": {
+      "message_count": 3,
       "role_sequence": [
+        "system",
+        "user",
         "assistant"
       ],
       "tool_names": [],
@@ -15,20 +24,74 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant that extracts structured information from text.",
+          "content_digest": "965dc7374dfb1d1c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+          "content_digest": "6a08cceee02e13c8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "TypeError: Agent.run() got an unexpected keyword argument 'response_format' ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/opentelemet…[799 chars]",
-          "content_digest": "f9cb4306168cf418",
-          "finish_reason": "Error",
+          "content": "{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\",\"postal_code\":null},\"contacts\":[{\"email\":\"jane@example.com\",\"phone\":null}],\"skills\":[\"Systems administration\"]}",
+          "content_digest": "c4094269b2ee1ce2",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/invoke_agent 6ed62fb3-7bb4-40b8-a19a-08146e9c265e/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant that extracts structured information from text.",
+          "content_digest": "965dc7374dfb1d1c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+          "content_digest": "6a08cceee02e13c8",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\",\"postal_code\":null},\"contacts\":[{\"email\":\"jane@example.com\",\"phone\":null}],\"skills\":[\"Systems administration\"]}",
+          "content_digest": "c4094269b2ee1ce2",
           "observation_type": "agent"
         }
       ]
     }
   },
   "trace_views": {
-    "b11b7e11": {
-      "message_count": 1,
+    "trace-1": {
+      "message_count": 3,
       "role_sequence": [
+        "system",
+        "user",
         "assistant"
       ],
       "tool_names": [],
@@ -36,20 +99,38 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant that extracts structured information from text.",
+          "content_digest": "965dc7374dfb1d1c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+          "content_digest": "6a08cceee02e13c8",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "TypeError: Agent.run() got an unexpected keyword argument 'response_format' ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/opentelemet…[799 chars]",
-          "content_digest": "f9cb4306168cf418",
-          "finish_reason": "Error",
-          "observation_type": "agent"
+          "content": "{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\",\"postal_code\":null},\"contacts\":[{\"email\":\"jane@example.com\",\"phone\":null}],\"skills\":[\"Systems administration\"]}",
+          "content_digest": "c4094269b2ee1ce2",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
         }
       ]
     }
   },
   "session_views": {
-    "agent-framework-structured_output-ed726fe9": {
-      "message_count": 1,
+    "agent-framework-structured_output-b8c6604f": {
+      "message_count": 3,
       "role_sequence": [
+        "system",
+        "user",
         "assistant"
       ],
       "tool_names": [],
@@ -57,12 +138,28 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant that extracts structured information from text.",
+          "content_digest": "965dc7374dfb1d1c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+          "content_digest": "6a08cceee02e13c8",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "TypeError: Agent.run() got an unexpected keyword argument 'response_format' ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/opentelemet…[799 chars]",
-          "content_digest": "f9cb4306168cf418",
-          "finish_reason": "Error",
-          "observation_type": "agent"
+          "content": "{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\",\"postal_code\":null},\"contacts\":[{\"email\":\"jane@example.com\",\"phone\":null}],\"skills\":[\"Systems administration\"]}",
+          "content_digest": "c4094269b2ee1ce2",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
         }
       ]
     }

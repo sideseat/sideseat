@@ -5,7 +5,54 @@
   "trace_count": 4,
   "session_count": 1,
   "span_views": {
-    "28367a67/call_llm/5bcb": {
+    "trace-1/call_llm/span-3": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
+          "content_digest": "27b8c64de4dd8167",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "b7a070a2b20c6c80",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "03f15361a5d4e079",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/call_llm/span-8": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -22,7 +69,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "30adba0bbe9ee821",
+          "content_digest": "27b8c64de4dd8167",
           "observation_type": "generation"
         },
         {
@@ -30,15 +77,15 @@
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "76faff05bdd7d0bc",
+          "content_digest": "75e9643b50cb90f4",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
-          "content_digest": "448757d378a09e53",
+          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":…[298 chars]",
+          "content_digest": "4010f9d7dfef58bd",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -46,8 +93,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "42a4fb18d5738184",
+          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "369f5f49616991d4",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -56,16 +103,241 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[512 chars]",
-          "content_digest": "11380bbc69090ca5",
+          "content_digest": "7d58955f08ab0a6f",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "28367a67/call_llm/ed5f": {
-      "message_count": 4,
+    "trace-1/execute_tool (merged)/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/execute_tool precipitation_forecast/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/execute_tool temperature_forecast/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/invocation/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/invoke_agent weather_assistant/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/call_llm/span-3": {
+      "message_count": 6,
       "role_sequence": [
         "system",
+        "user",
+        "tool",
+        "tool",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
+          "content_digest": "27b8c64de4dd8167",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
+          "content_digest": "f026c51bdebb0c32",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "d2b21e8ed9e4a942",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "b7a070a2b20c6c80",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "03f15361a5d4e079",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/call_llm/span-8": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
+          "content_digest": "27b8c64de4dd8167",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":…[298 chars]",
+          "content_digest": "4010f9d7dfef58bd",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "369f5f49616991d4",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[530 chars]",
+          "content_digest": "ebd26c958f5e3f7d",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/execute_tool (merged)/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/execute_tool precipitation_forecast/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-2/execute_tool temperature_forecast/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-2/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/invocation/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/invoke_agent weather_assistant/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-3/call_llm/span-3": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "tool",
+        "tool",
         "user",
         "assistant",
         "assistant"
@@ -78,7 +350,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "30adba0bbe9ee821",
+          "content_digest": "27b8c64de4dd8167",
           "observation_type": "generation"
         },
         {
@@ -86,79 +358,56 @@
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "76faff05bdd7d0bc",
+          "content_digest": "75e9643b50cb90f4",
           "observation_type": "generation"
         },
         {
           "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
-          "content_digest": "04364b3757a7fd7d",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":…[298 chars]",
+          "content_digest": "4010f9d7dfef58bd",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
         {
           "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "369f5f49616991d4",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
-          "content_digest": "db487a44fc0848e9",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cbc22729\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
+          "content_digest": "74483f10390ff518",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_cbc22729\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
+          "content_digest": "35d838f182734e0f",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         }
       ]
     },
-    "28367a67/execute_tool (merged)/ceca": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "28367a67/execute_tool precipitation_forecast/4cab": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": []
-    },
-    "28367a67/execute_tool temperature_forecast/4d4f": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": []
-    },
-    "28367a67/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/16c2": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "28367a67/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/9424": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "28367a67/invocation/5d1a": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "28367a67/invoke_agent weather_assistant/49a9": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "4954e1d2/call_llm/113b": {
+    "trace-3/call_llm/span-8": {
       "message_count": 8,
       "role_sequence": [
         "system",
@@ -178,7 +427,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "30adba0bbe9ee821",
+          "content_digest": "27b8c64de4dd8167",
           "observation_type": "generation"
         },
         {
@@ -186,15 +435,15 @@
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "76faff05bdd7d0bc",
+          "content_digest": "75e9643b50cb90f4",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
-          "content_digest": "448757d378a09e53",
+          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":…[298 chars]",
+          "content_digest": "4010f9d7dfef58bd",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -202,8 +451,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "42a4fb18d5738184",
+          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "369f5f49616991d4",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -212,15 +461,15 @@
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 7-day weather forecast for Los Angeles.",
-          "content_digest": "7cec3f3cdaac4781",
+          "content_digest": "984bf68a8a35a65a",
           "observation_type": "generation"
         },
         {
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cbc22729\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25…[550 chars]",
-          "content_digest": "5ad2f057ce977918",
+          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[492 chars]",
+          "content_digest": "0f1beb36e3265d1e",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -228,8 +477,8 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_cbc22729\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "c0c27d0858b0e235",
+          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "da61bfe846976d0a",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -238,138 +487,62 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Hello! 👋 Here's your 7-day weather forecast for Los Angeles: **Day 1:** Sunny | High: 25°C | Low: 15°C **Day 2:** Sunny | High: 26°C | Low: 16°C ⚠️ Light rain expected **Day 3:** Sunny | High: 27°C | Low: 17°C **Day 4:** Sunny | High: 28°C …[785 chars]",
-          "content_digest": "20f65b579d5f3a9f",
+          "content_digest": "0983796cfdf62fc6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "4954e1d2/call_llm/d552": {
-      "message_count": 7,
-      "role_sequence": [
-        "system",
-        "user",
-        "tool",
-        "tool",
-        "user",
-        "assistant",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 2,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "30adba0bbe9ee821",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "76faff05bdd7d0bc",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
-          "content_digest": "448757d378a09e53",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "42a4fb18d5738184",
-          "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 7-day weather forecast for Los Angeles.",
-          "content_digest": "7cec3f3cdaac4781",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cbc22729\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
-          "content_digest": "4e3ae1413424eb0a",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_cbc22729\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
-          "content_digest": "026c48a90e88cf2f",
-          "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "4954e1d2/execute_tool (merged)/1181": {
+    "trace-3/execute_tool (merged)/span-7": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "4954e1d2/execute_tool precipitation_forecast/6f20": {
+    "trace-3/execute_tool precipitation_forecast/span-6": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 1,
       "messages": []
     },
-    "4954e1d2/execute_tool temperature_forecast/6683": {
+    "trace-3/execute_tool temperature_forecast/span-5": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 1,
       "messages": []
     },
-    "4954e1d2/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/8252": {
+    "trace-3/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/span-4": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "4954e1d2/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/e31a": {
+    "trace-3/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/span-9": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "4954e1d2/invocation/ef45": {
+    "trace-3/invocation/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "4954e1d2/invoke_agent weather_assistant/9d01": {
+    "trace-3/invoke_agent weather_assistant/span-2": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "c052855a/call_llm/9d54": {
+    "trace-4/call_llm/span-3": {
       "message_count": 9,
       "role_sequence": [
         "system",
@@ -390,7 +563,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "30adba0bbe9ee821",
+          "content_digest": "27b8c64de4dd8167",
           "observation_type": "generation"
         },
         {
@@ -398,15 +571,15 @@
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "76faff05bdd7d0bc",
+          "content_digest": "75e9643b50cb90f4",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
-          "content_digest": "448757d378a09e53",
+          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":…[298 chars]",
+          "content_digest": "4010f9d7dfef58bd",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -414,8 +587,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "42a4fb18d5738184",
+          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "369f5f49616991d4",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -424,15 +597,15 @@
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 7-day weather forecast for Los Angeles.",
-          "content_digest": "7cec3f3cdaac4781",
+          "content_digest": "984bf68a8a35a65a",
           "observation_type": "generation"
         },
         {
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cbc22729\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25…[550 chars]",
-          "content_digest": "5ad2f057ce977918",
+          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[492 chars]",
+          "content_digest": "0f1beb36e3265d1e",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -440,8 +613,8 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_cbc22729\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "c0c27d0858b0e235",
+          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "da61bfe846976d0a",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -450,7 +623,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 14-day weather forecast for London.",
-          "content_digest": "1de6d514d5d764e4",
+          "content_digest": "7426414dbeed41d0",
           "observation_type": "generation"
         },
         {
@@ -458,200 +631,27 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I appreciate your interest in a 14-day forecast! However, I can only provide weather forecasts for a maximum of **7 days** ahead. This is a limitation of the forecasting tool to ensure accuracy, as longer-term predictions become less reliab…[410 chars]",
-          "content_digest": "436d33ca52c7d12b",
+          "content_digest": "e03a0e2c961ceab8",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "c052855a/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/a233": {
+    "trace-4/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/span-4": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "c052855a/invocation/38bb": {
+    "trace-4/invocation/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "c052855a/invoke_agent weather_assistant/b248": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "e2b0e3e0/call_llm/eaba": {
-      "message_count": 5,
-      "role_sequence": [
-        "system",
-        "user",
-        "tool",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 2,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "30adba0bbe9ee821",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "76faff05bdd7d0bc",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
-          "content_digest": "448757d378a09e53",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "42a4fb18d5738184",
-          "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[530 chars]",
-          "content_digest": "4e3479a41ea6c957",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "e2b0e3e0/call_llm/f89e": {
-      "message_count": 6,
-      "role_sequence": [
-        "system",
-        "user",
-        "tool",
-        "tool",
-        "assistant",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 2,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "30adba0bbe9ee821",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "76faff05bdd7d0bc",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
-          "content_digest": "448757d378a09e53",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "42a4fb18d5738184",
-          "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
-          "content_digest": "04364b3757a7fd7d",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
-          "content_digest": "db487a44fc0848e9",
-          "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "e2b0e3e0/execute_tool (merged)/f615": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "e2b0e3e0/execute_tool precipitation_forecast/dbe2": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": []
-    },
-    "e2b0e3e0/execute_tool temperature_forecast/facb": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": []
-    },
-    "e2b0e3e0/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/14e1": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "e2b0e3e0/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/d5fa": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "e2b0e3e0/invocation/3031": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "e2b0e3e0/invoke_agent weather_assistant/fbff": {
+    "trace-4/invoke_agent weather_assistant/span-2": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -660,7 +660,7 @@
     }
   },
   "trace_views": {
-    "28367a67": {
+    "trace-1": {
       "message_count": 7,
       "role_sequence": [
         "system",
@@ -679,7 +679,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "30adba0bbe9ee821",
+          "content_digest": "27b8c64de4dd8167",
           "observation_type": "generation"
         },
         {
@@ -687,7 +687,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "76faff05bdd7d0bc",
+          "content_digest": "75e9643b50cb90f4",
           "observation_type": "generation"
         },
         {
@@ -695,7 +695,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
-          "content_digest": "04364b3757a7fd7d",
+          "content_digest": "b7a070a2b20c6c80",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -704,7 +704,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
-          "content_digest": "db487a44fc0848e9",
+          "content_digest": "03f15361a5d4e079",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -713,7 +713,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
-          "content_digest": "448757d378a09e53",
+          "content_digest": "f026c51bdebb0c32",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -722,7 +722,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "42a4fb18d5738184",
+          "content_digest": "d2b21e8ed9e4a942",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -731,13 +731,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[512 chars]",
-          "content_digest": "11380bbc69090ca5",
+          "content_digest": "7d58955f08ab0a6f",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "4954e1d2": {
+    "trace-2": {
       "message_count": 7,
       "role_sequence": [
         "system",
@@ -756,7 +756,84 @@
           "role": "system",
           "entry_type": "text",
           "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "30adba0bbe9ee821",
+          "content_digest": "27b8c64de4dd8167",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "b7a070a2b20c6c80",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "03f15361a5d4e079",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
+          "content_digest": "f026c51bdebb0c32",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "d2b21e8ed9e4a942",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[530 chars]",
+          "content_digest": "ebd26c958f5e3f7d",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-3": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
+          "content_digest": "27b8c64de4dd8167",
           "observation_type": "generation"
         },
         {
@@ -764,7 +841,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 7-day weather forecast for Los Angeles.",
-          "content_digest": "7cec3f3cdaac4781",
+          "content_digest": "984bf68a8a35a65a",
           "observation_type": "generation"
         },
         {
@@ -772,7 +849,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cbc22729\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
-          "content_digest": "4e3ae1413424eb0a",
+          "content_digest": "74483f10390ff518",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -781,7 +858,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_cbc22729\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
-          "content_digest": "026c48a90e88cf2f",
+          "content_digest": "35d838f182734e0f",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -789,8 +866,8 @@
           "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cbc22729\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25…[550 chars]",
-          "content_digest": "5ad2f057ce977918",
+          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[492 chars]",
+          "content_digest": "0f1beb36e3265d1e",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -798,8 +875,8 @@
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_cbc22729\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "c0c27d0858b0e235",
+          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "da61bfe846976d0a",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -808,13 +885,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Hello! 👋 Here's your 7-day weather forecast for Los Angeles: **Day 1:** Sunny | High: 25°C | Low: 15°C **Day 2:** Sunny | High: 26°C | Low: 16°C ⚠️ Light rain expected **Day 3:** Sunny | High: 27°C | Low: 17°C **Day 4:** Sunny | High: 28°C …[785 chars]",
-          "content_digest": "20f65b579d5f3a9f",
+          "content_digest": "0983796cfdf62fc6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "c052855a": {
+    "trace-4": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -829,7 +906,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "30adba0bbe9ee821",
+          "content_digest": "27b8c64de4dd8167",
           "observation_type": "generation"
         },
         {
@@ -837,7 +914,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 14-day weather forecast for London.",
-          "content_digest": "1de6d514d5d764e4",
+          "content_digest": "7426414dbeed41d0",
           "observation_type": "generation"
         },
         {
@@ -845,84 +922,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I appreciate your interest in a 14-day forecast! However, I can only provide weather forecasts for a maximum of **7 days** ahead. This is a limitation of the forecasting tool to ensure accuracy, as longer-term predictions become less reliab…[410 chars]",
-          "content_digest": "436d33ca52c7d12b",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "e2b0e3e0": {
-      "message_count": 7,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "assistant",
-        "tool",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 2,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "30adba0bbe9ee821",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "76faff05bdd7d0bc",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
-          "content_digest": "04364b3757a7fd7d",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
-          "content_digest": "db487a44fc0848e9",
-          "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
-          "content_digest": "448757d378a09e53",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "42a4fb18d5738184",
-          "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[530 chars]",
-          "content_digest": "4e3479a41ea6c957",
+          "content_digest": "e03a0e2c961ceab8",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -966,7 +966,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "30adba0bbe9ee821",
+          "content_digest": "27b8c64de4dd8167",
           "observation_type": "generation"
         },
         {
@@ -974,7 +974,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "76faff05bdd7d0bc",
+          "content_digest": "75e9643b50cb90f4",
           "observation_type": "generation"
         },
         {
@@ -982,7 +982,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
-          "content_digest": "04364b3757a7fd7d",
+          "content_digest": "b7a070a2b20c6c80",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -991,7 +991,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
-          "content_digest": "db487a44fc0848e9",
+          "content_digest": "03f15361a5d4e079",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -1000,7 +1000,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
-          "content_digest": "448757d378a09e53",
+          "content_digest": "f026c51bdebb0c32",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -1009,7 +1009,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "42a4fb18d5738184",
+          "content_digest": "d2b21e8ed9e4a942",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -1018,7 +1018,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[512 chars]",
-          "content_digest": "11380bbc69090ca5",
+          "content_digest": "7d58955f08ab0a6f",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -1027,7 +1027,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "30adba0bbe9ee821",
+          "content_digest": "27b8c64de4dd8167",
           "observation_type": "generation"
         },
         {
@@ -1035,7 +1035,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "76faff05bdd7d0bc",
+          "content_digest": "75e9643b50cb90f4",
           "observation_type": "generation"
         },
         {
@@ -1043,7 +1043,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
-          "content_digest": "04364b3757a7fd7d",
+          "content_digest": "b7a070a2b20c6c80",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -1052,7 +1052,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
-          "content_digest": "db487a44fc0848e9",
+          "content_digest": "03f15361a5d4e079",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -1061,7 +1061,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
-          "content_digest": "448757d378a09e53",
+          "content_digest": "f026c51bdebb0c32",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -1070,7 +1070,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "42a4fb18d5738184",
+          "content_digest": "d2b21e8ed9e4a942",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -1079,7 +1079,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[530 chars]",
-          "content_digest": "4e3479a41ea6c957",
+          "content_digest": "ebd26c958f5e3f7d",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -1088,7 +1088,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "30adba0bbe9ee821",
+          "content_digest": "27b8c64de4dd8167",
           "observation_type": "generation"
         },
         {
@@ -1096,7 +1096,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 7-day weather forecast for Los Angeles.",
-          "content_digest": "7cec3f3cdaac4781",
+          "content_digest": "984bf68a8a35a65a",
           "observation_type": "generation"
         },
         {
@@ -1104,7 +1104,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cbc22729\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
-          "content_digest": "4e3ae1413424eb0a",
+          "content_digest": "74483f10390ff518",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -1113,7 +1113,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_cbc22729\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
-          "content_digest": "026c48a90e88cf2f",
+          "content_digest": "35d838f182734e0f",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -1121,8 +1121,8 @@
           "index": 18,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cbc22729\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25…[550 chars]",
-          "content_digest": "5ad2f057ce977918",
+          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[492 chars]",
+          "content_digest": "0f1beb36e3265d1e",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -1130,8 +1130,8 @@
           "index": 19,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_cbc22729\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "c0c27d0858b0e235",
+          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "da61bfe846976d0a",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -1140,7 +1140,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Hello! 👋 Here's your 7-day weather forecast for Los Angeles: **Day 1:** Sunny | High: 25°C | Low: 15°C **Day 2:** Sunny | High: 26°C | Low: 16°C ⚠️ Light rain expected **Day 3:** Sunny | High: 27°C | Low: 17°C **Day 4:** Sunny | High: 28°C …[785 chars]",
-          "content_digest": "20f65b579d5f3a9f",
+          "content_digest": "0983796cfdf62fc6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -1149,7 +1149,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "30adba0bbe9ee821",
+          "content_digest": "27b8c64de4dd8167",
           "observation_type": "generation"
         },
         {
@@ -1157,7 +1157,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 14-day weather forecast for London.",
-          "content_digest": "1de6d514d5d764e4",
+          "content_digest": "7426414dbeed41d0",
           "observation_type": "generation"
         },
         {
@@ -1165,7 +1165,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I appreciate your interest in a 14-day forecast! However, I can only provide weather forecasts for a maximum of **7 days** ahead. This is a limitation of the forecasting tool to ensure accuracy, as longer-term predictions become less reliab…[410 chars]",
-          "content_digest": "436d33ca52c7d12b",
+          "content_digest": "e03a0e2c961ceab8",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }

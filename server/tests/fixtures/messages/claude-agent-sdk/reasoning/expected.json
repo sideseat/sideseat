@@ -5,7 +5,7 @@
   "trace_count": 1,
   "session_count": 2,
   "span_views": {
-    "dcfc6ed7/claude_code.interaction/55bc": {
+    "trace-1/claude_code.interaction/span-1": {
       "message_count": 1,
       "role_sequence": [
         "user"
@@ -18,12 +18,12 @@
           "role": "user",
           "entry_type": "text",
           "content": "Three switches outside a room control three bulbs inside. You may flip switches freely but enter the room only once. How do you determine which switch controls which bulb?",
-          "content_digest": "b09cdf932807157a",
+          "content_digest": "5468af6e02aebb56",
           "observation_type": "span"
         }
       ]
     },
-    "dcfc6ed7/claude_code.interaction/e24d": {
+    "trace-1/claude_code.interaction/span-3": {
       "message_count": 1,
       "role_sequence": [
         "user"
@@ -36,12 +36,12 @@
           "role": "user",
           "entry_type": "text",
           "content": "A train leaves at 14:20 travelling 80 km/h. Another leaves the same station at 15:05 travelling 110 km/h on the same track. When does the second catch the first?",
-          "content_digest": "ceb0797a2e0127d3",
+          "content_digest": "bcf3a215633d8121",
           "observation_type": "span"
         }
       ]
     },
-    "dcfc6ed7/claude_code.llm_request/fc07": {
+    "trace-1/claude_code.llm_request/span-2": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -56,7 +56,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "Think the problem through, then give a short final answer.",
-          "content_digest": "26d70b5de2b9b808",
+          "content_digest": "3a7bc880979a8a4e",
           "observation_type": "generation"
         },
         {
@@ -64,7 +64,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Three switches outside a room control three bulbs inside. You may flip switches freely but enter the room only once. How do you determine which switch controls which bulb?",
-          "content_digest": "b09cdf932807157a",
+          "content_digest": "5468af6e02aebb56",
           "observation_type": "generation"
         },
         {
@@ -72,12 +72,12 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "# Solution: Use Thermal State + Light State Here's the strategy: ## Before entering the room: 1. **Switch 1**: Turn it ON and leave it on for 5–10 minutes 2. **Switch 2**: Turn it ON, then turn it OFF right before entering the room 3. **Swi…[1121 chars]",
-          "content_digest": "737fd7defc5ea064",
+          "content_digest": "47c7b94fbb8267ae",
           "observation_type": "generation"
         }
       ]
     },
-    "dcfc6ed7/claude_code.llm_request/ff75": {
+    "trace-1/claude_code.llm_request/span-4": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -92,7 +92,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "Think the problem through, then give a short final answer.",
-          "content_digest": "26d70b5de2b9b808",
+          "content_digest": "3a7bc880979a8a4e",
           "observation_type": "generation"
         },
         {
@@ -100,7 +100,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "A train leaves at 14:20 travelling 80 km/h. Another leaves the same station at 15:05 travelling 110 km/h on the same track. When does the second catch the first?",
-          "content_digest": "ceb0797a2e0127d3",
+          "content_digest": "bcf3a215633d8121",
           "observation_type": "generation"
         },
         {
@@ -108,14 +108,14 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I'll solve this step-by-step. **Setup:** - Train 1: departs 14:20 at 80 km/h - Train 2: departs 15:05 at 110 km/h **Step 1: Calculate Train 1's head start** - Head start time: 14:20 to 15:05 = 45 minutes = 0.75 hours - Distance Train 1 cove…[764 chars]",
-          "content_digest": "b929b567deeba348",
+          "content_digest": "d6b62b78a96a7203",
           "observation_type": "generation"
         }
       ]
     }
   },
   "trace_views": {
-    "dcfc6ed7": {
+    "trace-1": {
       "message_count": 5,
       "role_sequence": [
         "user",
@@ -132,7 +132,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Three switches outside a room control three bulbs inside. You may flip switches freely but enter the room only once. How do you determine which switch controls which bulb?",
-          "content_digest": "b09cdf932807157a",
+          "content_digest": "5468af6e02aebb56",
           "observation_type": "span"
         },
         {
@@ -140,7 +140,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "Think the problem through, then give a short final answer.",
-          "content_digest": "26d70b5de2b9b808",
+          "content_digest": "3a7bc880979a8a4e",
           "observation_type": "generation"
         },
         {
@@ -148,7 +148,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "# Solution: Use Thermal State + Light State Here's the strategy: ## Before entering the room: 1. **Switch 1**: Turn it ON and leave it on for 5–10 minutes 2. **Switch 2**: Turn it ON, then turn it OFF right before entering the room 3. **Swi…[1121 chars]",
-          "content_digest": "737fd7defc5ea064",
+          "content_digest": "47c7b94fbb8267ae",
           "observation_type": "generation"
         },
         {
@@ -156,7 +156,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "A train leaves at 14:20 travelling 80 km/h. Another leaves the same station at 15:05 travelling 110 km/h on the same track. When does the second catch the first?",
-          "content_digest": "ceb0797a2e0127d3",
+          "content_digest": "bcf3a215633d8121",
           "observation_type": "span"
         },
         {
@@ -164,7 +164,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I'll solve this step-by-step. **Setup:** - Train 1: departs 14:20 at 80 km/h - Train 2: departs 15:05 at 110 km/h **Step 1: Calculate Train 1's head start** - Head start time: 14:20 to 15:05 = 45 minutes = 0.75 hours - Distance Train 1 cove…[764 chars]",
-          "content_digest": "b929b567deeba348",
+          "content_digest": "d6b62b78a96a7203",
           "observation_type": "generation"
         }
       ]
@@ -188,7 +188,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Three switches outside a room control three bulbs inside. You may flip switches freely but enter the room only once. How do you determine which switch controls which bulb?",
-          "content_digest": "b09cdf932807157a",
+          "content_digest": "5468af6e02aebb56",
           "observation_type": "span"
         },
         {
@@ -196,7 +196,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "Think the problem through, then give a short final answer.",
-          "content_digest": "26d70b5de2b9b808",
+          "content_digest": "3a7bc880979a8a4e",
           "observation_type": "generation"
         },
         {
@@ -204,7 +204,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "# Solution: Use Thermal State + Light State Here's the strategy: ## Before entering the room: 1. **Switch 1**: Turn it ON and leave it on for 5–10 minutes 2. **Switch 2**: Turn it ON, then turn it OFF right before entering the room 3. **Swi…[1121 chars]",
-          "content_digest": "737fd7defc5ea064",
+          "content_digest": "47c7b94fbb8267ae",
           "observation_type": "generation"
         },
         {
@@ -212,7 +212,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "A train leaves at 14:20 travelling 80 km/h. Another leaves the same station at 15:05 travelling 110 km/h on the same track. When does the second catch the first?",
-          "content_digest": "ceb0797a2e0127d3",
+          "content_digest": "bcf3a215633d8121",
           "observation_type": "span"
         },
         {
@@ -220,7 +220,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I'll solve this step-by-step. **Setup:** - Train 1: departs 14:20 at 80 km/h - Train 2: departs 15:05 at 110 km/h **Step 1: Calculate Train 1's head start** - Head start time: 14:20 to 15:05 = 45 minutes = 0.75 hours - Distance Train 1 cove…[764 chars]",
-          "content_digest": "b929b567deeba348",
+          "content_digest": "d6b62b78a96a7203",
           "observation_type": "generation"
         }
       ]
@@ -242,7 +242,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Three switches outside a room control three bulbs inside. You may flip switches freely but enter the room only once. How do you determine which switch controls which bulb?",
-          "content_digest": "b09cdf932807157a",
+          "content_digest": "5468af6e02aebb56",
           "observation_type": "span"
         },
         {
@@ -250,7 +250,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "Think the problem through, then give a short final answer.",
-          "content_digest": "26d70b5de2b9b808",
+          "content_digest": "3a7bc880979a8a4e",
           "observation_type": "generation"
         },
         {
@@ -258,7 +258,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "# Solution: Use Thermal State + Light State Here's the strategy: ## Before entering the room: 1. **Switch 1**: Turn it ON and leave it on for 5–10 minutes 2. **Switch 2**: Turn it ON, then turn it OFF right before entering the room 3. **Swi…[1121 chars]",
-          "content_digest": "737fd7defc5ea064",
+          "content_digest": "47c7b94fbb8267ae",
           "observation_type": "generation"
         },
         {
@@ -266,7 +266,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "A train leaves at 14:20 travelling 80 km/h. Another leaves the same station at 15:05 travelling 110 km/h on the same track. When does the second catch the first?",
-          "content_digest": "ceb0797a2e0127d3",
+          "content_digest": "bcf3a215633d8121",
           "observation_type": "span"
         },
         {
@@ -274,7 +274,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I'll solve this step-by-step. **Setup:** - Train 1: departs 14:20 at 80 km/h - Train 2: departs 15:05 at 110 km/h **Step 1: Calculate Train 1's head start** - Head start time: 14:20 to 15:05 = 45 minutes = 0.75 hours - Distance Train 1 cove…[764 chars]",
-          "content_digest": "b929b567deeba348",
+          "content_digest": "d6b62b78a96a7203",
           "observation_type": "generation"
         }
       ]

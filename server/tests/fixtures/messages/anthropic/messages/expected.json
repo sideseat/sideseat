@@ -5,7 +5,7 @@
   "trace_count": 3,
   "session_count": 1,
   "span_views": {
-    "01a04252/Message with 'us.anthropic.claude-sonnet-5'/2801": {
+    "trace-1/Message with 'us.anthropic.claude-sonnet-5'/span-1": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -20,7 +20,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "Answer in one sentence.",
-          "content_digest": "49fd0fd68e3c2e94",
+          "content_digest": "eb0b73db0db1ed63",
           "observation_type": "generation"
         },
         {
@@ -28,7 +28,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the speed of light?",
-          "content_digest": "ce6ec8cdd58f4825",
+          "content_digest": "6cd7e48e0fe698ef",
           "observation_type": "generation"
         },
         {
@@ -36,12 +36,12 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The speed of light in a vacuum is approximately 299,792,458 meters per second (about 186,282 miles per second).",
-          "content_digest": "b9d673b56a5eed63",
+          "content_digest": "a27e7a8f86230d52",
           "observation_type": "generation"
         }
       ]
     },
-    "01a04252/Message with 'us.anthropic.claude-sonnet-5'/2b2b": {
+    "trace-2/Message with 'us.anthropic.claude-sonnet-5'/span-1": {
       "message_count": 2,
       "role_sequence": [
         "system",
@@ -55,7 +55,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "Answer in one sentence.",
-          "content_digest": "49fd0fd68e3c2e94",
+          "content_digest": "eb0b73db0db1ed63",
           "observation_type": "generation"
         },
         {
@@ -63,12 +63,48 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the boiling point of water?",
-          "content_digest": "64cf87cbf62b67a1",
+          "content_digest": "30d19820dbb43177",
           "observation_type": "generation"
         }
       ]
     },
-    "01a04252/Message with 'us.anthropic.claude-sonnet-5'/970b": {
+    "trace-2/streaming response from 'us.anthropic.claude-sonnet-5' took 0.21s/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "eb0b73db0db1ed63",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "30d19820dbb43177",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Water boils at 100°C (212°F) at standard atmospheric pressure (sea level).",
+          "content_digest": "aba0c49a70dd0f12",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-3/Message with 'us.anthropic.claude-sonnet-5'/span-2": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -83,7 +119,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "Use tools when available.",
-          "content_digest": "883a797be798921d",
+          "content_digest": "709a9d31106ec8be",
           "observation_type": "generation"
         },
         {
@@ -91,7 +127,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What's the weather in Paris?",
-          "content_digest": "85026bc2368bf644",
+          "content_digest": "e0a7ad259126b9f7",
           "observation_type": "generation"
         },
         {
@@ -99,13 +135,13 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014STzXF7xmt4Kuz39vC3DZy\",\"name\":\"get_weather\",\"input\":{\"input\":{\"location\":\"Paris\"}}}",
-          "content_digest": "953eae35cf4f3c30",
+          "content_digest": "ad14c6b6b2abf835",
           "tool_name": "get_weather",
           "observation_type": "generation"
         }
       ]
     },
-    "01a04252/Message with 'us.anthropic.claude-sonnet-5'/a04e": {
+    "trace-3/Message with 'us.anthropic.claude-sonnet-5'/span-3": {
       "message_count": 4,
       "role_sequence": [
         "system",
@@ -121,7 +157,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "Use tools when available.",
-          "content_digest": "883a797be798921d",
+          "content_digest": "709a9d31106ec8be",
           "observation_type": "generation"
         },
         {
@@ -129,7 +165,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What's the weather in Paris?",
-          "content_digest": "85026bc2368bf644",
+          "content_digest": "e0a7ad259126b9f7",
           "observation_type": "generation"
         },
         {
@@ -137,7 +173,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Sunny, 22C, light breeze",
-          "content_digest": "69d275383b204c5a",
+          "content_digest": "8037c7f5ae9c3347",
           "observation_type": "generation"
         },
         {
@@ -145,19 +181,21 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The weather in Paris is currently **sunny, 22°C (72°F)**, with a light breeze. A pleasant day overall!",
-          "content_digest": "811a50178291f5c0",
+          "content_digest": "61381a9e41c588e4",
           "observation_type": "generation"
         }
       ]
     },
-    "01a04252/messages-tool-use/0dda": {
+    "trace-3/messages-tool-use/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
-    },
-    "01a04252/streaming response from 'us.anthropic.claude-sonnet-5' took 0.21s/5f8c": {
+    }
+  },
+  "trace_views": {
+    "trace-1": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -172,7 +210,43 @@
           "role": "system",
           "entry_type": "text",
           "content": "Answer in one sentence.",
-          "content_digest": "49fd0fd68e3c2e94",
+          "content_digest": "eb0b73db0db1ed63",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The speed of light in a vacuum is approximately 299,792,458 meters per second (about 186,282 miles per second).",
+          "content_digest": "a27e7a8f86230d52",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "eb0b73db0db1ed63",
           "observation_type": "generation"
         },
         {
@@ -180,7 +254,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the boiling point of water?",
-          "content_digest": "64cf87cbf62b67a1",
+          "content_digest": "30d19820dbb43177",
           "observation_type": "generation"
         },
         {
@@ -188,14 +262,12 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Water boils at 100°C (212°F) at standard atmospheric pressure (sea level).",
-          "content_digest": "e6a24559a5d9af8f",
+          "content_digest": "aba0c49a70dd0f12",
           "observation_type": "generation"
         }
       ]
-    }
-  },
-  "trace_views": {
-    "01a04252": {
+    },
+    "trace-3": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -212,7 +284,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "Use tools when available.",
-          "content_digest": "883a797be798921d",
+          "content_digest": "709a9d31106ec8be",
           "observation_type": "generation"
         },
         {
@@ -220,7 +292,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What's the weather in Paris?",
-          "content_digest": "85026bc2368bf644",
+          "content_digest": "e0a7ad259126b9f7",
           "observation_type": "generation"
         },
         {
@@ -228,7 +300,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014STzXF7xmt4Kuz39vC3DZy\",\"name\":\"get_weather\",\"input\":{\"input\":{\"location\":\"Paris\"}}}",
-          "content_digest": "953eae35cf4f3c30",
+          "content_digest": "ad14c6b6b2abf835",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -237,7 +309,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Sunny, 22C, light breeze",
-          "content_digest": "69d275383b204c5a",
+          "content_digest": "8037c7f5ae9c3347",
           "observation_type": "generation"
         },
         {
@@ -245,7 +317,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The weather in Paris is currently **sunny, 22°C (72°F)**, with a light breeze. A pleasant day overall!",
-          "content_digest": "811a50178291f5c0",
+          "content_digest": "61381a9e41c588e4",
           "observation_type": "generation"
         }
       ]
@@ -269,7 +341,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "Use tools when available.",
-          "content_digest": "883a797be798921d",
+          "content_digest": "709a9d31106ec8be",
           "observation_type": "generation"
         },
         {
@@ -277,7 +349,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What's the weather in Paris?",
-          "content_digest": "85026bc2368bf644",
+          "content_digest": "e0a7ad259126b9f7",
           "observation_type": "generation"
         },
         {
@@ -285,7 +357,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014STzXF7xmt4Kuz39vC3DZy\",\"name\":\"get_weather\",\"input\":{\"input\":{\"location\":\"Paris\"}}}",
-          "content_digest": "953eae35cf4f3c30",
+          "content_digest": "ad14c6b6b2abf835",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -294,7 +366,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Sunny, 22C, light breeze",
-          "content_digest": "69d275383b204c5a",
+          "content_digest": "8037c7f5ae9c3347",
           "observation_type": "generation"
         },
         {
@@ -302,7 +374,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The weather in Paris is currently **sunny, 22°C (72°F)**, with a light breeze. A pleasant day overall!",
-          "content_digest": "811a50178291f5c0",
+          "content_digest": "61381a9e41c588e4",
           "observation_type": "generation"
         }
       ]

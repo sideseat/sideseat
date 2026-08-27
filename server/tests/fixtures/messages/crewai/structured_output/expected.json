@@ -5,7 +5,7 @@
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "bd1d3b17/Crew_aeb098c2-69f6-4622-acd1-264d5db3499d.kickoff/796f": {
+    "trace-1/Crew_1350ea3b-fbcd-430e-ba4e-51ec5e865695.kickoff/span-2": {
       "message_count": 2,
       "role_sequence": [
         "system",
@@ -19,7 +19,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are Information Extractor. You are an expert at parsing text and extracting structured data. You always return complete and accurate information. Your personal goal is: Extract structured information from text accurately",
-          "content_digest": "97df5c97d8c030a7",
+          "content_digest": "60d2e786297bdbfc",
           "observation_type": "chain"
         },
         {
@@ -27,12 +27,12 @@
           "role": "user",
           "entry_type": "text",
           "content": "Current Task: Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com This is the expected criteria for your final answer: A structured Person object with all extracted information. you MUST…[1955 chars]",
-          "content_digest": "fbc8ed543b3467f3",
+          "content_digest": "4631ddb8589ff295",
           "observation_type": "chain"
         }
       ]
     },
-    "bd1d3b17/Information Extractor._execute_core/59e2": {
+    "trace-1/Information Extractor._execute_core/span-3": {
       "message_count": 2,
       "role_sequence": [
         "system",
@@ -46,7 +46,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are Information Extractor. You are an expert at parsing text and extracting structured data. You always return complete and accurate information. Your personal goal is: Extract structured information from text accurately",
-          "content_digest": "97df5c97d8c030a7",
+          "content_digest": "60d2e786297bdbfc",
           "observation_type": "agent"
         },
         {
@@ -54,12 +54,12 @@
           "role": "user",
           "entry_type": "text",
           "content": "Current Task: Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com This is the expected criteria for your final answer: A structured Person object with all extracted information. you MUST…[1955 chars]",
-          "content_digest": "fbc8ed543b3467f3",
+          "content_digest": "4631ddb8589ff295",
           "observation_type": "agent"
         }
       ]
     },
-    "bd1d3b17/crewai.session/5dcb": {
+    "trace-1/crewai.session/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -68,7 +68,7 @@
     }
   },
   "trace_views": {
-    "bd1d3b17": {
+    "trace-1": {
       "message_count": 2,
       "role_sequence": [
         "system",
@@ -82,7 +82,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are Information Extractor. You are an expert at parsing text and extracting structured data. You always return complete and accurate information. Your personal goal is: Extract structured information from text accurately",
-          "content_digest": "97df5c97d8c030a7",
+          "content_digest": "60d2e786297bdbfc",
           "observation_type": "chain"
         },
         {
@@ -90,14 +90,14 @@
           "role": "user",
           "entry_type": "text",
           "content": "Current Task: Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com This is the expected criteria for your final answer: A structured Person object with all extracted information. you MUST…[1955 chars]",
-          "content_digest": "fbc8ed543b3467f3",
+          "content_digest": "4631ddb8589ff295",
           "observation_type": "chain"
         }
       ]
     }
   },
   "session_views": {
-    "crewai-structured_output-aa61a8e2": {
+    "crewai-structured_output-9911e167": {
       "message_count": 2,
       "role_sequence": [
         "system",
@@ -111,7 +111,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are Information Extractor. You are an expert at parsing text and extracting structured data. You always return complete and accurate information. Your personal goal is: Extract structured information from text accurately",
-          "content_digest": "97df5c97d8c030a7",
+          "content_digest": "60d2e786297bdbfc",
           "observation_type": "chain"
         },
         {
@@ -119,7 +119,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Current Task: Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com This is the expected criteria for your final answer: A structured Person object with all extracted information. you MUST…[1955 chars]",
-          "content_digest": "fbc8ed543b3467f3",
+          "content_digest": "4631ddb8589ff295",
           "observation_type": "chain"
         }
       ]

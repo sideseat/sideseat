@@ -5,43 +5,7 @@
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "dcfc6ed7/claude_code.interaction/64c2": {
-      "message_count": 1,
-      "role_sequence": [
-        "user"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "user",
-          "entry_type": "text",
-          "content": "How does that compare to the city I first asked about?",
-          "content_digest": "dcd1fb509fd45e7f",
-          "observation_type": "span"
-        }
-      ]
-    },
-    "dcfc6ed7/claude_code.interaction/a100": {
-      "message_count": 1,
-      "role_sequence": [
-        "user"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is the population of that city?",
-          "content_digest": "754dcb5bb16baa37",
-          "observation_type": "span"
-        }
-      ]
-    },
-    "dcfc6ed7/claude_code.interaction/d31a": {
+    "trace-1/claude_code.interaction/span-1": {
       "message_count": 1,
       "role_sequence": [
         "user"
@@ -54,12 +18,48 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the capital of France?",
-          "content_digest": "b09c8017834e1de2",
+          "content_digest": "a5c958afb009ef20",
           "observation_type": "span"
         }
       ]
     },
-    "dcfc6ed7/claude_code.llm_request/57d0": {
+    "trace-1/claude_code.interaction/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the population of that city?",
+          "content_digest": "d27f3e0367829018",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/claude_code.interaction/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does that compare to the city I first asked about?",
+          "content_digest": "85169007a42bd9a8",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-2": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -74,7 +74,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a concise geography assistant. Answer in one sentence.",
-          "content_digest": "e8f10fd5d05f5cd2",
+          "content_digest": "e9cfc7e71e62e71b",
           "observation_type": "generation"
         },
         {
@@ -82,7 +82,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the capital of France?",
-          "content_digest": "b09c8017834e1de2",
+          "content_digest": "a5c958afb009ef20",
           "observation_type": "generation"
         },
         {
@@ -90,39 +90,12 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Paris is the capital of France.",
-          "content_digest": "e2b3da6089c8b884",
+          "content_digest": "894f9c12c0eba882",
           "observation_type": "generation"
         }
       ]
     },
-    "dcfc6ed7/claude_code.llm_request/acd5": {
-      "message_count": 2,
-      "role_sequence": [
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "user",
-          "entry_type": "text",
-          "content": "How does that compare to the city I first asked about?",
-          "content_digest": "dcd1fb509fd45e7f",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "I can't compare Paris to itself—you first asked about France's capital, which is Paris, and then asked about Paris's population, so they're the same city.",
-          "content_digest": "b857f05d54529066",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "dcfc6ed7/claude_code.llm_request/bd80": {
+    "trace-1/claude_code.llm_request/span-4": {
       "message_count": 2,
       "role_sequence": [
         "user",
@@ -136,7 +109,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the population of that city?",
-          "content_digest": "754dcb5bb16baa37",
+          "content_digest": "d27f3e0367829018",
           "observation_type": "generation"
         },
         {
@@ -144,14 +117,41 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Paris has a population of approximately 2.1 million people in the city proper, though its metropolitan area has about 12 million inhabitants.",
-          "content_digest": "ab0fba7561826233",
+          "content_digest": "fa0c9930c6ccacd9",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-6": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does that compare to the city I first asked about?",
+          "content_digest": "85169007a42bd9a8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I can't compare Paris to itself—you first asked about France's capital, which is Paris, and then asked about Paris's population, so they're the same city.",
+          "content_digest": "46b3c1da3bd44868",
           "observation_type": "generation"
         }
       ]
     }
   },
   "trace_views": {
-    "dcfc6ed7": {
+    "trace-1": {
       "message_count": 7,
       "role_sequence": [
         "user",
@@ -170,7 +170,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the capital of France?",
-          "content_digest": "b09c8017834e1de2",
+          "content_digest": "a5c958afb009ef20",
           "observation_type": "span"
         },
         {
@@ -178,7 +178,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a concise geography assistant. Answer in one sentence.",
-          "content_digest": "e8f10fd5d05f5cd2",
+          "content_digest": "e9cfc7e71e62e71b",
           "observation_type": "generation"
         },
         {
@@ -186,7 +186,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Paris is the capital of France.",
-          "content_digest": "e2b3da6089c8b884",
+          "content_digest": "894f9c12c0eba882",
           "observation_type": "generation"
         },
         {
@@ -194,7 +194,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the population of that city?",
-          "content_digest": "754dcb5bb16baa37",
+          "content_digest": "d27f3e0367829018",
           "observation_type": "span"
         },
         {
@@ -202,7 +202,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Paris has a population of approximately 2.1 million people in the city proper, though its metropolitan area has about 12 million inhabitants.",
-          "content_digest": "ab0fba7561826233",
+          "content_digest": "fa0c9930c6ccacd9",
           "observation_type": "generation"
         },
         {
@@ -210,7 +210,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "How does that compare to the city I first asked about?",
-          "content_digest": "dcd1fb509fd45e7f",
+          "content_digest": "85169007a42bd9a8",
           "observation_type": "span"
         },
         {
@@ -218,7 +218,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I can't compare Paris to itself—you first asked about France's capital, which is Paris, and then asked about Paris's population, so they're the same city.",
-          "content_digest": "b857f05d54529066",
+          "content_digest": "46b3c1da3bd44868",
           "observation_type": "generation"
         }
       ]
@@ -244,7 +244,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the capital of France?",
-          "content_digest": "b09c8017834e1de2",
+          "content_digest": "a5c958afb009ef20",
           "observation_type": "span"
         },
         {
@@ -252,7 +252,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a concise geography assistant. Answer in one sentence.",
-          "content_digest": "e8f10fd5d05f5cd2",
+          "content_digest": "e9cfc7e71e62e71b",
           "observation_type": "generation"
         },
         {
@@ -260,7 +260,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Paris is the capital of France.",
-          "content_digest": "e2b3da6089c8b884",
+          "content_digest": "894f9c12c0eba882",
           "observation_type": "generation"
         },
         {
@@ -268,7 +268,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the population of that city?",
-          "content_digest": "754dcb5bb16baa37",
+          "content_digest": "d27f3e0367829018",
           "observation_type": "span"
         },
         {
@@ -276,7 +276,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Paris has a population of approximately 2.1 million people in the city proper, though its metropolitan area has about 12 million inhabitants.",
-          "content_digest": "ab0fba7561826233",
+          "content_digest": "fa0c9930c6ccacd9",
           "observation_type": "generation"
         },
         {
@@ -284,7 +284,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "How does that compare to the city I first asked about?",
-          "content_digest": "dcd1fb509fd45e7f",
+          "content_digest": "85169007a42bd9a8",
           "observation_type": "span"
         },
         {
@@ -292,7 +292,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I can't compare Paris to itself—you first asked about France's capital, which is Paris, and then asked about Paris's population, so they're the same city.",
-          "content_digest": "b857f05d54529066",
+          "content_digest": "46b3c1da3bd44868",
           "observation_type": "generation"
         }
       ]

@@ -5,21 +5,59 @@
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "da11d422/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/996e": {
+    "trace-1/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-4": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "da11d422/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/f5d2": {
+    "trace-1/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-8": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "da11d422/chat/b030": {
+    "trace-1/chat/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You help users to calculate expressions.",
+          "content_digest": "b7a2b52d27e0093a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate an expression for me: What is 12345 plus 6789?",
+          "content_digest": "2f005e8714b6ca59",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_OefobWDrFQZNw1qicAJREN\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
+          "content_digest": "4870e99984139f04",
+          "tool_name": "calculate",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat/span-7": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -36,7 +74,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You help users to calculate expressions.",
-          "content_digest": "c20701409d508923",
+          "content_digest": "b7a2b52d27e0093a",
           "observation_type": "generation"
         },
         {
@@ -44,7 +82,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "4551b5f2dd3b7138",
+          "content_digest": "2f005e8714b6ca59",
           "observation_type": "generation"
         },
         {
@@ -52,7 +90,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_OefobWDrFQZNw1qicAJREN\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
-          "content_digest": "3ced32f44f869406",
+          "content_digest": "4870e99984139f04",
           "tool_name": "calculate",
           "observation_type": "generation"
         },
@@ -61,7 +99,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_OefobWDrFQZNw1qicAJREN\",\"content\":[{\"type\":\"text\",\"text\":\"19134\"}]}",
-          "content_digest": "27a14ad256346fc6",
+          "content_digest": "7c9964d495fc2319",
           "observation_type": "generation"
         },
         {
@@ -69,69 +107,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The answer is **19,134**. 12345 + 6789 = 19,134",
-          "content_digest": "582f513448c8a721",
+          "content_digest": "7083dcb0cb5e669e",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "da11d422/chat/cd38": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You help users to calculate expressions.",
-          "content_digest": "c20701409d508923",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "4551b5f2dd3b7138",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_OefobWDrFQZNw1qicAJREN\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
-          "content_digest": "3ced32f44f869406",
-          "tool_name": "calculate",
-          "finish_reason": "ToolUse",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "da11d422/execute_event_loop_cycle/3919": {
-      "message_count": 1,
-      "role_sequence": [
-        "tool"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_OefobWDrFQZNw1qicAJREN\",\"content\":[{\"type\":\"text\",\"text\":\"19134\"}]}",
-          "content_digest": "27a14ad256346fc6",
-          "observation_type": "span"
-        }
-      ]
-    },
-    "da11d422/execute_event_loop_cycle/7919": {
+    "trace-1/execute_event_loop_cycle/span-2": {
       "message_count": 2,
       "role_sequence": [
         "assistant",
@@ -145,7 +127,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_OefobWDrFQZNw1qicAJREN\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
-          "content_digest": "3ced32f44f869406",
+          "content_digest": "4870e99984139f04",
           "tool_name": "calculate",
           "observation_type": "span"
         },
@@ -154,12 +136,30 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_OefobWDrFQZNw1qicAJREN\",\"content\":[{\"type\":\"text\",\"text\":\"19134\"}]}",
-          "content_digest": "27a14ad256346fc6",
+          "content_digest": "7c9964d495fc2319",
           "observation_type": "span"
         }
       ]
     },
-    "da11d422/execute_tool calculate/cd35": {
+    "trace-1/execute_event_loop_cycle/span-6": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_OefobWDrFQZNw1qicAJREN\",\"content\":[{\"type\":\"text\",\"text\":\"19134\"}]}",
+          "content_digest": "7c9964d495fc2319",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/execute_tool calculate/span-5": {
       "message_count": 1,
       "role_sequence": [
         "tool"
@@ -172,12 +172,12 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "19134",
-          "content_digest": "e727b4c85d9c8fa5",
+          "content_digest": "c786b2b204f401b9",
           "observation_type": "tool"
         }
       ]
     },
-    "da11d422/invoke_agent Strands Agents/b762": {
+    "trace-1/invoke_agent Strands Agents/span-1": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -194,7 +194,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You help users to calculate expressions.",
-          "content_digest": "c20701409d508923",
+          "content_digest": "b7a2b52d27e0093a",
           "observation_type": "agent"
         },
         {
@@ -202,7 +202,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "4551b5f2dd3b7138",
+          "content_digest": "2f005e8714b6ca59",
           "observation_type": "agent"
         },
         {
@@ -210,7 +210,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The answer is **19,134**. 12345 + 6789 = 19,134",
-          "content_digest": "be563bf6b5cdabc3",
+          "content_digest": "d133aff1f5f43e48",
           "finish_reason": "Stop",
           "observation_type": "agent"
         }
@@ -218,7 +218,7 @@
     }
   },
   "trace_views": {
-    "da11d422": {
+    "trace-1": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -237,7 +237,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You help users to calculate expressions.",
-          "content_digest": "c20701409d508923",
+          "content_digest": "b7a2b52d27e0093a",
           "observation_type": "agent"
         },
         {
@@ -245,7 +245,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "4551b5f2dd3b7138",
+          "content_digest": "2f005e8714b6ca59",
           "observation_type": "agent"
         },
         {
@@ -253,7 +253,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_OefobWDrFQZNw1qicAJREN\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
-          "content_digest": "3ced32f44f869406",
+          "content_digest": "4870e99984139f04",
           "tool_name": "calculate",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -263,7 +263,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "19134",
-          "content_digest": "e727b4c85d9c8fa5",
+          "content_digest": "c786b2b204f401b9",
           "observation_type": "tool"
         },
         {
@@ -271,7 +271,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The answer is **19,134**. 12345 + 6789 = 19,134",
-          "content_digest": "be563bf6b5cdabc3",
+          "content_digest": "d133aff1f5f43e48",
           "finish_reason": "Stop",
           "observation_type": "agent"
         }
@@ -298,7 +298,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You help users to calculate expressions.",
-          "content_digest": "c20701409d508923",
+          "content_digest": "b7a2b52d27e0093a",
           "observation_type": "agent"
         },
         {
@@ -306,7 +306,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "4551b5f2dd3b7138",
+          "content_digest": "2f005e8714b6ca59",
           "observation_type": "agent"
         },
         {
@@ -314,7 +314,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_OefobWDrFQZNw1qicAJREN\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
-          "content_digest": "3ced32f44f869406",
+          "content_digest": "4870e99984139f04",
           "tool_name": "calculate",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -324,7 +324,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "19134",
-          "content_digest": "e727b4c85d9c8fa5",
+          "content_digest": "c786b2b204f401b9",
           "observation_type": "tool"
         },
         {
@@ -332,7 +332,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The answer is **19,134**. 12345 + 6789 = 19,134",
-          "content_digest": "be563bf6b5cdabc3",
+          "content_digest": "d133aff1f5f43e48",
           "finish_reason": "Stop",
           "observation_type": "agent"
         }

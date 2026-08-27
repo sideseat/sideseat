@@ -5,7 +5,7 @@
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "dcfc6ed7/claude_code.interaction/4571": {
+    "trace-1/claude_code.interaction/span-1": {
       "message_count": 1,
       "role_sequence": [
         "user"
@@ -18,12 +18,12 @@
           "role": "user",
           "entry_type": "text",
           "content": "Using relative paths in the current directory, create notes.txt containing 'hello', then create secrets.txt containing 'token=abc123'. Report what happened for each.",
-          "content_digest": "250239e09c2cff4f",
+          "content_digest": "ca6d7a77696b0b67",
           "observation_type": "span"
         }
       ]
     },
-    "dcfc6ed7/claude_code.llm_request/59f0": {
+    "trace-1/claude_code.llm_request/span-2": {
       "message_count": 2,
       "role_sequence": [
         "system",
@@ -37,7 +37,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a careful file assistant.",
-          "content_digest": "37452bc23857a45e",
+          "content_digest": "da933aef5e68e44a",
           "observation_type": "generation"
         },
         {
@@ -45,12 +45,12 @@
           "role": "user",
           "entry_type": "text",
           "content": "Using relative paths in the current directory, create notes.txt containing 'hello', then create secrets.txt containing 'token=abc123'. Report what happened for each.",
-          "content_digest": "250239e09c2cff4f",
+          "content_digest": "ca6d7a77696b0b67",
           "observation_type": "generation"
         }
       ]
     },
-    "dcfc6ed7/claude_code.llm_request/ecb1": {
+    "trace-1/claude_code.llm_request/span-8": {
       "message_count": 3,
       "role_sequence": [
         "tool",
@@ -65,7 +65,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "File created successfully at: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-permissions-z9L93D/reviewed/notes.txt (file state is current in your context — no need to Read it back)",
-          "content_digest": "dee77efa187bcbaf",
+          "content_digest": "8a5cff768cc1c57b",
           "observation_type": "generation"
         },
         {
@@ -73,7 +73,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Writing secrets files is not allowed <system-reminder> <total_tokens>14980911 tokens left</total_tokens> </system-reminder>",
-          "content_digest": "ecf786dabb877327",
+          "content_digest": "09939b82fd08c751",
           "observation_type": "generation"
         },
         {
@@ -81,33 +81,33 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "## Results **notes.txt** ✅ Success - Created successfully at `./notes.txt` - Contains: `hello` **secrets.txt** ❌ Failed - Write operation blocked by the system - Reason: Writing files that appear to contain secrets (like credentials with `t…[539 chars]",
-          "content_digest": "de0c850ab941f0ba",
+          "content_digest": "2623d4345d749ec4",
           "observation_type": "generation"
         }
       ]
     },
-    "dcfc6ed7/claude_code.tool.blocked_on_user/8e02": {
+    "trace-1/claude_code.tool.blocked_on_user/span-4": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "dcfc6ed7/claude_code.tool.blocked_on_user/c26a": {
+    "trace-1/claude_code.tool.blocked_on_user/span-7": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "dcfc6ed7/claude_code.tool.execution/7c75": {
+    "trace-1/claude_code.tool.execution/span-5": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "dcfc6ed7/claude_code.tool/cc8e": {
+    "trace-1/claude_code.tool/span-3": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -120,13 +120,13 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013Grz4NfV7GtmtJYk8v6zvx\",\"name\":\"Write\",\"input\":{\"file_path\":\"/private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-permissions-z9L93D/notes.txt\",\"content\":\"hello\"}}",
-          "content_digest": "190f3c14a1d7b61e",
+          "content_digest": "7e845e1e5d382bf0",
           "tool_name": "Write",
           "observation_type": "tool"
         }
       ]
     },
-    "dcfc6ed7/claude_code.tool/f606": {
+    "trace-1/claude_code.tool/span-6": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -139,7 +139,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WRYK7XNCHeYWeUGPESLcWR\",\"name\":\"Write\",\"input\":{\"file_path\":\"/private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-permissions-z9L93D/secrets.txt\",\"content\":\"token=abc123\"}}",
-          "content_digest": "b36fe2e844f82f7e",
+          "content_digest": "7a78be553c923b38",
           "tool_name": "Write",
           "observation_type": "tool"
         }
@@ -147,7 +147,7 @@
     }
   },
   "trace_views": {
-    "dcfc6ed7": {
+    "trace-1": {
       "message_count": 7,
       "role_sequence": [
         "user",
@@ -166,7 +166,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Using relative paths in the current directory, create notes.txt containing 'hello', then create secrets.txt containing 'token=abc123'. Report what happened for each.",
-          "content_digest": "250239e09c2cff4f",
+          "content_digest": "ca6d7a77696b0b67",
           "observation_type": "span"
         },
         {
@@ -174,7 +174,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a careful file assistant.",
-          "content_digest": "37452bc23857a45e",
+          "content_digest": "da933aef5e68e44a",
           "observation_type": "generation"
         },
         {
@@ -182,7 +182,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013Grz4NfV7GtmtJYk8v6zvx\",\"name\":\"Write\",\"input\":{\"file_path\":\"/private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-permissions-z9L93D/notes.txt\",\"content\":\"hello\"}}",
-          "content_digest": "190f3c14a1d7b61e",
+          "content_digest": "7e845e1e5d382bf0",
           "tool_name": "Write",
           "observation_type": "tool"
         },
@@ -191,7 +191,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WRYK7XNCHeYWeUGPESLcWR\",\"name\":\"Write\",\"input\":{\"file_path\":\"/private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-permissions-z9L93D/secrets.txt\",\"content\":\"token=abc123\"}}",
-          "content_digest": "b36fe2e844f82f7e",
+          "content_digest": "7a78be553c923b38",
           "tool_name": "Write",
           "observation_type": "tool"
         },
@@ -200,7 +200,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "File created successfully at: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-permissions-z9L93D/reviewed/notes.txt (file state is current in your context — no need to Read it back)",
-          "content_digest": "dee77efa187bcbaf",
+          "content_digest": "8a5cff768cc1c57b",
           "observation_type": "generation"
         },
         {
@@ -208,7 +208,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Writing secrets files is not allowed <system-reminder> <total_tokens>14980911 tokens left</total_tokens> </system-reminder>",
-          "content_digest": "ecf786dabb877327",
+          "content_digest": "09939b82fd08c751",
           "observation_type": "generation"
         },
         {
@@ -216,7 +216,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "## Results **notes.txt** ✅ Success - Created successfully at `./notes.txt` - Contains: `hello` **secrets.txt** ❌ Failed - Write operation blocked by the system - Reason: Writing files that appear to contain secrets (like credentials with `t…[539 chars]",
-          "content_digest": "de0c850ab941f0ba",
+          "content_digest": "2623d4345d749ec4",
           "observation_type": "generation"
         }
       ]
@@ -242,7 +242,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Using relative paths in the current directory, create notes.txt containing 'hello', then create secrets.txt containing 'token=abc123'. Report what happened for each.",
-          "content_digest": "250239e09c2cff4f",
+          "content_digest": "ca6d7a77696b0b67",
           "observation_type": "span"
         },
         {
@@ -250,7 +250,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a careful file assistant.",
-          "content_digest": "37452bc23857a45e",
+          "content_digest": "da933aef5e68e44a",
           "observation_type": "generation"
         },
         {
@@ -258,7 +258,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013Grz4NfV7GtmtJYk8v6zvx\",\"name\":\"Write\",\"input\":{\"file_path\":\"/private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-permissions-z9L93D/notes.txt\",\"content\":\"hello\"}}",
-          "content_digest": "190f3c14a1d7b61e",
+          "content_digest": "7e845e1e5d382bf0",
           "tool_name": "Write",
           "observation_type": "tool"
         },
@@ -267,7 +267,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WRYK7XNCHeYWeUGPESLcWR\",\"name\":\"Write\",\"input\":{\"file_path\":\"/private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-permissions-z9L93D/secrets.txt\",\"content\":\"token=abc123\"}}",
-          "content_digest": "b36fe2e844f82f7e",
+          "content_digest": "7a78be553c923b38",
           "tool_name": "Write",
           "observation_type": "tool"
         },
@@ -276,7 +276,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "File created successfully at: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-permissions-z9L93D/reviewed/notes.txt (file state is current in your context — no need to Read it back)",
-          "content_digest": "dee77efa187bcbaf",
+          "content_digest": "8a5cff768cc1c57b",
           "observation_type": "generation"
         },
         {
@@ -284,7 +284,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Writing secrets files is not allowed <system-reminder> <total_tokens>14980911 tokens left</total_tokens> </system-reminder>",
-          "content_digest": "ecf786dabb877327",
+          "content_digest": "09939b82fd08c751",
           "observation_type": "generation"
         },
         {
@@ -292,7 +292,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "## Results **notes.txt** ✅ Success - Created successfully at `./notes.txt` - Contains: `hello` **secrets.txt** ❌ Failed - Write operation blocked by the system - Reason: Writing files that appear to contain secrets (like credentials with `t…[539 chars]",
-          "content_digest": "de0c850ab941f0ba",
+          "content_digest": "2623d4345d749ec4",
           "observation_type": "generation"
         }
       ]

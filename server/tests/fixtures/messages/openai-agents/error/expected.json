@@ -5,21 +5,21 @@
   "trace_count": 1,
   "session_count": 2,
   "span_views": {
-    "01a04251/Agent run: 'Assistant' failed: Error in agent run/5b72": {
+    "trace-1/Agent run: 'Assistant' failed: Error in agent run/span-4": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "01a04251/OpenAI Agents trace: Agent workflow/3f38": {
+    "trace-1/OpenAI Agents trace: Agent workflow/span-2": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "01a04251/Responses API with 'nonexistent-model-id-12345' failed: Error getting response/1ae4": {
+    "trace-1/Responses API with 'nonexistent-model-id-12345' failed: Error getting response/span-6": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -32,27 +32,27 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[1689 chars]",
-          "content_digest": "0c83505d6dbd8a42",
+          "content_digest": "7f21759df728ab0b",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
       ]
     },
-    "01a04251/Task: Agent workflow/31b7": {
+    "trace-1/Task: Agent workflow/span-3": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "01a04251/Turn 1 for agent Assistant/c71d": {
+    "trace-1/Turn 1 for agent Assistant/span-5": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "01a04251/openai_agents.session/57b7": {
+    "trace-1/openai_agents.session/span-1": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -65,7 +65,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[4579 chars]",
-          "content_digest": "e898c9808e43750e",
+          "content_digest": "1c98e4541a8b8f8f",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -73,7 +73,7 @@
     }
   },
   "trace_views": {
-    "01a04251": {
+    "trace-1": {
       "message_count": 2,
       "role_sequence": [
         "assistant",
@@ -87,7 +87,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[1689 chars]",
-          "content_digest": "0c83505d6dbd8a42",
+          "content_digest": "7f21759df728ab0b",
           "finish_reason": "Error",
           "observation_type": "generation"
         },
@@ -96,7 +96,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[4579 chars]",
-          "content_digest": "e898c9808e43750e",
+          "content_digest": "1c98e4541a8b8f8f",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -118,7 +118,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[1689 chars]",
-          "content_digest": "0c83505d6dbd8a42",
+          "content_digest": "7f21759df728ab0b",
           "finish_reason": "Error",
           "observation_type": "generation"
         },
@@ -127,7 +127,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[4579 chars]",
-          "content_digest": "e898c9808e43750e",
+          "content_digest": "1c98e4541a8b8f8f",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -147,7 +147,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[1689 chars]",
-          "content_digest": "0c83505d6dbd8a42",
+          "content_digest": "7f21759df728ab0b",
           "finish_reason": "Error",
           "observation_type": "generation"
         },
@@ -156,7 +156,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[4579 chars]",
-          "content_digest": "e898c9808e43750e",
+          "content_digest": "1c98e4541a8b8f8f",
           "finish_reason": "Error",
           "observation_type": "agent"
         }

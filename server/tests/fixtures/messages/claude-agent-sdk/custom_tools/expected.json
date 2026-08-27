@@ -5,7 +5,7 @@
   "trace_count": 1,
   "session_count": 2,
   "span_views": {
-    "dcfc6ed7/claude_code.interaction/50b5": {
+    "trace-1/claude_code.interaction/span-1": {
       "message_count": 1,
       "role_sequence": [
         "user"
@@ -18,12 +18,12 @@
           "role": "user",
           "entry_type": "text",
           "content": "How many widgets and flanges are in stock?",
-          "content_digest": "9adac56cfbda969b",
+          "content_digest": "0fd6ddf013dd19c3",
           "observation_type": "span"
         }
       ]
     },
-    "dcfc6ed7/claude_code.interaction/c478": {
+    "trace-1/claude_code.interaction/span-14": {
       "message_count": 1,
       "role_sequence": [
         "user"
@@ -36,93 +36,12 @@
           "role": "user",
           "entry_type": "text",
           "content": "Restock flanges with 25 units, then tell me the new count.",
-          "content_digest": "912263ba3da35ba8",
+          "content_digest": "560c04033b10fa99",
           "observation_type": "span"
         }
       ]
     },
-    "dcfc6ed7/claude_code.llm_request/2306": {
-      "message_count": 2,
-      "role_sequence": [
-        "tool",
-        "user"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__check_stock\"}]",
-          "content_digest": "5aae7e4305d595f8",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Tool loaded.",
-          "content_digest": "1199b78d74e75e3a",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "dcfc6ed7/claude_code.llm_request/250c": {
-      "message_count": 2,
-      "role_sequence": [
-        "system",
-        "user"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a warehouse assistant. Use the inventory tools for all lookups.",
-          "content_digest": "5481232b04ff6f38",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "How many widgets and flanges are in stock?",
-          "content_digest": "9adac56cfbda969b",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "dcfc6ed7/claude_code.llm_request/5755": {
-      "message_count": 2,
-      "role_sequence": [
-        "tool",
-        "user"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__restock\"},{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__check_stock\"}]",
-          "content_digest": "8517022ad9923269",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Tool loaded.",
-          "content_digest": "1199b78d74e75e3a",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "dcfc6ed7/claude_code.llm_request/62a8": {
+    "trace-1/claude_code.llm_request/span-13": {
       "message_count": 3,
       "role_sequence": [
         "tool",
@@ -137,7 +56,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"widget: 12 in stock\"}]",
-          "content_digest": "b355270d400ce663",
+          "content_digest": "d961737ef5b34a61",
           "observation_type": "generation"
         },
         {
@@ -145,7 +64,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"flange: 0 in stock\"}]",
-          "content_digest": "0aa164e3fb83ef21",
+          "content_digest": "575af7dd7b50ae05",
           "observation_type": "generation"
         },
         {
@@ -153,39 +72,12 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Here's the current stock information: - **Widgets**: 12 in stock - **Flanges**: 0 in stock You currently have no flanges in stock, so you may want to consider restocking those if needed.",
-          "content_digest": "40caec00168e5420",
+          "content_digest": "297acfcdcaf14b3b",
           "observation_type": "generation"
         }
       ]
     },
-    "dcfc6ed7/claude_code.llm_request/6b41": {
-      "message_count": 2,
-      "role_sequence": [
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "[{\"type\":\"text\",\"text\":\"flange: now 25 in stock\"}]",
-          "content_digest": "61d0fda3e7bfe8fe",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "Perfect! I've restocked the flanges with 25 units. **The new count is 25 units in stock.**",
-          "content_digest": "3bcc3754ca799590",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "dcfc6ed7/claude_code.llm_request/bcbd": {
+    "trace-1/claude_code.llm_request/span-15": {
       "message_count": 2,
       "role_sequence": [
         "system",
@@ -199,7 +91,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a warehouse assistant. Use the inventory tools for all lookups.",
-          "content_digest": "5481232b04ff6f38",
+          "content_digest": "e7381e8e903d37bd",
           "observation_type": "generation"
         },
         {
@@ -207,84 +99,69 @@
           "role": "user",
           "entry_type": "text",
           "content": "Restock flanges with 25 units, then tell me the new count.",
-          "content_digest": "912263ba3da35ba8",
+          "content_digest": "560c04033b10fa99",
           "observation_type": "generation"
         }
       ]
     },
-    "dcfc6ed7/claude_code.tool.blocked_on_user/1300": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "dcfc6ed7/claude_code.tool.blocked_on_user/3c0d": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "dcfc6ed7/claude_code.tool.blocked_on_user/4644": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "dcfc6ed7/claude_code.tool.blocked_on_user/cf98": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "dcfc6ed7/claude_code.tool.blocked_on_user/fed1": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "dcfc6ed7/claude_code.tool.execution/1fc0": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "dcfc6ed7/claude_code.tool.execution/25d5": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "dcfc6ed7/claude_code.tool.execution/2b6d": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "dcfc6ed7/claude_code.tool.execution/588e": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "dcfc6ed7/claude_code.tool.execution/e8a6": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "dcfc6ed7/claude_code.tool/0f84": {
-      "message_count": 1,
+    "trace-1/claude_code.llm_request/span-19": {
+      "message_count": 2,
       "role_sequence": [
+        "tool",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__restock\"},{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__check_stock\"}]",
+          "content_digest": "64aa86638e860af8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Tool loaded.",
+          "content_digest": "fa8faf6aaa3f4c78",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a warehouse assistant. Use the inventory tools for all lookups.",
+          "content_digest": "e7381e8e903d37bd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How many widgets and flanges are in stock?",
+          "content_digest": "0fd6ddf013dd19c3",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-23": {
+      "message_count": 2,
+      "role_sequence": [
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -292,73 +169,120 @@
       "messages": [
         {
           "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"text\",\"text\":\"flange: now 25 in stock\"}]",
+          "content_digest": "8061d6c987f3251f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
           "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_011jg5DkMCfoN8btSDr4MgpA\",\"name\":\"mcp__inventory__restock\",\"input\":{\"part\":\"flanges\",\"count\":25}}",
-          "content_digest": "f1ac1d66380c42aa",
-          "tool_name": "mcp__inventory__restock",
-          "observation_type": "tool"
+          "entry_type": "text",
+          "content": "Perfect! I've restocked the flanges with 25 units. **The new count is 25 units in stock.**",
+          "content_digest": "1927cff5e8c8f252",
+          "observation_type": "generation"
         }
       ]
     },
-    "dcfc6ed7/claude_code.tool/293e": {
-      "message_count": 1,
+    "trace-1/claude_code.llm_request/span-6": {
+      "message_count": 2,
       "role_sequence": [
-        "assistant"
+        "tool",
+        "user"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": [
         {
           "index": 0,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01NtPWkGA88egrSKbaXJSjTT\",\"name\":\"mcp__inventory__check_stock\",\"input\":{\"part\":\"widgets\"}}",
-          "content_digest": "d418e376fbca0169",
-          "tool_name": "mcp__inventory__check_stock",
-          "observation_type": "tool"
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__check_stock\"}]",
+          "content_digest": "ff3d34a497465d9c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Tool loaded.",
+          "content_digest": "fa8faf6aaa3f4c78",
+          "observation_type": "generation"
         }
       ]
     },
-    "dcfc6ed7/claude_code.tool/506f": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+    "trace-1/claude_code.tool.blocked_on_user/span-12": {
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01QbXvYWueMWiFFsvP4sjLQ1\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__inventory__restock,mcp__inventory__check_stock\",\"max_results\":5}}",
-          "content_digest": "f182fc3636e7a143",
-          "tool_name": "ToolSearch",
-          "observation_type": "tool"
-        }
-      ]
+      "messages": []
     },
-    "dcfc6ed7/claude_code.tool/6bff": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+    "trace-1/claude_code.tool.blocked_on_user/span-17": {
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01963odC5JtonJoRfCFSSinE\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__inventory__check_stock\",\"max_results\":1}}",
-          "content_digest": "1bfeb4fb9719489a",
-          "tool_name": "ToolSearch",
-          "observation_type": "tool"
-        }
-      ]
+      "messages": []
     },
-    "dcfc6ed7/claude_code.tool/6df0": {
+    "trace-1/claude_code.tool.blocked_on_user/span-20": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-11": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-18": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-22": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool/span-10": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -371,7 +295,83 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017TXH3vxyZP6cdu5jbtdKgG\",\"name\":\"mcp__inventory__check_stock\",\"input\":{\"part\":\"flanges\"}}",
-          "content_digest": "fa48867d6f519e56",
+          "content_digest": "a1d849cc4a09247c",
+          "tool_name": "mcp__inventory__check_stock",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool/span-16": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01QbXvYWueMWiFFsvP4sjLQ1\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__inventory__restock,mcp__inventory__check_stock\",\"max_results\":5}}",
+          "content_digest": "82bc24dfd7515cde",
+          "tool_name": "ToolSearch",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool/span-21": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_011jg5DkMCfoN8btSDr4MgpA\",\"name\":\"mcp__inventory__restock\",\"input\":{\"part\":\"flanges\",\"count\":25}}",
+          "content_digest": "2e58288f7f01e1f3",
+          "tool_name": "mcp__inventory__restock",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01963odC5JtonJoRfCFSSinE\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__inventory__check_stock\",\"max_results\":1}}",
+          "content_digest": "2d55ecbe45a324fa",
+          "tool_name": "ToolSearch",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool/span-9": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01NtPWkGA88egrSKbaXJSjTT\",\"name\":\"mcp__inventory__check_stock\",\"input\":{\"part\":\"widgets\"}}",
+          "content_digest": "76b8920b3d995e3b",
           "tool_name": "mcp__inventory__check_stock",
           "observation_type": "tool"
         }
@@ -379,7 +379,7 @@
     }
   },
   "trace_views": {
-    "dcfc6ed7": {
+    "trace-1": {
       "message_count": 16,
       "role_sequence": [
         "user",
@@ -407,7 +407,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "How many widgets and flanges are in stock?",
-          "content_digest": "9adac56cfbda969b",
+          "content_digest": "0fd6ddf013dd19c3",
           "observation_type": "span"
         },
         {
@@ -415,7 +415,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a warehouse assistant. Use the inventory tools for all lookups.",
-          "content_digest": "5481232b04ff6f38",
+          "content_digest": "e7381e8e903d37bd",
           "observation_type": "generation"
         },
         {
@@ -423,7 +423,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01963odC5JtonJoRfCFSSinE\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__inventory__check_stock\",\"max_results\":1}}",
-          "content_digest": "1bfeb4fb9719489a",
+          "content_digest": "2d55ecbe45a324fa",
           "tool_name": "ToolSearch",
           "observation_type": "tool"
         },
@@ -432,7 +432,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__check_stock\"}]",
-          "content_digest": "5aae7e4305d595f8",
+          "content_digest": "ff3d34a497465d9c",
           "observation_type": "generation"
         },
         {
@@ -440,7 +440,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Tool loaded.",
-          "content_digest": "1199b78d74e75e3a",
+          "content_digest": "fa8faf6aaa3f4c78",
           "observation_type": "generation"
         },
         {
@@ -448,7 +448,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01NtPWkGA88egrSKbaXJSjTT\",\"name\":\"mcp__inventory__check_stock\",\"input\":{\"part\":\"widgets\"}}",
-          "content_digest": "d418e376fbca0169",
+          "content_digest": "76b8920b3d995e3b",
           "tool_name": "mcp__inventory__check_stock",
           "observation_type": "tool"
         },
@@ -457,7 +457,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017TXH3vxyZP6cdu5jbtdKgG\",\"name\":\"mcp__inventory__check_stock\",\"input\":{\"part\":\"flanges\"}}",
-          "content_digest": "fa48867d6f519e56",
+          "content_digest": "a1d849cc4a09247c",
           "tool_name": "mcp__inventory__check_stock",
           "observation_type": "tool"
         },
@@ -466,7 +466,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"widget: 12 in stock\"}]",
-          "content_digest": "b355270d400ce663",
+          "content_digest": "d961737ef5b34a61",
           "observation_type": "generation"
         },
         {
@@ -474,7 +474,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"flange: 0 in stock\"}]",
-          "content_digest": "0aa164e3fb83ef21",
+          "content_digest": "575af7dd7b50ae05",
           "observation_type": "generation"
         },
         {
@@ -482,7 +482,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Here's the current stock information: - **Widgets**: 12 in stock - **Flanges**: 0 in stock You currently have no flanges in stock, so you may want to consider restocking those if needed.",
-          "content_digest": "40caec00168e5420",
+          "content_digest": "297acfcdcaf14b3b",
           "observation_type": "generation"
         },
         {
@@ -490,7 +490,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Restock flanges with 25 units, then tell me the new count.",
-          "content_digest": "912263ba3da35ba8",
+          "content_digest": "560c04033b10fa99",
           "observation_type": "span"
         },
         {
@@ -498,7 +498,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01QbXvYWueMWiFFsvP4sjLQ1\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__inventory__restock,mcp__inventory__check_stock\",\"max_results\":5}}",
-          "content_digest": "f182fc3636e7a143",
+          "content_digest": "82bc24dfd7515cde",
           "tool_name": "ToolSearch",
           "observation_type": "tool"
         },
@@ -507,7 +507,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__restock\"},{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__check_stock\"}]",
-          "content_digest": "8517022ad9923269",
+          "content_digest": "64aa86638e860af8",
           "observation_type": "generation"
         },
         {
@@ -515,7 +515,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_011jg5DkMCfoN8btSDr4MgpA\",\"name\":\"mcp__inventory__restock\",\"input\":{\"part\":\"flanges\",\"count\":25}}",
-          "content_digest": "f1ac1d66380c42aa",
+          "content_digest": "2e58288f7f01e1f3",
           "tool_name": "mcp__inventory__restock",
           "observation_type": "tool"
         },
@@ -524,7 +524,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"flange: now 25 in stock\"}]",
-          "content_digest": "61d0fda3e7bfe8fe",
+          "content_digest": "8061d6c987f3251f",
           "observation_type": "generation"
         },
         {
@@ -532,7 +532,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Perfect! I've restocked the flanges with 25 units. **The new count is 25 units in stock.**",
-          "content_digest": "3bcc3754ca799590",
+          "content_digest": "1927cff5e8c8f252",
           "observation_type": "generation"
         }
       ]
@@ -567,7 +567,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "How many widgets and flanges are in stock?",
-          "content_digest": "9adac56cfbda969b",
+          "content_digest": "0fd6ddf013dd19c3",
           "observation_type": "span"
         },
         {
@@ -575,7 +575,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a warehouse assistant. Use the inventory tools for all lookups.",
-          "content_digest": "5481232b04ff6f38",
+          "content_digest": "e7381e8e903d37bd",
           "observation_type": "generation"
         },
         {
@@ -583,7 +583,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01963odC5JtonJoRfCFSSinE\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__inventory__check_stock\",\"max_results\":1}}",
-          "content_digest": "1bfeb4fb9719489a",
+          "content_digest": "2d55ecbe45a324fa",
           "tool_name": "ToolSearch",
           "observation_type": "tool"
         },
@@ -592,7 +592,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__check_stock\"}]",
-          "content_digest": "5aae7e4305d595f8",
+          "content_digest": "ff3d34a497465d9c",
           "observation_type": "generation"
         },
         {
@@ -600,7 +600,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Tool loaded.",
-          "content_digest": "1199b78d74e75e3a",
+          "content_digest": "fa8faf6aaa3f4c78",
           "observation_type": "generation"
         },
         {
@@ -608,7 +608,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01NtPWkGA88egrSKbaXJSjTT\",\"name\":\"mcp__inventory__check_stock\",\"input\":{\"part\":\"widgets\"}}",
-          "content_digest": "d418e376fbca0169",
+          "content_digest": "76b8920b3d995e3b",
           "tool_name": "mcp__inventory__check_stock",
           "observation_type": "tool"
         },
@@ -617,7 +617,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017TXH3vxyZP6cdu5jbtdKgG\",\"name\":\"mcp__inventory__check_stock\",\"input\":{\"part\":\"flanges\"}}",
-          "content_digest": "fa48867d6f519e56",
+          "content_digest": "a1d849cc4a09247c",
           "tool_name": "mcp__inventory__check_stock",
           "observation_type": "tool"
         },
@@ -626,7 +626,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"widget: 12 in stock\"}]",
-          "content_digest": "b355270d400ce663",
+          "content_digest": "d961737ef5b34a61",
           "observation_type": "generation"
         },
         {
@@ -634,7 +634,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"flange: 0 in stock\"}]",
-          "content_digest": "0aa164e3fb83ef21",
+          "content_digest": "575af7dd7b50ae05",
           "observation_type": "generation"
         },
         {
@@ -642,7 +642,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Here's the current stock information: - **Widgets**: 12 in stock - **Flanges**: 0 in stock You currently have no flanges in stock, so you may want to consider restocking those if needed.",
-          "content_digest": "40caec00168e5420",
+          "content_digest": "297acfcdcaf14b3b",
           "observation_type": "generation"
         },
         {
@@ -650,7 +650,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Restock flanges with 25 units, then tell me the new count.",
-          "content_digest": "912263ba3da35ba8",
+          "content_digest": "560c04033b10fa99",
           "observation_type": "span"
         },
         {
@@ -658,7 +658,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01QbXvYWueMWiFFsvP4sjLQ1\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__inventory__restock,mcp__inventory__check_stock\",\"max_results\":5}}",
-          "content_digest": "f182fc3636e7a143",
+          "content_digest": "82bc24dfd7515cde",
           "tool_name": "ToolSearch",
           "observation_type": "tool"
         },
@@ -667,7 +667,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__restock\"},{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__check_stock\"}]",
-          "content_digest": "8517022ad9923269",
+          "content_digest": "64aa86638e860af8",
           "observation_type": "generation"
         },
         {
@@ -675,7 +675,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_011jg5DkMCfoN8btSDr4MgpA\",\"name\":\"mcp__inventory__restock\",\"input\":{\"part\":\"flanges\",\"count\":25}}",
-          "content_digest": "f1ac1d66380c42aa",
+          "content_digest": "2e58288f7f01e1f3",
           "tool_name": "mcp__inventory__restock",
           "observation_type": "tool"
         },
@@ -684,7 +684,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"flange: now 25 in stock\"}]",
-          "content_digest": "61d0fda3e7bfe8fe",
+          "content_digest": "8061d6c987f3251f",
           "observation_type": "generation"
         },
         {
@@ -692,7 +692,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Perfect! I've restocked the flanges with 25 units. **The new count is 25 units in stock.**",
-          "content_digest": "3bcc3754ca799590",
+          "content_digest": "1927cff5e8c8f252",
           "observation_type": "generation"
         }
       ]
@@ -725,7 +725,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "How many widgets and flanges are in stock?",
-          "content_digest": "9adac56cfbda969b",
+          "content_digest": "0fd6ddf013dd19c3",
           "observation_type": "span"
         },
         {
@@ -733,7 +733,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a warehouse assistant. Use the inventory tools for all lookups.",
-          "content_digest": "5481232b04ff6f38",
+          "content_digest": "e7381e8e903d37bd",
           "observation_type": "generation"
         },
         {
@@ -741,7 +741,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01963odC5JtonJoRfCFSSinE\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__inventory__check_stock\",\"max_results\":1}}",
-          "content_digest": "1bfeb4fb9719489a",
+          "content_digest": "2d55ecbe45a324fa",
           "tool_name": "ToolSearch",
           "observation_type": "tool"
         },
@@ -750,7 +750,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__check_stock\"}]",
-          "content_digest": "5aae7e4305d595f8",
+          "content_digest": "ff3d34a497465d9c",
           "observation_type": "generation"
         },
         {
@@ -758,7 +758,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Tool loaded.",
-          "content_digest": "1199b78d74e75e3a",
+          "content_digest": "fa8faf6aaa3f4c78",
           "observation_type": "generation"
         },
         {
@@ -766,7 +766,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01NtPWkGA88egrSKbaXJSjTT\",\"name\":\"mcp__inventory__check_stock\",\"input\":{\"part\":\"widgets\"}}",
-          "content_digest": "d418e376fbca0169",
+          "content_digest": "76b8920b3d995e3b",
           "tool_name": "mcp__inventory__check_stock",
           "observation_type": "tool"
         },
@@ -775,7 +775,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017TXH3vxyZP6cdu5jbtdKgG\",\"name\":\"mcp__inventory__check_stock\",\"input\":{\"part\":\"flanges\"}}",
-          "content_digest": "fa48867d6f519e56",
+          "content_digest": "a1d849cc4a09247c",
           "tool_name": "mcp__inventory__check_stock",
           "observation_type": "tool"
         },
@@ -784,7 +784,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"widget: 12 in stock\"}]",
-          "content_digest": "b355270d400ce663",
+          "content_digest": "d961737ef5b34a61",
           "observation_type": "generation"
         },
         {
@@ -792,7 +792,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"flange: 0 in stock\"}]",
-          "content_digest": "0aa164e3fb83ef21",
+          "content_digest": "575af7dd7b50ae05",
           "observation_type": "generation"
         },
         {
@@ -800,7 +800,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Here's the current stock information: - **Widgets**: 12 in stock - **Flanges**: 0 in stock You currently have no flanges in stock, so you may want to consider restocking those if needed.",
-          "content_digest": "40caec00168e5420",
+          "content_digest": "297acfcdcaf14b3b",
           "observation_type": "generation"
         },
         {
@@ -808,7 +808,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Restock flanges with 25 units, then tell me the new count.",
-          "content_digest": "912263ba3da35ba8",
+          "content_digest": "560c04033b10fa99",
           "observation_type": "span"
         },
         {
@@ -816,7 +816,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01QbXvYWueMWiFFsvP4sjLQ1\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__inventory__restock,mcp__inventory__check_stock\",\"max_results\":5}}",
-          "content_digest": "f182fc3636e7a143",
+          "content_digest": "82bc24dfd7515cde",
           "tool_name": "ToolSearch",
           "observation_type": "tool"
         },
@@ -825,7 +825,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__restock\"},{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__check_stock\"}]",
-          "content_digest": "8517022ad9923269",
+          "content_digest": "64aa86638e860af8",
           "observation_type": "generation"
         },
         {
@@ -833,7 +833,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_011jg5DkMCfoN8btSDr4MgpA\",\"name\":\"mcp__inventory__restock\",\"input\":{\"part\":\"flanges\",\"count\":25}}",
-          "content_digest": "f1ac1d66380c42aa",
+          "content_digest": "2e58288f7f01e1f3",
           "tool_name": "mcp__inventory__restock",
           "observation_type": "tool"
         },
@@ -842,7 +842,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"flange: now 25 in stock\"}]",
-          "content_digest": "61d0fda3e7bfe8fe",
+          "content_digest": "8061d6c987f3251f",
           "observation_type": "generation"
         },
         {
@@ -850,7 +850,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Perfect! I've restocked the flanges with 25 units. **The new count is 25 units in stock.**",
-          "content_digest": "3bcc3754ca799590",
+          "content_digest": "1927cff5e8c8f252",
           "observation_type": "generation"
         }
       ]

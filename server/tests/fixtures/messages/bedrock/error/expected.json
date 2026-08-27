@@ -5,7 +5,7 @@
   "trace_count": 1,
   "session_count": 0,
   "span_views": {
-    "e47d6f9b/bedrock-error/fb65": {
+    "trace-1/bedrock-error/span-1": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -18,13 +18,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the Converse operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sides…[1556 chars]",
-          "content_digest": "517c4b0bf43a7c73",
+          "content_digest": "9e02ed5f93f7df72",
           "finish_reason": "Error",
           "observation_type": "span"
         }
       ]
     },
-    "e47d6f9b/chat nonexistent-model-id-12345/c827": {
+    "trace-1/chat nonexistent-model-id-12345/span-2": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -37,7 +37,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the Converse operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sides…[1200 chars]",
-          "content_digest": "4f69324223f17c58",
+          "content_digest": "6a1da5e2af45d70b",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -45,7 +45,7 @@
     }
   },
   "trace_views": {
-    "e47d6f9b": {
+    "trace-1": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -58,7 +58,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the Converse operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sides…[1200 chars]",
-          "content_digest": "4f69324223f17c58",
+          "content_digest": "6a1da5e2af45d70b",
           "finish_reason": "Error",
           "observation_type": "generation"
         }

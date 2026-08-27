@@ -5,7 +5,7 @@
   "trace_count": 1,
   "session_count": 0,
   "span_views": {
-    "01a0424f/Chat Completion with 'nonexistent-model-id-12345'/c09f": {
+    "trace-1/Chat Completion with 'nonexistent-model-id-12345'/span-2": {
       "message_count": 2,
       "role_sequence": [
         "user",
@@ -19,7 +19,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Hello",
-          "content_digest": "0f486d29e2a68ca3",
+          "content_digest": "ec371cafa6a5b98e",
           "observation_type": "generation"
         },
         {
@@ -27,13 +27,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[960 chars]",
-          "content_digest": "97587e15658e4258",
+          "content_digest": "bb257f8ec3ebb238",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
       ]
     },
-    "01a0424f/openai-error/8537": {
+    "trace-1/openai-error/span-1": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -46,7 +46,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[2051 chars]",
-          "content_digest": "ff32a4fe7b859222",
+          "content_digest": "dd9e62a5e071b4fa",
           "finish_reason": "Error",
           "observation_type": "span"
         }
@@ -54,7 +54,7 @@
     }
   },
   "trace_views": {
-    "01a0424f": {
+    "trace-1": {
       "message_count": 2,
       "role_sequence": [
         "user",
@@ -68,7 +68,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Hello",
-          "content_digest": "0f486d29e2a68ca3",
+          "content_digest": "ec371cafa6a5b98e",
           "observation_type": "generation"
         },
         {
@@ -76,7 +76,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[960 chars]",
-          "content_digest": "97587e15658e4258",
+          "content_digest": "bb257f8ec3ebb238",
           "finish_reason": "Error",
           "observation_type": "generation"
         }

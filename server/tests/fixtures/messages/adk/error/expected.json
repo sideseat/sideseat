@@ -5,7 +5,7 @@
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "17d1861e/call_llm/daff": {
+    "trace-1/call_llm/span-3": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -18,13 +18,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[5527 chars]",
-          "content_digest": "6b32d466867aa70a",
+          "content_digest": "961a03dd48211e4c",
           "finish_reason": "Error",
           "observation_type": "span"
         }
       ]
     },
-    "17d1861e/generate_content bedrock/nonexistent-model-id-12345/195c": {
+    "trace-1/generate_content bedrock/nonexistent-model-id-12345/span-4": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -37,13 +37,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[5687 chars]",
-          "content_digest": "998a839a5f04defd",
+          "content_digest": "4b1bc2aa80e5f0de",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
       ]
     },
-    "17d1861e/invocation/9871": {
+    "trace-1/invocation/span-1": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -56,13 +56,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[7735 chars]",
-          "content_digest": "a907669c08aaa8e1",
+          "content_digest": "0871f1fe2450f6c1",
           "finish_reason": "Error",
           "observation_type": "span"
         }
       ]
     },
-    "17d1861e/invoke_agent assistant/00ba": {
+    "trace-1/invoke_agent assistant/span-2": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -75,7 +75,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[6710 chars]",
-          "content_digest": "db3fe1692f4ea870",
+          "content_digest": "b98cc4e77ea9bcf9",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -83,7 +83,7 @@
     }
   },
   "trace_views": {
-    "17d1861e": {
+    "trace-1": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -96,7 +96,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[5687 chars]",
-          "content_digest": "998a839a5f04defd",
+          "content_digest": "4b1bc2aa80e5f0de",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -117,7 +117,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[5687 chars]",
-          "content_digest": "998a839a5f04defd",
+          "content_digest": "4b1bc2aa80e5f0de",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
