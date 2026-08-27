@@ -8,7 +8,8 @@ use crate::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_T
 use crate::data::duckdb::{DuckdbError, in_transaction};
 use crate::data::types::{
     EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams,
-    SessionRow, SpanRow, TraceRow, parse_tags,
+    SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, SessionRow, SpanRow,
+    TRACE_FILTER_OPTION_COLUMNS, TraceRow, parse_tags,
 };
 use crate::utils::time::{micros_to_datetime, parse_iso_timestamp};
 
@@ -19,7 +20,7 @@ use crate::utils::time::{micros_to_datetime, parse_iso_timestamp};
 /// - LIMIT/OFFSET or cursor pagination data queries (page misalignment)
 ///
 /// NOT needed for (these query `otel_spans` directly):
-/// - COUNT(DISTINCT)/APPROX_COUNT_DISTINCT (immune to duplicates)
+/// - COUNT(DISTINCT) (immune to duplicates)
 /// - DISTINCT subqueries (immune)
 /// - GROUP BY with MIN/MAX only (immune)
 /// - Point lookups by (trace_id, span_id) with DedupAnalyticsRepository
@@ -1616,15 +1617,6 @@ pub struct FilterOptionRow {
     pub count: u64,
 }
 
-/// Columns allowed for filter options queries (must be categorical/low-cardinality)
-/// Maps view column names to spans table column names
-const TRACE_FILTER_OPTION_COLUMNS: &[(&str, &str)] = &[
-    ("environment", "environment"),
-    ("trace_name", "span_name"),
-    ("user_id", "user_id"),
-    ("session_id", "session_id"),
-];
-
 /// Get distinct values with counts for trace filter options
 /// Optimized: uses approximate counts
 pub fn get_trace_filter_options(
@@ -1674,10 +1666,13 @@ pub fn get_trace_filter_options(
             ""
         };
 
-        // APPROX_COUNT_DISTINCT(trace_id) is immune to row duplication
+        // COUNT(DISTINCT trace_id) is immune to row duplication. Exact, not
+        // APPROX_COUNT_DISTINCT: these counts sit next to each option in the filter UI, and the
+        // ClickHouse backend counts them exactly - the two disagreeing by HyperLogLog's error
+        // means one project reports different numbers depending on which backend serves it.
         let sql = format!(
             r#"
-            SELECT {col}, APPROX_COUNT_DISTINCT(trace_id) as cnt
+            SELECT {col}, COUNT(DISTINCT trace_id) as cnt
             FROM otel_spans
             WHERE {base_where} AND {col} IS NOT NULL{extra}
             GROUP BY {col}
@@ -1737,11 +1732,12 @@ pub fn get_trace_tags_options(
 
     let where_clause = conditions.join(" AND ");
 
-    // APPROX_COUNT_DISTINCT(trace_id) is immune to row duplication
+    // COUNT(DISTINCT trace_id) is immune to row duplication, and exact so both analytics
+    // backends report the same number (see get_trace_filter_options).
     // tags is stored as JSON array string (VARCHAR), so parse with from_json first
     let sql = format!(
         r#"
-        SELECT tag, APPROX_COUNT_DISTINCT(trace_id) as cnt
+        SELECT tag, COUNT(DISTINCT trace_id) as cnt
         FROM (
             SELECT trace_id, UNNEST(from_json(tags, '["VARCHAR"]')) as tag
             FROM otel_spans
@@ -1772,19 +1768,6 @@ pub fn get_trace_tags_options(
 
     Ok(options)
 }
-
-/// Columns allowed for span/observation filter options queries
-/// These are low-cardinality columns suitable for dropdown filters
-const SPAN_FILTER_OPTION_COLUMNS: &[&str] = &[
-    "observation_type",
-    "gen_ai_request_model",
-    "framework",
-    "status_code",
-    "span_category",
-    "environment",
-    "gen_ai_agent_name",
-    "gen_ai_system",
-];
 
 /// Get distinct values with counts for span filter options
 /// Used by the Observations page to populate filter dropdowns
@@ -1865,10 +1848,6 @@ pub fn get_span_filter_options(
     Ok(results)
 }
 
-/// Columns allowed for session filter options queries
-/// These are low-cardinality columns suitable for dropdown filters
-const SESSION_FILTER_OPTION_COLUMNS: &[&str] = &["environment", "user_id"];
-
 /// Get distinct values with counts for session filter options
 /// Used by the Sessions page to populate filter dropdowns
 /// Counts are approximate for performance (number of sessions with that value)
@@ -1908,10 +1887,11 @@ pub fn get_session_filter_options(
             continue;
         }
 
-        // APPROX_COUNT_DISTINCT(session_id) is immune to row duplication
+        // COUNT(DISTINCT session_id) is immune to row duplication, and exact so both analytics
+        // backends report the same number (see get_trace_filter_options).
         let sql = format!(
             r#"
-            SELECT {col}, APPROX_COUNT_DISTINCT(session_id) as cnt
+            SELECT {col}, COUNT(DISTINCT session_id) as cnt
             FROM otel_spans
             WHERE {base_where} AND {col} IS NOT NULL
             GROUP BY {col}
