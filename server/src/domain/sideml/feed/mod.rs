@@ -656,12 +656,15 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
     all_blocks.sort_by(|a, b| {
         use std::cmp::Ordering;
 
-        // Same-batch detection: same span + same event timestamp
-        // These blocks are from the same response and should preserve original order
-        // trace_id is part of batch identity: two blocks from different traces are never
-        // the same response. Without it the comparator is intransitive (one pair compared
-        // by batch rule, another by birth time), and `sort_by` may then return a
-        // different order for the same input.
+        // Same-batch detection: same span + same timestamp. These blocks are from one response
+        // and keep their source order.
+        //
+        // This stays a total order only because `timestamp` here is the birth time that
+        // process_dedup materialised, and it is also the field the cross-batch comparison uses: a
+        // pair can only be "same batch" when it ties on that field, so every outside block
+        // compares identically to both. The same shape in process_dedup was *not* total, because
+        // there the batch was keyed on the event time while ordering used birth time, and one
+        // response's blocks can differ in birth time - see the note there.
         let same_batch =
             a.trace_id == b.trace_id && a.span_id == b.span_id && a.timestamp == b.timestamp;
 
@@ -702,6 +705,49 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
         },
         options.role.as_deref(),
     )
+}
+
+/// Keep only the blocks inside a requested time window.
+///
+/// A window is a filter on the answer, not on the input. Applying it to the *rows* - which is what
+/// passing it to the message query does for `from` - removes the earlier traces that history
+/// detection and cross-trace prefix stripping read, and those stages then have nothing to
+/// recognise a re-send against: a later turn's request comes back showing the whole conversation
+/// again as new messages. The lower bound therefore belongs here, after the pipeline has seen the
+/// context. The upper bound is still applied to the query as well, because everything after it is
+/// irrelevant to what came before and there is no reason to load it.
+///
+/// Compares birth times, the same timestamps the API returns.
+pub fn apply_time_window(
+    result: FeedResult,
+    from: Option<DateTime<Utc>>,
+    to: Option<DateTime<Utc>>,
+) -> FeedResult {
+    if from.is_none() && to.is_none() {
+        return result;
+    }
+
+    let messages: Vec<BlockEntry> = result
+        .messages
+        .into_iter()
+        .filter(|b| from.is_none_or(|from| b.timestamp >= from))
+        .filter(|b| to.is_none_or(|to| b.timestamp <= to))
+        .collect();
+    let span_count = messages
+        .iter()
+        .map(|b| &b.span_id)
+        .collect::<HashSet<_>>()
+        .len();
+
+    FeedResult {
+        metadata: FeedMetadata {
+            block_count: messages.len(),
+            span_count,
+            ..result.metadata
+        },
+        messages,
+        ..result
+    }
 }
 
 /// Keep only blocks whose role matches `role`, if one was requested.

@@ -617,16 +617,16 @@
           "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_JuUesmZPJTSropalcHLFRR\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\"…[315 chars]",
-          "content_digest": "619899e5847f6bdb",
+          "content": "The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.",
+          "content_digest": "ccc080752c2ac0db",
           "observation_type": "tool"
         },
         {
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.",
-          "content_digest": "ccc080752c2ac0db",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_JuUesmZPJTSropalcHLFRR\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\"…[315 chars]",
+          "content_digest": "619899e5847f6bdb",
           "observation_type": "tool"
         },
         {
@@ -724,9 +724,9 @@
         "user",
         "assistant",
         "assistant",
-        "tool",
-        "tool",
         "assistant",
+        "tool",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -751,6 +751,15 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "text",
+          "content": "I appreciate your request! However, I need to let you know that the maximum forecast available is 7 days. Let me get that for you:",
+          "content_digest": "6eaa61df78dc572e",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4eeS6qQqnJKVxsJgZSHZAu\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
           "content_digest": "e3d65d69e1ac9022",
@@ -759,7 +768,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_cKlqLr4Ze8GffmhcxhUyQN\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
@@ -769,7 +778,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "The precipitation forecast for London for the next 7 days is: Light rain expected on day 2.",
@@ -777,21 +786,12 @@
           "observation_type": "tool"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_cKlqLr4Ze8GffmhcxhUyQN\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"London\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\"…[504 chars]",
           "content_digest": "0ae0a2c2452e335c",
           "observation_type": "tool"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "I appreciate your request! However, I need to let you know that the maximum forecast available is 7 days. Let me get that for you:",
-          "content_digest": "6eaa61df78dc572e",
-          "finish_reason": "ToolUse",
-          "observation_type": "generation"
         },
         {
           "index": 7,

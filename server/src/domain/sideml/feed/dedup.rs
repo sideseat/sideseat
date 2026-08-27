@@ -44,7 +44,6 @@
 //! (by message_index, then entry_index). This maintains the order as it
 //! appeared in the source data.
 
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -685,6 +684,51 @@ fn compute_quality(block: &BlockEntry) -> u32 {
 // DEDUPLICATION
 // ============================================================================
 
+/// Identity of the response a block came from: one event of one span.
+///
+/// Blocks sharing it were produced together, so they keep their source order relative to each
+/// other and move through the feed as a unit.
+fn batch_key(block: &BlockEntry) -> (String, String, DateTime<Utc>) {
+    (
+        block.trace_id.clone(),
+        block.span_id.clone(),
+        block.timestamp,
+    )
+}
+
+/// The earliest birth time in each response, which is the time the whole response sorts at.
+fn batch_representative_times(
+    paired: &[(DateTime<Utc>, BlockEntry)],
+) -> HashMap<(String, String, DateTime<Utc>), DateTime<Utc>> {
+    let mut times: HashMap<(String, String, DateTime<Utc>), DateTime<Utc>> = HashMap::new();
+    for (birth, block) in paired {
+        times
+            .entry(batch_key(block))
+            .and_modify(|earliest| {
+                if birth < earliest {
+                    *earliest = *birth;
+                }
+            })
+            .or_insert(*birth);
+    }
+    times
+}
+
+/// Order for two blocks of different responses that carry the same time.
+///
+/// A conversation reads request-then-answer, so a tool call precedes a tool result. Without this,
+/// ties fell through to the span id, which is arbitrary: three parallel tool calls and their three
+/// results came back interleaved, implying they had run one after another.
+fn semantic_rank(block: &BlockEntry) -> u8 {
+    match block.role {
+        ChatRole::User => 0,
+        ChatRole::System => 1,
+        _ if block.is_tool_use() => 2,
+        ChatRole::Tool => 3,
+        _ => 4,
+    }
+}
+
 /// Deduplicate blocks by identity, keeping highest quality version.
 ///
 /// Note: Birth time is computed during sorting, not here. Deduplication only
@@ -838,37 +882,41 @@ pub fn process_dedup(
     let mut paired: Vec<(DateTime<Utc>, BlockEntry)> =
         birth_times.into_iter().zip(deduped).collect();
 
+    // Sorted by an explicit key, not by a comparator with a special case.
+    //
+    // Two intents: responses are ordered in time, and within one response blocks keep their source
+    // order. As a comparator - source order for a same-batch pair, birth time otherwise - those
+    // contradict each other, because one response's blocks have different birth times (text uses
+    // span_end, tool_use uses event_time). A third block timestamped between them closes a cycle:
+    // text < tool by source order, tool < third and third < text by time. `sort_by` requires a
+    // total order and may panic or return anything without one.
+    //
+    // Giving each response one time - the earliest birth time among its blocks - makes both intents
+    // hold at once: responses sort by that time, blocks inside one sort by position, and every
+    // comparison follows from the key.
+    let batch_times = batch_representative_times(&paired);
     paired.sort_by(|(a_birth, a), (b_birth, b)| {
-        // Same-batch detection: same span + same event timestamp.
-        // These blocks are from the same response and should preserve original order
-        // regardless of their timestamp strategy (span_end vs event_time).
-        // trace_id is part of batch identity: two blocks from different traces are never
-        // the same response. Without it the comparator is intransitive (one pair compared
-        // by batch rule, another by birth time), and `sort_by` may then return a
-        // different order for the same input.
-        let same_batch =
-            a.trace_id == b.trace_id && a.span_id == b.span_id && a.timestamp == b.timestamp;
-
-        if same_batch {
-            match a.message_index.cmp(&b.message_index) {
-                Ordering::Equal => return a.entry_index.cmp(&b.entry_index),
-                other => return other,
-            }
-        }
-
-        // Different batches: order by pre-computed birth time
-        match a_birth.cmp(b_birth) {
-            Ordering::Equal => {}
-            other => return other,
-        }
-
-        // Same birth time but different batches: preserve message position
-        match a.message_index.cmp(&b.message_index) {
-            Ordering::Equal => {}
-            other => return other,
-        }
-
-        a.entry_index.cmp(&b.entry_index)
+        let a_batch = batch_key(a);
+        let b_batch = batch_key(b);
+        let a_time = batch_times.get(&a_batch).copied().unwrap_or(*a_birth);
+        let b_time = batch_times.get(&b_batch).copied().unwrap_or(*b_birth);
+        a_time
+            .cmp(&b_time)
+            // Different responses carrying the same time: a call before the result that answers
+            // it. Only between responses - inside one, source position decides, and ranking by
+            // role there would override the order the model actually produced.
+            .then_with(|| {
+                if a_batch == b_batch {
+                    std::cmp::Ordering::Equal
+                } else {
+                    semantic_rank(a).cmp(&semantic_rank(b))
+                }
+            })
+            .then_with(|| a.message_index.cmp(&b.message_index))
+            .then_with(|| a.entry_index.cmp(&b.entry_index))
+            .then_with(|| a.trace_id.cmp(&b.trace_id))
+            .then_with(|| a.span_id.cmp(&b.span_id))
+            .then_with(|| a.content_hash.cmp(&b.content_hash))
     });
 
     // Materialize computed timestamps for API clients.

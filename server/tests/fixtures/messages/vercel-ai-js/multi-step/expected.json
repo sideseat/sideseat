@@ -634,8 +634,8 @@
       "role_sequence": [
         "user",
         "assistant",
-        "tool",
         "assistant",
+        "tool",
         "assistant",
         "tool",
         "assistant",
@@ -655,6 +655,15 @@
         {
           "index": 1,
           "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll calculate this step by step for you. **Step 1: First, calculate 123 + 456**",
+          "content_digest": "1ffaba87c5c48f8f",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"name\":\"calculator\",\"input\":{\"operation\":\"add\",\"a\":123,\"b\":456}}",
           "content_digest": "525a88527a167997",
@@ -663,21 +672,12 @@
           "observation_type": "tool"
         },
         {
-          "index": 2,
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"content\":{\"operation\":\"add\",\"a\":123,\"b\":456,\"result\":579}}",
           "content_digest": "f1b56fa5f09bbdb5",
           "observation_type": "tool"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "I'll calculate this step by step for you. **Step 1: First, calculate 123 + 456**",
-          "content_digest": "1ffaba87c5c48f8f",
-          "finish_reason": "ToolUse",
-          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -722,8 +722,8 @@
       "role_sequence": [
         "user",
         "assistant",
-        "tool",
         "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -740,6 +740,15 @@
         {
           "index": 1,
           "role": "assistant",
+          "entry_type": "text",
+          "content": "I need to calculate 15% of 240, which is the same as multiplying 240 by 0.15.",
+          "content_digest": "f77e07dba50448a6",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_lzuo63RyKawL8zyyLXJBdM\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":240,\"b\":0.15}}",
           "content_digest": "527baf5b440482e2",
@@ -748,21 +757,12 @@
           "observation_type": "tool"
         },
         {
-          "index": 2,
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_lzuo63RyKawL8zyyLXJBdM\",\"content\":{\"operation\":\"multiply\",\"a\":240,\"b\":0.15,\"result\":36}}",
           "content_digest": "c7a0e5e1d431a4a7",
           "observation_type": "tool"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "I need to calculate 15% of 240, which is the same as multiplying 240 by 0.15.",
-          "content_digest": "f77e07dba50448a6",
-          "finish_reason": "ToolUse",
-          "observation_type": "generation"
         },
         {
           "index": 4,
