@@ -285,8 +285,12 @@ pub fn list_traces(
         FROM filtered_traces t
         JOIN {DEDUP_SPANS} s ON t.project_id = s.project_id AND t.trace_id = s.trace_id
         LEFT JOIN gen_totals gt2 ON t.trace_id = gt2.trace_id
-        GROUP BY t.trace_id, t.min_ts
-        ORDER BY t.min_ts {sort_dir}
+        GROUP BY t.trace_id, t.min_ts, t.{span_sort_field}
+        -- Ordered by the column that was asked for. The inner CTE already picked the page by it,
+        -- but the outer query re-sorted by min_ts, so ?order_by=total_cost returned the most
+        -- expensive traces arranged by time - the requested order was silently discarded, and only
+        -- its direction survived. min_ts is kept as the tiebreak so a page is deterministic.
+        ORDER BY t.{span_sort_field} {sort_dir}, t.min_ts {sort_dir}
         "#,
         span_where_g = span_where_g,
         span_where_sp = span_where_sp,
@@ -929,8 +933,9 @@ pub fn list_sessions(
         FROM filtered_sessions f
         JOIN {DEDUP_SPANS} s ON f.project_id = s.project_id AND f.session_id = s.session_id
         LEFT JOIN gen_totals gt2 ON f.session_id = gt2.session_id
-        GROUP BY f.session_id, f.min_ts
-        ORDER BY f.min_ts {sort_dir}
+        GROUP BY f.session_id, f.min_ts, f.{span_sort_field}
+        -- See the trace list: the requested column, not just its direction.
+        ORDER BY f.{span_sort_field} {sort_dir}, f.min_ts {sort_dir}
         "#,
         span_where_g = span_where_g,
         span_where_sp = span_where_sp,
