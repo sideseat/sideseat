@@ -74,6 +74,14 @@ pub const ENV_SECRETS_BACKEND: &str = "SIDESEAT_SECRETS_BACKEND";
 /// Service name for keychain/credential manager entries
 pub const SECRET_SERVICE_NAME: &str = "sideseat";
 
+/// How long to wait for the OS credential store before giving up at startup.
+///
+/// A keychain read can block on a user prompt, and where there is nobody to answer it - a
+/// background process, an SSH session, CI - it blocks forever. Startup then hangs with no output
+/// at all, because nothing else logs before this point. Long enough to click "Allow", short enough
+/// that a machine with no one at the keyboard fails with a message instead of hanging.
+pub const SECRETS_LOAD_TIMEOUT_SECS: u64 = 20;
+
 /// Secret key name for JWT signing key
 pub const SECRET_KEY_JWT_SIGNING: &str = "jwt_signing_key";
 

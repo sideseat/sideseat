@@ -6,7 +6,7 @@ use keyring::Entry;
 use tokio::sync::RwLock;
 
 use crate::core::config::SecretsBackend;
-use crate::core::constants::SECRET_SERVICE_NAME;
+use crate::core::constants::{SECRET_SERVICE_NAME, SECRETS_LOAD_TIMEOUT_SECS};
 
 use super::error::SecretError;
 use super::provider::SecretProvider;
@@ -49,9 +49,30 @@ impl KeyringProvider {
         let entry = Entry::new(service_name, VAULT_KEY)
             .map_err(|e| anyhow::anyhow!("Failed to create keychain entry: {}", e))?;
 
-        let result = tokio::task::spawn_blocking(move || entry.get_password())
-            .await
-            .context("Keychain task failed")?;
+        // Said before the read, not after: this is the first thing at startup that can block, and
+        // on macOS it blocks on a keychain prompt. Without this line the process looks dead.
+        tracing::info!(
+            service = service_name,
+            "Reading secrets from the OS credential store"
+        );
+
+        // Bounded, because a prompt nobody can answer never returns. A clear failure beats a hang
+        // that has to be diagnosed with a stack sampler.
+        let read = tokio::task::spawn_blocking(move || entry.get_password());
+        let timeout = std::time::Duration::from_secs(SECRETS_LOAD_TIMEOUT_SECS);
+        let result = match tokio::time::timeout(timeout, read).await {
+            Ok(joined) => joined.context("Keychain task failed")?,
+            Err(_) => {
+                anyhow::bail!(
+                    "the OS credential store did not respond within {}s. It may be waiting for \
+                     approval that nothing can give - a background process, an SSH session or CI \
+                     has no way to answer the prompt. Either start the server where the prompt \
+                     can be approved, or configure the file backend: \
+                     `secrets: {{ backend: \"file\" }}` in sideseat.json.",
+                    SECRETS_LOAD_TIMEOUT_SECS
+                );
+            }
+        };
 
         match result {
             Ok(json) => match serde_json::from_str::<SecretVault>(&json) {
