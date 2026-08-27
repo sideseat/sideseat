@@ -825,6 +825,66 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     );
 
     // --- pagination, sorting, filters and time bounds ----------------------
+    // Paged over traces and sessions as well as spans, and over both cursor feeds, because the
+    // claim was "pagination" while only the span list actually asked for a second page - so the
+    // total-order fix those queries needed could have regressed unnoticed.
+    let mut trace_pages: Vec<Vec<String>> = Vec::new();
+    for page in 1..=3 {
+        let params = ListTracesParams {
+            page,
+            limit: 2,
+            ..trace_params()
+        };
+        let (d, d_total) = duck.list_traces(&params).await.expect("duckdb trace page");
+        let (c, c_total) = ch
+            .list_traces(&params)
+            .await
+            .expect("clickhouse trace page");
+        assert_eq!(d_total, c_total, "trace page {page}: totals differ");
+        assert_eq!(
+            d.iter().map(describe_trace).collect::<Vec<_>>(),
+            c.iter().map(describe_trace).collect::<Vec<_>>(),
+            "trace page {page} differs between backends"
+        );
+        trace_pages.push(d.iter().map(|t| t.trace_id.clone()).collect());
+    }
+    let paged_traces: Vec<&String> = trace_pages.iter().flatten().collect();
+    let distinct_traces: std::collections::BTreeSet<&&String> = paged_traces.iter().collect();
+    assert_eq!(
+        paged_traces.len(),
+        distinct_traces.len(),
+        "a trace appeared on two pages: {trace_pages:?}"
+    );
+    assert_eq!(
+        distinct_traces.len(),
+        duck_traces.len(),
+        "paging did not cover every trace: {trace_pages:?}"
+    );
+
+    for page in 1..=2 {
+        let params = ListSessionsParams {
+            project_id: PROJECT.to_string(),
+            page,
+            limit: 1,
+            ..Default::default()
+        };
+        let (d, d_total) = duck
+            .list_sessions(&params)
+            .await
+            .expect("duckdb session page");
+        let (c, c_total) = ch
+            .list_sessions(&params)
+            .await
+            .expect("clickhouse session page");
+        assert_eq!(d_total, c_total, "session page {page}: totals differ");
+        assert_eq!(
+            d.iter().map(describe_session).collect::<Vec<_>>(),
+            c.iter().map(describe_session).collect::<Vec<_>>(),
+            "session page {page} differs between backends"
+        );
+        assert_eq!(d.len(), 1, "session page {page} should hold one session");
+    }
+
     // A single unpaginated unfiltered call exercises none of the offset arithmetic, ORDER BY
     // translation or predicate building, which is where two dialects have the most room to differ.
     let mut page_ids: Vec<Vec<String>> = Vec::new();
@@ -1302,6 +1362,118 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         d.rows.iter().map(describe_message_row).collect::<Vec<_>>(),
         c.rows.iter().map(describe_message_row).collect::<Vec<_>>(),
         "get_project_messages differs between backends"
+    );
+
+    // Cursor paging, which is a different mechanism from LIMIT/OFFSET and was only ever called
+    // with `cursor: None`.
+    let feed_page = |cursor: Option<(i64, String)>| crate::data::types::FeedSpansParams {
+        project_id: PROJECT.to_string(),
+        limit: 3,
+        cursor,
+        start_time: None,
+        end_time: None,
+        is_observation: None,
+    };
+    let d_first = duck
+        .get_feed_spans(&feed_page(None))
+        .await
+        .expect("duckdb feed page 1");
+    let c_first = ch
+        .get_feed_spans(&feed_page(None))
+        .await
+        .expect("clickhouse feed page 1");
+    assert_eq!(
+        d_first.iter().map(describe_span).collect::<Vec<_>>(),
+        c_first.iter().map(describe_span).collect::<Vec<_>>(),
+        "the first cursor page of the span feed differs between backends"
+    );
+    assert_eq!(d_first.len(), 3, "the feed's first page should be full");
+    // Each backend's cursor comes from its own page: the cursor carries `ingested_at`, which is
+    // the server clock at write time and therefore differs between the two for the same span. A
+    // cursor from one applied to the other selects nothing, which says nothing about either.
+    let duck_cursor = d_first
+        .last()
+        .map(|s| (s.ingested_at.timestamp_micros(), s.span_id.clone()));
+    let ch_cursor = c_first
+        .last()
+        .map(|s| (s.ingested_at.timestamp_micros(), s.span_id.clone()));
+    let d_second = duck
+        .get_feed_spans(&feed_page(duck_cursor))
+        .await
+        .expect("duckdb feed page 2");
+    let c_second = ch
+        .get_feed_spans(&feed_page(ch_cursor))
+        .await
+        .expect("clickhouse feed page 2");
+    assert_eq!(
+        d_second.iter().map(describe_span).collect::<Vec<_>>(),
+        c_second.iter().map(describe_span).collect::<Vec<_>>(),
+        "the second cursor page of the span feed differs between backends"
+    );
+    let first_ids: std::collections::BTreeSet<&String> =
+        d_first.iter().map(|s| &s.span_id).collect();
+    assert!(
+        !d_second.is_empty() && d_second.iter().all(|s| !first_ids.contains(&s.span_id)),
+        "the cursor returned rows the first page already had"
+    );
+
+    let messages_page = |cursor: Option<(i64, String)>| crate::data::types::FeedMessagesParams {
+        project_id: PROJECT.to_string(),
+        limit: 2,
+        cursor,
+        start_time: None,
+        end_time: None,
+    };
+    let d_first = duck
+        .get_project_messages(&messages_page(None))
+        .await
+        .expect("duckdb message feed page 1");
+    let c_first = ch
+        .get_project_messages(&messages_page(None))
+        .await
+        .expect("clickhouse message feed page 1");
+    assert_eq!(
+        d_first
+            .rows
+            .iter()
+            .map(describe_message_row)
+            .collect::<Vec<_>>(),
+        c_first
+            .rows
+            .iter()
+            .map(describe_message_row)
+            .collect::<Vec<_>>(),
+        "the first cursor page of the message feed differs between backends"
+    );
+    // Per-backend cursor again, for the same reason.
+    let duck_cursor = d_first
+        .rows
+        .last()
+        .map(|r| (r.ingested_at.timestamp_micros(), r.span_id.clone()));
+    let ch_cursor = c_first
+        .rows
+        .last()
+        .map(|r| (r.ingested_at.timestamp_micros(), r.span_id.clone()));
+    let d_second = duck
+        .get_project_messages(&messages_page(duck_cursor))
+        .await
+        .expect("duckdb message feed page 2");
+    let c_second = ch
+        .get_project_messages(&messages_page(ch_cursor))
+        .await
+        .expect("clickhouse message feed page 2");
+    assert_eq!(
+        d_second
+            .rows
+            .iter()
+            .map(describe_message_row)
+            .collect::<Vec<_>>(),
+        c_second
+            .rows
+            .iter()
+            .map(describe_message_row)
+            .collect::<Vec<_>>(),
+        "the second cursor page of the message feed differs between backends"
     );
 
     // --- filter options, all three scopes ----------------------------------
