@@ -75,9 +75,9 @@ snapshot still fail on a real defect:
   because it is indistinguishable from a history re-send — see the pipeline notes in
   `sideml/feed/mod.rs`
 - every tool result's id matches a call in the same trace, and a call is never answered twice.
-  Results with no id are outside this check: correlation refuses to invent one, so a framework
-  that identifies results only by name and issues concurrent calls to the same tool leaves them
-  unlinked rather than mislinked
+  Results with no id are outside this check: a result whose framework identifies it only by name
+  is linked to its call by position (oldest unclaimed call of that name), and where no call is
+  available it stays unlinked rather than acquiring an invented id
 - no empty text or thinking blocks
 - the projection is self-consistent (counts, role sequence and message list agree)
 - processing the same fixture twice gives the same answer, checked once per suite

@@ -1617,8 +1617,7 @@ pub struct FilterOptionRow {
     pub count: u64,
 }
 
-/// Get distinct values with counts for trace filter options
-/// Optimized: uses approximate counts
+/// Get distinct values with counts for trace filter options.
 pub fn get_trace_filter_options(
     conn: &Connection,
     project_id: &str,
@@ -1708,8 +1707,7 @@ pub fn get_trace_filter_options(
     Ok(results)
 }
 
-/// Get distinct tag values with counts from trace tags array
-/// Optimized: uses approximate counts
+/// Get distinct tag values with counts from trace tags array.
 pub fn get_trace_tags_options(
     conn: &Connection,
     project_id: &str,
@@ -1850,7 +1848,7 @@ pub fn get_span_filter_options(
 
 /// Get distinct values with counts for session filter options
 /// Used by the Sessions page to populate filter dropdowns
-/// Counts are approximate for performance (number of sessions with that value)
+/// Each count is the number of sessions carrying that value
 pub fn get_session_filter_options(
     conn: &Connection,
     project_id: &str,
