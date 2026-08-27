@@ -1043,6 +1043,133 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     );
 }
 
+/// Deleting must remove the same rows on both backends.
+///
+/// A dialect difference here is the worst kind: the user asks for data to be gone, one backend
+/// obliges and the other keeps it, and the API answers 204 either way. ClickHouse deletes through
+/// an asynchronous mutation, so the test waits for the rows to actually disappear instead of
+/// reading a count - which is also why the count itself is not compared (see
+/// `AnalyticsRepository::delete_traces`).
+#[tokio::test]
+async fn deleting_removes_the_same_rows_on_both_backends() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_delete").await;
+
+    let spans = fixture_spans();
+    duck.insert_spans(spans.clone())
+        .await
+        .expect("duckdb insert");
+    ch.insert_spans(spans.clone())
+        .await
+        .expect("clickhouse insert");
+
+    /// Span ids still present, sorted, from whichever backend.
+    async fn remaining(repo: &impl AnalyticsRepository) -> Vec<String> {
+        let params = ListSpansParams {
+            project_id: PROJECT.to_string(),
+            page: 1,
+            limit: 200,
+            ..Default::default()
+        };
+        let (rows, _) = repo.list_spans(&params).await.expect("list spans");
+        let mut ids: Vec<String> = rows.into_iter().map(|r| r.span_id).collect();
+        ids.sort();
+        ids
+    }
+
+    /// ClickHouse mutations are asynchronous, so poll until the expectation holds rather than
+    /// sleeping a guessed interval or trusting the returned count.
+    async fn settle(repo: &impl AnalyticsRepository, expected: &[String]) -> Vec<String> {
+        for _ in 0..100 {
+            let actual = remaining(repo).await;
+            if actual == expected {
+                return actual;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        remaining(repo).await
+    }
+
+    assert_eq!(
+        remaining(&duck).await,
+        remaining(&ch).await,
+        "the two backends disagree before anything was deleted"
+    );
+
+    // A whole trace, including the spans that only belong to it through their trace id.
+    duck.delete_traces(PROJECT, &["trace-a".to_string()])
+        .await
+        .expect("duckdb delete trace");
+    ch.delete_traces(PROJECT, &["trace-a".to_string()])
+        .await
+        .expect("clickhouse delete trace");
+    let after_duck = remaining(&duck).await;
+    assert!(
+        !after_duck.iter().any(|id| id.starts_with("a-")),
+        "deleting trace-a left its spans behind: {after_duck:?}"
+    );
+    assert_eq!(
+        settle(&ch, &after_duck).await,
+        after_duck,
+        "delete_traces removed different rows on the two backends"
+    );
+
+    // One span out of a trace, leaving its siblings.
+    let pair = [("trace-c".to_string(), "c-child-1".to_string())];
+    duck.delete_spans(PROJECT, &pair)
+        .await
+        .expect("duckdb delete span");
+    ch.delete_spans(PROJECT, &pair)
+        .await
+        .expect("clickhouse delete span");
+    let after_duck = remaining(&duck).await;
+    assert!(
+        after_duck.contains(&"c-child-2".to_string())
+            && !after_duck.contains(&"c-child-1".to_string()),
+        "deleting one span took the wrong rows: {after_duck:?}"
+    );
+    assert_eq!(
+        settle(&ch, &after_duck).await,
+        after_duck,
+        "delete_spans removed different rows on the two backends"
+    );
+
+    // A session, which spans several traces.
+    duck.delete_sessions(PROJECT, &["session-2".to_string()])
+        .await
+        .expect("duckdb delete session");
+    ch.delete_sessions(PROJECT, &["session-2".to_string()])
+        .await
+        .expect("clickhouse delete session");
+    let after_duck = remaining(&duck).await;
+    assert_eq!(
+        settle(&ch, &after_duck).await,
+        after_duck,
+        "delete_sessions removed different rows on the two backends"
+    );
+
+    // Everything that is left.
+    duck.delete_project_data(PROJECT)
+        .await
+        .expect("duckdb delete project");
+    ch.delete_project_data(PROJECT)
+        .await
+        .expect("clickhouse delete project");
+    assert!(
+        remaining(&duck).await.is_empty(),
+        "delete_project_data left rows behind on duckdb"
+    );
+    assert!(
+        settle(&ch, &[]).await.is_empty(),
+        "delete_project_data left rows behind on clickhouse"
+    );
+}
+
 /// The fixture has to actually exercise the cases the parity assertions exist for; a fixture that
 /// silently lost its no-root trace or its tag spread would let both backends agree on nothing.
 #[test]
