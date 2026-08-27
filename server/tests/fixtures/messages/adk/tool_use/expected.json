@@ -866,8 +866,8 @@
           "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[492 chars]",
-          "content_digest": "0f1beb36e3265d1e",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cbc22729\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25…[550 chars]",
+          "content_digest": "701abc8f282dd9d7",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -875,8 +875,8 @@
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "da61bfe846976d0a",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_cbc22729\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "c99e65549bcb4c79",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
@@ -1121,8 +1121,8 @@
           "index": 18,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[492 chars]",
-          "content_digest": "0f1beb36e3265d1e",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cbc22729\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25…[550 chars]",
+          "content_digest": "701abc8f282dd9d7",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
@@ -1130,8 +1130,8 @@
           "index": 19,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "da61bfe846976d0a",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_cbc22729\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "c99e65549bcb4c79",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },

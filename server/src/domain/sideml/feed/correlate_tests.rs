@@ -410,3 +410,85 @@ fn collision_repair_is_order_independent() {
         );
     }
 }
+
+/// Claiming a call must claim every copy of it.
+///
+/// One call is flattened once per span that carries it, so `pending` holds the same call several
+/// times. Marking only the first left the rest available, and the next id-less result adopted an id
+/// that had already been answered - two results with one id, which dedup resolves by dropping one.
+#[test]
+fn claiming_a_call_claims_every_copy_of_it() {
+    // The same call twice (as a bubbled-up event produces), then two results.
+    let mut blocks = vec![
+        call("t1", Some("call-a"), "lookup", json!({"q": "a"})),
+        call("t1", Some("call-a"), "lookup", json!({"q": "a"})),
+        result("t1", None, Some("lookup"), "answer-a"),
+        result("t1", None, Some("lookup"), "answer-b"),
+    ];
+    correlate_tool_results(&mut blocks);
+    assert_eq!(resolved_id(&blocks[2]).as_deref(), Some("call-a"));
+    assert_eq!(
+        resolved_id(&blocks[3]),
+        None,
+        "the second result adopted a call that had already been answered"
+    );
+
+    // Same via a provider-supplied id: the copies of that call must all be spent.
+    let mut blocks = vec![
+        call("t1", Some("call-a"), "lookup", json!({"q": "a"})),
+        call("t1", Some("call-a"), "lookup", json!({"q": "a"})),
+        result("t1", Some("call-a"), Some("lookup"), "answer-a"),
+        result("t1", None, Some("lookup"), "answer-b"),
+    ];
+    correlate_tool_results(&mut blocks);
+    assert_eq!(resolved_id(&blocks[3]), None);
+}
+
+/// Withdrawal must not merge results that only look alike.
+///
+/// The collision key is the block identity, which for a tool result covers the tool name and the
+/// error flag, not just the text. Keyed on text alone, two tools both reporting "ok" - or a success
+/// and a failure whose text matches - became one message once their ids were withdrawn.
+#[test]
+fn withdrawal_keeps_results_that_differ_by_tool_or_error() {
+    let mut different_tools = vec![
+        {
+            let mut b = result("t1", Some("call-gone"), Some("lookup"), "ok");
+            b.tool_use_id_correlated = true;
+            b
+        },
+        result("t1", None, Some("write"), "ok"),
+    ];
+    // content_hash is set by the pipeline, so mirror what it would compute here.
+    for block in &mut different_tools {
+        block.content_hash = format!("{:016x}", super::super::compute_block_hash(&block.content));
+    }
+    assert_eq!(
+        withdraw_unbacked_ids(different_tools).len(),
+        2,
+        "two different tools each reporting ok are two messages"
+    );
+
+    let mut success_and_failure = vec![
+        {
+            let mut b = result("t1", Some("call-gone"), Some("lookup"), "ok");
+            b.tool_use_id_correlated = true;
+            b
+        },
+        {
+            let mut b = result("t1", None, Some("lookup"), "ok");
+            if let ContentBlock::ToolResult { is_error, .. } = &mut b.content {
+                *is_error = true;
+            }
+            b
+        },
+    ];
+    for block in &mut success_and_failure {
+        block.content_hash = format!("{:016x}", super::super::compute_block_hash(&block.content));
+    }
+    assert_eq!(
+        withdraw_unbacked_ids(success_and_failure).len(),
+        2,
+        "a success and a failure with matching text are two messages"
+    );
+}
