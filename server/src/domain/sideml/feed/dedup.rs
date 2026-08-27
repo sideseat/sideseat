@@ -146,7 +146,7 @@ impl MessageIdentity {
 }
 
 /// Compute hash for tool call identity (name + input).
-fn compute_tool_call_hash(name: &str, input: &serde_json::Value) -> u64 {
+pub(super) fn compute_tool_call_hash(name: &str, input: &serde_json::Value) -> u64 {
     let mut hasher = DefaultHasher::new();
     "tool_call".hash(&mut hasher);
     name.hash(&mut hasher);
@@ -176,24 +176,69 @@ fn compute_tool_use_id_hash(tool_use_id: &str) -> u64 {
 // CONTENT NORMALIZATION FOR HASHING
 // ============================================================================
 
-/// Normalize JSON for consistent hashing (sort object keys).
+/// Normalize JSON for consistent hashing: sort object keys.
 pub(super) fn normalize_json_for_hash(value: &serde_json::Value) -> String {
+    normalize_json(value, EmptyMembers::Keep)
+}
+
+/// As [`normalize_json_for_hash`], but treating a member with no value as absent.
+///
+/// For a **structured answer only**. Filling a schema adds the fields the model did not produce,
+/// as `null`, `[]`, `{}` or `""`, so an SDK that reports both the model's raw object and its
+/// schema-shaped one - Vercel's `generateObject` puts the raw object on the inner span and the
+/// normalized one on the outer - emits the same answer twice with different bytes, and both
+/// reached the feed as separate assistant messages.
+///
+/// Deliberately not applied to tool inputs or tool results, where an explicitly empty collection
+/// is a different answer from a missing one: a search result of `{"results": []}` says "no
+/// matches" and `{}` says nothing, and collapsing those would drop a real message. The
+/// distinction only stops mattering once a schema has supplied the empty value itself.
+///
+/// Only identity is affected: what the API returns is still the block's own content.
+pub(super) fn normalize_structured_json_for_hash(value: &serde_json::Value) -> String {
+    normalize_json(value, EmptyMembers::Drop)
+}
+
+/// Whether object members carrying no value take part in identity.
+#[derive(Clone, Copy, PartialEq)]
+enum EmptyMembers {
+    Keep,
+    Drop,
+}
+
+fn normalize_json(value: &serde_json::Value, empty: EmptyMembers) -> String {
     use serde_json::Value as JsonValue;
     match value {
         JsonValue::Object(map) => {
-            let mut pairs: Vec<_> = map.iter().collect();
+            let mut pairs: Vec<_> = map
+                .iter()
+                .filter(|(_, v)| empty == EmptyMembers::Keep || !is_empty_json_member(v))
+                .collect();
             pairs.sort_by_key(|(k, _)| *k);
             let sorted: Vec<String> = pairs
                 .iter()
-                .map(|(k, v)| format!("{}:{}", k, normalize_json_for_hash(v)))
+                .map(|(k, v)| format!("{}:{}", k, normalize_json(v, empty)))
                 .collect();
             format!("{{{}}}", sorted.join(","))
         }
         JsonValue::Array(arr) => {
-            let items: Vec<String> = arr.iter().map(normalize_json_for_hash).collect();
+            let items: Vec<String> = arr.iter().map(|v| normalize_json(v, empty)).collect();
             format!("[{}]", items.join(","))
         }
         _ => value.to_string(),
+    }
+}
+
+/// True for a value that carries no information: `null`, `""`, `[]`, `{}`, or a container whose
+/// every member is itself empty.
+fn is_empty_json_member(value: &serde_json::Value) -> bool {
+    use serde_json::Value as JsonValue;
+    match value {
+        JsonValue::Null => true,
+        JsonValue::String(s) => s.trim().is_empty(),
+        JsonValue::Array(arr) => arr.iter().all(is_empty_json_member),
+        JsonValue::Object(map) => map.values().all(is_empty_json_member),
+        _ => false,
     }
 }
 
@@ -881,6 +926,7 @@ mod tests {
             is_semantic: true,
             uses_span_end: false,
             is_history: false,
+            tool_use_id_correlated: false,
         }
     }
 
@@ -928,6 +974,7 @@ mod tests {
             // happens DURING generation, not at completion. See classify::uses_span_end().
             uses_span_end: false,
             is_history: false,
+            tool_use_id_correlated: false,
         }
     }
 
@@ -974,11 +1021,75 @@ mod tests {
             is_semantic: true,
             uses_span_end: false, // Tool results are INPUT
             is_history: false,
+            tool_use_id_correlated: false,
         }
     }
 
     fn utc(secs: i64) -> DateTime<Utc> {
         Utc.timestamp_opt(secs, 0).unwrap()
+    }
+
+    /// Tool payloads keep the empty/absent distinction: "no matches" is an answer.
+    #[test]
+    fn tool_identity_distinguishes_an_empty_collection_from_a_missing_one() {
+        use serde_json::json;
+
+        assert_ne!(
+            normalize_json_for_hash(&json!({})),
+            normalize_json_for_hash(&json!({"results": []})),
+            "a tool result saying \"no matches\" is not the same as one saying nothing"
+        );
+        assert_ne!(
+            normalize_json_for_hash(&json!({"q": "x"})),
+            normalize_json_for_hash(&json!({"q": "x", "filters": []})),
+            "two tool calls whose arguments differ must stay distinct"
+        );
+        // The structured normalizer is the one that treats them as one, and only for a
+        // schema-shaped answer.
+        assert_eq!(
+            normalize_structured_json_for_hash(&json!({})),
+            normalize_structured_json_for_hash(&json!({"results": []})),
+        );
+    }
+
+    #[test]
+    fn identity_ignores_schema_filled_empty_fields() {
+        use serde_json::json;
+
+        let normalize_json_for_hash = normalize_structured_json_for_hash;
+
+        // The Vercel case: the outer span reports the schema-shaped object, the inner span the
+        // model's raw one. Same answer, and the only difference is a field the model left out.
+        let raw = json!({"name": "Jane", "age": 28, "skills": ["admin"]});
+        let schema_filled = json!({
+            "name": "Jane", "age": 28, "skills": ["admin"],
+            "contacts": [], "notes": null, "meta": {}, "title": "  "
+        });
+        assert_eq!(
+            normalize_json_for_hash(&raw),
+            normalize_json_for_hash(&schema_filled),
+            "a field with no value must not make the same answer look like two"
+        );
+
+        // Nested, and an array whose members are all empty.
+        assert_eq!(
+            normalize_json_for_hash(&json!({"a": {"b": 1}})),
+            normalize_json_for_hash(&json!({"a": {"b": 1, "c": []}, "d": [{}, null]})),
+        );
+
+        // A populated field still distinguishes. Notably `false` and `0` are values, not blanks.
+        for populated in [
+            json!({"name": "Jane", "age": 28, "skills": ["admin"], "contacts": ["x"]}),
+            json!({"name": "Jane", "age": 29, "skills": ["admin"]}),
+            json!({"name": "Jane", "age": 28, "skills": ["admin"], "active": false}),
+            json!({"name": "Jane", "age": 28, "skills": ["admin"], "count": 0}),
+        ] {
+            assert_ne!(
+                normalize_json_for_hash(&raw),
+                normalize_json_for_hash(&populated),
+                "{populated} carries a value and must stay distinct"
+            );
+        }
     }
 
     // ========================================================================
