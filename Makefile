@@ -117,7 +117,10 @@
 #     preview-docs       Preview built docs
 #
 #   Utilities:
-#     clean              Remove build artifacts (target, dist, sdk artifacts)
+#     clean              Remove build artifacts (target, dist, sdk artifacts). This is what
+#                        reclaims disk: a full test run leaves ~7GB in target/, and it grows with
+#                        every stale test binary. `docker image rm clickhouse/clickhouse-server:25.8`
+#                        frees another 1GB if you are done with `test-clickhouse`.
 #     download-prices    Update LLM pricing data from litellm
 #     deps-check         Check for outdated dependencies (all components)
 #
