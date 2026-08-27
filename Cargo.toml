@@ -190,6 +190,16 @@ tokio-util = { version = "0.7", features = ["rt"] }
 security-framework = { version = "3", features = ["OSX_10_15"] }
 core-foundation = "0.10"
 
+# Debug builds carried full DWARF for the whole dependency graph, and target/debug reached 45GB -
+# 34GB of it in deps. Line tables keep panic messages and backtraces pointing at the right file and
+# line, which is what the test suite reports with; dependencies get none, since a backtrace through
+# tokio is not what anyone reads.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [profile.release]
 opt-level = 3
 lto = true
