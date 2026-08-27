@@ -242,7 +242,11 @@ pub fn list_traces(
             WHERE {span_where_sp}
             GROUP BY sp.project_id, sp.trace_id
             {having_clause}
-            ORDER BY {span_sort_field} {sort_dir}
+            -- The same total key the outer query orders by: requested field, min_ts, trace_id.
+            -- Two traces with the same sort value have no defined order between them otherwise, so
+            -- a row can appear on two pages or on none; and if the inner key differed from the
+            -- outer one, page membership and display order would disagree at every boundary.
+            ORDER BY {span_sort_field} {sort_dir}, min_ts {sort_dir}, sp.trace_id ASC
             LIMIT {limit} OFFSET {offset}
         )
         SELECT
@@ -290,7 +294,7 @@ pub fn list_traces(
         -- but the outer query re-sorted by min_ts, so ?order_by=total_cost returned the most
         -- expensive traces arranged by time - the requested order was silently discarded, and only
         -- its direction survived. min_ts is kept as the tiebreak so a page is deterministic.
-        ORDER BY t.{span_sort_field} {sort_dir}, t.min_ts {sort_dir}
+        ORDER BY t.{span_sort_field} {sort_dir}, t.min_ts {sort_dir}, t.trace_id ASC
         "#,
         span_where_g = span_where_g,
         span_where_sp = span_where_sp,
@@ -517,11 +521,15 @@ pub fn list_spans(
     let total = execute_count(conn, &count_sql, &bind_values)?;
 
     // Data query - map API column names (start_time/end_time) to DB columns (timestamp_start/timestamp_end)
+    // (trace_id, span_id) breaks ties so LIMIT/OFFSET paginate a total order: spans sharing a
+    // timestamp have no defined order between them otherwise, and a row can then appear on two
+    // pages or on none.
     let order = params
         .order_by
         .as_ref()
         .map(|o| o.to_sql_mapped(columns::map_span_column))
-        .unwrap_or_else(|| "timestamp_start DESC".to_string());
+        .unwrap_or_else(|| "timestamp_start DESC".to_string())
+        + ", trace_id ASC, span_id ASC";
 
     let offset = (params.page.saturating_sub(1)) * params.limit;
     let data_sql = format!(
@@ -906,7 +914,8 @@ pub fn list_sessions(
             LEFT JOIN gen_totals gt ON sp.session_id = gt.session_id
             WHERE {span_where_sp}
             GROUP BY sp.project_id, sp.session_id
-            ORDER BY {span_sort_field} {sort_dir}
+            -- The same total key the outer query orders by: requested field, min_ts, session_id.
+            ORDER BY {span_sort_field} {sort_dir}, min_ts {sort_dir}, sp.session_id ASC
             LIMIT {limit} OFFSET {offset}
         )
         SELECT
@@ -935,7 +944,7 @@ pub fn list_sessions(
         LEFT JOIN gen_totals gt2 ON f.session_id = gt2.session_id
         GROUP BY f.session_id, f.min_ts, f.{span_sort_field}
         -- See the trace list: the requested column, not just its direction.
-        ORDER BY f.{span_sort_field} {sort_dir}, f.min_ts {sort_dir}
+        ORDER BY f.{span_sort_field} {sort_dir}, f.min_ts {sort_dir}, f.session_id ASC
         "#,
         span_where_g = span_where_g,
         span_where_sp = span_where_sp,
