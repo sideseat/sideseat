@@ -16,13 +16,16 @@
 //!
 //! Rules, in order:
 //!
-//! 1. A result that already has an id is never touched. Real ids from the provider win.
+//! 1. A result that already has an id keeps it - real ids from the provider win - but it does
+//!    claim the call it names, so a later id-less result cannot adopt a call already answered.
 //! 2. Matching is scoped to one trace. A call in one trace never answers a result in another.
-//! 3. A result is matched to the nearest *preceding* unmatched call with the same tool name.
-//! 4. Among several outstanding calls to one tool, results are taken in call order: the oldest
-//!    unclaimed call answers the next result. `{name, response}` carries nothing else, and both
-//!    Gemini and the OpenAI-shaped protocols return results in the order they were requested.
-//!    Reversing this - taking the *nearest* call - mis-paired every parallel tool call.
+//! 3. A result is matched to a *preceding* unclaimed call with the same tool name.
+//! 4. Among several such calls, the oldest unclaimed one answers the next result. `{name,
+//!    response}` carries nothing else to go on, and the frameworks that omit result ids - Gemini
+//!    and Google ADK, the reason this module exists - emit results in request order. Reversing
+//!    this by taking the *nearest* call mis-paired every parallel group. Where a framework returns
+//!    results out of order it supplies ids, so it never reaches this rule; a framework that did
+//!    both would be mis-paired here, and nothing in the payload would reveal it.
 //! 5. An unmatched result keeps no id. It stays honestly uncorrelated rather than acquiring a
 //!    fabricated reference.
 
@@ -53,8 +56,19 @@ pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
             ContentBlock::ToolResult {
                 tool_use_id, name, ..
             } => {
-                // Rule 1: never overwrite a real id.
-                if tool_use_id.as_ref().is_some_and(|s| !s.is_empty()) {
+                // Rule 1: never overwrite a real id - but do claim the call it names.
+                //
+                // Returning without claiming left the call available, so a later id-less result
+                // for the same tool adopted an id that was already answered. Both results then
+                // had the same id, and dedup - which identifies a result by its id - dropped one
+                // of them whatever their contents. A framework that supplies ids for some
+                // results and not others is enough to hit this.
+                if let Some(id) = tool_use_id.as_ref().filter(|s| !s.is_empty()) {
+                    if let Some(slot) = pending.iter().position(|(t, _, pending_id, taken)| {
+                        !*taken && *t == trace && pending_id == id
+                    }) {
+                        pending[slot].3 = true;
+                    }
                     continue;
                 }
                 let Some(result_name) = name.clone() else {
@@ -145,7 +159,7 @@ pub fn withdraw_unbacked_ids(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
         return blocks;
     }
 
-    for &idx in &unbacked {
+    for idx in unbacked {
         let block = &mut blocks[idx];
         if let ContentBlock::ToolResult { tool_use_id, .. } = &mut block.content {
             *tool_use_id = None;
@@ -154,20 +168,26 @@ pub fn withdraw_unbacked_ids(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
         block.tool_use_id_correlated = false;
     }
 
-    // Only the withdrawn blocks can newly collide, and only with another id-less result of the
-    // same content in the same trace. Everything else keeps the identity dedup gave it.
-    let withdrawn: std::collections::HashSet<usize> = unbacked.into_iter().collect();
+    // Keep the first of any id-less results that now share a trace and content, whichever of them
+    // was the withdrawn one.
+    //
+    // Dropping only the withdrawn block made the outcome depend on their order: a withdrawn result
+    // ahead of a natively id-less twin left both in place, while the reverse order dropped one.
+    // Position cannot decide which is the duplicate. Two id-less results with identical content
+    // are safe to collapse in general, because dedup identifies such a result by content and would
+    // already have collapsed any pair that reached it that way - so a surviving pair can only have
+    // been created here.
     let mut seen: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
     let mut keep = Vec::with_capacity(blocks.len());
-    for (idx, block) in blocks.into_iter().enumerate() {
-        let collides = matches!(
+    for block in blocks {
+        let id_less_result = matches!(
             &block.content,
             ContentBlock::ToolResult {
                 tool_use_id: None,
                 ..
             }
-        ) && !seen.insert((block.trace_id.clone(), block.content_hash.clone()));
-        if collides && withdrawn.contains(&idx) {
+        );
+        if id_less_result && !seen.insert((block.trace_id.clone(), block.content_hash.clone())) {
             continue;
         }
         keep.push(block);

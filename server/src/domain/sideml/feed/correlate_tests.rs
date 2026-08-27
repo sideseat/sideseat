@@ -354,3 +354,59 @@ fn collapses_results_that_become_identical_after_withdrawal() {
     assert_eq!(resolved_id(&surviving[1]).as_deref(), Some("call-a"));
     assert_eq!(resolved_id(&surviving[2]), None);
 }
+
+/// A result that arrives with its own id claims that call, so a later id-less result cannot adopt
+/// it.
+///
+/// Leaving the call unclaimed meant the second result took an id that was already answered. Two
+/// results with one id are one message to dedup, which identifies a result by its id, so one of
+/// them was dropped no matter what it contained - and a framework only has to supply ids for some
+/// results and not others to hit it.
+#[test]
+fn a_result_with_its_own_id_claims_the_call_it_names() {
+    let mut blocks = vec![
+        call("t1", Some("call-a"), "lookup", json!({"q": "a"})),
+        call("t1", Some("call-b"), "lookup", json!({"q": "b"})),
+        result("t1", Some("call-a"), Some("lookup"), "answer-a"),
+        result("t1", None, Some("lookup"), "answer-b"),
+    ];
+    correlate_tool_results(&mut blocks);
+    assert_eq!(resolved_id(&blocks[2]).as_deref(), Some("call-a"));
+    assert_eq!(
+        resolved_id(&blocks[3]).as_deref(),
+        Some("call-b"),
+        "the id-less result adopted a call that had already answered"
+    );
+}
+
+/// The collision repair must not depend on which of the two came first.
+///
+/// Dropping only the withdrawn block left both in place when the withdrawn one came first, and
+/// dropped one when it came second. Position cannot decide which of two identical results is the
+/// duplicate.
+#[test]
+fn collision_repair_is_order_independent() {
+    let withdrawn_first = vec![
+        // A withdrawn result: correlated, then its call disappeared.
+        {
+            let mut b = result("t1", Some("call-gone"), Some("lookup"), "same text");
+            b.tool_use_id_correlated = true;
+            b
+        },
+        // A result that never had an id at all.
+        result("t1", None, Some("lookup"), "same text"),
+    ];
+    let withdrawn_second: Vec<_> = withdrawn_first.iter().rev().cloned().collect();
+
+    for (label, blocks) in [
+        ("withdrawn first", withdrawn_first),
+        ("withdrawn second", withdrawn_second),
+    ] {
+        let surviving = withdraw_unbacked_ids(blocks);
+        assert_eq!(
+            surviving.len(),
+            1,
+            "{label}: the same pair must collapse to one either way round"
+        );
+    }
+}
