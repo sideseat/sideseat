@@ -5,7 +5,7 @@ use chrono_tz::Tz;
 use clickhouse::{Client, Row};
 use serde::Deserialize;
 
-use super::query::{QueryParam, TOKEN_DEDUP_CONDITION, build_time_scoped_dedup};
+use super::query::{TOKEN_DEDUP_CONDITION, build_time_scoped_dedup};
 use crate::core::constants::QUERY_MAX_TOP_STATS;
 use crate::data::clickhouse::ClickhouseError;
 use crate::data::types::{
@@ -205,13 +205,8 @@ async fn query_main_aggregation(
     );
 
     // Bind order: dedup_lookup(project_id + time-scope), gen_agg(project_id, from, to), main(project_id, from, to)
-    let mut q = client.query(&sql).bind(&params.project_id);
-    for param in &dedup.1 {
-        q = match param {
-            QueryParam::String(s) => q.bind(s.as_str()),
-            QueryParam::Int64(i) => q.bind(i),
-        };
-    }
+    let q = client.query(&sql).bind(&params.project_id);
+    let q = super::query::bind_params(q, &dedup.1);
     let row: ChMainAggRow = q
         .bind(&params.project_id)
         .bind(from_micros)
@@ -426,13 +421,8 @@ async fn query_model_breakdown(
     );
 
     // Bind order: dedup_lookup(project_id + time-scope), gen_roots(project_id, from, to)
-    let mut q = client.query(&sql).bind(&params.project_id);
-    for param in &dedup.1 {
-        q = match param {
-            QueryParam::String(s) => q.bind(s.as_str()),
-            QueryParam::Int64(i) => q.bind(i),
-        };
-    }
+    let q = client.query(&sql).bind(&params.project_id);
+    let q = super::query::bind_params(q, &dedup.1);
     let rows: Vec<ChModelRow> = q
         .bind(&params.project_id)
         .bind(from_micros)
@@ -533,13 +523,8 @@ async fn query_trend_data(
     );
 
     // Bind order: dedup_lookup(project_id + time-scope), gen_roots(project_id, from, to)
-    let mut q = client.query(&sql).bind(&params.project_id);
-    for param in &dedup.1 {
-        q = match param {
-            QueryParam::String(s) => q.bind(s.as_str()),
-            QueryParam::Int64(i) => q.bind(i),
-        };
-    }
+    let q = client.query(&sql).bind(&params.project_id);
+    let q = super::query::bind_params(q, &dedup.1);
     let rows: Vec<ChTrendRow> = q
         .bind(&params.project_id)
         .bind(from_micros)
