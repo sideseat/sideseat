@@ -717,7 +717,7 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
 /// context. The upper bound is still applied to the query as well, because everything after it is
 /// irrelevant to what came before and there is no reason to load it.
 ///
-/// Compares birth times, the same timestamps the API returns.
+/// Compares the timestamps the API returns, and is half-open: `from <= t < to`, as the queries are.
 pub fn apply_time_window(
     result: FeedResult,
     from: Option<DateTime<Utc>>,
@@ -731,7 +731,10 @@ pub fn apply_time_window(
         .messages
         .into_iter()
         .filter(|b| from.is_none_or(|from| b.timestamp >= from))
-        .filter(|b| to.is_none_or(|to| b.timestamp <= to))
+        // Half-open at the top, matching the `timestamp_start < to` the message queries apply:
+        // with `<=` here, a message exactly on the bound was returned when its span started
+        // earlier and dropped when its span started on the bound too.
+        .filter(|b| to.is_none_or(|to| b.timestamp < to))
         .collect();
     let span_count = messages
         .iter()
