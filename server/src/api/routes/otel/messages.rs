@@ -269,21 +269,7 @@ pub(crate) fn build_messages_response(
     let mut start_time: Option<DateTime<Utc>> = None;
     let mut end_time: Option<DateTime<Utc>> = None;
 
-    // Track seen spans to avoid counting tokens multiple times per span, keyed by (trace, span):
-    // a span id is unique only within a trace, and a session view holds several traces.
-    let mut seen_spans: HashSet<(String, String)> = HashSet::new();
-    let mut aggregated_tokens = 0i64;
-    let mut aggregated_cost = 0.0f64;
-
     for block in &processed.messages {
-        // Aggregate tokens/cost from spans (only if not using trace totals)
-        if trace_totals.is_none()
-            && seen_spans.insert((block.trace_id.clone(), block.span_id.clone()))
-        {
-            aggregated_tokens += block.tokens.unwrap_or(0);
-            aggregated_cost += block.cost.unwrap_or(0.0);
-        }
-
         if start_time.is_none_or(|t| block.timestamp < t) {
             start_time = Some(block.timestamp);
         }
@@ -295,7 +281,15 @@ pub(crate) fn build_messages_response(
     }
 
     let total_messages = messages_dto.len() as i64;
-    let (total_tokens, total_cost) = trace_totals.unwrap_or((aggregated_tokens, aggregated_cost));
+    // The pipeline's totals, which are sums over the spans in scope, not over the blocks returned.
+    //
+    // Summing the returned blocks made a billed span contribute nothing whenever its messages were
+    // all dropped - as history, or by a role or time filter - so the reported cost of a conversation
+    // fell when a filter was applied. The spans were still billed.
+    let (total_tokens, total_cost) = trace_totals.unwrap_or((
+        processed.metadata.total_tokens,
+        processed.metadata.total_cost,
+    ));
 
     MessagesResponseDto {
         messages: messages_dto,
