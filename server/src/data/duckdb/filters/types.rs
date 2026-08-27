@@ -5,7 +5,7 @@
 use serde::Deserialize;
 
 use crate::api::types::ApiError;
-use crate::utils::sql::escape_like_pattern;
+use crate::utils::sql::{escape_like_pattern, is_plain_identifier};
 
 /// Filter types for advanced queries
 #[derive(Debug, Clone, Deserialize)]
@@ -123,7 +123,8 @@ impl Filter {
         Ok(())
     }
 
-    fn column(&self) -> &String {
+    /// The column this filter names, before any view-to-span mapping.
+    pub fn column(&self) -> &String {
         match self {
             Self::Datetime { column, .. } => column,
             Self::String { column, .. } => column,
@@ -149,6 +150,13 @@ impl Filter {
     where
         F: Fn(&'a str) -> &'a str,
     {
+        // See the same guard in the ClickHouse renderer: the allowlist runs when the request is
+        // parsed, and this is the check where the SQL is assembled, because a mapper passes an
+        // unknown column straight through. Matching nothing is the safe failure.
+        if !is_plain_identifier(self.column()) {
+            return "1 = 0".to_string();
+        }
+
         // Helper to format column with optional alias
         let format_col = |col: &str| -> String {
             if alias.is_empty() {
@@ -272,6 +280,28 @@ impl Filter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The mirror of the ClickHouse renderer's guard: an unmapped column reaches the SQL text, so
+    /// anything that is not a bare identifier must produce a condition that matches nothing.
+    #[test]
+    fn a_hostile_column_name_matches_nothing() {
+        for hostile in [
+            "trace_id; DROP TABLE otel_spans",
+            "trace_id' OR '1'='1",
+            "count(*)",
+            "",
+        ] {
+            let filter = Filter::String {
+                column: hostile.to_string(),
+                operator: StringOp::Eq,
+                value: "x".to_string(),
+            };
+            let mut params = SqlParams::default();
+            let sql = filter.to_sql_aliased(&mut params, |c| c, "");
+            assert_eq!(sql, "1 = 0", "{hostile:?} produced SQL: {sql}");
+            assert!(params.values.is_empty(), "{hostile:?} bound a parameter");
+        }
+    }
 
     #[test]
     fn datetime_filter_gt() {
