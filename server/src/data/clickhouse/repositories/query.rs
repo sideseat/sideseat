@@ -6,6 +6,8 @@ use chrono::{DateTime, Utc};
 use clickhouse::{Client, Row};
 use serde::Deserialize;
 
+use crate::data::duckdb::filters::{Filter, columns};
+
 // ============================================================================
 // Token Dedup SQL Fragments
 // ============================================================================
@@ -255,11 +257,32 @@ fn trace_projection(trace_id_expr: &str, totals_alias: &str, totals: Totals) -> 
 /// Query parameter that can be bound to ClickHouse queries.
 /// All user-controllable values MUST go through this enum for SQL injection safety.
 #[derive(Clone)]
-pub(super) enum QueryParam {
+pub(crate) enum QueryParam {
     /// String parameter (bound as-is)
     String(String),
     /// Integer parameter (used for timestamps as microseconds)
     Int64(i64),
+    /// Floating point parameter. Numeric filter values need a numeric bind: ClickHouse compares a
+    /// string literal against a numeric column by raising, not by coercing.
+    Float64(f64),
+}
+
+/// Bind a sequence of collected parameters onto a query, in order.
+///
+/// Every call site had its own copy of this three-line match, so adding a parameter type meant a
+/// compile error in each of them - which is how it was found.
+pub(crate) fn bind_params<'a>(
+    mut query: clickhouse::query::Query,
+    params: impl IntoIterator<Item = &'a QueryParam>,
+) -> clickhouse::query::Query {
+    for param in params {
+        query = match param {
+            QueryParam::String(s) => query.bind(s.as_str()),
+            QueryParam::Int64(i) => query.bind(i),
+            QueryParam::Float64(f) => query.bind(f),
+        };
+    }
+    query
 }
 
 /// Builder for constructing parameterized SQL WHERE clauses.
@@ -334,6 +357,25 @@ impl ConditionBuilder {
         self.params.push(QueryParam::Int64(ts.timestamp_micros()));
     }
 
+    /// Add the advanced filters a list request carries.
+    ///
+    /// `mapper` translates the request's view column names to span columns, the same mapping the
+    /// DuckDB backend applies, so a filter means the same thing on both.
+    fn add_filters<'a, F>(&mut self, filters: &'a [Filter], mapper: F, alias: &str)
+    where
+        F: Fn(&'a str) -> &'a str + Copy,
+    {
+        for filter in filters {
+            let condition = crate::data::clickhouse::filters::to_clickhouse_sql(
+                filter,
+                &mut self.params,
+                mapper,
+                alias,
+            );
+            self.conditions.push(condition);
+        }
+    }
+
     /// Build the WHERE clause (without "WHERE" keyword)
     fn build(&self) -> String {
         self.conditions.join(" AND ")
@@ -346,6 +388,7 @@ impl ConditionBuilder {
             query = match param {
                 QueryParam::String(s) => query.bind(s),
                 QueryParam::Int64(i) => query.bind(i),
+                QueryParam::Float64(f) => query.bind(f),
             };
         }
         query
@@ -362,6 +405,7 @@ impl ConditionBuilder {
                 query = match param {
                     QueryParam::String(s) => query.bind(s),
                     QueryParam::Int64(i) => query.bind(i),
+                    QueryParam::Float64(f) => query.bind(f),
                 };
             }
         }
@@ -667,6 +711,10 @@ pub async fn list_traces(
         cb.add_timestamp_lte("timestamp_start", to);
     }
 
+    // The UI's filter bar. Ignored entirely until now: a trace list filtered by model, token
+    // count, cost or error status came back unfiltered on this backend.
+    cb.add_filters(&params.filters, columns::map_trace_column_to_spans, "");
+
     let where_clause = cb.build();
 
     let (count_sql, needs_double_bind) = if !params.include_nongenai {
@@ -779,13 +827,8 @@ pub async fn list_traces(
     );
 
     // Bind: dedup_lookup(project_id + time-scope params) + where_clause x2
-    let mut query = client.query(&data_sql).bind(params.project_id.as_str());
-    for param in &dedup.1 {
-        query = match param {
-            QueryParam::String(s) => query.bind(s.as_str()),
-            QueryParam::Int64(i) => query.bind(i),
-        };
-    }
+    let query = client.query(&data_sql).bind(params.project_id.as_str());
+    let query = bind_params(query, &dedup.1);
     let rows: Vec<ChTraceRow> = cb.bind_to_n(query, 2).fetch_all().await?;
 
     Ok((rows.into_iter().map(TraceRow::from).collect(), total))
@@ -973,6 +1016,9 @@ pub async fn list_spans(
     if params.is_observation == Some(true) {
         cb.add_raw("observation_type != 'span'");
     }
+
+    // The UI's filter bar, mapped through the span view's column names.
+    cb.add_filters(&params.filters, columns::map_span_column, "");
 
     let where_clause = cb.build();
 
@@ -1173,6 +1219,10 @@ pub async fn list_sessions(
         cb.add_timestamp_lte("timestamp_start", to);
     }
 
+    // The UI's filter bar. Unqualified because these queries scan otel_spans directly, and
+    // mapped through the session view's column names.
+    cb.add_filters(&params.filters, columns::map_session_column_to_spans, "");
+
     let where_clause = cb.build();
 
     let count_sql = format!(
@@ -1256,13 +1306,8 @@ pub async fn list_sessions(
     );
 
     // Bind: dedup_lookup(project_id + time-scope params) + where_clause x2
-    let mut query = client.query(&data_sql).bind(params.project_id.as_str());
-    for param in &dedup.1 {
-        query = match param {
-            QueryParam::String(s) => query.bind(s.as_str()),
-            QueryParam::Int64(i) => query.bind(i),
-        };
-    }
+    let query = client.query(&data_sql).bind(params.project_id.as_str());
+    let query = bind_params(query, &dedup.1);
     let rows: Vec<ChSessionRow> = cb.bind_to_n(query, 2).fetch_all().await?;
 
     Ok((rows.into_iter().map(SessionRow::from).collect(), total))

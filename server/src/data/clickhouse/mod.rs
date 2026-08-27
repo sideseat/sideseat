@@ -9,6 +9,7 @@
 //! - HTTP keep-alive for connection reuse
 
 pub mod error;
+mod filters;
 #[cfg(test)]
 #[path = "parity_tests.rs"]
 mod parity_tests;
