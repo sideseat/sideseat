@@ -24,6 +24,7 @@ use serde_json::json;
 
 use super::{FeedOptions, process_spans};
 use crate::data::types::MessageSpanRow;
+use crate::domain::sideml::types::ContentBlock;
 
 const BASE_SECS: i64 = 1_700_000_000;
 
@@ -271,4 +272,87 @@ proptest! {
             prop_assert_eq!(m.role.as_str(), role, "role filter returned a different role");
         }
     }
+}
+
+/// A response's blocks stay in source order and the answer is stable across runs.
+///
+/// `process_dedup` used to compare two blocks of one response by source order and everything else
+/// by birth time. Those rules contradict each other whenever one response's blocks have different
+/// birth times - text is timestamped at span end, tool_use at event time - and a third block
+/// timestamped between them then makes `text < tool < third < text`, which `sort_by` may panic on.
+/// The ordering is now derived from a key, so no such cycle can exist by construction.
+///
+/// This test does not reproduce that cycle: with the current classifier the arrangement needed is
+/// not reachable from this entry point, and a test that claimed to catch it would be worth less
+/// than one that says so. What it does pin is the behaviour the fix has to preserve - source order
+/// within a response, and the same answer every time.
+#[test]
+fn a_response_keeps_its_source_order_and_the_result_is_stable() {
+    let msg = json!([
+        // One response carrying text (span_end) and a tool call (event time).
+        {
+            "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:01Z"}},
+            "content": {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "calling the tool"},
+                    {"type": "tool_use", "id": "call-1", "name": "lookup", "input": {"q": "a"}}
+                ]
+            }
+        },
+        // A block timestamped between the two above once birth times are computed.
+        {
+            "source": {"event": {"name": "gen_ai.tool.message", "time": "2025-01-01T00:00:02Z"}},
+            "content": {
+                "role": "user",
+                "content": [{"type": "tool_result", "tool_use_id": "call-1", "name": "lookup",
+                             "content": "answer"}]
+            }
+        },
+        {
+            "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:03Z"}},
+            "content": {"role": "assistant", "content": "done"}
+        }
+    ]);
+
+    // A span whose end is well after its events, so the text block's birth time (span end) lands
+    // after the tool result's (event time) - the arrangement that closed the cycle.
+    let mut row = row(1, 1, 0, msg.to_string());
+    row.span_end_timestamp = Some(row.span_timestamp + chrono::Duration::seconds(10));
+
+    // The assertion is that this returns at all - an intransitive comparator panics - and that it
+    // returns the same answer every time.
+    let first = process_spans(vec![row.clone()], &FeedOptions::new());
+    for _ in 0..20 {
+        let again = process_spans(vec![row.clone()], &FeedOptions::new());
+        assert_eq!(
+            again
+                .messages
+                .iter()
+                .map(|b| format!("{:?}", b.content))
+                .collect::<Vec<_>>(),
+            first
+                .messages
+                .iter()
+                .map(|b| format!("{:?}", b.content))
+                .collect::<Vec<_>>(),
+            "the same input produced two different orders"
+        );
+    }
+
+    // And the response's own blocks stay in the order the model produced them.
+    let text_at = first
+        .messages
+        .iter()
+        .position(|b| matches!(&b.content, ContentBlock::Text { .. }))
+        .expect("the text block");
+    let call_at = first
+        .messages
+        .iter()
+        .position(|b| matches!(&b.content, ContentBlock::ToolUse { .. }))
+        .expect("the tool call");
+    assert!(
+        text_at < call_at,
+        "the text preceded the call in the response, so it must precede it in the feed"
+    );
 }

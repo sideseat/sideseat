@@ -182,8 +182,8 @@
         "user",
         "user",
         "assistant",
-        "tool",
         "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -216,6 +216,15 @@
         {
           "index": 3,
           "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll read the image and then follow the instruction from the PDF to write a poem about its contents.",
+          "content_digest": "52d82b7d5deb28b2",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_rBijYDxumYLKYwFSRv55Ak\",\"name\":\"image_reader\",\"input\":{\"path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
           "content_digest": "d80bb86f5c2f5d50",
@@ -224,21 +233,12 @@
           "observation_type": "tool"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_rBijYDxumYLKYwFSRv55Ak\",\"content\":{\"type\":\"image\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKC…[218755 chars]",
           "content_digest": "739df64c079aea2b",
           "observation_type": "tool"
-        },
-        {
-          "index": 5,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "I'll read the image and then follow the instruction from the PDF to write a poem about its contents.",
-          "content_digest": "52d82b7d5deb28b2",
-          "finish_reason": "ToolUse",
-          "observation_type": "generation"
         },
         {
           "index": 6,
