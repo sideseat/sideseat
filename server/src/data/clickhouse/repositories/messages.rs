@@ -8,7 +8,8 @@ use serde::Deserialize;
 
 use crate::data::clickhouse::ClickhouseError;
 use crate::data::types::{
-    FeedMessagesParams, MessageQueryParams, MessageQueryResult, MessageSpanRow,
+    FeedMessagesParams, MESSAGE_CONTENT_FILTER, MessageQueryParams, MessageQueryResult,
+    MessageSpanRow,
 };
 
 /// Shared SELECT columns for all message queries.
@@ -34,10 +35,6 @@ const CH_MESSAGE_SELECT_COLUMNS: &str = r#"
     observation_type,
     session_id,
     toInt64(toUnixTimestamp64Micro(ingested_at)) AS ingested_at_us"#;
-
-/// Shared content filter for message queries.
-const CH_MESSAGE_CONTENT_FILTER: &str =
-    "(messages != '[]' OR tool_definitions != '[]' OR tool_names != '[]' OR status_code = 'ERROR')";
 
 /// ClickHouse row for message span queries
 #[derive(Row, Deserialize)]
@@ -111,17 +108,22 @@ pub async fn get_messages(
     if let Some(span_id) = &params.span_id {
         conditions.push("span_id = ?".to_string());
         string_binds.push(span_id.clone());
+        // Span ids are unique only within a trace; see the DuckDB backend for the same guard.
+        if let Some(trace_id) = &params.trace_id {
+            conditions.push("trace_id = ?".to_string());
+            string_binds.push(trace_id.clone());
+        }
     } else if let Some(session_id) = &params.session_id {
         conditions.push(
             "trace_id IN (SELECT DISTINCT trace_id FROM otel_spans FINAL WHERE project_id = ? AND session_id = ?)".to_string()
         );
         string_binds.push(params.project_id.clone());
         string_binds.push(session_id.clone());
-        conditions.push(CH_MESSAGE_CONTENT_FILTER.to_string());
+        conditions.push(MESSAGE_CONTENT_FILTER.to_string());
     } else if let Some(trace_id) = &params.trace_id {
         conditions.push("trace_id = ?".to_string());
         string_binds.push(trace_id.clone());
-        conditions.push(CH_MESSAGE_CONTENT_FILTER.to_string());
+        conditions.push(MESSAGE_CONTENT_FILTER.to_string());
     }
 
     if let Some(from) = &params.from_timestamp {
@@ -134,7 +136,8 @@ pub async fn get_messages(
     }
 
     let sql = format!(
-        "SELECT {CH_MESSAGE_SELECT_COLUMNS} FROM otel_spans FINAL WHERE {} ORDER BY timestamp_start ASC",
+        // span_id breaks ties, matching the DuckDB backend: timestamp alone is not a stable order.
+        "SELECT {CH_MESSAGE_SELECT_COLUMNS} FROM otel_spans FINAL WHERE {} ORDER BY timestamp_start ASC, span_id ASC",
         conditions.join(" AND ")
     );
 
@@ -167,7 +170,7 @@ pub async fn get_project_messages(
 ) -> Result<MessageQueryResult, ClickhouseError> {
     let mut conditions = vec![
         "project_id = ?".to_string(),
-        CH_MESSAGE_CONTENT_FILTER.to_string(),
+        MESSAGE_CONTENT_FILTER.to_string(),
     ];
     let mut bind_params: Vec<BindParam> = vec![BindParam::String(params.project_id.clone())];
 

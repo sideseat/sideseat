@@ -28,7 +28,11 @@ pub use analytics::{
 };
 
 // Re-export message types
-pub use messages::{FeedMessagesParams, MessageQueryParams, MessageQueryResult, MessageSpanRow};
+pub use messages::{
+    FeedMessagesParams, MESSAGE_CONTENT_FILTER, MessageQueryParams, MessageQueryResult,
+    MessageSpanRow, SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS,
+    TRACE_FILTER_OPTION_COLUMNS,
+};
 
 // Re-export stats types
 pub use stats::{

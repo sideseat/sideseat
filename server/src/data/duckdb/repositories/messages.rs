@@ -12,7 +12,8 @@ use duckdb::Connection;
 use crate::data::duckdb::DuckdbError;
 use crate::data::duckdb::repositories::query::DEDUP_SPANS;
 use crate::data::types::{
-    FeedMessagesParams, MessageQueryParams, MessageQueryResult, MessageSpanRow,
+    FeedMessagesParams, MESSAGE_CONTENT_FILTER, MessageQueryParams, MessageQueryResult,
+    MessageSpanRow,
 };
 use crate::utils::time::micros_to_datetime;
 
@@ -41,11 +42,6 @@ const MESSAGE_SELECT_COLUMNS: &str = r#"
     session_id,
     EPOCH_US(ingested_at) AS ingested_at_us"#;
 
-/// Shared content filter for message queries.
-/// Includes error spans even without messages.
-const MESSAGE_CONTENT_FILTER: &str =
-    "(messages != '[]' OR tool_definitions != '[]' OR tool_names != '[]' OR status_code = 'ERROR')";
-
 // ============================================================================
 // Query functions - return raw unfiltered data
 // ============================================================================
@@ -63,6 +59,12 @@ pub fn get_messages(
     if let Some(span_id) = &params.span_id {
         conditions.push("span_id = ?".to_string());
         bind_values.push(span_id.clone());
+        // Span ids are 8 bytes and unique only within a trace, so a span query that ignores
+        // the trace can return another trace's span. The span route supplies both.
+        if let Some(trace_id) = &params.trace_id {
+            conditions.push("trace_id = ?".to_string());
+            bind_values.push(trace_id.clone());
+        }
     } else if let Some(session_id) = &params.session_id {
         conditions.push(
             "trace_id IN (SELECT DISTINCT trace_id FROM otel_spans WHERE project_id = ? AND session_id = ?)".to_string()
@@ -86,7 +88,9 @@ pub fn get_messages(
     }
 
     let sql = format!(
-        "SELECT {MESSAGE_SELECT_COLUMNS} FROM otel_spans WHERE {} ORDER BY timestamp_start ASC",
+        // span_id breaks ties: ordering by timestamp alone leaves rows written in the same
+        // microsecond to storage order, which is not stable between identical requests.
+        "SELECT {MESSAGE_SELECT_COLUMNS} FROM otel_spans WHERE {} ORDER BY timestamp_start ASC, span_id ASC",
         conditions.join(" AND ")
     );
 
