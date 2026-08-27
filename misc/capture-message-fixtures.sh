@@ -40,6 +40,10 @@ SUITES=(
   "anthropic|uv run --directory misc/samples/python/anthropic anthropic-provider {S}"
   "agent-framework|uv run --directory misc/samples/python/agent-framework agent-framework {S}"
   "claude-agent-sdk|uv run --directory misc/samples/python/claude-agent-sdk claude-agent-sdk {S}"
+  # Listed so the inventory is complete and its absence is visible rather than silent. Skipped
+  # unless a first-party key is present: autogen's runner has no Bedrock path, so it cannot run
+  # on the AWS credentials every other suite uses.
+  "autogen|uv run --directory misc/samples/python/autogen autogen {S}"
   "vercel-ai-js|cd misc/samples/js && npm run vercel-ai -- {S}"
   "strands-js|cd misc/samples/js && npm run strands -- {S}"
   "claude-agent-sdk-js|cd misc/samples/js && npm run claude-agent-sdk -- {S}"
@@ -130,6 +134,13 @@ for entry in "${SUITES[@]}"; do
   IFS='|' read -r suite runner <<<"$entry"
   [[ -n "$want_suite" && "$suite" != "$want_suite" ]] && continue
 
+  # Suites with no Bedrock path need a first-party key; skip rather than report a failure that
+  # is really a missing credential.
+  if [[ "$suite" == "autogen" && -z "${OPENAI_API_KEY:-}${ANTHROPIC_API_KEY:-}" ]]; then
+    echo "[capture] $suite: skipped - needs OPENAI_API_KEY or ANTHROPIC_API_KEY (no Bedrock path)"
+    continue
+  fi
+
   samples="$(discover_samples "$runner")"
   if [[ -z "$samples" ]]; then
     echo "[capture] $suite: could not list samples (is the suite installed?)"
@@ -207,8 +218,18 @@ for entry in "${SUITES[@]}"; do
     while IFS= read -r big; do
       [[ -n "$big" ]] && echo "[capture] $label: LARGE payload $(du -h "$big" | cut -f1) $big - consider .gitignore"
     done < <(find "${FIXTURES}/${label}" -type f -size +1M 2>/dev/null)
-    if [[ "$captured" -gt 0 && "$sample_status" == "ran" ]]; then
-      echo "[capture] $label: ran, $captured request(s) recorded"
+    # The `error` samples exist to produce error telemetry and exit non-zero; that is the
+    # behaviour under test, not a truncated run. Treating their exit code as failure discarded
+    # 28 suites' worth of error-path coverage.
+    expected_failure=0
+    [[ "$sample" == "error" ]] && expected_failure=1
+
+    if [[ "$captured" -gt 0 && ("$sample_status" == "ran" || "$expected_failure" == "1") ]]; then
+      if [[ "$expected_failure" == "1" && "$sample_status" != "ran" ]]; then
+        echo "[capture] $label: $sample_status (expected for an error sample), $captured request(s) recorded"
+      else
+        echo "[capture] $label: ran, $captured request(s) recorded"
+      fi
       ok=$((ok + 1))
     elif [[ "$captured" -gt 0 ]]; then
       # Partial capture: the sample died part-way, so the fixture is a truncated conversation
@@ -234,5 +255,12 @@ if ((${#failed[@]})); then
   echo "[capture] no fixtures for: ${failed[*]}"
 fi
 echo "[capture] fixtures under $FIXTURES"
-echo "[capture] next: cargo test -p sideseat-server message_goldens -- --nocapture"
-echo "[capture]       UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens  # record expectations"
+echo "[capture] next: UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens   # record"
+echo "[capture]       misc/review-message-goldens.py                                    # read the result"
+echo "[capture]       cargo test -p sideseat-server message_goldens                     # then it gates"
+
+# Non-zero when anything failed. Reporting failures and exiting 0 meant a CI step or a caller
+# chaining with && treated a partial capture as a full one.
+if ((${#failed[@]})); then
+  exit 1
+fi

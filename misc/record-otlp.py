@@ -147,6 +147,15 @@ def main() -> int:
 
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Recorder)
     dest = FIXTURE_ROOT / args.label
+
+    # Numbering restarts at req-001 every run, so anything left from a longer previous capture
+    # would survive with a higher number and be replayed as part of this one. Clear first.
+    if dest.exists():
+        stale = sorted(p for p in dest.glob("req-*") if p.is_file())
+        for p_ in stale:
+            p_.unlink()
+        if stale:
+            print(f"[record] cleared {len(stale)} stale payload(s) in {dest.relative_to(REPO_ROOT)}", flush=True)
     print(f"[record] listening on http://127.0.0.1:{args.port}", flush=True)
     print(f"[record] writing to {dest.relative_to(REPO_ROOT)}", flush=True)
     print(f"[record] forwarding to {args.upstream if Recorder.forward else '(disabled)'}", flush=True)
