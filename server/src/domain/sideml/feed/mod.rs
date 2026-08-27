@@ -139,7 +139,18 @@ pub(crate) mod status {
 
 /// GenAI output event names (OpenTelemetry semantic conventions).
 /// These represent completion events that should use span_end timestamp.
-pub(crate) const GENAI_OUTPUT_EVENTS: &[&str] = &["gen_ai.choice", "gen_ai.content.completion"];
+///
+/// `gen_ai.output.messages` is the bundled form the current conventions use, carried on the
+/// `gen_ai.client.inference.operation.details` event. Without it here, a bundled output was not
+/// recognised as output at all: it did not take the span-end timestamp, it was not protected from
+/// history marking, and it shared a response with the input event emitted at the same instant - so
+/// it reported the input's time, which is the defect the direction-keyed batching fixes for
+/// attribute sources.
+pub(crate) const GENAI_OUTPUT_EVENTS: &[&str] = &[
+    "gen_ai.choice",
+    "gen_ai.content.completion",
+    "gen_ai.output.messages",
+];
 
 /// GenAI input event names (OpenTelemetry semantic conventions).
 /// These represent context/input that may be history copies.
@@ -149,6 +160,8 @@ pub(crate) const GENAI_INPUT_EVENTS: &[&str] = &[
     "gen_ai.system.message",
     "gen_ai.tool.message",
     "gen_ai.content.prompt",
+    // The bundled form, paired with gen_ai.output.messages above.
+    "gen_ai.input.messages",
 ];
 
 // ============================================================================
@@ -637,11 +650,11 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
     let mut all_tool_names: Vec<String> = Vec::new();
     let mut total_tokens: i64 = 0;
     let mut total_cost: f64 = 0.0;
-    let mut span_ids: HashSet<String> = HashSet::new();
+    let mut span_ids: HashSet<(String, String)> = HashSet::new();
 
     for (_, conversation_spans) in spans_by_conversation {
         for row in &conversation_spans {
-            span_ids.insert(row.span_id.clone());
+            span_ids.insert((row.trace_id.clone(), row.span_id.clone()));
             total_tokens += row.total_tokens;
             total_cost += row.cost_total;
         }
@@ -738,7 +751,7 @@ pub fn apply_time_window(
         .collect();
     let span_count = messages
         .iter()
-        .map(|b| &b.span_id)
+        .map(|b| (&b.trace_id, &b.span_id))
         .collect::<HashSet<_>>()
         .len();
 
@@ -782,7 +795,7 @@ fn apply_role_filter(result: FeedResult, role: Option<&str>) -> FeedResult {
         .collect();
     let span_count = messages
         .iter()
-        .map(|b| &b.span_id)
+        .map(|b| (&b.trace_id, &b.span_id))
         .collect::<HashSet<_>>()
         .len();
 
@@ -1446,7 +1459,9 @@ fn compute_block_hash(block: &ContentBlock) -> u64 {
 
 /// Compute metadata from processed blocks.
 fn compute_metadata(blocks: &[BlockEntry], span_rows: &[MessageSpanRow]) -> FeedMetadata {
-    let span_ids: HashSet<_> = blocks.iter().map(|b| &b.span_id).collect();
+    // Keyed by (trace, span): a span id is unique only within a trace, and a session view holds
+    // several traces, so counting by span id alone under-reported the span count.
+    let span_ids: HashSet<_> = blocks.iter().map(|b| (&b.trace_id, &b.span_id)).collect();
     let total_tokens: i64 = span_rows.iter().map(|r| r.total_tokens).sum();
     let total_cost: f64 = span_rows.iter().map(|r| r.cost_total).sum();
 
