@@ -220,6 +220,15 @@ fn fixture_spans() -> Vec<NormalizedSpan> {
         NormalizedSpan {
             ..base("trace-f", "f-root", "plain-span", 40)
         },
+        // trace-g: GenAI attributes on a plain span with no observation type, which is what
+        // transport-level instrumentation produces. It is a GenAI trace and the "GenAI only" filter
+        // has to keep it - ClickHouse required an observation and dropped it, while DuckDB accepted
+        // it, so the same project showed a different trace list per backend.
+        NormalizedSpan {
+            gen_ai_system: Some("bedrock".to_string()),
+            gen_ai_request_model: Some("claude-haiku".to_string()),
+            ..base("trace-g", "g-root", "http-post", 50)
+        },
         // trace-d: no session, no generation, error status, no tags. Carries the raw OTLP span,
         // because the event and link reads extract from that JSON and would otherwise compare two
         // empty lists.
@@ -837,7 +846,10 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // claim was "pagination" while only the span list actually asked for a second page - so the
     // total-order fix those queries needed could have regressed unnoticed.
     let mut trace_pages: Vec<Vec<String>> = Vec::new();
-    for page in 1..=3 {
+    // Enough pages to cover the fixture whatever its size, so adding a trace does not silently
+    // stop the coverage assertion below from meaning anything.
+    let trace_page_count = (duck_traces.len() as u32).div_ceil(2);
+    for page in 1..=trace_page_count {
         let params = ListTracesParams {
             page,
             limit: 2,
@@ -908,7 +920,10 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // A single unpaginated unfiltered call exercises none of the offset arithmetic, ORDER BY
     // translation or predicate building, which is where two dialects have the most room to differ.
     let mut page_ids: Vec<Vec<String>> = Vec::new();
-    for page in 1..=3 {
+    // Derived from the fixture, so adding a span does not quietly leave the last one unpaged and
+    // turn the coverage assertion below into nothing.
+    let span_page_count = (spans.len() as u32).div_ceil(3);
+    for page in 1..=span_page_count {
         let params = ListSpansParams {
             project_id: PROJECT.to_string(),
             page,
@@ -1127,6 +1142,21 @@ async fn clickhouse_matches_duckdb_on_every_read() {
                 duck_traces.len(),
                 "the fixture changed: this filter no longer matches every trace"
             ),
+            // Excludes the two plain traces but must keep trace-g, whose GenAI attributes sit on a
+            // span with no observation type.
+            "genai only" => {
+                let kept: Vec<&String> = d.iter().map(|t| &t.trace_id).collect();
+                assert!(
+                    kept.contains(&&"trace-g".to_string()),
+                    "the GenAI filter dropped a trace whose GenAI attributes are on a plain span: \
+                     {kept:?}"
+                );
+                assert!(
+                    !kept.contains(&&"trace-e".to_string())
+                        && !kept.contains(&&"trace-f".to_string()),
+                    "the GenAI filter kept a trace with no GenAI data at all: {kept:?}"
+                );
+            }
             _ => assert!(
                 d.len() < duck_traces.len(),
                 "{label} selected all {} traces, so a dropped filter would pass",
@@ -1214,6 +1244,77 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         "the session filter selected {} sessions, so it exercises nothing",
         d.len()
     );
+
+    // Every column the API accepts as a trace sort must actually sort by it. One that is accepted
+    // and unmapped falls through to min_ts, so the list comes back in time order while the UI shows
+    // the chosen column as active - which was true of total_tokens.
+    for column in crate::data::duckdb::filters::columns::TRACE_SORTABLE {
+        let params = ListTracesParams {
+            order_by: Some(crate::api::types::OrderBy {
+                column: column.to_string(),
+                direction: crate::api::types::OrderDirection::Desc,
+            }),
+            ..trace_params()
+        };
+        let (d, _) = duck.list_traces(&params).await.expect("duckdb sorted");
+        let (c, _) = ch.list_traces(&params).await.expect("clickhouse sorted");
+        assert_eq!(
+            d.iter().map(describe_trace).collect::<Vec<_>>(),
+            c.iter().map(describe_trace).collect::<Vec<_>>(),
+            "sorting traces by {column} differs between backends"
+        );
+        // Descending by the requested column, whatever it is.
+        let values: Vec<f64> = d
+            .iter()
+            .map(|t| match *column {
+                "start_time" => t.start_time.timestamp_micros() as f64,
+                "end_time" => t.end_time.unwrap_or(t.start_time).timestamp_micros() as f64,
+                "duration_ms" => t.duration_ms.unwrap_or(0) as f64,
+                "total_tokens" => t.total_tokens as f64,
+                "total_cost" => t.total_cost,
+                other => panic!("{other} is sortable but this test does not read it"),
+            })
+            .collect();
+        assert!(
+            values.windows(2).all(|w| w[0] >= w[1]),
+            "sorting traces by {column} descending produced {values:?}"
+        );
+    }
+
+    for column in crate::data::duckdb::filters::columns::SESSION_SORTABLE {
+        let params = ListSessionsParams {
+            project_id: PROJECT.to_string(),
+            page: 1,
+            limit: 50,
+            order_by: Some(crate::api::types::OrderBy {
+                column: column.to_string(),
+                direction: crate::api::types::OrderDirection::Desc,
+            }),
+            ..Default::default()
+        };
+        let (d, _) = duck.list_sessions(&params).await.expect("duckdb sorted");
+        let (c, _) = ch.list_sessions(&params).await.expect("clickhouse sorted");
+        assert_eq!(
+            d.iter().map(describe_session).collect::<Vec<_>>(),
+            c.iter().map(describe_session).collect::<Vec<_>>(),
+            "sorting sessions by {column} differs between backends"
+        );
+        let values: Vec<f64> = d
+            .iter()
+            .map(|s| match *column {
+                "start_time" => s.start_time.timestamp_micros() as f64,
+                "end_time" => s.end_time.unwrap_or(s.start_time).timestamp_micros() as f64,
+                "trace_count" => s.trace_count as f64,
+                "span_count" => s.span_count as f64,
+                "observation_count" => s.observation_count as f64,
+                other => panic!("{other} is sortable but this test does not read it"),
+            })
+            .collect();
+        assert!(
+            values.windows(2).all(|w| w[0] >= w[1]),
+            "sorting sessions by {column} descending produced {values:?}"
+        );
+    }
 
     // --- single span, events, links, bulk counts ---------------------------
     for (trace_id, span_id) in [("trace-a", "a-root"), ("trace-d", "d-root")] {
@@ -1572,15 +1673,15 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         .expect("duckdb trace options");
     let described = describe_option_map(d);
     for expected in [
-        // Every span carries this environment, and there are six traces.
-        "environment: test=6",
+        // Every span carries this environment, and there are seven traces.
+        "environment: test=7",
         // Two sessions, one covering two traces and one covering one.
         "session_id: session-1=2,session-2=1",
         "user_id: user-1=2",
-        // Root span names only, which is why trace-c contributes nothing: it has no root span.
-        // That is the same fallback the trace projection makes for a display name, so a change to
-        // either shows up here.
-        "trace_name: agent=1,generation=1,plain-span=2,tool=1",
+        // The same names the trace list displays, including trace-c's: it has no root span, so
+        // its name comes from the earliest named span, exactly as the list's fallback does. Listing
+        // root spans only omitted it, and filtering by the name the UI showed returned nothing.
+        "trace_name: agent=1,earliest-named=1,generation=1,http-post=1,plain-span=2,tool=1",
     ] {
         assert!(
             described.iter().any(|line| line == expected),
@@ -1608,20 +1709,23 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             "get_span_filter_options(observations_only={observations_only}) differs"
         );
         // Against the fixture, not only against each other: two empty maps satisfied equality.
-        // Neither count depends on `observations_only`, because the spans it excludes are the
-        // plain ones, which carry no model or provider.
-        assert!(
-            described
-                .iter()
-                .any(|line| line == "gen_ai_request_model: claude-haiku=4"),
-            "span options are missing the model (observations_only={observations_only}): {described:?}"
-        );
-        assert!(
-            described
-                .iter()
-                .any(|line| line == "gen_ai_system: bedrock=4"),
-            "span options are missing the provider: {described:?}"
-        );
+        //
+        // The count differs with the flag, and that difference is the point: five spans carry a
+        // model, but one is trace-g's, which has GenAI attributes and no observation type.
+        // Restricting to observations drops it - so a backend ignoring the flag, or treating that
+        // span as an observation, fails here.
+        let expected_count = if observations_only { 4 } else { 5 };
+        for (column, value) in [
+            ("gen_ai_request_model", "claude-haiku"),
+            ("gen_ai_system", "bedrock"),
+        ] {
+            let expected = format!("{column}: {value}={expected_count}");
+            assert!(
+                described.contains(&expected),
+                "span options are missing {expected:?} \
+                 (observations_only={observations_only}): {described:?}"
+            );
+        }
     }
 
     let session_columns: Vec<String> = crate::data::types::SESSION_FILTER_OPTION_COLUMNS
@@ -1812,7 +1916,8 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
         vec![
             "d-root".to_string(),
             "e-root".to_string(),
-            "f-root".to_string()
+            "f-root".to_string(),
+            "g-root".to_string()
         ],
         "deleting trace-c should leave exactly the unrelated traces"
     );
