@@ -714,6 +714,34 @@ fn batch_representative_times(
     times
 }
 
+/// The sort key of one block, built once.
+struct BlockSortKey {
+    batch_time: DateTime<Utc>,
+    batch: (String, String, DateTime<Utc>),
+    semantic: u8,
+    message_index: i32,
+    entry_index: i32,
+    content_hash: String,
+}
+
+impl BlockSortKey {
+    fn compare(&self, other: &Self) -> std::cmp::Ordering {
+        self.batch_time
+            .cmp(&other.batch_time)
+            .then_with(|| {
+                if self.batch == other.batch {
+                    std::cmp::Ordering::Equal
+                } else {
+                    self.semantic.cmp(&other.semantic)
+                }
+            })
+            .then_with(|| self.message_index.cmp(&other.message_index))
+            .then_with(|| self.entry_index.cmp(&other.entry_index))
+            .then_with(|| self.batch.cmp(&other.batch))
+            .then_with(|| self.content_hash.cmp(&other.content_hash))
+    }
+}
+
 /// Order for two blocks of different responses that carry the same time.
 ///
 /// A conversation reads request-then-answer, so a tool call precedes a tool result. Without this,
@@ -877,10 +905,8 @@ pub fn process_dedup(
         }
     }
 
-    // Sort by birth time + semantic order, carrying pre-computed times.
-    // Tuple sort keeps birth times associated with their blocks during swaps.
-    let mut paired: Vec<(DateTime<Utc>, BlockEntry)> =
-        birth_times.into_iter().zip(deduped).collect();
+    // Paired with their birth times so a sort keeps the two together.
+    let paired: Vec<(DateTime<Utc>, BlockEntry)> = birth_times.into_iter().zip(deduped).collect();
 
     // Sorted by an explicit key, not by a comparator with a special case.
     //
@@ -894,30 +920,39 @@ pub fn process_dedup(
     // Giving each response one time - the earliest birth time among its blocks - makes both intents
     // hold at once: responses sort by that time, blocks inside one sort by position, and every
     // comparison follows from the key.
+    // Keyed once per block, not per comparison: `batch_key` allocates, and a comparator that
+    // builds it on both sides does so O(n log n) times on a feed that can hold thousands of blocks.
     let batch_times = batch_representative_times(&paired);
-    paired.sort_by(|(a_birth, a), (b_birth, b)| {
-        let a_batch = batch_key(a);
-        let b_batch = batch_key(b);
-        let a_time = batch_times.get(&a_batch).copied().unwrap_or(*a_birth);
-        let b_time = batch_times.get(&b_batch).copied().unwrap_or(*b_birth);
-        a_time
-            .cmp(&b_time)
-            // Different responses carrying the same time: a call before the result that answers
-            // it. Only between responses - inside one, source position decides, and ranking by
-            // role there would override the order the model actually produced.
-            .then_with(|| {
-                if a_batch == b_batch {
-                    std::cmp::Ordering::Equal
-                } else {
-                    semantic_rank(a).cmp(&semantic_rank(b))
-                }
-            })
-            .then_with(|| a.message_index.cmp(&b.message_index))
-            .then_with(|| a.entry_index.cmp(&b.entry_index))
-            .then_with(|| a.trace_id.cmp(&b.trace_id))
-            .then_with(|| a.span_id.cmp(&b.span_id))
-            .then_with(|| a.content_hash.cmp(&b.content_hash))
-    });
+    let mut keyed: Vec<(BlockSortKey, DateTime<Utc>, BlockEntry)> = paired
+        .into_iter()
+        .map(|(birth, block)| {
+            let batch = batch_key(&block);
+            let batch_time = batch_times.get(&batch).copied().unwrap_or(birth);
+            let key = BlockSortKey {
+                batch_time,
+                batch: batch.clone(),
+                // Zero inside a response, so position decides there; between responses at the same
+                // time it puts a call before the result that answers it. Ranking by role inside a
+                // response would override the order the model produced.
+                semantic: 0,
+                message_index: block.message_index,
+                entry_index: block.entry_index,
+                content_hash: block.content_hash.clone(),
+            };
+            (key, birth, block)
+        })
+        .collect();
+    // The semantic rank only distinguishes different responses, so it is filled in after the
+    // batch is known and compared only when the batches differ.
+    for (key, _, block) in keyed.iter_mut() {
+        key.semantic = semantic_rank(block);
+    }
+    keyed.sort_by(|(a, _, _), (b, _, _)| a.compare(b));
+
+    let paired: Vec<(DateTime<Utc>, BlockEntry)> = keyed
+        .into_iter()
+        .map(|(_, birth, block)| (birth, block))
+        .collect();
 
     // Materialize computed timestamps for API clients.
     // Raw event timestamps can be misleading (e.g., attribute-sourced messages
