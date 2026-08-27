@@ -9227,3 +9227,54 @@ fn the_feed_keeps_a_response_together() {
         response_times.len()
     );
 }
+
+/// A span's input and its output are different responses, even at the same timestamp.
+///
+/// Attribute extraction gives every message of a span the span's start time, so keying a response
+/// on time alone made `input.value` and `output.value` one unit. The earlier time was then
+/// materialised onto both, and the completed output was reported as having happened when the span
+/// started - which a time window could drop, and which is simply the wrong time to show.
+#[test]
+fn a_spans_input_and_output_are_not_one_response() {
+    let start = fixed_time();
+    let end = start + chrono::Duration::seconds(30);
+    let msg = json!([
+        {
+            "source": {"attribute": {"key": "input.value", "time": start.to_rfc3339()}},
+            "content": {"role": "user", "content": "what is the capital of France?"}
+        },
+        {
+            // Structured output, which is what carries a span-end timestamp: a plain text
+            // output.value is not classified as a completion and keeps the span's start time.
+            "source": {"attribute": {"key": "output.value", "time": start.to_rfc3339()}},
+            "content": {
+                "role": "assistant",
+                "content": [{"type": "json", "data": {"json": {"capital": "Paris"}}}]
+            }
+        }
+    ]);
+
+    let row =
+        make_span_row_with_timestamps("trace1", "span1", None, &msg.to_string(), start, Some(end));
+
+    let result = process_spans(vec![row], &FeedOptions::new());
+    let output = result
+        .messages
+        .iter()
+        .find(|b| b.role == ChatRole::Assistant)
+        .expect("the span's output");
+    let input = result
+        .messages
+        .iter()
+        .find(|b| b.role == ChatRole::User)
+        .expect("the span's input");
+
+    assert_eq!(
+        input.timestamp, start,
+        "the input belongs at the span's start"
+    );
+    assert_eq!(
+        output.timestamp, end,
+        "the output completed when the span did, and must not inherit the input's time"
+    );
+}
