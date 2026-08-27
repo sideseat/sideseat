@@ -749,8 +749,12 @@ impl BlockSortKey {
 /// results came back interleaved, implying they had run one after another.
 fn semantic_rank(block: &BlockEntry) -> u8 {
     match block.role {
-        ChatRole::User => 0,
-        ChatRole::System => 1,
+        // System first: it sets the context the user's message is answered in, and some
+        // frameworks (Strands) record the two with the same timestamp. Reversing these two
+        // contradicts `test_regression_system_before_user_same_timestamp`, which only passed
+        // because its fixture puts both in one span, where source order decides instead.
+        ChatRole::System => 0,
+        ChatRole::User => 1,
         _ if block.is_tool_use() => 2,
         ChatRole::Tool => 3,
         _ => 4,
@@ -949,19 +953,29 @@ pub fn process_dedup(
     }
     keyed.sort_by(|(a, _, _), (b, _, _)| a.compare(b));
 
+    // The response's time, not each block's own birth time, is what gets materialised - see the
+    // note at the end of this function.
     let paired: Vec<(DateTime<Utc>, BlockEntry)> = keyed
         .into_iter()
-        .map(|(_, birth, block)| (birth, block))
+        .map(|(key, _birth, block)| (key.batch_time, block))
         .collect();
 
     // Materialize computed timestamps for API clients.
-    // Raw event timestamps can be misleading (e.g., attribute-sourced messages
-    // inherit span start time, not the actual production time). Birth time
-    // reflects when the message was actually produced/received.
+    //
+    // Raw event timestamps can be misleading - an attribute-sourced message inherits its span's
+    // start time rather than the moment it was produced - so what is reported is the time the
+    // message sorted at.
+    //
+    // That is the *response's* time, shared by every block of one response, not each block's own
+    // birth time. Materialising individual birth times split a response back apart downstream:
+    // `process_feed` recognises a response by its blocks sharing a timestamp, so a response whose
+    // text was timestamped at span end and whose tool call was timestamped at event time stopped
+    // being one response, and a tool result timestamped between them was returned *before the call
+    // it answers*. One response, one time.
     paired
         .into_iter()
-        .map(|(birth, mut block)| {
-            block.timestamp = birth;
+        .map(|(batch_time, mut block)| {
+            block.timestamp = batch_time;
             block
         })
         .collect()
