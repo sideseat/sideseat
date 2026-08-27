@@ -25,7 +25,7 @@
 use crate::data::duckdb::filters::{
     BooleanOp, DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp,
 };
-use crate::utils::sql::escape_like_pattern;
+use crate::utils::sql::{escape_like_pattern, is_plain_identifier};
 
 use super::repositories::query::QueryParam;
 
@@ -53,6 +53,15 @@ pub(super) fn to_clickhouse_sql<'a, F>(
 where
     F: Fn(&'a str) -> &'a str,
 {
+    // The column has already been checked against a per-view allowlist when the request was
+    // parsed. This is the same check where the SQL is assembled: a mapper passes an unknown name
+    // straight through, so a caller that skips the allowlist would otherwise interpolate user
+    // text. A rejected name yields a condition that matches nothing rather than one that matches
+    // everything.
+    if !is_plain_identifier(filter.column()) {
+        return "1 = 0".to_string();
+    }
+
     let qualify = |column: &str| -> String {
         if alias.is_empty() {
             column.to_string()
@@ -322,6 +331,28 @@ mod tests {
         });
         assert_eq!(sql, "1 = 1");
         assert!(params.is_empty());
+    }
+
+    /// A column name that is not a bare identifier must never reach the SQL.
+    ///
+    /// The route allowlist is what normally stops this, but a mapper passes an unknown column
+    /// straight through, so the renderer is the last line and has to hold on its own.
+    #[test]
+    fn a_hostile_column_name_matches_nothing() {
+        for hostile in [
+            "tags; DROP TABLE otel_spans",
+            "tags' OR '1'='1",
+            "count(*)",
+            "",
+        ] {
+            let (sql, params) = render(&Filter::String {
+                column: hostile.to_string(),
+                operator: StringOp::Eq,
+                value: "x".to_string(),
+            });
+            assert_eq!(sql, "1 = 0", "{hostile:?} produced SQL: {sql}");
+            assert!(params.is_empty(), "{hostile:?} bound a parameter");
+        }
     }
 
     #[test]
