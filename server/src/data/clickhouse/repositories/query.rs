@@ -804,7 +804,8 @@ pub async fn list_traces(
             WHERE {where_clause}
             GROUP BY sp.project_id, sp.trace_id
             {having_clause}
-            ORDER BY {ch_sort_field} {sort_dir}
+            -- The same total key the outer query orders by; see the DuckDB copy.
+            ORDER BY {ch_sort_field} {sort_dir}, min_ts {sort_dir}, sp.trace_id ASC
             LIMIT {limit} OFFSET {offset}
         )
         SELECT
@@ -816,7 +817,7 @@ pub async fn list_traces(
         -- Ordered by the column that was asked for; the outer query used to re-sort by min_ts, so
         -- only the direction of the requested sort survived. min_ts breaks ties so a page is
         -- deterministic.
-        ORDER BY t.{ch_sort_field} {sort_dir}, t.min_ts {sort_dir}
+        ORDER BY t.{ch_sort_field} {sort_dir}, t.min_ts {sort_dir}, t.trace_id ASC
         "#,
         dedup_cte = dedup.0,
         gen_totals = gen_totals_cte(Some("g.trace_id"), &where_clause),
@@ -1051,7 +1052,10 @@ pub async fn list_spans(
             };
             format!("{} {}", col, dir)
         })
-        .unwrap_or_else(|| "timestamp_start DESC".to_string());
+        .unwrap_or_else(|| "timestamp_start DESC".to_string())
+        // (trace_id, span_id) breaks ties so LIMIT/OFFSET paginate a total order; see the DuckDB
+        // copy.
+        + ", trace_id ASC, span_id ASC";
 
     let offset = (params.page.saturating_sub(1)) * params.limit;
 
@@ -1279,7 +1283,8 @@ pub async fn list_sessions(
             LEFT JOIN gen_totals gt ON sp.session_id = gt.session_id
             WHERE {where_clause}
             GROUP BY sp.project_id, sp.session_id
-            ORDER BY {ch_sort_field} {sort_dir}
+            -- The same total key the outer query orders by; see the DuckDB copy.
+            ORDER BY {ch_sort_field} {sort_dir}, min_ts {sort_dir}, sp.session_id ASC
             LIMIT {limit} OFFSET {offset}
         )
         SELECT
@@ -1297,7 +1302,7 @@ pub async fn list_sessions(
         LEFT JOIN gen_totals gt2 ON f.session_id = gt2.session_id
         GROUP BY f.session_id, f.min_ts, f.{ch_sort_field}
         -- See the trace list: the requested column, not just its direction.
-        ORDER BY f.{ch_sort_field} {sort_dir}, f.min_ts {sort_dir}
+        ORDER BY f.{ch_sort_field} {sort_dir}, f.min_ts {sort_dir}, f.session_id ASC
         "#,
         dedup_cte = dedup.0,
         gen_totals = gen_totals_cte(Some("g.session_id"), &where_clause),

@@ -210,8 +210,15 @@ fn fixture_spans() -> Vec<NormalizedSpan> {
         // trace-e: a plain span with no observation type, so the include_nongenai filter has
         // something to exclude. Without it that filter matched every trace and the case asserted
         // nothing.
+        //
+        // It also starts at exactly the same instant as trace-f, which is the tie the pagination
+        // ordering has to break: with no tiebreak, two rows with the same sort value have no
+        // defined order between them and one can appear on two pages or on none.
         NormalizedSpan {
             ..base("trace-e", "e-root", "plain-span", 40)
+        },
+        NormalizedSpan {
+            ..base("trace-f", "f-root", "plain-span", 40)
         },
         // trace-d: no session, no generation, error status, no tags. Carries the raw OTLP span,
         // because the event and link reads extract from that JSON and would otherwise compare two
@@ -1533,7 +1540,11 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
     let after_duck = remaining(&duck).await;
     assert_eq!(
         after_duck,
-        vec!["d-root".to_string(), "e-root".to_string()],
+        vec![
+            "d-root".to_string(),
+            "e-root".to_string(),
+            "f-root".to_string()
+        ],
         "deleting trace-c should leave exactly the unrelated traces"
     );
     assert_eq!(
@@ -1614,6 +1625,13 @@ fn the_fixture_covers_the_cases_parity_depends_on() {
     assert!(
         spans.iter().any(|s| s.observation_type.is_none()),
         "one span must have no observation type, or the include_nongenai filter excludes nothing"
+    );
+
+    let starts: Vec<_> = spans.iter().map(|s| s.timestamp_start).collect();
+    let distinct_starts: std::collections::BTreeSet<_> = starts.iter().collect();
+    assert!(
+        starts.len() > distinct_starts.len(),
+        "two spans must start at the same instant, or nothing tests the pagination tiebreak"
     );
 
     let sessions: std::collections::BTreeSet<_> =
