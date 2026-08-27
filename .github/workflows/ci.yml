@@ -30,14 +30,74 @@ jobs:
       - name: Create web dist stub
         run: mkdir -p web/dist && echo '<!DOCTYPE html><html></html>' > web/dist/index.html
 
+      # Delegates to the Makefile so CI and `make` cannot drift. These ran from server/, which
+      # meant sdk/rust was never formatted, linted or tested by anything.
       - name: Format check
-        run: cd server && cargo fmt --check
+        run: cargo fmt --check
 
       - name: Lint
-        run: cd server && cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --all-targets -- -D warnings
 
       - name: Test
-        run: cd server && cargo test
+        run: make test-rust
+
+  # The ClickHouse SQL is hand-written in a second dialect and only a real server can tell whether
+  # it means what the DuckDB original means - some of it does not even parse. `make test-clickhouse`
+  # runs the same test locally against its own container.
+  check-clickhouse:
+    name: ClickHouse (parity with DuckDB)
+    runs-on: ubuntu-latest
+    services:
+      clickhouse:
+        # Pinned: `latest` moving would fail an unrelated PR.
+        image: clickhouse/clickhouse-server:25.8
+        env:
+          CLICKHOUSE_USER: sideseat
+          CLICKHOUSE_PASSWORD: sideseat
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          workspaces: server
+
+      - name: Create web dist stub
+        run: mkdir -p web/dist && echo '<!DOCTYPE html><html></html>' > web/dist/index.html
+
+      # Not `make test-clickhouse`: that target starts its own container, which a service
+      # container already provides here.
+      - name: ClickHouse parity
+        env:
+          SIDESEAT_TEST_CLICKHOUSE_URL: http://127.0.0.1:8123
+          SIDESEAT_TEST_CLICKHOUSE_USER: sideseat
+          SIDESEAT_TEST_CLICKHOUSE_PASSWORD: sideseat
+        run: cargo test -p sideseat-server clickhouse -- --test-threads=1
+
+      # A silent skip would make this job pass while testing nothing.
+      - name: Fail if the parity test skipped
+        env:
+          SIDESEAT_TEST_CLICKHOUSE_URL: http://127.0.0.1:8123
+          SIDESEAT_TEST_CLICKHOUSE_USER: sideseat
+          SIDESEAT_TEST_CLICKHOUSE_PASSWORD: sideseat
+        run: |
+          cargo test -p sideseat-server clickhouse_matches_duckdb -- --nocapture 2>&1 \
+            | tee /tmp/parity.log
+          if grep -q "clickhouse parity: skipped" /tmp/parity.log; then
+            echo "parity test skipped - the service container was not reachable"
+            exit 1
+          fi
 
   check-web:
     name: Web (fmt, lint, test)
@@ -125,6 +185,36 @@ jobs:
 
       - name: Verify all package versions match
         run: make version-check
+
+  check-samples:
+    name: Samples (fmt, lint, typecheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: misc/samples/js/package-lock.json
+
+      - uses: astral-sh/setup-uv@f94ec6bedd8674c4426838e6b50417d36b6ab231 # v5.4.1
+
+      # The sample trees were checked by `make fmt-check`/`make lint` locally but by nothing in
+      # CI, so unformatted or type-broken sample code could merge. Runs the same commands the
+      # Makefile does, scoped to the sample trees.
+      - name: Install JS sample dependencies
+        run: cd misc/samples/js && npm ci
+
+      - name: Format check
+        run: |
+          cd misc/samples/js && npx prettier --check "src/**/*.ts"
+          cd "$GITHUB_WORKSPACE" && uv run ruff format --check misc/samples/python
+
+      - name: Lint
+        run: |
+          cd misc/samples/js && npm run lint && npm run typecheck
+          cd "$GITHUB_WORKSPACE" && uv run ruff check misc/samples/python
 
   audit:
     name: Security Audit

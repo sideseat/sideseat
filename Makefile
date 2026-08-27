@@ -60,7 +60,9 @@
 #
 #   Test:
 #     test               Run all tests
-#     test-server        Rust tests (cargo test)
+#     test-rust          Rust tests, whole workspace (server + sdk/rust)
+#     test-server        Rust tests, server package only (inner loop)
+#     test-clickhouse    ClickHouse/DuckDB parity (starts a throwaway container)
 #     test-web           Web tests (vitest)
 #     test-sdk-js        JS SDK tests
 #     test-sdk-python    Python SDK tests (pytest)
@@ -219,7 +221,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: dev dev-server dev-web
 .PHONY: fmt fmt-check lint lint-advisory check
 .PHONY: secret-scan-tree secret-scan-staged secret-scan-range
-.PHONY: test test-server test-web test-sdk-js test-sdk-python coverage
+.PHONY: test test-rust test-server test-clickhouse test-web test-sdk-js test-sdk-python coverage
 .PHONY: build build-web build-server
 .PHONY: build-sdk build-sdk-js build-sdk-python
 .PHONY: build-cli build-cli-preflight build-cli-summary $(CLI_BUILD_TARGETS)
@@ -402,6 +404,7 @@ lint:
 	@cd $(WEB_DIR) && npm run lint
 	@cd sdk/js && npm run lint
 	@cd misc/samples/js && npm run lint
+	@cd misc/samples/js && npm run typecheck
 	@uv run ruff check sdk/python misc/samples/python
 	@cd sdk/python && uv run mypy src
 
@@ -505,11 +508,54 @@ harden-spec:
 # Test
 # =============================================================================
 
-test: test-server test-web test-sdk-js test-sdk-python
+test: test-rust test-web test-sdk-js test-sdk-python
 
+# Whole workspace: `cd server && cargo test` left sdk/rust's tests unrun, so nothing executed
+# them - not make, not CI, not the hooks.
+test-rust:
+	@echo "[test-rust] Running Rust tests (workspace)..."
+	@cargo test --workspace
+
+# Server package only, for the inner loop.
 test-server:
-	@echo "[test-server] Running Rust tests..."
-	@cd $(SERVER_DIR) && cargo test
+	@echo "[test-server] Running server tests..."
+	@cargo test -p sideseat-server
+
+# ClickHouse read-path parity against DuckDB. Not part of `test`/`check`: it needs a container,
+# and a laptop without Docker would fail the gate for a reason unrelated to the change. The test
+# itself skips with a message when SIDESEAT_TEST_CLICKHOUSE_URL is unset, so `make test` stays
+# meaningful; this target is how the ClickHouse SQL actually gets executed.
+CH_TEST_CONTAINER := sideseat-clickhouse-test
+CH_TEST_PORT ?= 8124
+# Pinned: `latest` moving under CI turns an upstream release into a failure on an
+# unrelated PR. Override to try a newer server.
+CH_TEST_IMAGE ?= clickhouse/clickhouse-server:25.8
+
+test-clickhouse:
+	@command -v docker >/dev/null 2>&1 || { echo "[test-clickhouse] docker is required"; exit 1; }
+	@echo "[test-clickhouse] starting $(CH_TEST_IMAGE) on port $(CH_TEST_PORT)..."
+	@docker rm -f $(CH_TEST_CONTAINER) >/dev/null 2>&1 || true
+	@docker run -d --name $(CH_TEST_CONTAINER) -p $(CH_TEST_PORT):8123 \
+		-e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
+		-e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 $(CH_TEST_IMAGE) >/dev/null
+	@for i in $$(seq 1 60); do \
+		curl -sf http://127.0.0.1:$(CH_TEST_PORT)/ping >/dev/null && break; \
+		sleep 1; \
+	done; \
+	curl -sf http://127.0.0.1:$(CH_TEST_PORT)/ping >/dev/null || { \
+		echo "[test-clickhouse] server did not become ready"; \
+		docker logs --tail 20 $(CH_TEST_CONTAINER); \
+		docker rm -f $(CH_TEST_CONTAINER) >/dev/null 2>&1; \
+		exit 1; \
+	}
+	@set +e; \
+	SIDESEAT_TEST_CLICKHOUSE_URL=http://127.0.0.1:$(CH_TEST_PORT) \
+	SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
+	SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
+	cargo test -p sideseat-server clickhouse -- --test-threads=1; \
+	status=$$?; \
+	docker rm -f $(CH_TEST_CONTAINER) >/dev/null 2>&1; \
+	exit $$status
 
 test-web:
 	@echo "[test-web] Running web tests..."
