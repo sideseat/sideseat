@@ -1,100 +1,45 @@
 #!/usr/bin/env bash
+#
+# Delegates to the Makefile rather than restating its commands. The previous version inlined
+# per-area checks, which drifted from `make` and covered neither misc/samples/js nor
+# misc/samples/python.
+#
+# Scoped by staged area on purpose: this runs on every commit, so it does the cheap checks
+# (format, lint) plus the tests for the areas actually touched. `make check` in the pre-push
+# hook is the complete gate.
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-
-# Check staged files with error handling
-if ! RUST_FILES=$(git diff --cached --name-only -- 'server/'); then
-    echo "Error: git diff failed"
-    exit 1
-fi
-# Note: || : (no-op) ensures exit 0 without adding output (grep exits 1 when count=0)
-RUST_STAGED=$(echo "$RUST_FILES" | grep -c . || :)
-
-if ! WEB_FILES=$(git diff --cached --name-only -- 'web/src/'); then
-    echo "Error: git diff failed"
-    exit 1
-fi
-WEB_STAGED=$(echo "$WEB_FILES" | grep -c . || :)
-
-if ! JS_SDK_FILES=$(git diff --cached --name-only -- 'sdk/js/'); then
-    echo "Error: git diff failed"
-    exit 1
-fi
-JS_SDK_STAGED=$(echo "$JS_SDK_FILES" | grep -c . || :)
-
-if ! PY_SDK_FILES=$(git diff --cached --name-only -- 'sdk/python/'); then
-    echo "Error: git diff failed"
-    exit 1
-fi
-PY_SDK_STAGED=$(echo "$PY_SDK_FILES" | grep -c . || :)
-
-if [ "$RUST_STAGED" -gt 0 ]; then
-    echo "[pre-commit] Checking Rust ($RUST_STAGED files)..."
-    cd "$REPO_ROOT/server"
-    cargo fmt --check || { echo "Run 'make fmt' to fix"; exit 1; }
-    cargo clippy --all-targets -- -D warnings
-    cargo test --quiet
-fi
-
-if [ "$WEB_STAGED" -gt 0 ]; then
-    echo "[pre-commit] Checking TypeScript ($WEB_STAGED files)..."
-    cd "$REPO_ROOT/web"
-
-    # Check dependencies
-    if [ ! -d "node_modules" ]; then
-        echo "Error: node_modules missing. Run 'make setup' first."
-        exit 1
-    fi
-
-    npx prettier --check "src/**/*.{ts,tsx,css,json}" || { echo "Run 'make fmt' to fix"; exit 1; }
-    npm run lint
-    npm test -- --run
-fi
-
-if [ "$JS_SDK_STAGED" -gt 0 ]; then
-    echo "[pre-commit] Checking JS SDK ($JS_SDK_STAGED files)..."
-    cd "$REPO_ROOT/sdk/js"
-
-    if [ ! -d "node_modules" ]; then
-        echo "Error: sdk/js/node_modules missing. Run 'make setup' first."
-        exit 1
-    fi
-
-    npx prettier --check "src/**/*.ts" || { echo "Run 'cd sdk/js && npm run fmt' to fix"; exit 1; }
-    npm run lint
-    npm test
-fi
-
-if [ "$PY_SDK_STAGED" -gt 0 ]; then
-    echo "[pre-commit] Checking Python SDK ($PY_SDK_STAGED files)..."
-    cd "$REPO_ROOT/sdk/python"
-
-    if ! command -v uv &> /dev/null; then
-        echo "Error: uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"
-        exit 1
-    fi
-
-    uv sync --extra dev
-    uv run ruff format --check .
-    uv run ruff check .
-    uv run mypy src
-    uv run pytest
-fi
-
-# Secret scan on the staged content. A secret that reaches a commit is effectively public
-# even if it is never pushed: it survives in reflogs, stashes and any clone, and removing it
-# needs a history rewrite. Cheapest possible place to stop it.
-#
-# Captured telemetry is the realistic source here - a framework that serialises its model
-# config into a span attribute writes live credentials into a fixture. That is exactly how an
-# aws_secret_access_key and session token ended up in a CrewAI fixture.
 cd "$REPO_ROOT"
-if command -v gitleaks >/dev/null 2>&1; then
-    gitleaks git --staged --config .gitleaks.toml --no-banner --redact \
-        || { echo "Error: possible secret in staged changes (see above). If it is a false positive, add it to .gitleaks.toml."; exit 1; }
-else
-    echo "[pre-commit] WARNING: gitleaks not installed, secret scan SKIPPED (brew install gitleaks)"
+
+staged() { git diff --cached --name-only -- "$@" | grep -qc . 2>/dev/null; }
+
+# A secret that reaches a commit is effectively public even if it is never pushed: it survives
+# in reflogs, stashes and any clone, and removing it needs a history rewrite. Cheapest possible
+# place to stop it, so it runs first and unconditionally.
+make secret-scan-staged
+
+RUST=0; WEB=0; JS_SDK=0; PY=0
+staged 'server/' 'sdk/rust/' && RUST=1
+staged 'web/'                && WEB=1
+staged 'sdk/js/'             && JS_SDK=1
+staged 'sdk/python/' 'misc/samples/python/' && PY=1
+
+if [ "$RUST$WEB$JS_SDK$PY" = "0000" ]; then
+    echo "[pre-commit] No code staged, skipping build checks"
+    echo "[pre-commit] All checks passed"
+    exit 0
 fi
+
+# Format and lint are whole-tree and fast, and they are what most commits get wrong.
+echo "[pre-commit] Format + lint..."
+make fmt-check
+make lint
+
+# Tests only for the areas touched: the full suite belongs in pre-push.
+[ "$RUST" = 1 ]   && { echo "[pre-commit] Rust tests...";       make test-server; }
+[ "$WEB" = 1 ]    && { echo "[pre-commit] Web tests...";        make test-web; }
+[ "$JS_SDK" = 1 ] && { echo "[pre-commit] JS SDK tests...";     make test-sdk-js; }
+[ "$PY" = 1 ]     && { echo "[pre-commit] Python SDK tests..."; make test-sdk-python; }
 
 echo "[pre-commit] All checks passed"

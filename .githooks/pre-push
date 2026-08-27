@@ -1,80 +1,38 @@
 #!/usr/bin/env bash
+#
+# Delegates to the Makefile rather than restating its commands.
+#
+# It used to inline every check, and the copy had drifted into a weaker version of the real
+# gate: it never checked misc/samples/js or misc/samples/python at all, and its clippy ran
+# from server/ so it scoped to that package and skipped sdk/rust. Sample and SDK code could
+# therefore be pushed unformatted and unlinted by a hook that looked thorough.
+#
+# `make check` is fmt-check + lint + test across every area. Keep it that way: one definition,
+# and `make check` locally means the same thing the hook enforces.
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
 
-echo "[pre-push] Running format check + lint + full test suite..."
+echo "[pre-push] make check + secret scan..."
 
-# Check prerequisites
-if [ ! -d "$REPO_ROOT/web/node_modules" ]; then
-    echo "Error: web/node_modules missing. Run 'make setup' first."
-    exit 1
-fi
-
-if [ ! -d "$REPO_ROOT/sdk/js/node_modules" ]; then
-    echo "Error: sdk/js/node_modules missing. Run 'make setup' first."
-    exit 1
-fi
-
-if ! command -v uv &> /dev/null; then
+# Prerequisites the make targets assume. Checked here because the failure is far clearer than
+# whatever npx or uv would print.
+for dir in web sdk/js misc/samples/js; do
+    if [ ! -d "$REPO_ROOT/$dir/node_modules" ]; then
+        echo "Error: $dir/node_modules missing. Run 'make setup' first."
+        exit 1
+    fi
+done
+if ! command -v uv >/dev/null 2>&1; then
     echo "Error: uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"
     exit 1
 fi
 
-# Sync Python SDK dependencies (in case they changed)
-cd "$REPO_ROOT/sdk/python"
-uv sync --extra dev
+make check
 
-# Format check (catches issues if pre-commit was bypassed with --no-verify)
-cd "$REPO_ROOT/server"
-cargo fmt --check || { echo "Error: Rust code not formatted. Run 'make fmt' to fix."; exit 1; }
-
-cd "$REPO_ROOT/web"
-npx prettier --check "src/**/*.{ts,tsx,css,json}" || { echo "Error: Web code not formatted. Run 'make fmt' to fix."; exit 1; }
-
-cd "$REPO_ROOT/sdk/js"
-npx prettier --check "src/**/*.ts" || { echo "Error: JS SDK code not formatted. Run 'cd sdk/js && npm run fmt' to fix."; exit 1; }
-
-cd "$REPO_ROOT/sdk/python"
-uv run ruff format --check . || { echo "Error: Python SDK code not formatted. Run 'cd sdk/python && uv run ruff format .' to fix."; exit 1; }
-
-# Lint (catches issues if pre-commit was bypassed with --no-verify)
-cd "$REPO_ROOT/server"
-cargo clippy --all-targets -- -D warnings
-
-cd "$REPO_ROOT/web"
-npm run lint
-
-cd "$REPO_ROOT/sdk/js"
-npm run lint
-
-cd "$REPO_ROOT/sdk/python"
-uv run ruff check .
-uv run mypy src
-
-# Full test suite
-cd "$REPO_ROOT/server"
-cargo test --quiet
-
-cd "$REPO_ROOT/web"
-npm test -- --run
-
-cd "$REPO_ROOT/sdk/js"
-npm test
-
-cd "$REPO_ROOT/sdk/python"
-uv run pytest
-
-# Secret scan over the commits being pushed. The pre-commit hook can be bypassed with
-# --no-verify, and a rebuilt or rebased series can reintroduce content, so this is the last
-# gate before anything becomes public.
-cd "$REPO_ROOT"
-if command -v gitleaks >/dev/null 2>&1; then
-    gitleaks git --config .gitleaks.toml --no-banner --redact \
-        --log-opts="origin/main..HEAD" \
-        || { echo "Error: possible secret in the commits being pushed (see above)."; exit 1; }
-else
-    echo "[pre-push] WARNING: gitleaks not installed, secret scan SKIPPED (brew install gitleaks)"
-fi
+# Last gate before anything becomes public: pre-commit can be bypassed with --no-verify, and a
+# rebuilt or rebased series can reintroduce content that was scrubbed.
+make secret-scan-range
 
 echo "[pre-push] All checks passed"

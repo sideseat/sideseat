@@ -218,6 +218,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: setup setup-ci setup-hooks
 .PHONY: dev dev-server dev-web
 .PHONY: fmt fmt-check lint lint-advisory check
+.PHONY: secret-scan-tree secret-scan-staged secret-scan-range
 .PHONY: test test-server test-web test-sdk-js test-sdk-python coverage
 .PHONY: build build-web build-server
 .PHONY: build-sdk build-sdk-js build-sdk-python
@@ -422,6 +423,39 @@ lint-advisory:
 		-W clippy::future_not_send \
 		2>&1 | grep -E '^(warning|  -->)' | head -60 || true
 
+# ---------------------------------------------------------------------------
+# Secret scanning
+#
+# One definition each, so the hooks and `make harden` cannot drift apart. gitleaks is
+# optional: a missing tool warns rather than fails, or a fresh clone could not commit.
+# ---------------------------------------------------------------------------
+secret-scan-tree:
+	@echo "[secret-scan] Working tree..."
+	@if command -v gitleaks >/dev/null 2>&1; then \
+		gitleaks detect --no-git --config .gitleaks.toml --no-banner --redact; \
+	else \
+		echo "  SKIPPED: gitleaks not installed (brew install gitleaks)"; \
+	fi
+
+secret-scan-staged:
+	@echo "[secret-scan] Staged changes..."
+	@if command -v gitleaks >/dev/null 2>&1; then \
+		gitleaks git --staged --config .gitleaks.toml --no-banner --redact \
+			|| { echo "  Possible secret in staged changes. If it is a false positive, add it to .gitleaks.toml."; exit 1; }; \
+	else \
+		echo "  SKIPPED: gitleaks not installed (brew install gitleaks)"; \
+	fi
+
+# Range defaults to what a push would send; override with RANGE=...
+RANGE ?= origin/main..HEAD
+secret-scan-range:
+	@echo "[secret-scan] Commits in $(RANGE)..."
+	@if command -v gitleaks >/dev/null 2>&1; then \
+		gitleaks git --config .gitleaks.toml --no-banner --redact --log-opts="$(RANGE)"; \
+	else \
+		echo "  SKIPPED: gitleaks not installed (brew install gitleaks)"; \
+	fi
+
 check: fmt-check lint test
 	@echo "[check] All checks passed"
 
@@ -445,12 +479,7 @@ harden-supply:
 	else \
 		echo "  SKIPPED: cargo-deny not installed (cargo install cargo-deny)"; \
 	fi
-	@echo "[harden-supply] Committed secrets..."
-	@if command -v gitleaks >/dev/null 2>&1; then \
-		gitleaks detect --no-git --config .gitleaks.toml --no-banner --redact; \
-	else \
-		echo "  SKIPPED: gitleaks not installed (brew install gitleaks)"; \
-	fi
+	@$(MAKE) --no-print-directory secret-scan-tree
 	@echo "[harden-supply] Unused dependencies..."
 	@if command -v cargo-machete >/dev/null 2>&1; then \
 		cargo machete; \
