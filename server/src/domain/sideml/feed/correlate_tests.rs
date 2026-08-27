@@ -252,8 +252,7 @@ fn withdraws_a_correlated_id_whose_call_was_dropped() {
     assert_eq!(resolved_id(&blocks[1]).as_deref(), Some("call-a"));
 
     // Whatever dedup does to the call, the result must not keep pointing at it.
-    let mut without_call = vec![blocks[1].clone()];
-    withdraw_unbacked_ids(&mut without_call);
+    let without_call = withdraw_unbacked_ids(vec![blocks[1].clone()]);
     assert_eq!(
         resolved_id(&without_call[0]),
         None,
@@ -262,8 +261,7 @@ fn withdraws_a_correlated_id_whose_call_was_dropped() {
     assert!(!without_call[0].tool_use_id_correlated);
 
     // With the call still present, nothing is withdrawn.
-    let mut intact = blocks.clone();
-    withdraw_unbacked_ids(&mut intact);
+    let intact = withdraw_unbacked_ids(blocks.clone());
     assert_eq!(resolved_id(&intact[1]).as_deref(), Some("call-a"));
 }
 
@@ -271,13 +269,12 @@ fn withdraws_a_correlated_id_whose_call_was_dropped() {
 /// legitimately holds a result whose call is in a sibling span.
 #[test]
 fn keeps_a_provider_id_with_no_call_in_scope() {
-    let mut blocks = vec![result(
+    let blocks = withdraw_unbacked_ids(vec![result(
         "t1",
         Some("call-elsewhere"),
         Some("lookup"),
         "answer",
-    )];
-    withdraw_unbacked_ids(&mut blocks);
+    )]);
     assert_eq!(
         resolved_id(&blocks[0]).as_deref(),
         Some("call-elsewhere"),
@@ -313,4 +310,47 @@ fn an_unanswered_call_claims_the_next_result_of_the_same_name() {
         "known limit: with one result for two calls, the older call is assumed to be the \
          answered one - the name and response alone say nothing else"
     );
+}
+
+/// Withdrawing an id must not leave behind the duplicate dedup was relying on the id to tell
+/// apart.
+///
+/// Withdrawal runs after dedup, which treats two results with the same text and different call
+/// ids as two messages. Clear both ids and they become one message reported twice - and dedup has
+/// already run, so nothing else would catch it.
+#[test]
+fn collapses_results_that_become_identical_after_withdrawal() {
+    let mut blocks = vec![
+        call("t1", Some("call-a"), "lookup", json!({"q": "a"})),
+        call("t1", Some("call-b"), "lookup", json!({"q": "b"})),
+        result("t1", None, Some("lookup"), "same text"),
+        result("t1", None, Some("lookup"), "same text"),
+    ];
+    correlate_tool_results(&mut blocks);
+    assert_eq!(resolved_id(&blocks[2]).as_deref(), Some("call-a"));
+    assert_eq!(resolved_id(&blocks[3]).as_deref(), Some("call-b"));
+
+    // Both calls dropped by dedup or history marking: the two results are now the same message.
+    let surviving = withdraw_unbacked_ids(vec![blocks[2].clone(), blocks[3].clone()]);
+    assert_eq!(
+        surviving.len(),
+        1,
+        "two results that are indistinguishable once their ids are withdrawn were both returned"
+    );
+    assert_eq!(resolved_id(&surviving[0]), None);
+
+    // With call-a surviving, result A keeps its id and result B loses one - so the two are still
+    // distinguishable and both are returned (three blocks in, three out).
+    let surviving = withdraw_unbacked_ids(vec![
+        blocks[0].clone(),
+        blocks[2].clone(),
+        blocks[3].clone(),
+    ]);
+    assert_eq!(
+        surviving.len(),
+        3,
+        "the result whose call survived must keep its id, so both results remain distinct"
+    );
+    assert_eq!(resolved_id(&surviving[1]).as_deref(), Some("call-a"));
+    assert_eq!(resolved_id(&surviving[2]), None);
 }
