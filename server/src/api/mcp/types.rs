@@ -24,9 +24,9 @@ pub struct GetTraceInput {
 
 #[derive(Deserialize, JsonSchema)]
 pub struct GetMessagesInput {
-    /// Trace ID (provide this OR session_id)
+    /// Trace ID (provide this OR session_id; also pass it alongside span_id)
     pub trace_id: Option<String>,
-    /// Span ID within a trace
+    /// Span ID. Span ids are unique only within a trace, so pass trace_id too
     pub span_id: Option<String>,
     /// Session ID (provide this OR trace_id)
     pub session_id: Option<String>,
