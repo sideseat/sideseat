@@ -58,10 +58,18 @@ impl KeyringProvider {
 
         // Bounded, because a prompt nobody can answer never returns. A clear failure beats a hang
         // that has to be diagnosed with a stack sampler.
-        let read = tokio::task::spawn_blocking(move || entry.get_password());
+        //
+        // On a plain OS thread rather than `spawn_blocking`: a blocking task cannot be cancelled,
+        // and the runtime waits for the blocking pool to drain before it exits. Timing out would
+        // then report the error and hang anyway, on shutdown instead of startup. A detached thread
+        // holds nothing - the process exits and takes it with it.
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(entry.get_password());
+        });
         let timeout = std::time::Duration::from_secs(SECRETS_LOAD_TIMEOUT_SECS);
-        let result = match tokio::time::timeout(timeout, read).await {
-            Ok(joined) => joined.context("Keychain task failed")?,
+        let result = match tokio::time::timeout(timeout, rx).await {
+            Ok(received) => received.context("Keychain reader thread died")?,
             Err(_) => {
                 anyhow::bail!(
                     "the OS credential store did not respond within {}s. It may be waiting for \
