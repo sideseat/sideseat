@@ -1366,8 +1366,11 @@ impl AppConfig {
             let async_insert = file_ch.async_insert.unwrap_or(true);
             let wait_for_async_insert = file_ch.wait_for_async_insert.unwrap_or(false);
             let cluster = file_ch.cluster;
-            // Distributed mode requires cluster to be set
-            let distributed = file_ch.distributed.unwrap_or(false) && cluster.is_some();
+            // Kept as requested, not silently corrected. Folding `&& cluster.is_some()` in here
+            // turned `distributed: true` with no cluster into single-node mode before validation
+            // ran, so the error that exists for exactly that mistake was unreachable and a
+            // deployment meant to be sharded came up on one node without saying so.
+            let distributed = file_ch.distributed.unwrap_or(false);
             Some(ClickhouseConfig {
                 url,
                 database,
@@ -1624,19 +1627,7 @@ impl AppConfig {
         // ClickHouse URL required when using ClickHouse backend
         if self.database.analytics == AnalyticsBackend::Clickhouse {
             if let Some(ref ch) = self.database.clickhouse {
-                if ch.url.is_empty() {
-                    anyhow::bail!(
-                        "Configuration error: database.clickhouse.url is required when database.analytics is 'clickhouse'. \
-                         Set via SIDESEAT_CLICKHOUSE_URL env var or database.clickhouse.url in config file."
-                    );
-                }
-                // Cluster name required when distributed mode is enabled
-                if ch.distributed && ch.cluster.as_ref().is_none_or(|c| c.is_empty()) {
-                    anyhow::bail!(
-                        "Configuration error: database.clickhouse.cluster is required when database.clickhouse.distributed is true. \
-                         Specify the ClickHouse cluster name for distributed table creation."
-                    );
-                }
+                validate_clickhouse(ch)?;
             } else {
                 anyhow::bail!(
                     "Configuration error: ClickHouse configuration missing when database.analytics is 'clickhouse'"
@@ -1697,6 +1688,74 @@ fn get_profile_config_path() -> Option<PathBuf> {
 /// Check if host binds to all network interfaces
 pub(crate) fn is_all_interfaces(host: &str) -> bool {
     matches!(host, "0.0.0.0" | "::" | "[::]")
+}
+
+/// Check a ClickHouse configuration for combinations that cannot work.
+///
+/// Extracted so it can be tested: the surrounding `validate` runs inside `AppConfig::load`, which
+/// reads the real config files and environment. This rule in particular was unreachable for a
+/// while - `distributed` was being folded to false when no cluster was named, before validation
+/// saw it - so a deployment meant to be sharded came up single-node in silence.
+fn validate_clickhouse(ch: &ClickhouseConfig) -> Result<()> {
+    if ch.url.is_empty() {
+        anyhow::bail!(
+            "Configuration error: database.clickhouse.url is required when database.analytics is 'clickhouse'. \
+             Set via SIDESEAT_CLICKHOUSE_URL env var or database.clickhouse.url in config file."
+        );
+    }
+    if ch.distributed && ch.cluster.as_ref().is_none_or(|c| c.is_empty()) {
+        anyhow::bail!(
+            "Configuration error: database.clickhouse.cluster is required when database.clickhouse.distributed is true. \
+             Specify the ClickHouse cluster name for distributed table creation."
+        );
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod clickhouse_config_tests {
+    use super::*;
+
+    fn config(distributed: bool, cluster: Option<&str>) -> ClickhouseConfig {
+        ClickhouseConfig {
+            url: "http://localhost:8123".to_string(),
+            database: "sideseat".to_string(),
+            user: None,
+            password: None,
+            timeout_secs: 30,
+            compression: true,
+            async_insert: true,
+            wait_for_async_insert: false,
+            cluster: cluster.map(str::to_owned),
+            distributed,
+        }
+    }
+
+    #[test]
+    fn distributed_without_a_cluster_is_rejected() {
+        let err = validate_clickhouse(&config(true, None))
+            .expect_err("distributed with no cluster must not be accepted");
+        assert!(
+            err.to_string().contains("cluster is required"),
+            "unexpected error: {err}"
+        );
+
+        let err = validate_clickhouse(&config(true, Some("")))
+            .expect_err("an empty cluster name is not a cluster name");
+        assert!(err.to_string().contains("cluster is required"));
+
+        validate_clickhouse(&config(true, Some("sideseat_cluster")))
+            .expect("distributed with a cluster is the supported combination");
+        validate_clickhouse(&config(false, None)).expect("single node needs no cluster");
+    }
+
+    #[test]
+    fn an_empty_url_is_rejected() {
+        let mut ch = config(false, None);
+        ch.url = String::new();
+        let err = validate_clickhouse(&ch).expect_err("no url means nothing to connect to");
+        assert!(err.to_string().contains("url is required"));
+    }
 }
 
 #[cfg(test)]
