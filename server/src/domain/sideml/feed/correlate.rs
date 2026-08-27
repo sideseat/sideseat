@@ -32,6 +32,20 @@
 use super::types::BlockEntry;
 use crate::domain::sideml::types::ContentBlock;
 
+/// Mark every pending entry for this call id as answered.
+///
+/// One call is flattened once per span that carries it, so the same call appears in `pending`
+/// several times over. Marking only the first left the others available, and a later id-less result
+/// then adopted an id that had already been answered - two results with one id, which dedup
+/// resolves by dropping one of them.
+fn claim(pending: &mut [(String, String, String, bool)], trace: &str, id: &str) {
+    for entry in pending.iter_mut() {
+        if entry.0 == trace && entry.2 == id {
+            entry.3 = true;
+        }
+    }
+}
+
 /// Copy each id-less tool result's owning call id onto it.
 ///
 /// Runs before history classification and dedup, both of which decide what is a duplicate tool
@@ -64,18 +78,14 @@ pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
                 // of them whatever their contents. A framework that supplies ids for some
                 // results and not others is enough to hit this.
                 if let Some(id) = tool_use_id.as_ref().filter(|s| !s.is_empty()) {
-                    if let Some(slot) = pending.iter().position(|(t, _, pending_id, taken)| {
-                        !*taken && *t == trace && pending_id == id
-                    }) {
-                        pending[slot].3 = true;
-                    }
+                    claim(&mut pending, &trace, id);
                     continue;
                 }
                 let Some(result_name) = name.clone() else {
                     // Rule 5: with no name there is nothing to match on.
                     continue;
                 };
-                // Rules 2-4: nearest preceding untaken call for the same name in this trace.
+                // Rules 2-4: preceding unclaimed calls for the same name in this trace.
                 let candidates: Vec<usize> = pending
                     .iter()
                     .enumerate()
@@ -98,7 +108,7 @@ pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
                 // the second result arrives, so oldest-untaken is the second call.
                 if let Some(&slot) = candidates.first() {
                     let resolved = pending[slot].2.clone();
-                    pending[slot].3 = true;
+                    claim(&mut pending, &trace, &resolved);
                     if let ContentBlock::ToolResult { tool_use_id, .. } = &mut block.content {
                         *tool_use_id = Some(resolved.clone());
                     }
@@ -168,8 +178,10 @@ pub fn withdraw_unbacked_ids(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
         block.tool_use_id_correlated = false;
     }
 
-    // Keep the first of any id-less results that now share a trace and content, whichever of them
-    // was the withdrawn one.
+    // Keep the first of any id-less results that are now the same message, whichever of them was
+    // the withdrawn one. `content_hash` is the block identity, which for a tool result covers the
+    // tool name and the error flag as well as the text - two tools both returning "ok" are two
+    // messages.
     //
     // Dropping only the withdrawn block made the outcome depend on their order: a withdrawn result
     // ahead of a natively id-less twin left both in place, while the reverse order dropped one.

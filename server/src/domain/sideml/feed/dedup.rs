@@ -122,13 +122,16 @@ impl MessageIdentity {
         // History re-sends with regenerated IDs are caught by Phase 7 (content_hash).
         if let ContentBlock::ToolResult {
             tool_use_id,
+            name,
             content,
-            ..
+            is_error,
         } = &block.content
         {
             let identity_hash = match tool_use_id {
                 Some(tid) if !tid.is_empty() => compute_tool_use_id_hash(tid),
-                _ => compute_tool_result_hash(content),
+                // Name and error flag, not content alone: without them two tools both reporting
+                // "ok" were one message, and so were a success and a failure with matching text.
+                _ => compute_tool_result_hash(name.as_deref(), *is_error, content),
             };
             return Self::ToolResult {
                 trace_id: block.trace_id.clone(),
@@ -156,9 +159,15 @@ pub(super) fn compute_tool_call_hash(name: &str, input: &serde_json::Value) -> u
 
 /// Compute hash for tool result identity (content).
 /// Used as fallback when tool_use_id is absent.
-fn compute_tool_result_hash(content: &serde_json::Value) -> u64 {
+fn compute_tool_result_hash(
+    name: Option<&str>,
+    is_error: bool,
+    content: &serde_json::Value,
+) -> u64 {
     let mut hasher = DefaultHasher::new();
     "tool_result".hash(&mut hasher);
+    name.hash(&mut hasher);
+    is_error.hash(&mut hasher);
     normalize_tool_result_content(content).hash(&mut hasher);
     hasher.finish()
 }

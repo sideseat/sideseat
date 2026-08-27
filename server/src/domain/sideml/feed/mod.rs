@@ -1307,9 +1307,21 @@ fn compute_block_hash(block: &ContentBlock) -> u64 {
             name.hash(&mut hasher);
             normalize_json_for_hash(input).hash(&mut hasher);
         }
-        ContentBlock::ToolResult { content, .. } => {
-            // Hash by normalized content only (not tool_use_id)
+        ContentBlock::ToolResult {
+            name,
+            content,
+            is_error,
+            ..
+        } => {
+            // Hash by tool name, error flag and normalized content - not tool_use_id, which a
+            // history re-send regenerates.
+            //
+            // Content alone made every "ok" the same message: two tools both reporting success,
+            // or a success and a failure whose text happens to match, collapsed into one wherever
+            // this hash is the identity - which is the case for a result with no id.
             "tool_result".hash(&mut hasher);
+            name.hash(&mut hasher);
+            is_error.hash(&mut hasher);
             normalize_tool_result_content(content).hash(&mut hasher);
         }
         ContentBlock::Thinking { text, .. } => {
