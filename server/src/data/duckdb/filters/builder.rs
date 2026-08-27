@@ -5,7 +5,12 @@
 
 use super::types::{OptionsOp, SqlParams};
 
-/// Build tags filter using DuckDB array_contains
+/// Build a tags filter.
+///
+/// `tags` is a VARCHAR holding a JSON array, not a DuckDB list, so it has to be parsed before it
+/// can be searched - `array_contains(tags, ?)` raised "No function matches the given name and
+/// argument types 'array_contains(VARCHAR, UNKNOWN)'" and the filter never worked at all. The
+/// parse mirrors the tag-options query, which reads the same column the same way.
 /// The alias parameter is prepended to the column name (e.g., "sp" → "sp.tags").
 pub fn build_tags_filter(
     tags: &[String],
@@ -27,9 +32,12 @@ pub fn build_tags_filter(
         .iter()
         .map(|t| {
             params.values.push(t.clone());
+            // ifnull so a row with no tags is simply not a match, rather than making the whole
+            // condition NULL.
+            let parsed = format!("from_json(ifnull({}, '[]'), '[\"VARCHAR\"]')", col);
             match operator {
-                OptionsOp::AnyOf => format!("array_contains({}, ?)", col),
-                OptionsOp::NoneOf => format!("NOT array_contains({}, ?)", col),
+                OptionsOp::AnyOf => format!("list_contains({}, ?)", parsed),
+                OptionsOp::NoneOf => format!("NOT list_contains({}, ?)", parsed),
             }
         })
         .collect();
@@ -182,7 +190,11 @@ mod tests {
         let mut params = SqlParams::default();
         let sql = build_tags_filter(&tags, &OptionsOp::AnyOf, &mut params, "");
 
-        assert_eq!(sql, "(array_contains(tags, ?) OR array_contains(tags, ?))");
+        assert_eq!(
+            sql,
+            "(list_contains(from_json(ifnull(tags, '[]'), '[\"VARCHAR\"]'), ?) OR \
+             list_contains(from_json(ifnull(tags, '[]'), '[\"VARCHAR\"]'), ?))"
+        );
         assert_eq!(params.values, vec!["important", "urgent"]);
     }
 
@@ -192,7 +204,10 @@ mod tests {
         let mut params = SqlParams::default();
         let sql = build_tags_filter(&tags, &OptionsOp::AnyOf, &mut params, "sp");
 
-        assert_eq!(sql, "(array_contains(sp.tags, ?))");
+        assert_eq!(
+            sql,
+            "(list_contains(from_json(ifnull(sp.tags, '[]'), '[\"VARCHAR\"]'), ?))"
+        );
         assert_eq!(params.values, vec!["important"]);
     }
 
@@ -202,7 +217,10 @@ mod tests {
         let mut params = SqlParams::default();
         let sql = build_tags_filter(&tags, &OptionsOp::NoneOf, &mut params, "");
 
-        assert_eq!(sql, "(NOT array_contains(tags, ?))");
+        assert_eq!(
+            sql,
+            "(NOT list_contains(from_json(ifnull(tags, '[]'), '[\"VARCHAR\"]'), ?))"
+        );
         assert_eq!(params.values, vec!["spam"]);
     }
 
