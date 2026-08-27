@@ -2,8 +2,6 @@
 //!
 //! Provides cursor-based pagination for real-time activity feeds.
 
-use std::collections::HashSet;
-
 use axum::Json;
 use axum::extract::State;
 use base64::Engine;
@@ -210,27 +208,16 @@ pub async fn get_feed_messages(
     let tool_definitions = processed.tool_definitions;
     let tool_names = processed.tool_names;
 
-    // Compute metadata (use &str to avoid cloning ids)
+    // The pipeline's totals: sums over the spans on this page, not over the blocks returned.
     //
-    // Keyed by (trace, span): a span id is unique only within a trace, so counting by span id
-    // alone made two traces that happen to share one look like a single span, and their tokens and
-    // cost were counted once instead of twice. The same premise as the feed cursor.
-    let mut seen_spans: HashSet<(&str, &str)> = HashSet::new();
-    let mut total_tokens = 0i64;
-    let mut total_cost = 0.0f64;
-
-    for block in &all_messages {
-        if seen_spans.insert((&block.trace_id, &block.span_id)) {
-            total_tokens += block.tokens.unwrap_or(0);
-            total_cost += block.cost.unwrap_or(0.0);
-        }
-    }
-
+    // Summing the returned blocks made a billed span contribute nothing whenever all of its
+    // messages were dropped as history or by the role filter, so the page's reported cost fell
+    // below what was actually spent.
     let metadata = FeedMessagesMetadata {
         message_count: all_messages.len() as u32,
-        span_count: seen_spans.len() as u32,
-        total_tokens,
-        total_cost,
+        span_count: processed.metadata.span_count as u32,
+        total_tokens: processed.metadata.total_tokens,
+        total_cost: processed.metadata.total_cost,
     };
 
     // Build response
