@@ -45,7 +45,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use super::dedup::{SpanTimestamps, effective_timestamp};
+use super::dedup::{SpanTimestamps, compute_tool_call_hash, effective_timestamp};
 use super::types::BlockEntry;
 use crate::domain::sideml::types::{ChatRole, ContentBlock};
 
@@ -375,7 +375,13 @@ pub fn mark_history(
             continue;
         }
 
-        // Only applies to tool_results with tool_use_id
+        // Only applies to tool_results with a tool_use_id the framework itself sent. A
+        // correlated id was taken from a call in this same trace, so "names no current call"
+        // cannot be read as "belongs to a past turn" - before correlation ran this early, such
+        // results reached this phase with no id and were skipped, and they must stay skipped.
+        if block.tool_use_id_correlated {
+            continue;
+        }
         let tool_use_id = match &block.content {
             ContentBlock::ToolResult {
                 tool_use_id: Some(id),
@@ -422,21 +428,74 @@ pub fn mark_history(
     stats
 }
 
+/// The key Phase 7 groups by: what makes two blocks the same message.
+///
+/// Content for everything except a tool result, which is keyed by the *call it answers*.
+#[derive(PartialEq, Eq, Hash)]
+enum DuplicateKey<'a> {
+    Content(&'a str, &'a str),
+    /// (trace_id, hash of the answered call's name + input, result content hash)
+    ToolResultForCall(&'a str, u64, &'a str),
+}
+
+/// Tool-call identity, by call id, for every call in the block set.
+///
+/// A history re-send regenerates the call id but not the name or input, so two re-sends of one
+/// call map to the same hash - which is what lets a re-sent result be recognised as a duplicate
+/// while two results answering genuinely different calls are not.
+fn tool_call_identities(blocks: &[BlockEntry]) -> HashMap<(&str, &str), u64> {
+    let mut identities = HashMap::new();
+    for block in blocks {
+        if let ContentBlock::ToolUse { id, name, input } = &block.content
+            && let Some(id) = id.as_deref().filter(|s| !s.is_empty())
+        {
+            identities.insert(
+                (block.trace_id.as_str(), id),
+                compute_tool_call_hash(name, input),
+            );
+        }
+    }
+    identities
+}
+
 /// Find indices of duplicate blocks that should be marked as history.
 fn find_duplicate_indices(
     blocks: &[BlockEntry],
     span_timestamps: &HashMap<String, SpanTimestamps>,
 ) -> Vec<usize> {
-    let mut blocks_by_key: HashMap<(&str, &str), Vec<usize>> = HashMap::new();
+    let call_identities = tool_call_identities(blocks);
+    let mut blocks_by_key: HashMap<DuplicateKey<'_>, Vec<usize>> = HashMap::new();
 
     for (idx, block) in blocks.iter().enumerate() {
         if block.is_protected() || block.is_history {
             continue;
         }
-        blocks_by_key
-            .entry((&block.trace_id, &block.content_hash))
-            .or_default()
-            .push(idx);
+        // A tool result is keyed by the call it answers *and* its text, not by text alone.
+        //
+        // Keyed by text alone, two results with the same text collapsed into one - and identical
+        // text is ordinary ("ok", "[]", the same search hit). Keyed by the call alone, two calls
+        // that happen to be identical (same tool, same input, run twice) collapsed their two
+        // different results into one. Both parts are needed:
+        //
+        // - Strands re-sends one call's result with a regenerated id: same call identity, same
+        //   text -> collapsed, which is why this phase exists.
+        // - Two different calls returning the same text: different call identity -> both kept.
+        // - One call shape run twice returning different text: same identity, different text ->
+        //   both kept.
+        //
+        // Falls back to text when the result names no call in this trace, the only signal left.
+        let key = match &block.content {
+            ContentBlock::ToolResult { tool_use_id, .. } => tool_use_id
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .and_then(|id| call_identities.get(&(block.trace_id.as_str(), id)))
+                .map(|&call_hash| {
+                    DuplicateKey::ToolResultForCall(&block.trace_id, call_hash, &block.content_hash)
+                })
+                .unwrap_or(DuplicateKey::Content(&block.trace_id, &block.content_hash)),
+            _ => DuplicateKey::Content(&block.trace_id, &block.content_hash),
+        };
+        blocks_by_key.entry(key).or_default().push(idx);
     }
 
     let mut to_mark = Vec::new();
@@ -566,6 +625,7 @@ mod tests {
             is_semantic: true,
             uses_span_end: false,
             is_history: false,
+            tool_use_id_correlated: false,
         }
     }
 
@@ -665,6 +725,7 @@ mod tests {
             is_semantic: true,
             uses_span_end: false,
             is_history: false,
+            tool_use_id_correlated: false,
         }
     }
 

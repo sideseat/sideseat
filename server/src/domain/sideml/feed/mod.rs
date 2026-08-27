@@ -34,11 +34,16 @@
 //! 6. **Orphan tool_results**: Tool_results with unknown tool_use_id
 //! 7. **Deduplication**: Later occurrences of same content within trace
 //!
-//! ## Content-Based Identity (not ID-based)
+//! ## Content-Based Identity (mostly not ID-based)
 //!
 //! - Tool calls: `hash(name + input)` — call_id ignored (regenerated in history)
-//! - Tool results: `hash(content)` — tool_use_id ignored
+//! - Tool results: `tool_use_id` when present, `hash(content)` otherwise. Correlation (below)
+//!   supplies the id for frameworks that omit it, so this is the usual case rather than the
+//!   fallback.
 //! - Regular: `hash(trace_id + role + content)`
+//! - Structured JSON answers: members with no value are dropped before hashing, so a
+//!   schema-filled object and the model's raw one are one answer. Tool inputs and results keep
+//!   the distinction — an empty collection there is an answer.
 //!
 //! ## Quality Scoring
 //!
@@ -50,13 +55,28 @@
 //!
 //! ```text
 //! 1. PARSE       Vec<MessageSpanRow> → SideML messages
-//! 2. FLATTEN     One ContentBlock per BlockEntry with all metadata
-//! 3. CLASSIFY    Determine uses_span_end for each block
-//! 4. MARK HISTORY Eight-phase detection (see history.rs)
-//! 5. DEDUP       Identity-based, keep highest quality version
-//! 6. SORT        (birth_time, message_index, entry_index)
-//! 7. RETURN      FeedResult with blocks, tool_definitions, metadata
+//! 2. FLATTEN     One ContentBlock per BlockEntry with all metadata; never filtered
+//! 3. CORRELATE   id-less tool results adopt their call's id (see correlate.rs)
+//! 4. CLASSIFY    Determine uses_span_end for each block
+//! 5. MARK HISTORY Eight-phase detection (see history.rs)
+//! 6. DEDUP       Identity-based, keep highest quality version
+//! 7. WITHDRAW    Clear a correlated id whose call did not survive dedup
+//! 8. SORT        (birth_time, message_index, entry_index)
+//! 9. ROLE FILTER `?role=` applied here, to the finished feed, on each block's derived role
+//! 10. RETURN     FeedResult with blocks, tool_definitions, metadata
 //! ```
+//!
+//! Stages 3 and 5-6 all decide what counts as the same tool result, and all three need the call
+//! reference, which is why correlation precedes them.
+//!
+//! ## Known limit: identical repeats within one trace
+//!
+//! Two tool calls with the same name and arguments, or two messages with the same role and text,
+//! are treated as one within a trace. That is not incidental - a framework re-sending its history
+//! is indistinguishable from a genuine repeat once content is all there is, and re-sends are what
+//! this pipeline exists to collapse. Telling them apart would need a per-call id that survives
+//! re-sending, which no framework in the fixture suite provides. So a conversation that really
+//! ran the same tool twice with the same arguments shows it once.
 //!
 //! # Framework Compatibility
 //!
@@ -85,7 +105,8 @@ use crate::domain::traces::{MessageSource, RawMessage};
 
 use classify::uses_span_end;
 use dedup::{
-    SpanTimestamps, normalize_json_for_hash, normalize_tool_result_content, process_dedup,
+    SpanTimestamps, normalize_json_for_hash, normalize_structured_json_for_hash,
+    normalize_tool_result_content, process_dedup,
 };
 use history::mark_history;
 
@@ -208,6 +229,11 @@ impl CrossTracePrefixState {
 /// Routes to `process_trace_spans` for single-trace data, or
 /// `process_multi_trace_spans` for multi-trace data (cross-trace prefix stripping).
 pub fn process_spans(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedResult {
+    apply_role_filter(process_spans_unfiltered(rows), options.role.as_deref())
+}
+
+/// [`process_spans`] without the role filter, for callers that filter once at their own boundary.
+fn process_spans_unfiltered(rows: Vec<MessageSpanRow>) -> FeedResult {
     // Detect multi-trace: if all rows share the same trace_id, single-trace path
     let is_multi_trace = rows.len() > 1
         && rows
@@ -216,9 +242,9 @@ pub fn process_spans(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRe
             .unwrap_or(false);
 
     if is_multi_trace {
-        process_multi_trace_spans(rows, options)
+        process_multi_trace_spans(rows)
     } else {
-        process_trace_spans(rows, options)
+        process_trace_spans_core(rows, None)
     }
 }
 
@@ -235,7 +261,10 @@ pub fn process_spans(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRe
 /// 4. Sort by birth time + semantic order
 /// 5. Return FeedResult with blocks, tool definitions, and metadata
 pub fn process_trace_spans(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedResult {
-    process_trace_spans_core(rows, options, None)
+    apply_role_filter(
+        process_trace_spans_core(rows, None),
+        options.role.as_deref(),
+    )
 }
 
 /// Core pipeline with optional cross-trace prefix marking.
@@ -247,7 +276,6 @@ pub fn process_trace_spans(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> 
 /// history re-send copy.
 fn process_trace_spans_core(
     rows: Vec<MessageSpanRow>,
-    options: &FeedOptions,
     cross_trace_prefix: Option<&CrossTracePrefixState>,
 ) -> FeedResult {
     // Build span hierarchy for span_path computation
@@ -283,7 +311,7 @@ fn process_trace_spans_core(
 
     // Stage 2: Flatten to individual blocks with metadata
     // All blocks start with is_history = false
-    let mut blocks = flatten_to_blocks(parsed_messages, &span_hierarchy, options);
+    let mut blocks = flatten_to_blocks(parsed_messages, &span_hierarchy);
 
     // Stage 2.5: Cross-trace prefix marking (multi-trace sessions only)
     // MUST run BEFORE classify_blocks (which includes Phase 7 duplicate detection).
@@ -294,6 +322,16 @@ fn process_trace_spans_core(
     if let Some(prefix) = cross_trace_prefix {
         mark_cross_trace_prefix(&mut blocks, prefix);
     }
+
+    // Stage 2.6: Correlate tool results to their calls.
+    //
+    // Runs BEFORE classification and dedup, because both decide what is a duplicate tool result
+    // and both need the call reference to do it. Two results with the same text are either one
+    // call re-sent or two different calls, and only the call tells them apart - so a result that
+    // reaches either stage without its call's id has both of them fall back to text, and a
+    // genuine second result is dropped from the feed. Correlation needs the blocks in source
+    // order, which is what they are in right after flattening.
+    correlate::correlate_tool_results(&mut blocks);
 
     // Stages 3-4: Classify blocks and mark history
     // - uses_span_end: determines timestamp strategy (span_end vs event_time)
@@ -318,16 +356,17 @@ fn process_trace_spans_core(
         );
     }
 
-    // Stage 4.5: Correlate tool results to their calls.
-    //
-    // Must run AFTER classification (which needs source order intact) and BEFORE dedup, whose
-    // tool-result identity is `tool_use_id` when present and content otherwise: a result that
-    // reaches dedup without its call's id falls back to content and collapses with an
-    // identical result from a different call.
-    correlate::correlate_tool_results(&mut blocks);
-
     // Stages 5-6: Deduplicate by identity, sort by birth time
-    let blocks = process_dedup(blocks, span_timestamps);
+    let mut blocks = process_dedup(blocks, span_timestamps);
+
+    // Stage 6.5: Withdraw a correlated id whose call did not survive.
+    //
+    // Correlation only ever links to a call in the same block list, but dedup and history
+    // marking can drop that call afterwards - leaving the result pointing at something the
+    // response does not contain. Clearing the id restores "honestly uncorrelated"; keeping the
+    // block, because the result's content is real either way. Only correlated ids are withdrawn:
+    // a provider's own id may legitimately reference a call outside the requested scope.
+    correlate::withdraw_unbacked_ids(&mut blocks);
 
     // Debug: Log block counts after dedup
     if tracing::enabled!(tracing::Level::DEBUG) {
@@ -374,7 +413,7 @@ fn process_trace_spans_core(
 ///   are matched directly against accumulated.
 /// - **Non-root gen spans**: Phase 4b marks assistant input-source blocks as history.
 ///   Prefix scan consumes matched Phase 4b entries without re-marking.
-fn process_multi_trace_spans(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedResult {
+fn process_multi_trace_spans(rows: Vec<MessageSpanRow>) -> FeedResult {
     let trace_groups = group_and_sort_traces(rows);
 
     let mut accumulated = CrossTracePrefixState::default();
@@ -396,7 +435,7 @@ fn process_multi_trace_spans(rows: Vec<MessageSpanRow>, options: &FeedOptions) -
             Some(&accumulated)
         };
 
-        let result = process_trace_spans_core(trace_rows, options, cross_trace_prefix);
+        let result = process_trace_spans_core(trace_rows, cross_trace_prefix);
 
         // First trace always contributes. Subsequent traces contribute only if
         // they have new non-system content (pure replay traces are skipped).
@@ -606,7 +645,7 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
             total_tokens += row.total_tokens;
             total_cost += row.cost_total;
         }
-        let processed = process_spans(conversation_spans, options);
+        let processed = process_spans_unfiltered(conversation_spans);
         all_blocks.extend(processed.messages);
         all_tool_defs.extend(processed.tool_definitions);
         all_tool_names.extend(processed.tool_names);
@@ -649,16 +688,63 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
     let tool_names = deduplicate_names(all_tool_names);
     let block_count = all_blocks.len();
 
-    FeedResult {
-        messages: all_blocks,
-        tool_definitions,
-        tool_names,
-        metadata: FeedMetadata {
-            block_count,
-            span_count: span_ids.len(),
-            total_tokens,
-            total_cost,
+    apply_role_filter(
+        FeedResult {
+            messages: all_blocks,
+            tool_definitions,
+            tool_names,
+            metadata: FeedMetadata {
+                block_count,
+                span_count: span_ids.len(),
+                total_tokens,
+                total_cost,
+            },
         },
+        options.role.as_deref(),
+    )
+}
+
+/// Keep only blocks whose role matches `role`, if one was requested.
+///
+/// Applied to the finished feed, never during flattening. The role a block reports is derived
+/// from its content, not from the raw message role - a Gemini or ADK tool result arrives inside a
+/// `user` message - so the filter has to see the derived role, which is why it once lived in
+/// `flatten_to_blocks`. Filtering there removes blocks that later stages read:
+///
+/// - `role=tool` deletes the assistant `ToolUse` blocks that `correlate_tool_results` uses to give
+///   an id-less result its call's id. Without the id, dedup falls back to content identity and
+///   collapses two results of two different calls into one.
+/// - history detection reads user and system messages to decide what is a re-send, so filtering
+///   them away changes which of the *remaining* blocks are marked history.
+///
+/// The filter is a view over the finished feed, so it is applied to the finished feed. Block and
+/// span counts are restated from the blocks that survive, so they describe the response rather
+/// than the scope that was scanned. Token and cost totals are left as span-level sums: they are
+/// the cost of producing the conversation, which filtering the view does not reduce.
+fn apply_role_filter(result: FeedResult, role: Option<&str>) -> FeedResult {
+    let Some(role) = role else {
+        return result;
+    };
+
+    let messages: Vec<BlockEntry> = result
+        .messages
+        .into_iter()
+        .filter(|b| b.role.as_str() == role)
+        .collect();
+    let span_count = messages
+        .iter()
+        .map(|b| &b.span_id)
+        .collect::<HashSet<_>>()
+        .len();
+
+    FeedResult {
+        metadata: FeedMetadata {
+            block_count: messages.len(),
+            span_count,
+            ..result.metadata
+        },
+        messages,
+        ..result
     }
 }
 
@@ -961,10 +1047,13 @@ fn derive_role_from_content(
 /// All blocks start with `is_history = false`. History detection is done
 /// separately by `mark_history()` based on actual
 /// content duplication across spans.
+///
+/// Deliberately unfiltered: every block the spans contain reaches the later stages, because
+/// correlation, history detection and dedup all read blocks they do not return. See
+/// [`apply_role_filter`].
 fn flatten_to_blocks(
     messages: Vec<ParsedMessage>,
     span_hierarchy: &HashMap<String, Vec<String>>,
-    options: &FeedOptions,
 ) -> Vec<BlockEntry> {
     let mut blocks = Vec::new();
 
@@ -976,13 +1065,6 @@ fn flatten_to_blocks(
                 role = ?msg.message.role,
                 "flatten_to_blocks: skipping empty message"
             );
-            continue;
-        }
-
-        // Apply role filter
-        if let Some(ref role_filter) = options.role
-            && msg.message.role.as_str() != role_filter
-        {
             continue;
         }
 
@@ -1073,6 +1155,7 @@ fn flatten_to_blocks(
                 is_semantic,
                 uses_span_end: false, // Will be set by classify_blocks()
                 is_history: false,    // Will be set by classify_blocks()
+                tool_use_id_correlated: false, // Will be set by correlate_tool_results()
             });
         }
     }
@@ -1283,7 +1366,9 @@ fn compute_block_hash(block: &ContentBlock) -> u64 {
         }
         ContentBlock::Json { data } => {
             "json".hash(&mut hasher);
-            normalize_json_for_hash(data).hash(&mut hasher); // Sort keys for consistent hash
+            // Structured normalization: a schema-filled answer and the model's raw one are the
+            // same answer. See normalize_structured_json_for_hash.
+            normalize_structured_json_for_hash(data).hash(&mut hasher);
         }
         ContentBlock::Unknown { raw } => {
             "unknown".hash(&mut hasher);

@@ -43,6 +43,7 @@ fn base(trace_id: &str, entry_type: &str, content: ContentBlock, role: ChatRole)
         is_semantic: true,
         uses_span_end: false,
         is_history: false,
+        tool_use_id_correlated: false,
     }
 }
 
@@ -151,6 +152,27 @@ fn matches_sequential_same_name_calls_without_crossing() {
     assert_eq!(resolved_id(&blocks[3]).as_deref(), Some("call-b"));
 }
 
+/// Concurrent calls to the same tool pair in call order, not in reverse.
+///
+/// Taking the *nearest* preceding call reversed every parallel group: ADK's three parallel
+/// `generate_image` calls had their results attached back to front, so each image pointed at
+/// another prompt. Both Gemini and the OpenAI-shaped protocols return results in request order.
+#[test]
+fn pairs_concurrent_same_name_calls_in_call_order() {
+    let mut blocks = vec![
+        call("t1", Some("call-a"), "lookup", json!({"q": "a"})),
+        call("t1", Some("call-b"), "lookup", json!({"q": "b"})),
+        call("t1", Some("call-c"), "lookup", json!({"q": "c"})),
+        result("t1", None, Some("lookup"), "answer-a"),
+        result("t1", None, Some("lookup"), "answer-b"),
+        result("t1", None, Some("lookup"), "answer-c"),
+    ];
+    correlate_tool_results(&mut blocks);
+    assert_eq!(resolved_id(&blocks[3]).as_deref(), Some("call-a"));
+    assert_eq!(resolved_id(&blocks[4]).as_deref(), Some("call-b"));
+    assert_eq!(resolved_id(&blocks[5]).as_deref(), Some("call-c"));
+}
+
 /// A call is claimed by at most one result: the second result finds nothing rather than
 /// reusing an id already taken.
 #[test]
@@ -212,4 +234,83 @@ fn ignores_calls_without_ids() {
     ];
     correlate_tool_results(&mut blocks);
     assert_eq!(resolved_id(&blocks[1]), None);
+}
+
+/// A correlated id is withdrawn when its call does not survive to the response.
+///
+/// Correlation always links to a call in the same block list, but dedup and history marking run
+/// afterwards and can remove it - and a result referencing a block the caller never receives is
+/// the dangling reference this module exists to prevent, reached from the other side. It cost a
+/// real invariant failure in `adk/tool_use` to notice.
+#[test]
+fn withdraws_a_correlated_id_whose_call_was_dropped() {
+    let mut blocks = vec![
+        call("t1", Some("call-a"), "lookup", json!({"q": "a"})),
+        result("t1", None, Some("lookup"), "answer-a"),
+    ];
+    correlate_tool_results(&mut blocks);
+    assert_eq!(resolved_id(&blocks[1]).as_deref(), Some("call-a"));
+
+    // Whatever dedup does to the call, the result must not keep pointing at it.
+    let mut without_call = vec![blocks[1].clone()];
+    withdraw_unbacked_ids(&mut without_call);
+    assert_eq!(
+        resolved_id(&without_call[0]),
+        None,
+        "the result kept an id for a call the response does not contain"
+    );
+    assert!(!without_call[0].tool_use_id_correlated);
+
+    // With the call still present, nothing is withdrawn.
+    let mut intact = blocks.clone();
+    withdraw_unbacked_ids(&mut intact);
+    assert_eq!(resolved_id(&intact[1]).as_deref(), Some("call-a"));
+}
+
+/// A provider's own id is never withdrawn, even with no matching call in scope: a span view
+/// legitimately holds a result whose call is in a sibling span.
+#[test]
+fn keeps_a_provider_id_with_no_call_in_scope() {
+    let mut blocks = vec![result(
+        "t1",
+        Some("call-elsewhere"),
+        Some("lookup"),
+        "answer",
+    )];
+    withdraw_unbacked_ids(&mut blocks);
+    assert_eq!(
+        resolved_id(&blocks[0]).as_deref(),
+        Some("call-elsewhere"),
+        "withdrawing a provider id would break the span view, where the call is out of scope"
+    );
+}
+
+/// Documents the failure mode FIFO trades for: a call whose result never arrived.
+///
+/// If a call is never answered - the tool errored, the run was cut short - it stays unclaimed, and
+/// the next result for that tool name takes it. Nearest-preceding would get this one right and
+/// every parallel group wrong, which is the worse trade: an unanswered call is the exception,
+/// parallel calls are routine, and the reversal was silently wrong in four fixtures.
+///
+/// Recorded as a test rather than a comment so the day a signal for this appears - a provider id
+/// on the result, an explicit error status on the call - it is clear what changes.
+#[test]
+fn an_unanswered_call_claims_the_next_result_of_the_same_name() {
+    let mut blocks = vec![
+        call(
+            "t1",
+            Some("call-never-answered"),
+            "lookup",
+            json!({"q": "a"}),
+        ),
+        call("t1", Some("call-answered"), "lookup", json!({"q": "b"})),
+        result("t1", None, Some("lookup"), "answer-b"),
+    ];
+    correlate_tool_results(&mut blocks);
+    assert_eq!(
+        resolved_id(&blocks[2]).as_deref(),
+        Some("call-never-answered"),
+        "known limit: with one result for two calls, the older call is assumed to be the \
+         answered one - the name and response alone say nothing else"
+    );
 }

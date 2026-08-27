@@ -142,6 +142,7 @@ mod tests {
             is_semantic: true,
             uses_span_end: false,
             is_history: false,
+            tool_use_id_correlated: false,
         }
     }
 
