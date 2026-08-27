@@ -143,7 +143,7 @@ For custom OTLP configuration, use environment variables:
 |----------|-------------|---------|
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Base endpoint URL | (from SIDESEAT_ENDPOINT) |
 | `OTEL_EXPORTER_OTLP_HEADERS` | Headers (key=value,key2=value2) | (none) |
-| `OTEL_EXPORTER_OTLP_TIMEOUT` | Timeout in milliseconds | `10000` |
+| `OTEL_EXPORTER_OTLP_TIMEOUT` | Timeout in **seconds** (the TypeScript SDK reads the same variable in milliseconds, per each ecosystem's OpenTelemetry convention) | `30` |
 | `OTEL_EXPORTER_OTLP_COMPRESSION` | Compression algorithm | (none) |
 
 ## Exporter Comparison

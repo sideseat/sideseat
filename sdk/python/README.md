@@ -72,15 +72,20 @@ print(response)
 **Vercel AI SDK:**
 
 ```bash
-npm install ai @ai-sdk/amazon-bedrock @sideseat/sdk
+npm install ai @ai-sdk/otel @ai-sdk/amazon-bedrock @sideseat/sdk
 ```
 
 ```typescript
-import { generateText } from "ai";
+import { generateText, registerTelemetry } from "ai";
+import { LegacyOpenTelemetry } from "@ai-sdk/otel";
 import { bedrock } from "@ai-sdk/amazon-bedrock";
 import { init, Frameworks } from "@sideseat/sdk";
 
 init({ framework: Frameworks.VercelAI });
+
+// AI SDK 7 emits spans only through a registered integration; the per-call
+// experimental_telemetry flag alone produces nothing.
+registerTelemetry(new LegacyOpenTelemetry());
 
 const { text } = await generateText({
   model: bedrock("anthropic.claude-sonnet-4-5-20250929-v1:0"),
