@@ -737,24 +737,36 @@ struct BlockSortKey {
 }
 
 impl BlockSortKey {
+    /// Whether both blocks came from the same span, which is the scope a message index means
+    /// anything in.
+    fn same_span(&self, other: &Self) -> bool {
+        self.batch.0 == other.batch.0 && self.batch.1 == other.batch.1
+    }
+
     fn compare(&self, other: &Self) -> std::cmp::Ordering {
         self.batch_time
             .cmp(&other.batch_time)
-            // Source position first. Frameworks that put every message of a span at the span's
-            // start time - ADK's attribute lists - already emit them in conversation order, and
-            // ranking by role ahead of position threw that away: a multi-turn span came back as
-            // every user message, then every tool result, with the turn boundaries gone.
-            .then_with(|| self.message_index.cmp(&other.message_index))
-            .then_with(|| self.entry_index.cmp(&other.entry_index))
-            // Only for two messages that share a position, which means they came from different
-            // messages of different spans: a call before the result that answers it.
+            // Within one span, source position: frameworks that put every message of a span at
+            // the span's start time - ADK's attribute lists - already emit them in conversation
+            // order, and ranking by role ahead of position threw that away, flattening a
+            // multi-turn span into every user message followed by every tool result.
+            //
+            // Across spans, role: the index restarts at zero in each span, so comparing it
+            // across them is meaningless - a generation span's introductory text makes its tool
+            // call index 1, while the tool span holding the result starts at 0, and at equal times
+            // the result sorted before the call it answers.
             .then_with(|| {
-                if self.batch == other.batch {
-                    std::cmp::Ordering::Equal
+                if self.same_span(other) {
+                    self.message_index
+                        .cmp(&other.message_index)
+                        .then_with(|| self.entry_index.cmp(&other.entry_index))
                 } else {
                     self.semantic.cmp(&other.semantic)
                 }
             })
+            // Last resorts, for blocks that are still indistinguishable.
+            .then_with(|| self.message_index.cmp(&other.message_index))
+            .then_with(|| self.entry_index.cmp(&other.entry_index))
             .then_with(|| self.batch.cmp(&other.batch))
             .then_with(|| self.content_hash.cmp(&other.content_hash))
     }

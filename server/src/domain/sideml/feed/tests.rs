@@ -9278,3 +9278,118 @@ fn a_spans_input_and_output_are_not_one_response() {
         "the output completed when the span did, and must not inherit the input's time"
     );
 }
+
+/// The bundled OTel event pair must be recognised as input and output.
+///
+/// The current conventions carry a turn as `gen_ai.input.messages` and `gen_ai.output.messages` on
+/// one `gen_ai.client.inference.operation.details` event, so both arrive at the same instant. With
+/// only the older event names classified, the output was not recognised as output: it shared a
+/// response with the input, took the input's timestamp, and was not protected from history marking.
+#[test]
+fn the_bundled_otel_event_pair_is_classified() {
+    let start = fixed_time();
+    let end = start + chrono::Duration::seconds(20);
+    let msg = json!([
+        {
+            "source": {"event": {"name": "gen_ai.input.messages", "time": start.to_rfc3339()}},
+            "content": {"role": "user", "content": "what is the capital of France?"}
+        },
+        {
+            "source": {"event": {"name": "gen_ai.output.messages", "time": start.to_rfc3339()}},
+            "content": {"role": "assistant", "content": "Paris."}
+        }
+    ]);
+
+    let row =
+        make_span_row_with_timestamps("trace1", "span1", None, &msg.to_string(), start, Some(end));
+    let result = process_spans(vec![row], &FeedOptions::new());
+
+    let input = result
+        .messages
+        .iter()
+        .find(|b| b.role == ChatRole::User)
+        .expect("the turn's input");
+    let output = result
+        .messages
+        .iter()
+        .find(|b| b.role == ChatRole::Assistant)
+        .expect("the turn's output");
+
+    assert_eq!(
+        input.timestamp, start,
+        "the input is timestamped at the event"
+    );
+    assert_eq!(
+        output.timestamp, end,
+        "the output completed when the span did, and must not inherit the input's time"
+    );
+}
+
+/// A tool result from its own span must not sort before the call it answers.
+///
+/// A message index restarts at zero in every span, so comparing it across spans is meaningless: a
+/// generation span whose response opens with text gives its tool call index 1, while the tool span
+/// carrying the result starts at 0. At equal effective times the result sorted first - an answer
+/// before its question - which the role rank is there to prevent.
+#[test]
+fn a_tool_result_from_another_span_sorts_after_its_call() {
+    let t = fixed_time();
+    // The generation span: introductory text, then the call. The call is index 1.
+    let generation = json!([
+        {
+            "source": {"event": {"name": "gen_ai.choice", "time": t.to_rfc3339()}},
+            "content": {"role": "assistant", "content": "let me look that up"}
+        },
+        {
+            "source": {"event": {"name": "gen_ai.choice", "time": t.to_rfc3339()}},
+            "content": {
+                "role": "assistant",
+                "content": [{"type": "tool_use", "id": "call-1", "name": "lookup",
+                             "input": {"q": "a"}}]
+            }
+        }
+    ]);
+    // The tool span: the result, index 0, at the same instant.
+    let tool = json!([{
+        "source": {"event": {"name": "gen_ai.tool.message", "time": t.to_rfc3339()}},
+        "content": {
+            "role": "tool",
+            "content": [{"type": "tool_result", "tool_use_id": "call-1", "name": "lookup",
+                         "content": "answer"}]
+        }
+    }]);
+
+    let mut tool_row = make_span_row_with_timestamps(
+        "trace1",
+        "span2",
+        Some("span1"),
+        &tool.to_string(),
+        t,
+        Some(t),
+    );
+    tool_row.observation_type = Some("tool".to_string());
+
+    let rows = vec![
+        make_span_row_with_timestamps("trace1", "span1", None, &generation.to_string(), t, Some(t)),
+        tool_row,
+    ];
+
+    let result = process_spans(rows, &FeedOptions::new());
+    let kinds: Vec<&str> = result
+        .messages
+        .iter()
+        .map(|b| b.entry_type.as_str())
+        .collect();
+    let call_at = kinds
+        .iter()
+        .position(|k| *k == "tool_use")
+        .expect("the tool call");
+    let result_at = kinds
+        .iter()
+        .position(|k| *k == "tool_result")
+        .expect("the tool result");
+    assert!(
+        call_at < result_at,
+        "the result came before the call it answers: {kinds:?}"
+    );
+}
