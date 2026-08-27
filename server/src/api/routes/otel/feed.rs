@@ -210,13 +210,17 @@ pub async fn get_feed_messages(
     let tool_definitions = processed.tool_definitions;
     let tool_names = processed.tool_names;
 
-    // Compute metadata (use &str to avoid cloning span_ids)
-    let mut seen_spans: HashSet<&str> = HashSet::new();
+    // Compute metadata (use &str to avoid cloning ids)
+    //
+    // Keyed by (trace, span): a span id is unique only within a trace, so counting by span id
+    // alone made two traces that happen to share one look like a single span, and their tokens and
+    // cost were counted once instead of twice. The same premise as the feed cursor.
+    let mut seen_spans: HashSet<(&str, &str)> = HashSet::new();
     let mut total_tokens = 0i64;
     let mut total_cost = 0.0f64;
 
     for block in &all_messages {
-        if seen_spans.insert(&block.span_id) {
+        if seen_spans.insert((&block.trace_id, &block.span_id)) {
             total_tokens += block.tokens.unwrap_or(0);
             total_cost += block.cost.unwrap_or(0.0);
         }

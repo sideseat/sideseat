@@ -250,7 +250,7 @@ pub(crate) fn scope_feed_to_trace(
     processed.metadata.span_count = processed
         .messages
         .iter()
-        .map(|b| &b.span_id)
+        .map(|b| (&b.trace_id, &b.span_id))
         .collect::<HashSet<_>>()
         .len();
     processed.tool_definitions = scoped_tools.tool_definitions;
@@ -269,14 +269,17 @@ pub(crate) fn build_messages_response(
     let mut start_time: Option<DateTime<Utc>> = None;
     let mut end_time: Option<DateTime<Utc>> = None;
 
-    // Track seen span_ids to avoid counting tokens multiple times per span
-    let mut seen_spans: HashSet<String> = HashSet::new();
+    // Track seen spans to avoid counting tokens multiple times per span, keyed by (trace, span):
+    // a span id is unique only within a trace, and a session view holds several traces.
+    let mut seen_spans: HashSet<(String, String)> = HashSet::new();
     let mut aggregated_tokens = 0i64;
     let mut aggregated_cost = 0.0f64;
 
     for block in &processed.messages {
         // Aggregate tokens/cost from spans (only if not using trace totals)
-        if trace_totals.is_none() && seen_spans.insert(block.span_id.clone()) {
+        if trace_totals.is_none()
+            && seen_spans.insert((block.trace_id.clone(), block.span_id.clone()))
+        {
             aggregated_tokens += block.tokens.unwrap_or(0);
             aggregated_cost += block.cost.unwrap_or(0.0);
         }
