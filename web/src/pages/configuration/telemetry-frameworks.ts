@@ -706,7 +706,7 @@ from sideseat import SideSeat, Frameworks
 
 SideSeat(framework=Frameworks.AgentFramework)
 
-client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
+client = OpenAIChatClient(model="gpt-5-nano-2025-08-07")
 agent = Agent(client=client, instructions="You are a helpful assistant.")
 result = asyncio.run(agent.run("What is 2+2?"))
 print(result.text)`,
@@ -729,7 +729,7 @@ provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(
 )))
 trace.set_tracer_provider(provider)
 
-client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
+client = OpenAIChatClient(model="gpt-5-nano-2025-08-07")
 agent = Agent(client=client, instructions="You are a helpful assistant.")
 result = asyncio.run(agent.run("What is 2+2?"))
 print(result.text)`,
