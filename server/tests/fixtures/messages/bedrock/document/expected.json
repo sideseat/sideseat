@@ -5,14 +5,61 @@
   "trace_count": 1,
   "session_count": 0,
   "span_views": {
-    "1508f512/bedrock-document/f42f": {
+    "trace-1/bedrock-document/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "1508f512/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/4dba": {
+    "trace-1/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-2": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a document analyst. Summarize content accurately and concisely.",
+          "content_digest": "efe422f4c18b72c1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarize the key points of this document.",
+          "content_digest": "d8c7131bd73224b6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoI…[17713 chars]",
+          "content_digest": "0e5f984c3e07df1a",
+          "tool_name": "task-document",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Document Summary **Key Point:** This document contains a single instruction: **\"Write a poem!\"** The document consists of 5 pages, with the instruction appearing on page 1, and pages 2-5 being blank. There is no additional content, contex…[346 chars]",
+          "content_digest": "eb26d2941671c58a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-3": {
       "message_count": 7,
       "role_sequence": [
         "system",
@@ -31,7 +78,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a document analyst. Summarize content accurately and concisely.",
-          "content_digest": "ebb2709b06df42db",
+          "content_digest": "efe422f4c18b72c1",
           "observation_type": "generation"
         },
         {
@@ -39,7 +86,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Summarize the key points of this document.",
-          "content_digest": "d1ee1d7afaad45a3",
+          "content_digest": "d8c7131bd73224b6",
           "observation_type": "generation"
         },
         {
@@ -47,7 +94,7 @@
           "role": "user",
           "entry_type": "document",
           "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoI…[17713 chars]",
-          "content_digest": "27c8dad31be9cf66",
+          "content_digest": "0e5f984c3e07df1a",
           "tool_name": "task-document",
           "observation_type": "generation"
         },
@@ -56,7 +103,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "# Document Summary **Key Point:** This document contains a single instruction: **\"Write a poem!\"** The document consists of 5 pages, with the instruction appearing on page 1, and pages 2-5 being blank. There is no additional content, contex…[346 chars]",
-          "content_digest": "cc6bed7a511fee7d",
+          "content_digest": "eb26d2941671c58a",
           "observation_type": "generation"
         },
         {
@@ -64,7 +111,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Now look at this image. Using the instructions from the PDF document, describe what you see in the image.",
-          "content_digest": "17165d920aa503fe",
+          "content_digest": "73a41c48df90af73",
           "observation_type": "generation"
         },
         {
@@ -72,7 +119,7 @@
           "role": "user",
           "entry_type": "image",
           "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
-          "content_digest": "d472ce42cb6094f5",
+          "content_digest": "f66271bc4504cd52",
           "observation_type": "generation"
         },
         {
@@ -80,60 +127,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "# A Park's Gentle Path A winding trail of asphalt dark, Curves through the verdant urban park, Where stone-lined banks hold back the grass, And walkers, joggers gently pass. Bare branches reach toward skies so blue, While evergreens stand t…[628 chars]",
-          "content_digest": "e2b8a4f8e8d85999",
+          "content_digest": "faf187be7913ecc1",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "1508f512/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/8a73": {
-      "message_count": 4,
-      "role_sequence": [
-        "system",
-        "user",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a document analyst. Summarize content accurately and concisely.",
-          "content_digest": "ebb2709b06df42db",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Summarize the key points of this document.",
-          "content_digest": "d1ee1d7afaad45a3",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "user",
-          "entry_type": "document",
-          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoI…[17713 chars]",
-          "content_digest": "27c8dad31be9cf66",
-          "tool_name": "task-document",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "# Document Summary **Key Point:** This document contains a single instruction: **\"Write a poem!\"** The document consists of 5 pages, with the instruction appearing on page 1, and pages 2-5 being blank. There is no additional content, contex…[346 chars]",
-          "content_digest": "cc6bed7a511fee7d",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "1508f512/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/e434": {
+    "trace-1/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-4": {
       "message_count": 9,
       "role_sequence": [
         "system",
@@ -154,7 +154,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a document analyst. Summarize content accurately and concisely.",
-          "content_digest": "ebb2709b06df42db",
+          "content_digest": "efe422f4c18b72c1",
           "observation_type": "generation"
         },
         {
@@ -162,7 +162,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Summarize the key points of this document.",
-          "content_digest": "d1ee1d7afaad45a3",
+          "content_digest": "d8c7131bd73224b6",
           "observation_type": "generation"
         },
         {
@@ -170,7 +170,7 @@
           "role": "user",
           "entry_type": "document",
           "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoI…[17713 chars]",
-          "content_digest": "27c8dad31be9cf66",
+          "content_digest": "0e5f984c3e07df1a",
           "tool_name": "task-document",
           "observation_type": "generation"
         },
@@ -179,7 +179,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "# Document Summary **Key Point:** This document contains a single instruction: **\"Write a poem!\"** The document consists of 5 pages, with the instruction appearing on page 1, and pages 2-5 being blank. There is no additional content, contex…[346 chars]",
-          "content_digest": "cc6bed7a511fee7d",
+          "content_digest": "eb26d2941671c58a",
           "observation_type": "generation"
         },
         {
@@ -187,7 +187,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Now look at this image. Using the instructions from the PDF document, describe what you see in the image.",
-          "content_digest": "17165d920aa503fe",
+          "content_digest": "73a41c48df90af73",
           "observation_type": "generation"
         },
         {
@@ -195,7 +195,7 @@
           "role": "user",
           "entry_type": "image",
           "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
-          "content_digest": "d472ce42cb6094f5",
+          "content_digest": "f66271bc4504cd52",
           "observation_type": "generation"
         },
         {
@@ -203,7 +203,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "# A Park's Gentle Path A winding trail of asphalt dark, Curves through the verdant urban park, Where stone-lined banks hold back the grass, And walkers, joggers gently pass. Bare branches reach toward skies so blue, While evergreens stand t…[628 chars]",
-          "content_digest": "e2b8a4f8e8d85999",
+          "content_digest": "faf187be7913ecc1",
           "observation_type": "generation"
         },
         {
@@ -211,7 +211,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Based on both the document and image, what is the main takeaway?",
-          "content_digest": "0b6c419023dd443f",
+          "content_digest": "38e4eb1b11293b5e",
           "observation_type": "generation"
         },
         {
@@ -219,7 +219,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "# Main Takeaway The main takeaway is a demonstration of **following creative instructions in unexpected ways**. The PDF document provided a simple directive: \"Write a poem!\" with no other specifications or constraints. Rather than writing a…[946 chars]",
-          "content_digest": "1ad40567c2a2f8d5",
+          "content_digest": "378d733eb9107528",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -227,7 +227,7 @@
     }
   },
   "trace_views": {
-    "1508f512": {
+    "trace-1": {
       "message_count": 9,
       "role_sequence": [
         "system",
@@ -248,7 +248,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a document analyst. Summarize content accurately and concisely.",
-          "content_digest": "ebb2709b06df42db",
+          "content_digest": "efe422f4c18b72c1",
           "observation_type": "generation"
         },
         {
@@ -256,7 +256,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Summarize the key points of this document.",
-          "content_digest": "d1ee1d7afaad45a3",
+          "content_digest": "d8c7131bd73224b6",
           "observation_type": "generation"
         },
         {
@@ -264,7 +264,7 @@
           "role": "user",
           "entry_type": "document",
           "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoI…[17713 chars]",
-          "content_digest": "27c8dad31be9cf66",
+          "content_digest": "0e5f984c3e07df1a",
           "tool_name": "task-document",
           "observation_type": "generation"
         },
@@ -273,7 +273,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "# Document Summary **Key Point:** This document contains a single instruction: **\"Write a poem!\"** The document consists of 5 pages, with the instruction appearing on page 1, and pages 2-5 being blank. There is no additional content, contex…[346 chars]",
-          "content_digest": "cc6bed7a511fee7d",
+          "content_digest": "eb26d2941671c58a",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -282,7 +282,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Now look at this image. Using the instructions from the PDF document, describe what you see in the image.",
-          "content_digest": "17165d920aa503fe",
+          "content_digest": "73a41c48df90af73",
           "observation_type": "generation"
         },
         {
@@ -290,7 +290,7 @@
           "role": "user",
           "entry_type": "image",
           "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
-          "content_digest": "d472ce42cb6094f5",
+          "content_digest": "f66271bc4504cd52",
           "observation_type": "generation"
         },
         {
@@ -298,7 +298,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "# A Park's Gentle Path A winding trail of asphalt dark, Curves through the verdant urban park, Where stone-lined banks hold back the grass, And walkers, joggers gently pass. Bare branches reach toward skies so blue, While evergreens stand t…[628 chars]",
-          "content_digest": "e2b8a4f8e8d85999",
+          "content_digest": "faf187be7913ecc1",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -307,7 +307,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Based on both the document and image, what is the main takeaway?",
-          "content_digest": "0b6c419023dd443f",
+          "content_digest": "38e4eb1b11293b5e",
           "observation_type": "generation"
         },
         {
@@ -315,7 +315,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "# Main Takeaway The main takeaway is a demonstration of **following creative instructions in unexpected ways**. The PDF document provided a simple directive: \"Write a poem!\" with no other specifications or constraints. Rather than writing a…[946 chars]",
-          "content_digest": "1ad40567c2a2f8d5",
+          "content_digest": "378d733eb9107528",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }

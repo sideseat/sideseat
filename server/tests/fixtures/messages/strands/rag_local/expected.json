@@ -5,28 +5,703 @@
   "trace_count": 9,
   "session_count": 1,
   "span_views": {
-    "002ac1be/text_completion amazon.titan-embed-text-v2:0/6d1a": {
+    "trace-1/text_completion amazon.titan-embed-text-v2:0/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "055d6ae8/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/1f03": {
+    "trace-2/text_completion amazon.titan-embed-text-v2:0/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "055d6ae8/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/25df": {
+    "trace-3/text_completion amazon.titan-embed-text-v2:0/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "055d6ae8/chat/44e5": {
+    "trace-4/text_completion amazon.titan-embed-text-v2:0/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-5/text_completion amazon.titan-embed-text-v2:0/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-6/text_completion amazon.titan-embed-text-v2:0/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-7/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-7/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-7/chat/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
+          "content_digest": "d34e7a3b48aa42f0",
+          "tool_name": "search_knowledge",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-7/chat/span-8": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
+          "content_digest": "d34e7a3b48aa42f0",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
+          "content_digest": "e902840bd0d0f31c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## SideSeat and AI Observability **SideSeat** is an AI observability toolkit designed to help developers monitor and understand AI applications. Here's what it does: ### Key Capabilities: 1. **Trace Collection**: SideSeat collects OpenTelem…[1335 chars]",
+          "content_digest": "123cf88569bd8c17",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-7/execute_event_loop_cycle/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
+          "content_digest": "d34e7a3b48aa42f0",
+          "tool_name": "search_knowledge",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
+          "content_digest": "e902840bd0d0f31c",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-7/execute_event_loop_cycle/span-7": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
+          "content_digest": "e902840bd0d0f31c",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-7/execute_tool search_knowledge/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1331 chars]",
+          "content_digest": "1d59fd0452c9d7e1",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-7/invoke_agent Strands Agents/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## SideSeat and AI Observability **SideSeat** is an AI observability toolkit designed to help developers monitor and understand AI applications. Here's what it does: ### Key Capabilities: 1. **Trace Collection**: SideSeat collects OpenTelem…[1335 chars]",
+          "content_digest": "3c6610f90ace6be1",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-7/text_completion amazon.titan-embed-text-v2:0/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-8/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-8/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-8/chat/span-3": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
+          "content_digest": "d34e7a3b48aa42f0",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
+          "content_digest": "e902840bd0d0f31c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## SideSeat and AI Observability **SideSeat** is an AI observability toolkit designed to help developers monitor and understand AI applications. Here's what it does: ### Key Capabilities: 1. **Trace Collection**: SideSeat collects OpenTelem…[1335 chars]",
+          "content_digest": "123cf88569bd8c17",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG retrieval augmented generation how it works components\"}}",
+          "content_digest": "58c6d59fdef95d47",
+          "tool_name": "search_knowledge",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-8/chat/span-8": {
+      "message_count": 9,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
+          "content_digest": "d34e7a3b48aa42f0",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
+          "content_digest": "e902840bd0d0f31c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## SideSeat and AI Observability **SideSeat** is an AI observability toolkit designed to help developers monitor and understand AI applications. Here's what it does: ### Key Capabilities: 1. **Trace Collection**: SideSeat collects OpenTelem…[1335 chars]",
+          "content_digest": "123cf88569bd8c17",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG retrieval augmented generation how it works components\"}}",
+          "content_digest": "58c6d59fdef95d47",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are em…[1453 chars]",
+          "content_digest": "40cf98b7d3317ed4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## RAG (Retrieval-Augmented Generation) **RAG** is a pattern that combines vector search with LLM generation to provide more accurate and contextually relevant AI responses. ### How RAG Works: The RAG pattern operates in two main phases: 1.…[1638 chars]",
+          "content_digest": "eadd7e32194ec2c4",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-8/execute_event_loop_cycle/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "tool",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
+          "content_digest": "e902840bd0d0f31c",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG retrieval augmented generation how it works components\"}}",
+          "content_digest": "58c6d59fdef95d47",
+          "tool_name": "search_knowledge",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are em…[1453 chars]",
+          "content_digest": "40cf98b7d3317ed4",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-8/execute_event_loop_cycle/span-7": {
+      "message_count": 2,
+      "role_sequence": [
+        "tool",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
+          "content_digest": "e902840bd0d0f31c",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are em…[1453 chars]",
+          "content_digest": "40cf98b7d3317ed4",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-8/execute_tool search_knowledge/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1334 chars]",
+          "content_digest": "21fa68de70f4ec3e",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-8/invoke_agent Strands Agents/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## RAG (Retrieval-Augmented Generation) **RAG** is a pattern that combines vector search with LLM generation to provide more accurate and contextually relevant AI responses. ### How RAG Works: The RAG pattern operates in two main phases: 1.…[1638 chars]",
+          "content_digest": "462a674286fd05c4",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-8/text_completion amazon.titan-embed-text-v2:0/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-9/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-9/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-9/chat/span-3": {
+      "message_count": 11,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
+          "content_digest": "d34e7a3b48aa42f0",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
+          "content_digest": "e902840bd0d0f31c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## SideSeat and AI Observability **SideSeat** is an AI observability toolkit designed to help developers monitor and understand AI applications. Here's what it does: ### Key Capabilities: 1. **Trace Collection**: SideSeat collects OpenTelem…[1335 chars]",
+          "content_digest": "123cf88569bd8c17",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG retrieval augmented generation how it works components\"}}",
+          "content_digest": "58c6d59fdef95d47",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are em…[1453 chars]",
+          "content_digest": "40cf98b7d3317ed4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## RAG (Retrieval-Augmented Generation) **RAG** is a pattern that combines vector search with LLM generation to provide more accurate and contextually relevant AI responses. ### How RAG Works: The RAG pattern operates in two main phases: 1.…[1638 chars]",
+          "content_digest": "eadd7e32194ec2c4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pUadTfZegdTa3n83liika5\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\"}}",
+          "content_digest": "5d01dfdb4a5b7711",
+          "tool_name": "search_knowledge",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-9/chat/span-8": {
       "message_count": 13,
       "role_sequence": [
         "system",
@@ -51,7 +726,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
+          "content_digest": "90aba6b63e48a6ed",
           "observation_type": "generation"
         },
         {
@@ -59,7 +734,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
+          "content_digest": "258073a7aafdb01d",
           "observation_type": "generation"
         },
         {
@@ -67,7 +742,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
-          "content_digest": "3da7725fd2a695af",
+          "content_digest": "d34e7a3b48aa42f0",
           "tool_name": "search_knowledge",
           "observation_type": "generation"
         },
@@ -76,7 +751,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
-          "content_digest": "8de99234c687e268",
+          "content_digest": "e902840bd0d0f31c",
           "observation_type": "generation"
         },
         {
@@ -84,7 +759,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "## SideSeat and AI Observability **SideSeat** is an AI observability toolkit designed to help developers monitor and understand AI applications. Here's what it does: ### Key Capabilities: 1. **Trace Collection**: SideSeat collects OpenTelem…[1335 chars]",
-          "content_digest": "662511f7b0c50e17",
+          "content_digest": "123cf88569bd8c17",
           "observation_type": "generation"
         },
         {
@@ -92,7 +767,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
+          "content_digest": "d75bacebd91f3248",
           "observation_type": "generation"
         },
         {
@@ -100,7 +775,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG retrieval augmented generation how it works components\"}}",
-          "content_digest": "129224b8c3050748",
+          "content_digest": "58c6d59fdef95d47",
           "tool_name": "search_knowledge",
           "observation_type": "generation"
         },
@@ -109,7 +784,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are em…[1453 chars]",
-          "content_digest": "c59a376276d15ab5",
+          "content_digest": "40cf98b7d3317ed4",
           "observation_type": "generation"
         },
         {
@@ -117,7 +792,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "## RAG (Retrieval-Augmented Generation) **RAG** is a pattern that combines vector search with LLM generation to provide more accurate and contextually relevant AI responses. ### How RAG Works: The RAG pattern operates in two main phases: 1.…[1638 chars]",
-          "content_digest": "5ec18158b9d820be",
+          "content_digest": "eadd7e32194ec2c4",
           "observation_type": "generation"
         },
         {
@@ -125,7 +800,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What embedding models are available for vector search?",
-          "content_digest": "99591aaf305681dc",
+          "content_digest": "fc08de1734188b8c",
           "observation_type": "generation"
         },
         {
@@ -133,7 +808,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pUadTfZegdTa3n83liika5\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\"}}",
-          "content_digest": "909791f45c9febd7",
+          "content_digest": "5d01dfdb4a5b7711",
           "tool_name": "search_knowledge",
           "observation_type": "generation"
         },
@@ -142,7 +817,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_pUadTfZegdTa3n83liika5\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity or L…[944 chars]",
-          "content_digest": "4da59f725e7ee3e6",
+          "content_digest": "36a1b48628fc4c98",
           "observation_type": "generation"
         },
         {
@@ -150,125 +825,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "## Available Embedding Models for Vector Search Based on the knowledge base, here are the common embedding models available: ### Popular Embedding Models: 1. **Amazon Titan Embeddings** - AWS's embedding service 2. **OpenAI text-embedding-3…[1228 chars]",
-          "content_digest": "f3c63ec289c3aef3",
+          "content_digest": "84c835f93b5a9fd2",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "055d6ae8/chat/a861": {
-      "message_count": 11,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant",
-        "user",
-        "assistant",
-        "tool",
-        "assistant",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
-          "content_digest": "3da7725fd2a695af",
-          "tool_name": "search_knowledge",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
-          "content_digest": "8de99234c687e268",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "## SideSeat and AI Observability **SideSeat** is an AI observability toolkit designed to help developers monitor and understand AI applications. Here's what it does: ### Key Capabilities: 1. **Trace Collection**: SideSeat collects OpenTelem…[1335 chars]",
-          "content_digest": "662511f7b0c50e17",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "user",
-          "entry_type": "text",
-          "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG retrieval augmented generation how it works components\"}}",
-          "content_digest": "129224b8c3050748",
-          "tool_name": "search_knowledge",
-          "observation_type": "generation"
-        },
-        {
-          "index": 7,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are em…[1453 chars]",
-          "content_digest": "c59a376276d15ab5",
-          "observation_type": "generation"
-        },
-        {
-          "index": 8,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "## RAG (Retrieval-Augmented Generation) **RAG** is a pattern that combines vector search with LLM generation to provide more accurate and contextually relevant AI responses. ### How RAG Works: The RAG pattern operates in two main phases: 1.…[1638 chars]",
-          "content_digest": "5ec18158b9d820be",
-          "observation_type": "generation"
-        },
-        {
-          "index": 9,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What embedding models are available for vector search?",
-          "content_digest": "99591aaf305681dc",
-          "observation_type": "generation"
-        },
-        {
-          "index": 10,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pUadTfZegdTa3n83liika5\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\"}}",
-          "content_digest": "909791f45c9febd7",
-          "tool_name": "search_knowledge",
-          "finish_reason": "ToolUse",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "055d6ae8/execute_event_loop_cycle/753b": {
+    "trace-9/execute_event_loop_cycle/span-2": {
       "message_count": 4,
       "role_sequence": [
         "tool",
@@ -284,7 +847,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
-          "content_digest": "8de99234c687e268",
+          "content_digest": "e902840bd0d0f31c",
           "observation_type": "span"
         },
         {
@@ -292,7 +855,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are em…[1453 chars]",
-          "content_digest": "c59a376276d15ab5",
+          "content_digest": "40cf98b7d3317ed4",
           "observation_type": "span"
         },
         {
@@ -300,7 +863,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pUadTfZegdTa3n83liika5\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\"}}",
-          "content_digest": "909791f45c9febd7",
+          "content_digest": "5d01dfdb4a5b7711",
           "tool_name": "search_knowledge",
           "observation_type": "span"
         },
@@ -309,12 +872,12 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_pUadTfZegdTa3n83liika5\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity or L…[944 chars]",
-          "content_digest": "4da59f725e7ee3e6",
+          "content_digest": "36a1b48628fc4c98",
           "observation_type": "span"
         }
       ]
     },
-    "055d6ae8/execute_event_loop_cycle/dfb3": {
+    "trace-9/execute_event_loop_cycle/span-7": {
       "message_count": 3,
       "role_sequence": [
         "tool",
@@ -329,7 +892,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
-          "content_digest": "8de99234c687e268",
+          "content_digest": "e902840bd0d0f31c",
           "observation_type": "span"
         },
         {
@@ -337,7 +900,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are em…[1453 chars]",
-          "content_digest": "c59a376276d15ab5",
+          "content_digest": "40cf98b7d3317ed4",
           "observation_type": "span"
         },
         {
@@ -345,12 +908,12 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_pUadTfZegdTa3n83liika5\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity or L…[944 chars]",
-          "content_digest": "4da59f725e7ee3e6",
+          "content_digest": "36a1b48628fc4c98",
           "observation_type": "span"
         }
       ]
     },
-    "055d6ae8/execute_tool search_knowledge/6eda": {
+    "trace-9/execute_tool search_knowledge/span-5": {
       "message_count": 1,
       "role_sequence": [
         "tool"
@@ -363,12 +926,12 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity or L2 distance. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. Cosine similarity m…[831 chars]",
-          "content_digest": "559af8b5c3e5962d",
+          "content_digest": "275e33ae43b4174d",
           "observation_type": "tool"
         }
       ]
     },
-    "055d6ae8/invoke_agent Strands Agents/b121": {
+    "trace-9/invoke_agent Strands Agents/span-1": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -385,7 +948,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
+          "content_digest": "90aba6b63e48a6ed",
           "observation_type": "agent"
         },
         {
@@ -393,7 +956,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What embedding models are available for vector search?",
-          "content_digest": "99591aaf305681dc",
+          "content_digest": "fc08de1734188b8c",
           "observation_type": "agent"
         },
         {
@@ -401,576 +964,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "## Available Embedding Models for Vector Search Based on the knowledge base, here are the common embedding models available: ### Popular Embedding Models: 1. **Amazon Titan Embeddings** - AWS's embedding service 2. **OpenAI text-embedding-3…[1228 chars]",
-          "content_digest": "8c7cb1cb165c5fc1",
+          "content_digest": "eb5981292279262d",
           "finish_reason": "Stop",
           "observation_type": "agent"
         }
       ]
     },
-    "055d6ae8/text_completion amazon.titan-embed-text-v2:0/7563": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "17c1ef5a/text_completion amazon.titan-embed-text-v2:0/46cb": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "3a5cf26f/text_completion amazon.titan-embed-text-v2:0/fbd4": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "54ca609b/text_completion amazon.titan-embed-text-v2:0/1d0f": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "5b318089/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/1bee": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "5b318089/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/7b79": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "5b318089/chat/9d3d": {
-      "message_count": 7,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
-          "content_digest": "3da7725fd2a695af",
-          "tool_name": "search_knowledge",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
-          "content_digest": "8de99234c687e268",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "## SideSeat and AI Observability **SideSeat** is an AI observability toolkit designed to help developers monitor and understand AI applications. Here's what it does: ### Key Capabilities: 1. **Trace Collection**: SideSeat collects OpenTelem…[1335 chars]",
-          "content_digest": "662511f7b0c50e17",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "user",
-          "entry_type": "text",
-          "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG retrieval augmented generation how it works components\"}}",
-          "content_digest": "129224b8c3050748",
-          "tool_name": "search_knowledge",
-          "finish_reason": "ToolUse",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "5b318089/chat/b717": {
-      "message_count": 9,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant",
-        "user",
-        "assistant",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
-          "content_digest": "3da7725fd2a695af",
-          "tool_name": "search_knowledge",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
-          "content_digest": "8de99234c687e268",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "## SideSeat and AI Observability **SideSeat** is an AI observability toolkit designed to help developers monitor and understand AI applications. Here's what it does: ### Key Capabilities: 1. **Trace Collection**: SideSeat collects OpenTelem…[1335 chars]",
-          "content_digest": "662511f7b0c50e17",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "user",
-          "entry_type": "text",
-          "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG retrieval augmented generation how it works components\"}}",
-          "content_digest": "129224b8c3050748",
-          "tool_name": "search_knowledge",
-          "observation_type": "generation"
-        },
-        {
-          "index": 7,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are em…[1453 chars]",
-          "content_digest": "c59a376276d15ab5",
-          "observation_type": "generation"
-        },
-        {
-          "index": 8,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "## RAG (Retrieval-Augmented Generation) **RAG** is a pattern that combines vector search with LLM generation to provide more accurate and contextually relevant AI responses. ### How RAG Works: The RAG pattern operates in two main phases: 1.…[1638 chars]",
-          "content_digest": "5ec18158b9d820be",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "5b318089/execute_event_loop_cycle/6d76": {
-      "message_count": 2,
-      "role_sequence": [
-        "tool",
-        "tool"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
-          "content_digest": "8de99234c687e268",
-          "observation_type": "span"
-        },
-        {
-          "index": 1,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are em…[1453 chars]",
-          "content_digest": "c59a376276d15ab5",
-          "observation_type": "span"
-        }
-      ]
-    },
-    "5b318089/execute_event_loop_cycle/d857": {
-      "message_count": 3,
-      "role_sequence": [
-        "tool",
-        "assistant",
-        "tool"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
-          "content_digest": "8de99234c687e268",
-          "observation_type": "span"
-        },
-        {
-          "index": 1,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG retrieval augmented generation how it works components\"}}",
-          "content_digest": "129224b8c3050748",
-          "tool_name": "search_knowledge",
-          "observation_type": "span"
-        },
-        {
-          "index": 2,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are em…[1453 chars]",
-          "content_digest": "c59a376276d15ab5",
-          "observation_type": "span"
-        }
-      ]
-    },
-    "5b318089/execute_tool search_knowledge/fd94": {
-      "message_count": 1,
-      "role_sequence": [
-        "tool"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": [
-        {
-          "index": 0,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1334 chars]",
-          "content_digest": "f6bb7accfb359fd0",
-          "observation_type": "tool"
-        }
-      ]
-    },
-    "5b318089/invoke_agent Strands Agents/2aad": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [
-        "search_knowledge"
-      ],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
-          "observation_type": "agent"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
-          "observation_type": "agent"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "## RAG (Retrieval-Augmented Generation) **RAG** is a pattern that combines vector search with LLM generation to provide more accurate and contextually relevant AI responses. ### How RAG Works: The RAG pattern operates in two main phases: 1.…[1638 chars]",
-          "content_digest": "19bccfc4403e0051",
-          "finish_reason": "Stop",
-          "observation_type": "agent"
-        }
-      ]
-    },
-    "5b318089/text_completion amazon.titan-embed-text-v2:0/b1f2": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "adf90955/text_completion amazon.titan-embed-text-v2:0/bb4d": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "c4bdfa70/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/2ef5": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "c4bdfa70/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/722b": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "c4bdfa70/chat/2894": {
-      "message_count": 5,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
-          "content_digest": "3da7725fd2a695af",
-          "tool_name": "search_knowledge",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
-          "content_digest": "8de99234c687e268",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "## SideSeat and AI Observability **SideSeat** is an AI observability toolkit designed to help developers monitor and understand AI applications. Here's what it does: ### Key Capabilities: 1. **Trace Collection**: SideSeat collects OpenTelem…[1335 chars]",
-          "content_digest": "662511f7b0c50e17",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "c4bdfa70/chat/90cc": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
-          "content_digest": "3da7725fd2a695af",
-          "tool_name": "search_knowledge",
-          "finish_reason": "ToolUse",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "c4bdfa70/execute_event_loop_cycle/0506": {
-      "message_count": 1,
-      "role_sequence": [
-        "tool"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
-          "content_digest": "8de99234c687e268",
-          "observation_type": "span"
-        }
-      ]
-    },
-    "c4bdfa70/execute_event_loop_cycle/0eda": {
-      "message_count": 2,
-      "role_sequence": [
-        "assistant",
-        "tool"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
-          "content_digest": "3da7725fd2a695af",
-          "tool_name": "search_knowledge",
-          "observation_type": "span"
-        },
-        {
-          "index": 1,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[1450 chars]",
-          "content_digest": "8de99234c687e268",
-          "observation_type": "span"
-        }
-      ]
-    },
-    "c4bdfa70/execute_tool search_knowledge/6872": {
-      "message_count": 1,
-      "role_sequence": [
-        "tool"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": [
-        {
-          "index": 0,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1331 chars]",
-          "content_digest": "c7ece09e9e0cd49a",
-          "observation_type": "tool"
-        }
-      ]
-    },
-    "c4bdfa70/invoke_agent Strands Agents/5f31": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [
-        "search_knowledge"
-      ],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
-          "observation_type": "agent"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
-          "observation_type": "agent"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "## SideSeat and AI Observability **SideSeat** is an AI observability toolkit designed to help developers monitor and understand AI applications. Here's what it does: ### Key Capabilities: 1. **Trace Collection**: SideSeat collects OpenTelem…[1335 chars]",
-          "content_digest": "79a59b1a7816f343",
-          "finish_reason": "Stop",
-          "observation_type": "agent"
-        }
-      ]
-    },
-    "c4bdfa70/text_completion amazon.titan-embed-text-v2:0/bcba": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "ce6857e8/text_completion amazon.titan-embed-text-v2:0/7f58": {
+    "trace-9/text_completion amazon.titan-embed-text-v2:0/span-6": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -979,14 +979,49 @@
     }
   },
   "trace_views": {
-    "002ac1be": {
+    "trace-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "055d6ae8": {
+    "trace-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-7": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -1005,153 +1040,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
-          "observation_type": "agent"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What embedding models are available for vector search?",
-          "content_digest": "99591aaf305681dc",
-          "observation_type": "agent"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pUadTfZegdTa3n83liika5\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\"}}",
-          "content_digest": "909791f45c9febd7",
-          "tool_name": "search_knowledge",
-          "finish_reason": "ToolUse",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity or L2 distance. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. Cosine similarity m…[831 chars]",
-          "content_digest": "559af8b5c3e5962d",
-          "observation_type": "tool"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "## Available Embedding Models for Vector Search Based on the knowledge base, here are the common embedding models available: ### Popular Embedding Models: 1. **Amazon Titan Embeddings** - AWS's embedding service 2. **OpenAI text-embedding-3…[1228 chars]",
-          "content_digest": "8c7cb1cb165c5fc1",
-          "finish_reason": "Stop",
-          "observation_type": "agent"
-        }
-      ]
-    },
-    "17c1ef5a": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "3a5cf26f": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "54ca609b": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "5b318089": {
-      "message_count": 5,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [
-        "search_knowledge"
-      ],
-      "tool_definition_count": 1,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
-          "observation_type": "agent"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
-          "observation_type": "agent"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG retrieval augmented generation how it works components\"}}",
-          "content_digest": "129224b8c3050748",
-          "tool_name": "search_knowledge",
-          "finish_reason": "ToolUse",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1334 chars]",
-          "content_digest": "f6bb7accfb359fd0",
-          "observation_type": "tool"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "## RAG (Retrieval-Augmented Generation) **RAG** is a pattern that combines vector search with LLM generation to provide more accurate and contextually relevant AI responses. ### How RAG Works: The RAG pattern operates in two main phases: 1.…[1638 chars]",
-          "content_digest": "19bccfc4403e0051",
-          "finish_reason": "Stop",
-          "observation_type": "agent"
-        }
-      ]
-    },
-    "adf90955": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "c4bdfa70": {
-      "message_count": 5,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [
-        "search_knowledge"
-      ],
-      "tool_definition_count": 1,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
+          "content_digest": "90aba6b63e48a6ed",
           "observation_type": "agent"
         },
         {
@@ -1159,7 +1048,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
+          "content_digest": "258073a7aafdb01d",
           "observation_type": "agent"
         },
         {
@@ -1167,7 +1056,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
-          "content_digest": "3da7725fd2a695af",
+          "content_digest": "d34e7a3b48aa42f0",
           "tool_name": "search_knowledge",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -1177,7 +1066,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1331 chars]",
-          "content_digest": "c7ece09e9e0cd49a",
+          "content_digest": "1d59fd0452c9d7e1",
           "observation_type": "tool"
         },
         {
@@ -1185,18 +1074,129 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "## SideSeat and AI Observability **SideSeat** is an AI observability toolkit designed to help developers monitor and understand AI applications. Here's what it does: ### Key Capabilities: 1. **Trace Collection**: SideSeat collects OpenTelem…[1335 chars]",
-          "content_digest": "79a59b1a7816f343",
+          "content_digest": "3c6610f90ace6be1",
           "finish_reason": "Stop",
           "observation_type": "agent"
         }
       ]
     },
-    "ce6857e8": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
+    "trace-8": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG retrieval augmented generation how it works components\"}}",
+          "content_digest": "58c6d59fdef95d47",
+          "tool_name": "search_knowledge",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1334 chars]",
+          "content_digest": "21fa68de70f4ec3e",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## RAG (Retrieval-Augmented Generation) **RAG** is a pattern that combines vector search with LLM generation to provide more accurate and contextually relevant AI responses. ### How RAG Works: The RAG pattern operates in two main phases: 1.…[1638 chars]",
+          "content_digest": "462a674286fd05c4",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-9": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pUadTfZegdTa3n83liika5\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\"}}",
+          "content_digest": "5d01dfdb4a5b7711",
+          "tool_name": "search_knowledge",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity or L2 distance. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. Cosine similarity m…[831 chars]",
+          "content_digest": "275e33ae43b4174d",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "## Available Embedding Models for Vector Search Based on the knowledge base, here are the common embedding models available: ### Popular Embedding Models: 1. **Amazon Titan Embeddings** - AWS's embedding service 2. **OpenAI text-embedding-3…[1228 chars]",
+          "content_digest": "eb5981292279262d",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
     }
   },
   "session_views": {
@@ -1229,7 +1229,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
+          "content_digest": "90aba6b63e48a6ed",
           "observation_type": "agent"
         },
         {
@@ -1237,7 +1237,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
+          "content_digest": "258073a7aafdb01d",
           "observation_type": "agent"
         },
         {
@@ -1245,7 +1245,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gyunbRvwrAEX9RwgzPxun9\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
-          "content_digest": "3da7725fd2a695af",
+          "content_digest": "d34e7a3b48aa42f0",
           "tool_name": "search_knowledge",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -1255,7 +1255,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1331 chars]",
-          "content_digest": "c7ece09e9e0cd49a",
+          "content_digest": "1d59fd0452c9d7e1",
           "observation_type": "tool"
         },
         {
@@ -1263,7 +1263,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "## SideSeat and AI Observability **SideSeat** is an AI observability toolkit designed to help developers monitor and understand AI applications. Here's what it does: ### Key Capabilities: 1. **Trace Collection**: SideSeat collects OpenTelem…[1335 chars]",
-          "content_digest": "79a59b1a7816f343",
+          "content_digest": "3c6610f90ace6be1",
           "finish_reason": "Stop",
           "observation_type": "agent"
         },
@@ -1272,7 +1272,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
+          "content_digest": "90aba6b63e48a6ed",
           "observation_type": "agent"
         },
         {
@@ -1280,7 +1280,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
+          "content_digest": "d75bacebd91f3248",
           "observation_type": "agent"
         },
         {
@@ -1288,7 +1288,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YGWBk5WkCTvRGbokDRCvPm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG retrieval augmented generation how it works components\"}}",
-          "content_digest": "129224b8c3050748",
+          "content_digest": "58c6d59fdef95d47",
           "tool_name": "search_knowledge",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -1298,7 +1298,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.69) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1334 chars]",
-          "content_digest": "f6bb7accfb359fd0",
+          "content_digest": "21fa68de70f4ec3e",
           "observation_type": "tool"
         },
         {
@@ -1306,7 +1306,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "## RAG (Retrieval-Augmented Generation) **RAG** is a pattern that combines vector search with LLM generation to provide more accurate and contextually relevant AI responses. ### How RAG Works: The RAG pattern operates in two main phases: 1.…[1638 chars]",
-          "content_digest": "19bccfc4403e0051",
+          "content_digest": "462a674286fd05c4",
           "finish_reason": "Stop",
           "observation_type": "agent"
         },
@@ -1315,7 +1315,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
+          "content_digest": "90aba6b63e48a6ed",
           "observation_type": "agent"
         },
         {
@@ -1323,7 +1323,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What embedding models are available for vector search?",
-          "content_digest": "99591aaf305681dc",
+          "content_digest": "fc08de1734188b8c",
           "observation_type": "agent"
         },
         {
@@ -1331,7 +1331,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pUadTfZegdTa3n83liika5\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\"}}",
-          "content_digest": "909791f45c9febd7",
+          "content_digest": "5d01dfdb4a5b7711",
           "tool_name": "search_knowledge",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -1341,7 +1341,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity or L2 distance. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. Cosine similarity m…[831 chars]",
-          "content_digest": "559af8b5c3e5962d",
+          "content_digest": "275e33ae43b4174d",
           "observation_type": "tool"
         },
         {
@@ -1349,7 +1349,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "## Available Embedding Models for Vector Search Based on the knowledge base, here are the common embedding models available: ### Popular Embedding Models: 1. **Amazon Titan Embeddings** - AWS's embedding service 2. **OpenAI text-embedding-3…[1228 chars]",
-          "content_digest": "8c7cb1cb165c5fc1",
+          "content_digest": "eb5981292279262d",
           "finish_reason": "Stop",
           "observation_type": "agent"
         }

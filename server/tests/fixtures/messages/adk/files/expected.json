@@ -5,14 +5,14 @@
   "trace_count": 1,
   "session_count": 2,
   "span_views": {
-    "dea94a3b/adk.session/51ad": {
+    "trace-1/adk.session/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "dea94a3b/call_llm/df37": {
+    "trace-1/call_llm/span-4": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -27,7 +27,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a file analysis AI that can read images and documents. You are an agent. Your internal name is \"file_analyzer\".",
-          "content_digest": "2f7d43caea65a3ec",
+          "content_digest": "46a159d54ec88ba2",
           "observation_type": "generation"
         },
         {
@@ -35,7 +35,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Describe the contents of this image in detail using instructions from the PDF document.",
-          "content_digest": "66a068a3dd146a9e",
+          "content_digest": "8c75c636689055d9",
           "observation_type": "generation"
         },
         {
@@ -43,27 +43,27 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Perfect! Following the instruction from the PDF document (\"Write a poem!\"), here is a poem describing the image: --- **A Path Through Spring** Where verdant lawns stretch wide and free, A winding path of dark asphalt flows, Bordered by ston…[1202 chars]",
-          "content_digest": "8828a8c484ba3d5f",
+          "content_digest": "0c9b67259ead034d",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "dea94a3b/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/d9e1": {
+    "trace-1/generate_content bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0/span-5": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "dea94a3b/invocation/501c": {
+    "trace-1/invocation/span-2": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "dea94a3b/invoke_agent file_analyzer/e47a": {
+    "trace-1/invoke_agent file_analyzer/span-3": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -72,7 +72,7 @@
     }
   },
   "trace_views": {
-    "dea94a3b": {
+    "trace-1": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -87,7 +87,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a file analysis AI that can read images and documents. You are an agent. Your internal name is \"file_analyzer\".",
-          "content_digest": "2f7d43caea65a3ec",
+          "content_digest": "46a159d54ec88ba2",
           "observation_type": "generation"
         },
         {
@@ -95,7 +95,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Describe the contents of this image in detail using instructions from the PDF document.",
-          "content_digest": "66a068a3dd146a9e",
+          "content_digest": "8c75c636689055d9",
           "observation_type": "generation"
         },
         {
@@ -103,7 +103,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Perfect! Following the instruction from the PDF document (\"Write a poem!\"), here is a poem describing the image: --- **A Path Through Spring** Where verdant lawns stretch wide and free, A winding path of dark asphalt flows, Bordered by ston…[1202 chars]",
-          "content_digest": "8828a8c484ba3d5f",
+          "content_digest": "0c9b67259ead034d",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -126,7 +126,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a file analysis AI that can read images and documents. You are an agent. Your internal name is \"file_analyzer\".",
-          "content_digest": "2f7d43caea65a3ec",
+          "content_digest": "46a159d54ec88ba2",
           "observation_type": "generation"
         },
         {
@@ -134,7 +134,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Describe the contents of this image in detail using instructions from the PDF document.",
-          "content_digest": "66a068a3dd146a9e",
+          "content_digest": "8c75c636689055d9",
           "observation_type": "generation"
         },
         {
@@ -142,7 +142,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Perfect! Following the instruction from the PDF document (\"Write a poem!\"), here is a poem describing the image: --- **A Path Through Spring** Where verdant lawns stretch wide and free, A winding path of dark asphalt flows, Bordered by ston…[1202 chars]",
-          "content_digest": "8828a8c484ba3d5f",
+          "content_digest": "0c9b67259ead034d",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -163,7 +163,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a file analysis AI that can read images and documents. You are an agent. Your internal name is \"file_analyzer\".",
-          "content_digest": "2f7d43caea65a3ec",
+          "content_digest": "46a159d54ec88ba2",
           "observation_type": "generation"
         },
         {
@@ -171,7 +171,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Describe the contents of this image in detail using instructions from the PDF document.",
-          "content_digest": "66a068a3dd146a9e",
+          "content_digest": "8c75c636689055d9",
           "observation_type": "generation"
         },
         {
@@ -179,7 +179,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Perfect! Following the instruction from the PDF document (\"Write a poem!\"), here is a poem describing the image: --- **A Path Through Spring** Where verdant lawns stretch wide and free, A winding path of dark asphalt flows, Bordered by ston…[1202 chars]",
-          "content_digest": "8828a8c484ba3d5f",
+          "content_digest": "0c9b67259ead034d",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }

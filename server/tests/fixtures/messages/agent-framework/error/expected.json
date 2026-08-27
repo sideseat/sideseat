@@ -1,55 +1,11 @@
 {
-  "label": "strands/error",
+  "label": "agent-framework/error",
   "request_count": 1,
-  "span_count": 4,
+  "span_count": 3,
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "trace-1/chat nonexistent-model-id-12345/span-4": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-1/chat/span-3": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful assistant.",
-          "content_digest": "4e95804d0d397acb",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is 2 + 2?",
-          "content_digest": "63ddd3c6a93ba932",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev…[3407 chars]",
-          "content_digest": "5a17f3de8f08c932",
-          "finish_reason": "Error",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-1/execute_event_loop_cycle/span-2": {
+    "trace-1/agent_framework.session/span-1": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -61,14 +17,51 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev…[4219 chars]",
-          "content_digest": "0794367479b633b7",
+          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[4625 chars]",
+          "content_digest": "0b91a0e3e5f45749",
           "finish_reason": "Error",
-          "observation_type": "span"
+          "observation_type": "agent"
         }
       ]
     },
-    "trace-1/invoke_agent Strands Agents/span-1": {
+    "trace-1/chat nonexistent-model-id-12345/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant.",
+          "content_digest": "4e95804d0d397acb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 2 + 2?",
+          "content_digest": "63ddd3c6a93ba932",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[3325 chars]",
+          "content_digest": "d2c452f929d832cf",
+          "finish_reason": "Error",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/invoke_agent b9582e8f-c784-407b-8916-0e9c66b192d4/span-2": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -98,8 +91,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev…[5574 chars]",
-          "content_digest": "e300440fb82094bc",
+          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[4060 chars]",
+          "content_digest": "677f04cc9486868e",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -108,10 +101,11 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -131,16 +125,26 @@
           "content": "What is 2 + 2?",
           "content_digest": "63ddd3c6a93ba932",
           "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[3325 chars]",
+          "content_digest": "d2c452f929d832cf",
+          "finish_reason": "Error",
+          "observation_type": "generation"
         }
       ]
     }
   },
   "session_views": {
-    "strands-error-8e727ee3": {
-      "message_count": 2,
+    "agent-framework-error-d1d080be": {
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -160,6 +164,15 @@
           "content": "What is 2 + 2?",
           "content_digest": "63ddd3c6a93ba932",
           "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[3325 chars]",
+          "content_digest": "d2c452f929d832cf",
+          "finish_reason": "Error",
+          "observation_type": "generation"
         }
       ]
     }

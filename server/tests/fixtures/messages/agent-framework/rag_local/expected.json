@@ -5,51 +5,14 @@
   "trace_count": 1,
   "session_count": 4,
   "span_views": {
-    "0aa753ce/agent_framework.session/9246": {
+    "trace-1/agent_framework.session/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "0aa753ce/chat us.openai.gpt-5.6-luna/3698": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
-          "content_digest": "a47aac4f69f9cf3b",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similari…[1523 chars]",
-          "content_digest": "991479c02c689904",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "Common embedding models available for vector search include: - **Amazon Titan Embeddings** - **OpenAI `text-embedding-3`** models - **Cohere Embed** Embedding dimensions typically range from **256 to 3,072**, depending on the model. The res…[411 chars]",
-          "content_digest": "2a3c50efafa007be",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "0aa753ce/chat us.openai.gpt-5.6-luna/74b4": {
+    "trace-1/chat us.openai.gpt-5.6-luna/span-11": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -64,118 +27,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
-          "content_digest": "a47aac4f69f9cf3b",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"How does Retrieval-Augmented Generation (RAG) work, and what are its key components? Include ingestion, chunking, embeddings, vector…[327 chars]",
-          "content_digest": "ddaf71b325ed7457",
-          "tool_name": "search_knowledge",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "0aa753ce/chat us.openai.gpt-5.6-luna/7dc1": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
-          "content_digest": "a47aac4f69f9cf3b",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normaliz…[1486 chars]",
-          "content_digest": "a7e19deb3dd74945",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "**SideSeat** is an AI observability toolkit designed for monitoring and debugging AI applications. It: - **Collects OpenTelemetry traces** generated by AI applications. - **Normalizes telemetry from multiple frameworks** into a common **Sid…[716 chars]",
-          "content_digest": "03ddda8c7c9ba9e1",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "0aa753ce/chat us.openai.gpt-5.6-luna/9dfe": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
-          "content_digest": "a47aac4f69f9cf3b",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What is SideSeat and how does it help with AI observability? Microsoft Agent Framework SideSeat observability features architecture\"…[258 chars]",
-          "content_digest": "3f91a5a9cdb8290a",
-          "tool_name": "search_knowledge",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "0aa753ce/chat us.openai.gpt-5.6-luna/a07f": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
-          "content_digest": "a47aac4f69f9cf3b",
+          "content_digest": "4d7a852a15408106",
           "observation_type": "generation"
         },
         {
@@ -183,7 +35,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What embedding models are available for vector search?",
-          "content_digest": "99591aaf305681dc",
+          "content_digest": "fc08de1734188b8c",
           "observation_type": "generation"
         },
         {
@@ -191,13 +43,13 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What embedding models are available for vector search? List supported embedding models and providers, including Microsoft Agent Fram…[307 chars]",
-          "content_digest": "133f1ae286da5786",
+          "content_digest": "96c2ded7ca470354",
           "tool_name": "search_knowledge",
           "observation_type": "generation"
         }
       ]
     },
-    "0aa753ce/chat us.openai.gpt-5.6-luna/ed23": {
+    "trace-1/chat us.openai.gpt-5.6-luna/span-13": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -212,7 +64,155 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
-          "content_digest": "a47aac4f69f9cf3b",
+          "content_digest": "4d7a852a15408106",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similari…[1523 chars]",
+          "content_digest": "5aeba49c5aeba7a6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Common embedding models available for vector search include: - **Amazon Titan Embeddings** - **OpenAI `text-embedding-3`** models - **Cohere Embed** Embedding dimensions typically range from **256 to 3,072**, depending on the model. The res…[411 chars]",
+          "content_digest": "b2d5833103e3b9b0",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat us.openai.gpt-5.6-luna/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+          "content_digest": "4d7a852a15408106",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What is SideSeat and how does it help with AI observability? Microsoft Agent Framework SideSeat observability features architecture\"…[258 chars]",
+          "content_digest": "69b274e8ecb60b96",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat us.openai.gpt-5.6-luna/span-5": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+          "content_digest": "4d7a852a15408106",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normaliz…[1486 chars]",
+          "content_digest": "3571df20e0fcbae0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**SideSeat** is an AI observability toolkit designed for monitoring and debugging AI applications. It: - **Collects OpenTelemetry traces** generated by AI applications. - **Normalizes telemetry from multiple frameworks** into a common **Sid…[716 chars]",
+          "content_digest": "337235209bf003c6",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat us.openai.gpt-5.6-luna/span-7": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+          "content_digest": "4d7a852a15408106",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"How does Retrieval-Augmented Generation (RAG) work, and what are its key components? Include ingestion, chunking, embeddings, vector…[327 chars]",
+          "content_digest": "3cf8cae9b351c013",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat us.openai.gpt-5.6-luna/span-9": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+          "content_digest": "4d7a852a15408106",
           "observation_type": "generation"
         },
         {
@@ -220,7 +220,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.81) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents…[1506 chars]",
-          "content_digest": "6696acb1bfcb31db",
+          "content_digest": "f93bfad974f02a83",
           "observation_type": "generation"
         },
         {
@@ -228,34 +228,34 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "RAG (Retrieval-Augmented Generation) combines **semantic search** with **large language model (LLM) generation**. Instead of relying only on the model’s training data, it retrieves relevant information from an external knowledge source and …[2168 chars]",
-          "content_digest": "684f859beb017af9",
+          "content_digest": "a6fee256e31818f1",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "0aa753ce/execute_tool search_knowledge/8442": {
+    "trace-1/execute_tool search_knowledge/span-12": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 1,
       "messages": []
     },
-    "0aa753ce/execute_tool search_knowledge/b622": {
+    "trace-1/execute_tool search_knowledge/span-4": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 1,
       "messages": []
     },
-    "0aa753ce/execute_tool search_knowledge/fa95": {
+    "trace-1/execute_tool search_knowledge/span-8": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 1,
       "messages": []
     },
-    "0aa753ce/invoke_agent 7f70c882-60b7-4353-af36-bcfca965a20b/2db9": {
+    "trace-1/invoke_agent 7f70c882-60b7-4353-af36-bcfca965a20b/span-10": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -272,7 +272,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
-          "content_digest": "a47aac4f69f9cf3b",
+          "content_digest": "4d7a852a15408106",
           "observation_type": "agent"
         },
         {
@@ -280,7 +280,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What embedding models are available for vector search?",
-          "content_digest": "99591aaf305681dc",
+          "content_digest": "fc08de1734188b8c",
           "observation_type": "agent"
         },
         {
@@ -288,7 +288,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What embedding models are available for vector search? List supported embedding models and providers, including Microsoft Agent Fram…[307 chars]",
-          "content_digest": "133f1ae286da5786",
+          "content_digest": "96c2ded7ca470354",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -297,7 +297,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similari…[1523 chars]",
-          "content_digest": "991479c02c689904",
+          "content_digest": "5aeba49c5aeba7a6",
           "observation_type": "agent"
         },
         {
@@ -305,12 +305,12 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Common embedding models available for vector search include: - **Amazon Titan Embeddings** - **OpenAI `text-embedding-3`** models - **Cohere Embed** Embedding dimensions typically range from **256 to 3,072**, depending on the model. The res…[411 chars]",
-          "content_digest": "2a3c50efafa007be",
+          "content_digest": "b2d5833103e3b9b0",
           "observation_type": "agent"
         }
       ]
     },
-    "0aa753ce/invoke_agent 7f70c882-60b7-4353-af36-bcfca965a20b/b284": {
+    "trace-1/invoke_agent 7f70c882-60b7-4353-af36-bcfca965a20b/span-2": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -327,7 +327,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
-          "content_digest": "a47aac4f69f9cf3b",
+          "content_digest": "4d7a852a15408106",
           "observation_type": "agent"
         },
         {
@@ -335,7 +335,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
+          "content_digest": "258073a7aafdb01d",
           "observation_type": "agent"
         },
         {
@@ -343,7 +343,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What is SideSeat and how does it help with AI observability? Microsoft Agent Framework SideSeat observability features architecture\"…[258 chars]",
-          "content_digest": "3f91a5a9cdb8290a",
+          "content_digest": "69b274e8ecb60b96",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -352,7 +352,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normaliz…[1486 chars]",
-          "content_digest": "a7e19deb3dd74945",
+          "content_digest": "3571df20e0fcbae0",
           "observation_type": "agent"
         },
         {
@@ -360,12 +360,12 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "**SideSeat** is an AI observability toolkit designed for monitoring and debugging AI applications. It: - **Collects OpenTelemetry traces** generated by AI applications. - **Normalizes telemetry from multiple frameworks** into a common **Sid…[716 chars]",
-          "content_digest": "03ddda8c7c9ba9e1",
+          "content_digest": "337235209bf003c6",
           "observation_type": "agent"
         }
       ]
     },
-    "0aa753ce/invoke_agent 7f70c882-60b7-4353-af36-bcfca965a20b/bb00": {
+    "trace-1/invoke_agent 7f70c882-60b7-4353-af36-bcfca965a20b/span-6": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -382,7 +382,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
-          "content_digest": "a47aac4f69f9cf3b",
+          "content_digest": "4d7a852a15408106",
           "observation_type": "agent"
         },
         {
@@ -390,7 +390,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
+          "content_digest": "d75bacebd91f3248",
           "observation_type": "agent"
         },
         {
@@ -398,7 +398,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"How does Retrieval-Augmented Generation (RAG) work, and what are its key components? Include ingestion, chunking, embeddings, vector…[327 chars]",
-          "content_digest": "ddaf71b325ed7457",
+          "content_digest": "3cf8cae9b351c013",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -407,7 +407,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.81) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents…[1506 chars]",
-          "content_digest": "6696acb1bfcb31db",
+          "content_digest": "f93bfad974f02a83",
           "observation_type": "agent"
         },
         {
@@ -415,14 +415,14 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "RAG (Retrieval-Augmented Generation) combines **semantic search** with **large language model (LLM) generation**. Instead of relying only on the model’s training data, it retrieves relevant information from an external knowledge source and …[2168 chars]",
-          "content_digest": "684f859beb017af9",
+          "content_digest": "a6fee256e31818f1",
           "observation_type": "agent"
         }
       ]
     }
   },
   "trace_views": {
-    "0aa753ce": {
+    "trace-1": {
       "message_count": 13,
       "role_sequence": [
         "system",
@@ -447,7 +447,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
-          "content_digest": "a47aac4f69f9cf3b",
+          "content_digest": "4d7a852a15408106",
           "observation_type": "agent"
         },
         {
@@ -455,7 +455,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
+          "content_digest": "258073a7aafdb01d",
           "observation_type": "agent"
         },
         {
@@ -463,7 +463,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What is SideSeat and how does it help with AI observability? Microsoft Agent Framework SideSeat observability features architecture\"…[258 chars]",
-          "content_digest": "3f91a5a9cdb8290a",
+          "content_digest": "69b274e8ecb60b96",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -472,7 +472,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normaliz…[1486 chars]",
-          "content_digest": "a7e19deb3dd74945",
+          "content_digest": "3571df20e0fcbae0",
           "observation_type": "agent"
         },
         {
@@ -480,7 +480,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "**SideSeat** is an AI observability toolkit designed for monitoring and debugging AI applications. It: - **Collects OpenTelemetry traces** generated by AI applications. - **Normalizes telemetry from multiple frameworks** into a common **Sid…[716 chars]",
-          "content_digest": "03ddda8c7c9ba9e1",
+          "content_digest": "337235209bf003c6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -489,7 +489,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
+          "content_digest": "d75bacebd91f3248",
           "observation_type": "agent"
         },
         {
@@ -497,7 +497,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"How does Retrieval-Augmented Generation (RAG) work, and what are its key components? Include ingestion, chunking, embeddings, vector…[327 chars]",
-          "content_digest": "ddaf71b325ed7457",
+          "content_digest": "3cf8cae9b351c013",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -506,7 +506,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.81) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents…[1506 chars]",
-          "content_digest": "6696acb1bfcb31db",
+          "content_digest": "f93bfad974f02a83",
           "observation_type": "agent"
         },
         {
@@ -514,7 +514,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "RAG (Retrieval-Augmented Generation) combines **semantic search** with **large language model (LLM) generation**. Instead of relying only on the model’s training data, it retrieves relevant information from an external knowledge source and …[2168 chars]",
-          "content_digest": "684f859beb017af9",
+          "content_digest": "a6fee256e31818f1",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -523,7 +523,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What embedding models are available for vector search?",
-          "content_digest": "99591aaf305681dc",
+          "content_digest": "fc08de1734188b8c",
           "observation_type": "agent"
         },
         {
@@ -531,7 +531,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What embedding models are available for vector search? List supported embedding models and providers, including Microsoft Agent Fram…[307 chars]",
-          "content_digest": "133f1ae286da5786",
+          "content_digest": "96c2ded7ca470354",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -540,7 +540,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similari…[1523 chars]",
-          "content_digest": "991479c02c689904",
+          "content_digest": "5aeba49c5aeba7a6",
           "observation_type": "agent"
         },
         {
@@ -548,7 +548,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Common embedding models available for vector search include: - **Amazon Titan Embeddings** - **OpenAI `text-embedding-3`** models - **Cohere Embed** Embedding dimensions typically range from **256 to 3,072**, depending on the model. The res…[411 chars]",
-          "content_digest": "2a3c50efafa007be",
+          "content_digest": "b2d5833103e3b9b0",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -581,7 +581,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
-          "content_digest": "a47aac4f69f9cf3b",
+          "content_digest": "4d7a852a15408106",
           "observation_type": "agent"
         },
         {
@@ -589,7 +589,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
+          "content_digest": "258073a7aafdb01d",
           "observation_type": "agent"
         },
         {
@@ -597,7 +597,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What is SideSeat and how does it help with AI observability? Microsoft Agent Framework SideSeat observability features architecture\"…[258 chars]",
-          "content_digest": "3f91a5a9cdb8290a",
+          "content_digest": "69b274e8ecb60b96",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -606,7 +606,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normaliz…[1486 chars]",
-          "content_digest": "a7e19deb3dd74945",
+          "content_digest": "3571df20e0fcbae0",
           "observation_type": "agent"
         },
         {
@@ -614,7 +614,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "**SideSeat** is an AI observability toolkit designed for monitoring and debugging AI applications. It: - **Collects OpenTelemetry traces** generated by AI applications. - **Normalizes telemetry from multiple frameworks** into a common **Sid…[716 chars]",
-          "content_digest": "03ddda8c7c9ba9e1",
+          "content_digest": "337235209bf003c6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -623,7 +623,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
+          "content_digest": "d75bacebd91f3248",
           "observation_type": "agent"
         },
         {
@@ -631,7 +631,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"How does Retrieval-Augmented Generation (RAG) work, and what are its key components? Include ingestion, chunking, embeddings, vector…[327 chars]",
-          "content_digest": "ddaf71b325ed7457",
+          "content_digest": "3cf8cae9b351c013",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -640,7 +640,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.81) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents…[1506 chars]",
-          "content_digest": "6696acb1bfcb31db",
+          "content_digest": "f93bfad974f02a83",
           "observation_type": "agent"
         },
         {
@@ -648,7 +648,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "RAG (Retrieval-Augmented Generation) combines **semantic search** with **large language model (LLM) generation**. Instead of relying only on the model’s training data, it retrieves relevant information from an external knowledge source and …[2168 chars]",
-          "content_digest": "684f859beb017af9",
+          "content_digest": "a6fee256e31818f1",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -657,7 +657,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What embedding models are available for vector search?",
-          "content_digest": "99591aaf305681dc",
+          "content_digest": "fc08de1734188b8c",
           "observation_type": "agent"
         },
         {
@@ -665,7 +665,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What embedding models are available for vector search? List supported embedding models and providers, including Microsoft Agent Fram…[307 chars]",
-          "content_digest": "133f1ae286da5786",
+          "content_digest": "96c2ded7ca470354",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -674,7 +674,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similari…[1523 chars]",
-          "content_digest": "991479c02c689904",
+          "content_digest": "5aeba49c5aeba7a6",
           "observation_type": "agent"
         },
         {
@@ -682,7 +682,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Common embedding models available for vector search include: - **Amazon Titan Embeddings** - **OpenAI `text-embedding-3`** models - **Cohere Embed** Embedding dimensions typically range from **256 to 3,072**, depending on the model. The res…[411 chars]",
-          "content_digest": "2a3c50efafa007be",
+          "content_digest": "b2d5833103e3b9b0",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -713,7 +713,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
-          "content_digest": "a47aac4f69f9cf3b",
+          "content_digest": "4d7a852a15408106",
           "observation_type": "agent"
         },
         {
@@ -721,7 +721,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
+          "content_digest": "258073a7aafdb01d",
           "observation_type": "agent"
         },
         {
@@ -729,7 +729,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What is SideSeat and how does it help with AI observability? Microsoft Agent Framework SideSeat observability features architecture\"…[258 chars]",
-          "content_digest": "3f91a5a9cdb8290a",
+          "content_digest": "69b274e8ecb60b96",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -738,7 +738,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normaliz…[1486 chars]",
-          "content_digest": "a7e19deb3dd74945",
+          "content_digest": "3571df20e0fcbae0",
           "observation_type": "agent"
         },
         {
@@ -746,7 +746,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "**SideSeat** is an AI observability toolkit designed for monitoring and debugging AI applications. It: - **Collects OpenTelemetry traces** generated by AI applications. - **Normalizes telemetry from multiple frameworks** into a common **Sid…[716 chars]",
-          "content_digest": "03ddda8c7c9ba9e1",
+          "content_digest": "337235209bf003c6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -755,7 +755,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
+          "content_digest": "d75bacebd91f3248",
           "observation_type": "agent"
         },
         {
@@ -763,7 +763,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"How does Retrieval-Augmented Generation (RAG) work, and what are its key components? Include ingestion, chunking, embeddings, vector…[327 chars]",
-          "content_digest": "ddaf71b325ed7457",
+          "content_digest": "3cf8cae9b351c013",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -772,7 +772,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.81) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents…[1506 chars]",
-          "content_digest": "6696acb1bfcb31db",
+          "content_digest": "f93bfad974f02a83",
           "observation_type": "agent"
         },
         {
@@ -780,7 +780,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "RAG (Retrieval-Augmented Generation) combines **semantic search** with **large language model (LLM) generation**. Instead of relying only on the model’s training data, it retrieves relevant information from an external knowledge source and …[2168 chars]",
-          "content_digest": "684f859beb017af9",
+          "content_digest": "a6fee256e31818f1",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -789,7 +789,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What embedding models are available for vector search?",
-          "content_digest": "99591aaf305681dc",
+          "content_digest": "fc08de1734188b8c",
           "observation_type": "agent"
         },
         {
@@ -797,7 +797,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What embedding models are available for vector search? List supported embedding models and providers, including Microsoft Agent Fram…[307 chars]",
-          "content_digest": "133f1ae286da5786",
+          "content_digest": "96c2ded7ca470354",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -806,7 +806,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similari…[1523 chars]",
-          "content_digest": "991479c02c689904",
+          "content_digest": "5aeba49c5aeba7a6",
           "observation_type": "agent"
         },
         {
@@ -814,7 +814,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Common embedding models available for vector search include: - **Amazon Titan Embeddings** - **OpenAI `text-embedding-3`** models - **Cohere Embed** Embedding dimensions typically range from **256 to 3,072**, depending on the model. The res…[411 chars]",
-          "content_digest": "2a3c50efafa007be",
+          "content_digest": "b2d5833103e3b9b0",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -845,7 +845,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
-          "content_digest": "a47aac4f69f9cf3b",
+          "content_digest": "4d7a852a15408106",
           "observation_type": "agent"
         },
         {
@@ -853,7 +853,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
+          "content_digest": "258073a7aafdb01d",
           "observation_type": "agent"
         },
         {
@@ -861,7 +861,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What is SideSeat and how does it help with AI observability? Microsoft Agent Framework SideSeat observability features architecture\"…[258 chars]",
-          "content_digest": "3f91a5a9cdb8290a",
+          "content_digest": "69b274e8ecb60b96",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -870,7 +870,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normaliz…[1486 chars]",
-          "content_digest": "a7e19deb3dd74945",
+          "content_digest": "3571df20e0fcbae0",
           "observation_type": "agent"
         },
         {
@@ -878,7 +878,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "**SideSeat** is an AI observability toolkit designed for monitoring and debugging AI applications. It: - **Collects OpenTelemetry traces** generated by AI applications. - **Normalizes telemetry from multiple frameworks** into a common **Sid…[716 chars]",
-          "content_digest": "03ddda8c7c9ba9e1",
+          "content_digest": "337235209bf003c6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -887,7 +887,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
+          "content_digest": "d75bacebd91f3248",
           "observation_type": "agent"
         },
         {
@@ -895,7 +895,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"How does Retrieval-Augmented Generation (RAG) work, and what are its key components? Include ingestion, chunking, embeddings, vector…[327 chars]",
-          "content_digest": "ddaf71b325ed7457",
+          "content_digest": "3cf8cae9b351c013",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -904,7 +904,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.81) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents…[1506 chars]",
-          "content_digest": "6696acb1bfcb31db",
+          "content_digest": "f93bfad974f02a83",
           "observation_type": "agent"
         },
         {
@@ -912,7 +912,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "RAG (Retrieval-Augmented Generation) combines **semantic search** with **large language model (LLM) generation**. Instead of relying only on the model’s training data, it retrieves relevant information from an external knowledge source and …[2168 chars]",
-          "content_digest": "684f859beb017af9",
+          "content_digest": "a6fee256e31818f1",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -921,7 +921,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What embedding models are available for vector search?",
-          "content_digest": "99591aaf305681dc",
+          "content_digest": "fc08de1734188b8c",
           "observation_type": "agent"
         },
         {
@@ -929,7 +929,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What embedding models are available for vector search? List supported embedding models and providers, including Microsoft Agent Fram…[307 chars]",
-          "content_digest": "133f1ae286da5786",
+          "content_digest": "96c2ded7ca470354",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -938,7 +938,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similari…[1523 chars]",
-          "content_digest": "991479c02c689904",
+          "content_digest": "5aeba49c5aeba7a6",
           "observation_type": "agent"
         },
         {
@@ -946,7 +946,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Common embedding models available for vector search include: - **Amazon Titan Embeddings** - **OpenAI `text-embedding-3`** models - **Cohere Embed** Embedding dimensions typically range from **256 to 3,072**, depending on the model. The res…[411 chars]",
-          "content_digest": "2a3c50efafa007be",
+          "content_digest": "b2d5833103e3b9b0",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -977,7 +977,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
-          "content_digest": "a47aac4f69f9cf3b",
+          "content_digest": "4d7a852a15408106",
           "observation_type": "agent"
         },
         {
@@ -985,7 +985,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
+          "content_digest": "258073a7aafdb01d",
           "observation_type": "agent"
         },
         {
@@ -993,7 +993,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What is SideSeat and how does it help with AI observability? Microsoft Agent Framework SideSeat observability features architecture\"…[258 chars]",
-          "content_digest": "3f91a5a9cdb8290a",
+          "content_digest": "69b274e8ecb60b96",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -1002,7 +1002,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normaliz…[1486 chars]",
-          "content_digest": "a7e19deb3dd74945",
+          "content_digest": "3571df20e0fcbae0",
           "observation_type": "agent"
         },
         {
@@ -1010,7 +1010,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "**SideSeat** is an AI observability toolkit designed for monitoring and debugging AI applications. It: - **Collects OpenTelemetry traces** generated by AI applications. - **Normalizes telemetry from multiple frameworks** into a common **Sid…[716 chars]",
-          "content_digest": "03ddda8c7c9ba9e1",
+          "content_digest": "337235209bf003c6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -1019,7 +1019,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
+          "content_digest": "d75bacebd91f3248",
           "observation_type": "agent"
         },
         {
@@ -1027,7 +1027,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"How does Retrieval-Augmented Generation (RAG) work, and what are its key components? Include ingestion, chunking, embeddings, vector…[327 chars]",
-          "content_digest": "ddaf71b325ed7457",
+          "content_digest": "3cf8cae9b351c013",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -1036,7 +1036,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.81) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents…[1506 chars]",
-          "content_digest": "6696acb1bfcb31db",
+          "content_digest": "f93bfad974f02a83",
           "observation_type": "agent"
         },
         {
@@ -1044,7 +1044,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "RAG (Retrieval-Augmented Generation) combines **semantic search** with **large language model (LLM) generation**. Instead of relying only on the model’s training data, it retrieves relevant information from an external knowledge source and …[2168 chars]",
-          "content_digest": "684f859beb017af9",
+          "content_digest": "a6fee256e31818f1",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -1053,7 +1053,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What embedding models are available for vector search?",
-          "content_digest": "99591aaf305681dc",
+          "content_digest": "fc08de1734188b8c",
           "observation_type": "agent"
         },
         {
@@ -1061,7 +1061,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What embedding models are available for vector search? List supported embedding models and providers, including Microsoft Agent Fram…[307 chars]",
-          "content_digest": "133f1ae286da5786",
+          "content_digest": "96c2ded7ca470354",
           "tool_name": "search_knowledge",
           "observation_type": "agent"
         },
@@ -1070,7 +1070,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similari…[1523 chars]",
-          "content_digest": "991479c02c689904",
+          "content_digest": "5aeba49c5aeba7a6",
           "observation_type": "agent"
         },
         {
@@ -1078,7 +1078,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Common embedding models available for vector search include: - **Amazon Titan Embeddings** - **OpenAI `text-embedding-3`** models - **Cohere Embed** Embedding dimensions typically range from **256 to 3,072**, depending on the model. The res…[411 chars]",
-          "content_digest": "2a3c50efafa007be",
+          "content_digest": "b2d5833103e3b9b0",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }

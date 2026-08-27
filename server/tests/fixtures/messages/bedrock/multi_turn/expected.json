@@ -5,14 +5,51 @@
   "trace_count": 1,
   "session_count": 0,
   "span_views": {
-    "133dea5e/bedrock-converse/e56e": {
+    "trace-1/bedrock-converse/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "133dea5e/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/893b": {
+    "trace-1/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful geography assistant. Answer in 1-2 sentences.",
+          "content_digest": "626692779f3ab463",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the capital of France?",
+          "content_digest": "a5c958afb009ef20",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The capital of France is Paris. It is located in the north-central part of the country along the Seine River and is known for iconic landmarks like the Eiffel Tower and Notre-Dame Cathedral.",
+          "content_digest": "b0c3a2174e2c1ad1",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-3": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -29,7 +66,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful geography assistant. Answer in 1-2 sentences.",
-          "content_digest": "a33d755677ab7d94",
+          "content_digest": "626692779f3ab463",
           "observation_type": "generation"
         },
         {
@@ -37,7 +74,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the capital of France?",
-          "content_digest": "b09c8017834e1de2",
+          "content_digest": "a5c958afb009ef20",
           "observation_type": "generation"
         },
         {
@@ -45,7 +82,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The capital of France is Paris. It is located in the north-central part of the country along the Seine River and is known for iconic landmarks like the Eiffel Tower and Notre-Dame Cathedral.",
-          "content_digest": "088d7a8e2d2e37b4",
+          "content_digest": "b0c3a2174e2c1ad1",
           "observation_type": "generation"
         },
         {
@@ -53,7 +90,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What about Germany?",
-          "content_digest": "c85588d35e7ac09f",
+          "content_digest": "bb7dbff75e9e01f7",
           "observation_type": "generation"
         },
         {
@@ -61,13 +98,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The capital of Germany is Berlin. It is located in the northeastern part of the country and serves as the country's largest city and cultural center.",
-          "content_digest": "d396c07f1c73232c",
+          "content_digest": "f496081f4f40d4c5",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "133dea5e/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/b952": {
+    "trace-1/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-4": {
       "message_count": 7,
       "role_sequence": [
         "system",
@@ -86,7 +123,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful geography assistant. Answer in 1-2 sentences.",
-          "content_digest": "a33d755677ab7d94",
+          "content_digest": "626692779f3ab463",
           "observation_type": "generation"
         },
         {
@@ -94,7 +131,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the capital of France?",
-          "content_digest": "b09c8017834e1de2",
+          "content_digest": "a5c958afb009ef20",
           "observation_type": "generation"
         },
         {
@@ -102,7 +139,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The capital of France is Paris. It is located in the north-central part of the country along the Seine River and is known for iconic landmarks like the Eiffel Tower and Notre-Dame Cathedral.",
-          "content_digest": "088d7a8e2d2e37b4",
+          "content_digest": "b0c3a2174e2c1ad1",
           "observation_type": "generation"
         },
         {
@@ -110,7 +147,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What about Germany?",
-          "content_digest": "c85588d35e7ac09f",
+          "content_digest": "bb7dbff75e9e01f7",
           "observation_type": "generation"
         },
         {
@@ -118,7 +155,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The capital of Germany is Berlin. It is located in the northeastern part of the country and serves as the country's largest city and cultural center.",
-          "content_digest": "d396c07f1c73232c",
+          "content_digest": "f496081f4f40d4c5",
           "observation_type": "generation"
         },
         {
@@ -126,7 +163,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Which of the two cities has a larger population?",
-          "content_digest": "cf8cf56a8704d905",
+          "content_digest": "600c99295fd99a0d",
           "observation_type": "generation"
         },
         {
@@ -134,44 +171,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Berlin has a larger population within the city proper, with approximately 3.6 million residents compared to Paris's approximately 2.2 million. However, the Paris metropolitan area is larger overall with about 2.2 million more people than Be…[258 chars]",
-          "content_digest": "6962481b8c4af5f6",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "133dea5e/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/d9af": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful geography assistant. Answer in 1-2 sentences.",
-          "content_digest": "a33d755677ab7d94",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is the capital of France?",
-          "content_digest": "b09c8017834e1de2",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The capital of France is Paris. It is located in the north-central part of the country along the Seine River and is known for iconic landmarks like the Eiffel Tower and Notre-Dame Cathedral.",
-          "content_digest": "088d7a8e2d2e37b4",
+          "content_digest": "a30b25e789a4c1d2",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -179,7 +179,7 @@
     }
   },
   "trace_views": {
-    "133dea5e": {
+    "trace-1": {
       "message_count": 7,
       "role_sequence": [
         "system",
@@ -198,7 +198,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful geography assistant. Answer in 1-2 sentences.",
-          "content_digest": "a33d755677ab7d94",
+          "content_digest": "626692779f3ab463",
           "observation_type": "generation"
         },
         {
@@ -206,7 +206,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the capital of France?",
-          "content_digest": "b09c8017834e1de2",
+          "content_digest": "a5c958afb009ef20",
           "observation_type": "generation"
         },
         {
@@ -214,7 +214,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The capital of France is Paris. It is located in the north-central part of the country along the Seine River and is known for iconic landmarks like the Eiffel Tower and Notre-Dame Cathedral.",
-          "content_digest": "088d7a8e2d2e37b4",
+          "content_digest": "b0c3a2174e2c1ad1",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -223,7 +223,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What about Germany?",
-          "content_digest": "c85588d35e7ac09f",
+          "content_digest": "bb7dbff75e9e01f7",
           "observation_type": "generation"
         },
         {
@@ -231,7 +231,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The capital of Germany is Berlin. It is located in the northeastern part of the country and serves as the country's largest city and cultural center.",
-          "content_digest": "d396c07f1c73232c",
+          "content_digest": "f496081f4f40d4c5",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -240,7 +240,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Which of the two cities has a larger population?",
-          "content_digest": "cf8cf56a8704d905",
+          "content_digest": "600c99295fd99a0d",
           "observation_type": "generation"
         },
         {
@@ -248,7 +248,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Berlin has a larger population within the city proper, with approximately 3.6 million residents compared to Paris's approximately 2.2 million. However, the Paris metropolitan area is larger overall with about 2.2 million more people than Be…[258 chars]",
-          "content_digest": "6962481b8c4af5f6",
+          "content_digest": "a30b25e789a4c1d2",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }

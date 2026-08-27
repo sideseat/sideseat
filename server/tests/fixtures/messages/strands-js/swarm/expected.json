@@ -5,14 +5,14 @@
   "trace_count": 1,
   "session_count": 0,
   "span_views": {
-    "32f6a370/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/0904": {
+    "trace-1/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-6": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "32f6a370/chat/cafb": {
+    "trace-1/chat/span-5": {
       "message_count": 4,
       "role_sequence": [
         "system",
@@ -28,7 +28,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Delegate to: researcher (for research/info), coder (for implementation), reviewer (for code review) 4…[339 chars]",
-          "content_digest": "e03134a8a0cd1a7b",
+          "content_digest": "b4cd237077a29eb3",
           "observation_type": "generation"
         },
         {
@@ -36,7 +36,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
-          "content_digest": "02fce307ee71a55f",
+          "content_digest": "f70ad56a39c626b9",
           "observation_type": "generation"
         },
         {
@@ -44,7 +44,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I'll break down this project into a structured plan for building a weather app. Let me create a comprehensive project plan that identifies the key tasks and which specialists should handle them.",
-          "content_digest": "3b15534957ac8459",
+          "content_digest": "c1d8de83b3693175",
           "observation_type": "generation"
         },
         {
@@ -52,20 +52,20 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_dcScuDsYJezJEXrH0rvpxn\",\"name\":\"strands_structured_output\",\"input\":{\"message\":\"## Weather App Project Plan\\n\\n### Project Overview\\nBuild a weather app that displays forecasts for multiple cities with real-t…[3589 chars]",
-          "content_digest": "2e7568cb335c5b6d",
+          "content_digest": "a8293d389860ca7e",
           "tool_name": "strands_structured_output",
           "observation_type": "generation"
         }
       ]
     },
-    "32f6a370/execute_agent_loop_cycle/ffb4": {
+    "trace-1/execute_agent_loop_cycle/span-3": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "32f6a370/execute_tool strands_structured_output/1a87": {
+    "trace-1/execute_tool strands_structured_output/span-7": {
       "message_count": 1,
       "role_sequence": [
         "tool"
@@ -78,12 +78,12 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_dcScuDsYJezJEXrH0rvpxn\",\"content\":{\"json\":{\"message\":\"## Weather App Project Plan\\n\\n### Project Overview\\nBuild a weather app that displays forecasts for multiple cities with real-time data, use…[3577 chars]",
-          "content_digest": "b535ab12c3451bf0",
+          "content_digest": "1cd68985c7b29e5a",
           "observation_type": "tool"
         }
       ]
     },
-    "32f6a370/invoke_agent Planner/14c0": {
+    "trace-1/invoke_agent Planner/span-4": {
       "message_count": 2,
       "role_sequence": [
         "system",
@@ -99,7 +99,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Delegate to: researcher (for research/info), coder (for implementation), reviewer (for code review) 4…[339 chars]",
-          "content_digest": "e03134a8a0cd1a7b",
+          "content_digest": "b4cd237077a29eb3",
           "observation_type": "agent"
         },
         {
@@ -107,19 +107,19 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I'll break down this project into a structured plan for building a weather app. Let me create a comprehensive project plan that identifies the key tasks and which specialists should handle them.",
-          "content_digest": "3b15534957ac8459",
+          "content_digest": "c1d8de83b3693175",
           "observation_type": "agent"
         }
       ]
     },
-    "32f6a370/invoke_swarm swarm/35e4": {
+    "trace-1/invoke_swarm swarm/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "32f6a370/node planner/f952": {
+    "trace-1/node planner/span-2": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -128,7 +128,7 @@
     }
   },
   "trace_views": {
-    "32f6a370": {
+    "trace-1": {
       "message_count": 4,
       "role_sequence": [
         "system",
@@ -146,7 +146,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Delegate to: researcher (for research/info), coder (for implementation), reviewer (for code review) 4…[339 chars]",
-          "content_digest": "e03134a8a0cd1a7b",
+          "content_digest": "b4cd237077a29eb3",
           "observation_type": "agent"
         },
         {
@@ -154,7 +154,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_dcScuDsYJezJEXrH0rvpxn\",\"name\":\"strands_structured_output\",\"input\":{\"message\":\"## Weather App Project Plan\\n\\n### Project Overview\\nBuild a weather app that displays forecasts for multiple cities with real-t…[3589 chars]",
-          "content_digest": "2e7568cb335c5b6d",
+          "content_digest": "a8293d389860ca7e",
           "tool_name": "strands_structured_output",
           "observation_type": "generation"
         },
@@ -163,7 +163,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_dcScuDsYJezJEXrH0rvpxn\",\"content\":{\"json\":{\"message\":\"## Weather App Project Plan\\n\\n### Project Overview\\nBuild a weather app that displays forecasts for multiple cities with real-time data, use…[3577 chars]",
-          "content_digest": "b535ab12c3451bf0",
+          "content_digest": "1cd68985c7b29e5a",
           "observation_type": "tool"
         },
         {
@@ -171,7 +171,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I'll break down this project into a structured plan for building a weather app. Let me create a comprehensive project plan that identifies the key tasks and which specialists should handle them.",
-          "content_digest": "3b15534957ac8459",
+          "content_digest": "c1d8de83b3693175",
           "observation_type": "agent"
         }
       ]

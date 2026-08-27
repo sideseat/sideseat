@@ -5,14 +5,14 @@
   "trace_count": 1,
   "session_count": 2,
   "span_views": {
-    "83913e0c/agent_framework.session/6348": {
+    "trace-1/agent_framework.session/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "83913e0c/chat us.openai.gpt-5.6-luna/0187": {
+    "trace-1/chat us.openai.gpt-5.6-luna/span-3": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -29,7 +29,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are an AI artist. When asked to generate images, use the generate_image tool with varied prompts for each image to create a diverse collection. Your final output must contain ONLY a comma-separated list of the filesystem paths of genera…[251 chars]",
-          "content_digest": "5cba32737ba4ed36",
+          "content_digest": "4385512ef99f5ca2",
           "observation_type": "generation"
         },
         {
@@ -37,7 +37,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Generate 3 different creative images of a dog. Vary the style, setting, and mood for each.",
-          "content_digest": "1869fce015d822ca",
+          "content_digest": "de34d706cba0049d",
           "observation_type": "generation"
         },
         {
@@ -45,7 +45,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_450be31a7c105bb5b3f62e31a3d71b41\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful golden retriever running through a sunlit wildflower meadow at golden hour, ears flying, warm cinematic photography, soft le…[316 chars]",
-          "content_digest": "f6baa02a4edf5fbc",
+          "content_digest": "88a42a181ba1442c",
           "tool_name": "generate_image",
           "observation_type": "generation"
         },
@@ -54,7 +54,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_5af7e1767dbb5adf838950c8433223c5\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A small black-and-white terrier astronaut floating inside a whimsical retro-futuristic spaceship, colorful planets visible through th…[331 chars]",
-          "content_digest": "8b50eac0f19de58b",
+          "content_digest": "e7a9ee8c2680454c",
           "tool_name": "generate_image",
           "observation_type": "generation"
         },
@@ -63,13 +63,13 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_a14dfb80da1c59bdb2509df0e6215be8\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"An elegant white samoyed sitting beneath a red paper lantern in a quiet rainy Kyoto alley at night, Japanese ink-and-watercolor aesth…[335 chars]",
-          "content_digest": "82c1140824fb63c5",
+          "content_digest": "15580deb3f952f61",
           "tool_name": "generate_image",
           "observation_type": "generation"
         }
       ]
     },
-    "83913e0c/chat us.openai.gpt-5.6-luna/0481": {
+    "trace-1/chat us.openai.gpt-5.6-luna/span-7": {
       "message_count": 2,
       "role_sequence": [
         "system",
@@ -83,7 +83,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are an AI artist. When asked to generate images, use the generate_image tool with varied prompts for each image to create a diverse collection. Your final output must contain ONLY a comma-separated list of the filesystem paths of genera…[251 chars]",
-          "content_digest": "5cba32737ba4ed36",
+          "content_digest": "4385512ef99f5ca2",
           "observation_type": "generation"
         },
         {
@@ -91,40 +91,42 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_450be31a7c105bb5b3f62e31a3d71b41\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
-          "content_digest": "4348c339ae4cc30a",
+          "content_digest": "15519039ac4531f6",
           "observation_type": "generation"
         }
       ]
     },
-    "83913e0c/execute_tool generate_image/6d7c": {
+    "trace-1/execute_tool generate_image/span-4": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 1,
       "messages": []
     },
-    "83913e0c/execute_tool generate_image/b106": {
+    "trace-1/execute_tool generate_image/span-5": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 1,
       "messages": []
     },
-    "83913e0c/execute_tool generate_image/e9ee": {
+    "trace-1/execute_tool generate_image/span-6": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 1,
       "messages": []
     },
-    "83913e0c/invoke_agent d17b85b2-0ac5-4574-b272-e883ac75cf85/3d00": {
-      "message_count": 6,
+    "trace-1/invoke_agent d17b85b2-0ac5-4574-b272-e883ac75cf85/span-2": {
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "assistant",
         "assistant",
+        "tool",
+        "tool",
         "tool"
       ],
       "tool_names": [],
@@ -135,7 +137,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are an AI artist. When asked to generate images, use the generate_image tool with varied prompts for each image to create a diverse collection. Your final output must contain ONLY a comma-separated list of the filesystem paths of genera…[251 chars]",
-          "content_digest": "5cba32737ba4ed36",
+          "content_digest": "4385512ef99f5ca2",
           "observation_type": "agent"
         },
         {
@@ -143,7 +145,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Generate 3 different creative images of a dog. Vary the style, setting, and mood for each.",
-          "content_digest": "1869fce015d822ca",
+          "content_digest": "de34d706cba0049d",
           "observation_type": "agent"
         },
         {
@@ -151,7 +153,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_450be31a7c105bb5b3f62e31a3d71b41\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful golden retriever running through a sunlit wildflower meadow at golden hour, ears flying, warm cinematic photography, soft le…[316 chars]",
-          "content_digest": "f6baa02a4edf5fbc",
+          "content_digest": "88a42a181ba1442c",
           "tool_name": "generate_image",
           "observation_type": "agent"
         },
@@ -160,7 +162,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_5af7e1767dbb5adf838950c8433223c5\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A small black-and-white terrier astronaut floating inside a whimsical retro-futuristic spaceship, colorful planets visible through th…[331 chars]",
-          "content_digest": "8b50eac0f19de58b",
+          "content_digest": "e7a9ee8c2680454c",
           "tool_name": "generate_image",
           "observation_type": "agent"
         },
@@ -169,7 +171,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_a14dfb80da1c59bdb2509df0e6215be8\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"An elegant white samoyed sitting beneath a red paper lantern in a quiet rainy Kyoto alley at night, Japanese ink-and-watercolor aesth…[335 chars]",
-          "content_digest": "82c1140824fb63c5",
+          "content_digest": "15580deb3f952f61",
           "tool_name": "generate_image",
           "observation_type": "agent"
         },
@@ -178,21 +180,39 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_450be31a7c105bb5b3f62e31a3d71b41\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
-          "content_digest": "4348c339ae4cc30a",
+          "content_digest": "15519039ac4531f6",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_5af7e1767dbb5adf838950c8433223c5\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
+          "content_digest": "f8363cf4d87a2d64",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_a14dfb80da1c59bdb2509df0e6215be8\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
+          "content_digest": "137edcbf9ffe2e4b",
           "observation_type": "agent"
         }
       ]
     }
   },
   "trace_views": {
-    "83913e0c": {
-      "message_count": 6,
+    "trace-1": {
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "assistant",
         "assistant",
+        "tool",
+        "tool",
         "tool"
       ],
       "tool_names": [],
@@ -203,7 +223,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are an AI artist. When asked to generate images, use the generate_image tool with varied prompts for each image to create a diverse collection. Your final output must contain ONLY a comma-separated list of the filesystem paths of genera…[251 chars]",
-          "content_digest": "5cba32737ba4ed36",
+          "content_digest": "4385512ef99f5ca2",
           "observation_type": "agent"
         },
         {
@@ -211,7 +231,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Generate 3 different creative images of a dog. Vary the style, setting, and mood for each.",
-          "content_digest": "1869fce015d822ca",
+          "content_digest": "de34d706cba0049d",
           "observation_type": "agent"
         },
         {
@@ -219,7 +239,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_450be31a7c105bb5b3f62e31a3d71b41\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful golden retriever running through a sunlit wildflower meadow at golden hour, ears flying, warm cinematic photography, soft le…[316 chars]",
-          "content_digest": "f6baa02a4edf5fbc",
+          "content_digest": "88a42a181ba1442c",
           "tool_name": "generate_image",
           "observation_type": "agent"
         },
@@ -228,7 +248,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_5af7e1767dbb5adf838950c8433223c5\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A small black-and-white terrier astronaut floating inside a whimsical retro-futuristic spaceship, colorful planets visible through th…[331 chars]",
-          "content_digest": "8b50eac0f19de58b",
+          "content_digest": "e7a9ee8c2680454c",
           "tool_name": "generate_image",
           "observation_type": "agent"
         },
@@ -237,7 +257,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_a14dfb80da1c59bdb2509df0e6215be8\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"An elegant white samoyed sitting beneath a red paper lantern in a quiet rainy Kyoto alley at night, Japanese ink-and-watercolor aesth…[335 chars]",
-          "content_digest": "82c1140824fb63c5",
+          "content_digest": "15580deb3f952f61",
           "tool_name": "generate_image",
           "observation_type": "agent"
         },
@@ -246,7 +266,23 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_450be31a7c105bb5b3f62e31a3d71b41\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
-          "content_digest": "4348c339ae4cc30a",
+          "content_digest": "15519039ac4531f6",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_5af7e1767dbb5adf838950c8433223c5\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
+          "content_digest": "f8363cf4d87a2d64",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_a14dfb80da1c59bdb2509df0e6215be8\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
+          "content_digest": "137edcbf9ffe2e4b",
           "observation_type": "agent"
         }
       ]
@@ -254,13 +290,15 @@
   },
   "session_views": {
     "agent-framework-image_gen-29c60057": {
-      "message_count": 6,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "assistant",
         "assistant",
+        "tool",
+        "tool",
         "tool"
       ],
       "tool_names": [],
@@ -271,7 +309,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are an AI artist. When asked to generate images, use the generate_image tool with varied prompts for each image to create a diverse collection. Your final output must contain ONLY a comma-separated list of the filesystem paths of genera…[251 chars]",
-          "content_digest": "5cba32737ba4ed36",
+          "content_digest": "4385512ef99f5ca2",
           "observation_type": "agent"
         },
         {
@@ -279,7 +317,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Generate 3 different creative images of a dog. Vary the style, setting, and mood for each.",
-          "content_digest": "1869fce015d822ca",
+          "content_digest": "de34d706cba0049d",
           "observation_type": "agent"
         },
         {
@@ -287,7 +325,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_450be31a7c105bb5b3f62e31a3d71b41\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful golden retriever running through a sunlit wildflower meadow at golden hour, ears flying, warm cinematic photography, soft le…[316 chars]",
-          "content_digest": "f6baa02a4edf5fbc",
+          "content_digest": "88a42a181ba1442c",
           "tool_name": "generate_image",
           "observation_type": "agent"
         },
@@ -296,7 +334,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_5af7e1767dbb5adf838950c8433223c5\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A small black-and-white terrier astronaut floating inside a whimsical retro-futuristic spaceship, colorful planets visible through th…[331 chars]",
-          "content_digest": "8b50eac0f19de58b",
+          "content_digest": "e7a9ee8c2680454c",
           "tool_name": "generate_image",
           "observation_type": "agent"
         },
@@ -305,7 +343,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_a14dfb80da1c59bdb2509df0e6215be8\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"An elegant white samoyed sitting beneath a red paper lantern in a quiet rainy Kyoto alley at night, Japanese ink-and-watercolor aesth…[335 chars]",
-          "content_digest": "82c1140824fb63c5",
+          "content_digest": "15580deb3f952f61",
           "tool_name": "generate_image",
           "observation_type": "agent"
         },
@@ -314,19 +352,37 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_450be31a7c105bb5b3f62e31a3d71b41\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
-          "content_digest": "4348c339ae4cc30a",
+          "content_digest": "15519039ac4531f6",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_5af7e1767dbb5adf838950c8433223c5\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
+          "content_digest": "f8363cf4d87a2d64",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_a14dfb80da1c59bdb2509df0e6215be8\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
+          "content_digest": "137edcbf9ffe2e4b",
           "observation_type": "agent"
         }
       ]
     },
     "resp_ovyvesz5fs5ogv5pvlnznmx54ne67sccz6ypjjpkhj37w6k4vugq": {
-      "message_count": 6,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "assistant",
         "assistant",
+        "tool",
+        "tool",
         "tool"
       ],
       "tool_names": [],
@@ -337,7 +393,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are an AI artist. When asked to generate images, use the generate_image tool with varied prompts for each image to create a diverse collection. Your final output must contain ONLY a comma-separated list of the filesystem paths of genera…[251 chars]",
-          "content_digest": "5cba32737ba4ed36",
+          "content_digest": "4385512ef99f5ca2",
           "observation_type": "agent"
         },
         {
@@ -345,7 +401,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Generate 3 different creative images of a dog. Vary the style, setting, and mood for each.",
-          "content_digest": "1869fce015d822ca",
+          "content_digest": "de34d706cba0049d",
           "observation_type": "agent"
         },
         {
@@ -353,7 +409,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_450be31a7c105bb5b3f62e31a3d71b41\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful golden retriever running through a sunlit wildflower meadow at golden hour, ears flying, warm cinematic photography, soft le…[316 chars]",
-          "content_digest": "f6baa02a4edf5fbc",
+          "content_digest": "88a42a181ba1442c",
           "tool_name": "generate_image",
           "observation_type": "agent"
         },
@@ -362,7 +418,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_5af7e1767dbb5adf838950c8433223c5\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A small black-and-white terrier astronaut floating inside a whimsical retro-futuristic spaceship, colorful planets visible through th…[331 chars]",
-          "content_digest": "8b50eac0f19de58b",
+          "content_digest": "e7a9ee8c2680454c",
           "tool_name": "generate_image",
           "observation_type": "agent"
         },
@@ -371,7 +427,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_a14dfb80da1c59bdb2509df0e6215be8\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"An elegant white samoyed sitting beneath a red paper lantern in a quiet rainy Kyoto alley at night, Japanese ink-and-watercolor aesth…[335 chars]",
-          "content_digest": "82c1140824fb63c5",
+          "content_digest": "15580deb3f952f61",
           "tool_name": "generate_image",
           "observation_type": "agent"
         },
@@ -380,7 +436,23 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_450be31a7c105bb5b3f62e31a3d71b41\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
-          "content_digest": "4348c339ae4cc30a",
+          "content_digest": "15519039ac4531f6",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_5af7e1767dbb5adf838950c8433223c5\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
+          "content_digest": "f8363cf4d87a2d64",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_a14dfb80da1c59bdb2509df0e6215be8\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
+          "content_digest": "137edcbf9ffe2e4b",
           "observation_type": "agent"
         }
       ]

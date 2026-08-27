@@ -5,7 +5,7 @@
   "trace_count": 1,
   "session_count": 0,
   "span_views": {
-    "5fdd1512/ai.generateObject.doGenerate/709b": {
+    "trace-1/ai.generateObject.doGenerate/span-2": {
       "message_count": 2,
       "role_sequence": [
         "user",
@@ -19,7 +19,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "74780e0c8378c7bf",
+          "content_digest": "6a08cceee02e13c8",
           "observation_type": "generation"
         },
         {
@@ -27,13 +27,13 @@
           "role": "assistant",
           "entry_type": "json",
           "content": "{\"type\":\"json\",\"data\":{\"address\":{\"city\":\"New York\",\"country\":\"USA\",\"street\":\"123 Main St\"},\"age\":28,\"name\":\"Jane Doe\",\"skills\":[\"systems admin\"]}}",
-          "content_digest": "21b1a9c1865677c0",
+          "content_digest": "02772744a6575708",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "5fdd1512/ai.generateObject/f745": {
+    "trace-1/ai.generateObject/span-1": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -46,7 +46,7 @@
           "role": "assistant",
           "entry_type": "json",
           "content": "{\"type\":\"json\",\"data\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\"},\"contacts\":[],\"skills\":[\"systems admin\"]}}",
-          "content_digest": "6facd2391da283d1",
+          "content_digest": "885f780135bb46bc",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -54,11 +54,10 @@
     }
   },
   "trace_views": {
-    "5fdd1512": {
-      "message_count": 3,
+    "trace-1": {
+      "message_count": 2,
       "role_sequence": [
         "user",
-        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -69,24 +68,15 @@
           "role": "user",
           "entry_type": "text",
           "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "74780e0c8378c7bf",
+          "content_digest": "6a08cceee02e13c8",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "assistant",
           "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"address\":{\"city\":\"New York\",\"country\":\"USA\",\"street\":\"123 Main St\"},\"age\":28,\"name\":\"Jane Doe\",\"skills\":[\"systems admin\"]}}",
-          "content_digest": "21b1a9c1865677c0",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "json",
           "content": "{\"type\":\"json\",\"data\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\"},\"contacts\":[],\"skills\":[\"systems admin\"]}}",
-          "content_digest": "6facd2391da283d1",
+          "content_digest": "885f780135bb46bc",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }

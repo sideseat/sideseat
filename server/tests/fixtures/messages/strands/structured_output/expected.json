@@ -5,14 +5,14 @@
   "trace_count": 1,
   "session_count": 0,
   "span_views": {
-    "d4f8d6e8/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/d877": {
+    "trace-1/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-2": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "d4f8d6e8/execute_structured_output/1f05": {
+    "trace-1/execute_structured_output/span-1": {
       "message_count": 2,
       "role_sequence": [
         "user",
@@ -26,7 +26,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "74780e0c8378c7bf",
+          "content_digest": "6a08cceee02e13c8",
           "observation_type": "agent"
         },
         {
@@ -34,14 +34,14 @@
           "role": "assistant",
           "entry_type": "json",
           "content": "{\"type\":\"json\",\"data\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\",\"postal_code\":null},\"contacts\":[{\"email\":\"jane@example.com\",\"phone\":null}],\"skills\":[\"systems admin\"]}}",
-          "content_digest": "ade7854bc047928a",
+          "content_digest": "53c3205e76c3d83c",
           "observation_type": "agent"
         }
       ]
     }
   },
   "trace_views": {
-    "d4f8d6e8": {
+    "trace-1": {
       "message_count": 2,
       "role_sequence": [
         "user",
@@ -55,7 +55,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "74780e0c8378c7bf",
+          "content_digest": "6a08cceee02e13c8",
           "observation_type": "agent"
         },
         {
@@ -63,7 +63,7 @@
           "role": "assistant",
           "entry_type": "json",
           "content": "{\"type\":\"json\",\"data\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\",\"postal_code\":null},\"contacts\":[{\"email\":\"jane@example.com\",\"phone\":null}],\"skills\":[\"systems admin\"]}}",
-          "content_digest": "ade7854bc047928a",
+          "content_digest": "53c3205e76c3d83c",
           "observation_type": "agent"
         }
       ]

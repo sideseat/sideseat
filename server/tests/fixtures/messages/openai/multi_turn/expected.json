@@ -5,7 +5,43 @@
   "trace_count": 1,
   "session_count": 0,
   "span_views": {
-    "01a0424f/Chat Completion with 'us.openai.gpt-5.6-luna'/00e0": {
+    "trace-1/Chat Completion with 'us.openai.gpt-5.6-luna'/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful geography assistant. Answer in 1-2 sentences.",
+          "content_digest": "626692779f3ab463",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the capital of France?",
+          "content_digest": "a5c958afb009ef20",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The capital of France is Paris.",
+          "content_digest": "db078286f6ff6260",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/Chat Completion with 'us.openai.gpt-5.6-luna'/span-3": {
       "message_count": 4,
       "role_sequence": [
         "system",
@@ -21,7 +57,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful geography assistant. Answer in 1-2 sentences.",
-          "content_digest": "a33d755677ab7d94",
+          "content_digest": "626692779f3ab463",
           "observation_type": "generation"
         },
         {
@@ -29,7 +65,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the capital of France?",
-          "content_digest": "b09c8017834e1de2",
+          "content_digest": "a5c958afb009ef20",
           "observation_type": "generation"
         },
         {
@@ -37,7 +73,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What about Germany?",
-          "content_digest": "c85588d35e7ac09f",
+          "content_digest": "bb7dbff75e9e01f7",
           "observation_type": "generation"
         },
         {
@@ -45,12 +81,12 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The capital of Germany is Berlin.",
-          "content_digest": "7c302f1a5797c414",
+          "content_digest": "49f60c818d8e8151",
           "observation_type": "generation"
         }
       ]
     },
-    "01a0424f/Chat Completion with 'us.openai.gpt-5.6-luna'/7025": {
+    "trace-1/Chat Completion with 'us.openai.gpt-5.6-luna'/span-4": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -67,7 +103,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful geography assistant. Answer in 1-2 sentences.",
-          "content_digest": "a33d755677ab7d94",
+          "content_digest": "626692779f3ab463",
           "observation_type": "generation"
         },
         {
@@ -75,7 +111,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the capital of France?",
-          "content_digest": "b09c8017834e1de2",
+          "content_digest": "a5c958afb009ef20",
           "observation_type": "generation"
         },
         {
@@ -83,7 +119,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What about Germany?",
-          "content_digest": "c85588d35e7ac09f",
+          "content_digest": "bb7dbff75e9e01f7",
           "observation_type": "generation"
         },
         {
@@ -91,7 +127,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Which of the two cities has a larger population?",
-          "content_digest": "cf8cf56a8704d905",
+          "content_digest": "600c99295fd99a0d",
           "observation_type": "generation"
         },
         {
@@ -99,48 +135,12 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Berlin has the larger population within city limits, with about 3.8 million residents compared with Paris’s roughly 2.1 million.",
-          "content_digest": "ac5bb58e4afed4ea",
+          "content_digest": "3ad676904bacbf84",
           "observation_type": "generation"
         }
       ]
     },
-    "01a0424f/Chat Completion with 'us.openai.gpt-5.6-luna'/8b28": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful geography assistant. Answer in 1-2 sentences.",
-          "content_digest": "a33d755677ab7d94",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is the capital of France?",
-          "content_digest": "b09c8017834e1de2",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The capital of France is Paris.",
-          "content_digest": "537205789f39a6c3",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "01a0424f/openai-chat/5ecb": {
+    "trace-1/openai-chat/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -149,7 +149,7 @@
     }
   },
   "trace_views": {
-    "01a0424f": {
+    "trace-1": {
       "message_count": 7,
       "role_sequence": [
         "system",
@@ -168,7 +168,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful geography assistant. Answer in 1-2 sentences.",
-          "content_digest": "a33d755677ab7d94",
+          "content_digest": "626692779f3ab463",
           "observation_type": "generation"
         },
         {
@@ -176,7 +176,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is the capital of France?",
-          "content_digest": "b09c8017834e1de2",
+          "content_digest": "a5c958afb009ef20",
           "observation_type": "generation"
         },
         {
@@ -184,7 +184,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The capital of France is Paris.",
-          "content_digest": "537205789f39a6c3",
+          "content_digest": "db078286f6ff6260",
           "observation_type": "generation"
         },
         {
@@ -192,7 +192,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What about Germany?",
-          "content_digest": "c85588d35e7ac09f",
+          "content_digest": "bb7dbff75e9e01f7",
           "observation_type": "generation"
         },
         {
@@ -200,7 +200,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The capital of Germany is Berlin.",
-          "content_digest": "7c302f1a5797c414",
+          "content_digest": "49f60c818d8e8151",
           "observation_type": "generation"
         },
         {
@@ -208,7 +208,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Which of the two cities has a larger population?",
-          "content_digest": "cf8cf56a8704d905",
+          "content_digest": "600c99295fd99a0d",
           "observation_type": "generation"
         },
         {
@@ -216,7 +216,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Berlin has the larger population within city limits, with about 3.8 million residents compared with Paris’s roughly 2.1 million.",
-          "content_digest": "ac5bb58e4afed4ea",
+          "content_digest": "3ad676904bacbf84",
           "observation_type": "generation"
         }
       ]

@@ -5,7 +5,213 @@
   "trace_count": 5,
   "session_count": 1,
   "span_views": {
-    "0502bc58/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/0160": {
+    "trace-1/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "eb0b73db0db1ed63",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The speed of light is approximately 299,792,458 meters per second (or about 186,282 miles per second).",
+          "content_digest": "c197d0fccb7f9e09",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "eb0b73db0db1ed63",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "30d19820dbb43177",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The boiling point of water is 100°C (212°F) at standard atmospheric pressure (sea level).",
+          "content_digest": "48685f0119f455e6",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-3/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-1": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a math tutor. Show your work.",
+          "content_digest": "85b0c1c549eeb9af",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 27 * 453?",
+          "content_digest": "5db590129f3f1aa9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "I need to calculate 27 * 453. Let me break this down step by step. Method 1: Breaking it into parts 27 * 453 = 27 * (400 + 50 + 3) = 27 * 400 + 27 * 50 + 27 * 3 27 * 400 = 10,800 27 * 50 = 1,350 27 * 3 = 81 Total: 10,800 + 1,350 + 81 = 12,2…[401 chars]",
+          "content_digest": "b7b66c957fff1d69",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Calculating 27 × 453 I'll break this down into easier pieces: **Method: Break 453 into parts** 27 × 453 = 27 × (400 + 50 + 3) Now multiply each part: - 27 × 400 = 10,800 - 27 × 50 = 1,350 - 27 × 3 = 81 **Add them together:** 10,800 + 1,35…[293 chars]",
+          "content_digest": "e8f65900d3c386a4",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-4/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-1": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a math tutor. Show your work.",
+          "content_digest": "85b0c1c549eeb9af",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 891 / 9?",
+          "content_digest": "9abc1ba3fd6ff90d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "I need to divide 891 by 9. Let me work through this step by step. 891 ÷ 9 = ? I can use long division: 9 goes into 8? No, it's too small. 9 goes into 89? Let me see: 9 × 9 = 81, 9 × 10 = 90. So 9 goes into 89 nine times (9 × 9 = 81). 89 - 8…[419 chars]",
+          "content_digest": "2e226aab7d874e55",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# 891 ÷ 9 Let me solve this using long division: ``` 99 ------ 9 | 891 81↓ --- 81 81 --- 0 ``` **Step by step:** 1. **9 goes into 89:** 9 × 9 = 81, so it goes 9 times - 89 - 81 = 8 2. **Bring down the 1:** making 81 3. **9 goes into 81:** 9…[342 chars]",
+          "content_digest": "209714052f257bcf",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-5/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when available.",
+          "content_digest": "709a9d31106ec8be",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What's the weather in Paris?",
+          "content_digest": "e0a7ad259126b9f7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_53aofuHZ1Ly5eZtPSkn2l6\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "0733f82a746a98a8",
+          "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-5/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-3": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -22,7 +228,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "Use tools when available.",
-          "content_digest": "883a797be798921d",
+          "content_digest": "709a9d31106ec8be",
           "observation_type": "generation"
         },
         {
@@ -30,7 +236,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What's the weather in Paris?",
-          "content_digest": "85026bc2368bf644",
+          "content_digest": "e0a7ad259126b9f7",
           "observation_type": "generation"
         },
         {
@@ -38,7 +244,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_53aofuHZ1Ly5eZtPSkn2l6\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
-          "content_digest": "14007c512ff1b87e",
+          "content_digest": "0733f82a746a98a8",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -47,7 +253,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_53aofuHZ1Ly5eZtPSkn2l6\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze\"}]}",
-          "content_digest": "ff8faf59cdc022d2",
+          "content_digest": "d2ec42da18419416",
           "observation_type": "generation"
         },
         {
@@ -55,58 +261,96 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The weather in Paris is currently **sunny** with a temperature of **22°C (about 72°F)** and a **light breeze**. It's a nice day! 🌞",
-          "content_digest": "e0e611c7cf80cb61",
+          "content_digest": "09076c6e34c39888",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "0502bc58/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/9d2f": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "Use tools when available.",
-          "content_digest": "883a797be798921d",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What's the weather in Paris?",
-          "content_digest": "85026bc2368bf644",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_53aofuHZ1Ly5eZtPSkn2l6\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
-          "content_digest": "14007c512ff1b87e",
-          "tool_name": "get_weather",
-          "finish_reason": "ToolUse",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "0502bc58/converse-tool-use/3910": {
+    "trace-5/converse-tool-use/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "eb0b73db0db1ed63",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The speed of light is approximately 299,792,458 meters per second (or about 186,282 miles per second).",
+          "content_digest": "c197d0fccb7f9e09",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
     },
-    "11277451/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/0fee": {
+    "trace-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "eb0b73db0db1ed63",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "30d19820dbb43177",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The boiling point of water is 100°C (212°F) at standard atmospheric pressure (sea level).",
+          "content_digest": "48685f0119f455e6",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-3": {
       "message_count": 4,
       "role_sequence": [
         "system",
@@ -122,7 +366,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a math tutor. Show your work.",
-          "content_digest": "47670ce1c7563f5c",
+          "content_digest": "85b0c1c549eeb9af",
           "observation_type": "generation"
         },
         {
@@ -130,7 +374,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is 27 * 453?",
-          "content_digest": "2c10e33f6fa574dd",
+          "content_digest": "5db590129f3f1aa9",
           "observation_type": "generation"
         },
         {
@@ -138,7 +382,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "I need to calculate 27 * 453. Let me break this down step by step. Method 1: Breaking it into parts 27 * 453 = 27 * (400 + 50 + 3) = 27 * 400 + 27 * 50 + 27 * 3 27 * 400 = 10,800 27 * 50 = 1,350 27 * 3 = 81 Total: 10,800 + 1,350 + 81 = 12,2…[401 chars]",
-          "content_digest": "543d8ee2d426d6c0",
+          "content_digest": "b7b66c957fff1d69",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -147,50 +391,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "# Calculating 27 × 453 I'll break this down into easier pieces: **Method: Break 453 into parts** 27 × 453 = 27 × (400 + 50 + 3) Now multiply each part: - 27 × 400 = 10,800 - 27 × 50 = 1,350 - 27 × 3 = 81 **Add them together:** 10,800 + 1,35…[293 chars]",
-          "content_digest": "4eef66352708f07d",
+          "content_digest": "e8f65900d3c386a4",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "24235d50/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/e04a": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "Answer in one sentence.",
-          "content_digest": "49fd0fd68e3c2e94",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is the boiling point of water?",
-          "content_digest": "64cf87cbf62b67a1",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The boiling point of water is 100°C (212°F) at standard atmospheric pressure (sea level).",
-          "content_digest": "98c2db0578bf12d9",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "e458c384/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/1e31": {
+    "trace-4": {
       "message_count": 4,
       "role_sequence": [
         "system",
@@ -206,7 +413,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a math tutor. Show your work.",
-          "content_digest": "47670ce1c7563f5c",
+          "content_digest": "85b0c1c549eeb9af",
           "observation_type": "generation"
         },
         {
@@ -214,7 +421,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is 891 / 9?",
-          "content_digest": "65b94eee1202c24c",
+          "content_digest": "9abc1ba3fd6ff90d",
           "observation_type": "generation"
         },
         {
@@ -222,7 +429,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "I need to divide 891 by 9. Let me work through this step by step. 891 ÷ 9 = ? I can use long division: 9 goes into 8? No, it's too small. 9 goes into 89? Let me see: 9 × 9 = 81, 9 × 10 = 90. So 9 goes into 89 nine times (9 × 9 = 81). 89 - 8…[419 chars]",
-          "content_digest": "d5a17ab504762e1d",
+          "content_digest": "2e226aab7d874e55",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -231,52 +438,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "# 891 ÷ 9 Let me solve this using long division: ``` 99 ------ 9 | 891 81↓ --- 81 81 --- 0 ``` **Step by step:** 1. **9 goes into 89:** 9 × 9 = 81, so it goes 9 times - 89 - 81 = 8 2. **Bring down the 1:** making 81 3. **9 goes into 81:** 9…[342 chars]",
-          "content_digest": "63cc71053a582daa",
+          "content_digest": "209714052f257bcf",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "f9836270/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/f6bb": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "Answer in one sentence.",
-          "content_digest": "49fd0fd68e3c2e94",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is the speed of light?",
-          "content_digest": "ce6ec8cdd58f4825",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The speed of light is approximately 299,792,458 meters per second (or about 186,282 miles per second).",
-          "content_digest": "7f31da938518dce0",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    }
-  },
-  "trace_views": {
-    "0502bc58": {
+    "trace-5": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -293,7 +461,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "Use tools when available.",
-          "content_digest": "883a797be798921d",
+          "content_digest": "709a9d31106ec8be",
           "observation_type": "generation"
         },
         {
@@ -301,7 +469,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What's the weather in Paris?",
-          "content_digest": "85026bc2368bf644",
+          "content_digest": "e0a7ad259126b9f7",
           "observation_type": "generation"
         },
         {
@@ -309,7 +477,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_53aofuHZ1Ly5eZtPSkn2l6\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
-          "content_digest": "14007c512ff1b87e",
+          "content_digest": "0733f82a746a98a8",
           "tool_name": "get_weather",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -319,7 +487,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_53aofuHZ1Ly5eZtPSkn2l6\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze\"}]}",
-          "content_digest": "ff8faf59cdc022d2",
+          "content_digest": "d2ec42da18419416",
           "observation_type": "generation"
         },
         {
@@ -327,175 +495,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The weather in Paris is currently **sunny** with a temperature of **22°C (about 72°F)** and a **light breeze**. It's a nice day! 🌞",
-          "content_digest": "e0e611c7cf80cb61",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "11277451": {
-      "message_count": 4,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a math tutor. Show your work.",
-          "content_digest": "47670ce1c7563f5c",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is 27 * 453?",
-          "content_digest": "2c10e33f6fa574dd",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "thinking",
-          "content": "I need to calculate 27 * 453. Let me break this down step by step. Method 1: Breaking it into parts 27 * 453 = 27 * (400 + 50 + 3) = 27 * 400 + 27 * 50 + 27 * 3 27 * 400 = 10,800 27 * 50 = 1,350 27 * 3 = 81 Total: 10,800 + 1,350 + 81 = 12,2…[401 chars]",
-          "content_digest": "543d8ee2d426d6c0",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "# Calculating 27 × 453 I'll break this down into easier pieces: **Method: Break 453 into parts** 27 × 453 = 27 × (400 + 50 + 3) Now multiply each part: - 27 × 400 = 10,800 - 27 × 50 = 1,350 - 27 × 3 = 81 **Add them together:** 10,800 + 1,35…[293 chars]",
-          "content_digest": "4eef66352708f07d",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "24235d50": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "Answer in one sentence.",
-          "content_digest": "49fd0fd68e3c2e94",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is the boiling point of water?",
-          "content_digest": "64cf87cbf62b67a1",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The boiling point of water is 100°C (212°F) at standard atmospheric pressure (sea level).",
-          "content_digest": "98c2db0578bf12d9",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "e458c384": {
-      "message_count": 4,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a math tutor. Show your work.",
-          "content_digest": "47670ce1c7563f5c",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is 891 / 9?",
-          "content_digest": "65b94eee1202c24c",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "thinking",
-          "content": "I need to divide 891 by 9. Let me work through this step by step. 891 ÷ 9 = ? I can use long division: 9 goes into 8? No, it's too small. 9 goes into 89? Let me see: 9 × 9 = 81, 9 × 10 = 90. So 9 goes into 89 nine times (9 × 9 = 81). 89 - 8…[419 chars]",
-          "content_digest": "d5a17ab504762e1d",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "# 891 ÷ 9 Let me solve this using long division: ``` 99 ------ 9 | 891 81↓ --- 81 81 --- 0 ``` **Step by step:** 1. **9 goes into 89:** 9 × 9 = 81, so it goes 9 times - 89 - 81 = 8 2. **Bring down the 1:** making 81 3. **9 goes into 81:** 9…[342 chars]",
-          "content_digest": "63cc71053a582daa",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "f9836270": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "Answer in one sentence.",
-          "content_digest": "49fd0fd68e3c2e94",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is the speed of light?",
-          "content_digest": "ce6ec8cdd58f4825",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The speed of light is approximately 299,792,458 meters per second (or about 186,282 miles per second).",
-          "content_digest": "7f31da938518dce0",
+          "content_digest": "09076c6e34c39888",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -520,7 +520,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "Use tools when available.",
-          "content_digest": "883a797be798921d",
+          "content_digest": "709a9d31106ec8be",
           "observation_type": "generation"
         },
         {
@@ -528,7 +528,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What's the weather in Paris?",
-          "content_digest": "85026bc2368bf644",
+          "content_digest": "e0a7ad259126b9f7",
           "observation_type": "generation"
         },
         {
@@ -536,7 +536,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_53aofuHZ1Ly5eZtPSkn2l6\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
-          "content_digest": "14007c512ff1b87e",
+          "content_digest": "0733f82a746a98a8",
           "tool_name": "get_weather",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -546,7 +546,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_53aofuHZ1Ly5eZtPSkn2l6\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze\"}]}",
-          "content_digest": "ff8faf59cdc022d2",
+          "content_digest": "d2ec42da18419416",
           "observation_type": "generation"
         },
         {
@@ -554,7 +554,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The weather in Paris is currently **sunny** with a temperature of **22°C (about 72°F)** and a **light breeze**. It's a nice day! 🌞",
-          "content_digest": "e0e611c7cf80cb61",
+          "content_digest": "09076c6e34c39888",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }

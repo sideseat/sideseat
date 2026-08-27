@@ -5,21 +5,21 @@
   "trace_count": 1,
   "session_count": 2,
   "span_views": {
-    "01a04250/Agent run: 'InformationExtractor'/3d24": {
+    "trace-1/Agent run: 'InformationExtractor'/span-4": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "01a04250/OpenAI Agents trace: Agent workflow/3e64": {
+    "trace-1/OpenAI Agents trace: Agent workflow/span-2": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "01a04250/Responses API with 'us.openai.gpt-5.6-luna'/6983": {
+    "trace-1/Responses API with 'us.openai.gpt-5.6-luna'/span-6": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -34,7 +34,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful assistant that extracts structured information from text.",
-          "content_digest": "37a0ffadaebab52c",
+          "content_digest": "965dc7374dfb1d1c",
           "observation_type": "generation"
         },
         {
@@ -42,7 +42,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "74780e0c8378c7bf",
+          "content_digest": "6a08cceee02e13c8",
           "observation_type": "generation"
         },
         {
@@ -50,26 +50,26 @@
           "role": "assistant",
           "entry_type": "json",
           "content": "{\"type\":\"json\",\"data\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\",\"postal_code\":null},\"contacts\":[{\"email\":\"jane@example.com\",\"phone\":null}],\"skills\":[\"systems administration\"]}}",
-          "content_digest": "c8ceaeef78d53416",
+          "content_digest": "7d1830555fee12bf",
           "observation_type": "generation"
         }
       ]
     },
-    "01a04250/Task: Agent workflow/8663": {
+    "trace-1/Task: Agent workflow/span-3": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "01a04250/Turn 1 for agent InformationExtractor/c6d9": {
+    "trace-1/Turn 1 for agent InformationExtractor/span-5": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "01a04250/openai_agents.session/ed8a": {
+    "trace-1/openai_agents.session/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -78,7 +78,7 @@
     }
   },
   "trace_views": {
-    "01a04250": {
+    "trace-1": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -93,7 +93,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful assistant that extracts structured information from text.",
-          "content_digest": "37a0ffadaebab52c",
+          "content_digest": "965dc7374dfb1d1c",
           "observation_type": "generation"
         },
         {
@@ -101,7 +101,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "74780e0c8378c7bf",
+          "content_digest": "6a08cceee02e13c8",
           "observation_type": "generation"
         },
         {
@@ -109,7 +109,7 @@
           "role": "assistant",
           "entry_type": "json",
           "content": "{\"type\":\"json\",\"data\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\",\"postal_code\":null},\"contacts\":[{\"email\":\"jane@example.com\",\"phone\":null}],\"skills\":[\"systems administration\"]}}",
-          "content_digest": "c8ceaeef78d53416",
+          "content_digest": "7d1830555fee12bf",
           "observation_type": "generation"
         }
       ]
@@ -131,7 +131,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful assistant that extracts structured information from text.",
-          "content_digest": "37a0ffadaebab52c",
+          "content_digest": "965dc7374dfb1d1c",
           "observation_type": "generation"
         },
         {
@@ -139,7 +139,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "74780e0c8378c7bf",
+          "content_digest": "6a08cceee02e13c8",
           "observation_type": "generation"
         },
         {
@@ -147,7 +147,7 @@
           "role": "assistant",
           "entry_type": "json",
           "content": "{\"type\":\"json\",\"data\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\",\"postal_code\":null},\"contacts\":[{\"email\":\"jane@example.com\",\"phone\":null}],\"skills\":[\"systems administration\"]}}",
-          "content_digest": "c8ceaeef78d53416",
+          "content_digest": "7d1830555fee12bf",
           "observation_type": "generation"
         }
       ]
@@ -167,7 +167,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful assistant that extracts structured information from text.",
-          "content_digest": "37a0ffadaebab52c",
+          "content_digest": "965dc7374dfb1d1c",
           "observation_type": "generation"
         },
         {
@@ -175,7 +175,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "74780e0c8378c7bf",
+          "content_digest": "6a08cceee02e13c8",
           "observation_type": "generation"
         },
         {
@@ -183,7 +183,7 @@
           "role": "assistant",
           "entry_type": "json",
           "content": "{\"type\":\"json\",\"data\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\",\"postal_code\":null},\"contacts\":[{\"email\":\"jane@example.com\",\"phone\":null}],\"skills\":[\"systems administration\"]}}",
-          "content_digest": "c8ceaeef78d53416",
+          "content_digest": "7d1830555fee12bf",
           "observation_type": "generation"
         }
       ]

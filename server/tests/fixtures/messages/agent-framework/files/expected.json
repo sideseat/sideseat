@@ -5,7 +5,7 @@
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "74025d24/agent_framework.session/ba01": {
+    "trace-1/agent_framework.session/span-1": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -18,13 +18,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ChatClientException: ('<class \\'agent_framework_openai._chat_client.OpenAIChatClient\\'> service failed to complete the prompt: Error code: 400 - {\\'error\\': {\\'message\\': \"Unsupported file type: \\'unknown\\'. Suppo…[5096 chars]",
-          "content_digest": "3255b570aa8217d6",
+          "content_digest": "938fbb7236928663",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
       ]
     },
-    "74025d24/chat us.openai.gpt-5.6-luna/cafc": {
+    "trace-1/chat us.openai.gpt-5.6-luna/span-3": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -41,7 +41,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a file analysis AI that can read images and documents.",
-          "content_digest": "8f2813e78c01f7bf",
+          "content_digest": "a7b564c8a3a5cf2b",
           "observation_type": "generation"
         },
         {
@@ -49,7 +49,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Read the image 'img.jpg'. Describe its contents in detail using instructions from the PDF.",
-          "content_digest": "443a420c1dfd4460",
+          "content_digest": "71ecfbccc92c6103",
           "observation_type": "generation"
         },
         {
@@ -57,7 +57,7 @@
           "role": "user",
           "entry_type": "unknown",
           "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"blob\",\"content\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKC…[218721 chars]",
-          "content_digest": "7c4dbdd3ca84da4e",
+          "content_digest": "d5116bbfa6604669",
           "observation_type": "generation"
         },
         {
@@ -65,7 +65,7 @@
           "role": "user",
           "entry_type": "unknown",
           "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"blob\",\"content\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/dVdijggzLKY0007ifccAN8aZWKO…[17720 chars]",
-          "content_digest": "c176c3871e7e28b8",
+          "content_digest": "bcb2e6684bba62cc",
           "observation_type": "generation"
         },
         {
@@ -73,13 +73,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ChatClientException: ('<class \\'agent_framework_openai._chat_client.OpenAIChatClient\\'> service failed to complete the prompt: Error code: 400 - {\\'error\\': {\\'message\\': \"Unsupported file type: \\'unknown\\'. Suppo…[3808 chars]",
-          "content_digest": "8e335bb65d5d987f",
+          "content_digest": "845ced3823a4a10d",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
       ]
     },
-    "74025d24/invoke_agent ad05fa39-d0a6-4609-a857-5600d1cbef2a/73f5": {
+    "trace-1/invoke_agent ad05fa39-d0a6-4609-a857-5600d1cbef2a/span-2": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -96,7 +96,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a file analysis AI that can read images and documents.",
-          "content_digest": "8f2813e78c01f7bf",
+          "content_digest": "a7b564c8a3a5cf2b",
           "observation_type": "agent"
         },
         {
@@ -104,7 +104,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Read the image 'img.jpg'. Describe its contents in detail using instructions from the PDF.",
-          "content_digest": "443a420c1dfd4460",
+          "content_digest": "71ecfbccc92c6103",
           "observation_type": "agent"
         },
         {
@@ -112,7 +112,7 @@
           "role": "user",
           "entry_type": "unknown",
           "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"blob\",\"content\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKC…[218721 chars]",
-          "content_digest": "7c4dbdd3ca84da4e",
+          "content_digest": "d5116bbfa6604669",
           "observation_type": "agent"
         },
         {
@@ -120,7 +120,7 @@
           "role": "user",
           "entry_type": "unknown",
           "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"blob\",\"content\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/dVdijggzLKY0007ifccAN8aZWKO…[17720 chars]",
-          "content_digest": "c176c3871e7e28b8",
+          "content_digest": "bcb2e6684bba62cc",
           "observation_type": "agent"
         },
         {
@@ -128,7 +128,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ChatClientException: ('<class \\'agent_framework_openai._chat_client.OpenAIChatClient\\'> service failed to complete the prompt: Error code: 400 - {\\'error\\': {\\'message\\': \"Unsupported file type: \\'unknown\\'. Suppo…[4543 chars]",
-          "content_digest": "0d7dd6c59e413852",
+          "content_digest": "509c301e91be064f",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -136,7 +136,7 @@
     }
   },
   "trace_views": {
-    "74025d24": {
+    "trace-1": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -153,7 +153,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a file analysis AI that can read images and documents.",
-          "content_digest": "8f2813e78c01f7bf",
+          "content_digest": "a7b564c8a3a5cf2b",
           "observation_type": "agent"
         },
         {
@@ -161,7 +161,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Read the image 'img.jpg'. Describe its contents in detail using instructions from the PDF.",
-          "content_digest": "443a420c1dfd4460",
+          "content_digest": "71ecfbccc92c6103",
           "observation_type": "agent"
         },
         {
@@ -169,7 +169,7 @@
           "role": "user",
           "entry_type": "unknown",
           "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"blob\",\"content\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKC…[218721 chars]",
-          "content_digest": "7c4dbdd3ca84da4e",
+          "content_digest": "d5116bbfa6604669",
           "observation_type": "agent"
         },
         {
@@ -177,7 +177,7 @@
           "role": "user",
           "entry_type": "unknown",
           "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"blob\",\"content\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/dVdijggzLKY0007ifccAN8aZWKO…[17720 chars]",
-          "content_digest": "c176c3871e7e28b8",
+          "content_digest": "bcb2e6684bba62cc",
           "observation_type": "agent"
         },
         {
@@ -185,7 +185,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ChatClientException: ('<class \\'agent_framework_openai._chat_client.OpenAIChatClient\\'> service failed to complete the prompt: Error code: 400 - {\\'error\\': {\\'message\\': \"Unsupported file type: \\'unknown\\'. Suppo…[3808 chars]",
-          "content_digest": "8e335bb65d5d987f",
+          "content_digest": "845ced3823a4a10d",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -210,7 +210,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a file analysis AI that can read images and documents.",
-          "content_digest": "8f2813e78c01f7bf",
+          "content_digest": "a7b564c8a3a5cf2b",
           "observation_type": "agent"
         },
         {
@@ -218,7 +218,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Read the image 'img.jpg'. Describe its contents in detail using instructions from the PDF.",
-          "content_digest": "443a420c1dfd4460",
+          "content_digest": "71ecfbccc92c6103",
           "observation_type": "agent"
         },
         {
@@ -226,7 +226,7 @@
           "role": "user",
           "entry_type": "unknown",
           "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"blob\",\"content\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKC…[218721 chars]",
-          "content_digest": "7c4dbdd3ca84da4e",
+          "content_digest": "d5116bbfa6604669",
           "observation_type": "agent"
         },
         {
@@ -234,7 +234,7 @@
           "role": "user",
           "entry_type": "unknown",
           "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"blob\",\"content\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/dVdijggzLKY0007ifccAN8aZWKO…[17720 chars]",
-          "content_digest": "c176c3871e7e28b8",
+          "content_digest": "bcb2e6684bba62cc",
           "observation_type": "agent"
         },
         {
@@ -242,7 +242,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ChatClientException: ('<class \\'agent_framework_openai._chat_client.OpenAIChatClient\\'> service failed to complete the prompt: Error code: 400 - {\\'error\\': {\\'message\\': \"Unsupported file type: \\'unknown\\'. Suppo…[3808 chars]",
-          "content_digest": "8e335bb65d5d987f",
+          "content_digest": "845ced3823a4a10d",
           "finish_reason": "Error",
           "observation_type": "generation"
         }

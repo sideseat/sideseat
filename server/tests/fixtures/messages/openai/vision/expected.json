@@ -5,7 +5,52 @@
   "trace_count": 1,
   "session_count": 0,
   "span_views": {
-    "01a0424f/Chat Completion with 'us.openai.gpt-5.6-luna'/0410": {
+    "trace-1/Chat Completion with 'us.openai.gpt-5.6-luna'/span-2": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an image analyst. Describe content accurately and concisely.",
+          "content_digest": "2896c269386d7fc9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe what you see in this image.",
+          "content_digest": "6488929a66e53aee",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+          "content_digest": "f66271bc4504cd52",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "A sunny park scene with a winding black asphalt footpath curving through a broad grassy lawn. A low stone retaining wall borders the raised grass on the left, while mature deciduous and evergreen trees stand throughout the park. Brick resid…[312 chars]",
+          "content_digest": "bb73eaf089642910",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/Chat Completion with 'us.openai.gpt-5.6-luna'/span-3": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -22,7 +67,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are an image analyst. Describe content accurately and concisely.",
-          "content_digest": "5ce3280da309948d",
+          "content_digest": "2896c269386d7fc9",
           "observation_type": "generation"
         },
         {
@@ -30,7 +75,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Describe what you see in this image.",
-          "content_digest": "719464aa7a1e5eab",
+          "content_digest": "6488929a66e53aee",
           "observation_type": "generation"
         },
         {
@@ -38,7 +83,7 @@
           "role": "user",
           "entry_type": "image",
           "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
-          "content_digest": "d472ce42cb6094f5",
+          "content_digest": "f66271bc4504cd52",
           "observation_type": "generation"
         },
         {
@@ -46,7 +91,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Based on what you see, what is the main subject or theme of this image?",
-          "content_digest": "0981a3fd6adacb95",
+          "content_digest": "a3368b09c7b7712c",
           "observation_type": "generation"
         },
         {
@@ -54,57 +99,12 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The main theme is a peaceful landscaped park, centered on a winding paved footpath surrounded by lawns, trees, and residential buildings in the background.",
-          "content_digest": "a072bf1b50ca86ac",
+          "content_digest": "f96d1281a48ea729",
           "observation_type": "generation"
         }
       ]
     },
-    "01a0424f/Chat Completion with 'us.openai.gpt-5.6-luna'/77fa": {
-      "message_count": 4,
-      "role_sequence": [
-        "system",
-        "user",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are an image analyst. Describe content accurately and concisely.",
-          "content_digest": "5ce3280da309948d",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Describe what you see in this image.",
-          "content_digest": "719464aa7a1e5eab",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "user",
-          "entry_type": "image",
-          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
-          "content_digest": "d472ce42cb6094f5",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "A sunny park scene with a winding black asphalt footpath curving through a broad grassy lawn. A low stone retaining wall borders the raised grass on the left, while mature deciduous and evergreen trees stand throughout the park. Brick resid…[312 chars]",
-          "content_digest": "08a65fbb18b3e065",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "01a0424f/openai-vision/e51b": {
+    "trace-1/openai-vision/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -113,7 +113,7 @@
     }
   },
   "trace_views": {
-    "01a0424f": {
+    "trace-1": {
       "message_count": 6,
       "role_sequence": [
         "system",
@@ -131,7 +131,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are an image analyst. Describe content accurately and concisely.",
-          "content_digest": "5ce3280da309948d",
+          "content_digest": "2896c269386d7fc9",
           "observation_type": "generation"
         },
         {
@@ -139,7 +139,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Describe what you see in this image.",
-          "content_digest": "719464aa7a1e5eab",
+          "content_digest": "6488929a66e53aee",
           "observation_type": "generation"
         },
         {
@@ -147,7 +147,7 @@
           "role": "user",
           "entry_type": "image",
           "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
-          "content_digest": "d472ce42cb6094f5",
+          "content_digest": "f66271bc4504cd52",
           "observation_type": "generation"
         },
         {
@@ -155,7 +155,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "A sunny park scene with a winding black asphalt footpath curving through a broad grassy lawn. A low stone retaining wall borders the raised grass on the left, while mature deciduous and evergreen trees stand throughout the park. Brick resid…[312 chars]",
-          "content_digest": "08a65fbb18b3e065",
+          "content_digest": "bb73eaf089642910",
           "observation_type": "generation"
         },
         {
@@ -163,7 +163,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Based on what you see, what is the main subject or theme of this image?",
-          "content_digest": "0981a3fd6adacb95",
+          "content_digest": "a3368b09c7b7712c",
           "observation_type": "generation"
         },
         {
@@ -171,7 +171,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The main theme is a peaceful landscaped park, centered on a winding paved footpath surrounded by lawns, trees, and residential buildings in the background.",
-          "content_digest": "a072bf1b50ca86ac",
+          "content_digest": "f96d1281a48ea729",
           "observation_type": "generation"
         }
       ]

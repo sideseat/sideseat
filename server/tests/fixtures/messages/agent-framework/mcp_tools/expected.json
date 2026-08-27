@@ -5,7 +5,7 @@
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "998816ff/agent_framework.session/3d2d": {
+    "trace-1/agent_framework.session/span-1": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -18,13 +18,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ToolException: (\"Failed to start MCP server '/opt/homebrew/bin/uv': `mcp` is required to use `MCPStdioTool`. Please install `mcp`.\", ModuleNotFoundError('`mcp` is required to use `MCPStdioTool`. Please install `mc…[4452 chars]",
-          "content_digest": "86e19f0d67cae4ed",
+          "content_digest": "01ec1768ceaff94c",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
       ]
     },
-    "998816ff/invoke_agent 2cb4d1ec-d96f-4e8e-bb9f-40aeca4edbfe/93b3": {
+    "trace-1/invoke_agent 2cb4d1ec-d96f-4e8e-bb9f-40aeca4edbfe/span-2": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -39,7 +39,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You help users to calculate expressions.",
-          "content_digest": "c20701409d508923",
+          "content_digest": "b7a2b52d27e0093a",
           "observation_type": "agent"
         },
         {
@@ -47,7 +47,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "4551b5f2dd3b7138",
+          "content_digest": "2f005e8714b6ca59",
           "observation_type": "agent"
         },
         {
@@ -55,7 +55,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ToolException: (\"Failed to start MCP server '/opt/homebrew/bin/uv': `mcp` is required to use `MCPStdioTool`. Please install `mcp`.\", ModuleNotFoundError('`mcp` is required to use `MCPStdioTool`. Please install `mc…[3911 chars]",
-          "content_digest": "a195107e53c106aa",
+          "content_digest": "abcfe49a928d757b",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -63,7 +63,7 @@
     }
   },
   "trace_views": {
-    "998816ff": {
+    "trace-1": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -78,7 +78,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You help users to calculate expressions.",
-          "content_digest": "c20701409d508923",
+          "content_digest": "b7a2b52d27e0093a",
           "observation_type": "agent"
         },
         {
@@ -86,7 +86,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "4551b5f2dd3b7138",
+          "content_digest": "2f005e8714b6ca59",
           "observation_type": "agent"
         },
         {
@@ -94,7 +94,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ToolException: (\"Failed to start MCP server '/opt/homebrew/bin/uv': `mcp` is required to use `MCPStdioTool`. Please install `mcp`.\", ModuleNotFoundError('`mcp` is required to use `MCPStdioTool`. Please install `mc…[3911 chars]",
-          "content_digest": "a195107e53c106aa",
+          "content_digest": "abcfe49a928d757b",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -117,7 +117,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You help users to calculate expressions.",
-          "content_digest": "c20701409d508923",
+          "content_digest": "b7a2b52d27e0093a",
           "observation_type": "agent"
         },
         {
@@ -125,7 +125,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "4551b5f2dd3b7138",
+          "content_digest": "2f005e8714b6ca59",
           "observation_type": "agent"
         },
         {
@@ -133,7 +133,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ToolException: (\"Failed to start MCP server '/opt/homebrew/bin/uv': `mcp` is required to use `MCPStdioTool`. Please install `mcp`.\", ModuleNotFoundError('`mcp` is required to use `MCPStdioTool`. Please install `mc…[3911 chars]",
-          "content_digest": "a195107e53c106aa",
+          "content_digest": "abcfe49a928d757b",
           "finish_reason": "Error",
           "observation_type": "agent"
         }

@@ -5,28 +5,83 @@
   "trace_count": 9,
   "session_count": 0,
   "span_views": {
-    "0426f48d/BedrockRuntime.InvokeModel/4bb2": {
+    "trace-1/BedrockRuntime.InvokeModel/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "09339ddc/BedrockRuntime.InvokeModel/1c22": {
+    "trace-2/BedrockRuntime.InvokeModel/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "0faa82e2/BedrockRuntime.InvokeModel/63fc": {
+    "trace-3/BedrockRuntime.InvokeModel/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "0faa82e2/ai.generateText.doGenerate/5a3b": {
+    "trace-4/BedrockRuntime.InvokeModel/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-5/BedrockRuntime.InvokeModel/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-6/BedrockRuntime.InvokeModel/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-7/BedrockRuntime.InvokeModel/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-7/ai.generateText.doGenerate/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-7/ai.generateText.doGenerate/span-5": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -43,7 +98,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
+          "content_digest": "90aba6b63e48a6ed",
           "observation_type": "generation"
         },
         {
@@ -51,7 +106,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
+          "content_digest": "258073a7aafdb01d",
           "observation_type": "generation"
         },
         {
@@ -59,7 +114,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4qNgHcwdWP8UpwLjbk2Voh\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":3}}",
-          "content_digest": "aadcfb5065b59e04",
+          "content_digest": "69f5585ec1f03bc7",
           "tool_name": "search_knowledge",
           "observation_type": "generation"
         },
@@ -68,7 +123,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_4qNgHcwdWP8UpwLjbk2Voh\",\"content\":{\"type\":\"text\",\"text\":\"[1] (relevance: 0.74) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi…[757 chars]",
-          "content_digest": "3a034896c0b66d66",
+          "content_digest": "71c6d3de322f1b42",
           "observation_type": "generation"
         },
         {
@@ -76,40 +131,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Based on the knowledge base, here's what SideSeat is and how it helps with AI observability: ## SideSeat Overview **SideSeat** is an AI observability toolkit designed to help developers monitor and debug AI applications. Here are its key ca…[1479 chars]",
-          "content_digest": "0a0e84630ded5f2f",
+          "content_digest": "5e36b2d90f7ec84e",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "0faa82e2/ai.generateText.doGenerate/5bd3": {
-      "message_count": 2,
-      "role_sequence": [
-        "system",
-        "user"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "0faa82e2/ai.generateText/e797": {
+    "trace-7/ai.generateText/span-1": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -122,13 +150,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Based on the knowledge base, here's what SideSeat is and how it helps with AI observability: ## SideSeat Overview **SideSeat** is an AI observability toolkit designed to help developers monitor and debug AI applications. Here are its key ca…[1479 chars]",
-          "content_digest": "0a0e84630ded5f2f",
+          "content_digest": "5e36b2d90f7ec84e",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "0faa82e2/ai.toolCall/5e52": {
+    "trace-7/ai.toolCall/span-3": {
       "message_count": 2,
       "role_sequence": [
         "assistant",
@@ -142,7 +170,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4qNgHcwdWP8UpwLjbk2Voh\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":3}}",
-          "content_digest": "aadcfb5065b59e04",
+          "content_digest": "69f5585ec1f03bc7",
           "tool_name": "search_knowledge",
           "finish_reason": "ToolUse",
           "observation_type": "tool"
@@ -152,19 +180,19 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.74) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging. [2] (relevance: 0.34) OpenTele…[646 chars]",
-          "content_digest": "9003a91710684e49",
+          "content_digest": "49562c5913d10647",
           "observation_type": "tool"
         }
       ]
     },
-    "5bc3779c/BedrockRuntime.InvokeModel/ae6e": {
+    "trace-8/BedrockRuntime.InvokeModel/span-4": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "5bc3779c/ai.generateText.doGenerate/875b": {
+    "trace-8/ai.generateText.doGenerate/span-2": {
       "message_count": 2,
       "role_sequence": [
         "system",
@@ -178,155 +206,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What embedding models are available for vector search?",
-          "content_digest": "99591aaf305681dc",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "5bc3779c/ai.generateText.doGenerate/9975": {
-      "message_count": 5,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What embedding models are available for vector search?",
-          "content_digest": "99591aaf305681dc",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pL7dNwJRg6e2OhaPz51d8H\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\",\"num_results\":5}}",
-          "content_digest": "ae06c2b7c4d53e2c",
-          "tool_name": "search_knowledge",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_pL7dNwJRg6e2OhaPz51d8H\",\"content\":{\"type\":\"text\",\"text\":\"[1] (relevance: 0.56) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity. Popu…[1191 chars]",
-          "content_digest": "8fca2537cd1cd3ec",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "Based on the knowledge base, here are the embedding models available for vector search: **Common Embedding Models:** - **Amazon Titan Embeddings** - AWS's embedding model - **OpenAI text-embedding-3** - OpenAI's embedding model These models…[1046 chars]",
-          "content_digest": "8e5f1c14d63b65ff",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "5bc3779c/ai.generateText/43c0": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "Based on the knowledge base, here are the embedding models available for vector search: **Common Embedding Models:** - **Amazon Titan Embeddings** - AWS's embedding model - **OpenAI text-embedding-3** - OpenAI's embedding model These models…[1046 chars]",
-          "content_digest": "8e5f1c14d63b65ff",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "5bc3779c/ai.toolCall/0095": {
-      "message_count": 2,
-      "role_sequence": [
-        "assistant",
-        "tool"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pL7dNwJRg6e2OhaPz51d8H\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\",\"num_results\":5}}",
-          "content_digest": "ae06c2b7c4d53e2c",
-          "tool_name": "search_knowledge",
-          "finish_reason": "ToolUse",
-          "observation_type": "tool"
-        },
-        {
-          "index": 1,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "[1] (relevance: 0.56) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. [2] (relevance: 0.54) Embeddings a…[1074 chars]",
-          "content_digest": "9f5d2f14eafafcfd",
-          "observation_type": "tool"
-        }
-      ]
-    },
-    "60b16f19/BedrockRuntime.InvokeModel/a75b": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "67db7341/BedrockRuntime.InvokeModel/af08": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "67db7341/ai.generateText.doGenerate/22c2": {
-      "message_count": 5,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
+          "content_digest": "90aba6b63e48a6ed",
           "observation_type": "generation"
         },
         {
@@ -334,7 +214,37 @@
           "role": "user",
           "entry_type": "text",
           "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-8/ai.generateText.doGenerate/span-5": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
           "observation_type": "generation"
         },
         {
@@ -342,7 +252,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_WhrXJhptBxavwDlOlN8bdR\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"RAG how it works key components\",\"num_results\":5}}",
-          "content_digest": "e02b96d87cb65a02",
+          "content_digest": "3652da9884902251",
           "tool_name": "search_knowledge",
           "observation_type": "generation"
         },
@@ -351,7 +261,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_WhrXJhptBxavwDlOlN8bdR\",\"content\":{\"type\":\"text\",\"text\":\"[1] (relevance: 0.65) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vectors…[1184 chars]",
-          "content_digest": "10c2944565453ab9",
+          "content_digest": "fdda6cecf8a0ea7d",
           "observation_type": "generation"
         },
         {
@@ -359,40 +269,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Based on the knowledge base, here's how RAG works and its key components: ## What is RAG? **RAG (Retrieval-Augmented Generation)** combines vector search with LLM generation to enhance the quality and relevance of AI-generated responses. ##…[1486 chars]",
-          "content_digest": "36bc60204d4e42df",
+          "content_digest": "65b5067b2f31575b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "67db7341/ai.generateText.doGenerate/30d6": {
-      "message_count": 2,
-      "role_sequence": [
-        "system",
-        "user"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "67db7341/ai.generateText/b01c": {
+    "trace-8/ai.generateText/span-1": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -405,13 +288,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Based on the knowledge base, here's how RAG works and its key components: ## What is RAG? **RAG (Retrieval-Augmented Generation)** combines vector search with LLM generation to enhance the quality and relevance of AI-generated responses. ##…[1486 chars]",
-          "content_digest": "36bc60204d4e42df",
+          "content_digest": "65b5067b2f31575b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "67db7341/ai.toolCall/4c42": {
+    "trace-8/ai.toolCall/span-3": {
       "message_count": 2,
       "role_sequence": [
         "assistant",
@@ -425,7 +308,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_WhrXJhptBxavwDlOlN8bdR\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"RAG how it works key components\",\"num_results\":5}}",
-          "content_digest": "e02b96d87cb65a02",
+          "content_digest": "3652da9884902251",
           "tool_name": "search_knowledge",
           "finish_reason": "ToolUse",
           "observation_type": "tool"
@@ -435,49 +318,46 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.65) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity. [2] (relevance: 0.15) Stran…[1067 chars]",
-          "content_digest": "f874ad7c5eaed28b",
+          "content_digest": "c961d5a314aa2757",
           "observation_type": "tool"
         }
       ]
     },
-    "ab38caab/BedrockRuntime.InvokeModel/664e": {
+    "trace-9/BedrockRuntime.InvokeModel/span-3": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "af728b00/BedrockRuntime.InvokeModel/128c": {
-      "message_count": 0,
-      "role_sequence": [],
+    "trace-9/ai.generateText.doGenerate/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
       "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "generation"
+        }
+      ]
     },
-    "f99e6293/BedrockRuntime.InvokeModel/fddb": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    }
-  },
-  "trace_views": {
-    "0426f48d": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "09339ddc": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "0faa82e2": {
+    "trace-9/ai.generateText.doGenerate/span-5": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -494,7 +374,155 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pL7dNwJRg6e2OhaPz51d8H\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\",\"num_results\":5}}",
+          "content_digest": "4a2e4c2a74d46900",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_pL7dNwJRg6e2OhaPz51d8H\",\"content\":{\"type\":\"text\",\"text\":\"[1] (relevance: 0.56) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity. Popu…[1191 chars]",
+          "content_digest": "963051de0f588235",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the knowledge base, here are the embedding models available for vector search: **Common Embedding Models:** - **Amazon Titan Embeddings** - AWS's embedding model - **OpenAI text-embedding-3** - OpenAI's embedding model These models…[1046 chars]",
+          "content_digest": "9311e4f55213d8d2",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-9/ai.generateText/span-1": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the knowledge base, here are the embedding models available for vector search: **Common Embedding Models:** - **Amazon Titan Embeddings** - AWS's embedding model - **OpenAI text-embedding-3** - OpenAI's embedding model These models…[1046 chars]",
+          "content_digest": "9311e4f55213d8d2",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-9/ai.toolCall/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pL7dNwJRg6e2OhaPz51d8H\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\",\"num_results\":5}}",
+          "content_digest": "4a2e4c2a74d46900",
+          "tool_name": "search_knowledge",
+          "finish_reason": "ToolUse",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.56) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. [2] (relevance: 0.54) Embeddings a…[1074 chars]",
+          "content_digest": "8658fc4058d67428",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-7": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
           "observation_type": "generation"
         },
         {
@@ -502,7 +530,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "What is SideSeat and how does it help with AI observability?",
-          "content_digest": "ecbd7ed723fb2394",
+          "content_digest": "258073a7aafdb01d",
           "observation_type": "generation"
         },
         {
@@ -510,7 +538,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4qNgHcwdWP8UpwLjbk2Voh\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":3}}",
-          "content_digest": "aadcfb5065b59e04",
+          "content_digest": "69f5585ec1f03bc7",
           "tool_name": "search_knowledge",
           "finish_reason": "ToolUse",
           "observation_type": "tool"
@@ -520,7 +548,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.74) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging. [2] (relevance: 0.34) OpenTele…[646 chars]",
-          "content_digest": "9003a91710684e49",
+          "content_digest": "49562c5913d10647",
           "observation_type": "tool"
         },
         {
@@ -528,13 +556,13 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Based on the knowledge base, here's what SideSeat is and how it helps with AI observability: ## SideSeat Overview **SideSeat** is an AI observability toolkit designed to help developers monitor and debug AI applications. Here are its key ca…[1479 chars]",
-          "content_digest": "0a0e84630ded5f2f",
+          "content_digest": "5e36b2d90f7ec84e",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "5bc3779c": {
+    "trace-8": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -551,71 +579,7 @@
           "role": "system",
           "entry_type": "text",
           "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What embedding models are available for vector search?",
-          "content_digest": "99591aaf305681dc",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pL7dNwJRg6e2OhaPz51d8H\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\",\"num_results\":5}}",
-          "content_digest": "ae06c2b7c4d53e2c",
-          "tool_name": "search_knowledge",
-          "finish_reason": "ToolUse",
-          "observation_type": "tool"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "[1] (relevance: 0.56) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. [2] (relevance: 0.54) Embeddings a…[1074 chars]",
-          "content_digest": "9f5d2f14eafafcfd",
-          "observation_type": "tool"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "Based on the knowledge base, here are the embedding models available for vector search: **Common Embedding Models:** - **Amazon Titan Embeddings** - AWS's embedding model - **OpenAI text-embedding-3** - OpenAI's embedding model These models…[1046 chars]",
-          "content_digest": "8e5f1c14d63b65ff",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "60b16f19": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "67db7341": {
-      "message_count": 5,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
-          "content_digest": "38c2cd200d1841a7",
+          "content_digest": "90aba6b63e48a6ed",
           "observation_type": "generation"
         },
         {
@@ -623,7 +587,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "How does RAG work and what are its key components?",
-          "content_digest": "beb8650b80615429",
+          "content_digest": "d75bacebd91f3248",
           "observation_type": "generation"
         },
         {
@@ -631,7 +595,7 @@
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_WhrXJhptBxavwDlOlN8bdR\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"RAG how it works key components\",\"num_results\":5}}",
-          "content_digest": "e02b96d87cb65a02",
+          "content_digest": "3652da9884902251",
           "tool_name": "search_knowledge",
           "finish_reason": "ToolUse",
           "observation_type": "tool"
@@ -641,7 +605,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.65) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity. [2] (relevance: 0.15) Stran…[1067 chars]",
-          "content_digest": "f874ad7c5eaed28b",
+          "content_digest": "c961d5a314aa2757",
           "observation_type": "tool"
         },
         {
@@ -649,32 +613,68 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Based on the knowledge base, here's how RAG works and its key components: ## What is RAG? **RAG (Retrieval-Augmented Generation)** combines vector search with LLM generation to enhance the quality and relevance of AI-generated responses. ##…[1486 chars]",
-          "content_digest": "36bc60204d4e42df",
+          "content_digest": "65b5067b2f31575b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "ab38caab": {
-      "message_count": 0,
-      "role_sequence": [],
+    "trace-9": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
       "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "af728b00": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "f99e6293": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pL7dNwJRg6e2OhaPz51d8H\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\",\"num_results\":5}}",
+          "content_digest": "4a2e4c2a74d46900",
+          "tool_name": "search_knowledge",
+          "finish_reason": "ToolUse",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.56) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. [2] (relevance: 0.54) Embeddings a…[1074 chars]",
+          "content_digest": "8658fc4058d67428",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the knowledge base, here are the embedding models available for vector search: **Common Embedding Models:** - **Amazon Titan Embeddings** - AWS's embedding model - **OpenAI text-embedding-3** - OpenAI's embedding model These models…[1046 chars]",
+          "content_digest": "9311e4f55213d8d2",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
     }
   },
   "session_views": {}
