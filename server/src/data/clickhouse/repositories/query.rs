@@ -1124,12 +1124,15 @@ pub async fn get_feed_spans(
     cb.add_eq("project_id", &params.project_id);
 
     // Cursor condition - use parameterized comparison for both timestamp and span_id
-    if let Some((cursor_time_us, cursor_span_id)) = &params.cursor {
-        // For tuple comparison, both values are parameterized
-        cb.conditions
-            .push("(toInt64(toUnixTimestamp64Micro(ingested_at)), span_id) < (?, ?)".to_string());
+    // The trace id is part of the cursor key: a span id is unique only within a trace.
+    if let Some((cursor_time_us, cursor_span_id, cursor_trace_id)) = &params.cursor {
+        cb.conditions.push(
+            "(toInt64(toUnixTimestamp64Micro(ingested_at)), span_id, trace_id) < (?, ?, ?)"
+                .to_string(),
+        );
         cb.params.push(QueryParam::Int64(*cursor_time_us));
         cb.params.push(QueryParam::String(cursor_span_id.clone()));
+        cb.params.push(QueryParam::String(cursor_trace_id.clone()));
     }
 
     // Time filters
@@ -1190,7 +1193,7 @@ pub async fn get_feed_spans(
             toInt64(toUnixTimestamp64Micro(ingested_at)) as ingested_at_us
         FROM otel_spans FINAL
         WHERE {}
-        ORDER BY ingested_at DESC, span_id DESC
+        ORDER BY ingested_at DESC, span_id DESC, trace_id DESC
         LIMIT {}
         "#,
         where_clause, params.limit

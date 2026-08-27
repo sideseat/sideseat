@@ -118,11 +118,16 @@ pub fn get_project_messages(
     ];
     let mut bind_values: Vec<String> = vec![params.project_id.clone()];
 
-    // Cursor condition: (ingested_at, span_id) < (cursor_time, cursor_span_id)
-    if let Some((cursor_time_us, cursor_span_id)) = &params.cursor {
-        conditions.push("(EPOCH_US(ingested_at), span_id) < (?::BIGINT, ?)".to_string());
+    // Cursor condition, on the same total key the ORDER BY uses. The trace id is in the key
+    // because a span id is unique only within a trace: two traces sharing one in the same
+    // ingestion microsecond had identical cursors, and a page boundary between them skipped the
+    // row that had not been returned.
+    if let Some((cursor_time_us, cursor_span_id, cursor_trace_id)) = &params.cursor {
+        conditions
+            .push("(EPOCH_US(ingested_at), span_id, trace_id) < (?::BIGINT, ?, ?)".to_string());
         bind_values.push(cursor_time_us.to_string());
         bind_values.push(cursor_span_id.clone());
+        bind_values.push(cursor_trace_id.clone());
     }
 
     // Event time filters
@@ -136,7 +141,7 @@ pub fn get_project_messages(
     }
 
     let sql = format!(
-        "SELECT {MESSAGE_SELECT_COLUMNS} FROM {DEDUP_SPANS} WHERE {} ORDER BY ingested_at DESC, span_id DESC LIMIT {}",
+        "SELECT {MESSAGE_SELECT_COLUMNS} FROM {DEDUP_SPANS} WHERE {} ORDER BY ingested_at DESC, span_id DESC, trace_id DESC LIMIT {}",
         conditions.join(" AND "),
         params.limit,
         DEDUP_SPANS = DEDUP_SPANS
@@ -333,7 +338,11 @@ mod tests {
         let params = FeedMessagesParams {
             project_id: project_id.to_string(),
             limit: 2,
-            cursor: Some((cursor_time_us, last_row.span_id.clone())),
+            cursor: Some((
+                cursor_time_us,
+                last_row.span_id.clone(),
+                last_row.trace_id.clone(),
+            )),
             ..Default::default()
         };
         let page2 = get_project_messages(&conn, &params).expect("Query should succeed");

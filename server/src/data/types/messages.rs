@@ -128,8 +128,10 @@ pub struct FeedMessagesParams {
     pub project_id: String,
     /// Maximum number of spans to return
     pub limit: u32,
-    /// Cursor for pagination: (ingested_at_us, span_id)
-    pub cursor: Option<(i64, String)>,
+    /// Cursor for pagination: (ingested_at_us, span_id, trace_id).
+    ///
+    /// The trace id is part of the key because a span id is unique only within a trace.
+    pub cursor: Option<(i64, String, String)>,
     /// Filter by event time >= start_time
     pub start_time: Option<DateTime<Utc>>,
     /// Filter by event time < end_time
