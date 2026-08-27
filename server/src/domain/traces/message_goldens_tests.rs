@@ -11,11 +11,15 @@
 //! `extract_messages_batch`, SideML conversion, enrichment — and then through each of the
 //! three feed views the API exposes:
 //!
-//! | View    | Feed entry point       | API endpoint                          |
-//! |---------|------------------------|---------------------------------------|
-//! | span    | `process_spans` (1 span)  | `/spans/{trace}/{span}/messages`   |
-//! | trace   | `process_spans` (1 trace) | `/traces/{id}/messages`            |
-//! | session | `process_feed`            | `/sessions/{id}/messages`          |
+//! | View    | Feed entry point            | API endpoint                     |
+//! |---------|-----------------------------|----------------------------------|
+//! | span    | `process_spans` (1 span)    | `/spans/{trace}/{span}/messages` |
+//! | trace   | `process_spans` (1 trace)   | `/traces/{id}/messages`          |
+//! | session | `process_spans` (whole session) | `/sessions/{id}/messages`    |
+//!
+//! All three use `process_spans` and differ only in their row set. `process_feed` belongs to the
+//! project feed endpoint and sorts newest-first, so using it here tested an ordering no session
+//! request can return.
 //!
 //! The result is compared against a committed expectation file. Regenerate with:
 //!
@@ -183,11 +187,41 @@ const MAX_CONTENT: usize = 240;
 /// real change cannot collide.
 fn content_digest(value: &serde_json::Value) -> String {
     use std::hash::{Hash, Hasher};
-    let canonical = serde_json::to_string(value).unwrap_or_default();
+    // Keys sorted before hashing. The workspace enables serde_json/preserve_order, so
+    // to_string() keeps insertion order and two blocks that differ only in key order hashed
+    // differently - a re-capture could churn every golden, and duplicate detection could miss a
+    // genuine repeat that arrived with its keys in another order.
+    let canonical = canonical_json(value);
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     canonical.len().hash(&mut hasher);
     canonical.hash(&mut hasher);
     format!("{:016x}", hasher.finish())
+}
+
+/// Serialize with object keys in sorted order, recursively.
+fn canonical_json(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut keys: Vec<&String> = map.keys().collect();
+            keys.sort();
+            let inner: Vec<String> = keys
+                .into_iter()
+                .map(|k| {
+                    format!(
+                        "{}:{}",
+                        serde_json::to_string(k).unwrap_or_default(),
+                        canonical_json(&map[k])
+                    )
+                })
+                .collect();
+            format!("{{{}}}", inner.join(","))
+        }
+        serde_json::Value::Array(items) => {
+            let inner: Vec<String> = items.iter().map(canonical_json).collect();
+            format!("[{}]", inner.join(","))
+        }
+        other => serde_json::to_string(other).unwrap_or_default(),
+    }
 }
 
 fn normalise_content(value: &serde_json::Value) -> String {
@@ -227,6 +261,10 @@ struct InvariantRow {
     role: String,
     entry_type: String,
     content: String,
+    /// Digest of the FULL content. Duplicate identity must not use the truncated, whitespace
+    /// collapsed preview: two genuinely different long messages share a preview and would be
+    /// reported as duplicates, while a whitespace-only difference would hide a real one.
+    content_digest: String,
     /// Kept for diagnostics in assertion messages rather than for matching, which goes by id.
     #[allow(dead_code)]
     tool_name: Option<String>,
@@ -258,7 +296,7 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
     // All three endpoints call process_spans; `process_feed` belongs to the project feed
     // endpoint (routes/otel/feed.rs) and has different ordering semantics, so using it for
     // the session view tested behaviour no session request can produce.
-    let mut result = match &view {
+    let result = match &view {
         View::Trace {
             trace_id,
             session_scoped: true,
@@ -271,9 +309,6 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
         }
         _ => process_spans(rows, &options),
     };
-    // Deterministic tool ordering: the pipeline collects these from a hash-ordered set in
-    // places, and an unstable order would churn every golden.
-    result.tool_names.sort();
 
     let mut messages = Vec::new();
     for (index, block) in result.messages.iter().enumerate() {
@@ -304,6 +339,7 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
             role: m.role.clone(),
             entry_type: m.entry_type.clone(),
             content: m.content.clone(),
+            content_digest: m.content_digest.clone(),
             tool_name: m.tool_name.clone(),
             tool_use_id: block.tool_use_id.clone(),
         })
@@ -321,10 +357,31 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
     )
 }
 
+/// What a view is scoped to, carried explicitly.
+///
+/// Previously inferred by string-matching the display key, which broke the moment the key
+/// became a canonical label instead of an id prefix - and a scope check that silently stops
+/// checking is worse than none.
+#[derive(Debug, Clone)]
+enum Scope {
+    Span { trace_id: String, span_id: String },
+    Trace { trace_id: String },
+    Session,
+}
+
 /// Golden plus the per-view invariant rows, which are checked but never serialized.
 struct Built {
     golden: Golden,
-    invariants: Vec<(String, Vec<InvariantRow>)>,
+    invariants: Vec<(String, Scope, Vec<InvariantRow>)>,
+    /// session id -> its traces, and trace id -> canonical label, for the cross-view invariant.
+    ///
+    /// Session membership is a set, not a single value: a trace can belong to more than one
+    /// session. Google ADK emits its own session id on some spans and the sample's `session.id`
+    /// on others, so one ADK trace appears under two sessions and the API returns it for both.
+    traces_of_session: BTreeMap<String, BTreeSet<String>>,
+    trace_labels: BTreeMap<String, String>,
+    /// trace id -> the single session production resolves it to.
+    session_of_trace: BTreeMap<String, String>,
 }
 
 /// The content filter every trace/session message query applies
@@ -348,12 +405,41 @@ fn sorted_by_timestamp(mut rows: Vec<MessageSpanRow>) -> Vec<MessageSpanRow> {
     rows
 }
 
+/// Stable label for each trace: `trace-1`, `trace-2`, ... ordered by earliest span timestamp
+/// then id.
+///
+/// The previous key was the first eight characters of the trace id, which silently collided:
+/// these ids are time-ordered (UUIDv7-style), so traces created moments apart share a long
+/// prefix. Seven fixtures lost trace views to `BTreeMap` overwrites - `openai/session` reported
+/// trace_count 3 while comparing one. An index is also stable across re-captures, where a raw
+/// id changes every time.
+fn trace_labels(rows: &[(String, MessageSpanRow)]) -> BTreeMap<String, String> {
+    let mut first_seen: BTreeMap<String, (chrono::DateTime<chrono::Utc>, String)> = BTreeMap::new();
+    for (_, r) in rows {
+        let e = first_seen
+            .entry(r.trace_id.clone())
+            .or_insert((r.span_timestamp, r.trace_id.clone()));
+        if r.span_timestamp < e.0 {
+            e.0 = r.span_timestamp;
+        }
+    }
+    let mut ordered: Vec<(chrono::DateTime<chrono::Utc>, String)> =
+        first_seen.into_values().collect();
+    ordered.sort();
+    ordered
+        .into_iter()
+        .enumerate()
+        .map(|(i, (_, id))| (id, format!("trace-{}", i + 1)))
+        .collect()
+}
+
 fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)]) -> Built {
     let mut span_views = BTreeMap::new();
     let mut trace_views = BTreeMap::new();
     let mut session_views = BTreeMap::new();
-    let mut invariants: Vec<(String, Vec<InvariantRow>)> = Vec::new();
+    let mut invariants: Vec<(String, Scope, Vec<InvariantRow>)> = Vec::new();
 
+    let labels = trace_labels(rows);
     let mut by_span: BTreeMap<(String, String), (String, Vec<MessageSpanRow>)> = BTreeMap::new();
     let mut by_trace: BTreeMap<String, Vec<MessageSpanRow>> = BTreeMap::new();
     // session id -> the traces that belong to it. The query is
@@ -362,7 +448,9 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
     // themselves carry the session id. Filtering by each row's own session_id dropped the
     // rows holding the messages and made sessions look empty.
     let mut traces_of_session: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    let mut session_of_trace: BTreeMap<String, Option<String>> = BTreeMap::new();
+    // trace id -> (earliest timestamp carrying a session id, that session id)
+    let mut session_of_trace: BTreeMap<String, (chrono::DateTime<chrono::Utc>, String)> =
+        BTreeMap::new();
 
     for (span_name, row) in rows {
         by_span
@@ -382,9 +470,17 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
                 .or_default()
                 .insert(row.trace_id.clone());
         }
-        let entry = session_of_trace.entry(row.trace_id.clone()).or_insert(None);
-        if entry.is_none() {
-            *entry = session;
+        // Which session a trace belongs to, chosen the way production does:
+        // `FIRST(s.session_id ORDER BY s.timestamp_start) FILTER (WHERE s.session_id IS NOT NULL)`
+        // in the trace query. Taking the first row encountered instead could pick a different
+        // session for a trace whose spans carry more than one.
+        if let Some(sid) = session {
+            let entry = session_of_trace
+                .entry(row.trace_id.clone())
+                .or_insert((row.span_timestamp, sid.clone()));
+            if row.span_timestamp < entry.0 {
+                *entry = (row.span_timestamp, sid);
+            }
         }
     }
 
@@ -402,20 +498,66 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
     };
 
     for ((trace_id, span_id), (name, span_rows)) in &by_span {
+        // `<trace-N>/<span name>/<span-M>`: the span index disambiguates repeats of the same
+        // name and, like the trace label, survives a re-capture.
+        //
+        // Numbered by earliest timestamp, not by span-id order: ids change on every capture, so
+        // id order made span-N shuffle between captures and produced diff noise unrelated to any
+        // behaviour change.
+        // Ties broken by parent then id: six same-name span groups in the current fixtures share
+        // an identical start. Neither tiebreaker is capture-stable - both ids are regenerated
+        // every capture - so a tied group can still renumber; what this buys is a *total* order,
+        // which keeps numbering deterministic within a run so the same fixture always produces
+        // the same labels. Renumbering a tied group is diff noise in a re-capture, not a test
+        // failure, because the assertions compare the label set as a whole.
+        let mut siblings: Vec<(chrono::DateTime<chrono::Utc>, String, &String)> = by_span
+            .iter()
+            .filter(|((t, _), _)| t == trace_id)
+            .map(|((_, sp), (_, rows))| {
+                let first = rows
+                    .iter()
+                    .map(|r| r.span_timestamp)
+                    .min()
+                    .unwrap_or_default();
+                let parent = rows
+                    .first()
+                    .and_then(|r| r.parent_span_id.clone())
+                    .unwrap_or_default();
+                (first, parent, sp)
+            })
+            .collect();
+        siblings.sort();
+        let span_no = siblings
+            .iter()
+            .position(|(_, _, s)| *s == span_id)
+            .unwrap_or(0)
+            + 1;
         let key = format!(
-            "{}/{name}/{}",
-            &trace_id[..trace_id.len().min(8)],
-            &span_id[..span_id.len().min(4)]
+            "{}/{name}/span-{span_no}",
+            labels
+                .get(trace_id)
+                .map(String::as_str)
+                .unwrap_or("trace-?")
         );
         // The span query filters by span_id alone and applies no content filter.
         let (view, inv) = build_view(sorted_by_timestamp(span_rows.clone()), View::Span);
-        invariants.push((format!("span {key}"), inv));
+        invariants.push((
+            format!("span {key}"),
+            Scope::Span {
+                trace_id: trace_id.clone(),
+                span_id: span_id.clone(),
+            },
+            inv,
+        ));
         span_views.insert(key, view);
     }
 
     for (trace_id, trace_rows) in &by_trace {
-        let key = trace_id[..trace_id.len().min(8)].to_string();
-        let session = session_of_trace.get(trace_id).cloned().flatten();
+        let key = labels
+            .get(trace_id)
+            .cloned()
+            .unwrap_or_else(|| "trace-?".to_string());
+        let session = session_of_trace.get(trace_id).map(|(_, sid)| sid.clone());
         let (rows_for_view, session_scoped) = match &session {
             Some(sid) => (session_rows(sid), true),
             None => (
@@ -436,13 +578,19 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
                 session_scoped,
             },
         );
-        invariants.push((format!("trace {key}"), inv));
+        invariants.push((
+            format!("trace {key}"),
+            Scope::Trace {
+                trace_id: trace_id.clone(),
+            },
+            inv,
+        ));
         trace_views.insert(key, view);
     }
 
     for sid in traces_of_session.keys() {
         let (view, inv) = build_view(session_rows(sid), View::Session);
-        invariants.push((format!("session {sid}"), inv));
+        invariants.push((format!("session {sid}"), Scope::Session, inv));
         session_views.insert(sid.clone(), view);
     }
 
@@ -458,6 +606,12 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
             session_views,
         },
         invariants,
+        traces_of_session,
+        trace_labels: labels,
+        session_of_trace: session_of_trace
+            .into_iter()
+            .map(|(t, (_, sid))| (t, sid))
+            .collect(),
     }
 }
 
@@ -475,7 +629,7 @@ fn assert_no_duplicates(label: &str, view_name: &str, rows: &[InvariantRow]) {
                 r.trace_id.as_str(),
                 r.role.as_str(),
                 r.entry_type.as_str(),
-                r.content.as_str(),
+                r.content_digest.as_str(),
             ))
             .or_insert(0) += 1;
     }
@@ -517,9 +671,12 @@ fn extract_tool_use_id(row: &InvariantRow) -> Option<&str> {
 /// The earlier stack version additionally never checked that the stack drained, so
 /// "every call is answered" was never actually verified.
 ///
-/// Unanswered calls are reported, not asserted: a cancelled or failed turn legitimately
-/// leaves one open, so this is a warning-grade property recorded in the golden instead.
-/// What IS asserted is the direction that can only be a defect: a result with no call.
+/// Two things are asserted. A result whose id matches no call is always a defect. And a call
+/// cannot be answered twice: two results carrying the same id mean the same invocation was
+/// rendered twice.
+///
+/// Unanswered calls are NOT asserted - a cancelled or failed turn legitimately leaves one open,
+/// and a time-filtered view can cut between the two halves.
 /// Fixtures whose SOURCE telemetry cannot satisfy tool pairing, with the reason.
 ///
 /// A capability limit of the framework, not a parsing defect, so it is recorded per fixture
@@ -540,9 +697,12 @@ const PAIRING_EXEMPT: &[(&str, &str)] = &[
 ];
 
 fn assert_tool_pairing(label: &str, view_name: &str, rows: &[InvariantRow]) {
-    if let Some((_, reason)) = PAIRING_EXEMPT.iter().find(|(l, _)| *l == label) {
-        eprintln!("message_goldens: {label}: tool pairing not asserted - {reason}");
-        return;
+    // Exempt fixtures skip only the "result must match a call" assertion, which their source
+    // cannot satisfy. The duplicate-answer check below still applies: nothing about the Claude
+    // CLI's subagent reporting makes it legitimate to render one invocation twice.
+    let exempt = PAIRING_EXEMPT.iter().find(|(l, _)| *l == label);
+    if let Some((_, reason)) = exempt {
+        eprintln!("message_goldens: {label}: unmatched-result check skipped - {reason}");
     }
     let mut calls: BTreeMap<(&str, String), usize> = BTreeMap::new();
     for r in rows {
@@ -554,6 +714,7 @@ fn assert_tool_pairing(label: &str, view_name: &str, rows: &[InvariantRow]) {
                 .or_insert(0) += 1;
         }
     }
+    let mut answered: BTreeMap<(&str, String), usize> = BTreeMap::new();
     for r in rows {
         if r.entry_type != "tool_result" {
             continue;
@@ -563,10 +724,22 @@ fn assert_tool_pairing(label: &str, view_name: &str, rows: &[InvariantRow]) {
         };
         let key = (r.trace_id.as_str(), id.to_string());
         assert!(
-            calls.contains_key(&key),
+            exempt.is_some() || calls.contains_key(&key),
             "{label} / {view_name}: tool_result at index {} has id {id:?} with no matching tool_use in trace {}",
             r.index,
             &r.trace_id[..r.trace_id.len().min(8)]
+        );
+        *answered.entry(key).or_insert(0) += 1;
+    }
+    for ((trace, id), n) in &answered {
+        let Some(call_count) = calls.get(&(*trace, id.clone())) else {
+            continue; // unmatched result: already handled (or exempted) above
+        };
+        assert!(
+            n <= call_count,
+            "{label} / {view_name}: tool_use id {id:?} in trace {} has {n} results but only {} call(s) - the same invocation is rendered more than once",
+            &trace[..trace.len().min(8)],
+            call_count
         );
     }
 }
@@ -602,56 +775,82 @@ fn assert_projection_consistent(label: &str, view_name: &str, view: &GoldenView)
 ///
 /// This is the property the endpoints promise and the one a scoping bug breaks: a span view
 /// leaking a sibling span's messages, or a trace view leaking another trace's, is invisible to
-/// count and ordering checks because the totals still look plausible.
-fn assert_scope(label: &str, view_name: &str, rows: &[InvariantRow]) {
-    if let Some(rest) = view_name.strip_prefix("span ") {
-        // Key is `<trace8>/<name>/<span4>`.
-        let mut parts = rest.split('/');
-        let trace_prefix = parts.next().unwrap_or_default();
-        let span_prefix = parts.next_back().unwrap_or_default();
-        for r in rows {
-            assert!(
-                r.trace_id.starts_with(trace_prefix),
-                "{label} / {view_name}: block from trace {} leaked into a span view of trace {trace_prefix}",
-                &r.trace_id[..r.trace_id.len().min(8)]
-            );
-            assert!(
-                r.span_id.starts_with(span_prefix),
-                "{label} / {view_name}: block from span {} leaked into a span view of {span_prefix}",
-                &r.span_id[..r.span_id.len().min(4)]
-            );
+/// count and ordering checks because the totals still look plausible. Compared against exact
+/// ids rather than a key prefix.
+fn assert_scope(label: &str, view_name: &str, scope: &Scope, rows: &[InvariantRow]) {
+    match scope {
+        Scope::Span { trace_id, span_id } => {
+            for r in rows {
+                assert_eq!(
+                    &r.trace_id, trace_id,
+                    "{label} / {view_name}: block from another trace leaked into a span view"
+                );
+                assert_eq!(
+                    &r.span_id, span_id,
+                    "{label} / {view_name}: block from another span leaked into a span view"
+                );
+            }
         }
-    } else if let Some(trace_prefix) = view_name.strip_prefix("trace ") {
-        // The trace endpoint loads a whole session and scopes back; a leak here means
-        // scope_feed_to_trace failed to filter.
-        for r in rows {
-            assert!(
-                r.trace_id.starts_with(trace_prefix),
-                "{label} / {view_name}: block from trace {} leaked into the view after scoping",
-                &r.trace_id[..r.trace_id.len().min(8)]
-            );
+        Scope::Trace { trace_id } => {
+            for r in rows {
+                assert_eq!(
+                    &r.trace_id, trace_id,
+                    "{label} / {view_name}: block from another trace survived scope_feed_to_trace"
+                );
+            }
         }
+        // A session legitimately spans traces, so there is nothing to constrain.
+        Scope::Session => {}
     }
-    // Session views legitimately span traces, so there is nothing to assert there.
 }
 
-/// A trace with content must not collapse to nothing.
+/// A session's trace views must partition its session view exactly.
 ///
-/// Deliberately weak, because the obvious stronger claim is false: a span view can hold *more*
-/// messages than its trace view. Each generation span re-sends the whole conversation history,
-/// so one span legitimately shows 21 messages where the trace shows the 7 unique ones after
-/// history dedup. Asserting trace >= span reported every multi-turn trace as broken.
+/// The trace endpoint loads the whole session, runs the same pipeline, then retains only the
+/// requested trace's blocks; the session endpoint returns all of them. So summing the trace
+/// views of one session must equal that session's view. This catches `scope_feed_to_trace`
+/// dropping or duplicating blocks, and it is strictly stronger than what it replaced.
 ///
-/// What does hold: if any span in a trace produced messages, the trace view must too.
-fn assert_trace_not_empty(label: &str, golden: &Golden) {
-    for (trace_key, trace_view) in &golden.trace_views {
-        let any_span_has_content = golden
-            .span_views
+/// The previous check here - "a trace whose spans carry messages is not itself empty" - is
+/// false. A trace can legitimately scope to nothing: `langgraph/rag_local` has 18 traces in one
+/// session, 15 of which are pure cross-trace replays whose content is stripped as history and
+/// only shown on the trace that first sent it.
+fn assert_session_partitions_into_traces(
+    label: &str,
+    golden: &Golden,
+    traces_of_session: &BTreeMap<String, BTreeSet<String>>,
+    trace_labels: &BTreeMap<String, String>,
+    session_of_trace: &BTreeMap<String, String>,
+) {
+    for (session_id, session_view) in &golden.session_views {
+        let Some(traces) = traces_of_session.get(session_id) else {
+            continue;
+        };
+        // A trace can carry two session ids (Google ADK emits its own plus the sample's).
+        // Production builds that trace's view from whichever session it resolves to, so the
+        // partition only holds for that session; skip the others rather than assert something
+        // the API would not produce.
+        if traces
             .iter()
-            .any(|(span_key, v)| span_key.starts_with(trace_key.as_str()) && v.message_count > 0);
-        assert!(
-            !any_span_has_content || trace_view.message_count > 0,
-            "{label} / trace {trace_key}: spans carry messages but the trace view is empty"
+            .any(|t| session_of_trace.get(t) != Some(session_id))
+        {
+            eprintln!(
+                "message_goldens: {label}: session {session_id} shares a trace with another \
+                 session; partition not asserted"
+            );
+            continue;
+        }
+        let expected: usize = traces
+            .iter()
+            .filter_map(|trace_id| trace_labels.get(trace_id))
+            .filter_map(|lbl| golden.trace_views.get(lbl))
+            .map(|v| v.message_count)
+            .sum();
+        assert_eq!(
+            expected, session_view.message_count,
+            "{label} / session {session_id}: trace views sum to {expected} but the session view \
+             has {} - scoping lost or duplicated blocks",
+            session_view.message_count
         );
     }
 }
@@ -696,9 +895,9 @@ fn check_invariants(label: &str, built: &Built) {
         assert_no_empty_text(label, name, view);
     }
 
-    for (name, rows) in &built.invariants {
+    for (name, scope, rows) in &built.invariants {
+        assert_scope(label, name, scope, rows);
         assert_no_duplicates(label, name, rows);
-        assert_scope(label, name, rows);
         // Span views are excluded from both tool checks: a single span holds only one half of
         // a call/result pair, so neither the pairing nor the id of the other half is present.
         if !name.starts_with("span ") {
@@ -706,7 +905,13 @@ fn check_invariants(label: &str, built: &Built) {
         }
     }
 
-    assert_trace_not_empty(label, golden);
+    assert_session_partitions_into_traces(
+        label,
+        golden,
+        &built.traces_of_session,
+        &built.trace_labels,
+        &built.session_of_trace,
+    );
 
     // Not every sample uses sessions, so assert on traces: those always exist.
     let total: usize = golden.trace_views.values().map(|v| v.message_count).sum();
@@ -967,6 +1172,7 @@ fn invariant_checks_are_not_vacuous() {
             role: role.to_string(),
             entry_type: kind.to_string(),
             content: content.to_string(),
+            content_digest: format!("d:{content}"),
             tool_name: None,
             tool_use_id: None,
         }
@@ -985,6 +1191,7 @@ fn invariant_checks_are_not_vacuous() {
             .to_string(),
             entry_type: kind.to_string(),
             content: format!("{{\"id\":\"{id}\"}}"),
+            content_digest: format!("d:{kind}:{id}"),
             tool_name: Some("calc".to_string()),
             tool_use_id: Some(id.to_string()),
         }
@@ -1057,7 +1264,7 @@ fn invariant_checks_are_not_vacuous() {
         "pairing must be scoped per trace"
     );
 
-    // Scope: a span view must not contain another span's block.
+    // Scope: a span view must not contain another span's or another trace's block.
     let leaked = vec![InvariantRow {
         trace_id: "aaaaaaaa1111".to_string(),
         span_id: "bbbb2222".to_string(),
@@ -1065,22 +1272,36 @@ fn invariant_checks_are_not_vacuous() {
         role: "user".to_string(),
         entry_type: "text".to_string(),
         content: "x".to_string(),
+        content_digest: "d:x".to_string(),
         tool_name: None,
         tool_use_id: None,
     }];
+    let in_scope = Scope::Span {
+        trace_id: "aaaaaaaa1111".into(),
+        span_id: "bbbb2222".into(),
+    };
+    let wrong_span = Scope::Span {
+        trace_id: "aaaaaaaa1111".into(),
+        span_id: "cccc3333".into(),
+    };
+    let wrong_trace = Scope::Trace {
+        trace_id: "ffffffff9999".into(),
+    };
     assert!(
-        fires(&|| assert_scope("test", "span aaaaaaaa/chat/cccc", &leaked)),
+        !fires(&|| assert_scope("test", "span x", &in_scope, &leaked)),
+        "scope check must accept a block that is in scope"
+    );
+    assert!(
+        fires(&|| assert_scope("test", "span x", &wrong_span, &leaked)),
         "scope check failed to catch a block from another span"
     );
     assert!(
-        !fires(&|| assert_scope("test", "span aaaaaaaa/chat/bbbb", &leaked)),
-        "scope check must accept a block that is in scope"
-    );
-
-    // Scope: a trace view must not contain another trace's block after scoping.
-    assert!(
-        fires(&|| assert_scope("test", "trace ffffffff", &leaked)),
+        fires(&|| assert_scope("test", "trace x", &wrong_trace, &leaked)),
         "scope check failed to catch a block from another trace"
+    );
+    assert!(
+        !fires(&|| assert_scope("test", "session x", &Scope::Session, &leaked)),
+        "a session view spans traces, so nothing is constrained"
     );
 
     // Projection consistency: a count that disagrees with the list is a defect.
@@ -1106,6 +1327,25 @@ fn invariant_checks_are_not_vacuous() {
     );
 }
 
+/// `passes_content_filter` reimplements the SQL predicate in Rust, so the two can drift: adding
+/// a condition to the query would silently leave the harness feeding rows the API never
+/// returns. This pins the coupling by checking the constant still mentions exactly the columns
+/// the Rust version tests.
+#[test]
+fn content_filter_matches_the_sql_predicate() {
+    use crate::data::types::MESSAGE_CONTENT_FILTER;
+
+    // The exact predicate, not a substring or clause count: checking only that the column names
+    // appear left an inverted operator (`=` for `!=`) or a changed literal ('ERROR' -> 'error')
+    // passing while `passes_content_filter` kept the old meaning.
+    const EXPECTED: &str = "(messages != '[]' OR tool_definitions != '[]' OR tool_names != '[]' OR status_code = 'ERROR')";
+    assert_eq!(
+        MESSAGE_CONTENT_FILTER, EXPECTED,
+        "the SQL predicate changed; re-derive passes_content_filter from it, then update this \
+         expectation in the same commit"
+    );
+}
+
 /// Processing the same fixture twice must give the same answer.
 ///
 /// Not hypothetical: the output sort's tie-break omitted content, so two blocks sharing span,
@@ -1119,8 +1359,14 @@ fn processing_is_deterministic() {
         eprintln!("processing_is_deterministic: no fixtures - skipping");
         return;
     }
-    // A handful is enough to catch an ordering tie, and keeps the test quick.
-    for (label, paths) in fixtures.iter().take(8) {
+    // One fixture per suite rather than the first eight alphabetically, which covered only
+    // _synthetic and early ADK samples and left every other framework's ordering untested.
+    let mut per_suite: BTreeMap<&str, &(String, Vec<PathBuf>)> = BTreeMap::new();
+    for f in &fixtures {
+        let suite = f.0.split('/').next().unwrap_or("");
+        per_suite.entry(suite).or_insert(f);
+    }
+    for (label, paths) in per_suite.into_values() {
         let first = build_golden(label, paths, &rows_for(paths)).golden;
         let second = build_golden(label, paths, &rows_for(paths)).golden;
         assert!(
@@ -1158,8 +1404,24 @@ fn content_digest_detects_changes_beyond_the_preview() {
         "the preview is expected to be identical here - that is why the digest is needed"
     );
 
-    // Key order must not matter, or every golden would churn.
+    // Key order must not matter, or every golden would churn and duplicate detection would miss
+    // a repeat whose keys arrived in another order. These two objects are equal but written in
+    // different orders, which serde_json/preserve_order keeps distinct in to_string().
     let o1 = json!({"type": "tool_use", "name": "calc", "id": "1"});
-    let o2 = json!({"type": "tool_use", "name": "calc", "id": "1"});
-    assert_eq!(content_digest(&o1), content_digest(&o2));
+    let o2 = json!({"id": "1", "name": "calc", "type": "tool_use"});
+    assert_ne!(
+        serde_json::to_string(&o1).unwrap(),
+        serde_json::to_string(&o2).unwrap(),
+        "precondition: preserve_order keeps these textually different"
+    );
+    assert_eq!(
+        content_digest(&o1),
+        content_digest(&o2),
+        "digest must be canonical, not insertion-ordered"
+    );
+
+    // Nested objects too.
+    let n1 = json!({"a": {"x": 1, "y": 2}, "b": [{"p": 1, "q": 2}]});
+    let n2 = json!({"b": [{"q": 2, "p": 1}], "a": {"y": 2, "x": 1}});
+    assert_eq!(content_digest(&n1), content_digest(&n2));
 }
