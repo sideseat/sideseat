@@ -9,6 +9,9 @@
 //! - HTTP keep-alive for connection reuse
 
 pub mod error;
+#[cfg(test)]
+#[path = "parity_tests.rs"]
+mod parity_tests;
 pub mod repositories;
 mod repository_impl;
 pub mod schema;
