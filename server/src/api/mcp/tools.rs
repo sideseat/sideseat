@@ -161,10 +161,18 @@ impl McpServer {
 
         // Simple path: span or session scoped (no cross-trace dedup needed)
         if input.span_id.is_some() || input.session_id.is_some() {
+            // With a span_id, trace_id narrows the scope: OTel span ids are 8 bytes and unique
+            // only within a trace, so span_id alone can return another trace's span. The HTTP
+            // route always carries both; here it is whatever the caller sent.
+            //
+            // Not applied to a session query - a session spans several traces, and adding one
+            // would return part of it while the response still claims to be the session.
+            let trace_id = input.span_id.as_ref().and(input.trace_id.clone());
             let params = MessageQueryParams {
                 project_id: self.project_id.clone(),
                 span_id: input.span_id,
                 session_id: input.session_id,
+                trace_id,
                 ..Default::default()
             };
             let result = repo.get_messages(&params).await.map_err(mcp_err)?;
@@ -478,7 +486,7 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         pip_pkg: "google-adk",
         sdk_extra: "",
         sdk_variant: "GoogleADK",
-        sdk_snippet: "# See full async example: https://google.github.io/adk-docs/",
+        sdk_snippet: "import asyncio\n\nfrom google.adk.agents import LlmAgent\nfrom google.adk.runners import Runner\nfrom google.adk.sessions import InMemorySessionService\nfrom google.genai import types\n\nagent = LlmAgent(model=\"gemini-2.0-flash\", name=\"assistant\", instruction=\"Be helpful.\")\n\nasync def main():\n    sessions = InMemorySessionService()\n    await sessions.create_session(app_name=\"demo\", user_id=\"u1\", session_id=\"s1\")\n    runner = Runner(agent=agent, app_name=\"demo\", session_service=sessions)\n    async for event in runner.run_async(\n        session_id=\"s1\",\n        user_id=\"u1\",\n        new_message=types.Content(role=\"user\", parts=[types.Part(text=\"Hello\")]),\n    ):\n        if event.content and event.content.parts:\n            for part in event.content.parts:\n                if getattr(part, \"text\", None):\n                    print(part.text)\n\nasyncio.run(main())",
         no_sdk_extra_pkgs: "",
         no_sdk_extra_setup: "",
     },
@@ -488,7 +496,7 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         pip_pkg: "agent-framework",
         sdk_extra: "",
         sdk_variant: "AgentFramework",
-        sdk_snippet: "import asyncio\nfrom agent_framework import Agent\nfrom agent_framework.openai import OpenAIChatClient\nprint(asyncio.run(Agent(client=OpenAIChatClient(model_id=\"gpt-5-nano-2025-08-07\"), instructions=\"Helpful.\").run(\"Hello\")).text)",
+        sdk_snippet: "import asyncio\nfrom agent_framework import Agent\nfrom agent_framework.openai import OpenAIChatClient\nprint(asyncio.run(Agent(client=OpenAIChatClient(model=\"gpt-5-nano-2025-08-07\"), instructions=\"Helpful.\").run(\"Hello\")).text)",
         no_sdk_extra_pkgs: "",
         no_sdk_extra_setup: "from agent_framework.observability import OBSERVABILITY_SETTINGS\nOBSERVABILITY_SETTINGS.enable_instrumentation = True\nOBSERVABILITY_SETTINGS.enable_sensitive_data = True",
     },
@@ -662,7 +670,9 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         sdk_extra: "",
         sdk_variant: "Strands",
         sdk_snippet: "import { Agent } from '@strands-agents/sdk';\n\n\
-                          const agent = new Agent({ model });\n\
+                          const agent = new Agent({\n\
+                          \u{20}\u{20}model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0',\n\
+                          });\n\
                           const result = await agent.invoke('Hello');\n\
                           console.log(result.toString());",
         no_sdk_extra_pkgs: "",
@@ -680,6 +690,27 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
                           // The Agent SDK emits no telemetry itself: the Claude Code CLI it spawns\n\
                           // self-instruments and is configured through CLAUDE_CODE_* / OTEL_* env vars\n\
                           // on the subprocess. See the Claude Agent SDK integration page.\n\
+                          // The CLI subprocess exports OTLP itself; these are its entire\n\
+                          // configuration. Span tracing is beta, and message content needs a\n\
+                          // second beta tier on top or the Messages tab stays empty.\n\
+                          // options.env REPLACES the environment in TypeScript, so process.env is\n\
+                          // spread or the subprocess loses PATH and credentials.\n\
+                          const options = {\n\
+                          \u{20}\u{20}env: {\n\
+                          \u{20}\u{20}\u{20}\u{20}...process.env,\n\
+                          \u{20}\u{20}\u{20}\u{20}CLAUDE_CODE_ENABLE_TELEMETRY: '1',\n\
+                          \u{20}\u{20}\u{20}\u{20}CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',\n\
+                          \u{20}\u{20}\u{20}\u{20}ENABLE_BETA_TRACING_DETAILED: '1',\n\
+                          \u{20}\u{20}\u{20}\u{20}BETA_TRACING_ENDPOINT: '__OTLP_BASE__',\n\
+                          \u{20}\u{20}\u{20}\u{20}OTEL_TRACES_EXPORTER: 'otlp',\n\
+                          \u{20}\u{20}\u{20}\u{20}OTEL_METRICS_EXPORTER: 'none',\n\
+                          \u{20}\u{20}\u{20}\u{20}OTEL_LOGS_EXPORTER: 'none',\n\
+                          \u{20}\u{20}\u{20}\u{20}OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: 'http/protobuf',\n\
+                          \u{20}\u{20}\u{20}\u{20}OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: '__OTLP_ENDPOINT__',\n\
+                          \u{20}\u{20}\u{20}\u{20}OTEL_LOG_USER_PROMPTS: '1',\n\
+                          \u{20}\u{20}\u{20}\u{20}OTEL_LOG_TOOL_DETAILS: '1',\n\
+                          \u{20}\u{20}},\n\
+                          };\n\n\
                           for await (const msg of query({ prompt: 'Hello', options })) console.log(msg);",
         no_sdk_extra_pkgs: "",
         no_sdk_extra_setup: "",
@@ -988,6 +1019,243 @@ mod tests {
                     "{}: snippet calls `{}` but never imports or defines it:\n{}",
                     fw.display,
                     name,
+                    snippet
+                );
+            }
+        }
+    }
+
+    /// The variables a Claude Agent SDK integration cannot work without.
+    ///
+    /// The Claude Code CLI produces telemetry only when told to, by environment variable, and
+    /// omitting any one of these yields either no spans or spans with no message content. The
+    /// list is asserted against every place we hand a user this configuration - see
+    /// [`claude_configuration_agrees_everywhere_it_is_duplicated`].
+    const CLAUDE_REQUIRED_ENV: [&str; 9] = [
+        "CLAUDE_CODE_ENABLE_TELEMETRY",
+        "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA",
+        "ENABLE_BETA_TRACING_DETAILED",
+        "BETA_TRACING_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+        "OTEL_TRACES_EXPORTER",
+        "OTEL_LOG_USER_PROMPTS",
+        "OTEL_LOG_TOOL_DETAILS",
+    ];
+
+    /// Every placeholder must be substituted, and the Claude Agent SDK guides must carry the
+    /// exporter configuration in both languages.
+    ///
+    /// The TypeScript snippet declared `options` but set only CLAUDE_CODE_ENABLE_TELEMETRY, so
+    /// it emitted no spans anywhere: the CLI subprocess needs the endpoint, the two beta tiers
+    /// and the content flags, exactly as the Python copy has.
+    #[test]
+    fn test_claude_guides_carry_the_exporter_configuration() {
+        for name in ["claude-agent-sdk", "claude-agent-sdk-typescript"] {
+            let guide = build_setup_guide("default", Some(name));
+            assert!(
+                !guide.contains("__OTLP_"),
+                "{name}: an OTLP placeholder was not substituted:\n{guide}"
+            );
+            for required in CLAUDE_REQUIRED_ENV {
+                assert!(
+                    guide.contains(required),
+                    "{name}: guide omits {required}, so the CLI would emit nothing useful"
+                );
+            }
+        }
+    }
+
+    /// This configuration is spelled out in seven places, and drift means a user copies a setup
+    /// that produces no telemetry.
+    ///
+    /// Two are executable (the Python and TypeScript sample suites, which are run), one is a
+    /// script, and four are copies handed to users: the MCP setup guide, the framework page, the
+    /// docs homepage and the telemetry configuration UI. Deriving the four from one source would
+    /// mean generating MDX and TypeScript from Rust; asserting they agree costs one test and
+    /// fails the moment they do not. A new copy has to be added here, which makes adding one a
+    /// decision rather than an accident.
+    #[test]
+    fn claude_configuration_agrees_everywhere_it_is_duplicated() {
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("repo root");
+
+        let copies = [
+            "docs/src/content/docs/docs/integrations/frameworks/claude-agent-sdk.mdx",
+            "docs/src/content/docs/docs/index.mdx",
+            "web/src/pages/configuration/telemetry-frameworks.ts",
+            "misc/samples/python/claude-agent-sdk/telemetry_setup.py",
+            "misc/samples/js/src/shared/telemetry.ts",
+            "misc/scripts/run-claude.sh",
+        ];
+
+        for relative in copies {
+            let path = repo.join(relative);
+            let text = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("{relative}: {e} - was this copy moved or deleted?"));
+            for required in CLAUDE_REQUIRED_ENV {
+                assert!(
+                    text.contains(required),
+                    "{relative} omits {required}, so it disagrees with the MCP setup guide - \
+                     the CLI would emit nothing useful for anyone following it"
+                );
+            }
+        }
+    }
+
+    /// TypeScript snippets must declare every identifier they use, same as the Python ones.
+    ///
+    /// The Python check below never covered them, and two shipped broken: the Strands snippet
+    /// passed `{ model }` and the Claude Agent SDK snippet passed `options`, neither declared.
+    /// A user pasting either got a ReferenceError.
+    #[test]
+    fn test_typescript_snippets_declare_every_identifier() {
+        for fw in FRAMEWORKS {
+            if fw.lang != Lang::TypeScript {
+                continue;
+            }
+            let snippet = fw.sdk_snippet;
+            let mut bound: Vec<String> = Vec::new();
+            for line in snippet.lines() {
+                let t = line.trim();
+                // `import { a, b } from '...'`
+                if let Some(rest) = t.strip_prefix("import {").and_then(|r| r.split('}').next()) {
+                    bound.extend(rest.split(',').map(|n| n.trim().to_string()));
+                }
+                // `const x = ...` / `let x = ...`
+                for kw in ["const ", "let ", "var "] {
+                    if let Some(rest) = t.strip_prefix(kw) {
+                        let name = rest
+                            .split(['=', ':', ' ', '('])
+                            .next()
+                            .unwrap_or("")
+                            .trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
+                        if !name.is_empty() {
+                            bound.push(name.to_string());
+                        }
+                        // Destructuring: `const { text } = ...`
+                        if rest.trim_start().starts_with('{')
+                            && let Some(inner) =
+                                rest.split('{').nth(1).and_then(|r| r.split('}').next())
+                        {
+                            bound.extend(inner.split(',').map(|n| n.trim().to_string()));
+                        }
+                    }
+                }
+                // `for await (const msg of ...)`
+                if let Some(rest) = t.split("const ").nth(1)
+                    && t.contains(" of ")
+                    && let Some(name) = rest.split_whitespace().next()
+                {
+                    bound.push(name.to_string());
+                }
+            }
+
+            // Identifiers the snippet USES, from three shapes:
+            //   `{ model }`      shorthand object property
+            //   `f(options)`     bare identifier argument
+            //   `agent.invoke()` member access
+            //
+            // A hardcoded list of six names only guarded the cases that had already broken;
+            // deleting a `const agent = ...` line passed because `agent` appeared only as member
+            // access, which nothing looked at.
+            const RUNTIME_GLOBALS: &[&str] = &["process", "console", "JSON", "Math"];
+            // Declared by the guide template that wraps every snippet, not by the snippet:
+            // `import { init, Frameworks } from '@sideseat/sdk'` on the SDK path and the NodeSDK
+            // block on the direct-OTLP path. A snippet using these is correct.
+            const TEMPLATE_PROVIDED: &[&str] =
+                &["init", "sdk", "query", "generateText", "registerTelemetry"];
+            const KEYWORDS: &[&str] = &[
+                "const",
+                "let",
+                "var",
+                "await",
+                "for",
+                "of",
+                "new",
+                "import",
+                "from",
+                "async",
+                "return",
+                "true",
+                "false",
+                "null",
+                "undefined",
+            ];
+            let plausible = |t: &str| {
+                t.len() > 1
+                    && t.chars().all(|c| c.is_ascii_lowercase() || c == '_')
+                    && !KEYWORDS.contains(&t)
+                    && !RUNTIME_GLOBALS.contains(&t)
+                    && !TEMPLATE_PROVIDED.contains(&t)
+            };
+
+            // String literals are stripped first: a model id like 'us.anthropic.claude-...' would
+            // otherwise be read as member access on an undeclared `us`.
+            let mut code = String::with_capacity(snippet.len());
+            let mut quote: Option<char> = None;
+            for ch in snippet.chars() {
+                match quote {
+                    Some(q) => {
+                        if ch == q {
+                            quote = None;
+                        }
+                    }
+                    None => {
+                        if ch == '\'' || ch == '"' || ch == '`' {
+                            quote = Some(ch);
+                        } else {
+                            code.push(ch);
+                        }
+                    }
+                }
+            }
+            let snippet_code = code.as_str();
+
+            let mut used: Vec<String> = Vec::new();
+            for seg in snippet_code.split(['{', '}', '(', ')', ',', ';']) {
+                let t = seg.trim();
+                if plausible(t) {
+                    used.push(t.to_string());
+                }
+            }
+            // Direct callees: `model: bedrock(...)` is a use of `bedrock`, but it matched neither
+            // the shorthand-property nor the member-access shape, so deleting its import passed.
+            for (idx, _) in snippet_code.match_indices('(') {
+                let head: String = snippet_code[..idx]
+                    .chars()
+                    .rev()
+                    .take_while(|c| c.is_alphanumeric() || *c == '_')
+                    .collect::<Vec<char>>()
+                    .into_iter()
+                    .rev()
+                    .collect();
+                // Skip a method call: in `console.log(...)` the callee is `log`, which is not an
+                // identifier the snippet must declare - the member-access scan below covers
+                // `console` instead.
+                let is_method = snippet_code[..idx - head.len()].ends_with('.');
+                if !is_method && plausible(&head) {
+                    used.push(head);
+                }
+            }
+            for tok in snippet_code.split(|c: char| !(c.is_alphanumeric() || c == '_' || c == '.'))
+            {
+                if let Some((head, rest)) = tok.split_once('.')
+                    && !rest.is_empty()
+                    && plausible(head)
+                {
+                    used.push(head.to_string());
+                }
+            }
+            used.sort();
+            used.dedup();
+
+            for token in &used {
+                assert!(
+                    bound.iter().any(|b| b == token),
+                    "{}: TypeScript snippet uses `{token}` without declaring it:\n{}",
+                    fw.display,
                     snippet
                 );
             }
