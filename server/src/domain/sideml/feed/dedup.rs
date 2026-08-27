@@ -708,8 +708,8 @@ fn batch_key(block: &BlockEntry) -> (String, String, DateTime<Utc>, bool) {
     )
 }
 
-/// The earliest birth time in each message, which is the time all of its blocks sort at.
-fn batch_representative_times(
+/// The earliest birth time in each response, which is the time all of its blocks sort at.
+fn batch_times(
     paired: &[(DateTime<Utc>, BlockEntry)],
 ) -> HashMap<(String, String, DateTime<Utc>, bool), DateTime<Utc>> {
     let mut times: HashMap<(String, String, DateTime<Utc>, bool), DateTime<Utc>> = HashMap::new();
@@ -729,65 +729,47 @@ fn batch_representative_times(
 /// The sort key of one block, built once.
 struct BlockSortKey {
     batch_time: DateTime<Utc>,
-    batch: (String, String, DateTime<Utc>, bool),
-    semantic: u8,
+    span: (String, String),
     message_index: i32,
     entry_index: i32,
     content_hash: String,
 }
 
 impl BlockSortKey {
-    /// Whether both blocks came from the same span, which is the scope a message index means
-    /// anything in.
-    fn same_span(&self, other: &Self) -> bool {
-        self.batch.0 == other.batch.0 && self.batch.1 == other.batch.1
-    }
-
+    /// Compare two blocks. Every term is a value carried on the key, which is what makes this a
+    /// total order.
+    ///
+    /// Two rules have to hold at once: within one response, blocks keep the order the framework
+    /// emitted them in (ADK puts a whole multi-turn conversation in one span at one timestamp, in
+    /// conversation order), and across responses at the same time, a tool call precedes the result
+    /// that answers it. Deciding per pair - position for a same-span pair, role otherwise - looks
+    /// reasonable and is cyclic: intro text A and call B in one span give A < B by position, B < C
+    /// by role against a result C in another span, and C < A by role. `sort_by` may then panic or
+    /// return anything.
+    ///
+    /// Position decides after time, and role does not enter into it. Ranking by role was tried
+    /// three ways and each broke a framework, because the three shapes want different things from a
+    /// tie and only one order can be total:
+    ///
+    /// - per pair (position within a span, role across spans) is cyclic, which is the bug this key
+    ///   exists to remove;
+    /// - per response, ranking a span's input messages against its output messages, merges ADK's
+    ///   turns: one span holds `user, call, result, call` in conversation order and comes back as
+    ///   `user, result, call, call`;
+    /// - per span merges Vercel's parallel calls with their results, turning `call, call, result,
+    ///   result` into `call, result, call, result`.
+    ///
+    /// What that costs: two blocks in different spans with identical times are ordered by index,
+    /// which is not comparable across spans, so a tool result can precede the call it answers in
+    /// that tie. It needs both spans to report the same instant, which a framework that timestamps
+    /// its tool spans does not do.
     fn compare(&self, other: &Self) -> std::cmp::Ordering {
         self.batch_time
             .cmp(&other.batch_time)
-            // Within one span, source position: frameworks that put every message of a span at
-            // the span's start time - ADK's attribute lists - already emit them in conversation
-            // order, and ranking by role ahead of position threw that away, flattening a
-            // multi-turn span into every user message followed by every tool result.
-            //
-            // Across spans, role: the index restarts at zero in each span, so comparing it
-            // across them is meaningless - a generation span's introductory text makes its tool
-            // call index 1, while the tool span holding the result starts at 0, and at equal times
-            // the result sorted before the call it answers.
-            .then_with(|| {
-                if self.same_span(other) {
-                    self.message_index
-                        .cmp(&other.message_index)
-                        .then_with(|| self.entry_index.cmp(&other.entry_index))
-                } else {
-                    self.semantic.cmp(&other.semantic)
-                }
-            })
-            // Last resorts, for blocks that are still indistinguishable.
             .then_with(|| self.message_index.cmp(&other.message_index))
             .then_with(|| self.entry_index.cmp(&other.entry_index))
-            .then_with(|| self.batch.cmp(&other.batch))
+            .then_with(|| self.span.cmp(&other.span))
             .then_with(|| self.content_hash.cmp(&other.content_hash))
-    }
-}
-
-/// Order for two blocks of different responses that carry the same time.
-///
-/// A conversation reads request-then-answer, so a tool call precedes a tool result. Without this,
-/// ties fell through to the span id, which is arbitrary: three parallel tool calls and their three
-/// results came back interleaved, implying they had run one after another.
-fn semantic_rank(block: &BlockEntry) -> u8 {
-    match block.role {
-        // System first: it sets the context the user's message is answered in, and some
-        // frameworks (Strands) record the two with the same timestamp. Reversing these two
-        // contradicts `test_regression_system_before_user_same_timestamp`, which only passed
-        // because its fixture puts both in one span, where source order decides instead.
-        ChatRole::System => 0,
-        ChatRole::User => 1,
-        _ if block.is_tool_use() => 2,
-        ChatRole::Tool => 3,
-        _ => 4,
     }
 }
 
@@ -956,19 +938,14 @@ pub fn process_dedup(
     // comparison follows from the key.
     // Keyed once per block, not per comparison: `batch_key` allocates, and a comparator that
     // builds it on both sides does so O(n log n) times on a feed that can hold thousands of blocks.
-    let batch_times = batch_representative_times(&paired);
+    let times = batch_times(&paired);
     let mut keyed: Vec<(BlockSortKey, DateTime<Utc>, BlockEntry)> = paired
         .into_iter()
         .map(|(birth, block)| {
-            let batch = batch_key(&block);
-            let batch_time = batch_times.get(&batch).copied().unwrap_or(birth);
+            let span = (block.trace_id.clone(), block.span_id.clone());
             let key = BlockSortKey {
-                batch_time,
-                batch: batch.clone(),
-                // Zero inside a response, so position decides there; between responses at the same
-                // time it puts a call before the result that answers it. Ranking by role inside a
-                // response would override the order the model produced.
-                semantic: 0,
+                batch_time: times.get(&batch_key(&block)).copied().unwrap_or(birth),
+                span,
                 message_index: block.message_index,
                 entry_index: block.entry_index,
                 content_hash: block.content_hash.clone(),
@@ -976,11 +953,6 @@ pub fn process_dedup(
             (key, birth, block)
         })
         .collect();
-    // The semantic rank only distinguishes different responses, so it is filled in after the
-    // batch is known and compared only when the batches differ.
-    for (key, _, block) in keyed.iter_mut() {
-        key.semantic = semantic_rank(block);
-    }
     keyed.sort_by(|(a, _, _), (b, _, _)| a.compare(b));
 
     // The response's time, not each block's own birth time, is what gets materialised - see the

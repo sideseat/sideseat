@@ -9325,14 +9325,20 @@ fn the_bundled_otel_event_pair_is_classified() {
     );
 }
 
-/// A tool result from its own span must not sort before the call it answers.
+/// Documents what the message order gives up in order to be a total order.
 ///
-/// A message index restarts at zero in every span, so comparing it across spans is meaningless: a
-/// generation span whose response opens with text gives its tool call index 1, while the tool span
-/// carrying the result starts at 0. At equal effective times the result sorted first - an answer
-/// before its question - which the role rank is there to prevent.
+/// Two blocks in different spans reporting the identical instant are ordered by message index, and
+/// an index restarts at zero in every span - so a generation span whose response opens with text
+/// gives its call index 1, the tool span carrying the result starts at 0, and the result comes
+/// first. An answer before its question.
+///
+/// Ordering that tie by role instead was tried three ways and each one broke a framework: per pair
+/// it is cyclic, per response it merges ADK's turns, per span it merges Vercel's parallel calls with
+/// their results. All three are recorded in `dedup.rs`. This case needs both spans to report the
+/// same instant, which a framework that timestamps its tool spans does not do - no fixture in the
+/// suite reaches it - so the total order is worth more than the tie.
 #[test]
-fn a_tool_result_from_another_span_sorts_after_its_call() {
+fn a_cross_span_tie_orders_by_index_not_by_role() {
     let t = fixed_time();
     // The generation span: introductory text, then the call. The call is index 1.
     let generation = json!([
@@ -9380,16 +9386,9 @@ fn a_tool_result_from_another_span_sorts_after_its_call() {
         .iter()
         .map(|b| b.entry_type.as_str())
         .collect();
-    let call_at = kinds
-        .iter()
-        .position(|k| *k == "tool_use")
-        .expect("the tool call");
-    let result_at = kinds
-        .iter()
-        .position(|k| *k == "tool_result")
-        .expect("the tool result");
-    assert!(
-        call_at < result_at,
-        "the result came before the call it answers: {kinds:?}"
+    assert_eq!(
+        kinds,
+        vec!["text", "tool_result", "tool_use"],
+        "the documented outcome of a cross-span tie: index order, so the result precedes its call"
     );
 }
