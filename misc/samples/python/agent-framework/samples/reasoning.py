@@ -6,8 +6,13 @@ This sample shows how to:
 3. Handle models that don't support extended thinking gracefully
 
 Supported configurations:
-- OpenAI (OpenAIResponsesClient): via reasoning_effort option
-- Anthropic (AnthropicClient): via thinking option with budget_tokens
+- OpenAI (OpenAIChatClient): `reasoning` in OpenAIChatOptions
+- Anthropic (AnthropicClient): `thinking` in AnthropicChatOptions
+
+Provider options travel in the `options=` dict of `Agent.run`. There is no
+`additional_chat_options` argument, and `OpenAIResponsesClient` does not exist -
+both were silently swallowed by the try/except that used to be here, so the
+reasoning this sample is named for never reached the model.
 """
 
 from common.models import DEFAULT_THINKING_BUDGET
@@ -68,27 +73,30 @@ thought process clearly. When solving puzzles or problems:
 
 
 def _get_reasoning_options(client) -> dict:
-    """Determine reasoning options based on the client type."""
-    try:
-        from agent_framework.openai import OpenAIResponsesClient
+    """Provider-specific reasoning options for this client, or {} if it has none.
 
-        if isinstance(client, OpenAIResponsesClient):
-            return {"reasoning_effort": "medium"}
-    except ImportError:
-        pass
+    Each provider extends ChatOptions with its own keys, so the option is chosen by
+    client type rather than passed blindly - an unsupported key raises.
+    """
+    from agent_framework.anthropic import AnthropicBedrockClient, AnthropicClient
+    from agent_framework.openai import OpenAIChatClient
 
-    try:
-        from agent_framework.anthropic import AnthropicClient
-
-        if isinstance(client, AnthropicClient):
-            return {
-                "thinking": {
-                    "type": "enabled",
-                    "budget_tokens": DEFAULT_THINKING_BUDGET,
-                }
+    # AnthropicBedrockClient is not a subclass of AnthropicClient, so both are named: the
+    # bedrock-anthropic-* aliases use the Bedrock one and would otherwise be missed.
+    if isinstance(client, (AnthropicClient, AnthropicBedrockClient)):
+        return {
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": DEFAULT_THINKING_BUDGET,
             }
-    except ImportError:
-        pass
+        }
+
+    # Bedrock is reached through the OpenAI-compatible endpoint, which does not accept
+    # `reasoning`; only a real OpenAI base URL does.
+    if isinstance(client, OpenAIChatClient) and "openai.com" in str(
+        getattr(client, "base_url", "") or ""
+    ):
+        return {"reasoning": {"effort": "medium"}}
 
     return {}
 
@@ -128,11 +136,7 @@ async def run(client, trace_attrs: dict, provider: str = "openai"):
             print(f"{prompt_preview}{'...' if len(problem['prompt']) > 200 else ''}")
             print("-" * 60)
 
-            run_kwargs = (
-                {"additional_chat_options": reasoning_options}
-                if reasoning_options
-                else {}
-            )
+            run_kwargs = {"options": reasoning_options} if reasoning_options else {}
             result = await agent.run(problem["prompt"], **run_kwargs)
 
             # Check for reasoning/thinking content in response
