@@ -720,9 +720,16 @@ pub async fn list_traces(
     let (count_sql, needs_double_bind) = if !params.include_nongenai {
         (
             format!(
+                // A GenAI trace is one with an observation *or* a span carrying GenAI
+                // attributes. Requiring an observation hid traces from transport-level
+                // instrumentation, which records gen_ai.* on a plain span - and hid them only on
+                // this backend, because DuckDB accepts either.
                 r#"SELECT count(DISTINCT trace_id) as cnt FROM otel_spans FINAL
                    WHERE {} AND trace_id IN (
-                       SELECT trace_id FROM otel_spans FINAL WHERE {} AND observation_type != 'span'
+                       SELECT trace_id FROM otel_spans FINAL WHERE {}
+                         AND (observation_type != 'span'
+                              OR gen_ai_system IS NOT NULL
+                              OR gen_ai_request_model IS NOT NULL)
                    )"#,
                 where_clause, where_clause
             ),
@@ -758,11 +765,14 @@ pub async fn list_traces(
         })
         .unwrap_or(("timestamp_start", "DESC"));
 
+    // Every column TRACE_SORTABLE accepts is mapped; an unmapped one falls through to min_ts and
+    // silently sorts by time, which is the same defect DuckDB had.
     let ch_sort_field = match sort_field {
         "start_time" => "min_ts",
         "end_time" => "max_ts",
         "duration_ms" => "duration_ms",
         "total_cost" => "total_cost",
+        "total_tokens" => "total_tokens",
         "observation_count" => "observation_count",
         _ => "min_ts",
     };
@@ -770,8 +780,9 @@ pub async fn list_traces(
     let offset = (params.page.saturating_sub(1)) * params.limit;
 
     // GenAI filter for having clause
+    // Matches the count query and DuckDB: an observation, or a span carrying GenAI attributes.
     let having_clause = if !params.include_nongenai {
-        "HAVING observation_count > 0"
+        "HAVING observation_count > 0 OR genai_span_count > 0"
     } else {
         ""
     };
@@ -798,7 +809,11 @@ pub async fn list_traces(
                 max(coalesce(sp.timestamp_end, sp.timestamp_start)) as max_ts,
                 dateDiff('millisecond', min(sp.timestamp_start), max(coalesce(sp.timestamp_end, sp.timestamp_start))) as duration_ms,
                 coalesce(max(gt.total_cost), 0) as total_cost,
-                countIf(sp.observation_type != 'span') as observation_count
+                -- Sortable, so computed here rather than falling through to min_ts.
+                coalesce(max(gt.total_tokens), 0) as total_tokens,
+                countIf(sp.observation_type != 'span') as observation_count,
+                countIf(sp.gen_ai_system IS NOT NULL OR sp.gen_ai_request_model IS NOT NULL)
+                    as genai_span_count
             FROM otel_spans sp FINAL
             LEFT JOIN gen_totals gt ON sp.trace_id = gt.trace_id
             WHERE {where_clause}
@@ -1254,11 +1269,14 @@ pub async fn list_sessions(
         })
         .unwrap_or(("timestamp_start", "DESC"));
 
+    // Every column SESSION_SORTABLE accepts is mapped.
     let ch_sort_field = match sort_field {
         "start_time" => "min_ts",
+        "end_time" => "max_ts",
         "total_cost" => "total_cost",
         "trace_count" => "trace_count",
         "span_count" => "span_count",
+        "observation_count" => "observation_count",
         _ => "min_ts",
     };
 
@@ -1279,9 +1297,12 @@ pub async fn list_sessions(
                 sp.project_id,
                 sp.session_id,
                 min(sp.timestamp_start) as min_ts,
+                -- Sortable, so computed here rather than falling through to min_ts.
+                max(coalesce(sp.timestamp_end, sp.timestamp_start)) as max_ts,
                 coalesce(max(gt.total_cost), 0) as total_cost,
                 count(DISTINCT sp.trace_id) as trace_count,
-                count() as span_count
+                count() as span_count,
+                countIf(sp.observation_type != 'span') as observation_count
             FROM otel_spans sp FINAL
             LEFT JOIN gen_totals gt ON sp.session_id = gt.session_id
             WHERE {where_clause}
@@ -1886,27 +1907,48 @@ pub async fn get_trace_filter_options(
             None => continue,
         };
 
-        // For trace_name, only look at root spans
-        let extra_condition = if column == "trace_name" {
-            " AND parent_span_id IS NULL"
+        // trace_name is computed per trace with the same fallback the trace list displays - root
+        // span, else earliest named span. Listing root span names only offered names that did not
+        // match the list and omitted the ones a trace with no root span shows, so filtering by a
+        // name the UI had just displayed returned nothing. Mirrors the DuckDB copy.
+        let sql = if column == "trace_name" {
+            format!(
+                r#"
+                SELECT value, count(DISTINCT trace_id) as count
+                FROM (
+                    SELECT trace_id,
+                        coalesce(
+                            argMinIf(span_name, timestamp_start,
+                                     parent_span_id IS NULL AND span_name IS NOT NULL),
+                            argMinIf(span_name, timestamp_start, span_name IS NOT NULL)
+                        ) AS value
+                    FROM otel_spans FINAL
+                    WHERE project_id = ?{time_cond}
+                    GROUP BY trace_id
+                )
+                WHERE value IS NOT NULL
+                GROUP BY value
+                ORDER BY count DESC
+                LIMIT {limit}
+                "#,
+                time_cond = time_conditions,
+                limit = QUERY_MAX_FILTER_SUGGESTIONS
+            )
         } else {
-            ""
+            format!(
+                r#"
+                SELECT {col} as value, count(DISTINCT trace_id) as count
+                FROM otel_spans FINAL
+                WHERE project_id = ?{time_cond} AND {col} IS NOT NULL
+                GROUP BY {col}
+                ORDER BY count DESC
+                LIMIT {limit}
+                "#,
+                col = span_column,
+                time_cond = time_conditions,
+                limit = QUERY_MAX_FILTER_SUGGESTIONS
+            )
         };
-
-        let sql = format!(
-            r#"
-            SELECT {col} as value, count(DISTINCT trace_id) as count
-            FROM otel_spans FINAL
-            WHERE project_id = ?{time_cond}{extra_cond} AND {col} IS NOT NULL
-            GROUP BY {col}
-            ORDER BY count DESC
-            LIMIT {limit}
-            "#,
-            col = span_column,
-            time_cond = time_conditions,
-            extra_cond = extra_condition,
-            limit = QUERY_MAX_FILTER_SUGGESTIONS
-        );
 
         let mut query = client.query(&sql).bind(project_id);
         for ts in &time_params {
