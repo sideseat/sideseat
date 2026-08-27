@@ -818,10 +818,18 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         .get_trace_tags_options(PROJECT, None, None)
         .await
         .expect("clickhouse tags");
+    let described = describe_options(d);
     assert_eq!(
-        describe_options(d),
+        described,
         describe_options(c),
         "get_trace_tags_options differs between backends"
+    );
+    // The fixture's tags, with the trace counts they carry: alpha is on trace-a and trace-b, the
+    // rest on trace-a alone. Two empty lists would otherwise pass.
+    assert_eq!(
+        described,
+        vec!["alpha=2", "beta=1", "gamma=1", "shared=1"],
+        "the tag options do not match the fixture's tags"
     );
 
     // --- pagination, sorting, filters and time bounds ----------------------
@@ -1378,7 +1386,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
 
     // Cursor paging, which is a different mechanism from LIMIT/OFFSET and was only ever called
     // with `cursor: None`.
-    let feed_page = |cursor: Option<(i64, String)>| crate::data::types::FeedSpansParams {
+    let feed_page = |cursor: Option<(i64, String, String)>| crate::data::types::FeedSpansParams {
         project_id: PROJECT.to_string(),
         limit: 3,
         cursor,
@@ -1403,12 +1411,20 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // Each backend's cursor comes from its own page: the cursor carries `ingested_at`, which is
     // the server clock at write time and therefore differs between the two for the same span. A
     // cursor from one applied to the other selects nothing, which says nothing about either.
-    let duck_cursor = d_first
-        .last()
-        .map(|s| (s.ingested_at.timestamp_micros(), s.span_id.clone()));
-    let ch_cursor = c_first
-        .last()
-        .map(|s| (s.ingested_at.timestamp_micros(), s.span_id.clone()));
+    let duck_cursor = d_first.last().map(|s| {
+        (
+            s.ingested_at.timestamp_micros(),
+            s.span_id.clone(),
+            s.trace_id.clone(),
+        )
+    });
+    let ch_cursor = c_first.last().map(|s| {
+        (
+            s.ingested_at.timestamp_micros(),
+            s.span_id.clone(),
+            s.trace_id.clone(),
+        )
+    });
     let d_second = duck
         .get_feed_spans(&feed_page(duck_cursor))
         .await
@@ -1429,13 +1445,14 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         "the cursor returned rows the first page already had"
     );
 
-    let messages_page = |cursor: Option<(i64, String)>| crate::data::types::FeedMessagesParams {
-        project_id: PROJECT.to_string(),
-        limit: 2,
-        cursor,
-        start_time: None,
-        end_time: None,
-    };
+    let messages_page =
+        |cursor: Option<(i64, String, String)>| crate::data::types::FeedMessagesParams {
+            project_id: PROJECT.to_string(),
+            limit: 2,
+            cursor,
+            start_time: None,
+            end_time: None,
+        };
     let d_first = duck
         .get_project_messages(&messages_page(None))
         .await
@@ -1458,14 +1475,20 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         "the first cursor page of the message feed differs between backends"
     );
     // Per-backend cursor again, for the same reason.
-    let duck_cursor = d_first
-        .rows
-        .last()
-        .map(|r| (r.ingested_at.timestamp_micros(), r.span_id.clone()));
-    let ch_cursor = c_first
-        .rows
-        .last()
-        .map(|r| (r.ingested_at.timestamp_micros(), r.span_id.clone()));
+    let duck_cursor = d_first.rows.last().map(|r| {
+        (
+            r.ingested_at.timestamp_micros(),
+            r.span_id.clone(),
+            r.trace_id.clone(),
+        )
+    });
+    let ch_cursor = c_first.rows.last().map(|r| {
+        (
+            r.ingested_at.timestamp_micros(),
+            r.span_id.clone(),
+            r.trace_id.clone(),
+        )
+    });
     let d_second = duck
         .get_project_messages(&messages_page(duck_cursor))
         .await
@@ -1536,11 +1559,30 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         .get_trace_filter_options(PROJECT, &trace_columns, None, None)
         .await
         .expect("clickhouse trace options");
+    // Compared against the fixture, not only against each other: two backends returning empty maps,
+    // or omitting every column asked for, satisfied equality.
     assert_eq!(
         describe_option_map(d),
         describe_option_map(c),
         "get_trace_filter_options differs between backends"
     );
+    let d = duck
+        .get_trace_filter_options(PROJECT, &trace_columns, None, None)
+        .await
+        .expect("duckdb trace options");
+    let described = describe_option_map(d);
+    for expected in [
+        // Every span carries this environment, and there are six traces.
+        "environment: test=6",
+        // Two sessions, one covering two traces and one covering one.
+        "session_id: session-1=2,session-2=1",
+        "user_id: user-1=2",
+    ] {
+        assert!(
+            described.iter().any(|line| line == expected),
+            "trace filter options are missing {expected:?}: {described:?}"
+        );
+    }
 
     let span_columns: Vec<String> = crate::data::types::SPAN_FILTER_OPTION_COLUMNS
         .iter()
