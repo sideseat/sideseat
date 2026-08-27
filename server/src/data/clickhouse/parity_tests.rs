@@ -861,6 +861,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         "paging did not cover every trace: {trace_pages:?}"
     );
 
+    let mut session_pages: Vec<String> = Vec::new();
     for page in 1..=2 {
         let params = ListSessionsParams {
             project_id: PROJECT.to_string(),
@@ -883,7 +884,18 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             "session page {page} differs between backends"
         );
         assert_eq!(d.len(), 1, "session page {page} should hold one session");
+        session_pages.push(d[0].session_id.clone());
     }
+    // Two backends both returning page one twice would satisfy equality; the pages have to be
+    // different sessions and together cover the fixture's two.
+    assert_eq!(
+        session_pages
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        2,
+        "the two session pages returned the same session: {session_pages:?}"
+    );
 
     // A single unpaginated unfiltered call exercises none of the offset arithmetic, ORDER BY
     // translation or predicate building, which is where two dialects have the most room to differ.
@@ -1474,6 +1486,21 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             .map(describe_message_row)
             .collect::<Vec<_>>(),
         "the second cursor page of the message feed differs between backends"
+    );
+    // Equality alone is satisfied by two empty pages, or by two backends both ignoring the cursor
+    // and repeating page one.
+    let first_ids: std::collections::BTreeSet<&String> =
+        d_first.rows.iter().map(|r| &r.span_id).collect();
+    assert!(
+        !d_second.rows.is_empty(),
+        "the message feed's second page was empty, so the comparison proves nothing"
+    );
+    assert!(
+        d_second
+            .rows
+            .iter()
+            .all(|r| !first_ids.contains(&r.span_id)),
+        "the message cursor returned rows the first page already had"
     );
 
     // --- filter options, all three scopes ----------------------------------
