@@ -9,13 +9,29 @@
 //! with "Nested type Array(String) cannot be inside Nullable type" and takes the whole trace
 //! list with it.
 //!
-//! So: insert one span set into both backends, call the analytics read methods on both, and
-//! require the answers to match. Covered: trace list and single trace, span list, spans for a
-//! trace, single span, events, links, bulk span counts, session list and single session, traces
-//! and trace ids for a session, message rows for span/trace/session, the project feed's span and
-//! message pages, filter options for all three scopes, tag options, project span counts and
-//! project stats. Not covered: the delete paths and metric ingestion. DuckDB is the reference because it is the default backend and its behaviour
+//! So: insert one span set into both backends, call the analytics reads on both, and require the
+//! answers to match. DuckDB is the reference because it is the default backend and its behaviour
 //! is what the goldens and the UI were built against.
+//!
+//! Covered: trace list and single trace, span list, spans for a trace, single span, events, links,
+//! bulk span counts, session list and single session, traces and trace ids for a session, message
+//! rows for span/trace/session, the project feed's span and message pages, filter options for all
+//! three scopes, tag options, project span counts, project stats, the four delete paths, and -
+//! per filter variant, since each is rendered by its own arm - pagination, sorting, time bounds
+//! and the advanced filters on the trace, span and session lists.
+//!
+//! Not covered, and worth knowing before trusting a green run:
+//!
+//! - metric ingestion and reads.
+//! - anything that only appears at scale or with data this fixture does not have: a trace of
+//!   thousands of spans, top-N truncation in stats, several models or frameworks in one project.
+//! - re-ingested or duplicated spans, and spans sharing a timestamp exactly, where the two
+//!   dialects' `argMin`/`FIRST` tie-breaking could differ.
+//! - sub-second timestamp handling: the fixture uses whole seconds.
+//! - rows old enough for the ClickHouse TTL to reap, distributed (sharded) mode, and async
+//!   inserts - all three are configurations this single-node test cannot enter.
+//! - timezone and DST behaviour in the stats bucketing.
+//! - `ingested_at`, which is the server clock at write time and so differs by design.
 //!
 //! Needs a live ClickHouse. Skips with a message when `SIDESEAT_TEST_CLICKHOUSE_URL` is unset,
 //! so `cargo test` stays green on a checkout with no container:
@@ -32,6 +48,7 @@ use crate::core::config::ClickhouseConfig;
 use crate::core::storage::AppStorage;
 use crate::data::clickhouse::ClickhouseService;
 use crate::data::duckdb::DuckdbService;
+use crate::data::duckdb::filters::{DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp};
 use crate::data::traits::AnalyticsRepository;
 use crate::data::types::{
     ListSessionsParams, ListSpansParams, ListTracesParams, MessageQueryParams, MessageSpanRow,
@@ -326,10 +343,17 @@ fn describe_session(s: &SessionRow) -> String {
 }
 
 fn describe_span(s: &SpanRow) -> String {
+    // Every field, because a comparison is only as good as the columns it looks at: the earlier
+    // version read 19 of the 38 a SpanRow carries, so half the projection was unchecked.
+    // JSON-valued columns go through canonical_json, since the two dialects are free to emit an
+    // object's members in different orders while extracting it.
     format!(
         "span_id={} trace={} parent={:?} name={:?} kind={:?} category={:?} observation={:?} \
          framework={:?} status={:?} start={} end={:?} duration={:?} env={:?} \
-         tokens=[{},{},{}] cost_total={} input={:?} output={:?}",
+         resource_attributes={:?} session={:?} user={:?} system={:?} request_model={:?} \
+         agent_name={:?} finish_reasons={:?} tokens=[{},{},{},{},{},{}] \
+         costs=[{},{},{},{},{},{}] usage_details={:?} metadata={:?} attributes={:?} \
+         input={:?} output={:?} raw_span={:?}",
         s.span_id,
         s.trace_id,
         s.parent_span_id,
@@ -343,13 +367,34 @@ fn describe_span(s: &SpanRow) -> String {
         s.timestamp_end.map(|e| e.timestamp_micros()),
         s.duration_ms,
         s.environment,
+        s.resource_attributes.as_deref().map(canonical_json),
+        s.session_id,
+        s.user_id,
+        s.gen_ai_system,
+        s.gen_ai_request_model,
+        s.gen_ai_agent_name,
+        s.gen_ai_finish_reasons,
         s.gen_ai_usage_input_tokens,
         s.gen_ai_usage_output_tokens,
         s.gen_ai_usage_total_tokens,
+        s.gen_ai_usage_cache_read_tokens,
+        s.gen_ai_usage_cache_write_tokens,
+        s.gen_ai_usage_reasoning_tokens,
+        f(s.gen_ai_cost_input),
+        f(s.gen_ai_cost_output),
+        f(s.gen_ai_cost_cache_read),
+        f(s.gen_ai_cost_cache_write),
+        f(s.gen_ai_cost_reasoning),
         f(s.gen_ai_cost_total),
+        s.gen_ai_usage_details.as_deref().map(canonical_json),
+        s.metadata.as_deref().map(canonical_json),
+        s.attributes.as_deref().map(canonical_json),
         s.input_preview,
         s.output_preview,
+        s.raw_span.as_deref().map(canonical_json),
     )
+    // ingested_at is deliberately absent: it defaults to the server clock at write time, so the
+    // two backends record different values for the same span by design.
 }
 
 /// A message row, field by field. `messages_json` is compared in full: it is the input the SideML
@@ -357,7 +402,7 @@ fn describe_span(s: &SpanRow) -> String {
 fn describe_message_row(r: &MessageSpanRow) -> String {
     format!(
         "span={} trace={} parent={:?} start={} end={:?} model={:?} provider={:?} status={:?} \
-         exception={:?}/{:?} tokens=[{},{},{}] cost={} observation={:?} session={:?} \
+         exception={:?}/{:?}/{:?} tokens=[{},{},{}] cost={} observation={:?} session={:?} \
          messages={} tools={} tool_names={}",
         r.span_id,
         r.trace_id,
@@ -369,6 +414,7 @@ fn describe_message_row(r: &MessageSpanRow) -> String {
         r.status_code,
         r.exception_type,
         r.exception_message,
+        r.exception_stacktrace,
         r.input_tokens,
         r.output_tokens,
         r.total_tokens,
@@ -711,10 +757,20 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         // An empty answer on both sides is equal and proves nothing, so the fixture is required
         // to produce rows where it is meant to - and none where the content filter should bite.
         match label {
-            "trace with no messages" => assert!(
-                d.rows.iter().all(|r| r.messages_json == "[]"),
-                "the no-message trace must not be carrying message content"
-            ),
+            // The content filter keeps a row with no messages when it carries an error, so this
+            // scope has exactly one row and it is empty of messages. Asserting only "every row is
+            // empty" passed for zero rows, which is the case that would mean the filter had
+            // dropped the error row entirely.
+            "trace with no messages" => {
+                assert_eq!(
+                    d.rows.len(),
+                    1,
+                    "the error-only trace must still return its row: {:?}",
+                    d.rows.iter().map(|r| &r.span_id).collect::<Vec<_>>()
+                );
+                assert_eq!(d.rows[0].messages_json, "[]");
+                assert_eq!(d.rows[0].status_code.as_deref(), Some("ERROR"));
+            }
             _ => assert!(
                 !d.rows.is_empty(),
                 "get_messages({label}) returned nothing, so this comparison is vacuous"
@@ -753,6 +809,284 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         describe_options(d),
         describe_options(c),
         "get_trace_tags_options differs between backends"
+    );
+
+    // --- pagination, sorting, filters and time bounds ----------------------
+    // A single unpaginated unfiltered call exercises none of the offset arithmetic, ORDER BY
+    // translation or predicate building, which is where two dialects have the most room to differ.
+    let mut page_ids: Vec<Vec<String>> = Vec::new();
+    for page in 1..=3 {
+        let params = ListSpansParams {
+            project_id: PROJECT.to_string(),
+            page,
+            limit: 3,
+            order_by: Some(crate::api::types::OrderBy {
+                column: "timestamp_start".to_string(),
+                direction: crate::api::types::OrderDirection::Asc,
+            }),
+            ..Default::default()
+        };
+        let (d, d_total) = duck.list_spans(&params).await.expect("duckdb page");
+        let (c, c_total) = ch.list_spans(&params).await.expect("clickhouse page");
+        assert_eq!(d_total, c_total, "page {page}: totals differ");
+        assert_eq!(
+            d.iter().map(describe_span).collect::<Vec<_>>(),
+            c.iter().map(describe_span).collect::<Vec<_>>(),
+            "page {page} of list_spans differs between backends"
+        );
+        page_ids.push(d.iter().map(|s| s.span_id.clone()).collect());
+    }
+    // Pages must be disjoint and cover the fixture, or the offset arithmetic is wrong in a way
+    // both backends could share.
+    let paged: Vec<&String> = page_ids.iter().flatten().collect();
+    let distinct: std::collections::BTreeSet<&&String> = paged.iter().collect();
+    assert_eq!(
+        paged.len(),
+        distinct.len(),
+        "paging returned the same span twice: {page_ids:?}"
+    );
+    assert_eq!(
+        paged.len(),
+        spans.len(),
+        "paging did not cover every span: {page_ids:?}"
+    );
+
+    for (label, params) in [
+        (
+            "sorted by cost desc",
+            ListTracesParams {
+                order_by: Some(crate::api::types::OrderBy {
+                    column: "total_cost".to_string(),
+                    direction: crate::api::types::OrderDirection::Desc,
+                }),
+                ..trace_params()
+            },
+        ),
+        (
+            "filtered by environment",
+            ListTracesParams {
+                environment: Some(vec!["test".to_string()]),
+                ..trace_params()
+            },
+        ),
+        (
+            "filtered by user",
+            ListTracesParams {
+                user_id: Some("user-1".to_string()),
+                ..trace_params()
+            },
+        ),
+        // One case per filter variant: each is rendered by its own arm, in a dialect where the
+        // wrong shape either raises or silently matches everything.
+        (
+            "filtered by a token count",
+            ListTracesParams {
+                filters: vec![Filter::Number {
+                    column: "total_tokens".to_string(),
+                    operator: NumberOp::Gt,
+                    value: 100.0,
+                }],
+                ..trace_params()
+            },
+        ),
+        (
+            "filtered by a decimal cost",
+            ListTracesParams {
+                filters: vec![Filter::Number {
+                    column: "total_cost".to_string(),
+                    operator: NumberOp::Gte,
+                    value: 0.001,
+                }],
+                ..trace_params()
+            },
+        ),
+        (
+            "filtered by a name substring",
+            ListTracesParams {
+                filters: vec![Filter::String {
+                    column: "trace_name".to_string(),
+                    operator: StringOp::Contains,
+                    value: "gen".to_string(),
+                }],
+                ..trace_params()
+            },
+        ),
+        (
+            "filtered by an exact model",
+            ListTracesParams {
+                filters: vec![Filter::String {
+                    column: "gen_ai_request_model".to_string(),
+                    operator: StringOp::Eq,
+                    value: "claude-haiku".to_string(),
+                }],
+                ..trace_params()
+            },
+        ),
+        (
+            "filtered by tags, any of",
+            ListTracesParams {
+                filters: vec![Filter::StringOptions {
+                    column: "tags".to_string(),
+                    operator: OptionsOp::AnyOf,
+                    value: vec!["beta".to_string(), "gamma".to_string()],
+                }],
+                ..trace_params()
+            },
+        ),
+        (
+            "filtered by tags, none of",
+            ListTracesParams {
+                filters: vec![Filter::StringOptions {
+                    column: "tags".to_string(),
+                    operator: OptionsOp::NoneOf,
+                    value: vec!["alpha".to_string()],
+                }],
+                ..trace_params()
+            },
+        ),
+        (
+            "filtered by environment options",
+            ListTracesParams {
+                filters: vec![Filter::StringOptions {
+                    column: "environment".to_string(),
+                    operator: OptionsOp::AnyOf,
+                    value: vec!["test".to_string()],
+                }],
+                ..trace_params()
+            },
+        ),
+        (
+            "filtered by a null session",
+            ListTracesParams {
+                filters: vec![Filter::Null {
+                    column: "session_id".to_string(),
+                    operator: NullOp::IsNull,
+                }],
+                ..trace_params()
+            },
+        ),
+        (
+            "filtered by a datetime",
+            ListTracesParams {
+                filters: vec![Filter::Datetime {
+                    column: "start_time".to_string(),
+                    operator: DatetimeOp::Gte,
+                    value: ts(10).to_rfc3339(),
+                }],
+                ..trace_params()
+            },
+        ),
+        (
+            "time bounded",
+            ListTracesParams {
+                from_timestamp: Some(ts(-60)),
+                to_timestamp: Some(ts(15)),
+                ..trace_params()
+            },
+        ),
+        (
+            "genai only",
+            ListTracesParams {
+                include_nongenai: false,
+                ..trace_params()
+            },
+        ),
+    ] {
+        let (d, d_total) = duck.list_traces(&params).await.expect("duckdb traces");
+        let (c, c_total) = ch.list_traces(&params).await.expect("clickhouse traces");
+        assert_eq!(d_total, c_total, "{label}: totals differ");
+        assert_eq!(
+            d.iter().map(describe_trace).collect::<Vec<_>>(),
+            c.iter().map(describe_trace).collect::<Vec<_>>(),
+            "list_traces {label} differs between backends"
+        );
+        // Each case must actually select a subset, or it is asserting on the same full list.
+        assert!(
+            !d.is_empty() && d.len() <= duck_traces.len(),
+            "{label} selected {} of {} traces, so it exercises nothing",
+            d.len(),
+            duck_traces.len()
+        );
+    }
+
+    // The span and session lists take filters through their own column mappers, so the wiring is
+    // exercised per query rather than assumed from the trace case.
+    for (label, params) in [
+        (
+            "span filtered by model",
+            ListSpansParams {
+                project_id: PROJECT.to_string(),
+                page: 1,
+                limit: 50,
+                filters: vec![Filter::String {
+                    column: "gen_ai_request_model".to_string(),
+                    operator: StringOp::Eq,
+                    value: "claude-haiku".to_string(),
+                }],
+                ..Default::default()
+            },
+        ),
+        (
+            "span filtered by token count",
+            ListSpansParams {
+                project_id: PROJECT.to_string(),
+                page: 1,
+                limit: 50,
+                filters: vec![Filter::Number {
+                    column: "gen_ai_usage_total_tokens".to_string(),
+                    operator: NumberOp::Gte,
+                    value: 100.0,
+                }],
+                ..Default::default()
+            },
+        ),
+    ] {
+        let (d, d_total) = duck.list_spans(&params).await.expect("duckdb spans");
+        let (c, c_total) = ch.list_spans(&params).await.expect("clickhouse spans");
+        assert_eq!(d_total, c_total, "{label}: totals differ");
+        assert_eq!(
+            d.iter().map(describe_span).collect::<Vec<_>>(),
+            c.iter().map(describe_span).collect::<Vec<_>>(),
+            "list_spans {label} differs between backends"
+        );
+        assert!(
+            !d.is_empty() && d.len() < spans.len(),
+            "{label} selected {} of {} spans, so it exercises nothing",
+            d.len(),
+            spans.len()
+        );
+    }
+
+    let session_filtered = ListSessionsParams {
+        project_id: PROJECT.to_string(),
+        page: 1,
+        limit: 50,
+        filters: vec![Filter::String {
+            column: "user_id".to_string(),
+            operator: StringOp::Eq,
+            value: "user-1".to_string(),
+        }],
+        ..Default::default()
+    };
+    let (d, d_total) = duck
+        .list_sessions(&session_filtered)
+        .await
+        .expect("duckdb sessions");
+    let (c, c_total) = ch
+        .list_sessions(&session_filtered)
+        .await
+        .expect("clickhouse sessions");
+    assert_eq!(d_total, c_total, "filtered session totals differ");
+    assert_eq!(
+        d.iter().map(describe_session).collect::<Vec<_>>(),
+        c.iter().map(describe_session).collect::<Vec<_>>(),
+        "filtered list_sessions differs between backends"
+    );
+    assert_eq!(
+        d.len(),
+        1,
+        "the session filter selected {} sessions, so it exercises nothing",
+        d.len()
     );
 
     // --- single span, events, links, bulk counts ---------------------------
@@ -1101,25 +1435,10 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
         "the two backends disagree before anything was deleted"
     );
 
-    // A whole trace, including the spans that only belong to it through their trace id.
-    duck.delete_traces(PROJECT, &["trace-a".to_string()])
-        .await
-        .expect("duckdb delete trace");
-    ch.delete_traces(PROJECT, &["trace-a".to_string()])
-        .await
-        .expect("clickhouse delete trace");
-    let after_duck = remaining(&duck).await;
-    assert!(
-        !after_duck.iter().any(|id| id.starts_with("a-")),
-        "deleting trace-a left its spans behind: {after_duck:?}"
-    );
-    assert_eq!(
-        settle(&ch, &after_duck).await,
-        after_duck,
-        "delete_traces removed different rows on the two backends"
-    );
+    // Each step asserts which ids are gone and which remain, on the reference backend, before
+    // comparing. Equality alone is satisfied by two backends that both deleted nothing.
 
-    // One span out of a trace, leaving its siblings.
+    // One span out of a trace, leaving its sibling.
     let pair = [("trace-c".to_string(), "c-child-1".to_string())];
     duck.delete_spans(PROJECT, &pair)
         .await
@@ -1129,8 +1448,8 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
         .expect("clickhouse delete span");
     let after_duck = remaining(&duck).await;
     assert!(
-        after_duck.contains(&"c-child-2".to_string())
-            && !after_duck.contains(&"c-child-1".to_string()),
+        !after_duck.contains(&"c-child-1".to_string())
+            && after_duck.contains(&"c-child-2".to_string()),
         "deleting one span took the wrong rows: {after_duck:?}"
     );
     assert_eq!(
@@ -1139,18 +1458,49 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
         "delete_spans removed different rows on the two backends"
     );
 
-    // A session, which spans several traces.
-    duck.delete_sessions(PROJECT, &["session-2".to_string()])
+    // A session spanning two traces: session-1 covers trace-a and trace-b, so this must remove
+    // spans from both. Deleting session-2 would have touched a single trace, and an assertion that
+    // only compared the backends would have passed even if neither deleted anything.
+    duck.delete_sessions(PROJECT, &["session-1".to_string()])
         .await
         .expect("duckdb delete session");
-    ch.delete_sessions(PROJECT, &["session-2".to_string()])
+    ch.delete_sessions(PROJECT, &["session-1".to_string()])
         .await
         .expect("clickhouse delete session");
     let after_duck = remaining(&duck).await;
+    for gone in ["a-root", "a-gen-1", "a-gen-2", "b-root"] {
+        assert!(
+            !after_duck.contains(&gone.to_string()),
+            "deleting session-1 left {gone} behind: {after_duck:?}"
+        );
+    }
+    assert!(
+        after_duck.contains(&"c-child-2".to_string()),
+        "deleting session-1 took a span from another session: {after_duck:?}"
+    );
     assert_eq!(
         settle(&ch, &after_duck).await,
         after_duck,
         "delete_sessions removed different rows on the two backends"
+    );
+
+    // What is left of a trace, by trace id.
+    duck.delete_traces(PROJECT, &["trace-c".to_string()])
+        .await
+        .expect("duckdb delete trace");
+    ch.delete_traces(PROJECT, &["trace-c".to_string()])
+        .await
+        .expect("clickhouse delete trace");
+    let after_duck = remaining(&duck).await;
+    assert_eq!(
+        after_duck,
+        vec!["d-root".to_string()],
+        "deleting trace-c should leave exactly the unrelated trace"
+    );
+    assert_eq!(
+        settle(&ch, &after_duck).await,
+        after_duck,
+        "delete_traces removed different rows on the two backends"
     );
 
     // Everything that is left.
