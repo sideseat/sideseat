@@ -45,7 +45,9 @@
 
 use std::collections::{HashMap, HashSet};
 
-use super::dedup::{SpanTimestamps, compute_tool_call_hash, effective_timestamp};
+use super::dedup::{
+    SpanTimestamps, compute_tool_call_hash, effective_timestamp, normalize_tool_result_content,
+};
 use super::types::BlockEntry;
 use crate::domain::sideml::types::{ChatRole, ContentBlock};
 
@@ -434,8 +436,21 @@ pub fn mark_history(
 #[derive(PartialEq, Eq, Hash)]
 enum DuplicateKey<'a> {
     Content(&'a str, &'a str),
-    /// (trace_id, hash of the answered call's name + input, result content hash)
-    ToolResultForCall(&'a str, u64, &'a str),
+    /// (trace_id, hash of the answered call's name + input, hash of the result text)
+    ///
+    /// The result's *text*, not its whole block identity. The block identity also covers the tool
+    /// name and the error flag, which is what distinguishes two results that name no call - but
+    /// once the call is known those are redundant, and a framework that includes the tool name on
+    /// the original and omits it on the re-send would produce two keys for one message.
+    ToolResultForCall(&'a str, u64, u64),
+}
+
+/// Hash a tool result's text alone, for comparing two results of the same call.
+fn hash_tool_result_text(content: &serde_json::Value) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    normalize_tool_result_content(content).hash(&mut hasher);
+    hasher.finish()
 }
 
 /// Tool-call identity, by call id, for every call in the block set.
@@ -485,12 +500,20 @@ fn find_duplicate_indices(
         //
         // Falls back to text when the result names no call in this trace, the only signal left.
         let key = match &block.content {
-            ContentBlock::ToolResult { tool_use_id, .. } => tool_use_id
+            ContentBlock::ToolResult {
+                tool_use_id,
+                content,
+                ..
+            } => tool_use_id
                 .as_deref()
                 .filter(|s| !s.is_empty())
                 .and_then(|id| call_identities.get(&(block.trace_id.as_str(), id)))
                 .map(|&call_hash| {
-                    DuplicateKey::ToolResultForCall(&block.trace_id, call_hash, &block.content_hash)
+                    DuplicateKey::ToolResultForCall(
+                        &block.trace_id,
+                        call_hash,
+                        hash_tool_result_text(content),
+                    )
                 })
                 .unwrap_or(DuplicateKey::Content(&block.trace_id, &block.content_hash)),
             _ => DuplicateKey::Content(&block.trace_id, &block.content_hash),
@@ -1268,5 +1291,80 @@ mod tests {
         );
 
         assert!(stats.orphan_tool_results >= 1, "at least 1 orphan expected");
+    }
+}
+
+#[cfg(test)]
+mod duplicate_key_tests {
+    use super::*;
+    use crate::domain::sideml::types::ContentBlock;
+
+    /// A re-sent result that drops the tool name must still collapse into the original.
+    ///
+    /// Once the answered call is known, the tool name and the error flag are redundant: they exist
+    /// to tell apart results that name no call. Keying on the full block identity here meant a
+    /// framework that includes the name on the original and omits it on the re-send produced two
+    /// keys for one message, so the feed showed it twice - and dedup could not collapse them
+    /// either, because their regenerated ids differ.
+    #[test]
+    fn a_resend_that_drops_the_tool_name_still_collapses() {
+        let text = serde_json::json!([{"type": "text", "text": "ok"}]);
+        let named = ContentBlock::ToolResult {
+            tool_use_id: Some("call-1".to_string()),
+            name: Some("lookup".to_string()),
+            content: text.clone(),
+            is_error: false,
+        };
+        // The re-send: same answer to the same call, with a regenerated id and no tool name.
+        let resent = ContentBlock::ToolResult {
+            tool_use_id: Some("call-1-regenerated".to_string()),
+            name: None,
+            content: text.clone(),
+            is_error: false,
+        };
+
+        // Their block identities differ, which is correct - that is what tells uncorrelated
+        // results apart - but the key this phase uses must not.
+        assert_ne!(
+            crate::domain::sideml::feed::compute_block_hash(&named),
+            crate::domain::sideml::feed::compute_block_hash(&resent),
+            "the block identity is expected to include the tool name"
+        );
+        let key_of = |block: &ContentBlock| match block {
+            ContentBlock::ToolResult { content, .. } => hash_tool_result_text(content),
+            _ => unreachable!(),
+        };
+        assert_eq!(
+            key_of(&named),
+            key_of(&resent),
+            "a re-send of one call's result must collapse whatever metadata it drops"
+        );
+
+        // The text still separates two different answers to the same call.
+        let different = ContentBlock::ToolResult {
+            tool_use_id: Some("call-1".to_string()),
+            name: Some("lookup".to_string()),
+            content: serde_json::json!([{"type": "text", "text": "failed"}]),
+            is_error: false,
+        };
+        assert_ne!(key_of(&named), key_of(&different));
+    }
+
+    /// Two results that name no call keep the name and error flag in their identity, so a success
+    /// and a failure with matching text stay distinct.
+    #[test]
+    fn uncorrelated_results_are_separated_by_name_and_error() {
+        let content = serde_json::json!([{"type": "text", "text": "ok"}]);
+        let hash = |name: Option<&str>, is_error: bool| {
+            crate::domain::sideml::feed::compute_block_hash(&ContentBlock::ToolResult {
+                tool_use_id: None,
+                name: name.map(str::to_owned),
+                content: content.clone(),
+                is_error,
+            })
+        };
+        assert_ne!(hash(Some("lookup"), false), hash(Some("write"), false));
+        assert_ne!(hash(Some("lookup"), false), hash(Some("lookup"), true));
+        assert_eq!(hash(Some("lookup"), false), hash(Some("lookup"), false));
     }
 }
