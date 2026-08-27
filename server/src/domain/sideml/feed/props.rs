@@ -282,10 +282,10 @@ proptest! {
 /// timestamped between them then makes `text < tool < third < text`, which `sort_by` may panic on.
 /// The ordering is now derived from a key, so no such cycle can exist by construction.
 ///
-/// This test does not reproduce that cycle: with the current classifier the arrangement needed is
-/// not reachable from this entry point, and a test that claimed to catch it would be worth less
-/// than one that says so. What it does pin is the behaviour the fix has to preserve - source order
-/// within a response, and the same answer every time.
+/// The fixture reaches that arrangement: the span ends after the tool result that sits between the
+/// text and its sibling call, so the text's birth time falls after both. Reinstating the old rule
+/// makes this test fail on the ordering assertion, which is the check that matters - not the
+/// absence of a panic, since an inconsistent comparator is free to return a wrong answer quietly.
 #[test]
 fn a_response_keeps_its_source_order_and_the_result_is_stable() {
     let msg = json!([
@@ -315,10 +315,18 @@ fn a_response_keeps_its_source_order_and_the_result_is_stable() {
         }
     ]);
 
-    // A span whose end is well after its events, so the text block's birth time (span end) lands
-    // after the tool result's (event time) - the arrangement that closed the cycle.
+    // The row must be dated where the events are: this helper's base is 2023 while the events
+    // above are 2025, and `effective_timestamp` takes the later of span end and event time - so a
+    // 2023 span end never lands after a 2025 event and the text tied with its sibling tool call,
+    // which is why an earlier version of this test proved nothing. Dated in 2025 with the span
+    // ending after the intervening tool result, the text's birth time falls after it and the
+    // arrangement the old comparator could not order consistently is reached.
     let mut row = row(1, 1, 0, msg.to_string());
-    row.span_end_timestamp = Some(row.span_timestamp + chrono::Duration::seconds(10));
+    row.span_timestamp = "2025-01-01T00:00:00Z"
+        .parse::<DateTime<Utc>>()
+        .expect("valid timestamp");
+    row.span_end_timestamp = Some(row.span_timestamp + chrono::Duration::seconds(4));
+    row.ingested_at = row.span_timestamp;
 
     // The assertion is that this returns at all - an intransitive comparator panics - and that it
     // returns the same answer every time.

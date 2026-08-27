@@ -9143,3 +9143,87 @@ fn a_time_window_only_removes_messages() {
         );
     }
 }
+
+/// The project feed must not split a response.
+///
+/// `process_feed` recognises a response by its blocks sharing a timestamp. When each block carried
+/// its own birth time, a response whose text was timestamped at span end and whose tool call was
+/// timestamped at event time stopped being one response, and a block from another response could
+/// land between them.
+///
+/// Note this endpoint is newest-first, so a later tool result appearing *before* the earlier call
+/// it answers is correct here - the ordering to check is within a response, and that responses do
+/// not interleave.
+#[test]
+fn the_feed_keeps_a_response_together() {
+    let msg = json!([
+        {
+            "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:01Z"}},
+            "content": {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "looking that up"},
+                    {"type": "tool_use", "id": "call-1", "name": "lookup", "input": {"q": "a"}}
+                ]
+            }
+        },
+        {
+            "source": {"event": {"name": "gen_ai.tool.message", "time": "2025-01-01T00:00:02Z"}},
+            "content": {
+                "role": "user",
+                "content": [{"type": "tool_result", "tool_use_id": "call-1", "name": "lookup",
+                             "content": "answer"}]
+            }
+        }
+    ]);
+
+    // The span ends after the tool result, so the text's birth time falls after it.
+    let start = "2025-01-01T00:00:00Z"
+        .parse::<chrono::DateTime<Utc>>()
+        .expect("valid timestamp");
+    let mut row = make_span_row_with_timestamps(
+        "trace1",
+        "span1",
+        None,
+        &msg.to_string(),
+        start,
+        Some(start + chrono::Duration::seconds(4)),
+    );
+    row.ingested_at = start;
+
+    let feed = process_feed(vec![row], &FeedOptions::new());
+    let kinds: Vec<&str> = feed
+        .messages
+        .iter()
+        .map(|b| b.entry_type.as_str())
+        .collect();
+
+    // The response's two blocks are adjacent and in the order the model produced them.
+    let text_at = kinds
+        .iter()
+        .position(|k| *k == "text")
+        .expect("the response's text");
+    let call_at = kinds
+        .iter()
+        .position(|k| *k == "tool_use")
+        .expect("the response's tool call");
+    assert_eq!(
+        call_at,
+        text_at + 1,
+        "the response was split, or its blocks were reordered: {kinds:?}"
+    );
+
+    // And every block of one response carries one timestamp, which is what keeps it together.
+    let response_times: std::collections::BTreeSet<_> = feed
+        .messages
+        .iter()
+        .filter(|b| b.entry_type == "text" || b.entry_type == "tool_use")
+        .map(|b| b.timestamp)
+        .collect();
+    assert_eq!(
+        response_times.len(),
+        1,
+        "the response's blocks reported {} different times",
+        response_times.len()
+    );
+}
