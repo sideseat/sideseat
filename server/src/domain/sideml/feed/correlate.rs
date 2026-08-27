@@ -104,12 +104,19 @@ pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
 #[path = "correlate_tests.rs"]
 mod correlate_tests;
 
-/// Clear correlated ids whose call is no longer present.
+/// Clear correlated ids whose call is no longer present, and collapse any results that become
+/// indistinguishable as a result.
 ///
 /// Runs after dedup: a result correlated to a call that dedup then dropped would otherwise carry
 /// a reference to a block the response does not contain, which is the dangling id this module
 /// exists to prevent - just arrived at from the other direction.
-pub fn withdraw_unbacked_ids(blocks: &mut [BlockEntry]) {
+///
+/// Because it runs after dedup, it can undo the very distinction dedup relied on. Two results
+/// with the same text and different call ids are two messages to dedup; withdraw both ids and
+/// they become one message reported twice, and dedup has already run. So anything that collapses
+/// only after withdrawal is collapsed here, in source order, keeping the first.
+pub fn withdraw_unbacked_ids(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
+    let mut blocks = blocks;
     let surviving: std::collections::HashSet<(&str, &str)> = blocks
         .iter()
         .filter_map(|b| match &b.content {
@@ -134,7 +141,11 @@ pub fn withdraw_unbacked_ids(blocks: &mut [BlockEntry]) {
         .map(|(idx, _)| idx)
         .collect();
 
-    for idx in unbacked {
+    if unbacked.is_empty() {
+        return blocks;
+    }
+
+    for &idx in &unbacked {
         let block = &mut blocks[idx];
         if let ContentBlock::ToolResult { tool_use_id, .. } = &mut block.content {
             *tool_use_id = None;
@@ -142,4 +153,24 @@ pub fn withdraw_unbacked_ids(blocks: &mut [BlockEntry]) {
         block.tool_use_id = None;
         block.tool_use_id_correlated = false;
     }
+
+    // Only the withdrawn blocks can newly collide, and only with another id-less result of the
+    // same content in the same trace. Everything else keeps the identity dedup gave it.
+    let withdrawn: std::collections::HashSet<usize> = unbacked.into_iter().collect();
+    let mut seen: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+    let mut keep = Vec::with_capacity(blocks.len());
+    for (idx, block) in blocks.into_iter().enumerate() {
+        let collides = matches!(
+            &block.content,
+            ContentBlock::ToolResult {
+                tool_use_id: None,
+                ..
+            }
+        ) && !seen.insert((block.trace_id.clone(), block.content_hash.clone()));
+        if collides && withdrawn.contains(&idx) {
+            continue;
+        }
+        keep.push(block);
+    }
+    keep
 }

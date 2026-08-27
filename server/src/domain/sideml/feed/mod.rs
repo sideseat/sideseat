@@ -357,7 +357,7 @@ fn process_trace_spans_core(
     }
 
     // Stages 5-6: Deduplicate by identity, sort by birth time
-    let mut blocks = process_dedup(blocks, span_timestamps);
+    let blocks = process_dedup(blocks, span_timestamps);
 
     // Stage 6.5: Withdraw a correlated id whose call did not survive.
     //
@@ -366,7 +366,7 @@ fn process_trace_spans_core(
     // response does not contain. Clearing the id restores "honestly uncorrelated"; keeping the
     // block, because the result's content is real either way. Only correlated ids are withdrawn:
     // a provider's own id may legitimately reference a call outside the requested scope.
-    correlate::withdraw_unbacked_ids(&mut blocks);
+    let blocks = correlate::withdraw_unbacked_ids(blocks);
 
     // Debug: Log block counts after dedup
     if tracing::enabled!(tracing::Level::DEBUG) {
