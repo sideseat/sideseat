@@ -1,8 +1,10 @@
 # Message-parsing fixtures
 
 Inputs for `server/src/domain/traces/message_goldens_tests.rs`, which checks that message
-**count, content, ordering and absence of duplicates** are correct for every framework, in all
-three views the API exposes:
+**count, content, ordering and absence of duplicates** hold for every framework *that has a
+fixture here*, in all three views the API exposes. Coverage is 14 of the 33 frameworks SideSeat
+recognises and not every fixture has a session view - see [What is and is not
+covered](#what-is-and-is-not-covered), which is the honest version of this sentence:
 
 | View    | Row set                                                     | API endpoint                     |
 | ------- | ----------------------------------------------------------- | -------------------------------- |
@@ -38,29 +40,69 @@ misc/capture-message-fixtures.sh strands            # one suite
 misc/capture-message-fixtures.sh strands tool_use   # one sample
 ```
 
-Then record the expectations and **read the diff before committing**:
+Then record the expectations, **read them**, and only then let them gate:
 
 ```bash
-UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens
+UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens   # write expectations
+misc/review-message-goldens.py                                   # read them: counts, roles, content
+misc/review-message-goldens.py --suspicious                      # only fixtures with warnings
+misc/review-message-goldens.py strands/tool_use                  # one sample, full detail
 git diff server/tests/fixtures/messages
+cargo test -p sideseat-server message_goldens                    # from now on it gates
 ```
 
-Recording is a separate, explicit step on purpose: a golden written straight from current
-output enshrines whatever bugs exist today. A regenerated file has to be reviewed. The
-invariant checks in the test exist precisely because they hold regardless of what the golden
-says — they catch bugs a blind snapshot would bless:
+`review-message-goldens.py` exists because `git diff` on this much JSON is unreadable. It
+renders each view's message count, role sequence and content, and flags patterns that usually
+mean a parsing defect (a conversation with no assistant message, unbalanced tool calls, raw
+JSON in a text position). Those are heuristics for a human to judge — the hard guarantees are
+in the test.
 
-- indices dense and ascending
-- roles limited to system/user/assistant/tool (an unmapped role silently becomes `user`)
-- no duplicate (role, kind, content) within one view
-- every returned block belongs to the scope requested (a span view never leaks a sibling span)
-- every tool result's id matches a call in the same trace (trace and session views)
+Recording is a separate, explicit step on purpose: a golden written straight from current
+output enshrines whatever bugs exist today. `UPDATE_GOLDENS=1` writes the files but still exits
+non-zero if an invariant was violated, so known-bad output cannot be committed as reviewed.
+
+The invariants hold regardless of what a golden says, which is what makes a blindly regenerated
+snapshot still fail on a real defect:
+
+- every returned block belongs to the scope requested, by exact id (a span view never leaks a
+  sibling span; a trace view never survives `scope_feed_to_trace` with another trace's block)
+- a session's trace views partition its session view exactly — summing them must equal it. Not
+  asserted for a session that shares a trace with another session (ADK emits its own session id
+  alongside the sample's, so one trace belongs to two); the test says so per fixture rather than
+  passing quietly
+- no duplicate (role, kind, full-content digest) within one trace. This is also a deliberate
+  product limit: a genuine repeat of the same tool call or message inside one trace is collapsed,
+  because it is indistinguishable from a history re-send — see the pipeline notes in
+  `sideml/feed/mod.rs`
+- every tool result's id matches a call in the same trace, and a call is never answered twice.
+  Results with no id are outside this check: correlation refuses to invent one, so a framework
+  that identifies results only by name and issues concurrent calls to the same tool leaves them
+  unlinked rather than mislinked
 - no empty text or thinking blocks
-- a trace whose spans carry messages is never itself empty
-- processing the same fixture twice gives the same answer
+- the projection is self-consistent (counts, role sequence and message list agree)
+- processing the same fixture twice gives the same answer, checked once per suite
 
 `UPDATE_GOLDENS=1` reports invariant violations instead of aborting, so one bad fixture does
 not hide the rest.
+
+## What is and is not covered
+
+14 suites, 107 samples. Every framework SideSeat *recognises* is not covered, and the gap is
+deliberate rather than hidden:
+
+| Covered by fixtures | strands, langgraph, crewai, adk, bedrock, openai, openai-agents, anthropic, agent-framework, claude-agent-sdk, and the strands / vercel-ai / claude-agent-sdk JS suites |
+| ------------------- | --- |
+| Has samples, no fixtures | `autogen` — its runner has no Bedrock path, so capturing it needs a first-party key. Listed in the capture script and skipped with a message, so its absence is visible. |
+| Recognised, no samples | LangChain, PydanticAI, Agno, Smolagents, AgentScope, Langflow, AG2, Haystack, browser-use, Google GenAI, Vertex AI, LlamaIndex, Semantic Kernel, Azure OpenAI / AI Foundry, Logfire, MLflow, TraceLoop, LiveKit |
+
+The second group shares extractors with covered frameworks, so the *parsing logic* is exercised
+— but nothing here proves their emitted payloads match what those extractors expect. Adding a
+sample suite is what closes that, not adding an expectation file.
+
+Also uneven: 30 fixtures have no session view, because their sample never sets a session id.
+Session views are built only for real session ids, since the endpoint cannot be asked for a
+session that does not exist. Sessionised captures are what would cover those, not a synthetic
+fallback.
 
 ## Capability exemptions
 
