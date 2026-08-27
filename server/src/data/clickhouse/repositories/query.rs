@@ -812,8 +812,11 @@ pub async fn list_traces(
         FROM filtered_traces t
         JOIN otel_spans s FINAL ON t.project_id = s.project_id AND t.trace_id = s.trace_id
         LEFT JOIN gen_totals gt2 ON t.trace_id = gt2.trace_id
-        GROUP BY t.trace_id, t.min_ts
-        ORDER BY t.min_ts {sort_dir}
+        GROUP BY t.trace_id, t.min_ts, t.{ch_sort_field}
+        -- Ordered by the column that was asked for; the outer query used to re-sort by min_ts, so
+        -- only the direction of the requested sort survived. min_ts breaks ties so a page is
+        -- deterministic.
+        ORDER BY t.{ch_sort_field} {sort_dir}, t.min_ts {sort_dir}
         "#,
         dedup_cte = dedup.0,
         gen_totals = gen_totals_cte(Some("g.trace_id"), &where_clause),
@@ -1292,8 +1295,9 @@ pub async fn list_sessions(
         FROM filtered_sessions f
         JOIN otel_spans s FINAL ON f.project_id = s.project_id AND f.session_id = s.session_id
         LEFT JOIN gen_totals gt2 ON f.session_id = gt2.session_id
-        GROUP BY f.session_id, f.min_ts
-        ORDER BY f.min_ts {sort_dir}
+        GROUP BY f.session_id, f.min_ts, f.{ch_sort_field}
+        -- See the trace list: the requested column, not just its direction.
+        ORDER BY f.{ch_sort_field} {sort_dir}, f.min_ts {sort_dir}
         "#,
         dedup_cte = dedup.0,
         gen_totals = gen_totals_cte(Some("g.session_id"), &where_clause),
