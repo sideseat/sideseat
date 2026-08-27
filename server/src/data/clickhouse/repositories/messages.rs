@@ -175,11 +175,15 @@ pub async fn get_project_messages(
     let mut bind_params: Vec<BindParam> = vec![BindParam::String(params.project_id.clone())];
 
     // Cursor condition - both values bound as parameters
-    if let Some((cursor_time_us, cursor_span_id)) = &params.cursor {
-        conditions
-            .push("(toInt64(toUnixTimestamp64Micro(ingested_at)), span_id) < (?, ?)".to_string());
+    // The trace id is part of the cursor key: a span id is unique only within a trace.
+    if let Some((cursor_time_us, cursor_span_id, cursor_trace_id)) = &params.cursor {
+        conditions.push(
+            "(toInt64(toUnixTimestamp64Micro(ingested_at)), span_id, trace_id) < (?, ?, ?)"
+                .to_string(),
+        );
         bind_params.push(BindParam::Int64(*cursor_time_us));
         bind_params.push(BindParam::String(cursor_span_id.clone()));
+        bind_params.push(BindParam::String(cursor_trace_id.clone()));
     }
 
     // Event time filters - use parameterized timestamps
@@ -193,7 +197,7 @@ pub async fn get_project_messages(
     }
 
     let sql = format!(
-        "SELECT {CH_MESSAGE_SELECT_COLUMNS} FROM otel_spans FINAL WHERE {} ORDER BY ingested_at DESC, span_id DESC LIMIT {}",
+        "SELECT {CH_MESSAGE_SELECT_COLUMNS} FROM otel_spans FINAL WHERE {} ORDER BY ingested_at DESC, span_id DESC, trace_id DESC LIMIT {}",
         conditions.join(" AND "),
         params.limit
     );

@@ -67,13 +67,30 @@ pub struct FeedSpansQuery {
 // ============================================================================
 
 /// Encode cursor from (ingested_at, span_id)
-fn encode_cursor(ingested_at: DateTime<Utc>, span_id: &str) -> String {
-    let cursor_str = format!("{}:{}", ingested_at.timestamp_micros(), span_id);
+/// Encode a feed cursor.
+///
+/// The trace id is part of it because a span id is unique only *within* a trace. Two traces can
+/// carry the same span id in the same ingestion microsecond, and a page boundary falling between
+/// them made the `< cursor` predicate skip the one that had not been returned - a message missing
+/// from the feed for good.
+fn encode_cursor(ingested_at: DateTime<Utc>, span_id: &str, trace_id: &str) -> String {
+    // Trace id before span id, because the span id goes last and is the only field allowed to
+    // contain a colon - `test_decode_cursor_with_colon_in_span_id` pins that. A trace id is hex.
+    let cursor_str = format!(
+        "{}:{}:{}",
+        ingested_at.timestamp_micros(),
+        trace_id,
+        span_id
+    );
     URL_SAFE_NO_PAD.encode(cursor_str)
 }
 
-/// Decode cursor to (ingested_at_us, span_id)
-fn decode_cursor(cursor: &str) -> Result<(i64, String), ApiError> {
+/// Decode cursor to (ingested_at_us, span_id, trace_id)
+///
+/// A two-part cursor is one this server issued before the trace id was included; it is accepted so
+/// a page request in flight across an upgrade does not fail, and resolves to an empty trace id,
+/// which orders before every real one.
+fn decode_cursor(cursor: &str) -> Result<(i64, String, String), ApiError> {
     let decoded = URL_SAFE_NO_PAD
         .decode(cursor)
         .map_err(|_| ApiError::bad_request("INVALID_CURSOR", "Invalid cursor format"))?;
@@ -81,11 +98,11 @@ fn decode_cursor(cursor: &str) -> Result<(i64, String), ApiError> {
     let cursor_str = String::from_utf8(decoded)
         .map_err(|_| ApiError::bad_request("INVALID_CURSOR", "Invalid cursor encoding"))?;
 
-    let parts: Vec<&str> = cursor_str.splitn(2, ':').collect();
-    if parts.len() != 2 {
+    let parts: Vec<&str> = cursor_str.splitn(3, ':').collect();
+    if parts.len() < 2 {
         return Err(ApiError::bad_request(
             "INVALID_CURSOR",
-            "Invalid cursor format: expected timestamp:span_id",
+            "Invalid cursor format: expected timestamp:span_id:trace_id",
         ));
     }
 
@@ -93,7 +110,14 @@ fn decode_cursor(cursor: &str) -> Result<(i64, String), ApiError> {
         .parse::<i64>()
         .map_err(|_| ApiError::bad_request("INVALID_CURSOR", "Invalid cursor timestamp"))?;
 
-    Ok((timestamp_us, parts[1].to_string()))
+    // Two parts is a cursor this server issued before the trace id was in the key: the second
+    // field is the span id, and the trace id resolves to empty, which orders before every real one.
+    let (trace_id, span_id) = match parts.len() {
+        2 => ("", parts[1]),
+        _ => (parts[1], parts[2]),
+    };
+
+    Ok((timestamp_us, span_id.to_string(), trace_id.to_string()))
 }
 
 /// Validate and clamp limit parameter
@@ -165,10 +189,20 @@ pub async fn get_feed_messages(
     // Compute cursor from raw query results BEFORE processing
     let next_cursor = spans
         .last()
-        .map(|s| encode_cursor(s.ingested_at, &s.span_id));
+        .map(|s| encode_cursor(s.ingested_at, &s.span_id, &s.trace_id));
 
     // Process spans through feed pipeline (handles grouping, dedup, sorting)
     // History filtering is automatic (duplicates are detected and filtered)
+    //
+    // Known limit: history detection sees one page at a time. Cross-trace prefix stripping needs
+    // the earlier traces of a session, and a page holds whatever rows the cursor selected - so if a
+    // newer trace's replay of an older turn is on this page and the turn's own trace is on the
+    // next, the replay is not recognised and the same content appears on both pages.
+    //
+    // Fixing it means loading each session on the page in full as context and scoping back, the way
+    // the trace endpoint does. That is one extra query per session per page on a real-time endpoint,
+    // so it is a deliberate omission rather than an oversight; the trace and session views, which
+    // are what a user reads a conversation in, do load their whole session.
     let options = FeedOptions::new().with_role(query.role.clone());
 
     let processed = process_feed(spans, &options);
@@ -280,7 +314,7 @@ pub async fn get_feed_spans(
     // Compute cursor from last span
     let next_cursor = spans
         .last()
-        .map(|s| encode_cursor(s.ingested_at, &s.span_id));
+        .map(|s| encode_cursor(s.ingested_at, &s.span_id, &s.trace_id));
 
     // Convert to DTOs
     let data: Vec<SpanSummaryDto> = spans
@@ -311,11 +345,14 @@ mod tests {
         let timestamp = Utc.with_ymd_and_hms(2025, 1, 15, 10, 30, 0).unwrap();
         let span_id = "abc123def456";
 
-        let encoded = encode_cursor(timestamp, span_id);
-        let (decoded_us, decoded_span_id) = decode_cursor(&encoded).unwrap();
+        let trace_id = "0123456789abcdef";
+
+        let encoded = encode_cursor(timestamp, span_id, trace_id);
+        let (decoded_us, decoded_span_id, decoded_trace_id) = decode_cursor(&encoded).unwrap();
 
         assert_eq!(decoded_us, timestamp.timestamp_micros());
         assert_eq!(decoded_span_id, span_id);
+        assert_eq!(decoded_trace_id, trace_id);
     }
 
     #[test]
@@ -323,7 +360,7 @@ mod tests {
         let timestamp = Utc.with_ymd_and_hms(2025, 1, 15, 10, 30, 0).unwrap();
         let span_id = "span123";
 
-        let encoded = encode_cursor(timestamp, span_id);
+        let encoded = encode_cursor(timestamp, span_id, "trace123");
 
         // Should be base64 URL-safe without padding
         assert!(!encoded.contains('='));
@@ -337,10 +374,24 @@ mod tests {
         let timestamp = Utc.with_ymd_and_hms(2025, 1, 15, 10, 30, 0).unwrap();
         let span_id = "span:with:colons";
 
-        let encoded = encode_cursor(timestamp, span_id);
-        let (_, decoded_span_id) = decode_cursor(&encoded).unwrap();
+        let encoded = encode_cursor(timestamp, span_id, "tracewithoutcolons");
+        let (_, decoded_span_id, decoded_trace_id) = decode_cursor(&encoded).unwrap();
 
         assert_eq!(decoded_span_id, span_id);
+        assert_eq!(decoded_trace_id, "tracewithoutcolons");
+    }
+
+    /// A cursor issued before the trace id was part of the key must still parse.
+    #[test]
+    fn test_decode_legacy_two_part_cursor() {
+        let legacy = URL_SAFE_NO_PAD.encode("1736937000000000:abc123");
+        let (us, span_id, trace_id) = decode_cursor(&legacy).expect("legacy cursor");
+        assert_eq!(us, 1_736_937_000_000_000);
+        assert_eq!(span_id, "abc123");
+        assert_eq!(
+            trace_id, "",
+            "an absent trace id must order before every real one, not become the span id"
+        );
     }
 
     #[test]
