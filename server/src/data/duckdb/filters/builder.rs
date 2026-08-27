@@ -132,6 +132,12 @@ pub mod columns {
         "status_code",
         "gen_ai_request_model",
         "gen_ai_agent_name",
+        // Offered by SPAN_FILTER_CONFIGS in web/src/lib/filters.ts as Provider, Total Tokens and
+        // Total Cost. Missing here, so selecting any of them was rejected before the query ran -
+        // the dropdown worked and the filter silently did nothing.
+        "gen_ai_system",
+        "gen_ai_usage_total_tokens",
+        "gen_ai_cost_total",
         "timestamp_start",
         "timestamp_end",
         "start_time", // Alias for timestamp_start (API consistency)
@@ -256,5 +262,58 @@ mod tests {
         assert_eq!(columns::map_span_column("timestamp_end"), "timestamp_end");
         assert_eq!(columns::map_span_column("span_name"), "span_name");
         assert_eq!(columns::map_span_column("duration_ms"), "duration_ms");
+    }
+
+    /// Every filter the web UI offers must be accepted by the server.
+    ///
+    /// The two lists are declared in different languages in different repos-within-a-repo, so
+    /// they drift: Provider, Total Tokens and Total Cost appeared in the span filter dropdown
+    /// while `SPAN_FILTERABLE` rejected them, so choosing one silently did nothing. Parses the
+    /// TypeScript rather than restating it, so the test cannot drift from the UI either.
+    #[test]
+    fn ui_filter_columns_are_all_server_filterable() {
+        let ui = include_str!("../../../../../web/src/lib/filters.ts");
+
+        let extract = |config: &str| -> Vec<String> {
+            let Some(start) = ui.find(config) else {
+                return Vec::new();
+            };
+            let body = &ui[start..];
+            let end = body.find("\n];").unwrap_or(body.len());
+            body[..end]
+                .split("column:")
+                .skip(1)
+                .filter_map(|seg| {
+                    let seg = seg.trim_start();
+                    let seg = seg.strip_prefix('"')?;
+                    seg.split('"').next().map(str::to_string)
+                })
+                .collect()
+        };
+
+        for (config, allowed, label) in [
+            ("SPAN_FILTER_CONFIGS", columns::SPAN_FILTERABLE, "span"),
+            ("TRACE_FILTER_CONFIGS", columns::TRACE_FILTERABLE, "trace"),
+            (
+                "SESSION_FILTER_CONFIGS",
+                columns::SESSION_FILTERABLE,
+                "session",
+            ),
+        ] {
+            let ui_columns = extract(config);
+            assert!(
+                !ui_columns.is_empty(),
+                "could not parse {config} from web/src/lib/filters.ts - if it was renamed, update \
+                 this test rather than deleting it"
+            );
+            let missing: Vec<&String> = ui_columns
+                .iter()
+                .filter(|c| !allowed.contains(&c.as_str()))
+                .collect();
+            assert!(
+                missing.is_empty(),
+                "the {label} filter UI offers columns the server rejects: {missing:?}"
+            );
+        }
     }
 }
