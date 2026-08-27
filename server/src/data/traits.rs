@@ -70,7 +70,13 @@ pub trait AnalyticsRepository: Send + Sync {
         to_timestamp: Option<DateTime<Utc>>,
     ) -> Result<Vec<FilterOptionRow>, DataError>;
 
-    /// Delete traces by IDs
+    /// Delete traces by IDs.
+    ///
+    /// The returned count means different things per backend and no caller reads it: DuckDB
+    /// reports rows removed, while ClickHouse deletes through an asynchronous mutation and can
+    /// only report how many ids it was asked about. Making them agree would mean waiting for the
+    /// mutation to settle just to produce a number the routes discard - they answer 204. What
+    /// both backends do guarantee, and what the parity test checks, is which rows are gone.
     async fn delete_traces(&self, project_id: &str, trace_ids: &[String])
     -> Result<u64, DataError>;
 
@@ -130,7 +136,9 @@ pub trait AnalyticsRepository: Send + Sync {
         observations_only: bool,
     ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError>;
 
-    /// Delete spans by IDs
+    /// Delete spans by IDs.
+    ///
+    /// The returned count is backend-specific and unread; see [`AnalyticsRepository::delete_traces`].
     async fn delete_spans(
         &self,
         project_id: &str,
@@ -175,7 +183,9 @@ pub trait AnalyticsRepository: Send + Sync {
         to_timestamp: Option<DateTime<Utc>>,
     ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError>;
 
-    /// Delete sessions by IDs
+    /// Delete sessions by IDs.
+    ///
+    /// The returned count is backend-specific and unread; see [`AnalyticsRepository::delete_traces`].
     async fn delete_sessions(
         &self,
         project_id: &str,
