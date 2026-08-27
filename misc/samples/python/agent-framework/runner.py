@@ -2,18 +2,19 @@
 
 import asyncio
 
-from config import MODEL_ALIASES, REASONING_MODELS, SAMPLES
+from config import MODEL_ALIASES, SAMPLES
 from telemetry_setup import setup_telemetry
 from common.models import DEFAULT_THINKING_BUDGET
 from common.runner import create_trace_attributes, run_all_samples_base
 
 
-def get_client(model_alias: str, enable_thinking: bool = False):
+def get_client(model_alias: str):
     """Create an Agent Framework client from alias or full model ID.
 
     agent-framework 1.15 renamed the constructor argument from `model_id` to `model` and
-    removed `OpenAIResponsesClient`; reasoning is now requested per call rather than by
-    picking a different client class.
+    removed `OpenAIResponsesClient`; reasoning is now requested per call, so the client
+    is built the same way whether or not the sample asks for extended thinking - the
+    reasoning sample selects its own options from the client it is handed.
     """
     if model_alias in MODEL_ALIASES:
         provider, model_id = MODEL_ALIASES[model_alias]
@@ -27,11 +28,6 @@ def get_client(model_alias: str, enable_thinking: bool = False):
         else:
             provider = "openai"
             model_id = model_alias
-
-    thinking_supported = model_alias in REASONING_MODELS
-    use_thinking = enable_thinking and thinking_supported
-    if use_thinking:
-        print("  Extended thinking: enabled")
 
     # bedrock-* aliases keep the suite runnable on AWS credentials alone.
     if model_alias.startswith("bedrock-"):
@@ -78,8 +74,7 @@ def run_sample(name: str, args) -> bool:
 
     setup_telemetry(use_sideseat=args.sideseat)
 
-    enable_thinking = name == "reasoning"
-    client = get_client(args.model, enable_thinking=enable_thinking)
+    client = get_client(args.model)
     trace_attrs = create_trace_attributes("agent-framework", name)
 
     import importlib

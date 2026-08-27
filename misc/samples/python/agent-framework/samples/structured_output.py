@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from agent_framework import Agent
+from agent_framework import Agent, ChatOptions
 from opentelemetry import trace
 from pydantic import BaseModel, Field
 
@@ -46,9 +46,15 @@ async def run(client, trace_attrs: dict):
     with tracer.start_as_current_span(
         "agent_framework.session", attributes=trace_attrs
     ):
-        result = await agent.run(prompt, response_format=Person)
+        # response_format travels in ChatOptions, not as an Agent.run keyword: run() takes
+        # (messages, stream, session, middleware, tools, options, ...) and passing it directly
+        # raised TypeError, so this sample only ever recorded a traceback.
+        result = await agent.run(prompt, options=ChatOptions(response_format=Person))
 
-        parsed = result.try_parse_value(Person)
+        # `AgentResponse.value` holds the parsed model when response_format was set;
+        # try_parse_value() no longer exists, so this raised AttributeError after the model had
+        # already answered correctly.
+        parsed = result.value
         if parsed is not None:
             print(f"Parsed Person: {parsed}")
         else:
