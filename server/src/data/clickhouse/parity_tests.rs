@@ -207,6 +207,12 @@ fn fixture_spans() -> Vec<NormalizedSpan> {
             output_preview: Some("c later output".to_string()),
             ..base("trace-c", "c-child-2", "later-named", 21)
         },
+        // trace-e: a plain span with no observation type, so the include_nongenai filter has
+        // something to exclude. Without it that filter matched every trace and the case asserted
+        // nothing.
+        NormalizedSpan {
+            ..base("trace-e", "e-root", "plain-span", 40)
+        },
         // trace-d: no session, no generation, error status, no tags. Carries the raw OTLP span,
         // because the event and link reads extract from that JSON and would otherwise compare two
         // empty lists.
@@ -956,6 +962,21 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             },
         ),
         (
+            // NULL semantics for NOT IN: trace-c and trace-d have no user_id, and the two dialects
+            // have to agree on whether a row with no value is "none of" the listed ones. Neither
+            // includes it - both evaluate NULL NOT IN (...) to NULL - and this is the case that
+            // says so, because every other filtered column is populated for every row.
+            "filtered by none of a nullable column",
+            ListTracesParams {
+                filters: vec![Filter::StringOptions {
+                    column: "user_id".to_string(),
+                    operator: OptionsOp::NoneOf,
+                    value: vec!["someone-else".to_string()],
+                }],
+                ..trace_params()
+            },
+        ),
+        (
             "filtered by a null session",
             ListTracesParams {
                 filters: vec![Filter::Null {
@@ -1000,13 +1021,31 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             c.iter().map(describe_trace).collect::<Vec<_>>(),
             "list_traces {label} differs between backends"
         );
-        // Each case must actually select a subset, or it is asserting on the same full list.
-        assert!(
-            !d.is_empty() && d.len() <= duck_traces.len(),
-            "{label} selected {} of {} traces, so it exercises nothing",
-            d.len(),
-            duck_traces.len()
-        );
+        // What makes each case non-vacuous, stated per case. `d.len() <= total` let a filter that
+        // was dropped entirely pass, which is the failure being guarded against; but a sort
+        // returns everything by design, and two of these filters do match every trace in this
+        // fixture, so "strict subset" cannot be the rule for all of them.
+        assert!(!d.is_empty(), "{label} selected no traces at all");
+        match label {
+            // Order is the observable, so compare it against the default ordering.
+            "sorted by cost desc" => assert_ne!(
+                d.iter().map(|t| &t.trace_id).collect::<Vec<_>>(),
+                duck_traces.iter().map(|t| &t.trace_id).collect::<Vec<_>>(),
+                "the sort returned the default order, so it exercises nothing"
+            ),
+            // Every span in the fixture carries this environment, so matching all of them is
+            // correct here and the parity comparison is what this case contributes.
+            "filtered by environment" | "filtered by environment options" => assert_eq!(
+                d.len(),
+                duck_traces.len(),
+                "the fixture changed: this filter no longer matches every trace"
+            ),
+            _ => assert!(
+                d.len() < duck_traces.len(),
+                "{label} selected all {} traces, so a dropped filter would pass",
+                d.len()
+            ),
+        }
     }
 
     // The span and session lists take filters through their own column mappers, so the wiring is
@@ -1494,8 +1533,8 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
     let after_duck = remaining(&duck).await;
     assert_eq!(
         after_duck,
-        vec!["d-root".to_string()],
-        "deleting trace-c should leave exactly the unrelated trace"
+        vec!["d-root".to_string(), "e-root".to_string()],
+        "deleting trace-c should leave exactly the unrelated traces"
     );
     assert_eq!(
         settle(&ch, &after_duck).await,
@@ -1571,6 +1610,10 @@ fn the_fixture_covers_the_cases_parity_depends_on() {
             .any(|s| s.observation_type != Some(ObservationType::Generation)
                 && s.gen_ai_usage_total_tokens == 0),
         "one span must have no tokens, so the zero-not-null path is tested"
+    );
+    assert!(
+        spans.iter().any(|s| s.observation_type.is_none()),
+        "one span must have no observation type, or the include_nongenai filter excludes nothing"
     );
 
     let sessions: std::collections::BTreeSet<_> =
