@@ -1,6 +1,6 @@
 # JavaScript Agent Samples
 
-TypeScript samples for **Strands Agents** and **Vercel AI SDK** with AWS Bedrock.
+TypeScript samples for **Strands Agents**, **Vercel AI SDK** and the **Claude Agent SDK**, on AWS Bedrock.
 
 ## Prerequisites
 
@@ -197,7 +197,10 @@ misc/samples/js/
 │   ├── strands/          # Strands Agents samples
 │   │   ├── runner.ts     # CLI runner
 │   │   └── samples/      # Sample implementations
-│   └── vercel-ai/        # Vercel AI SDK samples
+│   ├── vercel-ai/        # Vercel AI SDK samples
+│   │   ├── runner.ts     # CLI runner
+│   │   └── samples/      # Sample implementations
+│   └── claude-agent-sdk/ # Claude Agent SDK samples
 │       ├── runner.ts     # CLI runner
 │       └── samples/      # Sample implementations
 ├── output/               # Generated images (gitignored)

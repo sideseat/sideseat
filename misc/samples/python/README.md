@@ -4,7 +4,10 @@ Sample applications demonstrating OpenTelemetry integration with various AI/LLM 
 
 ## Run Commands
 
-All frameworks share the same sample names and CLI options (`--model`, `--sideseat`, `--list`, `--help`).
+All suites share the same CLI options (`--model`, `--sideseat`, `--list`, `--help`), but **not
+the same sample names** — the provider suites have their own (`bedrock` has `converse` and
+`invoke_model`, not `tool_use`). Run `--list` to see what a suite actually offers; that is also
+what `misc/capture-message-fixtures.sh` does rather than assuming.
 
 ### Strands
 

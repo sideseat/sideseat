@@ -48,15 +48,21 @@ npx sideseat
 **2. Install and initialize**
 
 ```bash
-npm install ai @ai-sdk/amazon-bedrock @sideseat/sdk
+npm install ai @ai-sdk/otel @ai-sdk/amazon-bedrock @sideseat/sdk
 ```
 
 ```typescript
 import { init, Frameworks } from '@sideseat/sdk';
-import { generateText } from 'ai';
+import { generateText, registerTelemetry } from 'ai';
+import { LegacyOpenTelemetry } from '@ai-sdk/otel';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 
 init({ framework: Frameworks.VercelAI });
+
+// AI SDK 7 emits spans only through a registered integration. Without this the per-call
+// experimental_telemetry flag produces nothing. Register after init(): the integration
+// captures a tracer in its constructor.
+registerTelemetry(new LegacyOpenTelemetry());
 
 const { text } = await generateText({
   model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),

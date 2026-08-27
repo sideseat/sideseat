@@ -49,11 +49,16 @@ Add two lines at the top of your entry point:
 
 ```typescript
 import { init, Frameworks } from '@sideseat/sdk';
+import { generateText, registerTelemetry } from 'ai';
+import { LegacyOpenTelemetry } from '@ai-sdk/otel';
+import { bedrock } from '@ai-sdk/amazon-bedrock';
+
 init({ framework: Frameworks.VercelAI });
 
-// Your existing code
-import { generateText } from 'ai';
-import { bedrock } from '@ai-sdk/amazon-bedrock';
+// AI SDK 7 hands telemetry to registered integrations rather than emitting spans itself, so
+// this is required as well as the per-call flag. Register after init(): the integration
+// captures a tracer in its constructor. Needs `npm install @ai-sdk/otel`.
+registerTelemetry(new LegacyOpenTelemetry());
 
 const { text } = await generateText({
   model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),

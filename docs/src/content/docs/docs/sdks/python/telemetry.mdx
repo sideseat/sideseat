@@ -13,6 +13,7 @@ The `SideSeat` class is the main entry point for the Python SDK. It manages Open
 class SideSeat:
     def __init__(
         self,
+        *,                                  # every argument is keyword-only
         endpoint: str | None = None,
         project_id: str | None = None,
         api_key: str | None = None,
@@ -22,11 +23,11 @@ class SideSeat:
         service_version: str | None = None,
         enable_traces: bool = True,
         enable_metrics: bool = True,
-        enable_logs: bool = False,
+        enable_logs: bool | None = None,    # None -> consult the environment
         capture_content: bool = True,
         encode_binary: bool = True,
-        disabled: bool = False,
-        debug: bool = False,
+        disabled: bool | None = None,       # None -> SIDESEAT_DISABLED
+        debug: bool | None = None,          # None -> SIDESEAT_DEBUG
     ) -> None: ...
 ```
 
@@ -191,7 +192,11 @@ client.shutdown()
 `shutdown()` is:
 - **Idempotent**: Safe to call multiple times
 - **Thread-safe**: Can be called from any thread
-- **Automatic**: Registered with `atexit`, so you don't have to call it
+
+Pending spans are flushed at interpreter exit, but by OpenTelemetry's own `TracerProvider`
+(`shutdown_on_exit=True`), not by this method — `SideSeat.shutdown()` is registered with
+`atexit` only when you add a file exporter, so that the file is closed. Call it explicitly, or
+use the context manager, when you need the flush to happen at a point you control.
 </Aside>
 
 ## Context Manager
