@@ -9073,3 +9073,73 @@ fn role_filter_matches_the_derived_role_not_the_raw_one() {
             .collect::<Vec<_>>()
     );
 }
+
+/// A time window must not change which messages are *history*.
+///
+/// The lower bound used to be passed to the message query, which removed the earlier spans that
+/// history detection reads. With nothing to recognise a re-send against, the re-sent turns came
+/// back as new messages - so narrowing a window could *increase* what a trace appeared to contain.
+/// The window is a filter on the answer, applied after the pipeline has seen the context.
+#[test]
+fn a_time_window_only_removes_messages() {
+    let earlier = json!([{
+        "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+        "content": {"role": "user", "content": "first question"}
+    }]);
+    // The later span re-sends the first turn, as every framework does, plus a new one.
+    let later = json!([
+        {
+            "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+            "content": {"role": "user", "content": "first question"}
+        },
+        {
+            "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:05Z"}},
+            "content": {"role": "user", "content": "second question"}
+        }
+    ]);
+
+    let rows = vec![
+        make_span_row_with_timestamps(
+            "trace1",
+            "span1",
+            None,
+            &earlier.to_string(),
+            fixed_time(),
+            Some(fixed_time() + chrono::Duration::seconds(1)),
+        ),
+        make_span_row_with_timestamps(
+            "trace1",
+            "span2",
+            None,
+            &later.to_string(),
+            fixed_time() + chrono::Duration::seconds(5),
+            Some(fixed_time() + chrono::Duration::seconds(6)),
+        ),
+    ];
+
+    let full = process_spans(rows.clone(), &FeedOptions::new());
+    let windowed = apply_time_window(
+        process_spans(rows, &FeedOptions::new()),
+        Some(fixed_time() + chrono::Duration::seconds(2)),
+        None,
+    );
+
+    assert!(
+        windowed.messages.len() <= full.messages.len(),
+        "a window returned more messages ({}) than the unwindowed feed ({})",
+        windowed.messages.len(),
+        full.messages.len()
+    );
+    assert_eq!(
+        windowed.metadata.block_count,
+        windowed.messages.len(),
+        "the window reported a count that does not match what it returned"
+    );
+    for block in &windowed.messages {
+        assert!(
+            block.timestamp >= fixed_time() + chrono::Duration::seconds(2),
+            "a block outside the window was returned: {}",
+            block.timestamp
+        );
+    }
+}

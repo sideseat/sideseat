@@ -13,7 +13,8 @@ use crate::api::auth::{SessionRead, SpanRead, TraceRead};
 use crate::api::types::{ApiError, parse_timestamp_param};
 use crate::data::types::MessageQueryParams;
 use crate::domain::sideml::{
-    ExtractedTools, FeedOptions, FeedResult, extract_tools_from_rows, process_spans,
+    ExtractedTools, FeedOptions, FeedResult, apply_time_window, extract_tools_from_rows,
+    process_spans,
 };
 
 #[derive(Debug, Deserialize)]
@@ -70,7 +71,9 @@ pub async fn get_span_messages(
         project_id: project_id.to_string(),
         span_id: Some(span_id.to_string()),
         trace_id: Some(trace_id.to_string()),
-        from_timestamp,
+        // Only the upper bound is a query filter. See apply_time_window: filtering rows by the
+        // lower bound removes the history the pipeline needs in order to recognise a re-send.
+        from_timestamp: None,
         to_timestamp,
         ..Default::default()
     };
@@ -81,6 +84,7 @@ pub async fn get_span_messages(
 
     // Process through feed pipeline
     let processed = process_spans(result.rows, &options);
+    let processed = apply_time_window(processed, from_timestamp, to_timestamp);
 
     let response = build_messages_response(processed, None);
     Ok(Json(response))
@@ -134,7 +138,7 @@ pub async fn get_trace_messages(
         let params = MessageQueryParams {
             project_id: project_id.to_string(),
             session_id: Some(sid.to_string()),
-            from_timestamp,
+            from_timestamp: None,
             to_timestamp,
             ..Default::default()
         };
@@ -145,7 +149,7 @@ pub async fn get_trace_messages(
         let params = MessageQueryParams {
             project_id: project_id.to_string(),
             trace_id: Some(trace_id.to_string()),
-            from_timestamp,
+            from_timestamp: None,
             to_timestamp,
             ..Default::default()
         };
@@ -172,6 +176,10 @@ pub async fn get_trace_messages(
     if let Some(scoped_tools) = scoped_tools {
         scope_feed_to_trace(&mut processed, scoped_tools, trace_id);
     }
+
+    // The window applies to the answer, after the whole session has been seen and narrowed to
+    // this trace.
+    let processed = apply_time_window(processed, from_timestamp, to_timestamp);
 
     // Use trace-level totals for metadata (matches trace endpoint)
     let trace_totals = trace.map(|t| (t.total_tokens, t.total_cost));
@@ -214,7 +222,7 @@ pub async fn get_session_messages(
     let params = MessageQueryParams {
         project_id: project_id.to_string(),
         session_id: Some(session_id.to_string()),
-        from_timestamp,
+        from_timestamp: None,
         to_timestamp,
         ..Default::default()
     };
@@ -225,6 +233,7 @@ pub async fn get_session_messages(
 
     // Process through feed pipeline
     let processed = process_spans(result.rows, &options);
+    let processed = apply_time_window(processed, from_timestamp, to_timestamp);
 
     let response = build_messages_response(processed, None);
     Ok(Json(response))
