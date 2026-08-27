@@ -1577,6 +1577,10 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         // Two sessions, one covering two traces and one covering one.
         "session_id: session-1=2,session-2=1",
         "user_id: user-1=2",
+        // Root span names only, which is why trace-c contributes nothing: it has no root span.
+        // That is the same fallback the trace projection makes for a display name, so a change to
+        // either shows up here.
+        "trace_name: agent=1,generation=1,plain-span=2,tool=1",
     ] {
         assert!(
             described.iter().any(|line| line == expected),
@@ -1597,10 +1601,26 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             .get_span_filter_options(PROJECT, &span_columns, None, None, observations_only)
             .await
             .expect("clickhouse span options");
+        let described = describe_option_map(d);
         assert_eq!(
-            describe_option_map(d),
+            described,
             describe_option_map(c),
             "get_span_filter_options(observations_only={observations_only}) differs"
+        );
+        // Against the fixture, not only against each other: two empty maps satisfied equality.
+        // Neither count depends on `observations_only`, because the spans it excludes are the
+        // plain ones, which carry no model or provider.
+        assert!(
+            described
+                .iter()
+                .any(|line| line == "gen_ai_request_model: claude-haiku=4"),
+            "span options are missing the model (observations_only={observations_only}): {described:?}"
+        );
+        assert!(
+            described
+                .iter()
+                .any(|line| line == "gen_ai_system: bedrock=4"),
+            "span options are missing the provider: {described:?}"
         );
     }
 
@@ -1616,10 +1636,18 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         .get_session_filter_options(PROJECT, &session_columns, None, None)
         .await
         .expect("clickhouse session options");
+    let described = describe_option_map(d);
     assert_eq!(
-        describe_option_map(d),
+        described,
         describe_option_map(c),
         "get_session_filter_options differs between backends"
+    );
+    // Counted in sessions here, not traces: both sessions carry the environment, one carries the
+    // user. Two empty maps would otherwise pass.
+    assert_eq!(
+        described,
+        vec!["environment: test=2", "user_id: user-1=1"],
+        "session options do not match the fixture"
     );
 
     // --- project span counts -----------------------------------------------
