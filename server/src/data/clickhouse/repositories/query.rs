@@ -102,6 +102,153 @@ pub(super) fn build_time_scoped_dedup(
 }
 
 // ============================================================================
+// Shared Projections
+// ============================================================================
+
+/// The token and cost sums every `gen_totals` CTE computes. Five queries repeated these twelve
+/// aggregates verbatim, so adding a token kind meant finding all five.
+const GEN_TOTALS_SUMS: &str = r#"sum(gen_ai_usage_input_tokens) AS input_tokens,
+                sum(gen_ai_usage_output_tokens) AS output_tokens,
+                sum(gen_ai_usage_total_tokens) AS total_tokens,
+                sum(gen_ai_usage_cache_read_tokens) AS cache_read_tokens,
+                sum(gen_ai_usage_cache_write_tokens) AS cache_write_tokens,
+                sum(gen_ai_usage_reasoning_tokens) AS reasoning_tokens,
+                sum(toFloat64(gen_ai_cost_input)) AS input_cost,
+                sum(toFloat64(gen_ai_cost_output)) AS output_cost,
+                sum(toFloat64(gen_ai_cost_cache_read)) AS cache_read_cost,
+                sum(toFloat64(gen_ai_cost_cache_write)) AS cache_write_cost,
+                sum(toFloat64(gen_ai_cost_reasoning)) AS reasoning_cost,
+                sum(toFloat64(gen_ai_cost_total)) AS total_cost"#;
+
+/// The columns a token/cost total exposes, in the order [`GEN_TOTALS_SUMS`] defines them.
+const GEN_TOTALS_COLUMNS: [&str; 12] = [
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "cache_read_tokens",
+    "cache_write_tokens",
+    "reasoning_tokens",
+    "input_cost",
+    "output_cost",
+    "cache_read_cost",
+    "cache_write_cost",
+    "reasoning_cost",
+    "total_cost",
+];
+
+/// Body of the `gen_totals` CTE: deduplicated token and cost totals.
+///
+/// `key` is the column to group by (`g.trace_id`, `g.session_id`); `None` produces a single
+/// row, which callers cross-join. `scope` is the WHERE predicate selecting the rows, and
+/// carries whatever bind parameters it names. Requires `dedup_lookup` earlier in the WITH.
+fn gen_totals_cte(key: Option<&str>, scope: &str) -> String {
+    let select_key = key
+        .map(|k| format!("{k},\n                "))
+        .unwrap_or_default();
+    let group_by = key
+        .map(|k| format!("\n            GROUP BY {k}"))
+        .unwrap_or_default();
+    format!(
+        r#"gen_totals AS (
+            SELECT
+                {select_key}{GEN_TOTALS_SUMS}
+            FROM otel_spans g FINAL
+            WHERE {scope}
+              AND {dedup_condition}{group_by}
+        )"#,
+        dedup_condition = TOKEN_DEDUP_CONDITION,
+    )
+}
+
+/// The twelve totals columns projected from a joined `gen_totals` row, each defaulted to 0.
+/// Tokens and costs are never NULL in the API, so a trace or session with no generation span
+/// reports zeros rather than nulls.
+fn totals_projection(alias: &str, totals: &Totals) -> String {
+    GEN_TOTALS_COLUMNS
+        .iter()
+        .map(|col| {
+            let reference = match totals {
+                Totals::Scalar => format!("{alias}.{col}"),
+                Totals::Grouped => format!("max({alias}.{col})"),
+            };
+            format!("            coalesce({reference}, 0) AS {col},")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Every totals column, qualified by `alias`, for a GROUP BY that carries a cross-joined
+/// `gen_totals` row through an aggregation.
+fn totals_group_by(alias: &str) -> String {
+    GEN_TOTALS_COLUMNS
+        .iter()
+        .map(|col| format!("{alias}.{col}"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// How a query reaches its `gen_totals` row.
+enum Totals {
+    /// One row cross-joined in, already scalar — aggregating it would be a type error.
+    Scalar,
+    /// A per-key row joined into a grouped result, so each reference needs collapsing.
+    Grouped,
+}
+
+/// The trace-row projection shared by the trace list, single-trace and session-traces queries.
+///
+/// Those three differ only in their row set and in how they reach `gen_totals`; the 30-column
+/// projection was copied verbatim, so a fix to the tags union or the `trace_name` fallback had
+/// to be applied three times or the three views disagreed. Must stay in sync with
+/// [`ChTraceRow`] and with DuckDB's equivalent projection, which the ClickHouse parity test
+/// (`server/tests/clickhouse_parity.rs`) checks against a live server.
+fn trace_projection(trace_id_expr: &str, totals_alias: &str, totals: Totals) -> String {
+    let totals_columns = totals_projection(totals_alias, &totals);
+
+    format!(
+        r#"{trace_id_expr} as trace_id,
+            -- Falls back to the earliest named span when no root span is present, matching
+            -- DuckDB's COALESCE(...). Without the fallback a partial trace - root span not yet
+            -- ingested, or lost - had a name under DuckDB and none under ClickHouse.
+            coalesce(
+                argMinIf(s.span_name, s.timestamp_start, s.parent_span_id IS NULL AND s.span_name IS NOT NULL),
+                argMinIf(s.span_name, s.timestamp_start, s.span_name IS NOT NULL)
+            ) as trace_name,
+            toInt64(toUnixTimestamp64Micro(min(s.timestamp_start))) as start_time,
+            toInt64(toUnixTimestamp64Micro(max(coalesce(s.timestamp_end, s.timestamp_start)))) as end_time,
+            dateDiff('millisecond', min(s.timestamp_start), max(coalesce(s.timestamp_end, s.timestamp_start))) as duration_ms,
+            argMinIf(s.session_id, s.timestamp_start, s.session_id IS NOT NULL) as session_id,
+            argMinIf(s.user_id, s.timestamp_start, s.user_id IS NOT NULL) as user_id,
+            argMinIf(s.environment, s.timestamp_start, s.environment IS NOT NULL) as environment,
+            count() AS span_count,
+{totals_columns}
+            -- Union and de-duplicate across the trace's spans, matching DuckDB's
+            -- LIST_DISTINCT(FLATTEN(LIST(...))). any() returned one arbitrary span's tags, so a
+            -- trace could show a subset of its tags, and which subset was nondeterministic.
+            -- ifNull before JSONExtract: extracting an array from Nullable(String) yields
+            -- Nullable(Array(String)), which ClickHouse rejects outright with
+            -- "Nested type Array(String) cannot be inside Nullable type" - verified against a
+            -- real server, it fails the whole query rather than degrading. JSONExtract('') is
+            -- already [] so the empty case needs no branch. toNullable keeps the column
+            -- Nullable(String), matching ChTraceRow::tags.
+            toNullable(toJSONString(arrayDistinct(arrayFlatten(groupArray(
+                JSONExtract(ifNull(s.tags, '[]'), 'Array(String)')
+            ))))) AS tags,
+            countIf(s.observation_type != 'span') AS observation_count,
+            argMinIf(s.metadata, s.timestamp_start, s.parent_span_id IS NULL) AS metadata,
+            COALESCE(
+                argMinIf(s.input_preview, s.timestamp_start, s.parent_span_id IS NULL AND s.input_preview IS NOT NULL AND s.input_preview != ''),
+                argMinIf(s.input_preview, s.timestamp_start, s.input_preview IS NOT NULL AND s.input_preview != '')
+            ) AS input_preview,
+            COALESCE(
+                argMinIf(s.output_preview, s.timestamp_start, s.parent_span_id IS NULL AND s.output_preview IS NOT NULL AND s.output_preview != ''),
+                argMaxIf(s.output_preview, s.timestamp_start, s.output_preview IS NOT NULL AND s.output_preview != '')
+            ) AS output_preview,
+            coalesce(max(s.status_code = 'ERROR'), 0) AS has_error"#
+    )
+}
+
+// ============================================================================
 // Parameterized Query Builder
 // ============================================================================
 
@@ -226,7 +373,8 @@ use crate::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_T
 use crate::data::clickhouse::ClickhouseError;
 use crate::data::types::{
     EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams,
-    SessionRow, SpanRow, TraceRow, parse_finish_reasons, parse_tags,
+    SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, SessionRow, SpanRow,
+    TRACE_FILTER_OPTION_COLUMNS, TraceRow, parse_finish_reasons, parse_tags,
 };
 use crate::utils::time::parse_iso_timestamp;
 
@@ -593,26 +741,7 @@ pub async fn list_traces(
     let data_sql = format!(
         r#"
         WITH {dedup_cte},
-        gen_totals AS (
-            SELECT
-                g.trace_id,
-                sum(gen_ai_usage_input_tokens) AS input_tokens,
-                sum(gen_ai_usage_output_tokens) AS output_tokens,
-                sum(gen_ai_usage_total_tokens) AS total_tokens,
-                sum(gen_ai_usage_cache_read_tokens) AS cache_read_tokens,
-                sum(gen_ai_usage_cache_write_tokens) AS cache_write_tokens,
-                sum(gen_ai_usage_reasoning_tokens) AS reasoning_tokens,
-                sum(toFloat64(gen_ai_cost_input)) AS input_cost,
-                sum(toFloat64(gen_ai_cost_output)) AS output_cost,
-                sum(toFloat64(gen_ai_cost_cache_read)) AS cache_read_cost,
-                sum(toFloat64(gen_ai_cost_cache_write)) AS cache_write_cost,
-                sum(toFloat64(gen_ai_cost_reasoning)) AS reasoning_cost,
-                sum(toFloat64(gen_ai_cost_total)) AS total_cost
-            FROM otel_spans g FINAL
-            WHERE {where_clause}
-              AND {dedup_condition}
-            GROUP BY g.trace_id
-        ),
+        {gen_totals},
         filtered_traces AS (
             SELECT
                 sp.project_id,
@@ -631,39 +760,7 @@ pub async fn list_traces(
             LIMIT {limit} OFFSET {offset}
         )
         SELECT
-            t.trace_id as trace_id,
-            argMinIf(s.span_name, s.timestamp_start, s.parent_span_id IS NULL AND s.span_name IS NOT NULL) as trace_name,
-            toInt64(toUnixTimestamp64Micro(min(s.timestamp_start))) as start_time,
-            toInt64(toUnixTimestamp64Micro(max(coalesce(s.timestamp_end, s.timestamp_start)))) as end_time,
-            dateDiff('millisecond', min(s.timestamp_start), max(coalesce(s.timestamp_end, s.timestamp_start))) as duration_ms,
-            argMinIf(s.session_id, s.timestamp_start, s.session_id IS NOT NULL) as session_id,
-            argMinIf(s.user_id, s.timestamp_start, s.user_id IS NOT NULL) as user_id,
-            argMinIf(s.environment, s.timestamp_start, s.environment IS NOT NULL) as environment,
-            count() AS span_count,
-            coalesce(max(gt2.input_tokens), 0) AS input_tokens,
-            coalesce(max(gt2.output_tokens), 0) AS output_tokens,
-            coalesce(max(gt2.total_tokens), 0) AS total_tokens,
-            coalesce(max(gt2.cache_read_tokens), 0) AS cache_read_tokens,
-            coalesce(max(gt2.cache_write_tokens), 0) AS cache_write_tokens,
-            coalesce(max(gt2.reasoning_tokens), 0) AS reasoning_tokens,
-            coalesce(max(gt2.input_cost), 0) AS input_cost,
-            coalesce(max(gt2.output_cost), 0) AS output_cost,
-            coalesce(max(gt2.cache_read_cost), 0) AS cache_read_cost,
-            coalesce(max(gt2.cache_write_cost), 0) AS cache_write_cost,
-            coalesce(max(gt2.reasoning_cost), 0) AS reasoning_cost,
-            coalesce(max(gt2.total_cost), 0) AS total_cost,
-            any(s.tags) AS tags,
-            countIf(s.observation_type != 'span') AS observation_count,
-            argMinIf(s.metadata, s.timestamp_start, s.parent_span_id IS NULL) AS metadata,
-            COALESCE(
-                argMinIf(s.input_preview, s.timestamp_start, s.parent_span_id IS NULL AND s.input_preview IS NOT NULL AND s.input_preview != ''),
-                argMinIf(s.input_preview, s.timestamp_start, s.input_preview IS NOT NULL AND s.input_preview != '')
-            ) AS input_preview,
-            COALESCE(
-                argMinIf(s.output_preview, s.timestamp_start, s.parent_span_id IS NULL AND s.output_preview IS NOT NULL AND s.output_preview != ''),
-                argMaxIf(s.output_preview, s.timestamp_start, s.output_preview IS NOT NULL AND s.output_preview != '')
-            ) AS output_preview,
-            coalesce(max(s.status_code = 'ERROR'), 0) AS has_error
+            {projection}
         FROM filtered_traces t
         JOIN otel_spans s FINAL ON t.project_id = s.project_id AND t.trace_id = s.trace_id
         LEFT JOIN gen_totals gt2 ON t.trace_id = gt2.trace_id
@@ -671,7 +768,8 @@ pub async fn list_traces(
         ORDER BY t.min_ts {sort_dir}
         "#,
         dedup_cte = dedup.0,
-        dedup_condition = TOKEN_DEDUP_CONDITION,
+        gen_totals = gen_totals_cte(Some("g.trace_id"), &where_clause),
+        projection = trace_projection("t.trace_id", "gt2", Totals::Grouped),
         where_clause = where_clause,
         having_clause = having_clause,
         ch_sort_field = ch_sort_field,
@@ -1115,26 +1213,7 @@ pub async fn list_sessions(
     let data_sql = format!(
         r#"
         WITH {dedup_cte},
-        gen_totals AS (
-            SELECT
-                g.session_id,
-                sum(gen_ai_usage_input_tokens) AS input_tokens,
-                sum(gen_ai_usage_output_tokens) AS output_tokens,
-                sum(gen_ai_usage_total_tokens) AS total_tokens,
-                sum(gen_ai_usage_cache_read_tokens) AS cache_read_tokens,
-                sum(gen_ai_usage_cache_write_tokens) AS cache_write_tokens,
-                sum(gen_ai_usage_reasoning_tokens) AS reasoning_tokens,
-                sum(toFloat64(gen_ai_cost_input)) AS input_cost,
-                sum(toFloat64(gen_ai_cost_output)) AS output_cost,
-                sum(toFloat64(gen_ai_cost_cache_read)) AS cache_read_cost,
-                sum(toFloat64(gen_ai_cost_cache_write)) AS cache_write_cost,
-                sum(toFloat64(gen_ai_cost_reasoning)) AS reasoning_cost,
-                sum(toFloat64(gen_ai_cost_total)) AS total_cost
-            FROM otel_spans g FINAL
-            WHERE {where_clause}
-              AND {dedup_condition}
-            GROUP BY g.session_id
-        ),
+        {gen_totals},
         filtered_sessions AS (
             SELECT
                 sp.project_id,
@@ -1159,18 +1238,7 @@ pub async fn list_sessions(
             count(DISTINCT s.trace_id) AS trace_count,
             count() AS span_count,
             countIf(s.observation_type != 'span') AS observation_count,
-            coalesce(max(gt2.input_tokens), 0) AS input_tokens,
-            coalesce(max(gt2.output_tokens), 0) AS output_tokens,
-            coalesce(max(gt2.total_tokens), 0) AS total_tokens,
-            coalesce(max(gt2.cache_read_tokens), 0) AS cache_read_tokens,
-            coalesce(max(gt2.cache_write_tokens), 0) AS cache_write_tokens,
-            coalesce(max(gt2.reasoning_tokens), 0) AS reasoning_tokens,
-            coalesce(max(gt2.input_cost), 0) AS input_cost,
-            coalesce(max(gt2.output_cost), 0) AS output_cost,
-            coalesce(max(gt2.cache_read_cost), 0) AS cache_read_cost,
-            coalesce(max(gt2.cache_write_cost), 0) AS cache_write_cost,
-            coalesce(max(gt2.reasoning_cost), 0) AS reasoning_cost,
-            coalesce(max(gt2.total_cost), 0) AS total_cost
+{totals}
         FROM filtered_sessions f
         JOIN otel_spans s FINAL ON f.project_id = s.project_id AND f.session_id = s.session_id
         LEFT JOIN gen_totals gt2 ON f.session_id = gt2.session_id
@@ -1178,7 +1246,8 @@ pub async fn list_sessions(
         ORDER BY f.min_ts {sort_dir}
         "#,
         dedup_cte = dedup.0,
-        dedup_condition = TOKEN_DEDUP_CONDITION,
+        gen_totals = gen_totals_cte(Some("g.session_id"), &where_clause),
+        totals = totals_projection("gt2", &Totals::Grouped).trim_end_matches(','),
         where_clause = where_clause,
         ch_sort_field = ch_sort_field,
         sort_dir = sort_dir,
@@ -1297,7 +1366,12 @@ pub async fn get_events_for_span(
         SELECT
             span_id,
             toInt32(arrayJoin(range(JSONLength(raw_span, 'events')))) as event_index,
-            JSONExtractString(JSONExtractRaw(raw_span, 'events', arrayJoin(range(JSONLength(raw_span, 'events'))) + 1), 'timestamp') as event_timestamp,
+            -- ifNull strips the Nullable that extracting from a Nullable(String) column
+            -- introduces. ChEventRow declares event_timestamp as String, and the crate refuses
+            -- Nullable(String) -> String, so this endpoint failed outright on ClickHouse. The
+            -- WHERE below already restricts to spans whose raw JSON has events, so the default is
+            -- unreachable; it exists to make the column's type say so.
+            ifNull(JSONExtractString(JSONExtractRaw(raw_span, 'events', arrayJoin(range(JSONLength(raw_span, 'events'))) + 1), 'timestamp'), '') as event_timestamp,
             JSONExtractString(JSONExtractRaw(raw_span, 'events', arrayJoin(range(JSONLength(raw_span, 'events'))) + 1), 'name') as event_name,
             JSONExtractRaw(JSONExtractRaw(raw_span, 'events', arrayJoin(range(JSONLength(raw_span, 'events'))) + 1), 'attributes') as attributes
         FROM otel_spans FINAL
@@ -1332,8 +1406,9 @@ pub async fn get_links_for_span(
         r#"
         SELECT
             span_id,
-            JSONExtractString(JSONExtractRaw(raw_span, 'links', arrayJoin(range(JSONLength(raw_span, 'links'))) + 1), 'trace_id') as linked_trace_id,
-            JSONExtractString(JSONExtractRaw(raw_span, 'links', arrayJoin(range(JSONLength(raw_span, 'links'))) + 1), 'span_id') as linked_span_id,
+            -- ifNull for the same reason as the event query: ChLinkRow declares these as String.
+            ifNull(JSONExtractString(JSONExtractRaw(raw_span, 'links', arrayJoin(range(JSONLength(raw_span, 'links'))) + 1), 'trace_id'), '') as linked_trace_id,
+            ifNull(JSONExtractString(JSONExtractRaw(raw_span, 'links', arrayJoin(range(JSONLength(raw_span, 'links'))) + 1), 'span_id'), '') as linked_span_id,
             JSONExtractRaw(JSONExtractRaw(raw_span, 'links', arrayJoin(range(JSONLength(raw_span, 'links'))) + 1), 'attributes') as attributes
         FROM otel_spans FINAL
         WHERE project_id = ? AND trace_id = ? AND span_id = ?
@@ -1363,68 +1438,18 @@ pub async fn get_trace(
     let sql = format!(
         r#"
         WITH {dedup_cte},
-        gen_totals AS (
-            SELECT
-                sum(gen_ai_usage_input_tokens) AS input_tokens,
-                sum(gen_ai_usage_output_tokens) AS output_tokens,
-                sum(gen_ai_usage_total_tokens) AS total_tokens,
-                sum(gen_ai_usage_cache_read_tokens) AS cache_read_tokens,
-                sum(gen_ai_usage_cache_write_tokens) AS cache_write_tokens,
-                sum(gen_ai_usage_reasoning_tokens) AS reasoning_tokens,
-                sum(toFloat64(gen_ai_cost_input)) AS input_cost,
-                sum(toFloat64(gen_ai_cost_output)) AS output_cost,
-                sum(toFloat64(gen_ai_cost_cache_read)) AS cache_read_cost,
-                sum(toFloat64(gen_ai_cost_cache_write)) AS cache_write_cost,
-                sum(toFloat64(gen_ai_cost_reasoning)) AS reasoning_cost,
-                sum(toFloat64(gen_ai_cost_total)) AS total_cost
-            FROM otel_spans g FINAL
-            WHERE g.project_id = ? AND g.trace_id = ?
-              AND {dedup_condition}
-        )
+        {gen_totals}
         SELECT
-            s.trace_id as trace_id,
-            argMinIf(s.span_name, s.timestamp_start, s.parent_span_id IS NULL AND s.span_name IS NOT NULL) as trace_name,
-            toInt64(toUnixTimestamp64Micro(min(s.timestamp_start))) as start_time,
-            toInt64(toUnixTimestamp64Micro(max(coalesce(s.timestamp_end, s.timestamp_start)))) as end_time,
-            dateDiff('millisecond', min(s.timestamp_start), max(coalesce(s.timestamp_end, s.timestamp_start))) as duration_ms,
-            argMinIf(s.session_id, s.timestamp_start, s.session_id IS NOT NULL) as session_id,
-            argMinIf(s.user_id, s.timestamp_start, s.user_id IS NOT NULL) as user_id,
-            argMinIf(s.environment, s.timestamp_start, s.environment IS NOT NULL) as environment,
-            count() AS span_count,
-            coalesce(gt.input_tokens, 0) AS input_tokens,
-            coalesce(gt.output_tokens, 0) AS output_tokens,
-            coalesce(gt.total_tokens, 0) AS total_tokens,
-            coalesce(gt.cache_read_tokens, 0) AS cache_read_tokens,
-            coalesce(gt.cache_write_tokens, 0) AS cache_write_tokens,
-            coalesce(gt.reasoning_tokens, 0) AS reasoning_tokens,
-            coalesce(gt.input_cost, 0) AS input_cost,
-            coalesce(gt.output_cost, 0) AS output_cost,
-            coalesce(gt.cache_read_cost, 0) AS cache_read_cost,
-            coalesce(gt.cache_write_cost, 0) AS cache_write_cost,
-            coalesce(gt.reasoning_cost, 0) AS reasoning_cost,
-            coalesce(gt.total_cost, 0) AS total_cost,
-            any(s.tags) AS tags,
-            countIf(s.observation_type != 'span') AS observation_count,
-            argMinIf(s.metadata, s.timestamp_start, s.parent_span_id IS NULL) AS metadata,
-            COALESCE(
-                argMinIf(s.input_preview, s.timestamp_start, s.parent_span_id IS NULL AND s.input_preview IS NOT NULL AND s.input_preview != ''),
-                argMinIf(s.input_preview, s.timestamp_start, s.input_preview IS NOT NULL AND s.input_preview != '')
-            ) AS input_preview,
-            COALESCE(
-                argMinIf(s.output_preview, s.timestamp_start, s.parent_span_id IS NULL AND s.output_preview IS NOT NULL AND s.output_preview != ''),
-                argMaxIf(s.output_preview, s.timestamp_start, s.output_preview IS NOT NULL AND s.output_preview != '')
-            ) AS output_preview,
-            coalesce(max(s.status_code = 'ERROR'), 0) AS has_error
+            {projection}
         FROM otel_spans s FINAL
         CROSS JOIN gen_totals gt
         WHERE s.project_id = ? AND s.trace_id = ?
-        GROUP BY s.trace_id, gt.input_tokens, gt.output_tokens, gt.total_tokens,
-                 gt.cache_read_tokens, gt.cache_write_tokens, gt.reasoning_tokens,
-                 gt.input_cost, gt.output_cost, gt.cache_read_cost, gt.cache_write_cost,
-                 gt.reasoning_cost, gt.total_cost
+        GROUP BY s.trace_id, {totals_group_by}
     "#,
         dedup_cte = build_dedup_lookup_cte("trace_id = ?"),
-        dedup_condition = TOKEN_DEDUP_CONDITION,
+        gen_totals = gen_totals_cte(None, "g.project_id = ? AND g.trace_id = ?"),
+        projection = trace_projection("s.trace_id", "gt", Totals::Scalar),
+        totals_group_by = totals_group_by("gt"),
     );
 
     // Bind order: dedup_lookup(project_id, trace_id), gen_totals(project_id, trace_id), main(project_id, trace_id)
@@ -1457,61 +1482,9 @@ pub async fn get_traces_for_session(
             WHERE project_id = ? AND session_id = ?
         ),
         {dedup_cte},
-        gen_totals AS (
-            SELECT
-                g.trace_id,
-                sum(gen_ai_usage_input_tokens) AS input_tokens,
-                sum(gen_ai_usage_output_tokens) AS output_tokens,
-                sum(gen_ai_usage_total_tokens) AS total_tokens,
-                sum(gen_ai_usage_cache_read_tokens) AS cache_read_tokens,
-                sum(gen_ai_usage_cache_write_tokens) AS cache_write_tokens,
-                sum(gen_ai_usage_reasoning_tokens) AS reasoning_tokens,
-                sum(toFloat64(gen_ai_cost_input)) AS input_cost,
-                sum(toFloat64(gen_ai_cost_output)) AS output_cost,
-                sum(toFloat64(gen_ai_cost_cache_read)) AS cache_read_cost,
-                sum(toFloat64(gen_ai_cost_cache_write)) AS cache_write_cost,
-                sum(toFloat64(gen_ai_cost_reasoning)) AS reasoning_cost,
-                sum(toFloat64(gen_ai_cost_total)) AS total_cost
-            FROM otel_spans g FINAL
-            WHERE g.project_id = ?
-              AND g.trace_id IN (SELECT trace_id FROM session_traces)
-              AND {dedup_condition}
-            GROUP BY g.trace_id
-        )
+        {gen_totals}
         SELECT
-            s.trace_id as trace_id,
-            argMinIf(s.span_name, s.timestamp_start, s.parent_span_id IS NULL AND s.span_name IS NOT NULL) as trace_name,
-            toInt64(toUnixTimestamp64Micro(min(s.timestamp_start))) as start_time,
-            toInt64(toUnixTimestamp64Micro(max(coalesce(s.timestamp_end, s.timestamp_start)))) as end_time,
-            dateDiff('millisecond', min(s.timestamp_start), max(coalesce(s.timestamp_end, s.timestamp_start))) as duration_ms,
-            argMinIf(s.session_id, s.timestamp_start, s.session_id IS NOT NULL) as session_id,
-            argMinIf(s.user_id, s.timestamp_start, s.user_id IS NOT NULL) as user_id,
-            argMinIf(s.environment, s.timestamp_start, s.environment IS NOT NULL) as environment,
-            count() AS span_count,
-            coalesce(max(gt.input_tokens), 0) AS input_tokens,
-            coalesce(max(gt.output_tokens), 0) AS output_tokens,
-            coalesce(max(gt.total_tokens), 0) AS total_tokens,
-            coalesce(max(gt.cache_read_tokens), 0) AS cache_read_tokens,
-            coalesce(max(gt.cache_write_tokens), 0) AS cache_write_tokens,
-            coalesce(max(gt.reasoning_tokens), 0) AS reasoning_tokens,
-            coalesce(max(gt.input_cost), 0) AS input_cost,
-            coalesce(max(gt.output_cost), 0) AS output_cost,
-            coalesce(max(gt.cache_read_cost), 0) AS cache_read_cost,
-            coalesce(max(gt.cache_write_cost), 0) AS cache_write_cost,
-            coalesce(max(gt.reasoning_cost), 0) AS reasoning_cost,
-            coalesce(max(gt.total_cost), 0) AS total_cost,
-            any(s.tags) AS tags,
-            countIf(s.observation_type != 'span') AS observation_count,
-            argMinIf(s.metadata, s.timestamp_start, s.parent_span_id IS NULL) AS metadata,
-            COALESCE(
-                argMinIf(s.input_preview, s.timestamp_start, s.parent_span_id IS NULL AND s.input_preview IS NOT NULL AND s.input_preview != ''),
-                argMinIf(s.input_preview, s.timestamp_start, s.input_preview IS NOT NULL AND s.input_preview != '')
-            ) AS input_preview,
-            COALESCE(
-                argMinIf(s.output_preview, s.timestamp_start, s.parent_span_id IS NULL AND s.output_preview IS NOT NULL AND s.output_preview != ''),
-                argMaxIf(s.output_preview, s.timestamp_start, s.output_preview IS NOT NULL AND s.output_preview != '')
-            ) AS output_preview,
-            coalesce(max(s.status_code = 'ERROR'), 0) AS has_error
+            {projection}
         FROM otel_spans s FINAL
         LEFT JOIN gen_totals gt ON s.trace_id = gt.trace_id
         WHERE s.project_id = ?
@@ -1520,7 +1493,11 @@ pub async fn get_traces_for_session(
         ORDER BY min(s.timestamp_start) DESC
     "#,
         dedup_cte = build_dedup_lookup_cte("trace_id IN (SELECT trace_id FROM session_traces)"),
-        dedup_condition = TOKEN_DEDUP_CONDITION,
+        gen_totals = gen_totals_cte(
+            Some("g.trace_id"),
+            "g.project_id = ?\n              AND g.trace_id IN (SELECT trace_id FROM session_traces)"
+        ),
+        projection = trace_projection("s.trace_id", "gt", Totals::Grouped),
     );
 
     // Bind order: session_traces(project_id, session_id), dedup_lookup(project_id),
@@ -1812,31 +1789,6 @@ struct ChFilterOptionRow {
     count: u64,
 }
 
-/// Allowed columns for trace filter options (maps view column to span column)
-const TRACE_FILTER_OPTION_COLUMNS: &[(&str, &str)] = &[
-    ("trace_name", "span_name"),
-    ("session_id", "session_id"),
-    ("user_id", "user_id"),
-    ("environment", "environment"),
-];
-
-/// Allowed columns for span filter options
-const SPAN_FILTER_OPTION_COLUMNS: &[&str] = &[
-    "span_name",
-    "span_category",
-    "observation_type",
-    "framework",
-    "gen_ai_system",
-    "gen_ai_request_model",
-    "status_code",
-    "session_id",
-    "user_id",
-    "environment",
-];
-
-/// Allowed columns for session filter options
-const SESSION_FILTER_OPTION_COLUMNS: &[&str] = &["user_id", "environment"];
-
 /// Get trace filter options
 pub async fn get_trace_filter_options(
     client: &Client,
@@ -1942,11 +1894,16 @@ pub async fn get_trace_tags_options(
         time_params.push(to.timestamp_micros());
     }
 
-    // ClickHouse: extract tags from JSON array and count distinct traces
+    // ClickHouse: extract tags from JSON array and count distinct traces.
+    // toNullable because ChFilterOptionRow declares `Option<String>` (every other filter-option
+    // query selects a Nullable column) and the clickhouse crate refuses to deserialize a
+    // non-Nullable String into Option<T> - it failed at runtime, so the tag filter dropdown was
+    // empty on this backend. ifNull rather than assumeNotNull: assuming a NULL is not null yields
+    // undefined bytes, and JSONExtractArrayRaw('[]') already produces the empty array.
     let sql = format!(
         r#"
         SELECT
-            arrayJoin(JSONExtractArrayRaw(assumeNotNull(tags))) as value,
+            toNullable(arrayJoin(JSONExtractArrayRaw(ifNull(tags, '[]')))) as value,
             count(DISTINCT trace_id) as count
         FROM otel_spans FINAL
         WHERE project_id = ?{time_cond} AND tags IS NOT NULL AND tags != '[]'
