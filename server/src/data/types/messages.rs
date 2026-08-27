@@ -6,6 +6,53 @@ use chrono::{DateTime, Utc};
 
 use super::analytics::SpanIdentity;
 
+/// Columns a filter-options request may ask for, shared by both analytics backends.
+///
+/// These were declared separately in the DuckDB and ClickHouse repositories and had drifted in
+/// both directions: ClickHouse omitted `gen_ai_agent_name`, so the Agent filter dropdown was
+/// empty there, while DuckDB omitted `span_name`, `session_id` and `user_id`, so those were
+/// empty on DuckDB. Which filters a user sees depended on the storage backend.
+///
+/// Every name here is a column on `otel_spans` in both schemas. The allowlist exists to keep
+/// a caller-supplied column name out of the SQL, so adding a name that is not a real column
+/// turns a filter into an error rather than an injection.
+pub const SPAN_FILTER_OPTION_COLUMNS: &[&str] = &[
+    "environment",
+    "framework",
+    "gen_ai_agent_name",
+    "gen_ai_request_model",
+    "gen_ai_system",
+    "observation_type",
+    "session_id",
+    "span_category",
+    "span_name",
+    "status_code",
+    "user_id",
+];
+
+/// Trace filter options, as (view column, underlying span column).
+pub const TRACE_FILTER_OPTION_COLUMNS: &[(&str, &str)] = &[
+    ("environment", "environment"),
+    ("session_id", "session_id"),
+    ("trace_name", "span_name"),
+    ("user_id", "user_id"),
+];
+
+/// Session filter options.
+pub const SESSION_FILTER_OPTION_COLUMNS: &[&str] = &["environment", "user_id"];
+
+/// Which rows a trace or session message query returns.
+///
+/// One definition shared by both backends: it was declared identically in the DuckDB and
+/// ClickHouse repositories, so a change to one silently changed what the other returned. The
+/// predicate is plain SQL that both dialects accept; if one ever needs to diverge, that
+/// divergence should be visible here rather than by two constants drifting apart.
+///
+/// Rows with no messages, no tools and no error are never returned, which is why the
+/// message-parsing harness applies the same filter when it builds its row sets.
+pub const MESSAGE_CONTENT_FILTER: &str =
+    "(messages != '[]' OR tool_definitions != '[]' OR tool_names != '[]' OR status_code = 'ERROR')";
+
 // ============================================================================
 // Row types
 // ============================================================================

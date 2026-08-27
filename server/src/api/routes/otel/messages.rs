@@ -53,17 +53,23 @@ pub async fn get_span_messages(
 ) -> Result<Json<MessagesResponseDto>, ApiError> {
     let project_id = &auth.project_id;
     let span_id = &auth.span_id;
+    let trace_id = &auth.trace_id;
 
     let from_timestamp = parse_timestamp_param(&query.from_timestamp)?;
     let to_timestamp = parse_timestamp_param(&query.to_timestamp)?;
 
     let options = query.to_feed_options();
 
-    // Fetch raw span rows
+    // Fetch raw span rows.
+    //
+    // Constrained by trace_id as well as span_id. The route carries both, but only span_id was
+    // used: OTel span ids are 8 bytes and unique only within a trace, so a collision returned
+    // another trace's span under this URL.
     let repo = state.analytics.repository();
     let params = MessageQueryParams {
         project_id: project_id.to_string(),
         span_id: Some(span_id.to_string()),
+        trace_id: Some(trace_id.to_string()),
         from_timestamp,
         to_timestamp,
         ..Default::default()
