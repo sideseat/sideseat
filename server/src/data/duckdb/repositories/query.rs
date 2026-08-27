@@ -152,11 +152,15 @@ pub fn list_traces(
         .unwrap_or(("timestamp_start", "DESC"));
 
     // Map view column names to spans table column names for sorting
+    // Every column TRACE_SORTABLE accepts is mapped. One that is accepted and not mapped falls
+    // through to min_ts, so the list comes back ordered by time while the UI shows the column the
+    // user picked as the active sort.
     let span_sort_field = match sort_field {
         "start_time" => "min_ts",
         "end_time" => "max_ts",
         "duration_ms" => "duration_ms",
         "total_cost" => "total_cost",
+        "total_tokens" => "total_tokens",
         "observation_count" => "observation_count",
         _ => "min_ts",
     };
@@ -234,6 +238,9 @@ pub fn list_traces(
                 MAX(COALESCE(sp.timestamp_end, sp.timestamp_start)) as max_ts,
                 DATE_DIFF('millisecond', MIN(sp.timestamp_start), MAX(COALESCE(sp.timestamp_end, sp.timestamp_start))) as duration_ms,
                 COALESCE(MAX(gt.total_cost), 0)::DOUBLE as total_cost,
+                -- Sortable, so it has to be computed here: `?order_by=total_tokens` is accepted by
+                -- the API and fell through to min_ts, silently sorting by time instead.
+                COALESCE(MAX(gt.total_tokens), 0) as total_tokens,
                 COUNT(*) FILTER (WHERE sp.observation_type != 'span') as observation_count,
                 COUNT(*) FILTER (WHERE sp.gen_ai_system IS NOT NULL
                                    OR sp.gen_ai_request_model IS NOT NULL) as genai_span_count
@@ -842,11 +849,14 @@ pub fn list_sessions(
         .unwrap_or(("timestamp_start", "DESC"));
 
     // Map view column names to spans table column names for sorting
+    // Every column SESSION_SORTABLE accepts is mapped; see the trace list for why that matters.
     let span_sort_field = match sort_field {
         "start_time" => "min_ts",
+        "end_time" => "max_ts",
         "total_cost" => "total_cost",
         "trace_count" => "trace_count",
         "span_count" => "span_count",
+        "observation_count" => "observation_count",
         _ => "min_ts",
     };
 
@@ -910,9 +920,13 @@ pub fn list_sessions(
                 sp.project_id,
                 sp.session_id,
                 MIN(sp.timestamp_start) as min_ts,
+                -- max_ts and observation_count are sortable, so they are computed here rather than
+                -- letting `?order_by=end_time` fall through to min_ts.
+                MAX(COALESCE(sp.timestamp_end, sp.timestamp_start)) as max_ts,
                 COALESCE(MAX(gt.total_cost), 0)::DOUBLE as total_cost,
                 COUNT(DISTINCT sp.trace_id) as trace_count,
-                COUNT(*) as span_count
+                COUNT(*) as span_count,
+                COUNT(*) FILTER (WHERE sp.observation_type != 'span') as observation_count
             FROM {DEDUP_SPANS} sp
             LEFT JOIN gen_totals gt ON sp.session_id = gt.session_id
             WHERE {span_where_sp}
@@ -1674,32 +1688,54 @@ pub fn get_trace_filter_options(
             None => continue,
         };
 
-        // For trace_name, only look at root spans (parent_span_id IS NULL)
-        // Other columns can use all spans
-        let extra_condition = if column == "trace_name" {
-            " AND parent_span_id IS NULL"
-        } else {
-            ""
-        };
-
         // COUNT(DISTINCT trace_id) is immune to row duplication. Exact, not
         // APPROX_COUNT_DISTINCT: these counts sit next to each option in the filter UI, and the
         // ClickHouse backend counts them exactly - the two disagreeing by HyperLogLog's error
         // means one project reports different numbers depending on which backend serves it.
-        let sql = format!(
-            r#"
-            SELECT {col}, COUNT(DISTINCT trace_id) as cnt
-            FROM otel_spans
-            WHERE {base_where} AND {col} IS NOT NULL{extra}
-            GROUP BY {col}
-            ORDER BY cnt DESC
-            LIMIT {limit}
-            "#,
-            base_where = base_where,
-            col = span_column,
-            extra = extra_condition,
-            limit = QUERY_MAX_FILTER_SUGGESTIONS
-        );
+        //
+        // trace_name is computed per trace with the same root-span-then-earliest-named fallback the
+        // trace list displays. Listing root span names only offered names that did not match the
+        // list and omitted the ones a trace with no root span shows - so filtering by a name the UI
+        // had just displayed returned nothing.
+        let sql = if column == "trace_name" {
+            format!(
+                r#"
+                SELECT name, COUNT(DISTINCT trace_id) as cnt
+                FROM (
+                    SELECT trace_id,
+                        COALESCE(
+                            FIRST(span_name ORDER BY timestamp_start)
+                                FILTER (WHERE parent_span_id IS NULL AND span_name IS NOT NULL),
+                            FIRST(span_name ORDER BY timestamp_start)
+                                FILTER (WHERE span_name IS NOT NULL)
+                        ) AS name
+                    FROM otel_spans
+                    WHERE {base_where}
+                    GROUP BY trace_id
+                )
+                WHERE name IS NOT NULL
+                GROUP BY name
+                ORDER BY cnt DESC
+                LIMIT {limit}
+                "#,
+                base_where = base_where,
+                limit = QUERY_MAX_FILTER_SUGGESTIONS
+            )
+        } else {
+            format!(
+                r#"
+                SELECT {col}, COUNT(DISTINCT trace_id) as cnt
+                FROM otel_spans
+                WHERE {base_where} AND {col} IS NOT NULL
+                GROUP BY {col}
+                ORDER BY cnt DESC
+                LIMIT {limit}
+                "#,
+                base_where = base_where,
+                col = span_column,
+                limit = QUERY_MAX_FILTER_SUGGESTIONS
+            )
+        };
 
         let mut stmt = conn.prepare(&sql)?;
         let param_refs: Vec<&dyn duckdb::ToSql> = base_params
