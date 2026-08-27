@@ -7,7 +7,7 @@
 [extend]
 useDefault = true
 
-[allowlist]
+[[allowlists]]
 description = "Build output and local state, plus known-synthetic test values"
 
 paths = [
@@ -29,19 +29,36 @@ regexes = [
   # Synthetic API key used by the api_key unit tests. Matches the real key shape on
   # purpose so the parser is exercised; the value is a keyboard walk.
   '''pk-ss-a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5''',
-  # CrewAI emits `crew_key` / task `key` as content hashes identifying a crew or task
-  # definition. They are identifiers, not credentials, and these are captured fixtures.
+  # CrewAI serialises an agent/crew/task fingerprint into `key`, `agent_key` or `crew_key` next
+  # to the object's uuid `id`, so generic-api-key fires on the field name plus the entropy. They
+  # are md5 content hashes of the definition, not credentials.
+  #
+  # Listed value by value, deliberately, even though it means an edit after a re-capture. The
+  # obvious alternative - one allowlist scoped to the crewai fixture path, the three field names
+  # and a 32-hex shape, matched with `regexTarget = "line"` - was tried and rejected: a captured
+  # OTLP payload is one enormous line, so line-scoped matching allowlisted the *whole file*. An
+  # injected `aws_secret_access_key` in one of these fixtures went unreported under that config
+  # and was reported without it. Without `regexTarget` the regex sees only the secret, which
+  # cannot tell a fingerprint from a 32-hex credential. So: individual values, and a genuine leak
+  # in a future capture is still reported.
+  #
+  # In unit-test source:
   '''13e3a57e3b2ed1f7f043b80d762f69e8''',
   '''79861a87be85893981e6e32de034a9c9''',
   '''2704760cd615ff308a4a362d20321071''',
-  # Same thing in the captured message fixtures: CrewAI puts an agent/crew fingerprint in
-  # `key` / `agent_key` next to the agent's uuid `id`, so generic-api-key fires on the field
-  # name plus the entropy. Listed individually rather than allowlisting the fixture tree, so a
-  # genuine leak in a future capture is still reported.
+  # In captured crewai fixtures (every distinct fingerprint in the tree):
   '''201b71bafa050dfe48c2b3d8e58be52a''',
+  '''34ab77ea805dc36d0095bdfc41cb555c''',
+  '''3cf7379507adb1fa99fa10426aaf9da1''',
   '''6b5becc64d7e3c705a7d3784a5fab1d3''',
+  '''6f513234098ee324317939363fcd2fe6''',
+  '''8143a8dad3873fa37d45ab1840ea31f8''',
   '''995832a12f1a6527c56cd55b30d2b02f''',
   '''998011301e7c63e8d134e81fa548214e''',
+  '''b3a7d6ac81d17fd6710a2fa033a83976''',
+  '''bcce1dbcaf1d22cf01bfa1894adf2998''',
   '''bec4857e8531d2022ec65881ea369eb2''',
   '''cd18405877ba8060474696314e4f834a''',
+  '''eac1cd6f411491202cb7e0b42e032c33''',
+  '''fe12642d39fb66c639d4c3cb9543df26''',
 ]
