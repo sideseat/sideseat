@@ -41,7 +41,7 @@ import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
    SideSeat(framework=Frameworks.AgentFramework)
 
-   client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
+   client = OpenAIChatClient(model="gpt-5-nano-2025-08-07")
    agent = Agent(client=client, instructions="You are a helpful assistant.")
 
    result = asyncio.run(agent.run("What is the capital of France?"))
@@ -107,7 +107,7 @@ import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
 ## Providers
 
-Agent Framework supports OpenAI, OpenAI Responses, and Anthropic:
+Agent Framework supports OpenAI, Anthropic and Anthropic on Bedrock:
 
 <Tabs>
   <TabItem label="OpenAI">
@@ -115,15 +115,7 @@ Agent Framework supports OpenAI, OpenAI Responses, and Anthropic:
     from agent_framework.openai import OpenAIChatClient
 
     # Uses OPENAI_API_KEY env var
-    client = OpenAIChatClient(model_id="gpt-5-nano-2025-08-07")
-    ```
-  </TabItem>
-  <TabItem label="OpenAI Responses">
-    ```python
-    from agent_framework.openai import OpenAIResponsesClient
-
-    # Supports reasoning_effort for extended thinking
-    client = OpenAIResponsesClient(model_id="gpt-5-nano-2025-08-07")
+    client = OpenAIChatClient(model="gpt-5-nano-2025-08-07")
     ```
   </TabItem>
   <TabItem label="Anthropic">
@@ -131,10 +123,21 @@ Agent Framework supports OpenAI, OpenAI Responses, and Anthropic:
     from agent_framework.anthropic import AnthropicClient
 
     # Uses ANTHROPIC_API_KEY env var
-    client = AnthropicClient(model_id="claude-haiku-4-5-20251001")
+    client = AnthropicClient(model="claude-haiku-4-5-20251001")
+    ```
+  </TabItem>
+  <TabItem label="Anthropic on Bedrock">
+    ```python
+    from agent_framework.anthropic import AnthropicBedrockClient
+
+    # Signs with the ambient AWS credentials
+    client = AnthropicBedrockClient(model="global.anthropic.claude-haiku-4-5-20251001-v1:0")
     ```
   </TabItem>
 </Tabs>
+
+Note the argument is `model`, not `model_id`, and there is no `OpenAIResponsesClient` -
+reasoning is requested per call instead of by picking a client class.
 
 ## Tools
 
@@ -188,7 +191,7 @@ Extract structured data using Pydantic models via the `response_format` paramete
 
 ```python
 from pydantic import BaseModel
-from agent_framework import Agent
+from agent_framework import Agent, ChatOptions
 
 class Person(BaseModel):
     name: str
@@ -196,32 +199,39 @@ class Person(BaseModel):
     city: str
 
 agent = Agent(client=client, instructions="Extract structured information.")
+
+# response_format travels in ChatOptions: Agent.run takes
+# (messages, stream, session, middleware, tools, options, ...), so passing it directly
+# raises TypeError.
 result = await agent.run(
     "Jane Doe, 28, lives in New York.",
-    response_format=Person,
+    options=ChatOptions(response_format=Person),
 )
 
-person = result.try_parse_value(Person)
+# `.value` holds the parsed model; try_parse_value() has been removed.
+person = result.value
 if person is not None:
     print(person.name)  # "Jane Doe"
 ```
 
 ## Extended Thinking
 
-Enable extended thinking for supported models via `additional_chat_options`:
+Reasoning options travel in `options=`. Each provider extends `ChatOptions` with its own
+keys, so the option to send depends on the client - an unsupported key raises rather than
+being ignored.
 
 <Tabs>
-  <TabItem label="OpenAI Responses">
+  <TabItem label="OpenAI">
     ```python
-    from agent_framework.openai import OpenAIResponsesClient
+    from agent_framework.openai import OpenAIChatClient
     from agent_framework import Agent
 
-    client = OpenAIResponsesClient(model_id="gpt-5-nano-2025-08-07")
+    client = OpenAIChatClient(model="gpt-5-nano-2025-08-07")
     agent = Agent(client=client, instructions="Solve problems step by step.")
 
     result = await agent.run(
         "Solve this logic puzzle...",
-        additional_chat_options={"reasoning_effort": "medium"},
+        options={"reasoning": {"effort": "medium"}},
     )
     ```
   </TabItem>
@@ -230,16 +240,19 @@ Enable extended thinking for supported models via `additional_chat_options`:
     from agent_framework.anthropic import AnthropicClient
     from agent_framework import Agent
 
-    client = AnthropicClient(model_id="claude-sonnet-4-20250514")
+    client = AnthropicClient(model="claude-sonnet-4-20250514")
     agent = Agent(client=client, instructions="Solve problems step by step.")
 
     result = await agent.run(
         "Solve this logic puzzle...",
-        additional_chat_options={"thinking": {"type": "enabled", "budget_tokens": 4096}},
+        options={"thinking": {"type": "enabled", "budget_tokens": 4096}},
     )
     ```
   </TabItem>
 </Tabs>
+
+Bedrock's OpenAI-compatible endpoint does not accept `reasoning`; use
+`AnthropicBedrockClient` with `thinking` for extended thinking on Bedrock.
 
 ## Multimodal Input
 
