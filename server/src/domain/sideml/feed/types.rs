@@ -151,6 +151,16 @@ pub struct BlockEntry {
     /// the full eight-phase detection algorithm (phases 2-7 plus 4b).
     #[serde(skip_serializing)]
     pub is_history: bool,
+
+    /// True when this tool result's `tool_use_id` was derived by correlation rather than sent by
+    /// the framework.
+    ///
+    /// The orphan-result phase in `history.rs` treats an id that names no current call as
+    /// evidence the result belongs to a past turn. That inference only holds for a provider's own
+    /// id; a correlated id was, by construction, taken from a call in this same trace, so it is
+    /// evidence of the opposite.
+    #[serde(skip_serializing)]
+    pub tool_use_id_correlated: bool,
 }
 
 impl BlockEntry {
@@ -450,6 +460,7 @@ mod tests {
             is_semantic: true,
             uses_span_end: false,
             is_history: false,
+            tool_use_id_correlated: false,
         }
     }
 
