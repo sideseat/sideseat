@@ -684,23 +684,35 @@ fn compute_quality(block: &BlockEntry) -> u32 {
 // DEDUPLICATION
 // ============================================================================
 
-/// Identity of the response a block came from: one event of one span.
+/// Identity of the message a block came from: one message of one span.
 ///
-/// Blocks sharing it were produced together, so they keep their source order relative to each
-/// other and move through the feed as a unit.
-fn batch_key(block: &BlockEntry) -> (String, String, DateTime<Utc>) {
+/// Blocks sharing it are the content blocks of a single message - the text and tool calls of one
+/// `gen_ai.choice`, say - so they keep their source order and move through the feed as a unit.
+///
+/// Direction is part of the key, not just the span and timestamp. Attribute extraction gives every
+/// message of a span the span's start time, so keying on time alone made a span's input and its
+/// output one unit: `input.value` and `output.value` were treated as one response, the earlier time
+/// was materialised onto both, and the completed output was reported as having happened when the
+/// span started - which a time window could then drop.
+///
+/// Splitting further, by message index, is wrong in the other direction: a turn's introductory text
+/// and the tool calls it introduces arrive as separate messages of one span, and separating them let
+/// the text sort after the results by its span-end timestamp. What a span sent and what it produced
+/// are different things; within one direction, blocks sharing a timestamp are one response.
+fn batch_key(block: &BlockEntry) -> (String, String, DateTime<Utc>, bool) {
     (
         block.trace_id.clone(),
         block.span_id.clone(),
         block.timestamp,
+        block.is_output_source(),
     )
 }
 
-/// The earliest birth time in each response, which is the time the whole response sorts at.
+/// The earliest birth time in each message, which is the time all of its blocks sort at.
 fn batch_representative_times(
     paired: &[(DateTime<Utc>, BlockEntry)],
-) -> HashMap<(String, String, DateTime<Utc>), DateTime<Utc>> {
-    let mut times: HashMap<(String, String, DateTime<Utc>), DateTime<Utc>> = HashMap::new();
+) -> HashMap<(String, String, DateTime<Utc>, bool), DateTime<Utc>> {
+    let mut times: HashMap<(String, String, DateTime<Utc>, bool), DateTime<Utc>> = HashMap::new();
     for (birth, block) in paired {
         times
             .entry(batch_key(block))
@@ -717,7 +729,7 @@ fn batch_representative_times(
 /// The sort key of one block, built once.
 struct BlockSortKey {
     batch_time: DateTime<Utc>,
-    batch: (String, String, DateTime<Utc>),
+    batch: (String, String, DateTime<Utc>, bool),
     semantic: u8,
     message_index: i32,
     entry_index: i32,
@@ -728,6 +740,14 @@ impl BlockSortKey {
     fn compare(&self, other: &Self) -> std::cmp::Ordering {
         self.batch_time
             .cmp(&other.batch_time)
+            // Source position first. Frameworks that put every message of a span at the span's
+            // start time - ADK's attribute lists - already emit them in conversation order, and
+            // ranking by role ahead of position threw that away: a multi-turn span came back as
+            // every user message, then every tool result, with the turn boundaries gone.
+            .then_with(|| self.message_index.cmp(&other.message_index))
+            .then_with(|| self.entry_index.cmp(&other.entry_index))
+            // Only for two messages that share a position, which means they came from different
+            // messages of different spans: a call before the result that answers it.
             .then_with(|| {
                 if self.batch == other.batch {
                     std::cmp::Ordering::Equal
@@ -735,8 +755,6 @@ impl BlockSortKey {
                     self.semantic.cmp(&other.semantic)
                 }
             })
-            .then_with(|| self.message_index.cmp(&other.message_index))
-            .then_with(|| self.entry_index.cmp(&other.entry_index))
             .then_with(|| self.batch.cmp(&other.batch))
             .then_with(|| self.content_hash.cmp(&other.content_hash))
     }
