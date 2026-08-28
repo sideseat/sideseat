@@ -249,13 +249,21 @@ fn fixture_spans() -> Vec<NormalizedSpan> {
             0.003,
         ),
         // trace-h: qualifies through token usage alone - no observation type, no provider, no
-        // model. Instrumentation that reports only what a call cost looks like this, and a
-        // predicate that checks the provider and the request model dropped it.
+        // model. Instrumentation that reports only usage looks like this, and a predicate that
+        // checks the provider and the request model dropped it.
         NormalizedSpan {
             gen_ai_usage_input_tokens: 11,
             gen_ai_usage_output_tokens: 2,
             gen_ai_usage_total_tokens: 13,
             ..base("trace-h", "h-root", "usage-only", 60)
+        },
+        // trace-j: qualifies through *cost* alone, which is what OpenInference's `llm.cost.*`
+        // produces - the cost is reported directly, not derived from usage this span carries. The
+        // GenAI predicate listed tokens and not cost, so this span was a plain span and vanished
+        // from every view that filters to GenAI.
+        NormalizedSpan {
+            gen_ai_cost_total: 0.004,
+            ..base("trace-j", "j-root", "cost-only", 65)
         },
         // trace-d: no session, no generation, error status, no tags. Carries the raw OTLP span,
         // because the event and link reads extract from that JSON and would otherwise compare two
@@ -1320,7 +1328,10 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             // span with no observation type.
             "genai only" => {
                 let kept: Vec<&String> = d.iter().map(|t| &t.trace_id).collect();
-                for expected in ["trace-g", "trace-h"] {
+                // trace-g qualifies through attributes, trace-h through token usage, trace-j
+                // through cost alone - the three shapes instrumentation produces without an
+                // observation type. Removing any one clause from the predicate fails here.
+                for expected in ["trace-g", "trace-h", "trace-j"] {
                     assert!(
                         kept.contains(&&expected.to_string()),
                         "the GenAI filter dropped {expected}, whose GenAI data is on a plain span: \
@@ -1750,6 +1761,48 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         "get_project_messages differs between backends"
     );
 
+    // A window whose start falls *inside* a span. The fixture's spans each run for one second, so a
+    // window starting half a second after trace-a's first generation began still contains the moment
+    // it finished - and a completed response carries its span's end time, so its message belongs in
+    // that window. Selecting rows by the span's start dropped it before reconstruction could see it.
+    let straddling = crate::data::types::FeedMessagesParams {
+        project_id: PROJECT.to_string(),
+        limit: 50,
+        cursor: None,
+        start_time: Some(ts(1) + chrono::Duration::milliseconds(500)),
+        end_time: None,
+    };
+    let d_straddle = duck
+        .get_project_messages(&straddling)
+        .await
+        .expect("duckdb straddling window");
+    let c_straddle = ch
+        .get_project_messages(&straddling)
+        .await
+        .expect("clickhouse straddling window");
+    assert_eq!(
+        d_straddle
+            .rows
+            .iter()
+            .map(describe_message_row)
+            .collect::<Vec<_>>(),
+        c_straddle
+            .rows
+            .iter()
+            .map(describe_message_row)
+            .collect::<Vec<_>>(),
+        "a window starting inside a span differs between backends"
+    );
+    assert!(
+        d_straddle.rows.iter().any(|r| r.span_id == "a-gen-1"),
+        "the span that began before the window and finished inside it is missing: {:?}",
+        d_straddle
+            .rows
+            .iter()
+            .map(|r| &r.span_id)
+            .collect::<Vec<_>>()
+    );
+
     // Cursor paging, which is a different mechanism from LIMIT/OFFSET and was only ever called
     // with `cursor: None`.
     let feed_page = |cursor: Option<(i64, String, String)>| crate::data::types::FeedSpansParams {
@@ -1938,16 +1991,16 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         .expect("duckdb trace options");
     let described = describe_option_map(d);
     for expected in [
-        // Every span carries this environment, and there are nine traces.
-        "environment: test=9",
+        // Every span carries this environment, and there are ten traces.
+        "environment: test=10",
         // Two sessions, one covering two traces and one covering one.
         "session_id: session-1=2,session-2=1,session-3=1",
         "user_id: user-1=2",
         // The same names the trace list displays, including trace-c's: it has no root span, so
         // its name comes from the earliest named span, exactly as the list's fallback does. Listing
         // root spans only omitted it, and filtering by the name the UI showed returned nothing.
-        "trace_name: agent=2,earliest-named=1,generation=1,http-post=1,plain-span=2,tool=1,\
-         usage-only=1",
+        "trace_name: agent=2,cost-only=1,earliest-named=1,generation=1,http-post=1,plain-span=2,\
+         tool=1,usage-only=1",
     ] {
         assert!(
             described.iter().any(|line| line == expected),
@@ -2198,7 +2251,8 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
             "g-root".to_string(),
             "h-root".to_string(),
             "i-gen".to_string(),
-            "i-root".to_string()
+            "i-root".to_string(),
+            "j-root".to_string()
         ],
         "deleting trace-c should leave exactly the unrelated traces"
     );

@@ -196,9 +196,14 @@ pub async fn get_project_messages(
         bind_params.push(BindParam::String(cursor_trace_id.clone()));
     }
 
-    // Event time filters - use parameterized timestamps
+    // Event time filters - use parameterized timestamps.
+    //
+    // The lower bound is on the span's *end*, so the page holds every span overlapping the window;
+    // see the DuckDB backend for what comparing the start dropped.
     if let Some(start) = &params.start_time {
-        conditions.push("timestamp_start >= fromUnixTimestamp64Micro(?)".to_string());
+        conditions.push(
+            "coalesce(timestamp_end, timestamp_start) >= fromUnixTimestamp64Micro(?)".to_string(),
+        );
         bind_params.push(BindParam::Int64(start.timestamp_micros()));
     }
     if let Some(end) = &params.end_time {
