@@ -1167,10 +1167,13 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             },
         ),
         (
-            // NULL semantics for NOT IN: trace-c and trace-d have no user_id, and the two dialects
-            // have to agree on whether a row with no value is "none of" the listed ones. Neither
-            // includes it - both evaluate NULL NOT IN (...) to NULL - and this is the case that
-            // says so, because every other filtered column is populated for every row.
+            // "None of" over a nullable column. A trace with no user id at all is not one of the
+            // listed users, so it belongs in the result - which is what the complement form
+            // (`trace_id NOT IN (traces whose user is listed)`) gives. Rendering the negation
+            // directly instead made both dialects evaluate `NULL NOT IN (...)` to NULL and drop
+            // those traces silently, and made a trace with two users match because one of them was
+            // someone else. This is the case that pins the quantifier, because every other filtered
+            // column is populated for every row.
             "filtered by none of a nullable column",
             ListTracesParams {
                 filters: vec![Filter::StringOptions {
@@ -1182,6 +1185,9 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             },
         ),
         (
+            // Against the session the row *displays*. trace-i records its session on the root span
+            // and nothing on its generation child, so a row-level check called it session-less
+            // while the list showed session-3.
             "filtered by a null session",
             ListTracesParams {
                 filters: vec![Filter::Null {
@@ -1338,6 +1344,24 @@ async fn clickhouse_matches_duckdb_on_every_read() {
                         "trace {} is displayed with {} tokens but was selected by `> 250`",
                         t.trace_id,
                         t.total_tokens
+                    );
+                }
+            }
+            // trace-a and trace-b hold a session on every span, trace-i on the root only, trace-c
+            // on both of its spans; only trace-d and the plain traces display none.
+            "filtered by a null session" => {
+                let kept: Vec<&String> = d.iter().map(|t| &t.trace_id).collect();
+                assert!(
+                    !kept.contains(&&"trace-i".to_string()),
+                    "trace-i displays session-3 on its root span, so it is not session-less: \
+                     {kept:?}"
+                );
+                for t in &d {
+                    assert!(
+                        t.session_id.is_none(),
+                        "trace {} is displayed under session {:?} but matched `is null`",
+                        t.trace_id,
+                        t.session_id
                     );
                 }
             }
