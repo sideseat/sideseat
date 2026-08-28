@@ -9,7 +9,7 @@ use crate::data::duckdb::{DuckdbError, in_transaction};
 use crate::data::types::{
     EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams,
     SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, SessionRow, SpanRow,
-    TRACE_FILTER_OPTION_COLUMNS, TraceRow, parse_tags,
+    TRACE_FILTER_OPTION_COLUMNS, TraceRow, genai_span_predicate, parse_tags,
 };
 use crate::utils::time::{micros_to_datetime, parse_iso_timestamp};
 
@@ -124,11 +124,10 @@ pub fn list_traces(
             r#"SELECT COUNT(*) FROM (
                 SELECT trace_id FROM otel_spans WHERE {}
                 GROUP BY trace_id
-                HAVING COUNT(*) FILTER (WHERE observation_type != 'span') > 0
-                    OR COUNT(*) FILTER (WHERE gen_ai_system IS NOT NULL
-                                          OR gen_ai_request_model IS NOT NULL) > 0
+                HAVING COUNT(*) FILTER (WHERE {genai}) > 0
             ) t"#,
-            span_where
+            span_where,
+            genai = genai_span_predicate("")
         )
     } else {
         format!(
@@ -242,8 +241,7 @@ pub fn list_traces(
                 -- the API and fell through to min_ts, silently sorting by time instead.
                 COALESCE(MAX(gt.total_tokens), 0) as total_tokens,
                 COUNT(*) FILTER (WHERE sp.observation_type != 'span') as observation_count,
-                COUNT(*) FILTER (WHERE sp.gen_ai_system IS NOT NULL
-                                   OR sp.gen_ai_request_model IS NOT NULL) as genai_span_count
+                COUNT(*) FILTER (WHERE {genai_sp}) as genai_span_count
             FROM {DEDUP_SPANS} sp
             LEFT JOIN gen_totals gt ON sp.trace_id = gt.trace_id
             WHERE {span_where_sp}
@@ -305,6 +303,8 @@ pub fn list_traces(
         "#,
         span_where_g = span_where_g,
         span_where_sp = span_where_sp,
+        // The same definition the count query uses, qualified for this CTE's alias.
+        genai_sp = genai_span_predicate("sp"),
         span_sort_field = span_sort_field,
         sort_dir = sort_dir,
         limit = params.limit,

@@ -16,6 +16,35 @@ use super::analytics::SpanIdentity;
 /// Every name here is a column on `otel_spans` in both schemas. The allowlist exists to keep
 /// a caller-supplied column name out of the SQL, so adding a name that is not a real column
 /// turns a filter into an error rather than an injection.
+/// What makes a span a GenAI span, for the "GenAI only" trace and session lists.
+///
+/// A span qualifies through its observation type or through any GenAI attribute. Recognising only
+/// the provider and the request model missed transport-level instrumentation that records an
+/// operation name, a response model, an agent or tool name, or token usage and nothing else - those
+/// traces vanished from the default list.
+///
+/// One definition, used by both backends, because it read differently in each and the same project
+/// showed a different trace list depending on which one served it. `alias` qualifies the columns for
+/// queries that name their table; pass "" when they do not.
+pub fn genai_span_predicate(alias: &str) -> String {
+    let prefix = if alias.is_empty() {
+        String::new()
+    } else {
+        format!("{alias}.")
+    };
+    [
+        format!("{prefix}observation_type != 'span'"),
+        format!("{prefix}gen_ai_system IS NOT NULL"),
+        format!("{prefix}gen_ai_operation_name IS NOT NULL"),
+        format!("{prefix}gen_ai_request_model IS NOT NULL"),
+        format!("{prefix}gen_ai_response_model IS NOT NULL"),
+        format!("{prefix}gen_ai_agent_name IS NOT NULL"),
+        format!("{prefix}gen_ai_tool_name IS NOT NULL"),
+        format!("{prefix}gen_ai_usage_total_tokens > 0"),
+    ]
+    .join(" OR ")
+}
+
 pub const SPAN_FILTER_OPTION_COLUMNS: &[&str] = &[
     "environment",
     "framework",

@@ -7,6 +7,7 @@ use clickhouse::{Client, Row};
 use serde::Deserialize;
 
 use crate::data::duckdb::filters::{Filter, columns};
+use crate::data::types::genai_span_predicate;
 
 // ============================================================================
 // Token Dedup SQL Fragments
@@ -727,11 +728,11 @@ pub async fn list_traces(
                 r#"SELECT count(DISTINCT trace_id) as cnt FROM otel_spans FINAL
                    WHERE {} AND trace_id IN (
                        SELECT trace_id FROM otel_spans FINAL WHERE {}
-                         AND (observation_type != 'span'
-                              OR gen_ai_system IS NOT NULL
-                              OR gen_ai_request_model IS NOT NULL)
+                         AND ({genai})
                    )"#,
-                where_clause, where_clause
+                where_clause,
+                where_clause,
+                genai = genai_span_predicate("")
             ),
             true,
         )
@@ -812,8 +813,7 @@ pub async fn list_traces(
                 -- Sortable, so computed here rather than falling through to min_ts.
                 coalesce(max(gt.total_tokens), 0) as total_tokens,
                 countIf(sp.observation_type != 'span') as observation_count,
-                countIf(sp.gen_ai_system IS NOT NULL OR sp.gen_ai_request_model IS NOT NULL)
-                    as genai_span_count
+                countIf({genai_sp}) as genai_span_count
             FROM otel_spans sp FINAL
             LEFT JOIN gen_totals gt ON sp.trace_id = gt.trace_id
             WHERE {where_clause}
@@ -836,6 +836,8 @@ pub async fn list_traces(
         "#,
         dedup_cte = dedup.0,
         gen_totals = gen_totals_cte(Some("g.trace_id"), &where_clause),
+        // The same definition the count query uses, qualified for this CTE's alias.
+        genai_sp = genai_span_predicate("sp"),
         projection = trace_projection("t.trace_id", "gt2", Totals::Grouped),
         where_clause = where_clause,
         having_clause = having_clause,
