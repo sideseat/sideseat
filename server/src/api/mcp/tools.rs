@@ -187,7 +187,20 @@ impl McpServer {
             };
             let result = repo.get_messages(&params).await.map_err(mcp_err)?;
             let processed = process_spans(result.rows, &options);
-            return ok_json(&build_messages_response(processed, None));
+            // A session's totals come from the session, as the HTTP endpoint takes them: the
+            // pipeline only ever saw rows carrying messages, tools or an error, so a span billed
+            // with nothing to show counted as free, and nothing applied the parent/child billing
+            // dedup that keeps a nested generation from counting twice. A span view has one span,
+            // where neither applies.
+            let session_totals = match &params.session_id {
+                Some(session_id) if params.span_id.is_none() => repo
+                    .get_session(&self.project_id, session_id)
+                    .await
+                    .map_err(mcp_err)?
+                    .map(|s| (s.total_tokens, s.total_cost)),
+                _ => None,
+            };
+            return ok_json(&build_messages_response(processed, session_totals));
         }
 
         // Trace path: session-aware loading for cross-trace dedup
