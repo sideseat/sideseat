@@ -113,6 +113,7 @@ fn query_main_aggregation(
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
+                         AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
                          AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
@@ -130,6 +131,7 @@ fn query_main_aggregation(
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
+                         AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
                          AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
                    ))
@@ -349,6 +351,7 @@ fn query_model_breakdown(
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
+                         AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
                          AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
@@ -366,6 +369,7 @@ fn query_model_breakdown(
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
+                         AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
                          AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
                    ))
@@ -463,6 +467,7 @@ fn query_trend_data(
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
+                         AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
                          AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
@@ -480,6 +485,7 @@ fn query_trend_data(
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
+                         AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
                          AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
                    ))

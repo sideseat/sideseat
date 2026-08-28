@@ -1253,8 +1253,10 @@ pub async fn list_spans(
     if let Some(ref to) = params.to_timestamp {
         cb.add_timestamp_lte("timestamp_start", to);
     }
+    // "GenAI only", the same definition the trace and session lists use; see the DuckDB copy for
+    // what testing observation_type alone hid.
     if params.is_observation == Some(true) {
-        cb.add_raw("observation_type != 'span'");
+        cb.add_raw(&format!("({})", genai_span_predicate("")));
     }
 
     // The UI's filter bar, mapped through the span view's column names.
@@ -1379,8 +1381,10 @@ pub async fn get_feed_spans(
         cb.add_timestamp_lt("timestamp_start", end);
     }
 
+    // "GenAI only", the same definition the trace and session lists use; see the DuckDB copy for
+    // what testing observation_type alone hid.
     if params.is_observation == Some(true) {
-        cb.add_raw("observation_type != 'span'");
+        cb.add_raw(&format!("({})", genai_span_predicate("")));
     }
 
     let where_clause = cb.build();
@@ -2270,16 +2274,17 @@ pub async fn get_trace_tags_options(
     }
     let rows: Vec<ChFilterOptionRow> = query.fetch_all().await?;
 
-    // Clean up JSON string values (remove quotes)
+    // Decoded as JSON, not stripped of quotes. `JSONExtractArrayRaw` returns each element as raw
+    // JSON, so a tag is `"alpha"` - but also `"say \"hi\""` and `"caf\u00e9"`. Trimming the outer
+    // quotes left the escapes in, so such a tag was offered in the dropdown in its encoded form and
+    // then matched nothing when selected, because the filter compares against the decoded value.
     let options: Vec<FilterOptionRow> = rows
         .into_iter()
         .filter_map(|r| {
-            r.value.map(|v| {
-                let cleaned = v.trim_matches('"').to_string();
-                FilterOptionRow {
-                    value: cleaned,
-                    count: r.count,
-                }
+            r.value.map(|v| FilterOptionRow {
+                value: serde_json::from_str::<String>(&v)
+                    .unwrap_or_else(|_| v.trim_matches('"').to_string()),
+                count: r.count,
             })
         })
         .collect();
@@ -2316,7 +2321,7 @@ pub async fn get_span_filter_options(
         time_params.push(to.timestamp_micros());
     }
     if observations_only {
-        conditions.push_str(" AND observation_type != 'span'");
+        conditions.push_str(&format!(" AND ({})", genai_span_predicate("")));
     }
 
     for column in columns {

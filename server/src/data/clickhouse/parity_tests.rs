@@ -165,7 +165,9 @@ fn fixture_spans() -> Vec<NormalizedSpan> {
             NormalizedSpan {
                 parent_span_id: Some("a-root".to_string()),
                 session_id: Some("session-1".to_string()),
-                tags: vec!["gamma".to_string()],
+                // A quote and a non-ASCII character: ClickHouse returns tag values as raw JSON, so
+                // this is the tag that fails when they are unquoted by trimming rather than decoded.
+                tags: vec!["gamma".to_string(), r#"say "café""#.to_string()],
                 output_preview: Some("child two output".to_string()),
                 messages: messages("second turn"),
                 ..base("trace-a", "a-gen-2", "generation", 2)
@@ -924,9 +926,13 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     );
     // The fixture's tags, with the trace counts they carry: alpha is on trace-a and trace-b, the
     // rest on trace-a alone. Two empty lists would otherwise pass.
+    //
+    // `say "café"` is the one that matters here: ClickHouse returns tag values as raw JSON, and
+    // unquoting them by trimming the outer quotes offered this tag as `say \"caf\u00e9\"` - a value
+    // the filter could never match. Both backends must produce the decoded string.
     assert_eq!(
         described,
-        vec!["alpha=2", "beta=1", "gamma=1", "shared=1"],
+        vec!["alpha=2", "beta=1", "gamma=1", "say \"café\"=1", "shared=1"],
         "the tag options do not match the fixture's tags"
     );
 
@@ -1970,22 +1976,34 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         );
         // Against the fixture, not only against each other: two empty maps satisfied equality.
         //
-        // The count differs with the flag, and that difference is the point: five spans carry a
-        // model, but one is trace-g's, which has GenAI attributes and no observation type.
-        // Restricting to observations drops it - so a backend ignoring the flag, or treating that
-        // span as an observation, fails here.
-        let expected_count = if observations_only { 5 } else { 6 };
+        // "GenAI only" means the same predicate the trace and session lists use, so trace-g's span -
+        // GenAI attributes, no observation type, which is what transport-level instrumentation
+        // produces - is kept either way. All six spans carrying a model are offered under both
+        // settings; a backend that restricted this to observations would report five and hide a span
+        // whose trace the trace list shows.
         for (column, value) in [
             ("gen_ai_request_model", "claude-haiku"),
             ("gen_ai_system", "bedrock"),
         ] {
-            let expected = format!("{column}: {value}={expected_count}");
+            let expected = format!("{column}: {value}=6");
             assert!(
                 described.contains(&expected),
                 "span options are missing {expected:?} \
                  (observations_only={observations_only}): {described:?}"
             );
         }
+
+        // And the flag still excludes something: trace-e and trace-f are plain spans with no GenAI
+        // data at all. Without this the assertions above would pass for a backend ignoring the flag.
+        let names = described
+            .iter()
+            .find(|d| d.starts_with("span_name: "))
+            .expect("span_name options");
+        assert_eq!(
+            names.contains("plain-span"),
+            !observations_only,
+            "span_name options with observations_only={observations_only}: {names}"
+        );
     }
 
     let session_columns: Vec<String> = crate::data::types::SESSION_FILTER_OPTION_COLUMNS
