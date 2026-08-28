@@ -171,18 +171,36 @@ impl MessageIdentity {
 /// A tool *result* inherits the rank of the call it answers, so two results of two identical calls
 /// stay two. Everything else ranks 0: without an id there is no evidence of a genuine repeat, and
 /// treating repeated text as two messages would undo the history collapsing this pipeline exists for.
-/// What identifies one call among same-shaped calls of a response: the provider's id, or failing
-/// that, where the call sat.
+/// What identifies one call among same-shaped calls of a response.
 #[derive(PartialEq, Eq)]
 enum CallKey<'a> {
+    /// The provider's id, which is proof on its own: no provider issues two ids for one call.
     Id(&'a str),
+    /// Where the call sat, used only where the carrier's structure is evidence of multiplicity.
     Position(&'a PositionPath),
+    /// Nothing distinguishes it - accumulated state with no ids, where two positions describe one
+    /// call. Every such call of a response collapses onto the first.
+    Indistinct,
 }
 
+/// Which evidence decides whether two same-shaped calls are two calls.
+///
+/// The id wins wherever there is one. Failing that, the carrier decides: a single emission means two
+/// positions are two calls, while accumulated state re-lists itself and means they are one. That
+/// judgement lives in `sideml::carrier`, declared per carrier, rather than being the unstated global
+/// rule it used to be.
 fn call_key<'a>(block: &'a BlockEntry, id: Option<&'a str>) -> CallKey<'a> {
-    match id.filter(|s| !s.is_empty()) {
-        Some(id) => CallKey::Id(id),
-        None => CallKey::Position(&block.position),
+    if let Some(id) = id.filter(|s| !s.is_empty()) {
+        return CallKey::Id(id);
+    }
+    let semantics = crate::domain::sideml::carrier::semantics_for(
+        block.event_name.as_deref(),
+        block.source_attribute.as_deref(),
+    );
+    if semantics.position_proves_distinct_occurrence {
+        CallKey::Position(&block.position)
+    } else {
+        CallKey::Indistinct
     }
 }
 
