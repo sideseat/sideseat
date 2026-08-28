@@ -1041,18 +1041,27 @@ pub fn list_sessions(
 
     let data_sql = format!(
         r#"
-        WITH session_traces AS (
-            -- Which traces belong to which session.
-            --
-            -- Selection still looks only at rows that name a session, so a filter means what it
-            -- meant before; the aggregation below then covers those traces in full. Aggregating
-            -- the naming rows alone under-reported every session whose id is recorded on the root
-            -- span only, which is how several frameworks record it - the child generations were
-            -- left out, so the list showed a session with one span and no tokens while opening it
-            -- showed the truth, because the single-session query resolves traces.
-            SELECT DISTINCT sp.project_id, sp.session_id, sp.trace_id
+        WITH matching_sessions AS (
+            -- Which sessions the request selects. Rows that name a session, exactly as the count
+            -- query counts them, so the two agree.
+            SELECT DISTINCT sp.project_id, sp.session_id
             FROM {DEDUP_SPANS} sp
             WHERE {span_where_sp}
+        ),
+        session_traces AS (
+            -- Which traces belong to those sessions - every trace of each, not only the ones whose
+            -- naming rows passed the filter.
+            --
+            -- Selection and membership are separate questions, and answering both with one
+            -- predicate returned a partial session: a session of two traces in different
+            -- environments, filtered to one, was listed with that trace's times, counts and cost
+            -- while opening it showed both. Aggregating the naming rows alone had the same shape,
+            -- and under-reported every session whose id is recorded on the root span only, which is
+            -- how several frameworks record it.
+            SELECT DISTINCT sp.project_id, sp.session_id, sp.trace_id
+            FROM {DEDUP_SPANS} sp
+            JOIN matching_sessions ms
+              ON ms.project_id = sp.project_id AND ms.session_id = sp.session_id
         ),
         gen_totals AS (
             SELECT
@@ -4044,6 +4053,50 @@ mod tests {
         assert!(
             rows.is_empty(),
             "a trace displaying 3000 tokens must not match `< 1500` because one span does"
+        );
+    }
+
+    /// A filtered session list shows the whole session, not the part that matched.
+    ///
+    /// Selection and membership are separate questions. Answering both with one predicate returned a
+    /// session of two traces, filtered to one environment, carrying only that trace's times, counts
+    /// and cost - while opening the session showed both traces.
+    #[tokio::test]
+    async fn a_filtered_session_is_still_the_whole_session() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let project_id = "test-project";
+
+        let mut first = make_generation_span(project_id, "trace-1", "gen-1", None, 0.01, 1000);
+        first.session_id = Some("session-5".to_string());
+        first.environment = Some("prod".to_string());
+        let mut second = make_generation_span(project_id, "trace-2", "gen-2", None, 0.02, 2000);
+        second.session_id = Some("session-5".to_string());
+        second.environment = Some("dev".to_string());
+        second.timestamp_start = first.timestamp_start + chrono::Duration::seconds(30);
+        {
+            let conn = analytics.conn();
+            insert_batch(&conn, &[first, second]).expect("insert");
+        }
+
+        let conn = analytics.conn();
+        let params = ListSessionsParams {
+            project_id: project_id.to_string(),
+            page: 1,
+            limit: 50,
+            environment: Some(vec!["prod".to_string()]),
+            ..Default::default()
+        };
+        let (rows, total) = list_sessions(&conn, &params).expect("query");
+        assert_eq!(rows.len(), 1, "the session matches through its prod trace");
+        assert_eq!(total, 1, "the count must agree with the page");
+        assert_eq!(
+            rows[0].trace_count, 2,
+            "the session has two traces; the filter selected it, it does not shrink it"
+        );
+        assert_eq!(
+            rows[0].total_tokens, 3000,
+            "both traces called the model: {} reported",
+            rows[0].total_tokens
         );
     }
 
