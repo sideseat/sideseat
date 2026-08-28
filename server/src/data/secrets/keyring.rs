@@ -50,10 +50,13 @@ impl KeyringProvider {
             .map_err(|e| anyhow::anyhow!("Failed to create keychain entry: {}", e))?;
 
         // Said before the read, not after: this is the first thing at startup that can block, and
-        // on macOS it blocks on a keychain prompt. Without this line the process looks dead.
+        // what blocks it is a dialog, not slow I/O. macOS opens an authorization window that can
+        // easily be behind the terminal - the process is not dead, it is waiting for a click
+        // nobody has seen. Naming the window is the whole point of logging this.
         tracing::info!(
             service = service_name,
-            "Reading secrets from the OS credential store"
+            "Reading secrets from the OS credential store; it may open an authorization window \
+             that has to be approved (choose Always Allow so later starts do not ask again)"
         );
 
         // Bounded, because a prompt nobody can answer never returns. A clear failure beats a hang
@@ -72,11 +75,11 @@ impl KeyringProvider {
             Ok(received) => received.context("Keychain reader thread died")?,
             Err(_) => {
                 anyhow::bail!(
-                    "the OS credential store did not respond within {}s. It may be waiting for \
-                     approval that nothing can give - a background process, an SSH session or CI \
-                     has no way to answer the prompt. Either start the server where the prompt \
-                     can be approved, or configure the file backend: \
-                     `secrets: {{ backend: \"file\" }}` in sideseat.json.",
+                    "the OS credential store did not respond within {}s. An authorization window \
+                     is probably open and unanswered - look behind the terminal, and approve it \
+                     with Always Allow so it stops asking. A background process, an SSH session \
+                     or CI has no way to answer it at all; there, configure the file backend \
+                     instead: `secrets: {{ backend: \"file\" }}` in sideseat.json.",
                     SECRETS_LOAD_TIMEOUT_SECS
                 );
             }
