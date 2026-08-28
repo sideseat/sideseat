@@ -1466,6 +1466,21 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         "the session filter selected {} sessions, so it exercises nothing",
         d.len()
     );
+    // session-1 spans trace-a and trace-b, and only trace-b carries user-1. The filter selects the
+    // session through that trace; it must not shrink the session to it - selection and membership
+    // are separate questions, and one predicate for both listed the session with one trace and
+    // trace-b's tokens alone while opening it showed both.
+    assert_eq!(
+        d[0].trace_count, 2,
+        "the filtered session lost the trace that does not name its user: {:?}",
+        d[0].trace_count
+    );
+    assert_eq!(
+        d[0].total_tokens, 385,
+        "the session's tokens must cover both of its traces (110 + 220 + 55), not only the trace \
+         the filter matched: {} reported",
+        d[0].total_tokens
+    );
 
     // Every column the API accepts as a trace sort must actually sort by it. One that is accepted
     // and unmapped falls through to min_ts, so the list comes back in time order while the UI shows

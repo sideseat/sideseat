@@ -1512,12 +1512,21 @@ pub async fn list_sessions(
     let data_sql = format!(
         r#"
         WITH {dedup_cte},
-        session_traces AS (
-            -- Which traces belong to which session; see the DuckDB copy for why aggregating the
-            -- rows that name a session is not enough.
-            SELECT DISTINCT sp.project_id, sp.session_id, sp.trace_id
+        matching_sessions AS (
+            -- Which sessions the request selects, counted exactly as the count query counts them.
+            SELECT DISTINCT sp.project_id as project_id, sp.session_id as session_id
             FROM otel_spans sp FINAL
             WHERE {where_clause}
+        ),
+        session_traces AS (
+            -- Every trace of those sessions, not only the ones whose naming rows passed the filter:
+            -- selection and membership are separate questions, and one predicate for both returned a
+            -- partial session. See the DuckDB copy.
+            SELECT DISTINCT sp.project_id as project_id, sp.session_id as session_id,
+                   sp.trace_id as trace_id
+            FROM otel_spans sp FINAL
+            JOIN matching_sessions ms
+              ON ms.project_id = sp.project_id AND ms.session_id = sp.session_id
         ),
         {gen_totals},
         filtered_sessions AS (
