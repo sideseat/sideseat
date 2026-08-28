@@ -43,6 +43,7 @@
 // INTERNAL MODULES
 // ============================================================================
 
+pub(crate) mod carrier;
 pub(crate) mod content;
 pub(crate) mod provenance;
 pub(crate) mod tools;

@@ -199,6 +199,17 @@ Note: gen_ai.assistant.message (history re-send) CAN be history. Only gen_ai.cho
 Cross-trace prefix strip (session mode): attribute-input only, per-span reset, role+content subsequence match.
 Event-based frameworks (Strands) stay trace-independent; no cross-trace stripping.
 
+**A carrier's structure says what it is evidence of** (`sideml/carrier.rs`). Four independent facts per carrier, because a conversation snapshot and accumulated framework state are both ordered and both may hold history, and differ only in whether *position* proves multiplicity:
+
+| Fact | Read by |
+| --- | --- |
+| `position_proves_distinct_occurrence` | the repeat decision below — true for one emission (`gen_ai.choice`), false for accumulated state (`output.value`, which re-lists its own tool calls) |
+| `position_provides_sequence_order` | the carrier-subsequence invariant |
+| `carrier_is_atomic_emission` | cohesion of one emission's blocks |
+| `carrier_may_contain_history_or_state` | whether its observations can be history |
+
+An unclassified carrier takes the cautious reading (snapshot): it may under-report, which the answer invariant catches, never over-report, which a user sees as duplicates.
+
 **A repeat within one response is a repeat.** A tool call's identity ignores the provider's call id — history re-sends regenerate ids — so each call also carries the *rank* of its id among same-shaped calls of the same response (`call_repeat_ordinals`, `feed/dedup.rs`), and a tool result inherits its call's rank. Two identical calls in one response therefore rank 0 and 1 and both survive; a re-send of that pair ranks 0 and 1 again, whatever the ids became, and collapses onto it. A response here is `(trace, span, source)` — **not** message index, because normalisation gives every tool call a message of its own. Without this, `crewai/mcp_tools` showed one MCP call and one error where the model had retried an identical call and then apologised, with nothing in the feed to explain why. Plain messages get no rank: with no id there is no evidence of a genuine repeat, and treating repeated text as two messages would undo the history collapsing.
 
 **Content-based identity** (not ID-based):

@@ -9750,3 +9750,32 @@ fn an_echoed_call_within_one_payload_is_one_call() {
         "the same id twice in one payload is one call, whatever its positions"
     );
 }
+
+/// With no ids, the *carrier* decides whether two identical calls are two calls.
+///
+/// The pair in `two_identical_idless_calls_in_one_response_both_survive` arrives in a
+/// `gen_ai.choice` event - one emission, so two positions are two calls. The same pair in
+/// `output.value` is accumulated framework state, which re-lists what it already said, so two
+/// positions there describe one call. Nothing but the carrier distinguishes these two tests, which is
+/// the point: the judgement is declared per carrier in `sideml::carrier` rather than guessed from
+/// content.
+#[test]
+fn an_idless_echo_in_accumulated_state_is_one_call() {
+    let t = fixed_time();
+    let call = json!({"type": "tool_use", "name": "generate_image", "input": {"prompt": "a cat"}});
+    let messages = json!([{
+        "source": {"attribute": {"key": "output.value", "time": t.to_rfc3339()}},
+        "content": {"role": "assistant", "content": [call.clone(), call]}
+    }]);
+    let row = make_span_row("trace1", "span1", None, &messages.to_string(), "[]", "[]");
+    let result = process_spans(vec![row], &FeedOptions::new());
+    let calls = result
+        .messages
+        .iter()
+        .filter(|b| b.entry_type == "tool_use")
+        .count();
+    assert_eq!(
+        calls, 1,
+        "accumulated state re-lists itself, so two id-less positions there are one call"
+    );
+}
