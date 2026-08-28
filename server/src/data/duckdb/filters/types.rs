@@ -146,6 +146,66 @@ impl Filter {
     ///
     /// The alias is prepended to column names (e.g., "sp" → "sp.column_name").
     /// Pass empty string for no alias.
+    /// Render this filter against an arbitrary SQL expression instead of a column.
+    ///
+    /// For a value that is computed rather than stored - the trace name a list row displays is an
+    /// aggregate over the trace's spans - so the filter can be evaluated where that value exists,
+    /// in a HAVING clause. The expression comes from this crate, never from a request, which is why
+    /// the bare-identifier guard does not apply to it.
+    pub fn to_sql_against(&self, params: &mut SqlParams, expression: &str) -> String {
+        match self {
+            Self::String {
+                operator, value, ..
+            } => match operator {
+                StringOp::Eq => {
+                    params.values.push(value.clone());
+                    format!("{expression} = ?")
+                }
+                StringOp::Contains => {
+                    params
+                        .values
+                        .push(format!("%{}%", escape_like_pattern(value)));
+                    format!("{expression} LIKE ? ESCAPE '\\'")
+                }
+                StringOp::StartsWith => {
+                    params
+                        .values
+                        .push(format!("{}%", escape_like_pattern(value)));
+                    format!("{expression} LIKE ? ESCAPE '\\'")
+                }
+                StringOp::EndsWith => {
+                    params
+                        .values
+                        .push(format!("%{}", escape_like_pattern(value)));
+                    format!("{expression} LIKE ? ESCAPE '\\'")
+                }
+            },
+            Self::StringOptions {
+                operator, value, ..
+            } => {
+                if value.is_empty() {
+                    return "1=1".to_string();
+                }
+                let placeholders: Vec<&str> = value.iter().map(|_| "?").collect();
+                params.values.extend(value.iter().cloned());
+                match operator {
+                    OptionsOp::AnyOf => format!("{expression} IN ({})", placeholders.join(", ")),
+                    OptionsOp::NoneOf => {
+                        format!("{expression} NOT IN ({})", placeholders.join(", "))
+                    }
+                }
+            }
+            Self::Null { operator, .. } => match operator {
+                NullOp::IsNull => format!("{expression} IS NULL"),
+                NullOp::IsNotNull => format!("{expression} IS NOT NULL"),
+            },
+            // Only the operators the UI offers for a name. A numeric, datetime or boolean filter on
+            // a name is not something the API accepts, and inventing a comparison for it here would
+            // be worse than declining.
+            _ => "1=1".to_string(),
+        }
+    }
+
     pub fn to_sql_aliased<'a, F>(&'a self, params: &mut SqlParams, mapper: F, alias: &str) -> String
     where
         F: Fn(&'a str) -> &'a str,

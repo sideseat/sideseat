@@ -188,6 +188,60 @@ where
     }
 }
 
+/// Render a filter against an arbitrary SQL expression instead of a column.
+///
+/// For a value that is computed rather than stored: the trace name a list row displays is an
+/// aggregate over the trace's spans, so a filter on it is evaluated in a HAVING, where that value
+/// exists. The expression comes from this crate, never from a request.
+pub(super) fn to_clickhouse_sql_against(
+    filter: &Filter,
+    params: &mut Vec<QueryParam>,
+    expression: &str,
+) -> String {
+    match filter {
+        Filter::String {
+            operator, value, ..
+        } => {
+            let (pattern, sql) = match operator {
+                StringOp::Eq => (value.clone(), format!("{expression} = ?")),
+                StringOp::Contains => (
+                    format!("%{}%", escape_like_pattern(value)),
+                    format!("{expression} LIKE ?"),
+                ),
+                StringOp::StartsWith => (
+                    format!("{}%", escape_like_pattern(value)),
+                    format!("{expression} LIKE ?"),
+                ),
+                StringOp::EndsWith => (
+                    format!("%{}", escape_like_pattern(value)),
+                    format!("{expression} LIKE ?"),
+                ),
+            };
+            params.push(QueryParam::String(pattern));
+            sql
+        }
+        Filter::StringOptions {
+            operator, value, ..
+        } => {
+            if value.is_empty() {
+                return "1 = 1".to_string();
+            }
+            let placeholders: Vec<&str> = value.iter().map(|_| "?").collect();
+            params.extend(value.iter().cloned().map(QueryParam::String));
+            match operator {
+                OptionsOp::AnyOf => format!("{expression} IN ({})", placeholders.join(", ")),
+                OptionsOp::NoneOf => format!("{expression} NOT IN ({})", placeholders.join(", ")),
+            }
+        }
+        Filter::Null { operator, .. } => match operator {
+            NullOp::IsNull => format!("{expression} IS NULL"),
+            NullOp::IsNotNull => format!("{expression} IS NOT NULL"),
+        },
+        // Only the operators the UI offers for a name; see the DuckDB renderer.
+        _ => "1 = 1".to_string(),
+    }
+}
+
 /// Tags are stored as a JSON array string, so membership is an array operation rather than a
 /// comparison. `hasAny` mirrors DuckDB's list overlap; ifNull keeps a row with no tags out of
 /// "any of" and in "none of", which is what an absent tag means.

@@ -1076,6 +1076,20 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             },
         ),
         (
+            // The Name filter the UI offers is a select over the displayed names, so it has to
+            // match the displayed name: "agent" must return the traces shown as "agent" and not
+            // every trace that merely contains an agent span.
+            "filtered by the displayed name",
+            ListTracesParams {
+                filters: vec![Filter::StringOptions {
+                    column: "trace_name".to_string(),
+                    operator: OptionsOp::AnyOf,
+                    value: vec!["agent".to_string()],
+                }],
+                ..trace_params()
+            },
+        ),
+        (
             "filtered by a name substring",
             ListTracesParams {
                 filters: vec![Filter::String {
@@ -1224,6 +1238,18 @@ async fn clickhouse_matches_duckdb_on_every_read() {
                     !kept.contains(&&"trace-e".to_string())
                         && !kept.contains(&&"trace-f".to_string()),
                     "the GenAI filter kept a trace with no GenAI data at all: {kept:?}"
+                );
+            }
+            "filtered by the displayed name" => {
+                let names: Vec<Option<&String>> = d.iter().map(|t| t.trace_name.as_ref()).collect();
+                assert!(
+                    names.iter().all(|n| n.map(String::as_str) == Some("agent")),
+                    "the name filter returned traces displayed under another name: {names:?}"
+                );
+                assert_eq!(
+                    d.len(),
+                    2,
+                    "the fixture has two traces displayed as agent: {names:?}"
                 );
             }
             _ => assert!(
