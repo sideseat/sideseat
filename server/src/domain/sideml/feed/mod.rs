@@ -707,31 +707,7 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
         all_tool_names.extend(processed.tool_names);
     }
 
-    // Sorted newest-first by an explicit key, for the same reason process_dedup is: a comparator
-    // with a same-batch special case is not a total order. Here the batch was keyed on the
-    // timestamp it also ordered by, so no cycle was constructible - but two blocks in different
-    // traces sharing a span id and a timestamp compared *equal*, which let their position depend on
-    // the order conversations came out of a HashMap.
-    //
-    // Time descending, then the response, then position within it.
-    //
-    // Position comes from the same helper the trace views use, so a tool result whose call sits in
-    // another span at the same instant follows that call here too. Sorting by the block's own span id
-    // instead ordered that tie arbitrarily - the answer could precede the question in the feed while
-    // the trace view had it right.
-    let positions = feed_positions(&all_blocks, |i| all_blocks[i].timestamp);
-    let mut keyed: Vec<(FeedPosition, BlockEntry)> =
-        positions.into_iter().zip(all_blocks).collect();
-    keyed.sort_by(|(a_pos, a), (b_pos, b)| {
-        b.timestamp
-            .cmp(&a.timestamp)
-            .then_with(|| a_pos.span.cmp(&b_pos.span))
-            .then_with(|| a_pos.message_index.cmp(&b_pos.message_index))
-            .then_with(|| a_pos.entry_index.cmp(&b_pos.entry_index))
-            .then_with(|| a_pos.after_call.cmp(&b_pos.after_call))
-            .then_with(|| a.content_hash.cmp(&b.content_hash))
-    });
-    let all_blocks: Vec<BlockEntry> = keyed.into_iter().map(|(_, block)| block).collect();
+    let all_blocks = sort_feed_newest_first(all_blocks);
 
     // Deduplicate tools across conversations
     let tool_definitions = deduplicate_tools(all_tool_defs);
@@ -752,6 +728,38 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
         },
         options.role.as_deref(),
     )
+}
+
+/// Order a project feed newest-first.
+///
+/// Sorted by an explicit key, for the same reason `process_dedup` is: a comparator with a
+/// same-batch special case is not a total order. Two blocks in different traces sharing a span id
+/// and a time compared *equal*, which let their position depend on the order conversations came out
+/// of a HashMap.
+///
+/// Time descending, then the response, then position within it.
+///
+/// The time is `order_time`, never the displayed `timestamp`. The two hold the same value today, so
+/// reading either gives the same answer - but only one of them *means* "where this sorts", and
+/// `the_displayed_time_does_not_decide_the_order` holds this to it.
+///
+/// Position comes from the same helper the trace views use, so a tool result whose call sits in
+/// another span at the same instant follows that call here too. Sorting by the block's own span id
+/// instead ordered that tie arbitrarily - the answer could precede the question in the feed while
+/// the trace view had it right.
+fn sort_feed_newest_first(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
+    let positions = feed_positions(&blocks, |i| blocks[i].order_time);
+    let mut keyed: Vec<(FeedPosition, BlockEntry)> = positions.into_iter().zip(blocks).collect();
+    keyed.sort_by(|(a_pos, a), (b_pos, b)| {
+        b.order_time
+            .cmp(&a.order_time)
+            .then_with(|| a_pos.span.cmp(&b_pos.span))
+            .then_with(|| a_pos.message_index.cmp(&b_pos.message_index))
+            .then_with(|| a_pos.entry_index.cmp(&b_pos.entry_index))
+            .then_with(|| a_pos.after_call.cmp(&b_pos.after_call))
+            .then_with(|| a.content_hash.cmp(&b.content_hash))
+    });
+    keyed.into_iter().map(|(_, block)| block).collect()
 }
 
 /// Keep only the blocks inside a requested time window.
@@ -1232,6 +1240,7 @@ fn flatten_to_blocks(
                 span_path: span_path.clone(),
 
                 timestamp: msg.timestamp,
+                order_time: msg.timestamp,
 
                 observation_type: msg.observation_type.clone(),
 

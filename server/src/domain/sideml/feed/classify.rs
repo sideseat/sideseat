@@ -125,6 +125,7 @@ mod tests {
             parent_span_id: Some("parent".to_string()),
             span_path: vec!["span1".to_string()],
             timestamp: Utc::now(),
+            order_time: Utc::now(),
             observation_type: observation_type.map(String::from),
             model: None,
             provider: None,

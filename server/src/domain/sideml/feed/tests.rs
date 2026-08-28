@@ -8927,6 +8927,7 @@ fn test_no_promotion_when_choice_exists() {
         parent_span_id: Some("parent-span".to_string()),
         span_path: vec!["parent-span".to_string(), "gen-span".to_string()],
         timestamp: t0,
+        order_time: t0,
         observation_type: Some("generation".to_string()),
         model: Some("gpt-4".to_string()),
         provider: Some("openai".to_string()),
@@ -8964,6 +8965,7 @@ fn test_no_promotion_when_choice_exists() {
         parent_span_id: Some("parent-span".to_string()),
         span_path: vec!["parent-span".to_string(), "gen-span".to_string()],
         timestamp: t1,
+        order_time: t1,
         observation_type: Some("generation".to_string()),
         model: Some("gpt-4".to_string()),
         provider: Some("openai".to_string()),
@@ -9777,5 +9779,68 @@ fn an_idless_echo_in_accumulated_state_is_one_call() {
     assert_eq!(
         calls, 1,
         "accumulated state re-lists itself, so two id-less positions there are one call"
+    );
+}
+
+/// The number a block *reports* must not be the number it *sorts* by.
+///
+/// The two fields hold the same value, so no view can tell them apart today - which is exactly why a
+/// later edit could quietly go back to reading `timestamp` and nothing would fail. Here the display
+/// timestamps are rewritten into the reverse of the sort order, and the answer has to be unmoved.
+/// The whole point of separating them is that the anchor can change without the reported time
+/// following, and that only holds while the ordering path reads `order_time` alone.
+#[test]
+fn the_displayed_time_does_not_decide_the_order() {
+    let first = fixed_time();
+    let second = first + chrono::Duration::seconds(30);
+    let turn = |question: &str, answer: &str, t: chrono::DateTime<Utc>| {
+        json!([
+            {"source": {"event": {"name": "gen_ai.user.message", "time": t.to_rfc3339()}},
+             "content": {"role": "user", "content": question}},
+            {"source": {"event": {"name": "gen_ai.choice", "time": t.to_rfc3339()}},
+             "content": {"role": "assistant", "content": answer}},
+        ])
+        .to_string()
+    };
+    let rows = vec![
+        make_span_row_with_timestamps(
+            "trace1",
+            "span1",
+            None,
+            &turn("first question", "first answer", first),
+            first,
+            Some(first + chrono::Duration::seconds(1)),
+        ),
+        make_span_row_with_timestamps(
+            "trace1",
+            "span2",
+            None,
+            &turn("second question", "second answer", second),
+            second,
+            Some(second + chrono::Duration::seconds(1)),
+        ),
+    ];
+
+    let blocks = process_spans(rows, &FeedOptions::new()).messages;
+    assert!(
+        blocks.len() >= 4,
+        "need several blocks across two responses for an order to be observable, got {}",
+        blocks.len()
+    );
+    let texts = |blocks: &[BlockEntry]| -> Vec<String> {
+        blocks.iter().map(|b| b.content_hash.clone()).collect()
+    };
+    let expected = texts(&sort_feed_newest_first(blocks.clone()));
+
+    // Ascending over a newest-first answer, so a sort that read them would hand back the reverse -
+    // and spread far enough apart that no tie-break could mask it.
+    let mut misreported = sort_feed_newest_first(blocks);
+    for (i, block) in misreported.iter_mut().enumerate() {
+        block.timestamp = first + chrono::Duration::hours(i as i64);
+    }
+    assert_eq!(
+        texts(&sort_feed_newest_first(misreported)),
+        expected,
+        "the feed's order came from the displayed timestamp - the two fields are conflated again"
     );
 }
