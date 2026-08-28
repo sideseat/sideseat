@@ -35,7 +35,7 @@ pub(super) fn build_dedup_lookup_cte(extra_where: &str) -> String {
         SELECT span_id, parent_span_id, trace_id, observation_type
         FROM otel_spans FINAL
         WHERE project_id = ?
-          AND (gen_ai_usage_input_tokens + gen_ai_usage_output_tokens) > 0{extra}
+          AND ((gen_ai_usage_input_tokens + gen_ai_usage_output_tokens) > 0 OR gen_ai_cost_total > 0){extra}
     )"#
     )
 }
@@ -50,15 +50,15 @@ pub(super) fn build_dedup_lookup_cte(extra_where: &str) -> String {
 /// correlated subqueries inside IN/NOT IN (Code 48).
 pub(super) const TOKEN_DEDUP_CONDITION: &str = r#"(
                   (g.observation_type = 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND (g.trace_id, g.span_id) NOT IN (
                        SELECT trace_id, parent_span_id FROM dedup_lookup
                        WHERE observation_type = 'generation'
                          AND parent_span_id IS NOT NULL
                    ))
                   OR
-                  (g.observation_type != 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                  ((g.observation_type IS NULL OR g.observation_type != 'generation')
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND g.trace_id NOT IN (
                        SELECT DISTINCT trace_id FROM dedup_lookup
                        WHERE observation_type = 'generation'
@@ -2031,21 +2031,18 @@ pub async fn delete_sessions(
         return Ok(0);
     }
 
-    let placeholders: Vec<&str> = session_ids.iter().map(|_| "?").collect();
-    let in_clause = placeholders.join(", ");
-
-    let sql = format!(
-        "ALTER TABLE {}{} DELETE WHERE project_id = ? AND session_id IN ({})",
-        table, on_cluster, in_clause
-    );
-
-    let mut query = client.query(&sql).bind(project_id);
-    for sid in session_ids {
-        query = query.bind(sid);
+    // Resolve the sessions to their traces and delete those, exactly as the DuckDB backend does.
+    //
+    // Deleting the rows that *name* a session leaves the rest of its spans behind: a session id is
+    // recorded on the spans that know it, often the root alone, so a root-only session lost its root
+    // and kept its children - and the call returned success. The orphaned spans then show up as a
+    // trace with no session and cannot be deleted by session again, because nothing names it any
+    // more. Every read path already resolves a session through its traces; deletion has to agree.
+    let trace_ids = get_trace_ids_for_sessions(client, project_id, session_ids).await?;
+    if trace_ids.is_empty() {
+        return Ok(0);
     }
-    query.execute().await?;
-
-    Ok(session_ids.len() as u64)
+    delete_traces(client, table, on_cluster, project_id, &trace_ids).await
 }
 
 /// Delete all data for a project

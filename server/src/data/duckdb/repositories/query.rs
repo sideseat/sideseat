@@ -75,31 +75,31 @@ fn gen_totals_sql(where_clause: &str) -> String {
             WHERE {where_clause}
               AND (
                   (g.observation_type = 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
                          AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
-                         AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
+                         AND ((c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0 OR c.gen_ai_cost_total > 0)
                    ))
                   OR
-                  (g.observation_type != 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                  ((g.observation_type IS NULL OR g.observation_type != 'generation')
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans gen
                        WHERE gen.trace_id = g.trace_id
                          AND gen.project_id = g.project_id
                          AND gen.observation_type = 'generation'
-                         AND (gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0
+                         AND ((gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0 OR gen.gen_ai_cost_total > 0)
                    )
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
                          AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
-                         AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
+                         AND ((p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0 OR p.gen_ai_cost_total > 0)
                    ))
               )
             GROUP BY g.trace_id
@@ -523,31 +523,31 @@ pub fn get_trace(
             WHERE g.project_id = ? AND g.trace_id = ?
               AND (
                   (g.observation_type = 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
                          AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
-                         AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
+                         AND ((c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0 OR c.gen_ai_cost_total > 0)
                    ))
                   OR
-                  (g.observation_type != 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                  ((g.observation_type IS NULL OR g.observation_type != 'generation')
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans gen
                        WHERE gen.trace_id = g.trace_id
                          AND gen.project_id = g.project_id
                          AND gen.observation_type = 'generation'
-                         AND (gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0
+                         AND ((gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0 OR gen.gen_ai_cost_total > 0)
                    )
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
                          AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
-                         AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
+                         AND ((p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0 OR p.gen_ai_cost_total > 0)
                    ))
               )
         )
@@ -1096,31 +1096,31 @@ pub fn list_sessions(
             WHERE 1 = 1
               AND (
                   (g.observation_type = 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
                          AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
-                         AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
+                         AND ((c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0 OR c.gen_ai_cost_total > 0)
                    ))
                   OR
-                  (g.observation_type != 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                  ((g.observation_type IS NULL OR g.observation_type != 'generation')
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans gen
                        WHERE gen.trace_id = g.trace_id
                          AND gen.project_id = g.project_id
                          AND gen.observation_type = 'generation'
-                         AND (gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0
+                         AND ((gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0 OR gen.gen_ai_cost_total > 0)
                    )
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
                          AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
-                         AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
+                         AND ((p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0 OR p.gen_ai_cost_total > 0)
                    ))
               )
             GROUP BY st.session_id
@@ -1223,31 +1223,31 @@ pub fn get_session(
               AND g.trace_id IN (SELECT trace_id FROM session_traces)
               AND (
                   (g.observation_type = 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
                          AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
-                         AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
+                         AND ((c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0 OR c.gen_ai_cost_total > 0)
                    ))
                   OR
-                  (g.observation_type != 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                  ((g.observation_type IS NULL OR g.observation_type != 'generation')
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans gen
                        WHERE gen.trace_id = g.trace_id
                          AND gen.project_id = g.project_id
                          AND gen.observation_type = 'generation'
-                         AND (gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0
+                         AND ((gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0 OR gen.gen_ai_cost_total > 0)
                    )
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
                          AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
-                         AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
+                         AND ((p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0 OR p.gen_ai_cost_total > 0)
                    ))
               )
         )
@@ -1337,31 +1337,31 @@ pub fn get_traces_for_session(
               AND g.trace_id IN (SELECT trace_id FROM session_traces)
               AND (
                   (g.observation_type = 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
                          AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
-                         AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
+                         AND ((c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0 OR c.gen_ai_cost_total > 0)
                    ))
                   OR
-                  (g.observation_type != 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                  ((g.observation_type IS NULL OR g.observation_type != 'generation')
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans gen
                        WHERE gen.trace_id = g.trace_id
                          AND gen.project_id = g.project_id
                          AND gen.observation_type = 'generation'
-                         AND (gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0
+                         AND ((gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0 OR gen.gen_ai_cost_total > 0)
                    )
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
                          AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
-                         AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
+                         AND ((p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0 OR p.gen_ai_cost_total > 0)
                    ))
               )
             GROUP BY g.trace_id
@@ -4110,6 +4110,43 @@ mod tests {
         assert_eq!(
             second.total_tokens, 700,
             "trace-2 should count its own leaf generation once"
+        );
+    }
+
+    /// A span with no observation type still reports what it was billed.
+    ///
+    /// Transport-level instrumentation records usage and cost on a plain span, leaving
+    /// observation_type NULL. The billing branch for a non-generation span tested
+    /// `observation_type != 'generation'`, which is NULL for such a span - so the row never
+    /// qualified and the trace reported zero tokens and zero cost while its span carried both.
+    #[tokio::test]
+    async fn a_span_with_no_observation_type_is_still_billed() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let project_id = "test-project";
+
+        let mut plain = make_generation_span(project_id, "trace-1", "root", None, 0.0, 0);
+        plain.observation_type = None;
+        plain.gen_ai_usage_input_tokens = 11;
+        plain.gen_ai_usage_output_tokens = 2;
+        plain.gen_ai_usage_total_tokens = 13;
+        plain.gen_ai_cost_total = 0.004;
+        {
+            let conn = analytics.conn();
+            insert_batch(&conn, &[plain]).expect("insert");
+        }
+
+        let conn = analytics.conn();
+        let trace = get_trace(&conn, project_id, "trace-1")
+            .expect("query")
+            .expect("trace exists");
+        assert_eq!(
+            trace.total_tokens, 13,
+            "a plain span's token usage was not counted"
+        );
+        assert!(
+            (trace.total_cost - 0.004).abs() < 1e-9,
+            "a plain span's cost was not counted: {}",
+            trace.total_cost
         );
     }
 

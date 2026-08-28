@@ -1338,6 +1338,19 @@ async fn clickhouse_matches_duckdb_on_every_read() {
                          {kept:?}"
                     );
                 }
+                // Visible is not enough: trace-j's cost has to be *counted*. Token and cost
+                // aggregation admitted a row only when it reported tokens, so a span reporting cost
+                // alone was listed with a cost of zero - and then sorted, filtered and totalled as
+                // free.
+                let cost_only = d
+                    .iter()
+                    .find(|t| t.trace_id == "trace-j")
+                    .expect("trace-j is in the list");
+                assert!(
+                    (cost_only.total_cost - 0.004).abs() < 1e-9,
+                    "the cost-only trace reports {} rather than the 0.004 it was billed",
+                    cost_only.total_cost
+                );
                 assert!(
                     !kept.contains(&&"trace-e".to_string())
                         && !kept.contains(&&"trace-f".to_string()),
@@ -2234,6 +2247,30 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
         "delete_sessions removed different rows on the two backends"
     );
 
+    // A session recorded on the root span only, which is how several frameworks record it. Deleting
+    // the rows that *name* the session removes the root and keeps its children - and reports
+    // success, leaving spans that no longer belong to any session and so can never be deleted by
+    // session again. session-1 above cannot catch it, because the fixture repeats its id on every
+    // span; trace-i carries session-3 on its root and nothing on its generation child.
+    duck.delete_sessions(PROJECT, &["session-3".to_string()])
+        .await
+        .expect("duckdb delete root-only session");
+    ch.delete_sessions(PROJECT, &["session-3".to_string()])
+        .await
+        .expect("clickhouse delete root-only session");
+    let after_duck = remaining(&duck).await;
+    for gone in ["i-root", "i-gen"] {
+        assert!(
+            !after_duck.contains(&gone.to_string()),
+            "deleting the root-only session left {gone} behind: {after_duck:?}"
+        );
+    }
+    assert_eq!(
+        settle(&ch, &after_duck).await,
+        after_duck,
+        "deleting a root-only session removed different rows on the two backends"
+    );
+
     // What is left of a trace, by trace id.
     duck.delete_traces(PROJECT, &["trace-c".to_string()])
         .await
@@ -2250,8 +2287,6 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
             "f-root".to_string(),
             "g-root".to_string(),
             "h-root".to_string(),
-            "i-gen".to_string(),
-            "i-root".to_string(),
             "j-root".to_string()
         ],
         "deleting trace-c should leave exactly the unrelated traces"
