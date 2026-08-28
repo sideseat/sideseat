@@ -147,11 +147,14 @@ impl Filter {
     /// `None` for an operator that is already positive.
     pub fn positive_twin(&self) -> Option<Filter> {
         match self {
+            // An empty list is not a filter at all. Its twin renders as `1 = 1`, and negating the
+            // subquery around that excluded every row - "none of nothing" returned nothing instead
+            // of everything.
             Self::StringOptions {
                 column,
                 operator: OptionsOp::NoneOf,
                 value,
-            } => Some(Self::StringOptions {
+            } if !value.is_empty() => Some(Self::StringOptions {
                 column: column.clone(),
                 operator: OptionsOp::AnyOf,
                 value: value.clone(),

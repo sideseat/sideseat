@@ -739,55 +739,75 @@ fn batch_times(
 ///
 /// This runs before sorting and derives each key from the block and its own call, never from the
 /// pair being compared, so it cannot introduce the cycle that a role-ranking comparator did.
-fn adopt_call_positions(keyed: &mut [(BlockSortKey, DateTime<Utc>, BlockEntry)]) {
-    /// Where one call sits: the time of the response it belongs to, its span, and its position in it.
-    struct CallPosition {
-        batch_time: DateTime<Utc>,
-        span: (String, String),
-        message_index: i32,
-        entry_index: i32,
-    }
+/// Where a block sorts within its response: which span it belongs to and where in it.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) struct FeedPosition {
+    pub span: (String, String),
+    pub message_index: i32,
+    pub entry_index: i32,
+    /// Set on a tool result that took the position of the call it answers, so it follows that call
+    /// rather than tying with it.
+    pub after_call: bool,
+}
+
+/// The position each block sorts at, with cross-span tool results moved behind their calls.
+///
+/// `batch_time` says which response a block belongs to; two blocks with different ones are ordered
+/// by time and never reach a position comparison. Every view sorts by a position, so every view
+/// takes it from here - the project feed sorts its own way (newest first) and would otherwise order
+/// a cross-span tie by span id, which is the same arbitrary answer the trace views used to give.
+pub(super) fn feed_positions(
+    blocks: &[BlockEntry],
+    batch_time: impl Fn(usize) -> DateTime<Utc>,
+) -> Vec<FeedPosition> {
+    let mut positions: Vec<FeedPosition> = blocks
+        .iter()
+        .map(|block| FeedPosition {
+            span: (block.trace_id.clone(), block.span_id.clone()),
+            message_index: block.message_index,
+            entry_index: block.entry_index,
+            after_call: false,
+        })
+        .collect();
 
     // Keyed by trace and call id. Two calls in one trace share an id only where a framework reuses
     // it, in which case the first is the one a result answers.
-    let mut calls: HashMap<(String, String), CallPosition> = HashMap::new();
-    for (key, _, block) in keyed.iter() {
+    let mut calls: HashMap<(String, String), (DateTime<Utc>, FeedPosition)> = HashMap::new();
+    for (i, block) in blocks.iter().enumerate() {
         if block.entry_type != "tool_use" {
             continue;
         }
         if let Some(id) = block.tool_use_id.as_ref().filter(|s| !s.is_empty()) {
             calls
                 .entry((block.trace_id.clone(), id.clone()))
-                .or_insert(CallPosition {
-                    batch_time: key.batch_time,
-                    span: key.span.clone(),
-                    message_index: key.message_index,
-                    entry_index: key.entry_index,
-                });
+                .or_insert((batch_time(i), positions[i].clone()));
         }
     }
     if calls.is_empty() {
-        return;
+        return positions;
     }
 
-    for (key, _, block) in keyed.iter_mut() {
+    for (i, block) in blocks.iter().enumerate() {
         if block.entry_type != "tool_result" {
             continue;
         }
         let Some(id) = block.tool_use_id.as_ref().filter(|s| !s.is_empty()) else {
             continue;
         };
-        let Some(call) = calls.get(&(block.trace_id.clone(), id.clone())) else {
+        let Some((call_time, call_position)) = calls.get(&(block.trace_id.clone(), id.clone()))
+        else {
             continue;
         };
-        if call.batch_time != key.batch_time || call.span == key.span {
+        // Same response, different span: only then does this block's own index order nothing.
+        if *call_time != batch_time(i) || call_position.span == positions[i].span {
             continue;
         }
-        key.span = call.span.clone();
-        key.message_index = call.message_index;
-        key.entry_index = call.entry_index;
-        key.after_call = true;
+        positions[i] = FeedPosition {
+            after_call: true,
+            ..call_position.clone()
+        };
     }
+    positions
 }
 
 /// The sort key of one block, built once.
@@ -1024,7 +1044,19 @@ pub fn process_dedup(
             (key, birth, block)
         })
         .collect();
-    adopt_call_positions(&mut keyed);
+    // Positions come from the shared helper, so this view and the project feed agree on where a
+    // cross-span tool result sits.
+    let blocks_for_positions: Vec<BlockEntry> =
+        keyed.iter().map(|(_, _, block)| block.clone()).collect();
+    let batch_times_by_index: Vec<DateTime<Utc>> =
+        keyed.iter().map(|(key, _, _)| key.batch_time).collect();
+    let positions = feed_positions(&blocks_for_positions, |i| batch_times_by_index[i]);
+    for (key, position) in keyed.iter_mut().zip(positions) {
+        key.0.span = position.span;
+        key.0.message_index = position.message_index;
+        key.0.entry_index = position.entry_index;
+        key.0.after_call = position.after_call;
+    }
     keyed.sort_by(|(a, _, _), (b, _, _)| a.compare(b));
 
     // The response's time, not each block's own birth time, is what gets materialised - see the

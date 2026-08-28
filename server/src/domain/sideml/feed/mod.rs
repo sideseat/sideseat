@@ -105,8 +105,8 @@ use crate::domain::traces::{MessageSource, RawMessage};
 
 use classify::uses_span_end;
 use dedup::{
-    SpanTimestamps, normalize_json_for_hash, normalize_structured_json_for_hash,
-    normalize_tool_result_content, process_dedup,
+    FeedPosition, SpanTimestamps, feed_positions, normalize_json_for_hash,
+    normalize_structured_json_for_hash, normalize_tool_result_content, process_dedup,
 };
 use history::mark_history;
 
@@ -711,15 +711,24 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
     // the order conversations came out of a HashMap.
     //
     // Time descending, then the response, then position within it.
-    all_blocks.sort_by(|a, b| {
+    //
+    // Position comes from the same helper the trace views use, so a tool result whose call sits in
+    // another span at the same instant follows that call here too. Sorting by the block's own span id
+    // instead ordered that tie arbitrarily - the answer could precede the question in the feed while
+    // the trace view had it right.
+    let positions = feed_positions(&all_blocks, |i| all_blocks[i].timestamp);
+    let mut keyed: Vec<(FeedPosition, BlockEntry)> =
+        positions.into_iter().zip(all_blocks).collect();
+    keyed.sort_by(|(a_pos, a), (b_pos, b)| {
         b.timestamp
             .cmp(&a.timestamp)
-            .then_with(|| a.trace_id.cmp(&b.trace_id))
-            .then_with(|| a.span_id.cmp(&b.span_id))
-            .then_with(|| a.message_index.cmp(&b.message_index))
-            .then_with(|| a.entry_index.cmp(&b.entry_index))
+            .then_with(|| a_pos.span.cmp(&b_pos.span))
+            .then_with(|| a_pos.message_index.cmp(&b_pos.message_index))
+            .then_with(|| a_pos.entry_index.cmp(&b_pos.entry_index))
+            .then_with(|| a_pos.after_call.cmp(&b_pos.after_call))
             .then_with(|| a.content_hash.cmp(&b.content_hash))
     });
+    let all_blocks: Vec<BlockEntry> = keyed.into_iter().map(|(_, block)| block).collect();
 
     // Deduplicate tools across conversations
     let tool_definitions = deduplicate_tools(all_tool_defs);

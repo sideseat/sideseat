@@ -845,7 +845,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             "many traces",
             MessageQueryParams {
                 project_id: PROJECT.to_string(),
-                trace_ids: vec!["trace-a".to_string(), "trace-b".to_string()],
+                trace_ids: Some(vec!["trace-a".to_string(), "trace-b".to_string()]),
                 ..Default::default()
             },
         ),
