@@ -48,7 +48,8 @@ use crate::api::routes::otel::messages::scope_feed_to_trace;
 use crate::data::types::MessageSpanRow;
 use crate::domain::pricing::PricingService;
 use crate::domain::sideml::feed::{
-    FeedOptions, extract_tools_from_rows, process_feed, process_spans, shadow_resolved_order,
+    FeedOptions, extract_tools_from_rows, legacy_and_scaffold_order, process_feed, process_spans,
+    shadow_resolved_order,
 };
 use crate::domain::traces::extract::ExtractionMode;
 
@@ -2064,4 +2065,63 @@ fn shadow_resolver_is_a_permutation_of_the_survivors() {
             "{label}: shadow order is not a permutation of the survivors"
         );
     }
+}
+
+/// The production scaffold cannot move a block.
+///
+/// The order resolver runs on every trace/session request, but under `Constraints::SCAFFOLD` it
+/// enforces only the constraints the existing sort already satisfies - every edge already forward,
+/// every contracted emission already contiguous, the legacy index as the pop seed. So its output must
+/// be the existing order exactly, on every trace of every fixture. That is what makes the machinery
+/// safe to have live before any constraint class is promoted: the graph, the contraction, the Kahn
+/// resolve and the cycle fallback are all exercised in production while the answer is unchanged.
+///
+/// Checked as a property here rather than left to the goldens, which are regenerable: a golden diff
+/// would show a scaffold reorder as "expected output changed" and could be blessed by accident.
+#[test]
+fn the_scaffold_reproduces_the_existing_order() {
+    let mut checked = 0usize;
+    for (label, paths) in discover_fixtures() {
+        let all = rows_for(&paths);
+        let mut by_trace: BTreeMap<String, Vec<MessageSpanRow>> = BTreeMap::new();
+        for (_, row) in all {
+            by_trace.entry(row.trace_id.clone()).or_default().push(row);
+        }
+        for (trace_id, trace_rows) in by_trace {
+            let rows = sorted_by_timestamp(
+                trace_rows
+                    .into_iter()
+                    .filter(passes_content_filter)
+                    .collect(),
+            );
+            if rows.is_empty() {
+                continue;
+            }
+            let (legacy, scaffold) = legacy_and_scaffold_order(rows);
+            let seq = |blocks: &[crate::domain::sideml::feed::BlockEntry]| -> Vec<String> {
+                blocks
+                    .iter()
+                    .map(|b| {
+                        format!(
+                            "{}/{}/{}/{}",
+                            b.role.as_str(),
+                            b.entry_type,
+                            b.span_id,
+                            b.content_hash
+                        )
+                    })
+                    .collect()
+            };
+            assert_eq!(
+                seq(&scaffold),
+                seq(&legacy),
+                "{label} / trace {trace_id}: the scaffold moved a block, so it is not neutral"
+            );
+            checked += 1;
+        }
+    }
+    assert!(
+        checked > 50,
+        "expected the corpus to contribute many traces, only checked {checked}"
+    );
 }
