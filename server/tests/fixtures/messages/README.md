@@ -2,7 +2,7 @@
 
 Inputs for `server/src/domain/traces/message_goldens_tests.rs`, which checks that message
 **count, content, ordering and absence of duplicates** hold for every framework *that has a
-fixture here*, in all four views the API exposes. Coverage is 14 of the 33 frameworks SideSeat
+fixture here*, in all four views the API exposes. Coverage is 11 of the 33 frameworks SideSeat
 recognises and not every fixture has a session view - see [What is and is not
 covered](#what-is-and-is-not-covered), which is the honest version of this sentence:
 
@@ -104,11 +104,14 @@ not hide the rest.
 
 ## What is and is not covered
 
-14 suites, 107 samples. Every framework SideSeat *recognises* is not covered, and the gap is
-deliberate rather than hidden:
+107 samples in 13 captured suites, plus `_synthetic`. A suite is not a framework: `strands` and
+`strands-js`, and `claude-agent-sdk` and `claude-agent-sdk-js`, are one framework each in two
+languages, so the 13 suites cover **11** of the 33 frameworks SideSeat recognises. Every framework is
+not covered, and the gap is deliberate rather than hidden:
 
-| Covered by fixtures | strands, langgraph, crewai, adk, bedrock, openai, openai-agents, anthropic, agent-framework, claude-agent-sdk, and the strands / vercel-ai / claude-agent-sdk JS suites |
+| Covered by fixtures | strands, langgraph, crewai, adk, bedrock, openai, openai-agents, anthropic, agent-framework, claude-agent-sdk, vercel-ai — the last three of those through JS suites (`strands-js`, `vercel-ai-js`, `claude-agent-sdk-js`) as well as, or instead of, Python |
 | ------------------- | --- |
+| Not a framework | `_synthetic` — one hand-written payload (`tool_use`), for a shape no captured sample produces. It is in the suite count and not in the framework count. |
 | Has samples, no fixtures | `autogen` — its runner has no Bedrock path, so capturing it needs a first-party key. Listed in the capture script and skipped with a message, so its absence is visible. |
 | Recognised, no samples | LangChain, PydanticAI, Agno, Smolagents, AgentScope, Langflow, AG2, Haystack, browser-use, Google GenAI, Vertex AI, LlamaIndex, Semantic Kernel, Azure OpenAI / AI Foundry, Logfire, MLflow, TraceLoop, LiveKit |
 

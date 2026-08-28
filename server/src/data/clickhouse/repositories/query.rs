@@ -35,7 +35,7 @@ pub(super) fn build_dedup_lookup_cte(extra_where: &str) -> String {
         SELECT span_id, parent_span_id, trace_id, observation_type
         FROM otel_spans FINAL
         WHERE project_id = ?
-          AND ((gen_ai_usage_input_tokens + gen_ai_usage_output_tokens) > 0 OR gen_ai_cost_total > 0){extra}
+          AND ((gen_ai_usage_input_tokens + gen_ai_usage_output_tokens + gen_ai_usage_total_tokens) > 0 OR gen_ai_cost_total > 0){extra}
     )"#
     )
 }
@@ -50,7 +50,7 @@ pub(super) fn build_dedup_lookup_cte(extra_where: &str) -> String {
 /// correlated subqueries inside IN/NOT IN (Code 48).
 pub(super) const TOKEN_DEDUP_CONDITION: &str = r#"(
                   (g.observation_type = 'generation'
-                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0 OR g.gen_ai_cost_total > 0)
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens + g.gen_ai_usage_total_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND (g.trace_id, g.span_id) NOT IN (
                        SELECT trace_id, parent_span_id FROM dedup_lookup
                        WHERE observation_type = 'generation'
@@ -58,7 +58,7 @@ pub(super) const TOKEN_DEDUP_CONDITION: &str = r#"(
                    ))
                   OR
                   ((g.observation_type IS NULL OR g.observation_type != 'generation')
-                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0 OR g.gen_ai_cost_total > 0)
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens + g.gen_ai_usage_total_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND g.trace_id NOT IN (
                        SELECT DISTINCT trace_id FROM dedup_lookup
                        WHERE observation_type = 'generation'

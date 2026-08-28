@@ -150,7 +150,7 @@ impl McpServer {
     }
 
     #[tool(
-        description = "Get normalized LLM conversation. Returns messages with roles (system/user/assistant/tool), content blocks (text, tool_use, tool_result, thinking), tokens, costs. Provide trace_id, or session_id, or span_id together with its trace_id (a span id is unique only within a trace)."
+        description = "Get normalized LLM conversation. Returns messages with roles (system/user/assistant/tool), content blocks (text, tool_use, tool_result, thinking), tokens, costs. Provide trace_id, or session_id, or span_id together with its trace_id (a span id is unique only within a trace, and a session id will not do instead)."
     )]
     async fn get_messages(
         &self,
@@ -166,11 +166,7 @@ impl McpServer {
             // alone, and the answer was then whatever spans in the project happened to share that id
             // - two traces' messages merged into one conversation, with nothing saying so. Declining
             // is better than answering a question that has more than one answer.
-            if span_lacks_its_trace(
-                input.span_id.as_deref(),
-                input.trace_id.as_deref(),
-                input.session_id.as_deref(),
-            ) {
+            if span_lacks_its_trace(input.span_id.as_deref(), input.trace_id.as_deref()) {
                 return Err(McpError::invalid_params(
                     "span_id identifies a span only within a trace, because a span id is 8 bytes \
                      and traces reuse them. Pass trace_id as well - list_spans and get_trace both \
@@ -864,16 +860,17 @@ fn parse_ts(s: &str) -> Option<DateTime<Utc>> {
     parse_opt_ts(Some(s.to_string()))
 }
 
-/// True when a request names a span but nothing that says which trace it belongs to.
+/// True when a request names a span but not the trace it belongs to.
 ///
 /// A span id is 8 bytes and unique only within a trace, so on its own it can match spans in several
-/// traces at once. A session id is accepted in its place because it also scopes the query.
-fn span_lacks_its_trace(
-    span_id: Option<&str>,
-    trace_id: Option<&str>,
-    session_id: Option<&str>,
-) -> bool {
-    span_id.is_some() && trace_id.is_none() && session_id.is_none()
+/// traces at once.
+///
+/// A session id is *not* a substitute, though it looks like one: the message query gives `span_id`
+/// precedence and ignores `session_id` when both are set, so accepting the pair let exactly the
+/// cross-trace merge this guard exists to stop back in - and the first version of this function
+/// asserted that pair was fine.
+fn span_lacks_its_trace(span_id: Option<&str>, trace_id: Option<&str>) -> bool {
+    span_id.is_some() && trace_id.is_none()
 }
 
 #[cfg(test)]
@@ -884,20 +881,29 @@ mod tests {
     #[test]
     fn a_span_id_without_its_trace_is_refused() {
         assert!(
-            span_lacks_its_trace(Some("abc123"), None, None),
+            span_lacks_its_trace(Some("abc123"), None),
             "a bare span id can match spans in several traces and must be refused"
         );
         assert!(
-            !span_lacks_its_trace(Some("abc123"), Some("trace-1"), None),
+            !span_lacks_its_trace(Some("abc123"), Some("trace-1")),
             "a span id with its trace identifies one span"
         );
-        assert!(
-            !span_lacks_its_trace(Some("abc123"), None, Some("session-1")),
-            "a session id also scopes the query"
-        );
         // Nothing to refuse when no span was asked for.
-        assert!(!span_lacks_its_trace(None, None, None));
-        assert!(!span_lacks_its_trace(None, Some("trace-1"), None));
+        assert!(!span_lacks_its_trace(None, None));
+        assert!(!span_lacks_its_trace(None, Some("trace-1")));
+    }
+
+    /// A session id does not scope a span lookup, however much it looks as though it should.
+    ///
+    /// `get_messages` gives `span_id` precedence and never applies `session_id` in that branch, so a
+    /// span id paired with a session id is still a span id with no trace - and the first version of
+    /// this guard accepted the pair, with a test that said so.
+    #[test]
+    fn a_session_id_does_not_stand_in_for_the_trace() {
+        assert!(
+            span_lacks_its_trace(Some("abc123"), None),
+            "span + session must be refused: the query ignores the session when a span is given"
+        );
     }
 
     #[test]
