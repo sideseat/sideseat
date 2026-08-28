@@ -2147,6 +2147,93 @@ async fn clickhouse_matches_duckdb_on_every_read() {
 /// an asynchronous mutation, so the test waits for the rows to actually disappear instead of
 /// reading a count - which is also why the count itself is not compared (see
 /// `AnalyticsRepository::delete_traces`).
+/// A span delivered twice with *different* data must read the same on both backends.
+///
+/// The two backends resolve a duplicate span in opposite directions. ClickHouse stores spans in
+/// `ReplacingMergeTree(ingested_at)`, so `FINAL` keeps the **latest** delivery. DuckDB's dedup
+/// subquery joined on `MIN(ingested_at)`, keeping the **first**. Retries usually carry identical
+/// payloads, which is why every other test passes - but an exporter that re-sends a span with
+/// corrected usage made the same project report different tokens depending on which backend served
+/// it, and no test could see it because the fixture's duplicate spans are identical.
+///
+/// Latest wins, because that is what the ClickHouse engine enforces and a later delivery is the more
+/// complete record.
+#[tokio::test]
+async fn a_span_redelivered_with_new_data_reads_the_same_on_both_backends() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_redelivery").await;
+
+    let base = NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: "trace-redelivered".to_string(),
+        span_id: "span-1".to_string(),
+        span_name: "generation".to_string(),
+        observation_type: Some(ObservationType::Generation),
+        span_category: Some(SpanCategory::LLM),
+        gen_ai_system: Some("bedrock".to_string()),
+        gen_ai_request_model: Some("claude-haiku".to_string()),
+        timestamp_start: ts(0),
+        timestamp_end: Some(ts(1)),
+        duration_ms: 1000,
+        status_code: Some("OK".to_string()),
+        environment: Some("test".to_string()),
+        ..Default::default()
+    };
+
+    // First delivery: 100 tokens. Second: the same span, corrected to 900, ingested later.
+    let first = NormalizedSpan {
+        gen_ai_usage_input_tokens: 60,
+        gen_ai_usage_output_tokens: 40,
+        gen_ai_usage_total_tokens: 100,
+        ingested_at: Some(ts(10)),
+        ..base.clone()
+    };
+    let second = NormalizedSpan {
+        gen_ai_usage_input_tokens: 500,
+        gen_ai_usage_output_tokens: 400,
+        gen_ai_usage_total_tokens: 900,
+        ingested_at: Some(ts(20)),
+        ..base
+    };
+
+    for repo in [&duck as &dyn AnalyticsRepository, &ch] {
+        repo.insert_spans(vec![first.clone()])
+            .await
+            .expect("first delivery");
+        repo.insert_spans(vec![second.clone()])
+            .await
+            .expect("second delivery");
+    }
+
+    let d = duck
+        .get_trace(PROJECT, "trace-redelivered")
+        .await
+        .expect("duckdb trace")
+        .expect("trace exists");
+    let c = ch
+        .get_trace(PROJECT, "trace-redelivered")
+        .await
+        .expect("clickhouse trace")
+        .expect("trace exists");
+
+    assert_eq!(
+        (d.total_tokens, c.total_tokens),
+        (900, 900),
+        "the corrected delivery must win on both backends: duckdb={} clickhouse={}",
+        d.total_tokens,
+        c.total_tokens
+    );
+    assert_eq!(
+        d.span_count, c.span_count,
+        "one span delivered twice is one span on both backends"
+    );
+}
+
 #[tokio::test]
 async fn deleting_removes_the_same_rows_on_both_backends() {
     let Ok(url) = std::env::var(URL_ENV) else {

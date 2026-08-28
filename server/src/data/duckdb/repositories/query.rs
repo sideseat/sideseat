@@ -25,9 +25,16 @@ use crate::utils::time::{micros_to_datetime, parse_iso_timestamp};
 /// - DISTINCT subqueries (immune)
 /// - GROUP BY with MIN/MAX only (immune)
 /// - Point lookups by (trace_id, span_id) with DedupAnalyticsRepository
-/// - Single-span UNNEST (point-lookup dedup via ORDER BY ingested_at LIMIT 1)
+/// - Single-span UNNEST (point-lookup dedup via ORDER BY ingested_at DESC LIMIT 1)
+///
+/// **The latest delivery wins**, and that is not a free choice: ClickHouse stores spans in
+/// `ReplacingMergeTree(ingested_at)`, so its `FINAL` keeps the newest row and no query can ask it
+/// for the oldest. Keeping `MIN` here meant the same project reported different tokens depending on
+/// which backend served it, whenever an exporter re-sent a span with corrected usage - invisible to
+/// every test, because a retry normally carries an identical payload. A later delivery is also the
+/// better record: it is the one the exporter meant to leave behind.
 pub(crate) const DEDUP_SPANS: &str = "(SELECT s.* FROM otel_spans s \
-     INNER JOIN (SELECT project_id, trace_id, span_id, MIN(ingested_at) AS _mi \
+     INNER JOIN (SELECT project_id, trace_id, span_id, MAX(ingested_at) AS _mi \
                  FROM otel_spans GROUP BY project_id, trace_id, span_id \
      ) _d ON s.project_id = _d.project_id AND s.trace_id = _d.trace_id \
      AND s.span_id = _d.span_id AND s.ingested_at = _d._mi)";
@@ -886,7 +893,7 @@ pub fn get_events_for_span(
                       (event->'attributes')::VARCHAR as attributes
                FROM (SELECT span_id, raw_span FROM otel_spans
                      WHERE project_id = ? AND trace_id = ? AND span_id = ?
-                     ORDER BY ingested_at LIMIT 1) _s,
+                     ORDER BY ingested_at DESC LIMIT 1) _s,
                     UNNEST(CAST(_s.raw_span->'events' AS JSON[])) WITH ORDINALITY AS t(event, ordinality)
                ORDER BY ordinality
                LIMIT {}",
@@ -924,7 +931,7 @@ pub fn get_links_for_span(
                 (link->'attributes')::VARCHAR as attributes
                FROM (SELECT span_id, raw_span FROM otel_spans
                      WHERE project_id = ? AND trace_id = ? AND span_id = ?
-                     ORDER BY ingested_at LIMIT 1) _s,
+                     ORDER BY ingested_at DESC LIMIT 1) _s,
                     UNNEST(CAST(_s.raw_span->'links' AS JSON[])) WITH ORDINALITY AS t(link, ordinality)
                ORDER BY ordinality
                LIMIT {}",
