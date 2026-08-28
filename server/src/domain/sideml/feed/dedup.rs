@@ -50,6 +50,7 @@ use std::hash::{Hash, Hasher};
 
 use chrono::{DateTime, Utc};
 
+use super::super::provenance::PositionPath;
 use super::types::BlockEntry;
 use crate::domain::sideml::types::{ChatRole, ContentBlock};
 
@@ -180,16 +181,17 @@ pub(super) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Vec<u32> {
         Option<&'a str>,
         u64,
     );
-    let mut ids_by_response: HashMap<ResponseKey<'_>, Vec<&str>> = HashMap::new();
+    // The *positions* seen for one call shape in one response, in document order. Position rather
+    // than call id: the position is structure the payload stated, so it distinguishes two identical
+    // calls even from a framework that sends no ids - which id-ranking could not.
+    let mut positions_by_response: HashMap<ResponseKey<'_>, Vec<&PositionPath>> = HashMap::new();
     // (trace, call id) -> that call's rank, for the results that answer it.
     let mut rank_by_call: HashMap<(&str, &str), u32> = HashMap::new();
 
     for block in blocks {
-        if let ContentBlock::ToolUse { id, name, input } = &block.content
-            && let Some(id) = id.as_deref().filter(|s| !s.is_empty())
-        {
+        if let ContentBlock::ToolUse { id, name, input } = &block.content {
             let shape = compute_tool_call_hash(name, input);
-            let seen = ids_by_response
+            let seen = positions_by_response
                 .entry((
                     block.trace_id.as_str(),
                     block.span_id.as_str(),
@@ -199,28 +201,39 @@ pub(super) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Vec<u32> {
                     shape,
                 ))
                 .or_default();
-            let rank = match seen.iter().position(|seen_id| *seen_id == id) {
+            let rank = match seen.iter().position(|seen| **seen == block.position) {
                 Some(position) => position as u32,
                 None => {
-                    seen.push(id);
+                    seen.push(&block.position);
                     (seen.len() - 1) as u32
                 }
             };
-            rank_by_call
-                .entry((block.trace_id.as_str(), id))
-                .or_insert(rank);
+            if let Some(id) = id.as_deref().filter(|s| !s.is_empty()) {
+                rank_by_call
+                    .entry((block.trace_id.as_str(), id))
+                    .or_insert(rank);
+            }
         }
     }
 
     blocks
         .iter()
         .map(|block| match &block.content {
-            ContentBlock::ToolUse { id, .. } => id
-                .as_deref()
-                .filter(|s| !s.is_empty())
-                .and_then(|id| rank_by_call.get(&(block.trace_id.as_str(), id)))
-                .copied()
-                .unwrap_or(0),
+            ContentBlock::ToolUse { name, input, .. } => {
+                let shape = compute_tool_call_hash(name, input);
+                positions_by_response
+                    .get(&(
+                        block.trace_id.as_str(),
+                        block.span_id.as_str(),
+                        block.source_type.as_str(),
+                        block.event_name.as_deref(),
+                        block.source_attribute.as_deref(),
+                        shape,
+                    ))
+                    .and_then(|seen| seen.iter().position(|seen| **seen == block.position))
+                    .map(|rank| rank as u32)
+                    .unwrap_or(0)
+            }
             ContentBlock::ToolResult { tool_use_id, .. } => tool_use_id
                 .as_deref()
                 .filter(|s| !s.is_empty())
@@ -1197,6 +1210,7 @@ mod tests {
         timestamp: DateTime<Utc>,
     ) -> BlockEntry {
         BlockEntry {
+            position: PositionPath::default(),
             entry_type: "text".to_string(),
             content: ContentBlock::Text {
                 text: text.to_string(),
@@ -1241,6 +1255,7 @@ mod tests {
         timestamp: DateTime<Utc>,
     ) -> BlockEntry {
         BlockEntry {
+            position: PositionPath::default(),
             entry_type: "tool_use".to_string(),
             content: ContentBlock::ToolUse {
                 id: Some(call_id.to_string()),
@@ -1289,6 +1304,7 @@ mod tests {
         timestamp: DateTime<Utc>,
     ) -> BlockEntry {
         BlockEntry {
+            position: PositionPath::default(),
             entry_type: "tool_result".to_string(),
             content: ContentBlock::ToolResult {
                 tool_use_id: Some(tool_use_id.to_string()),

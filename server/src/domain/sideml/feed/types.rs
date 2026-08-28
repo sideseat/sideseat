@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value as JsonValue;
 
+use super::super::provenance::PositionPath;
 use super::super::types::{ChatRole, ContentBlock, FinishReason};
 use super::{GENAI_INPUT_EVENTS, GENAI_OUTPUT_EVENTS, obs_type, source_type};
 use crate::data::types::MessageCategory;
@@ -56,6 +57,15 @@ impl FeedOptions {
 /// - `is_root_span()` for hierarchy checks
 #[derive(Debug, Clone, Serialize)]
 pub struct BlockEntry {
+    /// Where this block sat in its span's stored payload - see `sideml::provenance`.
+    ///
+    /// Unique per block within one payload, which is what distinguishes a genuine repeat from a
+    /// re-send: two identical tool calls of one response have different paths, while the same call
+    /// re-sent by a later span has its own payload and so is compared by content.
+    ///
+    /// Empty for a block that was composed rather than read - the error message built from a span's
+    /// exception fields has no position in any payload.
+    pub position: PositionPath,
     // Content
     /// Block type name ("text", "tool_use", "tool_result", etc.)
     pub entry_type: String,
@@ -428,6 +438,7 @@ mod tests {
 
     fn make_test_block() -> BlockEntry {
         BlockEntry {
+            position: PositionPath::default(),
             entry_type: "text".to_string(),
             content: ContentBlock::Text {
                 text: "test".to_string(),

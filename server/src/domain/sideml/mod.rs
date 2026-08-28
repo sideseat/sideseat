@@ -44,6 +44,7 @@
 // ============================================================================
 
 pub(crate) mod content;
+pub(crate) mod provenance;
 pub(crate) mod tools;
 mod types;
 mod unflatten;

@@ -98,6 +98,7 @@ use chrono::{DateTime, Utc};
 use serde_json::{Value as JsonValue, json};
 
 use super::normalize::to_sideml_with_context;
+use super::provenance::PositionPath;
 use super::tools::{extract_tool_name, normalize_tools, tool_definition_quality};
 use super::types::ContentBlock;
 use crate::data::types::{MessageCategory, MessageSpanRow};
@@ -171,6 +172,8 @@ pub(crate) const GENAI_INPUT_EVENTS: &[&str] = &[
 /// Intermediate message after parsing, before flattening.
 #[derive(Debug, Clone)]
 struct ParsedMessage {
+    /// Where this message sat in its span's stored payload - see `sideml::provenance`.
+    position: PositionPath,
     trace_id: String,
     span_id: String,
     parent_span_id: Option<String>,
@@ -871,6 +874,7 @@ fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<ParsedMessage> {
                 for (index, msg) in sideml_msgs.into_iter().enumerate() {
                     let timestamp = msg.timestamp;
                     messages.push(ParsedMessage {
+                        position: msg.position.clone(),
                         trace_id: row.trace_id.clone(),
                         span_id: row.span_id.clone(),
                         parent_span_id: row.parent_span_id.clone(),
@@ -1011,6 +1015,9 @@ fn append_error_messages(messages: &mut Vec<ParsedMessage>, rows: &[MessageSpanR
             .unwrap_or(-1);
 
         messages.push(ParsedMessage {
+            // Composed from the span's exception fields rather than read out of a payload, so there
+            // is no position to record. `is_empty()` is how a consumer tells the two apart.
+            position: PositionPath::default(),
             trace_id: row.trace_id.clone(),
             span_id: row.span_id.clone(),
             parent_span_id: row.parent_span_id.clone(),
@@ -1207,6 +1214,10 @@ fn flatten_to_blocks(
             let role = derive_role_from_content(block, msg.message.role);
 
             blocks.push(BlockEntry {
+                // The block's own position: the message's path plus which content block this is. Two
+                // blocks of one message therefore differ, and so do two identical calls a model made
+                // in one response - the thing content alone cannot tell apart.
+                position: msg.position.child_index(entry_index),
                 entry_type,
                 content: block.clone(),
                 role,

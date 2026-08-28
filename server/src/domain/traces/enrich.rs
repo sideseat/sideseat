@@ -257,6 +257,7 @@ mod tests {
     use super::*;
     use crate::data::types::MessageSourceType;
     use crate::domain::sideml::ChatRole;
+    use crate::domain::sideml::provenance::PositionPath;
     use crate::domain::traces::MessageSource;
     use chrono::Utc;
 
@@ -274,6 +275,7 @@ mod tests {
     fn make_message(category: MessageCategory, role: ChatRole, content: &str) -> SideMLMessage {
         use crate::domain::sideml::ContentBlock;
         SideMLMessage {
+            position: PositionPath::default(),
             source: MessageSource::Attribute {
                 key: "test".to_string(),
                 time: Utc::now(),
@@ -538,6 +540,7 @@ mod tests {
                 "What is the capital of France?",
             ),
             SideMLMessage {
+                position: PositionPath::default(),
                 source: MessageSource::Attribute {
                     key: "test".to_string(),
                     time: Utc::now(),
@@ -594,6 +597,7 @@ mod tests {
     ) -> SideMLMessage {
         use crate::domain::sideml::ContentBlock;
         SideMLMessage {
+            position: PositionPath::default(),
             source: MessageSource::Attribute {
                 key: "test".to_string(),
                 time: Utc::now(),
