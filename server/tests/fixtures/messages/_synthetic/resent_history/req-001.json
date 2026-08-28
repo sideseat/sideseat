@@ -1,0 +1,193 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "synthetic"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "synthetic.telemetry"
+          },
+          "spans": [
+            {
+              "traceId": "aa000000000000000000000000000003",
+              "spanId": "3000000000000001",
+              "name": "chat",
+              "kind": 1,
+              "startTimeUnixNano": "1735689600000000000",
+              "endTimeUnixNano": "1735689601000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.provider.name",
+                  "value": {
+                    "stringValue": "synthetic"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "model-x"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "10"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "5"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "name": "gen_ai.user.message",
+                  "timeUnixNano": "1735689600000000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "what is the answer?"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.choice",
+                  "timeUnixNano": "1735689600900000000",
+                  "attributes": [
+                    {
+                      "key": "message",
+                      "value": {
+                        "stringValue": "{\"role\": \"assistant\", \"content\": \"42\"}"
+                      }
+                    },
+                    {
+                      "key": "finish_reason",
+                      "value": {
+                        "stringValue": "stop"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "traceId": "aa000000000000000000000000000003",
+              "spanId": "3000000000000002",
+              "name": "chat",
+              "kind": 1,
+              "startTimeUnixNano": "1735689602000000000",
+              "endTimeUnixNano": "1735689603000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.provider.name",
+                  "value": {
+                    "stringValue": "synthetic"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "model-x"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "20"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "6"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "name": "gen_ai.user.message",
+                  "timeUnixNano": "1735689602000000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "what is the answer?"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.assistant.message",
+                  "timeUnixNano": "1735689602000000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "42"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.user.message",
+                  "timeUnixNano": "1735689602100000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "are you sure?"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.choice",
+                  "timeUnixNano": "1735689602900000000",
+                  "attributes": [
+                    {
+                      "key": "message",
+                      "value": {
+                        "stringValue": "{\"role\": \"assistant\", \"content\": \"Yes.\"}"
+                      }
+                    },
+                    {
+                      "key": "finish_reason",
+                      "value": {
+                        "stringValue": "stop"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

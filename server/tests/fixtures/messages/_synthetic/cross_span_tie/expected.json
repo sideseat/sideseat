@@ -1,0 +1,165 @@
+{
+  "label": "_synthetic/cross_span_tie",
+  "request_count": 1,
+  "span_count": 2,
+  "trace_count": 1,
+  "session_count": 0,
+  "span_views": {
+    "trace-1/chat/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "look it up",
+          "content_digest": "d0a9118c413a7982",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Let me look that up.",
+          "content_digest": "bc01363bcfc2f498",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_tie\",\"name\":\"lookup\",\"input\":{\"q\":\"x\"}}",
+          "content_digest": "4272512f3b6f405c",
+          "tool_name": "lookup",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_tool lookup/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "answer",
+          "content_digest": "0bf3305d5d765b6c",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "look it up",
+          "content_digest": "d0a9118c413a7982",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Let me look that up.",
+          "content_digest": "bc01363bcfc2f498",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_tie\",\"name\":\"lookup\",\"input\":{\"q\":\"x\"}}",
+          "content_digest": "4272512f3b6f405c",
+          "tool_name": "lookup",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "answer",
+          "content_digest": "0bf3305d5d765b6c",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {},
+  "feed_view": {
+    "message_count": 4,
+    "role_sequence": [
+      "assistant",
+      "assistant",
+      "tool",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Let me look that up.",
+        "content_digest": "bc01363bcfc2f498",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_tie\",\"name\":\"lookup\",\"input\":{\"q\":\"x\"}}",
+        "content_digest": "4272512f3b6f405c",
+        "tool_name": "lookup",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "answer",
+        "content_digest": "0bf3305d5d765b6c",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "look it up",
+        "content_digest": "d0a9118c413a7982",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}
