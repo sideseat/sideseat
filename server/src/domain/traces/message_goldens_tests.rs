@@ -661,6 +661,13 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
 /// identical prompts in two different traces are two legitimate messages, not a duplicate -
 /// several samples run their whole conversation twice, once with a session id and once
 /// without, so a session view contains each prompt twice by design.
+///
+/// What it does *not* forbid, and this is deliberate: a genuine repeat that the telemetry
+/// distinguishes. A provider's call id is part of a tool block's content, so two identical calls in
+/// one response - `crewai/mcp_tools` retries one - have different digests and both belong here. What
+/// remains forbidden is identical content with nothing to tell the copies apart, which is the shape a
+/// history re-send takes. If the pipeline ever learns to keep id-less repeats, this check has to
+/// learn it at the same time, or it will report the improvement as a defect.
 fn assert_no_duplicates(label: &str, view_name: &str, rows: &[InvariantRow]) {
     let mut seen: HashMap<(&str, &str, &str, &str), usize> = HashMap::new();
     for r in rows {
