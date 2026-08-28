@@ -237,8 +237,50 @@ pub(super) fn to_clickhouse_sql_against(
             NullOp::IsNull => format!("{expression} IS NULL"),
             NullOp::IsNotNull => format!("{expression} IS NOT NULL"),
         },
-        // Only the operators the UI offers for a name; see the DuckDB renderer.
-        _ => "1 = 1".to_string(),
+        // Numbers and timestamps, because most of what a trace row displays is an aggregate - its
+        // tokens and cost are sums over its spans, its duration spans all of them. See the DuckDB
+        // renderer, which carries the same operators against the same expressions.
+        Filter::Number {
+            operator, value, ..
+        } => {
+            params.push(QueryParam::Float64(*value));
+            let op = match operator {
+                NumberOp::Eq => "=",
+                NumberOp::Gt => ">",
+                NumberOp::Lt => "<",
+                NumberOp::Gte => ">=",
+                NumberOp::Lte => "<=",
+            };
+            format!("{expression} {op} ?")
+        }
+        Filter::Datetime {
+            operator, value, ..
+        } => {
+            let op = match operator {
+                DatetimeOp::Gt => ">",
+                DatetimeOp::Lt => "<",
+                DatetimeOp::Gte => ">=",
+                DatetimeOp::Lte => "<=",
+            };
+            match chrono::DateTime::parse_from_rfc3339(value) {
+                Ok(parsed) => {
+                    params.push(QueryParam::Int64(parsed.timestamp_micros()));
+                    format!("{expression} {op} fromUnixTimestamp64Micro(?)")
+                }
+                // As in the column renderer: a malformed timestamp excludes everything rather than
+                // widening the result set into looking like data.
+                Err(_) => "1 = 0".to_string(),
+            }
+        }
+        Filter::Boolean {
+            operator, value, ..
+        } => {
+            let literal = if *value { "true" } else { "false" };
+            match operator {
+                BooleanOp::Eq => format!("{expression} = {literal}"),
+                BooleanOp::Ne => format!("{expression} != {literal}"),
+            }
+        }
     }
 }
 

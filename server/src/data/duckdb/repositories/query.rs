@@ -47,10 +47,100 @@ fn alias_or<'a>(fallback: &'a str, alias: &'a str) -> &'a str {
     }
 }
 
+/// Per-trace token and cost totals, counting each call once.
+///
+/// A generation span and its generation child report the same usage, so only the leaf is summed;
+/// a non-generation span's usage counts only where no generation span in the trace reports any and
+/// its parent reports none either. Factored out because a filter on a token or cost column has to
+/// be evaluated against *this* number - the one the row displays - and reproducing the rule in a
+/// second place is how the two would drift apart.
+fn gen_totals_sql(where_clause: &str) -> String {
+    format!(
+        r#"
+            SELECT
+                g.trace_id,
+                COALESCE(SUM(gen_ai_usage_input_tokens), 0) AS input_tokens,
+                COALESCE(SUM(gen_ai_usage_output_tokens), 0) AS output_tokens,
+                COALESCE(SUM(gen_ai_usage_total_tokens), 0) AS total_tokens,
+                COALESCE(SUM(gen_ai_usage_cache_read_tokens), 0) AS cache_read_tokens,
+                COALESCE(SUM(gen_ai_usage_cache_write_tokens), 0) AS cache_write_tokens,
+                COALESCE(SUM(gen_ai_usage_reasoning_tokens), 0) AS reasoning_tokens,
+                COALESCE(SUM(gen_ai_cost_input), 0) AS input_cost,
+                COALESCE(SUM(gen_ai_cost_output), 0) AS output_cost,
+                COALESCE(SUM(gen_ai_cost_cache_read), 0) AS cache_read_cost,
+                COALESCE(SUM(gen_ai_cost_cache_write), 0) AS cache_write_cost,
+                COALESCE(SUM(gen_ai_cost_reasoning), 0) AS reasoning_cost,
+                COALESCE(SUM(gen_ai_cost_total), 0) AS total_cost
+            FROM {DEDUP_SPANS} g
+            WHERE {where_clause}
+              AND (
+                  (g.observation_type = 'generation'
+                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                   AND NOT EXISTS (
+                       SELECT 1 FROM otel_spans c
+                       WHERE c.parent_span_id = g.span_id
+                         AND c.project_id = g.project_id
+                         AND c.observation_type = 'generation'
+                         AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
+                   ))
+                  OR
+                  (g.observation_type != 'generation'
+                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
+                   AND NOT EXISTS (
+                       SELECT 1 FROM otel_spans gen
+                       WHERE gen.trace_id = g.trace_id
+                         AND gen.project_id = g.project_id
+                         AND gen.observation_type = 'generation'
+                         AND (gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0
+                   )
+                   AND NOT EXISTS (
+                       SELECT 1 FROM otel_spans p
+                       WHERE p.span_id = g.parent_span_id
+                         AND p.project_id = g.project_id
+                         AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
+                   ))
+              )
+            GROUP BY g.trace_id
+        "#
+    )
+}
+
+/// The expression a trace list row *displays* for a filterable column, when that value is an
+/// aggregate over the trace's spans rather than a column of one span.
+///
+/// `None` means the column is a plain span attribute (a model, an environment, a session id),
+/// where "the trace has a span with this value" is the honest reading.
+///
+/// Aliases are those of [`trace_filter_subquery`]: `n` for the span rows, `gtf` for the totals.
+fn trace_aggregate_expression(view_column: &str) -> Option<String> {
+    let totals = |col: &str| Some(format!("COALESCE(MAX(gtf.{col}), 0)"));
+    match view_column {
+        "trace_name" => Some(trace_display_name("n", DisplayNameDialect::DuckDb)),
+        "start_time" => Some("MIN(n.timestamp_start)".to_string()),
+        "end_time" => Some("MAX(COALESCE(n.timestamp_end, n.timestamp_start))".to_string()),
+        "duration_ms" => Some(
+            "DATE_DIFF('millisecond', MIN(n.timestamp_start), \
+             MAX(COALESCE(n.timestamp_end, n.timestamp_start)))"
+                .to_string(),
+        ),
+        "input_tokens" | "output_tokens" | "total_tokens" | "cache_read_tokens"
+        | "cache_write_tokens" | "reasoning_tokens" | "input_cost" | "output_cost"
+        | "cache_read_cost" | "cache_write_cost" | "reasoning_cost" | "total_cost" => {
+            totals(view_column)
+        }
+        _ => None,
+    }
+}
+
+/// True when the column's displayed value comes from [`gen_totals_sql`], so the subquery evaluating
+/// it has to join those totals in.
+fn needs_gen_totals(view_column: &str) -> bool {
+    trace_aggregate_expression(view_column).is_some_and(|e| e.contains("gtf."))
+}
+
 fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (String, Vec<String>) {
     let mut conditions = Vec::new();
     let mut bind_values = Vec::new();
-    let mut sql_params = SqlParams::default();
 
     // Helper to format column with alias
     let col = |name: &str| -> String {
@@ -103,41 +193,74 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
         bind_values.push(to.to_rfc3339());
     }
 
-    // Advanced filters with aliasing.
+    // Advanced filters select *traces*, never individual spans.
     //
-    // A trace_name filter is special-cased: it has to match the name the list *displays*, which is a
-    // per-trace aggregate. Matching the raw span_name of any span meant selecting "agent" also
-    // returned traces displayed under another name that merely contained an agent span.
+    // Applied to span rows, a trace filter means something the list cannot show. Two ways:
+    //
+    // - a trace's tokens, cost and duration are aggregates over its spans, so comparing one span
+    //   against the value hid a trace displaying 3000 tokens from `> 2500` because no single span
+    //   reached it, and returned that same trace for `< 1500` because one span was under. It also
+    //   fed the filter into the totals CTE, so the number displayed was a sum over the spans that
+    //   had passed the filter rather than the trace's own.
+    // - ANDed on one row, two filters asked for a span carrying both values. A session id lives on
+    //   the root span and tokens on its generation child - the ordinary shape for anything that
+    //   opens a root agent span - so session + tokens matched nothing while either alone matched.
+    //
+    // Both go away once each filter is a per-trace predicate: a condition on the aggregate for a
+    // displayed value, "the trace has a span where..." for a span attribute. Keeping them as
+    // conditions on this WHERE (rather than a HAVING somewhere later) is what lets the count query,
+    // the totals CTE and the page query share one definition of which traces match - and a
+    // trace-level condition keeps or drops all of a trace's spans, so it cannot distort an
+    // aggregate the way a row-level one did.
+    let mut aggregate_conditions: Vec<String> = Vec::new();
+    let mut aggregate_binds: Vec<String> = Vec::new();
+    let mut join_totals = false;
+
     for filter in &params.filters {
-        if filter.column() == "trace_name" {
-            // Selects the traces whose *displayed* name matches, computed over each trace's whole
-            // span set - not over the rows this query's other filters leave behind, which for a
-            // root-agent/generation-child trace filtered by model is the child, so the row came
-            // back labelled something the filter had not asked for.
-            //
-            // A subquery in the WHERE, the same shape the ClickHouse backend uses, so the two mean
-            // the same thing and the parity test can hold them to it.
-            let mut inner = SqlParams::default();
-            let condition = filter.to_sql_against(
-                &mut inner,
-                &trace_display_name("n", DisplayNameDialect::DuckDb),
-            );
-            conditions.push(format!(
-                "{}.trace_id IN (SELECT n.trace_id FROM otel_spans n WHERE n.project_id = ? \
-                 GROUP BY n.project_id, n.trace_id HAVING {condition})",
-                alias_or("otel_spans", alias)
-            ));
-            bind_values.push(params.project_id.clone());
-            bind_values.extend(inner.values);
-            continue;
+        match trace_aggregate_expression(filter.column()) {
+            Some(expression) => {
+                let mut inner = SqlParams::default();
+                aggregate_conditions.push(filter.to_sql_against(&mut inner, &expression));
+                aggregate_binds.extend(inner.values);
+                join_totals |= needs_gen_totals(filter.column());
+            }
+            None => {
+                let mut inner = SqlParams::default();
+                let condition =
+                    filter.to_sql_aliased(&mut inner, columns::map_trace_column_to_spans, "n");
+                conditions.push(format!(
+                    "{}.trace_id IN (SELECT n.trace_id FROM otel_spans n \
+                     WHERE n.project_id = ? AND {condition})",
+                    alias_or("otel_spans", alias)
+                ));
+                bind_values.push(params.project_id.clone());
+                bind_values.extend(inner.values);
+            }
         }
-        conditions.push(filter.to_sql_aliased(
-            &mut sql_params,
-            columns::map_trace_column_to_spans,
-            alias,
-        ));
     }
-    bind_values.extend(sql_params.values);
+
+    // One subquery for every aggregate filter, so a trace is grouped once however many were asked
+    // for. The totals join is added only when a token or cost column is involved: the other
+    // aggregates come from the span rows directly and do not need it.
+    if !aggregate_conditions.is_empty() {
+        let mut totals_join = String::new();
+        if join_totals {
+            totals_join = format!(
+                "LEFT JOIN ({}) gtf ON gtf.trace_id = n.trace_id",
+                gen_totals_sql("g.project_id = ?")
+            );
+            // Bound before the outer project_id: the join is rendered ahead of the WHERE.
+            bind_values.push(params.project_id.clone());
+        }
+        conditions.push(format!(
+            "{}.trace_id IN (SELECT n.trace_id FROM otel_spans n {totals_join} \
+             WHERE n.project_id = ? GROUP BY n.project_id, n.trace_id HAVING {})",
+            alias_or("otel_spans", alias),
+            aggregate_conditions.join(" AND ")
+        ));
+        bind_values.push(params.project_id.clone());
+        bind_values.extend(aggregate_binds);
+    }
 
     (conditions.join(" AND "), bind_values)
 }
@@ -238,52 +361,7 @@ pub fn list_traces(
 
     let data_sql = format!(
         r#"
-        WITH gen_totals AS (
-            SELECT
-                g.trace_id,
-                COALESCE(SUM(gen_ai_usage_input_tokens), 0) AS input_tokens,
-                COALESCE(SUM(gen_ai_usage_output_tokens), 0) AS output_tokens,
-                COALESCE(SUM(gen_ai_usage_total_tokens), 0) AS total_tokens,
-                COALESCE(SUM(gen_ai_usage_cache_read_tokens), 0) AS cache_read_tokens,
-                COALESCE(SUM(gen_ai_usage_cache_write_tokens), 0) AS cache_write_tokens,
-                COALESCE(SUM(gen_ai_usage_reasoning_tokens), 0) AS reasoning_tokens,
-                COALESCE(SUM(gen_ai_cost_input), 0) AS input_cost,
-                COALESCE(SUM(gen_ai_cost_output), 0) AS output_cost,
-                COALESCE(SUM(gen_ai_cost_cache_read), 0) AS cache_read_cost,
-                COALESCE(SUM(gen_ai_cost_cache_write), 0) AS cache_write_cost,
-                COALESCE(SUM(gen_ai_cost_reasoning), 0) AS reasoning_cost,
-                COALESCE(SUM(gen_ai_cost_total), 0) AS total_cost
-            FROM {DEDUP_SPANS} g
-            WHERE {span_where_g}
-              AND (
-                  (g.observation_type = 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans c
-                       WHERE c.parent_span_id = g.span_id
-                         AND c.project_id = g.project_id
-                         AND c.observation_type = 'generation'
-                         AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
-                   ))
-                  OR
-                  (g.observation_type != 'generation'
-                   AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans gen
-                       WHERE gen.trace_id = g.trace_id
-                         AND gen.project_id = g.project_id
-                         AND gen.observation_type = 'generation'
-                         AND (gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens) > 0
-                   )
-                   AND NOT EXISTS (
-                       SELECT 1 FROM otel_spans p
-                       WHERE p.span_id = g.parent_span_id
-                         AND p.project_id = g.project_id
-                         AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
-                   ))
-              )
-            GROUP BY g.trace_id
-        ),
+        WITH gen_totals AS ({gen_totals}),
         filtered_traces AS (
             SELECT
                 sp.project_id,
@@ -356,7 +434,7 @@ pub fn list_traces(
         -- its direction survived. min_ts is kept as the tiebreak so a page is deterministic.
         ORDER BY t.{span_sort_field} {sort_dir}, t.min_ts {sort_dir}, t.trace_id ASC
         "#,
-        span_where_g = span_where_g,
+        gen_totals = gen_totals_sql(&span_where_g),
         span_where_sp = span_where_sp,
         // The same definition the count query uses, qualified for this CTE's alias.
         genai_sp = genai_span_predicate("sp"),
@@ -3847,5 +3925,134 @@ mod tests {
             result.is_empty(),
             "Should return empty for nonexistent project"
         );
+    }
+
+    // ========================================================================
+    // A trace filter means what the trace list displays
+    // ========================================================================
+
+    use crate::data::duckdb::filters::{Filter, NumberOp, StringOp};
+
+    fn trace_filter_params(project_id: &str, filters: Vec<Filter>) -> ListTracesParams {
+        ListTracesParams {
+            project_id: project_id.to_string(),
+            page: 1,
+            limit: 50,
+            filters,
+            ..Default::default()
+        }
+    }
+
+    /// A token filter compares against the total the row shows, not against one span of it.
+    ///
+    /// The list displays a trace's tokens as a sum over its spans, and the filter was applied to
+    /// each span row separately, so "more than 2500 tokens" hid a trace displaying 3000 because no
+    /// single span reached 2500. The same mismatch let "fewer than 1500" return that trace, since
+    /// one span qualifies. Both directions are wrong against what the user can see.
+    #[tokio::test]
+    async fn a_token_filter_matches_the_total_the_trace_displays() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let project_id = "test-project";
+        let trace_id = "trace-aggregate-tokens";
+
+        let spans = vec![
+            make_agent_span(project_id, trace_id, "agent-1", None),
+            make_generation_span(project_id, trace_id, "gen-1", Some("agent-1"), 0.01, 1000),
+            make_generation_span(project_id, trace_id, "gen-2", Some("agent-1"), 0.02, 2000),
+        ];
+        {
+            let conn = analytics.conn();
+            insert_batch(&conn, &spans).expect("insert");
+        }
+
+        let conn = analytics.conn();
+        let displayed = get_trace(&conn, project_id, trace_id)
+            .expect("query")
+            .expect("trace exists");
+        assert_eq!(displayed.total_tokens, 3000, "premise of the test");
+
+        let (rows, total) = list_traces(
+            &conn,
+            &trace_filter_params(
+                project_id,
+                vec![Filter::Number {
+                    column: "total_tokens".to_string(),
+                    operator: NumberOp::Gt,
+                    value: 2500.0,
+                }],
+            ),
+        )
+        .expect("query");
+        assert_eq!(
+            rows.len(),
+            1,
+            "a trace displaying 3000 tokens must match `> 2500`; no single span reaches it"
+        );
+        assert_eq!(total, 1, "the count must agree with the page");
+
+        let (rows, _) = list_traces(
+            &conn,
+            &trace_filter_params(
+                project_id,
+                vec![Filter::Number {
+                    column: "total_tokens".to_string(),
+                    operator: NumberOp::Lt,
+                    value: 1500.0,
+                }],
+            ),
+        )
+        .expect("query");
+        assert!(
+            rows.is_empty(),
+            "a trace displaying 3000 tokens must not match `< 1500` because one span does"
+        );
+    }
+
+    /// Two filters describe the trace, not one span of it.
+    ///
+    /// The session id lives on the root span and the tokens on its generation child - the ordinary
+    /// shape for every framework that opens a root agent span. ANDing both conditions on a single
+    /// span row asks for a span that carries the session *and* the tokens, which no span does, so
+    /// the trace vanished from a list that showed it under either filter alone.
+    #[tokio::test]
+    async fn two_trace_filters_describe_the_trace_not_one_span() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let project_id = "test-project";
+        let trace_id = "trace-split-attributes";
+
+        let mut root = make_agent_span(project_id, trace_id, "agent-1", None);
+        root.session_id = Some("session-7".to_string());
+        let child =
+            make_generation_span(project_id, trace_id, "gen-1", Some("agent-1"), 0.02, 2000);
+        {
+            let conn = analytics.conn();
+            insert_batch(&conn, &[root, child]).expect("insert");
+        }
+
+        let conn = analytics.conn();
+        let session_only = trace_filter_params(
+            project_id,
+            vec![Filter::String {
+                column: "session_id".to_string(),
+                operator: StringOp::Eq,
+                value: "session-7".to_string(),
+            }],
+        );
+        let (rows, _) = list_traces(&conn, &session_only).expect("query");
+        assert_eq!(rows.len(), 1, "premise: the session filter alone matches");
+
+        let mut both = session_only.clone();
+        both.filters.push(Filter::Number {
+            column: "total_tokens".to_string(),
+            operator: NumberOp::Gt,
+            value: 100.0,
+        });
+        let (rows, total) = list_traces(&conn, &both).expect("query");
+        assert_eq!(
+            rows.len(),
+            1,
+            "the session is on the root span and the tokens on its child; both describe the trace"
+        );
+        assert_eq!(total, 1, "the count must agree with the page");
     }
 }

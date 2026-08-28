@@ -1217,6 +1217,43 @@ async fn clickhouse_matches_duckdb_on_every_read() {
                 ..trace_params()
             },
         ),
+        (
+            // trace-a's spans hold 110 and 220 tokens and the list displays their sum, 330. A
+            // filter applied to one span row hid it from `> 250` because neither span reaches the
+            // threshold, and returned it for `< 150` because one span is under - the row visible on
+            // screen contradicted the filter that was supposed to have selected it.
+            "filtered by a token total no single span reaches",
+            ListTracesParams {
+                filters: vec![Filter::Number {
+                    column: "total_tokens".to_string(),
+                    operator: NumberOp::Gt,
+                    value: 250.0,
+                }],
+                ..trace_params()
+            },
+        ),
+        (
+            // trace-i carries its session id on the root span and its tokens on the generation
+            // child. ANDed on one span row, the two conditions ask for a span with both, which no
+            // span in that trace has, so the trace disappeared from a list that showed it under
+            // either filter alone.
+            "filtered by a session and a token count together",
+            ListTracesParams {
+                filters: vec![
+                    Filter::String {
+                        column: "session_id".to_string(),
+                        operator: StringOp::Eq,
+                        value: "session-3".to_string(),
+                    },
+                    Filter::Number {
+                        column: "total_tokens".to_string(),
+                        operator: NumberOp::Gt,
+                        value: 100.0,
+                    },
+                ],
+                ..trace_params()
+            },
+        ),
     ] {
         let (d, d_total) = duck.list_traces(&params).await.expect("duckdb traces");
         let (c, c_total) = ch.list_traces(&params).await.expect("clickhouse traces");
@@ -1284,6 +1321,38 @@ async fn clickhouse_matches_duckdb_on_every_read() {
                     d.len(),
                     2,
                     "the fixture has two traces displayed as agent: {names:?}"
+                );
+            }
+            // Every returned row must show a total that satisfies the filter, and the trace whose
+            // total only exists as a sum must be among them.
+            "filtered by a token total no single span reaches" => {
+                let kept: Vec<&String> = d.iter().map(|t| &t.trace_id).collect();
+                assert!(
+                    kept.contains(&&"trace-a".to_string()),
+                    "the trace displaying 330 tokens across two spans of 110 and 220 is missing: \
+                     {kept:?}"
+                );
+                for t in &d {
+                    assert!(
+                        t.total_tokens > 250,
+                        "trace {} is displayed with {} tokens but was selected by `> 250`",
+                        t.trace_id,
+                        t.total_tokens
+                    );
+                }
+            }
+            "filtered by a session and a token count together" => {
+                let kept: Vec<&String> = d.iter().map(|t| &t.trace_id).collect();
+                assert_eq!(
+                    kept,
+                    vec![&"trace-i".to_string()],
+                    "the session is on the root span and the tokens on its child; both describe \
+                     the trace: {kept:?}"
+                );
+                assert!(
+                    d[0].total_tokens > 100,
+                    "the row was selected by a token filter it does not satisfy: {}",
+                    d[0].total_tokens
                 );
             }
             _ => assert!(
