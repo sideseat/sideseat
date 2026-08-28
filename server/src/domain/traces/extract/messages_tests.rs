@@ -388,15 +388,13 @@ fn test_crewai_output_value() {
     assert!(found);
     assert_eq!(messages.len(), 1);
 
-    // Literal content preserved (no metadata wrapper)
+    // The answer as an assistant message, not the payload object. Emitting the object put a JSON
+    // blob where the conversation view expects a reply, and the reply is what `raw` holds.
     let msg = &messages[0];
+    assert_eq!(msg.content["role"].as_str(), Some("assistant"));
     assert_eq!(
-        msg.content.get("raw").and_then(|v| v.as_str()),
+        msg.content["content"].as_str(),
         Some("Hello! Welcome! Here's the forecast...")
-    );
-    assert_eq!(
-        msg.content.get("agent").and_then(|v| v.as_str()),
-        Some("Weather Forecaster")
     );
 }
 
@@ -429,8 +427,13 @@ fn test_crewai_output_with_messages_array() {
     let found = try_crewai(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
 
     assert!(found);
-    // Should extract 3 individual messages from the messages array
-    assert_eq!(messages.len(), 3);
+    // Three history messages plus the answer in `raw`. The answer is emitted alongside the
+    // history, not instead of it: CrewAI puts the conversation in `messages` and what the model
+    // produced in `raw`, and treating `raw` as a fallback lost the answer of every run that
+    // carried history.
+    assert_eq!(messages.len(), 4);
+    assert_eq!(messages[3].content["role"].as_str(), Some("assistant"));
+    assert_eq!(messages[3].content["content"].as_str(), Some("Result"));
 
     // Verify each message has role and content
     assert_eq!(messages[0].content["role"].as_str(), Some("system"));
@@ -5064,12 +5067,17 @@ fn test_extract_messages_for_span_crewai() {
     let (messages, _tool_defs, _tool_names) =
         extract_messages_for_span(&otlp_span, &span_attrs, Utc::now());
 
-    // Should extract 4 individual messages from the messages array
+    // Four history messages from the messages array, plus the answer from `raw`.
     assert_eq!(
         messages.len(),
-        4,
-        "Should extract 4 individual messages from CrewAI output.value.messages array. Got: {}",
+        5,
+        "Should extract 4 history messages plus the answer in `raw`. Got: {}",
         messages.len()
+    );
+    assert_eq!(
+        messages[4].content["role"].as_str(),
+        Some("assistant"),
+        "the last message should be the answer CrewAI puts in `raw`"
     );
 
     // Verify first message is system
@@ -5106,8 +5114,8 @@ fn test_extract_messages_for_span_crewai() {
     );
     assert_eq!(
         messages_json.as_array().unwrap().len(),
-        4,
-        "Serialized array should have 4 messages"
+        5,
+        "Serialized array should have the four history messages plus the answer"
     );
 }
 

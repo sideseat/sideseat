@@ -3442,8 +3442,26 @@ pub(crate) fn try_crewai(
                 }
             }
 
-            // Fall back to raw output if no messages array found
-            if !extracted_messages {
+            // The answer itself lives in the top-level `raw`, alongside the history in
+            // `messages` - so it is emitted *in addition to* those messages, not as a fallback
+            // when they are absent. Treating it as a fallback dropped the assistant output of
+            // every CrewAI run that carried history: `crewai/reasoning` recorded
+            // system -> user -> user -> user and no answer at all, and the goldens recorded that
+            // as correct because no invariant requires an assistant message to exist.
+            if let Some(raw) = parsed
+                .get("raw")
+                .and_then(|r| r.as_str())
+                .map(str::trim)
+                .filter(|r| !r.is_empty())
+            {
+                messages.push(RawMessage::from_attr(
+                    keys::OUTPUT_VALUE,
+                    timestamp,
+                    serde_json::json!({"role": "assistant", "content": raw}),
+                ));
+            } else if !extracted_messages {
+                // No messages and no raw answer: keep the payload itself rather than nothing, so
+                // the span is not silently empty.
                 messages.push(RawMessage::from_attr(keys::OUTPUT_VALUE, timestamp, parsed));
             }
             found = true;
