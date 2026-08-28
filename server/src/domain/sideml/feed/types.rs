@@ -91,7 +91,20 @@ pub struct BlockEntry {
     pub span_path: Vec<String>,
 
     // Timing
+    /// The time this block *displays* at.
     pub timestamp: DateTime<Utc>,
+    /// The time this block *sorts* at - its response's anchor, not its own occurrence.
+    ///
+    /// Separate from `timestamp` because the two answer different questions, and one number doing
+    /// both is what made every attempt to change the ordering also change what the API reports.
+    /// They are equal today: `process_dedup` writes the response's anchor into both, and the
+    /// project feed reads the anchor back off `timestamp` for exactly that reason. Keeping the field
+    /// distinct is what lets the anchor become something better than a mutable minimum without the
+    /// displayed time moving with it.
+    ///
+    /// Before `process_dedup` has run this is the block's own timestamp: no response is known yet.
+    #[serde(skip)]
+    pub order_time: DateTime<Utc>,
 
     // Span context
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -452,6 +465,7 @@ mod tests {
             parent_span_id: None,
             span_path: vec!["span1".to_string()],
             timestamp: Utc::now(),
+            order_time: Utc::now(),
             observation_type: None,
             model: None,
             provider: None,

@@ -26,6 +26,7 @@ fn base(trace_id: &str, entry_type: &str, content: ContentBlock, role: ChatRole)
         parent_span_id: None,
         span_path: vec!["span-1".to_string()],
         timestamp: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
+        order_time: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
         observation_type: None,
         model: None,
         provider: None,

@@ -890,13 +890,14 @@ pub(super) struct FeedPosition {
 
 /// The position each block sorts at, with cross-span tool results moved behind their calls.
 ///
-/// `batch_time` says which response a block belongs to; two blocks with different ones are ordered
-/// by time and never reach a position comparison. Every view sorts by a position, so every view
-/// takes it from here - the project feed sorts its own way (newest first) and would otherwise order
-/// a cross-span tie by span id, which is the same arbitrary answer the trace views used to give.
+/// `order_time` is the time a block sorts at - its response's anchor. Only a *tie* there can reach a
+/// position comparison, which is why adoption is conditioned on it: two blocks anchored differently
+/// are already ordered by time. Every view sorts by a position, so every view takes it from here -
+/// the project feed sorts its own way (newest first) and would otherwise order a cross-span tie by
+/// span id, which is the same arbitrary answer the trace views used to give.
 pub(super) fn feed_positions(
     blocks: &[BlockEntry],
-    batch_time: impl Fn(usize) -> DateTime<Utc>,
+    order_time: impl Fn(usize) -> DateTime<Utc>,
 ) -> Vec<FeedPosition> {
     let mut positions: Vec<FeedPosition> = blocks
         .iter()
@@ -918,7 +919,7 @@ pub(super) fn feed_positions(
         if let Some(id) = block.tool_use_id.as_ref().filter(|s| !s.is_empty()) {
             calls
                 .entry((block.trace_id.clone(), id.clone()))
-                .or_insert((batch_time(i), positions[i].clone()));
+                .or_insert((order_time(i), positions[i].clone()));
         }
     }
     if calls.is_empty() {
@@ -936,8 +937,8 @@ pub(super) fn feed_positions(
         else {
             continue;
         };
-        // Same response, different span: only then does this block's own index order nothing.
-        if *call_time != batch_time(i) || call_position.span == positions[i].span {
+        // Tied in time, different span: only then does this block's own index order nothing.
+        if *call_time != order_time(i) || call_position.span == positions[i].span {
             continue;
         }
         positions[i] = FeedPosition {
@@ -1225,6 +1226,10 @@ pub fn process_dedup(
     paired
         .into_iter()
         .map(|(batch_time, mut block)| {
+            // Two fields, one value: what the block sorts at, and what it reports. Equal today, so
+            // this is not a behaviour change - but the project feed now sorts by the first rather
+            // than reading the ordering time back out of the second.
+            block.order_time = batch_time;
             block.timestamp = batch_time;
             block
         })
@@ -1264,6 +1269,7 @@ mod tests {
             parent_span_id: None,
             span_path: vec![span_id.to_string()],
             timestamp,
+            order_time: timestamp,
             observation_type: None,
             model: None,
             provider: None,
@@ -1311,6 +1317,7 @@ mod tests {
             parent_span_id: None,
             span_path: vec![span_id.to_string()],
             timestamp,
+            order_time: timestamp,
             observation_type: None,
             model: None,
             provider: None,
@@ -1361,6 +1368,7 @@ mod tests {
             parent_span_id: None,
             span_path: vec![span_id.to_string()],
             timestamp,
+            order_time: timestamp,
             observation_type: None,
             model: None,
             provider: None,
