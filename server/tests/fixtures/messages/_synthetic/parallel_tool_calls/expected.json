@@ -1,0 +1,198 @@
+{
+  "label": "_synthetic/parallel_tool_calls",
+  "request_count": 1,
+  "span_count": 3,
+  "trace_count": 1,
+  "session_count": 0,
+  "span_views": {
+    "trace-1/chat/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "forecast for Paris and Berlin",
+          "content_digest": "75ee0b8b603ba5a1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_a\",\"name\":\"weather\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "08994c53ae43d169",
+          "tool_name": "weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_b\",\"name\":\"weather\",\"input\":{\"city\":\"Berlin\"}}",
+          "content_digest": "6332150dda356611",
+          "tool_name": "weather",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_tool weather/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "18C",
+          "content_digest": "79f12147f6977445",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/execute_tool weather/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "12C",
+          "content_digest": "22397aa71fd5c773",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "forecast for Paris and Berlin",
+          "content_digest": "75ee0b8b603ba5a1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_a\",\"name\":\"weather\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "08994c53ae43d169",
+          "tool_name": "weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_b\",\"name\":\"weather\",\"input\":{\"city\":\"Berlin\"}}",
+          "content_digest": "6332150dda356611",
+          "tool_name": "weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "18C",
+          "content_digest": "79f12147f6977445",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "12C",
+          "content_digest": "22397aa71fd5c773",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {},
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "tool",
+      "tool",
+      "assistant",
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "12C",
+        "content_digest": "22397aa71fd5c773",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "18C",
+        "content_digest": "79f12147f6977445",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_a\",\"name\":\"weather\",\"input\":{\"city\":\"Paris\"}}",
+        "content_digest": "08994c53ae43d169",
+        "tool_name": "weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_b\",\"name\":\"weather\",\"input\":{\"city\":\"Berlin\"}}",
+        "content_digest": "6332150dda356611",
+        "tool_name": "weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "forecast for Paris and Berlin",
+        "content_digest": "75ee0b8b603ba5a1",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

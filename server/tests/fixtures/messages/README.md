@@ -115,7 +115,7 @@ not hide the rest.
 
 ## What is and is not covered
 
-**107 expectation files: 106 captured in 13 suites, plus 1 synthetic.** A suite is not a framework:
+**112 expectation files: 106 captured in 13 suites, plus 6 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
 languages, so the 13 captured suites cover **11 of the 32** frameworks SideSeat recognises. (32 is
 the union of the server's `Framework` classifier and the SDK's framework list, excluding `Unknown`:
@@ -124,7 +124,7 @@ SDK names.) Every framework is not covered, and the gap is deliberate rather tha
 
 | Covered by fixtures (11) | strands, langgraph, crewai, google-adk, bedrock, openai, openai-agents, anthropic, agent-framework, claude-agent-sdk, vercel-ai — strands and claude-agent-sdk in both languages, vercel-ai in JS only |
 | ------------------- | --- |
-| Synthetic, not a framework | `_synthetic/tool_use` — one hand-written payload for a shape no captured sample produces. Counted in the 107 files and in neither the 13 suites nor the 11 frameworks. |
+| Synthetic, not a framework | `_synthetic/*` — hand-written payloads for shapes no captured sample produces, counted in the file total and in neither the suites nor the frameworks. See below. |
 | Has samples, no fixtures | `autogen` — its runner has no Bedrock path, so capturing it needs a first-party key. Listed in the capture script and skipped with a message, so its absence is visible. |
 | Recognised, no fixtures (21) | ag2, agentscope, agno, autogen, azure-ai-foundry, azure-openai, browser-use, google-genai, haystack, langchain, langflow, livekit, llamaindex, logfire, mlflow, **openinference**, pydantic-ai, semantic-kernel, smolagents, traceloop, vertex-ai |
 
@@ -136,6 +136,21 @@ Also uneven: 30 fixtures have no session view, because their sample never sets a
 Session views are built only for real session ids, since the endpoint cannot be asked for a
 session that does not exist. Sessionised captures are what would cover those, not a synthetic
 fallback.
+
+## The synthetic fixtures
+
+Hand-written payloads for shapes the captured corpus does not reach. They exist because an invariant
+that holds trivially proves nothing: each of these makes a specific rule bite, and the mutation that
+breaks that rule is named.
+
+| Fixture | The shape | What it makes bite |
+| --- | --- | --- |
+| `tool_use` | a Strands call/result pair | the baseline hand-written case |
+| `multi_turn_one_carrier` | nine turns in **one** carrier, in conversation order | carrier subsequence across many siblings - the ADK shape, where one span holds a whole conversation |
+| `parallel_tool_calls` | two distinct calls in one response, then both results | causality *without* adjacency: `call, call, result, result` must be allowed |
+| `resent_history` | a later span re-sending the earlier turn | the re-send collapses onto the original rather than duplicating it |
+| `cross_span_tie` | a generation span and its tool span reporting the **identical** instant, with the tool span's id sorting *first* | `adopt_call_positions`. Disable it and this fixture reports the answer at index 1 before its question at index 3; every captured fixture stays green, because none of them ties |
+| `two_carriers_one_span` | the question in `llm.input_messages`, the answer in the same span's `output.value` | **a defect, on purpose.** Extraction stops at the first extractor that claims the span, so the answer is never read. It is listed in `NO_ANSWER_EXPECTED` with that reason; when carrier-level claiming lands, this fixture is what proves it worked |
 
 ## Capability exemptions
 

@@ -759,10 +759,19 @@ const PAIRING_EXEMPT: &[(&str, &str)] = &[
 /// what it replied. CrewAI's answers were dropped for months because no invariant said so - its
 /// reasoning fixture recorded `system -> user -> user -> user`, three questions and no answers, and
 /// the goldens blessed it as correct.
-const NO_ANSWER_EXPECTED: &[(&str, &str)] = &[(
-    "strands/error",
-    "the sample exists to fail, so the run never produced an answer",
-)];
+const NO_ANSWER_EXPECTED: &[(&str, &str)] = &[
+    (
+        "_synthetic/two_carriers_one_span",
+        "documents a defect on purpose: the question is in llm.input_messages and the answer in the \
+         same span's output.value, and extraction stops at the first extractor that claims the span, \
+         so the answer is never read. Remove this exemption when carrier-level claiming lands - the \
+         fixture is what proves it worked",
+    ),
+    (
+        "strands/error",
+        "the sample exists to fail, so the run never produced an answer",
+    ),
+];
 
 /// A conversation that asked something must show an answer.
 ///

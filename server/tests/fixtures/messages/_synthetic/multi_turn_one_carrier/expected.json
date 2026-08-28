@@ -1,0 +1,288 @@
+{
+  "label": "_synthetic/multi_turn_one_carrier",
+  "request_count": 1,
+  "span_count": 1,
+  "trace_count": 1,
+  "session_count": 0,
+  "span_views": {
+    "trace-1/invoke_agent/span-1": {
+      "message_count": 9,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "be brief",
+          "content_digest": "6baadcd899c57fa6",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "what is the weather in Paris?",
+          "content_digest": "8369d6270b937b7f",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_paris\",\"name\":\"weather\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "04555fdd85aebc95",
+          "tool_name": "weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "18C",
+          "content_digest": "f6448053cc412396",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is 18C in Paris.",
+          "content_digest": "0061aa740a4ac01e",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "and in Berlin?",
+          "content_digest": "0650be94697c05e5",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_berlin\",\"name\":\"weather\",\"input\":{\"city\":\"Berlin\"}}",
+          "content_digest": "39684ec31e89d309",
+          "tool_name": "weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "12C",
+          "content_digest": "e2546db4c6962862",
+          "observation_type": "agent"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is 12C in Berlin.",
+          "content_digest": "68b5b9d70c3aa80e",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 9,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "be brief",
+          "content_digest": "6baadcd899c57fa6",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "what is the weather in Paris?",
+          "content_digest": "8369d6270b937b7f",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_paris\",\"name\":\"weather\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "04555fdd85aebc95",
+          "tool_name": "weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "18C",
+          "content_digest": "f6448053cc412396",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is 18C in Paris.",
+          "content_digest": "0061aa740a4ac01e",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "and in Berlin?",
+          "content_digest": "0650be94697c05e5",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_berlin\",\"name\":\"weather\",\"input\":{\"city\":\"Berlin\"}}",
+          "content_digest": "39684ec31e89d309",
+          "tool_name": "weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "12C",
+          "content_digest": "e2546db4c6962862",
+          "observation_type": "agent"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is 12C in Berlin.",
+          "content_digest": "68b5b9d70c3aa80e",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {},
+  "feed_view": {
+    "message_count": 9,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "assistant",
+      "tool",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "be brief",
+        "content_digest": "6baadcd899c57fa6",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "what is the weather in Paris?",
+        "content_digest": "8369d6270b937b7f",
+        "observation_type": "agent"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_paris\",\"name\":\"weather\",\"input\":{\"city\":\"Paris\"}}",
+        "content_digest": "04555fdd85aebc95",
+        "tool_name": "weather",
+        "observation_type": "agent"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "18C",
+        "content_digest": "f6448053cc412396",
+        "observation_type": "agent"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "It is 18C in Paris.",
+        "content_digest": "0061aa740a4ac01e",
+        "observation_type": "agent"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "and in Berlin?",
+        "content_digest": "0650be94697c05e5",
+        "observation_type": "agent"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_berlin\",\"name\":\"weather\",\"input\":{\"city\":\"Berlin\"}}",
+        "content_digest": "39684ec31e89d309",
+        "tool_name": "weather",
+        "observation_type": "agent"
+      },
+      {
+        "index": 7,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "12C",
+        "content_digest": "e2546db4c6962862",
+        "observation_type": "agent"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "It is 12C in Berlin.",
+        "content_digest": "68b5b9d70c3aa80e",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

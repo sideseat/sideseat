@@ -1,0 +1,146 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "synthetic"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "synthetic.telemetry"
+          },
+          "spans": [
+            {
+              "traceId": "aa000000000000000000000000000005",
+              "spanId": "5fffffffffffffff",
+              "name": "chat",
+              "kind": 1,
+              "startTimeUnixNano": "1735689600000000000",
+              "endTimeUnixNano": "1735689601000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.provider.name",
+                  "value": {
+                    "stringValue": "synthetic"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "model-x"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "50"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "20"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "name": "gen_ai.user.message",
+                  "timeUnixNano": "1735689600000000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "look it up"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.choice",
+                  "timeUnixNano": "1735689601000000000",
+                  "attributes": [
+                    {
+                      "key": "message",
+                      "value": {
+                        "stringValue": "[{\"text\": \"Let me look that up.\"}, {\"toolUse\": {\"toolUseId\": \"call_tie\", \"name\": \"lookup\", \"input\": {\"q\": \"x\"}}}]"
+                      }
+                    },
+                    {
+                      "key": "finish_reason",
+                      "value": {
+                        "stringValue": "tool_use"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "traceId": "aa000000000000000000000000000005",
+              "spanId": "5000000000000001",
+              "name": "execute_tool lookup",
+              "kind": 1,
+              "startTimeUnixNano": "1735689601000000000",
+              "endTimeUnixNano": "1735689601000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "lookup"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.id",
+                  "value": {
+                    "stringValue": "call_tie"
+                  }
+                }
+              ],
+              "parentSpanId": "5fffffffffffffff",
+              "events": [
+                {
+                  "name": "gen_ai.choice",
+                  "timeUnixNano": "1735689601000000000",
+                  "attributes": [
+                    {
+                      "key": "message",
+                      "value": {
+                        "stringValue": "[{\"text\": \"answer\"}]"
+                      }
+                    },
+                    {
+                      "key": "id",
+                      "value": {
+                        "stringValue": "call_tie"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
