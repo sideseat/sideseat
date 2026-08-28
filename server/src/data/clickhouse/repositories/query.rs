@@ -519,6 +519,13 @@ impl ConditionBuilder {
         // has no CTEs at all, and twice in the data query, whose own `gen_totals` is scoped
         // differently - so referencing the enclosing query's CTEs would work in one place and fail
         // in the other. Self-contained means one string that means the same thing everywhere.
+        //
+        // The cost of that: the clause appears twice per statement, so this scan can run twice.
+        // Hoisting it into a named CTE per statement would fix it and means reworking the bind
+        // scheme - `bind_to_n` binds the whole parameter set N times, which is what makes the
+        // repetition work at all. Measured on DuckDB, where the shape is the same, an aggregate
+        // filter roughly doubles an unfiltered list query and stays linear (219->446 ms at 4k
+        // traces, 680->1447 ms at 20k), so this is a constant factor rather than a cliff.
         let mut prelude = String::new();
         let mut totals_join = String::new();
         if join_totals {
