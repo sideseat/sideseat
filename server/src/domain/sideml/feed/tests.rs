@@ -8913,6 +8913,7 @@ fn test_no_promotion_when_choice_exists() {
 
     // Build blocks manually: gen_ai.assistant.message + gen_ai.choice in same gen span
     let assistant_block = BlockEntry {
+        position: PositionPath::default(),
         entry_type: "text".to_string(),
         content: ContentBlock::Text {
             text: "Previous response.".to_string(),
@@ -8949,6 +8950,7 @@ fn test_no_promotion_when_choice_exists() {
     };
 
     let choice_block = BlockEntry {
+        position: PositionPath::default(),
         entry_type: "text".to_string(),
         content: ContentBlock::Text {
             text: "4".to_string(),
@@ -9637,5 +9639,83 @@ fn a_resent_pair_of_identical_calls_is_still_one_pair() {
             .filter(|b| b.entry_type == "tool_use")
             .map(|b| b.tool_use_id.as_deref())
             .collect::<Vec<_>>()
+    );
+}
+
+/// Two identical calls with *no* ids are still two calls.
+///
+/// This is what the position buys over the id-based rank it replaced: a framework that reports tool
+/// calls without ids gave the rank nothing to work with, so a model asking for the same thing twice
+/// came back as one call. The position is structure the payload stated, so it distinguishes them
+/// whether or not ids were sent.
+#[test]
+fn two_identical_idless_calls_in_one_response_both_survive() {
+    let t = fixed_time();
+    let messages = json!([{
+        "source": {"event": {"name": "gen_ai.choice", "time": t.to_rfc3339()}},
+        "content": {"role": "assistant", "content": [
+            {"type": "tool_use", "name": "generate_image", "input": {"prompt": "a cat"}},
+            {"type": "tool_use", "name": "generate_image", "input": {"prompt": "a cat"}}
+        ]}
+    }]);
+    let row = make_span_row("trace1", "span1", None, &messages.to_string(), "[]", "[]");
+    let result = process_spans(vec![row], &FeedOptions::new());
+    let calls = result
+        .messages
+        .iter()
+        .filter(|b| b.entry_type == "tool_use")
+        .count();
+    assert_eq!(
+        calls, 2,
+        "both id-less calls must survive: their positions differ even though nothing else does"
+    );
+}
+
+/// A block records the route it was read by, and blocks of one payload never share a position.
+///
+/// The property everything else rests on. `gen_ai.input.messages` is an expandable array source, so
+/// each entry's position names the array and its index - which is what tells two entries apart when
+/// their content does not.
+#[test]
+fn every_block_carries_a_distinct_position_within_its_payload() {
+    let t = fixed_time();
+    let messages = json!([{
+        "source": {"attribute": {"key": "gen_ai.input.messages", "time": t.to_rfc3339()}},
+        "content": [
+            {"role": "system", "content": "be brief"},
+            {"role": "user", "content": "first question"},
+            {"role": "user", "content": "second question"}
+        ]
+    }]);
+    let row = make_span_row("trace1", "span1", None, &messages.to_string(), "[]", "[]");
+    let result = process_spans(vec![row], &FeedOptions::new());
+
+    let positions: Vec<String> = result
+        .messages
+        .iter()
+        .map(|b| b.position.to_string())
+        .collect();
+    assert_eq!(
+        positions.len(),
+        3,
+        "the three entries must survive: {positions:?}"
+    );
+    let mut unique = positions.clone();
+    unique.sort();
+    unique.dedup();
+    assert_eq!(
+        unique.len(),
+        positions.len(),
+        "two blocks of one payload share a position: {positions:?}"
+    );
+    // Route: observation 0 of the stored list, entry N of its array, content block 0.
+    assert_eq!(
+        unique,
+        vec![
+            "0.0.0".to_string(),
+            "0.1.0".to_string(),
+            "0.2.0".to_string()
+        ],
+        "a position must name the route it was read by: {positions:?}"
     );
 }

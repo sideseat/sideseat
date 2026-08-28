@@ -4,6 +4,7 @@
 //! motivated the stage: real Google ADK captures carried a `tool_use_id` on every tool result
 //! that referenced a call id no call had ever emitted.
 
+use crate::domain::sideml::provenance::PositionPath;
 use chrono::{TimeZone, Utc};
 use serde_json::json;
 
@@ -13,6 +14,7 @@ use crate::domain::sideml::types::ChatRole;
 
 fn base(trace_id: &str, entry_type: &str, content: ContentBlock, role: ChatRole) -> BlockEntry {
     BlockEntry {
+        position: PositionPath::default(),
         entry_type: entry_type.to_string(),
         content,
         role,

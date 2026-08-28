@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as JsonValue, json};
 
+use super::provenance::PositionPath;
 use super::{ChatMessage, ChatRole, ContentBlock, normalize};
 use crate::data::types::{MessageCategory, MessageSourceType};
 use crate::domain::traces::{MessageSource, RawMessage};
@@ -22,8 +23,20 @@ use crate::domain::traces::{MessageSource, RawMessage};
 ///
 /// This type combines a normalized [`ChatMessage`] with application-specific
 /// metadata for storage and processing in the trace pipeline.
+/// A raw message with the path it occupies in its stored payload.
+///
+/// A pair rather than a field on `RawMessage`: that type is the *stored* shape, and the path is
+/// derived at query time, so it has no business being serialised alongside it.
+type Observed = (RawMessage, PositionPath);
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SideMLMessage {
+    /// Where this message sat in the payload it came from - see [`PositionPath`].
+    ///
+    /// Carried rather than re-derived: expansion and tool splitting turn one stored payload into
+    /// several messages, and without this the only thing left to tell two of them apart is their
+    /// content, which is identical whenever a model asks for the same thing twice.
+    pub position: PositionPath,
     /// The message source (event or attribute)
     pub source: MessageSource,
     /// Message category (user, assistant, tool, etc.)
@@ -73,7 +86,7 @@ pub fn to_sideml_with_context(
     let mut tool_names: HashMap<String, String> = HashMap::new();
     let mut messages: Vec<SideMLMessage> = Vec::with_capacity(expanded.len());
 
-    for raw in &expanded {
+    for (raw, position) in &expanded {
         // Derive role from event name at query time, considering span context
         let content_with_role = derive_role_from_source_with_context(raw, is_tool_span);
 
@@ -101,6 +114,7 @@ pub fn to_sideml_with_context(
         };
 
         messages.push(SideMLMessage {
+            position: position.clone(),
             source: raw.source.clone(),
             category,
             source_type,
@@ -183,10 +197,11 @@ fn is_expandable_message_array_source(source_name: &str) -> bool {
 ///
 /// This happens at query time (not ingestion) for ingestion-independence:
 /// fixes apply to historical data without re-ingestion.
-fn expand_bundled_tool_results(raw_messages: &[RawMessage]) -> Vec<RawMessage> {
+fn expand_bundled_tool_results(raw_messages: &[RawMessage]) -> Vec<Observed> {
     let mut result = Vec::with_capacity(raw_messages.len());
 
-    for raw in raw_messages {
+    for (index, raw) in raw_messages.iter().enumerate() {
+        let path = PositionPath::root(index);
         // Check source to determine expansion type
         let source_name = match &raw.source {
             MessageSource::Event { name, .. } => Some(name.as_str()),
@@ -195,7 +210,7 @@ fn expand_bundled_tool_results(raw_messages: &[RawMessage]) -> Vec<RawMessage> {
 
         // Handle message array expansion from known sources
         if source_name.is_some_and(is_expandable_message_array_source) {
-            expand_message_array(&mut result, raw);
+            expand_message_array(&mut result, raw, &path);
             continue;
         }
 
@@ -204,13 +219,13 @@ fn expand_bundled_tool_results(raw_messages: &[RawMessage]) -> Vec<RawMessage> {
         let is_tool_result_event = source_name == Some("gen_ai.tool.result");
 
         if (role == Some("tool") || is_tool_result_event)
-            && expand_bundled_tool_result(&mut result, raw)
+            && expand_bundled_tool_result(&mut result, raw, &path)
         {
             continue;
         }
 
         // No expansion needed - keep as-is
-        result.push(raw.clone());
+        result.push((raw.clone(), path));
     }
 
     result
@@ -227,15 +242,26 @@ fn expand_bundled_tool_results(raw_messages: &[RawMessage]) -> Vec<RawMessage> {
 /// - Nested in "messages": `{messages: [{role, content}, ...]}`
 /// - Nested in "message": `{message: {role, content}, ...}` (singular — unwrapped)
 /// - Streaming combined: `{combined_chunk_content: "text"}` (synthesized as assistant message)
-fn expand_message_array(result: &mut Vec<RawMessage>, raw: &RawMessage) {
+fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &PositionPath) {
     // Find an array to expand. Only consider nested "content"/"messages" fields
     // if they ARE arrays. A string "content" field is the message's actual content,
     // not a nested message array.
-    let array_to_expand: Option<&Vec<JsonValue>> = raw
-        .content
-        .as_array()
-        .or_else(|| raw.content.get("content").and_then(|c| c.as_array()))
-        .or_else(|| raw.content.get("messages").and_then(|m| m.as_array()));
+    // The member the array came from is part of the path, so an observation can say it was the third
+    // entry of `messages` rather than merely "the third thing here".
+    let (array_to_expand, array_key): (Option<&Vec<JsonValue>>, Option<&str>) =
+        if let Some(direct) = raw.content.as_array() {
+            (Some(direct), None)
+        } else if let Some(nested) = raw.content.get("content").and_then(|c| c.as_array()) {
+            (Some(nested), Some("content"))
+        } else if let Some(messages) = raw.content.get("messages").and_then(|m| m.as_array()) {
+            (Some(messages), Some("messages"))
+        } else {
+            (None, None)
+        };
+    let array_path = match array_key {
+        Some(key) => path.child_key(key),
+        None => path.clone(),
+    };
 
     let Some(arr) = array_to_expand else {
         // Single nested message: {message: {role, content, ...}, usage: ...}
@@ -244,10 +270,13 @@ fn expand_message_array(result: &mut Vec<RawMessage>, raw: &RawMessage) {
             .get("message")
             .filter(|m| is_message_like_object(m))
         {
-            result.push(RawMessage {
-                source: raw.source.clone(),
-                content: msg.clone(),
-            });
+            result.push((
+                RawMessage {
+                    source: raw.source.clone(),
+                    content: msg.clone(),
+                },
+                path.child_key("message"),
+            ));
         // Streaming combined content: {combined_chunk_content: "...", chunk_count: N}
         } else if let Some(text) = raw
             .content
@@ -255,13 +284,16 @@ fn expand_message_array(result: &mut Vec<RawMessage>, raw: &RawMessage) {
             .and_then(|c| c.as_str())
             .filter(|s| !s.is_empty())
         {
-            result.push(RawMessage {
-                source: raw.source.clone(),
-                content: json!({"role": "assistant", "content": text}),
-            });
+            result.push((
+                RawMessage {
+                    source: raw.source.clone(),
+                    content: json!({"role": "assistant", "content": text}),
+                },
+                path.child_key("combined_chunk_content"),
+            ));
         } else {
             // Not an expandable structure — keep as-is
-            result.push(raw.clone());
+            result.push((raw.clone(), path.clone()));
         }
         return;
     };
@@ -271,7 +303,7 @@ fn expand_message_array(result: &mut Vec<RawMessage>, raw: &RawMessage) {
 
     if !has_message_like_items {
         // Array doesn't contain messages (e.g., content blocks array)
-        result.push(raw.clone());
+        result.push((raw.clone(), path.clone()));
         return;
     }
 
@@ -296,10 +328,13 @@ fn expand_message_array(result: &mut Vec<RawMessage>, raw: &RawMessage) {
             None
         };
         if let Some(text) = system_text {
-            result.push(RawMessage {
-                source: raw.source.clone(),
-                content: json!({"role": "system", "content": text}),
-            });
+            result.push((
+                RawMessage {
+                    source: raw.source.clone(),
+                    content: json!({"role": "system", "content": text}),
+                },
+                path.child_key("system"),
+            ));
         }
     }
 
@@ -307,12 +342,15 @@ fn expand_message_array(result: &mut Vec<RawMessage>, raw: &RawMessage) {
     let mut expanded_count = 0;
     let mut skipped_count = 0;
 
-    for item in arr {
+    for (position, item) in arr.iter().enumerate() {
         if is_message_like_object(item) {
-            result.push(RawMessage {
-                source: raw.source.clone(),
-                content: item.clone(),
-            });
+            result.push((
+                RawMessage {
+                    source: raw.source.clone(),
+                    content: item.clone(),
+                },
+                array_path.child_index(position),
+            ));
             expanded_count += 1;
         } else {
             skipped_count += 1;
@@ -348,7 +386,11 @@ fn is_message_like_object(value: &JsonValue) -> bool {
 /// - Direct array: `[{"toolResult": {...}}, {"toolResult": {...}}]`
 ///
 /// Returns true if expansion occurred, false otherwise.
-fn expand_bundled_tool_result(result: &mut Vec<RawMessage>, raw: &RawMessage) -> bool {
+fn expand_bundled_tool_result(
+    result: &mut Vec<Observed>,
+    raw: &RawMessage,
+    path: &PositionPath,
+) -> bool {
     // Check if content is nested in "content" field or is a direct array
     let (content_array, is_nested) =
         if let Some(nested) = raw.content.get("content").and_then(|c| c.as_array()) {
@@ -376,8 +418,14 @@ fn expand_bundled_tool_result(result: &mut Vec<RawMessage>, raw: &RawMessage) ->
         "Expanding bundled tool results into separate messages"
     );
 
-    // Split bundled tool results into separate messages
-    for item in tool_results {
+    // Split bundled tool results into separate messages. Each result keeps the position it held in
+    // the bundle, so two results of two identical calls are two observations rather than one.
+    let bundle_path = if is_nested {
+        path.child_key("content")
+    } else {
+        path.clone()
+    };
+    for (position, &item) in tool_results.iter().enumerate() {
         // Handle both camelCase (Bedrock) and snake_case variants
         let tr = item.get("toolResult").or_else(|| item.get("tool_result"));
 
@@ -416,10 +464,13 @@ fn expand_bundled_tool_result(result: &mut Vec<RawMessage>, raw: &RawMessage) ->
             new_obj
         };
 
-        result.push(RawMessage {
-            source: raw.source.clone(),
-            content: new_content,
-        });
+        result.push((
+            RawMessage {
+                source: raw.source.clone(),
+                content: new_content,
+            },
+            bundle_path.child_index(position),
+        ));
     }
 
     true
@@ -468,7 +519,9 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
         let mut non_tool_blocks = Vec::new();
         let mut non_tool_emitted = false;
 
-        for block in &msg.sideml.content {
+        // Enumerated: a split tool message takes the position of the block it was made from, which is
+        // what tells two identical calls of one response apart once each is its own message.
+        for (block_position, block) in msg.sideml.content.iter().enumerate() {
             match block {
                 ContentBlock::ToolUse { .. } => {
                     // Emit accumulated non-tool blocks before this tool block
@@ -484,6 +537,7 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
                         ..Default::default()
                     };
                     result.push(SideMLMessage {
+                        position: msg.position.child_index(block_position),
                         source: msg.source.clone(),
                         category: msg.category,
                         source_type: msg.source_type,
@@ -509,6 +563,7 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
                         ..Default::default()
                     };
                     result.push(SideMLMessage {
+                        position: msg.position.child_index(block_position),
                         source: msg.source.clone(),
                         category: msg.category,
                         source_type: msg.source_type,
@@ -548,6 +603,9 @@ fn emit_non_tool_message(
         ..Default::default()
     };
     result.push(SideMLMessage {
+        // The parent's position: this message stands for several blocks of it, so there is no single
+        // block index to name.
+        position: msg.position.clone(),
         source: msg.source.clone(),
         category: msg.category,
         source_type: msg.source_type,
@@ -965,15 +1023,15 @@ mod tests {
         };
 
         let mut result = Vec::new();
-        expand_message_array(&mut result, &raw);
+        expand_message_array(&mut result, &raw, &PositionPath::root(0));
 
         assert_eq!(result.len(), 1, "Single message should be preserved");
         assert_eq!(
-            result[0].content.get("role").and_then(|r| r.as_str()),
+            result[0].0.content.get("role").and_then(|r| r.as_str()),
             Some("system")
         );
         assert_eq!(
-            result[0].content.get("content").and_then(|c| c.as_str()),
+            result[0].0.content.get("content").and_then(|c| c.as_str()),
             Some("You are a helpful assistant.")
         );
     }
@@ -993,7 +1051,7 @@ mod tests {
         };
 
         let mut result = Vec::new();
-        expand_message_array(&mut result, &raw);
+        expand_message_array(&mut result, &raw, &PositionPath::root(0));
 
         assert_eq!(
             result.len(),
@@ -1001,7 +1059,7 @@ mod tests {
             "Single message with content blocks should be preserved"
         );
         assert_eq!(
-            result[0].content.get("role").and_then(|r| r.as_str()),
+            result[0].0.content.get("role").and_then(|r| r.as_str()),
             Some("user")
         );
     }
@@ -1021,15 +1079,15 @@ mod tests {
         };
 
         let mut result = Vec::new();
-        expand_message_array(&mut result, &raw);
+        expand_message_array(&mut result, &raw, &PositionPath::root(0));
 
         assert_eq!(result.len(), 2, "Should expand to 2 messages");
         assert_eq!(
-            result[0].content.get("role").and_then(|r| r.as_str()),
+            result[0].0.content.get("role").and_then(|r| r.as_str()),
             Some("system")
         );
         assert_eq!(
-            result[1].content.get("role").and_then(|r| r.as_str()),
+            result[1].0.content.get("role").and_then(|r| r.as_str()),
             Some("user")
         );
     }
@@ -1051,7 +1109,7 @@ mod tests {
         };
 
         let mut result = Vec::new();
-        expand_message_array(&mut result, &raw);
+        expand_message_array(&mut result, &raw, &PositionPath::root(0));
 
         assert_eq!(result.len(), 2, "Should expand nested messages array");
     }
@@ -1071,7 +1129,7 @@ mod tests {
         };
 
         let mut result = Vec::new();
-        expand_message_array(&mut result, &raw);
+        expand_message_array(&mut result, &raw, &PositionPath::root(0));
 
         assert_eq!(result.len(), 2, "Gemini format should be expanded");
     }
@@ -1111,6 +1169,7 @@ mod tests {
     fn test_flatten_tool_blocks_preserves_order() {
         // Test that non-tool blocks appear at their first occurrence position
         let msg = SideMLMessage {
+            position: PositionPath::default(),
             source: event_source("gen_ai.assistant.message"),
             category: MessageCategory::GenAIAssistantMessage,
             source_type: MessageSourceType::Event,
@@ -1159,6 +1218,7 @@ mod tests {
     fn test_flatten_tool_blocks_text_after_tools() {
         // Test that text after tools stays at the end
         let msg = SideMLMessage {
+            position: PositionPath::default(),
             source: event_source("gen_ai.assistant.message"),
             category: MessageCategory::GenAIAssistantMessage,
             source_type: MessageSourceType::Event,
@@ -1207,6 +1267,7 @@ mod tests {
     fn test_flatten_tool_blocks_single_tool_unchanged() {
         // Messages with 0 or 1 tool blocks should pass through unchanged
         let msg = SideMLMessage {
+            position: PositionPath::default(),
             source: event_source("gen_ai.assistant.message"),
             category: MessageCategory::GenAIAssistantMessage,
             source_type: MessageSourceType::Event,
@@ -1241,6 +1302,7 @@ mod tests {
     fn test_flatten_tool_blocks_multiple_tool_results() {
         // Test flattening multiple tool results (parallel tool execution)
         let msg = SideMLMessage {
+            position: PositionPath::default(),
             source: event_source("gen_ai.tool.message"),
             category: MessageCategory::GenAIToolMessage,
             source_type: MessageSourceType::Event,
@@ -1297,6 +1359,7 @@ mod tests {
     fn test_flatten_tool_blocks_mixed_tool_use_and_result() {
         // Edge case: Message with both ToolUse and ToolResult (unusual but possible)
         let msg = SideMLMessage {
+            position: PositionPath::default(),
             source: event_source("gen_ai.assistant.message"),
             category: MessageCategory::GenAIAssistantMessage,
             source_type: MessageSourceType::Event,
@@ -1450,7 +1513,7 @@ mod tests {
         };
 
         let mut result = Vec::new();
-        expand_message_array(&mut result, &raw);
+        expand_message_array(&mut result, &raw, &PositionPath::root(0));
 
         assert_eq!(
             result.len(),
@@ -1458,11 +1521,11 @@ mod tests {
             "Should expand messages array from request_data"
         );
         assert_eq!(
-            result[0].content.get("role").and_then(|r| r.as_str()),
+            result[0].0.content.get("role").and_then(|r| r.as_str()),
             Some("system")
         );
         assert_eq!(
-            result[1].content.get("role").and_then(|r| r.as_str()),
+            result[1].0.content.get("role").and_then(|r| r.as_str()),
             Some("user")
         );
     }
@@ -1482,15 +1545,15 @@ mod tests {
         };
 
         let mut result = Vec::new();
-        expand_message_array(&mut result, &raw);
+        expand_message_array(&mut result, &raw, &PositionPath::root(0));
 
         assert_eq!(result.len(), 1, "Should unwrap singular message");
         assert_eq!(
-            result[0].content.get("role").and_then(|r| r.as_str()),
+            result[0].0.content.get("role").and_then(|r| r.as_str()),
             Some("assistant")
         );
         assert_eq!(
-            result[0].content.get("content").and_then(|c| c.as_str()),
+            result[0].0.content.get("content").and_then(|c| c.as_str()),
             Some("Hi there!")
         );
     }
@@ -1514,11 +1577,11 @@ mod tests {
         };
 
         let mut result = Vec::new();
-        expand_message_array(&mut result, &raw);
+        expand_message_array(&mut result, &raw, &PositionPath::root(0));
 
         assert_eq!(result.len(), 1, "Should unwrap message with tool_calls");
         assert!(
-            result[0].content.get("tool_calls").is_some(),
+            result[0].0.content.get("tool_calls").is_some(),
             "tool_calls should be preserved"
         );
     }
@@ -1538,7 +1601,7 @@ mod tests {
         };
 
         let mut result = Vec::new();
-        expand_message_array(&mut result, &raw);
+        expand_message_array(&mut result, &raw, &PositionPath::root(0));
 
         assert_eq!(
             result.len(),
@@ -1546,11 +1609,11 @@ mod tests {
             "Should synthesize message from streaming content"
         );
         assert_eq!(
-            result[0].content.get("role").and_then(|r| r.as_str()),
+            result[0].0.content.get("role").and_then(|r| r.as_str()),
             Some("assistant")
         );
         assert_eq!(
-            result[0].content.get("content").and_then(|c| c.as_str()),
+            result[0].0.content.get("content").and_then(|c| c.as_str()),
             Some("Hello from streaming!")
         );
     }
@@ -1570,7 +1633,7 @@ mod tests {
         };
 
         let mut result = Vec::new();
-        expand_message_array(&mut result, &raw);
+        expand_message_array(&mut result, &raw, &PositionPath::root(0));
 
         assert_eq!(
             result.len(),
@@ -1578,6 +1641,6 @@ mod tests {
             "Should keep as-is when streaming content is empty"
         );
         // Kept as-is (the original wrapper object)
-        assert!(result[0].content.get("combined_chunk_content").is_some());
+        assert!(result[0].0.content.get("combined_chunk_content").is_some());
     }
 }

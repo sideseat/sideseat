@@ -597,6 +597,7 @@ impl HistoryStats {
 mod tests {
     use super::*;
     use crate::data::types::MessageCategory;
+    use crate::domain::sideml::provenance::PositionPath;
     use crate::domain::sideml::types::FinishReason;
     use chrono::Utc;
 
@@ -625,6 +626,7 @@ mod tests {
         };
 
         BlockEntry {
+            position: PositionPath::default(),
             entry_type: entry_type.to_string(),
             content,
             role: ChatRole::Assistant,
@@ -725,6 +727,7 @@ mod tests {
         };
 
         BlockEntry {
+            position: PositionPath::default(),
             entry_type: entry_type.to_string(),
             content,
             role,
