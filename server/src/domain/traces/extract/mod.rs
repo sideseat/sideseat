@@ -70,6 +70,7 @@ pub(super) fn extract_json<T: serde::de::DeserializeOwned>(
 // Re-export public types
 pub use self::attributes::SpanData;
 pub use self::messages::{MessageSource, RawMessage, RawToolDefinition, RawToolNames};
+pub(crate) use messages::ExtractionMode;
 
 // ============================================================================
 // ATTRIBUTE KEYS
@@ -532,6 +533,7 @@ pub(super) fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> V
 pub(super) fn extract_messages_batch(
     request: &ExportTraceServiceRequest,
     spans: &[SpanData],
+    mode: messages::ExtractionMode,
 ) -> (
     Vec<Vec<RawMessage>>,
     Vec<Vec<RawToolDefinition>>,
@@ -554,6 +556,7 @@ pub(super) fn extract_messages_batch(
                         otlp_span,
                         &span_attrs,
                         span.timestamp_start,
+                        mode,
                     );
                 all_messages.push(raw_messages);
                 all_tool_definitions.push(tool_definitions);

@@ -4366,7 +4366,7 @@ fn test_strands_tool_span_with_input_and_output_events() {
     ]);
 
     let (messages, tool_defs, _tool_names) =
-        extract_messages_for_span(&span, &span_attrs, Utc::now());
+        extract_messages_for_span(&span, &span_attrs, Utc::now(), ExtractionMode::FirstMatch);
 
     // Both events should be extracted
     assert_eq!(
@@ -4464,7 +4464,7 @@ fn test_tool_span_extracts_tool_definitions() {
     ]);
 
     let (_messages, tool_defs, _tool_names) =
-        extract_messages_for_span(&span, &span_attrs, Utc::now());
+        extract_messages_for_span(&span, &span_attrs, Utc::now(), ExtractionMode::FirstMatch);
 
     assert_eq!(
         tool_defs.len(),
@@ -4582,7 +4582,7 @@ fn test_strands_tool_span_exact_user_sample() {
     ]);
 
     let (messages, tool_defs, _tool_names) =
-        extract_messages_for_span(&span, &span_attrs, Utc::now());
+        extract_messages_for_span(&span, &span_attrs, Utc::now(), ExtractionMode::FirstMatch);
 
     // Both events should be extracted
     assert_eq!(
@@ -4679,7 +4679,7 @@ fn test_chat_span_with_tool_use_not_affected_by_tool_span_logic() {
     ]);
 
     let (messages, _tool_defs, _tool_names) =
-        extract_messages_for_span(&span, &span_attrs, Utc::now());
+        extract_messages_for_span(&span, &span_attrs, Utc::now(), ExtractionMode::FirstMatch);
 
     assert_eq!(
         messages.len(),
@@ -4748,7 +4748,7 @@ fn test_tool_span_without_call_id_attribute() {
     ]);
 
     let (messages, _tool_defs, _tool_names) =
-        extract_messages_for_span(&span, &span_attrs, Utc::now());
+        extract_messages_for_span(&span, &span_attrs, Utc::now(), ExtractionMode::FirstMatch);
 
     assert_eq!(messages.len(), 1);
     let msg = &messages[0];
@@ -4963,8 +4963,12 @@ fn test_extract_messages_for_span_vercel_ai_sdk() {
     );
 
     // Call extract_messages_for_span
-    let (messages, _tool_defs, _tool_names) =
-        extract_messages_for_span(&otlp_span, &span_attrs, Utc::now());
+    let (messages, _tool_defs, _tool_names) = extract_messages_for_span(
+        &otlp_span,
+        &span_attrs,
+        Utc::now(),
+        ExtractionMode::FirstMatch,
+    );
 
     // Verify messages were extracted
     assert!(
@@ -5064,8 +5068,12 @@ fn test_extract_messages_for_span_crewai() {
     );
 
     // Call extract_messages_for_span
-    let (messages, _tool_defs, _tool_names) =
-        extract_messages_for_span(&otlp_span, &span_attrs, Utc::now());
+    let (messages, _tool_defs, _tool_names) = extract_messages_for_span(
+        &otlp_span,
+        &span_attrs,
+        Utc::now(),
+        ExtractionMode::FirstMatch,
+    );
 
     // Four history messages from the messages array, plus the answer from `raw`.
     assert_eq!(
@@ -6126,6 +6134,7 @@ fn test_autogen_tool_execution_event_full_pipeline() {
         &attrs,
         "autogen process RoundRobinGroupChatManager_xyz",
         Utc::now(),
+        ExtractionMode::FirstMatch,
     );
 
     assert_eq!(
@@ -6159,8 +6168,12 @@ fn test_autogen_tool_execution_event_via_extract_messages_for_span() {
     };
 
     let span_attrs = crate::utils::otlp::extract_attributes(&otlp_span.attributes);
-    let (messages, _tool_defs, _tool_names) =
-        extract_messages_for_span(&otlp_span, &span_attrs, Utc::now());
+    let (messages, _tool_defs, _tool_names) = extract_messages_for_span(
+        &otlp_span,
+        &span_attrs,
+        Utc::now(),
+        ExtractionMode::FirstMatch,
+    );
 
     assert_eq!(
         messages.len(),

@@ -39,7 +39,7 @@ use uuid::Uuid;
 
 use super::enrich::enrich_batch;
 use super::extract::files::FileExtractionCache;
-use super::extract::{extract_attributes_batch, extract_messages_batch};
+use super::extract::{ExtractionMode, extract_attributes_batch, extract_messages_batch};
 use super::persist::{
     BatchInput, PendingFileWrite, SseSpanEvent, persist_extracted_files, prepare_batch,
     publish_sse_events, write_to_duckdb,
@@ -344,6 +344,7 @@ impl TracePipeline {
                                                 pricing,
                                                 files_enabled,
                                                 file_cache,
+                                                ExtractionMode::FirstMatch,
                                             )
                                         },
                                     )) {
@@ -389,7 +390,8 @@ impl TracePipeline {
                                                         pricing,
                                                         files_enabled,
                                                         file_cache,
-                                                    )
+        ExtractionMode::FirstMatch,
+    )
                                                 }),
                                             ) {
                                                 Ok(result) => result,
@@ -473,6 +475,7 @@ impl TracePipeline {
             &self.pricing,
             self.file_service.is_enabled(),
             &self.file_cache,
+            ExtractionMode::FirstMatch,
         );
         if let Some((db_spans, pending_files)) = result {
             if db_spans.is_empty() {
@@ -503,11 +506,18 @@ impl TracePipeline {
 /// pipeline. File extraction is off: it performs disk writes and no message property under
 /// test depends on it.
 #[cfg(test)]
-pub(super) fn process_request_for_test(
+/// As [`process_request_for_test`], with the extraction mode chosen by the caller.
+///
+/// The metamorphic test runs a fixture through both modes and compares: the answer under `PerCarrier`
+/// must contain the answer under `FirstMatch`, in the same relative order, plus whatever the carriers
+/// nobody read were holding.
+#[cfg(test)]
+pub(crate) fn process_request_for_test_with_mode(
     request: &ExportTraceServiceRequest,
     pricing: &PricingService,
+    mode: ExtractionMode,
 ) -> Option<(Vec<NormalizedSpan>, Vec<PendingFileWrite>)> {
-    process_request(request, pricing, false, &FileExtractionCache::new())
+    process_request(request, pricing, false, &FileExtractionCache::new(), mode)
 }
 
 /// Process a single OTLP request through stages 1-4.
@@ -519,6 +529,7 @@ fn process_request(
     pricing: &PricingService,
     files_enabled: bool,
     file_cache: &FileExtractionCache,
+    mode: crate::domain::traces::extract::ExtractionMode,
 ) -> Option<(Vec<NormalizedSpan>, Vec<PendingFileWrite>)> {
     // Stage 1a: Extract Attributes
     let spans = extract_attributes_batch(request);
@@ -527,7 +538,8 @@ fn process_request(
     }
 
     // Stage 1b: Extract Messages, Tool Definitions, and Tool Names
-    let (raw_messages, tool_definitions, tool_names) = extract_messages_batch(request, &spans);
+    let (raw_messages, tool_definitions, tool_names) =
+        extract_messages_batch(request, &spans, mode);
 
     // Stage 2: SideML Conversion
     let messages = to_sideml_batch(&raw_messages);

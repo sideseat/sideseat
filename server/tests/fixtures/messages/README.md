@@ -115,7 +115,7 @@ not hide the rest.
 
 ## What is and is not covered
 
-**112 expectation files: 106 captured in 13 suites, plus 6 synthetic.** A suite is not a framework:
+**111 expectation files: 106 captured in 13 suites, plus 5 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
 languages, so the 13 captured suites cover **11 of the 32** frameworks SideSeat recognises. (32 is
 the union of the server's `Framework` classifier and the SDK's framework list, excluding `Unknown`:
@@ -150,7 +150,20 @@ breaks that rule is named.
 | `parallel_tool_calls` | two distinct calls in one response, then both results | causality *without* adjacency: `call, call, result, result` must be allowed |
 | `resent_history` | a later span re-sending the earlier turn | the re-send collapses onto the original rather than duplicating it |
 | `cross_span_tie` | a generation span and its tool span reporting the **identical** instant, with the tool span's id sorting *first* | `adopt_call_positions`. Disable it and this fixture reports the answer at index 1 before its question at index 3; every captured fixture stays green, because none of them ties |
-| `two_carriers_one_span` | the question in `llm.input_messages`, the answer in the same span's `output.value` | **a defect, on purpose.** Extraction stops at the first extractor that claims the span, so the answer is never read. It is listed in `NO_ANSWER_EXPECTED` with that reason; when carrier-level claiming lands, this fixture is what proves it worked |
+
+The carrier-overlap defect is documented by `reading_more_carriers_only_adds_messages` instead of by a
+fixture: it runs every fixture through both extraction modes and reports what each one gains and what
+reorders. A hand-written payload for that shape was tried and dropped - it reproduced the *attributes*
+but not the behaviour, because the LangGraph reader claims only on a `langgraph.*` marker and parses a
+narrower message shape than the one written by hand, so its exemption would have claimed a cause the
+fixture did not exhibit.
+
+The carrier-overlap defect is documented by `reading_more_carriers_only_adds_messages` rather than by a
+fixture: it runs every fixture through both extraction modes and reports what each gains and what
+reorders (today: 20 views gain messages, 10 reorder, all named). A hand-written payload for that shape
+was tried and dropped - it reproduced the *attributes* but not the behaviour, because the LangGraph
+reader claims only on a `langgraph.*` marker and parses a narrower message shape than the one written
+by hand, so its exemption would have asserted a cause the fixture did not exhibit.
 
 ## Capability exemptions
 
