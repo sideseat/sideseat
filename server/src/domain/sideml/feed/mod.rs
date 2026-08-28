@@ -88,6 +88,10 @@ mod classify;
 mod correlate;
 mod dedup;
 mod history;
+// The shadow order resolver (increment 1 of the reconstruction redesign). Test-only: it builds the
+// partial-order timeline but no view consumes it yet - see `order_graph` and `shadow_resolved_order`.
+#[cfg(test)]
+mod order_graph;
 #[cfg(test)]
 mod props;
 mod types;
@@ -290,40 +294,25 @@ pub fn process_trace_spans(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> 
 /// This allows within-trace dedup to correctly preserve genuine repeated content
 /// (the non-history copy wins via +100 quality bonus) while stripping the
 /// history re-send copy.
-fn process_trace_spans_core(
-    rows: Vec<MessageSpanRow>,
+/// Stages 1-4 of the single-trace pipeline: the classified, pre-dedup blocks and the span
+/// timestamps, which is the complete evidence set before any observation is collapsed to a
+/// representative. `process_trace_spans_core` continues from here into dedup and sorting; the shadow
+/// order resolver reads the same output so it judges the evidence production actually reconstructs.
+fn classify_span_blocks(
+    rows: &[MessageSpanRow],
     cross_trace_prefix: Option<&CrossTracePrefixState>,
-) -> FeedResult {
+) -> (Vec<BlockEntry>, HashMap<String, SpanTimestamps>) {
     // Build span hierarchy for span_path computation
-    let span_hierarchy = build_span_hierarchy(&rows);
+    let span_hierarchy = build_span_hierarchy(rows);
 
     // Build span timestamps map for birth time computation
-    let span_timestamps = build_span_timestamps(&rows);
+    let span_timestamps = build_span_timestamps(rows);
 
     // Stage 1: Parse raw messages and convert to SideML
-    let mut parsed_messages = parse_span_rows(&rows);
-
-    // Extract tools from all rows
-    let extracted_tools = extract_tools_from_rows(&rows);
+    let mut parsed_messages = parse_span_rows(rows);
 
     // Stage 1b: Append error messages from leaf error spans
-    append_error_messages(&mut parsed_messages, &rows);
-
-    // Debug: Log parsed message counts by role
-    if tracing::enabled!(tracing::Level::DEBUG) {
-        let msg_count_by_role: HashMap<_, usize> = parsed_messages
-            .iter()
-            .map(|m| m.message.role)
-            .fold(HashMap::new(), |mut acc, role| {
-                *acc.entry(role).or_insert(0) += 1;
-                acc
-            });
-        tracing::trace!(
-            total = parsed_messages.len(),
-            by_role = ?msg_count_by_role,
-            "Feed: after parse_span_rows"
-        );
-    }
+    append_error_messages(&mut parsed_messages, rows);
 
     // Stage 2: Flatten to individual blocks with metadata
     // All blocks start with is_history = false
@@ -354,23 +343,32 @@ fn process_trace_spans_core(
     // - is_history: marks non-authoritative blocks for filtering
     classify_blocks(&mut blocks, &span_timestamps);
 
-    // Debug: Log block counts by entry_type after flatten
-    if tracing::enabled!(tracing::Level::DEBUG) {
-        let block_count_by_type: HashMap<_, usize> = blocks
-            .iter()
-            .map(|b| b.entry_type.as_str())
-            .fold(HashMap::new(), |mut acc, t| {
-                *acc.entry(t).or_insert(0) += 1;
-                acc
-            });
-        let history_count = blocks.iter().filter(|b| b.is_history).count();
-        tracing::trace!(
-            total = blocks.len(),
-            by_type = ?block_count_by_type,
-            history_count,
-            "Feed: after flatten_to_blocks"
-        );
-    }
+    (blocks, span_timestamps)
+}
+
+/// The shadow resolver's order over one trace's blocks — the redesign's partial-order timeline,
+/// built from the same evidence and survivors production uses, but consumed by nothing yet. Tests
+/// assert it derives orders the scalar sort key gets wrong.
+#[cfg(test)]
+pub(crate) fn shadow_resolved_order(rows: Vec<MessageSpanRow>) -> Vec<BlockEntry> {
+    let (blocks, span_timestamps) = classify_span_blocks(&rows, None);
+    let pre_dedup = blocks.clone();
+    let survivors = dedup::process_dedup(blocks, span_timestamps.clone());
+    let survivors = correlate::withdraw_unbacked_ids(survivors);
+    order_graph::resolve(&pre_dedup, &survivors, &span_timestamps)
+}
+
+fn process_trace_spans_core(
+    rows: Vec<MessageSpanRow>,
+    cross_trace_prefix: Option<&CrossTracePrefixState>,
+) -> FeedResult {
+    // Extract tools from all rows
+    let extracted_tools = extract_tools_from_rows(&rows);
+
+    // Stages 1-4: parse, flatten, correlate and classify - everything the pipeline knows before
+    // dedup collapses the observations to one representative each. Extracted once so the shadow
+    // order resolver (`order_graph`) reads exactly the evidence production reconstructs from.
+    let (blocks, span_timestamps) = classify_span_blocks(&rows, cross_trace_prefix);
 
     // Stages 5-6: Deduplicate by identity, sort by birth time
     let blocks = process_dedup(blocks, span_timestamps);

@@ -48,7 +48,7 @@ use crate::api::routes::otel::messages::scope_feed_to_trace;
 use crate::data::types::MessageSpanRow;
 use crate::domain::pricing::PricingService;
 use crate::domain::sideml::feed::{
-    FeedOptions, extract_tools_from_rows, process_feed, process_spans,
+    FeedOptions, extract_tools_from_rows, process_feed, process_spans, shadow_resolved_order,
 };
 use crate::domain::traces::extract::ExtractionMode;
 
@@ -1966,4 +1966,102 @@ fn content_digest_detects_changes_beyond_the_preview() {
     let n1 = json!({"a": {"x": 1, "y": 2}, "b": [{"p": 1, "q": 2}]});
     let n2 = json!({"b": [{"q": 2, "p": 1}], "a": {"y": 2, "x": 1}});
     assert_eq!(content_digest(&n1), content_digest(&n2));
+}
+
+// ============================================================================
+// Shadow order resolver (increment 1 of the reconstruction redesign)
+// ============================================================================
+
+/// Roles/kinds of one trace's blocks, in shadow-resolver order.
+fn shadow_order_of(label: &str) -> Vec<(String, String)> {
+    let (_, paths) = discover_fixtures()
+        .into_iter()
+        .find(|(l, _)| l == label)
+        .unwrap_or_else(|| panic!("fixture {label} not found"));
+    let all: Vec<MessageSpanRow> = rows_for(&paths).into_iter().map(|(_, r)| r).collect();
+    let first = all[0].trace_id.clone();
+    let rows = sorted_by_timestamp(
+        all.into_iter()
+            .filter(|r| r.trace_id == first && passes_content_filter(r))
+            .collect(),
+    );
+    shadow_resolved_order(rows)
+        .into_iter()
+        .map(|b| (b.role.as_str().to_string(), b.entry_type))
+        .collect()
+}
+
+/// The case that motivated the redesign. On `strands-js/swarm` the intro text and the tool call it
+/// introduces are one `gen_ai.choice` emission on the chat span, but dedup keeps the Planner span's
+/// re-listed copy of the text, so the scalar sort key detaches the text and the trace view returns
+/// `assistant/tool_use, tool/tool_result, assistant/text` — the intro trailing the result it
+/// introduces.
+///
+/// The shadow resolver contracts the emission (so the text stays with its call) and adds the
+/// call → result edge, yielding intro, then call, then result. This is the property increment 1
+/// exists to prove before any view consumes the new order.
+#[test]
+fn shadow_resolver_keeps_intro_with_its_call_before_the_result() {
+    let order = shadow_order_of("strands-js/swarm");
+
+    let text = order
+        .iter()
+        .position(|(r, k)| r == "assistant" && k == "text")
+        .expect("an assistant text block");
+    let call = order
+        .iter()
+        .position(|(_, k)| k == "tool_use")
+        .expect("a tool_use block");
+    let result = order
+        .iter()
+        .position(|(_, k)| k == "tool_result")
+        .expect("a tool_result block");
+
+    assert!(
+        text < call,
+        "intro text (at {text}) must precede the call it introduces (at {call}); order was {order:?}"
+    );
+    assert!(
+        call < result,
+        "the call (at {call}) must precede its result (at {result}); order was {order:?}"
+    );
+}
+
+/// The resolver is a permutation: it reorders survivors, it does not add, drop or alter them.
+#[test]
+fn shadow_resolver_is_a_permutation_of_the_survivors() {
+    for label in ["strands-js/swarm", "strands/tool_use", "strands/mcp_tools"] {
+        let (_, paths) = discover_fixtures()
+            .into_iter()
+            .find(|(l, _)| l == label)
+            .unwrap_or_else(|| panic!("fixture {label} not found"));
+        let all: Vec<MessageSpanRow> = rows_for(&paths).into_iter().map(|(_, r)| r).collect();
+        let first = all[0].trace_id.clone();
+        let rows = sorted_by_timestamp(
+            all.into_iter()
+                .filter(|r| r.trace_id == first && passes_content_filter(r))
+                .collect(),
+        );
+
+        let baseline = process_spans(rows.clone(), &FeedOptions::new());
+        let shadow = shadow_resolved_order(rows);
+
+        assert_eq!(
+            shadow.len(),
+            baseline.messages.len(),
+            "{label}: shadow order dropped or added blocks"
+        );
+        let mut a: Vec<String> = shadow.iter().map(|b| b.content_hash.clone()).collect();
+        let mut b: Vec<String> = baseline
+            .messages
+            .iter()
+            .map(|b| b.content_hash.clone())
+            .collect();
+        a.sort();
+        b.sort();
+        assert_eq!(
+            a, b,
+            "{label}: shadow order is not a permutation of the survivors"
+        );
+    }
 }
