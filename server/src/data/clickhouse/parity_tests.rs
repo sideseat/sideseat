@@ -229,6 +229,23 @@ fn fixture_spans() -> Vec<NormalizedSpan> {
             gen_ai_request_model: Some("claude-haiku".to_string()),
             ..base("trace-g", "g-root", "http-post", 50)
         },
+        // trace-i: the session id is on the root span only, which is how several frameworks record
+        // it - the session queries have a CTE for exactly that reason. The session's totals have to
+        // include the child, which carries the tokens and no session id of its own.
+        NormalizedSpan {
+            session_id: Some("session-3".to_string()),
+            observation_type: Some(ObservationType::Agent),
+            ..base("trace-i", "i-root", "agent", 70)
+        },
+        generation(
+            NormalizedSpan {
+                parent_span_id: Some("i-root".to_string()),
+                ..base("trace-i", "i-gen", "generation", 71)
+            },
+            300,
+            30,
+            0.003,
+        ),
         // trace-h: qualifies through token usage alone - no observation type, no provider, no
         // model. Instrumentation that reports only what a call cost looks like this, and a
         // predicate that checks the provider and the request model dropped it.
@@ -688,6 +705,47 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         sorted(duck_sessions.iter().map(describe_session).collect()),
         sorted(ch_sessions.iter().map(describe_session).collect()),
         "list_sessions differs between backends"
+    );
+
+    // The session whose id is on the root span only: its totals must include the child span, which
+    // carries the tokens. Restricting the aggregation to rows that name the session counted the
+    // root alone and reported a session with no tokens at all.
+    let root_only = duck
+        .get_session(PROJECT, "session-3")
+        .await
+        .expect("duckdb get_session")
+        .expect("session-3 exists");
+    assert_eq!(
+        root_only.span_count, 2,
+        "the session's span count excluded the child span"
+    );
+    assert_eq!(
+        root_only.total_tokens, 330,
+        "the session's tokens excluded the child span, which is the span that has them"
+    );
+    assert_eq!(
+        describe_session(&root_only),
+        describe_session(
+            &ch.get_session(PROJECT, "session-3")
+                .await
+                .expect("clickhouse get_session")
+                .expect("session-3 exists")
+        ),
+        "get_session(session-3) differs between backends"
+    );
+
+    // And the same session as the *list* reports it. The single-session query resolves the
+    // session's traces first, so it sees the child; the list grouped rows by the id they carry,
+    // which is a different set - so the row a user sees in the list and the page they open from it
+    // disagreed.
+    let listed = duck_sessions
+        .iter()
+        .find(|s| s.session_id == "session-3")
+        .expect("session-3 in the list");
+    assert_eq!(
+        describe_session(listed),
+        describe_session(&root_only),
+        "the session list and the single-session view disagree"
     );
 
     for session_id in ["session-1", "session-2"] {
@@ -1684,15 +1742,15 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         .expect("duckdb trace options");
     let described = describe_option_map(d);
     for expected in [
-        // Every span carries this environment, and there are eight traces.
-        "environment: test=8",
+        // Every span carries this environment, and there are nine traces.
+        "environment: test=9",
         // Two sessions, one covering two traces and one covering one.
-        "session_id: session-1=2,session-2=1",
+        "session_id: session-1=2,session-2=1,session-3=1",
         "user_id: user-1=2",
         // The same names the trace list displays, including trace-c's: it has no root span, so
         // its name comes from the earliest named span, exactly as the list's fallback does. Listing
         // root spans only omitted it, and filtering by the name the UI showed returned nothing.
-        "trace_name: agent=1,earliest-named=1,generation=1,http-post=1,plain-span=2,tool=1,\
+        "trace_name: agent=2,earliest-named=1,generation=1,http-post=1,plain-span=2,tool=1,\
          usage-only=1",
     ] {
         assert!(
@@ -1726,7 +1784,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         // model, but one is trace-g's, which has GenAI attributes and no observation type.
         // Restricting to observations drops it - so a backend ignoring the flag, or treating that
         // span as an observation, fails here.
-        let expected_count = if observations_only { 4 } else { 5 };
+        let expected_count = if observations_only { 5 } else { 6 };
         for (column, value) in [
             ("gen_ai_request_model", "claude-haiku"),
             ("gen_ai_system", "bedrock"),
@@ -1758,11 +1816,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         describe_option_map(c),
         "get_session_filter_options differs between backends"
     );
-    // Counted in sessions here, not traces: both sessions carry the environment, one carries the
-    // user. Two empty maps would otherwise pass.
+    // Counted in sessions here, not traces: all three sessions carry the environment, one carries
+    // the user. Two empty maps would otherwise pass.
     assert_eq!(
         described,
-        vec!["environment: test=2", "user_id: user-1=1"],
+        vec!["environment: test=3", "user_id: user-1=1"],
         "session options do not match the fixture"
     );
 
@@ -1930,7 +1988,9 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
             "e-root".to_string(),
             "f-root".to_string(),
             "g-root".to_string(),
-            "h-root".to_string()
+            "h-root".to_string(),
+            "i-gen".to_string(),
+            "i-root".to_string()
         ],
         "deleting trace-c should leave exactly the unrelated traces"
     );

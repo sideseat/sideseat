@@ -145,17 +145,37 @@ const GEN_TOTALS_COLUMNS: [&str; 12] = [
 /// row, which callers cross-join. `scope` is the WHERE predicate selecting the rows, and
 /// carries whatever bind parameters it names. Requires `dedup_lookup` earlier in the WITH.
 fn gen_totals_cte(key: Option<&str>, scope: &str) -> String {
+    gen_totals_cte_joined(key, "", scope)
+}
+
+/// As [`gen_totals_cte`], with a JOIN.
+///
+/// The session list needs one: a session's totals cover the spans of its traces, and only a mapping
+/// CTE knows which traces those are. ClickHouse rejects a correlated subquery inside a join
+/// (Code 48), so the relation has to be joined rather than referenced from the WHERE.
+fn gen_totals_cte_joined(key: Option<&str>, join: &str, scope: &str) -> String {
+    // Aliased to the bare column name: a qualified expression keeps its qualifier as the output
+    // column name in ClickHouse, so `SELECT st.session_id` produced a CTE whose column could not be
+    // referenced as `gt.session_id`.
     let select_key = key
-        .map(|k| format!("{k},\n                "))
+        .map(|k| {
+            let bare = k.rsplit('.').next().unwrap_or(k);
+            format!("{k} AS {bare},\n                ")
+        })
         .unwrap_or_default();
     let group_by = key
         .map(|k| format!("\n            GROUP BY {k}"))
         .unwrap_or_default();
+    let join = if join.is_empty() {
+        String::new()
+    } else {
+        format!("\n            {join}")
+    };
     format!(
         r#"gen_totals AS (
             SELECT
                 {select_key}{GEN_TOTALS_SUMS}
-            FROM otel_spans g FINAL
+            FROM otel_spans g FINAL{join}
             WHERE {scope}
               AND {dedup_condition}{group_by}
         )"#,
@@ -1293,11 +1313,20 @@ pub async fn list_sessions(
     let data_sql = format!(
         r#"
         WITH {dedup_cte},
+        session_traces AS (
+            -- Which traces belong to which session; see the DuckDB copy for why aggregating the
+            -- rows that name a session is not enough.
+            SELECT DISTINCT sp.project_id, sp.session_id, sp.trace_id
+            FROM otel_spans sp FINAL
+            WHERE {where_clause}
+        ),
         {gen_totals},
         filtered_sessions AS (
             SELECT
-                sp.project_id,
-                sp.session_id,
+                -- Aliased explicitly: a qualified column keeps its qualifier as the output name, so
+                -- `stf.project_id` was not addressable as `f.project_id` outside.
+                stf.project_id as project_id,
+                stf.session_id as session_id,
                 min(sp.timestamp_start) as min_ts,
                 -- Sortable, so computed here rather than falling through to min_ts.
                 max(coalesce(sp.timestamp_end, sp.timestamp_start)) as max_ts,
@@ -1305,12 +1334,13 @@ pub async fn list_sessions(
                 count(DISTINCT sp.trace_id) as trace_count,
                 count() as span_count,
                 countIf(sp.observation_type != 'span') as observation_count
-            FROM otel_spans sp FINAL
-            LEFT JOIN gen_totals gt ON sp.session_id = gt.session_id
-            WHERE {where_clause}
-            GROUP BY sp.project_id, sp.session_id
+            FROM session_traces stf
+            JOIN otel_spans sp FINAL
+              ON sp.project_id = stf.project_id AND sp.trace_id = stf.trace_id
+            LEFT JOIN gen_totals gt ON gt.session_id = stf.session_id
+            GROUP BY stf.project_id, stf.session_id
             -- The same total key the outer query orders by; see the DuckDB copy.
-            ORDER BY {ch_sort_field} {sort_dir}, min_ts {sort_dir}, sp.session_id ASC
+            ORDER BY {ch_sort_field} {sort_dir}, min_ts {sort_dir}, stf.session_id ASC
             LIMIT {limit} OFFSET {offset}
         )
         SELECT
@@ -1324,14 +1354,23 @@ pub async fn list_sessions(
             countIf(s.observation_type != 'span') AS observation_count,
 {totals}
         FROM filtered_sessions f
-        JOIN otel_spans s FINAL ON f.project_id = s.project_id AND f.session_id = s.session_id
-        LEFT JOIN gen_totals gt2 ON f.session_id = gt2.session_id
+        -- A distinct alias per scope: ClickHouse leaks a CTE's internal aliases into the outer
+        -- query, so reusing one made the join condition ambiguous.
+        JOIN session_traces sto ON sto.project_id = f.project_id AND sto.session_id = f.session_id
+        JOIN otel_spans s FINAL ON s.project_id = sto.project_id AND s.trace_id = sto.trace_id
+        LEFT JOIN gen_totals gt2 ON gt2.session_id = f.session_id
         GROUP BY f.session_id, f.min_ts, f.{ch_sort_field}
         -- See the trace list: the requested column, not just its direction.
         ORDER BY f.{ch_sort_field} {sort_dir}, f.min_ts {sort_dir}, f.session_id ASC
         "#,
         dedup_cte = dedup.0,
-        gen_totals = gen_totals_cte(Some("g.session_id"), &where_clause),
+        // A distinct alias inside the CTE: reusing `st` here made `st.project_id` ambiguous in the
+        // outer query, which joins the same relation under that name.
+        gen_totals = gen_totals_cte_joined(
+            Some("stg.session_id"),
+            "JOIN session_traces stg ON stg.project_id = g.project_id AND stg.trace_id = g.trace_id",
+            "1 = 1"
+        ),
         totals = totals_projection("gt2", &Totals::Grouped).trim_end_matches(','),
         where_clause = where_clause,
         ch_sort_field = ch_sort_field,
@@ -1340,10 +1379,11 @@ pub async fn list_sessions(
         offset = offset
     );
 
-    // Bind: dedup_lookup(project_id + time-scope params) + where_clause x2
+    // Bind: dedup_lookup(project_id + time-scope params) + where_clause once. It appears once now:
+    // the conditions live in session_traces, and the aggregates read the traces it selected.
     let query = client.query(&data_sql).bind(params.project_id.as_str());
     let query = bind_params(query, &dedup.1);
-    let rows: Vec<ChSessionRow> = cb.bind_to_n(query, 2).fetch_all().await?;
+    let rows: Vec<ChSessionRow> = cb.bind_to(query).fetch_all().await?;
 
     Ok((rows.into_iter().map(SessionRow::from).collect(), total))
 }

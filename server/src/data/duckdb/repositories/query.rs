@@ -863,15 +863,28 @@ pub fn list_sessions(
     let offset = (params.page.saturating_sub(1)) * params.limit;
 
     // Build aliased WHERE clauses for CTEs
-    // gen_totals CTE uses alias "g", filtered_sessions CTE uses alias "sp"
-    let (span_where_g, bind_values_g) = build_session_span_conditions(params, "g");
+    // Only the session_traces CTE carries the request's conditions now; the aggregates read the
+    // traces it selected, so there is one bind set instead of two.
     let (span_where_sp, bind_values_sp) = build_session_span_conditions(params, "sp");
 
     let data_sql = format!(
         r#"
-        WITH gen_totals AS (
+        WITH session_traces AS (
+            -- Which traces belong to which session.
+            --
+            -- Selection still looks only at rows that name a session, so a filter means what it
+            -- meant before; the aggregation below then covers those traces in full. Aggregating
+            -- the naming rows alone under-reported every session whose id is recorded on the root
+            -- span only, which is how several frameworks record it - the child generations were
+            -- left out, so the list showed a session with one span and no tokens while opening it
+            -- showed the truth, because the single-session query resolves traces.
+            SELECT DISTINCT sp.project_id, sp.session_id, sp.trace_id
+            FROM {DEDUP_SPANS} sp
+            WHERE {span_where_sp}
+        ),
+        gen_totals AS (
             SELECT
-                g.session_id,
+                st.session_id,
                 COALESCE(SUM(gen_ai_usage_input_tokens), 0) AS input_tokens,
                 COALESCE(SUM(gen_ai_usage_output_tokens), 0) AS output_tokens,
                 COALESCE(SUM(gen_ai_usage_total_tokens), 0) AS total_tokens,
@@ -885,7 +898,9 @@ pub fn list_sessions(
                 COALESCE(SUM(gen_ai_cost_reasoning), 0) AS reasoning_cost,
                 COALESCE(SUM(gen_ai_cost_total), 0) AS total_cost
             FROM {DEDUP_SPANS} g
-            WHERE {span_where_g}
+            JOIN session_traces st
+              ON st.project_id = g.project_id AND st.trace_id = g.trace_id
+            WHERE 1 = 1
               AND (
                   (g.observation_type = 'generation'
                    AND (g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens) > 0
@@ -913,12 +928,12 @@ pub fn list_sessions(
                          AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
                    ))
               )
-            GROUP BY g.session_id
+            GROUP BY st.session_id
         ),
         filtered_sessions AS (
             SELECT
-                sp.project_id,
-                sp.session_id,
+                st.project_id,
+                st.session_id,
                 MIN(sp.timestamp_start) as min_ts,
                 -- max_ts and observation_count are sortable, so they are computed here rather than
                 -- letting `?order_by=end_time` fall through to min_ts.
@@ -927,12 +942,13 @@ pub fn list_sessions(
                 COUNT(DISTINCT sp.trace_id) as trace_count,
                 COUNT(*) as span_count,
                 COUNT(*) FILTER (WHERE sp.observation_type != 'span') as observation_count
-            FROM {DEDUP_SPANS} sp
-            LEFT JOIN gen_totals gt ON sp.session_id = gt.session_id
-            WHERE {span_where_sp}
-            GROUP BY sp.project_id, sp.session_id
+            FROM session_traces st
+            JOIN {DEDUP_SPANS} sp
+              ON sp.project_id = st.project_id AND sp.trace_id = st.trace_id
+            LEFT JOIN gen_totals gt ON gt.session_id = st.session_id
+            GROUP BY st.project_id, st.session_id
             -- The same total key the outer query orders by: requested field, min_ts, session_id.
-            ORDER BY {span_sort_field} {sort_dir}, min_ts {sort_dir}, sp.session_id ASC
+            ORDER BY {span_sort_field} {sort_dir}, min_ts {sort_dir}, st.session_id ASC
             LIMIT {limit} OFFSET {offset}
         )
         SELECT
@@ -957,13 +973,13 @@ pub fn list_sessions(
             COALESCE(MAX(gt2.reasoning_cost), 0)::DOUBLE AS reasoning_cost,
             COALESCE(MAX(gt2.total_cost), 0)::DOUBLE AS total_cost
         FROM filtered_sessions f
-        JOIN {DEDUP_SPANS} s ON f.project_id = s.project_id AND f.session_id = s.session_id
-        LEFT JOIN gen_totals gt2 ON f.session_id = gt2.session_id
+        JOIN session_traces st ON st.project_id = f.project_id AND st.session_id = f.session_id
+        JOIN {DEDUP_SPANS} s ON s.project_id = st.project_id AND s.trace_id = st.trace_id
+        LEFT JOIN gen_totals gt2 ON gt2.session_id = f.session_id
         GROUP BY f.session_id, f.min_ts, f.{span_sort_field}
         -- See the trace list: the requested column, not just its direction.
         ORDER BY f.{span_sort_field} {sort_dir}, f.min_ts {sort_dir}, f.session_id ASC
         "#,
-        span_where_g = span_where_g,
         span_where_sp = span_where_sp,
         span_sort_field = span_sort_field,
         sort_dir = sort_dir,
@@ -973,9 +989,7 @@ pub fn list_sessions(
     );
 
     // Combine bind values: gen_totals CTE first, then filtered_sessions CTE
-    let mut all_bind_values = bind_values_g;
-    all_bind_values.extend(bind_values_sp);
-    let rows = execute_session_query(conn, &data_sql, &all_bind_values)?;
+    let rows = execute_session_query(conn, &data_sql, &bind_values_sp)?;
 
     Ok((rows, total))
 }
