@@ -9506,3 +9506,60 @@ fn a_replayed_trace_still_counts_towards_the_session() {
         result.metadata.total_cost
     );
 }
+
+/// A span delivered twice is billed once, in a session exactly as in a trace.
+///
+/// The DuckDB session query reads the raw span table, so a retried OTLP delivery is two rows for
+/// one span; ClickHouse reads it with FINAL and returns one. The single-trace path collapsed them
+/// in `compute_metadata` and the multi-trace path summed rows, so a session reported double the
+/// tokens of the traces it contains - and the two backends disagreed with each other.
+#[test]
+fn a_span_delivered_twice_is_counted_once_in_a_session() {
+    let turn = json!([
+        {
+            "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+            "content": {"role": "user", "content": "the question"}
+        },
+        {
+            "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:01Z"}},
+            "content": {"role": "assistant", "content": "the answer"}
+        }
+    ]);
+    let second = json!([
+        {
+            "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:10Z"}},
+            "content": {"role": "user", "content": "a second question"}
+        },
+        {
+            "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:11Z"}},
+            "content": {"role": "assistant", "content": "a second answer"}
+        }
+    ]);
+
+    let mut a = make_span_row("trace1", "span1", None, &turn.to_string(), "[]", "[]");
+    a.session_id = Some("session-1".to_string());
+    // The same span, delivered again: identical trace and span id, as a retry produces.
+    let redelivered = a.clone();
+    let mut b = make_span_row("trace2", "span2", None, &second.to_string(), "[]", "[]");
+    b.session_id = Some("session-1".to_string());
+    b.span_timestamp = a.span_timestamp + chrono::Duration::seconds(10);
+    let per_span_tokens = a.total_tokens;
+    let per_span_cost = a.cost_total;
+
+    let result = process_spans(vec![a, redelivered, b], &FeedOptions::new());
+
+    assert_eq!(
+        result.metadata.total_tokens,
+        per_span_tokens * 2,
+        "the retried delivery was billed a second time"
+    );
+    assert!(
+        (result.metadata.total_cost - per_span_cost * 2.0).abs() < f64::EPSILON,
+        "the retried delivery was charged twice: {}",
+        result.metadata.total_cost
+    );
+    assert_eq!(
+        result.metadata.span_count, 2,
+        "one span delivered twice is still one span"
+    );
+}
