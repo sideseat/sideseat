@@ -2,20 +2,25 @@
 
 Inputs for `server/src/domain/traces/message_goldens_tests.rs`, which checks that message
 **count, content, ordering and absence of duplicates** hold for every framework *that has a
-fixture here*, in all three views the API exposes. Coverage is 14 of the 33 frameworks SideSeat
+fixture here*, in all four views the API exposes. Coverage is 14 of the 33 frameworks SideSeat
 recognises and not every fixture has a session view - see [What is and is not
 covered](#what-is-and-is-not-covered), which is the honest version of this sentence:
 
-| View    | Row set                                                     | API endpoint                     |
-| ------- | ----------------------------------------------------------- | -------------------------------- |
-| span    | `WHERE span_id = ?`, no content filter                      | `/spans/{trace}/{span}/messages` |
-| trace   | whole session when the trace has one, then scoped back       | `/traces/{id}/messages`          |
-| session | every row of every trace in the session                      | `/sessions/{id}/messages`        |
+| View    | Row set                                                | API endpoint                     |
+| ------- | ------------------------------------------------------ | -------------------------------- |
+| span    | `WHERE span_id = ?`, no content filter                 | `/spans/{trace}/{span}/messages` |
+| trace   | whole session when the trace has one, then scoped back | `/traces/{id}/messages`          |
+| session | every row of every trace in the session                | `/sessions/{id}/messages`        |
+| feed    | every row, newest response first                       | `/feed/messages`                 |
 
-All three call `process_spans`. `process_feed` is the **project feed** endpoint and sorts DESC;
-using it for the session view tested ordering no session request can return. Trace and session
-row sets apply `MESSAGE_CONTENT_FILTER` and `ORDER BY timestamp_start ASC`, exactly as the
-queries do — feeding unfiltered rows made whole sessions come back empty.
+The first three call `process_spans` and differ only in their row set, so each is built with its
+own - using `process_feed` for a session tested ordering no session request can return. The feed
+has its own entry point and its own ordering, and is here because while it was left out it was the
+only view where a duplicate could surface unchecked. Its pagination is not modelled: that is a
+property of the endpoint, not of parsing.
+
+Trace, session and feed row sets apply `MESSAGE_CONTENT_FILTER` and `ORDER BY timestamp_start
+ASC`, exactly as the queries do — feeding unfiltered rows made whole sessions come back empty.
 
 ## Layout
 
@@ -87,6 +92,11 @@ snapshot still fail on a real defect:
   legitimately has no answer is exempted by name with its reason (only `strands/error`, whose
   sample exists to fail), so the exemption is a claim someone made rather than a silent pass
 - the projection is self-consistent (counts, role sequence and message list agree)
+- all of the above hold for the **project feed** view as well, which has its own pipeline entry
+  point (`process_feed`) and its own ordering - newest response first, each response read
+  top-to-bottom. It was the one view outside the harness, and so the only place a duplicate could
+  surface unchecked. The answer check is the weaker "something answered a question" there: no
+  position in a feed is "the last turn", since it descends across responses and ascends within one
 - processing the same fixture twice gives the same answer, checked once per suite
 
 `UPDATE_GOLDENS=1` reports invariant violations instead of aborting, so one bad fixture does

@@ -179,5 +179,68 @@
       ]
     }
   },
-  "session_views": {}
+  "session_views": {},
+  "feed_view": {
+    "message_count": 6,
+    "role_sequence": [
+      "assistant",
+      "system",
+      "user",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "# Dividing 891 ÷ 9 **Step 1:** Divide the first digit(s) - 9 ÷ 9 = 1 - Write 1, subtract: 9 - 9 = 0 **Step 2:** Bring down the next digit (9) - 0 becomes 09, so we work with 9 - 9 ÷ 9 = 1 - Write 1, subtract: 9 - 9 = 0 **Step 3:** Bring dow…[584 chars]",
+        "content_digest": "8ad1d704586e3b89",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a math tutor. Show your work.",
+        "content_digest": "85b0c1c549eeb9af",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is 891 / 9?",
+        "content_digest": "9abc1ba3fd6ff90d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a math tutor. Show your work.",
+        "content_digest": "85b0c1c549eeb9af",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is 27 * 453?",
+        "content_digest": "5db590129f3f1aa9",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "# Calculating 27 × 453 I'll break this down using the distributive property, splitting 27 into 20 + 7. ## Step 1: Multiply by 20 $$453 \\times 20 = 9,060$$ ## Step 2: Multiply by 7 $$453 \\times 7 = 3,171$$ ## Step 3: Add the results $$9,060 …[452 chars]",
+        "content_digest": "383b03b685812109",
+        "observation_type": "generation"
+      }
+    ]
+  }
 }

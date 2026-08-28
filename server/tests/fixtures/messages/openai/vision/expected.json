@@ -177,5 +177,68 @@
       ]
     }
   },
-  "session_views": {}
+  "session_views": {},
+  "feed_view": {
+    "message_count": 6,
+    "role_sequence": [
+      "user",
+      "assistant",
+      "system",
+      "user",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Based on what you see, what is the main subject or theme of this image?",
+        "content_digest": "a3368b09c7b7712c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The main theme is a peaceful landscaped park, centered on a winding paved footpath surrounded by lawns, trees, and residential buildings in the background.",
+        "content_digest": "f96d1281a48ea729",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an image analyst. Describe content accurately and concisely.",
+        "content_digest": "2896c269386d7fc9",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Describe what you see in this image.",
+        "content_digest": "6488929a66e53aee",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "image",
+        "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+        "content_digest": "f66271bc4504cd52",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "A sunny park scene with a winding black asphalt footpath curving through a broad grassy lawn. A low stone retaining wall borders the raised grass on the left, while mature deciduous and evergreen trees stand throughout the park. Brick resid…[312 chars]",
+        "content_digest": "bb73eaf089642910",
+        "observation_type": "generation"
+      }
+    ]
+  }
 }

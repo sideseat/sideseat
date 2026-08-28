@@ -285,5 +285,95 @@
       ]
     }
   },
-  "session_views": {}
+  "session_views": {},
+  "feed_view": {
+    "message_count": 9,
+    "role_sequence": [
+      "user",
+      "assistant",
+      "user",
+      "user",
+      "assistant",
+      "system",
+      "user",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Based on both the document and image, what is the main takeaway?",
+        "content_digest": "38e4eb1b11293b5e",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**Main takeaway:** The document itself contained no real content beyond a single instruction — \"Write a poem!\" — with all other pages left blank. The image of the park path then served as the creative inspiration needed to fulfill that inst…[575 chars]",
+        "content_digest": "13a94fae1b1147e6",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Now look at this image. Using the instructions from the PDF document, describe what you see in the image.",
+        "content_digest": "73a41c48df90af73",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "image",
+        "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+        "content_digest": "f66271bc4504cd52",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The instruction from the document was simply \"**Write a poem!**\" So here's a poem inspired by the image: --- **A Path Through the Park** A ribbon of asphalt curves and bends, Through emerald grass that never ends, Bordered by stone, weather…[1230 chars]",
+        "content_digest": "0583da62e9d9264b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a document analyst. Summarize content accurately and concisely.",
+        "content_digest": "efe422f4c18b72c1",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Summarize the key points of this document.",
+        "content_digest": "d8c7131bd73224b6",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "user",
+        "entry_type": "document",
+        "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/d…[17690 chars]",
+        "content_digest": "e69c476dd545eb4b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "This document doesn't contain substantive content to summarize. Here's what's actually present: - **Page 1**: Contains only the text \"Write a poem!\" - **Pages 2–5**: Contain only page labels (\"Page 2,\" \"Page 3,\" \"Page 4,\" \"Page 5\") with no …[537 chars]",
+        "content_digest": "641f4dd11f2a5cc6",
+        "observation_type": "generation"
+      }
+    ]
+  }
 }

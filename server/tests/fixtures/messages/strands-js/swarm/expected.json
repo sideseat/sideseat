@@ -177,5 +177,53 @@
       ]
     }
   },
-  "session_views": {}
+  "session_views": {},
+  "feed_view": {
+    "message_count": 4,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "assistant",
+      "system"
+    ],
+    "tool_names": [
+      "calculator"
+    ],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I'll break down this project into a structured plan for building a weather app. Let me create a comprehensive project plan that identifies the key tasks and which specialists should handle them.",
+        "content_digest": "c1d8de83b3693175",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_dcScuDsYJezJEXrH0rvpxn\",\"content\":{\"json\":{\"message\":\"## Weather App Project Plan\\n\\n### Project Overview\\nBuild a weather app that displays forecasts for multiple cities with real-time data, use…[3577 chars]",
+        "content_digest": "1cd68985c7b29e5a",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_dcScuDsYJezJEXrH0rvpxn\",\"name\":\"strands_structured_output\",\"input\":{\"message\":\"## Weather App Project Plan\\n\\n### Project Overview\\nBuild a weather app that displays forecasts for multiple cities with real-t…[3589 chars]",
+        "content_digest": "a8293d389860ca7e",
+        "tool_name": "strands_structured_output",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Delegate to: researcher (for research/info), coder (for implementation), reviewer (for code review) 4…[339 chars]",
+        "content_digest": "b4cd237077a29eb3",
+        "observation_type": "agent"
+      }
+    ]
+  }
 }

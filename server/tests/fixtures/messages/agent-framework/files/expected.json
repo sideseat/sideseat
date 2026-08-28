@@ -248,5 +248,60 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "assistant",
+      "system",
+      "user",
+      "user",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "agent_framework.exceptions.ChatClientException: ('<class \\'agent_framework_openai._chat_client.OpenAIChatClient\\'> service failed to complete the prompt: Error code: 400 - {\\'error\\': {\\'message\\': \"Unsupported file type: \\'unknown\\'. Suppo…[3808 chars]",
+        "content_digest": "845ced3823a4a10d",
+        "finish_reason": "Error",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a file analysis AI that can read images and documents.",
+        "content_digest": "a7b564c8a3a5cf2b",
+        "observation_type": "agent"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Read the image 'img.jpg'. Describe its contents in detail using instructions from the PDF.",
+        "content_digest": "71ecfbccc92c6103",
+        "observation_type": "agent"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "unknown",
+        "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"blob\",\"content\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKC…[218721 chars]",
+        "content_digest": "d5116bbfa6604669",
+        "observation_type": "agent"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "unknown",
+        "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"blob\",\"content\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/dVdijggzLKY0007ifccAN8aZWKO…[17720 chars]",
+        "content_digest": "bcb2e6684bba62cc",
+        "observation_type": "agent"
+      }
+    ]
   }
 }

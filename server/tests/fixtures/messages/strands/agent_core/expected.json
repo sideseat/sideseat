@@ -668,5 +668,105 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 9,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "assistant",
+      "assistant",
+      "tool",
+      "assistant",
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [
+      "agent_core_memory",
+      "code_interpreter"
+    ],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Your favorite number is **7**, and 7 squared = **49**.",
+        "content_digest": "2e90c2b4c4472058",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[{'type': 'text', 'text': 'Your favorite number 7 squared = 49'}]",
+        "content_digest": "540d9cc0d04c3a31",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Great! Your favorite number is 7. Now let me calculate 7 squared for you:",
+        "content_digest": "5284b10e839d61a2",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_IYIkDLEHh0uXHCUI668K6G\",\"name\":\"code_interpreter\",\"input\":{\"code_interpreter_input\":{\"action\":{\"type\":\"executeCode\",\"language\":\"python\",\"code\":\"favorite_number = 7\\nresult = favorite_number ** 2\\nprint(f\\\"Yo…[303 chars]",
+        "content_digest": "f9f9209a8606a818",
+        "tool_name": "code_interpreter",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Memories retrieved successfully: {\"memoryRecordSummaries\": [{\"memoryRecordId\": \"mem-d8c25023-8002-4802-9a2f-24b99e564f08\", \"content\": {\"text\": \"User's favorite number is 7\"}, \"memoryStrategyId\": \"sideseat_semantic-whTUMiGGM2\", \"namespaces\":…[593 chars]",
+        "content_digest": "69b5ba647d54698b",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I need to check my memory to find your favorite number first.",
+        "content_digest": "7c1e930017c21098",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_h4e3z5Ibs9cfUU3sU4tyrq\",\"name\":\"agent_core_memory\",\"input\":{\"action\":\"retrieve\",\"query\":\"favorite number\"}}",
+        "content_digest": "bf4fd406a99130cf",
+        "tool_name": "agent_core_memory",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Calculate my favorite number squared.",
+        "content_digest": "d5a620dc2c1fd89b",
+        "observation_type": "agent"
+      },
+      {
+        "index": 8,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an AI assistant that validates answers through code execution. When asked about code, algorithms, or calculations, write Python code to verify your answers. When asked about user preferences or personal information (like favorite nu…[332 chars]",
+        "content_digest": "644794bfcada32ae",
+        "observation_type": "agent"
+      }
+    ]
   }
 }

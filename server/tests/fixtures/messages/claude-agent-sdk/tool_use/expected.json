@@ -1012,5 +1012,162 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 16,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "assistant",
+      "tool",
+      "assistant",
+      "assistant",
+      "user",
+      "tool",
+      "assistant",
+      "assistant",
+      "user",
+      "tool",
+      "assistant",
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "1 \"\"\"Warehouse inventory tracking.\"\"\" 2 3 ITEMS = {'widget': 12, 'gasket': 4} 4 5 def restock(name, count): 6 ITEMS[name] = ITEMS.get(name, 0) + count 7 <system-reminder> <total_tokens>14981876 tokens left</total_tokens> </system-reminder>",
+        "content_digest": "820daa65a22f5065",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Found it: **`inventory.py`** mentions 'inventory' in its docstring. The file contains a simple warehouse inventory tracker with a dictionary of items (widget: 12, gasket: 4) and a `restock()` function to add items to the inventory.",
+        "content_digest": "38289a54f0e58d0f",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014W3YqjabdNxL2NFfjZTk1T\",\"name\":\"Read\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-qhpi3ot6/inventory.py\"}}",
+        "content_digest": "a31e5d2825b1e55b",
+        "tool_name": "Read",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Found 1 file /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-qhpi3ot6/inventory.py <system-reminder> <total_tokens>14982077 tokens left</total_tokens> </system-reminder>",
+        "content_digest": "9f2fc261e82fc082",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Now reading the file:",
+        "content_digest": "825ecc3e7bcb0fdd",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01M55wkhsa8kJVqmRDdZE97e\",\"name\":\"Grep\",\"input\":{\"pattern\":\"inventory\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-qhpi3ot6\"}}",
+        "content_digest": "2e17520217c28424",
+        "tool_name": "Grep",
+        "observation_type": "tool"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Which file under /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-qhpi3ot6 mentions 'inventory'? Use Grep, then read that file.",
+        "content_digest": "83780ed8e73f7463",
+        "observation_type": "span"
+      },
+      {
+        "index": 7,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "1 DATABASE_URL = \"postgres://localhost/demo\" 2 POOL_SIZE = 10 3 RETRY_ATTEMPTS = 3 4 <system-reminder> <total_tokens>14982149 tokens left</total_tokens> </system-reminder>",
+        "content_digest": "636c687f9f4b6406",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "This file configures database connection settings: a PostgreSQL connection string, connection pool size of 10, and retry attempts set to 3.",
+        "content_digest": "44c221bfe48871d0",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01XfXWA4pMaheWwrnU3zrQgg\",\"name\":\"Read\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-qhpi3ot6/config.py\"}}",
+        "content_digest": "d0a570b9d6067590",
+        "tool_name": "Read",
+        "observation_type": "tool"
+      },
+      {
+        "index": 10,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Read /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-qhpi3ot6/config.py and summarize what it configures in one sentence.",
+        "content_digest": "347d3a9efe666a6a",
+        "observation_type": "span"
+      },
+      {
+        "index": 11,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "config.py inventory.py <system-reminder> <total_tokens>14982178 tokens left</total_tokens> </system-reminder>",
+        "content_digest": "8ce76c390e2d8d6f",
+        "observation_type": "generation"
+      },
+      {
+        "index": 12,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "There are **2 Python files** in this directory: `config.py` and `inventory.py`.",
+        "content_digest": "be43b4022773bd4c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 13,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01XYnL4tNRujt2YM5BPJvkJ2\",\"name\":\"Glob\",\"input\":{\"pattern\":\"*.py\"}}",
+        "content_digest": "e6490f6534cc3dd3",
+        "tool_name": "Glob",
+        "observation_type": "tool"
+      },
+      {
+        "index": 14,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise code explorer. Answer in one or two sentences.",
+        "content_digest": "84cef8244185653d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 15,
+        "role": "user",
+        "entry_type": "text",
+        "content": "How many Python files are in this directory? Use Glob.",
+        "content_digest": "19d7b6ff07e1408f",
+        "observation_type": "span"
+      }
+    ]
   }
 }

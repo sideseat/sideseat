@@ -163,5 +163,32 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 2,
+    "role_sequence": [
+      "user",
+      "system"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is 2 + 2?",
+        "content_digest": "63ddd3c6a93ba932",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a helpful assistant.",
+        "content_digest": "4e95804d0d397acb",
+        "observation_type": "agent"
+      }
+    ]
   }
 }

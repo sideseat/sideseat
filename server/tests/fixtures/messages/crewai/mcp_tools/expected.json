@@ -250,5 +250,60 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant",
+      "tool",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are Calculator. You help users to calculate expressions. Your personal goal is: Help users calculate expressions accurately",
+        "content_digest": "b8249a92c092b670",
+        "observation_type": "chain"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Current Task: Calculate an expression for me: What is 12345 plus 6789? This is the expected criteria for your final answer: The result of the calculation. you MUST return the actual complete content as the final answer, not a summary.",
+        "content_digest": "454c1e6bdbf34f58",
+        "observation_type": "chain"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BIASkGZceUgFex644F7DYZ\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+        "content_digest": "d60df5982709bca2",
+        "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+        "observation_type": "chain"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
+        "content_digest": "aa4ed0f146ccc48c",
+        "observation_type": "chain"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I apologize for the confusion. Let me calculate this directly for you: 12345 + 6789 = **19134** The result of the calculation is **19134**.",
+        "content_digest": "412aad50891214bc",
+        "observation_type": "chain"
+      }
+    ]
   }
 }

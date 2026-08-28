@@ -931,5 +931,158 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 15,
+    "role_sequence": [
+      "system",
+      "assistant",
+      "user",
+      "tool",
+      "tool",
+      "tool",
+      "assistant",
+      "assistant",
+      "assistant",
+      "assistant",
+      "system",
+      "assistant",
+      "assistant",
+      "assistant",
+      "user"
+    ],
+    "tool_names": [
+      "generate_image",
+      "read_image"
+    ],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+        "content_digest": "4000fcf8e134d2e3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I understand. Thank you for letting me know about this issue with the image generation service. However, I should clarify my role: I'm actually designed to **analyze** images that you provide to me, not to generate them. If you have images …[554 chars]",
+        "content_digest": "bec25e1ee5c1c9df",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
+        "content_digest": "d1b8f16978f232c0",
+        "observation_type": "chain"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+        "content_digest": "c9b98af102636be5",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+        "content_digest": "03b3a089d708e54d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+        "content_digest": "24c828e688616410",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
+        "content_digest": "d1b8f16978f232c0",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
+        "content_digest": "2bd22aafee46cae0",
+        "finish_reason": "Error",
+        "observation_type": "span"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
+        "content_digest": "2bd22aafee46cae0",
+        "finish_reason": "Error",
+        "observation_type": "span"
+      },
+      {
+        "index": 9,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
+        "content_digest": "2bd22aafee46cae0",
+        "finish_reason": "Error",
+        "observation_type": "span"
+      },
+      {
+        "index": 10,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+        "content_digest": "5e5525d3b8659029",
+        "observation_type": "generation"
+      },
+      {
+        "index": 11,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_QAdTYCKKAOVkM4GjFlG9st\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A happy golden retriever playing in a sunny park with green grass and trees in the background\"}}",
+        "content_digest": "88e93aa50e462499",
+        "tool_name": "generate_image",
+        "observation_type": "generation"
+      },
+      {
+        "index": 12,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FK95G3Y0Z3jUFhYmiJ2DTA\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A cute corgi wearing a colorful collar, sitting and looking at the camera with a friendly expression\"}}",
+        "content_digest": "acdc9c66dd01a4bf",
+        "tool_name": "generate_image",
+        "observation_type": "generation"
+      },
+      {
+        "index": 13,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_1UKnukpJ8askkqOT9I4ZBv\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic German Shepherd standing on a mountain overlooking a beautiful landscape\"}}",
+        "content_digest": "9bdffbfb13578450",
+        "tool_name": "generate_image",
+        "observation_type": "generation"
+      },
+      {
+        "index": 14,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Generate 3 images of a dog",
+        "content_digest": "89aa55f374613789",
+        "observation_type": "chain"
+      }
+    ]
   }
 }

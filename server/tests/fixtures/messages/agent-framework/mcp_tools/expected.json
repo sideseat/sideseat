@@ -139,5 +139,42 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "agent_framework.exceptions.ToolException: (\"Failed to start MCP server '/opt/homebrew/bin/uv': `mcp` is required to use `MCPStdioTool`. Please install `mcp`.\", ModuleNotFoundError('`mcp` is required to use `MCPStdioTool`. Please install `mc…[3911 chars]",
+        "content_digest": "abcfe49a928d757b",
+        "finish_reason": "Error",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You help users to calculate expressions.",
+        "content_digest": "b7a2b52d27e0093a",
+        "observation_type": "agent"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Calculate an expression for me: What is 12345 plus 6789?",
+        "content_digest": "2f005e8714b6ca59",
+        "observation_type": "agent"
+      }
+    ]
   }
 }

@@ -279,5 +279,59 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "assistant",
+      "user",
+      "system",
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I'll solve this step-by-step. **Setup:** - Train 1: departs 14:20 at 80 km/h - Train 2: departs 15:05 at 110 km/h **Step 1: Calculate Train 1's head start** - Head start time: 14:20 to 15:05 = 45 minutes = 0.75 hours - Distance Train 1 cove…[764 chars]",
+        "content_digest": "d6b62b78a96a7203",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "A train leaves at 14:20 travelling 80 km/h. Another leaves the same station at 15:05 travelling 110 km/h on the same track. When does the second catch the first?",
+        "content_digest": "bcf3a215633d8121",
+        "observation_type": "span"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "Think the problem through, then give a short final answer.",
+        "content_digest": "3a7bc880979a8a4e",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "# Solution: Use Thermal State + Light State Here's the strategy: ## Before entering the room: 1. **Switch 1**: Turn it ON and leave it on for 5–10 minutes 2. **Switch 2**: Turn it ON, then turn it OFF right before entering the room 3. **Swi…[1121 chars]",
+        "content_digest": "47c7b94fbb8267ae",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Three switches outside a room control three bulbs inside. You may flip switches freely but enter the room only once. How do you determine which switch controls which bulb?",
+        "content_digest": "5468af6e02aebb56",
+        "observation_type": "span"
+      }
+    ]
   }
 }

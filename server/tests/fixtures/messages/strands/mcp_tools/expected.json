@@ -338,5 +338,64 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [
+      "calculate"
+    ],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The answer is **19,134**. 12345 + 6789 = 19,134",
+        "content_digest": "d133aff1f5f43e48",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "19134",
+        "content_digest": "c786b2b204f401b9",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_OefobWDrFQZNw1qicAJREN\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
+        "content_digest": "4870e99984139f04",
+        "tool_name": "calculate",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Calculate an expression for me: What is 12345 plus 6789?",
+        "content_digest": "2f005e8714b6ca59",
+        "observation_type": "agent"
+      },
+      {
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You help users to calculate expressions.",
+        "content_digest": "b7a2b52d27e0093a",
+        "observation_type": "agent"
+      }
+    ]
   }
 }

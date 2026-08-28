@@ -222,5 +222,77 @@
       ]
     }
   },
-  "session_views": {}
+  "session_views": {},
+  "feed_view": {
+    "message_count": 7,
+    "role_sequence": [
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Which of the two cities has a larger population?",
+        "content_digest": "600c99295fd99a0d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Berlin has the larger population within city limits, with about 3.8 million residents compared with Paris’s roughly 2.1 million.",
+        "content_digest": "3ad676904bacbf84",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What about Germany?",
+        "content_digest": "bb7dbff75e9e01f7",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The capital of Germany is Berlin.",
+        "content_digest": "49f60c818d8e8151",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a helpful geography assistant. Answer in 1-2 sentences.",
+        "content_digest": "626692779f3ab463",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the capital of France?",
+        "content_digest": "a5c958afb009ef20",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The capital of France is Paris.",
+        "content_digest": "db078286f6ff6260",
+        "observation_type": "generation"
+      }
+    ]
+  }
 }

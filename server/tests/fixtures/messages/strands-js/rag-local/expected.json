@@ -1305,5 +1305,173 @@
       "messages": []
     }
   },
-  "session_views": {}
+  "session_views": {},
+  "feed_view": {
+    "message_count": 17,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "system",
+      "assistant",
+      "tool",
+      "tool",
+      "assistant",
+      "assistant",
+      "user",
+      "system",
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [
+      "search_knowledge"
+    ],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Based on the knowledge base, here are the embedding models available for vector search: ## Common Embedding Models The knowledge base identifies two primary embedding model providers: 1. **Amazon Titan Embeddings** - AWS's embedding model o…[1197 chars]",
+        "content_digest": "beb9da053a749132",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.51) Embeddings are dense vector representations of text that capture semantic meaning. Similar texts have similar embeddings. Common models include Amazon Titan Embeddings and OpenAI text-embedding-3. [2] (relevance: 0.26)…[1074 chars]",
+        "content_digest": "227d08c53e16bb07",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_omYYpVAADUrUGML3yi78YE\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"embedding models providers\"}}",
+        "content_digest": "01f226c4647be319",
+        "tool_name": "search_knowledge",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What embedding models are available for vector search?",
+        "content_digest": "fc08de1734188b8c",
+        "observation_type": "agent"
+      },
+      {
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+        "content_digest": "90aba6b63e48a6ed",
+        "observation_type": "agent"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Based on the knowledge base, here's how RAG works and its key components: ## What is RAG? **RAG (Retrieval-Augmented Generation)** is a technique that combines vector search with LLM generation to enhance the capabilities of language models…[1613 chars]",
+        "content_digest": "e5240cd7453cc261",
+        "observation_type": "agent"
+      },
+      {
+        "index": 6,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.73) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity. [2] (relevance: 0.18) Stran…[1074 chars]",
+        "content_digest": "774dc4593fa1e77c",
+        "observation_type": "tool"
+      },
+      {
+        "index": 7,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.70) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity. [2] (relevance: 0.54) Vecto…[1074 chars]",
+        "content_digest": "6f5b54641be6357c",
+        "observation_type": "tool"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2047gdIv9Beayj00EyftDm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG Retrieval-Augmented Generation how it works components\"}}",
+        "content_digest": "9ed6866fb9d484c4",
+        "tool_name": "search_knowledge",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_8N0cc27wLSlIvRAnYI4Tng\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG embeddings vector search retrieval\"}}",
+        "content_digest": "d2a67b1064f70aad",
+        "tool_name": "search_knowledge",
+        "observation_type": "generation"
+      },
+      {
+        "index": 10,
+        "role": "user",
+        "entry_type": "text",
+        "content": "How does RAG work and what are its key components?",
+        "content_digest": "d75bacebd91f3248",
+        "observation_type": "agent"
+      },
+      {
+        "index": 11,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+        "content_digest": "90aba6b63e48a6ed",
+        "observation_type": "agent"
+      },
+      {
+        "index": 12,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Based on the knowledge base, here's what SideSeat is and how it helps with AI observability: ## SideSeat Overview **SideSeat is an AI observability toolkit** designed to help developers understand and debug their AI applications. It works b…[1250 chars]",
+        "content_digest": "8849d65bfc4170b5",
+        "observation_type": "agent"
+      },
+      {
+        "index": 13,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.74) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging. [2] (relevance: 0.34) OpenTele…[646 chars]",
+        "content_digest": "ef0f6395dea2f945",
+        "observation_type": "tool"
+      },
+      {
+        "index": 14,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_a20qR6C25kh0aI4AUuYROD\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":3}}",
+        "content_digest": "4666ce78cc94a45b",
+        "tool_name": "search_knowledge",
+        "observation_type": "generation"
+      },
+      {
+        "index": 15,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is SideSeat and how does it help with AI observability?",
+        "content_digest": "258073a7aafdb01d",
+        "observation_type": "agent"
+      },
+      {
+        "index": 16,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+        "content_digest": "90aba6b63e48a6ed",
+        "observation_type": "agent"
+      }
+    ]
+  }
 }
