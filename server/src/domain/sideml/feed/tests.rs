@@ -9325,20 +9325,21 @@ fn the_bundled_otel_event_pair_is_classified() {
     );
 }
 
-/// Documents what the message order gives up in order to be a total order.
+/// A tool result never precedes the call it answers, even when both spans report the same instant.
 ///
-/// Two blocks in different spans reporting the identical instant are ordered by message index, and
-/// an index restarts at zero in every span - so a generation span whose response opens with text
-/// gives its call index 1, the tool span carrying the result starts at 0, and the result comes
-/// first. An answer before its question.
+/// A message index restarts at zero in every span, so between spans it means nothing: a generation
+/// span whose response opens with text gives its call index 1, the tool span carrying the result
+/// starts at 0, and ordering the tie by index put the answer before the question.
 ///
-/// Ordering that tie by role instead was tried three ways and each one broke a framework: per pair
-/// it is cyclic, per response it merges ADK's turns, per span it merges Vercel's parallel calls with
-/// their results. All three are recorded in `dedup.rs`. This case needs both spans to report the
-/// same instant, which a framework that timestamps its tool spans does not do - no fixture in the
-/// suite reaches it - so the total order is worth more than the tie.
+/// Settling it *at comparison time* by role was tried three ways and each broke a framework - per
+/// pair it is cyclic, per response it merges ADK's turns, per span it interleaves Vercel's parallel
+/// calls with their results; all three are recorded in `dedup.rs`. Settling it beforehand does work:
+/// the result takes its position from its own call, which is a property of the block rather than of
+/// the pair, so the key stays a set of values and the order stays total. Only a cross-span tie is
+/// adjusted, which is why the ADK and Vercel shapes are unaffected - their calls and results share a
+/// span.
 #[test]
-fn a_cross_span_tie_orders_by_index_not_by_role() {
+fn a_cross_span_tie_keeps_a_result_after_its_call() {
     let t = fixed_time();
     // The generation span: introductory text, then the call. The call is index 1.
     let generation = json!([
@@ -9388,8 +9389,8 @@ fn a_cross_span_tie_orders_by_index_not_by_role() {
         .collect();
     assert_eq!(
         kinds,
-        vec!["text", "tool_result", "tool_use"],
-        "the documented outcome of a cross-span tie: index order, so the result precedes its call"
+        vec!["text", "tool_use", "tool_result"],
+        "the result took its position from the call it answers, so it follows it"
     );
 }
 

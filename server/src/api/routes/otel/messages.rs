@@ -235,7 +235,18 @@ pub async fn get_session_messages(
     let processed = process_spans(result.rows, &options);
     let processed = apply_time_window(processed, from_timestamp, to_timestamp);
 
-    let response = build_messages_response(processed, None);
+    // The session's own totals, as the trace endpoint uses the trace's. The pipeline's totals cover
+    // the rows it was handed, and a message query is handed only rows carrying messages, tools or an
+    // error - so a span that was billed with nothing to show counted as free. They also lack the
+    // parent/child billing dedup the session summary applies, which counts a nested generation once.
+    // What the session page reports as its cost now matches what the session list reports for it.
+    let session = repo
+        .get_session(project_id, session_id)
+        .await
+        .map_err(ApiError::from_data)?;
+    let session_totals = session.map(|s| (s.total_tokens, s.total_cost));
+
+    let response = build_messages_response(processed, session_totals);
     Ok(Json(response))
 }
 
