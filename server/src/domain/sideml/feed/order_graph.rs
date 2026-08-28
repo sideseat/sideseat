@@ -1,17 +1,19 @@
-//! Shadow order resolver — increment 1 of the ingestion/reconstruction redesign.
+//! Order resolver: the timeline as a partial order, not a scalar key.
 //!
-//! The production timeline is one sort key whose anchor is a mutable per-response minimum. Because
+//! The previous timeline was one sort key whose anchor is a mutable per-response minimum. Because
 //! that anchor is computed *after* dedup, the order depends on which copy of a message survived, and
 //! two copies tie on quality routinely — so reading a carrier that was previously ignored silently
 //! reorders unrelated messages. Six scalar-anchor candidates were tried and rejected (see the plan);
 //! the conclusion, reviewed with Codex, is that ordering is a **partial order** and time is a
 //! *priority*, not a constraint.
 //!
-//! This module builds that partial order and resolves it, but its output is **not wired into any
-//! view yet**. It is exercised only by tests, which assert it derives the orders the scalar key gets
-//! wrong (`strands-js/swarm`: intro text, then its call, then the result). Landing it inert first
-//! lets each real constraint class be promoted afterwards as its own small, explainable golden delta,
-//! rather than as one large rewrite.
+//! This module builds that partial order and resolves it. It runs in production, but under
+//! [`Constraints::SCAFFOLD`], which enforces only what the previous sort already satisfied — so the
+//! graph, the contraction, the Kahn resolve and the cycle fallback are all live and exercised while
+//! the answer is unchanged (`the_scaffold_reproduces_the_existing_order`). Each constraint class is
+//! promoted from there as its own small, explainable golden delta, rather than as one large rewrite.
+//! Under [`Constraints::FULL`] it produces the redesign's intended answer, which tests compare
+//! against.
 //!
 //! # Model (Codex's framing)
 //!
@@ -26,7 +28,7 @@
 //!   emission. Contiguity cannot be a pairwise edge — a DAG says `A < B`, never "nothing between A
 //!   and B" — so an emission becomes a single node and external edges attach to its boundary.
 //!
-//! # Constraints in this increment
+//! # Constraints built so far
 //!
 //! Only the two highest-confidence classes, which is all the `strands-js/swarm` case needs:
 //!
@@ -35,7 +37,7 @@
 //! 2. **Exact call → result**: a unit holding a tool result follows the unit holding its call, when
 //!    the call id is unambiguous among survivors.
 //!
-//! Generation input→output and snapshot-sequence edges are the next classes to promote; they are
+//! Generation input→output and snapshot-sequence edges are the next classes to add; they are
 //! deliberately absent here. Credible time is a **priority** for the topological pop, never an edge.
 
 use std::collections::HashMap;
@@ -112,15 +114,55 @@ impl UnionFind {
     }
 }
 
-/// Resolve the shadow order over the surviving blocks.
+/// Which constraints the resolver is allowed to *change the answer* with.
+///
+/// This is the promotion dial for the redesign. `SCAFFOLD` builds the whole graph and runs the whole
+/// resolve, but enforces only what the existing order already satisfies, so its output is provably
+/// the existing order — that is what lets the machinery go into production before any behaviour
+/// changes. Flipping one field to `false` afterwards promotes exactly one constraint class, and its
+/// golden delta is that class's alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct Constraints {
+    /// Drop an edge, and skip a contraction, that the legacy order does not already satisfy.
+    ///
+    /// Both halves matter. Filtering edges alone is not enough to be neutral: contracting an
+    /// emission whose survivors are *not* already adjacent in the legacy order moves them together,
+    /// which is a reorder - and it is precisely the reorder this redesign exists to make (the
+    /// `strands-js/swarm` intro text). So the scaffold contracts only what is already contiguous.
+    pub enforce_only_satisfied: bool,
+}
+
+impl Constraints {
+    /// Provably output-neutral: every constraint is built and resolved, none can move a block.
+    pub(super) const SCAFFOLD: Self = Self {
+        enforce_only_satisfied: true,
+    };
+
+    /// Every constraint enforced - the redesign's intended answer.
+    #[cfg(test)]
+    pub(super) const FULL: Self = Self {
+        enforce_only_satisfied: false,
+    };
+}
+
+/// Resolve the order over the surviving blocks.
 ///
 /// `pre_dedup` is the classified evidence set (every observation); `survivors` is the deduplicated
-/// result in the current pipeline order — that order is the deterministic tie-break and, later, the
+/// result in the current pipeline order — that order is the deterministic tie-break and the
 /// neutrality seed. Returns the survivors permuted into the partial order's resolution.
+///
+/// # Neutrality
+///
+/// Under [`Constraints::SCAFFOLD`] the result is exactly `survivors`. Every enforced edge is already
+/// forward in the legacy order and every contracted unit is already contiguous in it, so the legacy
+/// order is itself a topological order of the graph; popping the ready unit with the smallest legacy
+/// index therefore yields the legacy order, because any predecessor of the smallest-index unfinished
+/// unit would have a smaller index and would already be done.
 pub(super) fn resolve(
     pre_dedup: &[BlockEntry],
     survivors: &[BlockEntry],
     span_timestamps: &HashMap<String, SpanTimestamps>,
+    constraints: Constraints,
 ) -> Vec<BlockEntry> {
     let n = survivors.len();
     if n <= 1 {
@@ -153,9 +195,29 @@ pub(super) fn resolve(
     }
 
     // Contract each instance's survivors into one unit, and remember the source order within it.
+    //
+    // Iterated in a deterministic order: a HashMap's iteration order varies per run, and while
+    // union-find's result does not depend on the order the unions arrive in, the intra-unit keys and
+    // any later diagnostics do.
+    let mut instances: Vec<(&(String, String), &Vec<EmissionMember>)> =
+        by_instance.iter().collect();
+    instances.sort_by(|a, b| a.0.cmp(b.0));
+
     let mut uf = UnionFind::new(n);
     let mut intra_unit_key = vec![(i32::MAX, i32::MAX); n];
-    for members in by_instance.values() {
+    for (_, members) in instances {
+        // The scaffold contracts only an emission whose survivors are already adjacent in the legacy
+        // order: moving them together is otherwise a reorder, and the whole point of the scaffold is
+        // that it cannot reorder. This is the half of neutrality that filtering edges does not cover.
+        if constraints.enforce_only_satisfied {
+            let mut legacy: Vec<usize> = members.iter().map(|&(_, _, s)| s).collect();
+            legacy.sort_unstable();
+            legacy.dedup();
+            let contiguous = legacy.windows(2).all(|w| w[1] == w[0] + 1);
+            if !contiguous {
+                continue;
+            }
+        }
         for &(msg_idx, entry_idx, survivor) in members {
             // Keep the earliest source position seen for this survivor as its within-unit key.
             if (msg_idx, entry_idx) < (intra_unit_key[survivor].0, intra_unit_key[survivor].1) {
@@ -233,6 +295,14 @@ pub(super) fn resolve(
         if call_unit == result_unit {
             continue; // one emission already orders them
         }
+        // The scaffold enforces only an edge the legacy order already respects, so no edge of its
+        // graph can move anything. Promoting this class is what makes a result that today precedes
+        // its call move behind it.
+        if constraints.enforce_only_satisfied
+            && unit_min_legacy[&call_unit] > unit_min_legacy[&result_unit]
+        {
+            continue;
+        }
         // Adjacent edge only; avoid duplicates.
         let succ = successors.get_mut(&call_unit).expect("unit present");
         if !succ.contains(&result_unit) {
@@ -247,10 +317,18 @@ pub(super) fn resolve(
     // no corpus fixture cycles at this constraint density.)
     let mut order: Vec<usize> = Vec::with_capacity(units.len());
     let mut done: HashMap<usize, bool> = units.iter().map(|&u| (u, false)).collect();
+    // Under the scaffold the seed is the legacy index alone (`None` sorts before any `Some`, so the
+    // time term drops out entirely): that is what makes the resolve reproduce the legacy order rather
+    // than merely agree with it on this corpus. Promoting time to the primary key is its own delta.
     let key = |u: usize,
                unit_priority: &HashMap<usize, DateTime<Utc>>,
                unit_min_legacy: &HashMap<usize, usize>| {
-        (unit_priority[&u], unit_min_legacy[&u], u)
+        let primary = if constraints.enforce_only_satisfied {
+            None
+        } else {
+            Some(unit_priority[&u])
+        };
+        (primary, unit_min_legacy[&u], u)
     };
     while order.len() < units.len() {
         let mut ready: Vec<usize> = units
@@ -284,7 +362,14 @@ pub(super) fn resolve(
     let mut out = Vec::with_capacity(n);
     for unit in order {
         let mut members = members_of.remove(&unit).unwrap_or_default();
-        members.sort_by_key(|&i| (intra_unit_key[i], i));
+        if constraints.enforce_only_satisfied {
+            // Legacy order within the unit too. Its members are contiguous there, but not
+            // necessarily in source order - a span may list a call before the text that introduces
+            // it - so sorting by source position would reorder inside the unit and break neutrality.
+            members.sort_unstable();
+        } else {
+            members.sort_by_key(|&i| (intra_unit_key[i], i));
+        }
         for i in members {
             out.push(survivors[i].clone());
         }

@@ -88,9 +88,10 @@ mod classify;
 mod correlate;
 mod dedup;
 mod history;
-// The shadow order resolver (increment 1 of the reconstruction redesign). Test-only: it builds the
-// partial-order timeline but no view consumes it yet - see `order_graph` and `shadow_resolved_order`.
-#[cfg(test)]
+// The order resolver of the reconstruction redesign. In production it runs under
+// `Constraints::SCAFFOLD`, which builds the whole constraint graph and resolves it but enforces only
+// what the existing order already satisfies - provably output-neutral, so the machinery is live and
+// exercised before any behaviour changes. Constraint classes are promoted one at a time from there.
 mod order_graph;
 #[cfg(test)]
 mod props;
@@ -349,13 +350,39 @@ fn classify_span_blocks(
 /// The shadow resolver's order over one trace's blocks — the redesign's partial-order timeline,
 /// built from the same evidence and survivors production uses, but consumed by nothing yet. Tests
 /// assert it derives orders the scalar sort key gets wrong.
+/// The order before the resolver and the order the production scaffold produces, for the same rows.
+///
+/// The two must be identical: that is what "the scaffold cannot move a block" means, and it has to be
+/// a property rather than an observation about the current goldens, which are regenerable.
+#[cfg(test)]
+pub(crate) fn legacy_and_scaffold_order(
+    rows: Vec<MessageSpanRow>,
+) -> (Vec<BlockEntry>, Vec<BlockEntry>) {
+    let (blocks, span_timestamps) = classify_span_blocks(&rows, None);
+    let evidence = blocks.clone();
+    let legacy =
+        correlate::withdraw_unbacked_ids(dedup::process_dedup(blocks, span_timestamps.clone()));
+    let scaffold = order_graph::resolve(
+        &evidence,
+        &legacy,
+        &span_timestamps,
+        order_graph::Constraints::SCAFFOLD,
+    );
+    (legacy, scaffold)
+}
+
 #[cfg(test)]
 pub(crate) fn shadow_resolved_order(rows: Vec<MessageSpanRow>) -> Vec<BlockEntry> {
     let (blocks, span_timestamps) = classify_span_blocks(&rows, None);
     let pre_dedup = blocks.clone();
     let survivors = dedup::process_dedup(blocks, span_timestamps.clone());
     let survivors = correlate::withdraw_unbacked_ids(survivors);
-    order_graph::resolve(&pre_dedup, &survivors, &span_timestamps)
+    order_graph::resolve(
+        &pre_dedup,
+        &survivors,
+        &span_timestamps,
+        order_graph::Constraints::FULL,
+    )
 }
 
 fn process_trace_spans_core(
@@ -366,12 +393,14 @@ fn process_trace_spans_core(
     let extracted_tools = extract_tools_from_rows(&rows);
 
     // Stages 1-4: parse, flatten, correlate and classify - everything the pipeline knows before
-    // dedup collapses the observations to one representative each. Extracted once so the shadow
-    // order resolver (`order_graph`) reads exactly the evidence production reconstructs from.
+    // dedup collapses the observations to one representative each. Kept, because the order resolver
+    // reads the *evidence*: the emission binding a turn's intro text to its call is on one span while
+    // dedup may keep a re-listed copy of that text from another, and only the pre-dedup set says so.
     let (blocks, span_timestamps) = classify_span_blocks(&rows, cross_trace_prefix);
+    let evidence = blocks.clone();
 
     // Stages 5-6: Deduplicate by identity, sort by birth time
-    let blocks = process_dedup(blocks, span_timestamps);
+    let blocks = process_dedup(blocks, span_timestamps.clone());
 
     // Stage 6.5: Withdraw a correlated id whose call did not survive.
     //
@@ -381,6 +410,19 @@ fn process_trace_spans_core(
     // block, because the result's content is real either way. Only correlated ids are withdrawn:
     // a provider's own id may legitimately reference a call outside the requested scope.
     let blocks = correlate::withdraw_unbacked_ids(blocks);
+
+    // Stage 6.6: Resolve the order as a partial order rather than a scalar key.
+    //
+    // Under `SCAFFOLD` this cannot move a block - it enforces only the constraints the sort above
+    // already satisfies - so it is live and exercised on every request while the answer stays exactly
+    // what it was. `the_scaffold_reproduces_the_existing_order` holds it to that across the corpus.
+    // Runs after id withdrawal so the call/result edges see the ids the view will actually show.
+    let blocks = order_graph::resolve(
+        &evidence,
+        &blocks,
+        &span_timestamps,
+        order_graph::Constraints::SCAFFOLD,
+    );
 
     // Debug: Log block counts after dedup
     if tracing::enabled!(tracing::Level::DEBUG) {
