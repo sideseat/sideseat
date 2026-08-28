@@ -229,6 +229,15 @@ fn fixture_spans() -> Vec<NormalizedSpan> {
             gen_ai_request_model: Some("claude-haiku".to_string()),
             ..base("trace-g", "g-root", "http-post", 50)
         },
+        // trace-h: qualifies through token usage alone - no observation type, no provider, no
+        // model. Instrumentation that reports only what a call cost looks like this, and a
+        // predicate that checks the provider and the request model dropped it.
+        NormalizedSpan {
+            gen_ai_usage_input_tokens: 11,
+            gen_ai_usage_output_tokens: 2,
+            gen_ai_usage_total_tokens: 13,
+            ..base("trace-h", "h-root", "usage-only", 60)
+        },
         // trace-d: no session, no generation, error status, no tags. Carries the raw OTLP span,
         // because the event and link reads extract from that JSON and would otherwise compare two
         // empty lists.
@@ -1146,11 +1155,13 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             // span with no observation type.
             "genai only" => {
                 let kept: Vec<&String> = d.iter().map(|t| &t.trace_id).collect();
-                assert!(
-                    kept.contains(&&"trace-g".to_string()),
-                    "the GenAI filter dropped a trace whose GenAI attributes are on a plain span: \
-                     {kept:?}"
-                );
+                for expected in ["trace-g", "trace-h"] {
+                    assert!(
+                        kept.contains(&&expected.to_string()),
+                        "the GenAI filter dropped {expected}, whose GenAI data is on a plain span: \
+                         {kept:?}"
+                    );
+                }
                 assert!(
                     !kept.contains(&&"trace-e".to_string())
                         && !kept.contains(&&"trace-f".to_string()),
@@ -1673,15 +1684,16 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         .expect("duckdb trace options");
     let described = describe_option_map(d);
     for expected in [
-        // Every span carries this environment, and there are seven traces.
-        "environment: test=7",
+        // Every span carries this environment, and there are eight traces.
+        "environment: test=8",
         // Two sessions, one covering two traces and one covering one.
         "session_id: session-1=2,session-2=1",
         "user_id: user-1=2",
         // The same names the trace list displays, including trace-c's: it has no root span, so
         // its name comes from the earliest named span, exactly as the list's fallback does. Listing
         // root spans only omitted it, and filtering by the name the UI showed returned nothing.
-        "trace_name: agent=1,earliest-named=1,generation=1,http-post=1,plain-span=2,tool=1",
+        "trace_name: agent=1,earliest-named=1,generation=1,http-post=1,plain-span=2,tool=1,\
+         usage-only=1",
     ] {
         assert!(
             described.iter().any(|line| line == expected),
@@ -1917,7 +1929,8 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
             "d-root".to_string(),
             "e-root".to_string(),
             "f-root".to_string(),
-            "g-root".to_string()
+            "g-root".to_string(),
+            "h-root".to_string()
         ],
         "deleting trace-c should leave exactly the unrelated traces"
     );
