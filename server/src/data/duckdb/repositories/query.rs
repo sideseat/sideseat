@@ -79,6 +79,7 @@ fn gen_totals_sql(where_clause: &str) -> String {
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
+                         AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
                          AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
@@ -96,6 +97,7 @@ fn gen_totals_sql(where_clause: &str) -> String {
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
+                         AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
                          AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
                    ))
@@ -525,6 +527,7 @@ pub fn get_trace(
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
+                         AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
                          AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
@@ -542,6 +545,7 @@ pub fn get_trace(
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
+                         AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
                          AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
                    ))
@@ -679,9 +683,13 @@ pub fn list_spans(
         bind_values.push(to.to_rfc3339());
     }
 
-    // Filter to observations only (GenAI spans)
+    // "GenAI only", the same definition the trace and session lists use. Testing observation_type
+    // alone hid every span that carries GenAI data without one - transport-level instrumentation
+    // records gen_ai.* on a plain span, and some instrumentation reports only token usage. The UI
+    // has this filter on by default, so those spans were missing from the list while their traces
+    // were present in the trace list, which does use the full predicate.
     if params.is_observation == Some(true) {
-        conditions.push("observation_type != 'span'".to_string());
+        conditions.push(format!("({})", genai_span_predicate("")));
     }
 
     // Apply advanced filters - map API column names to DB columns
@@ -764,9 +772,13 @@ pub fn get_feed_spans(
         bind_values.push(end.format("%Y-%m-%d %H:%M:%S%.6f").to_string());
     }
 
-    // Filter to observations only (GenAI spans)
+    // "GenAI only", the same definition the trace and session lists use. Testing observation_type
+    // alone hid every span that carries GenAI data without one - transport-level instrumentation
+    // records gen_ai.* on a plain span, and some instrumentation reports only token usage. The UI
+    // has this filter on by default, so those spans were missing from the list while their traces
+    // were present in the trace list, which does use the full predicate.
     if params.is_observation == Some(true) {
-        conditions.push("observation_type != 'span'".to_string());
+        conditions.push(format!("({})", genai_span_predicate("")));
     }
 
     let where_clause = conditions.join(" AND ");
@@ -1088,6 +1100,7 @@ pub fn list_sessions(
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
+                         AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
                          AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
@@ -1105,6 +1118,7 @@ pub fn list_sessions(
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
+                         AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
                          AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
                    ))
@@ -1213,6 +1227,7 @@ pub fn get_session(
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
+                         AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
                          AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
@@ -1230,6 +1245,7 @@ pub fn get_session(
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
+                         AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
                          AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
                    ))
@@ -1325,6 +1341,7 @@ pub fn get_traces_for_session(
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
+                         AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
                          AND (c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) > 0
@@ -1342,6 +1359,7 @@ pub fn get_traces_for_session(
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
+                         AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
                          AND (p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens) > 0
                    ))
@@ -2043,9 +2061,9 @@ pub fn get_span_filter_options(
         base_params.push(to.to_rfc3339());
     }
 
-    // Filter to observations only (GenAI spans)
+    // "GenAI only", as in the span list above.
     if observations_only {
-        base_conditions.push("observation_type != 'span'".to_string());
+        base_conditions.push(format!("({})", genai_span_predicate("")));
     }
 
     let base_where = base_conditions.join(" AND ");
@@ -4053,6 +4071,45 @@ mod tests {
         assert!(
             rows.is_empty(),
             "a trace displaying 3000 tokens must not match `< 1500` because one span does"
+        );
+    }
+
+    /// A span id is unique only within a trace, so token dedup must not look outside one.
+    ///
+    /// The parent/child checks that stop a nested generation from being counted twice matched on span
+    /// id alone. Two traces from the same framework routinely reuse an id shape, and a generation in
+    /// trace B whose parent id equalled a span id in trace A suppressed trace A's tokens - the trace
+    /// reported zero while its span carried usage.
+    #[tokio::test]
+    async fn token_dedup_does_not_reach_into_another_trace() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let project_id = "test-project";
+
+        // trace-1: a lone generation whose tokens must count.
+        let lone = make_generation_span(project_id, "trace-1", "shared-id", None, 0.01, 500);
+        // trace-2: a generation whose parent is "shared-id" - the same span id, another trace.
+        let child =
+            make_generation_span(project_id, "trace-2", "child", Some("shared-id"), 0.02, 700);
+        let root = make_agent_span(project_id, "trace-2", "shared-id", None);
+        {
+            let conn = analytics.conn();
+            insert_batch(&conn, &[lone, child, root]).expect("insert");
+        }
+
+        let conn = analytics.conn();
+        let first = get_trace(&conn, project_id, "trace-1")
+            .expect("query")
+            .expect("trace exists");
+        assert_eq!(
+            first.total_tokens, 500,
+            "trace-1's generation was suppressed by a same-id span in another trace"
+        );
+        let second = get_trace(&conn, project_id, "trace-2")
+            .expect("query")
+            .expect("trace exists");
+        assert_eq!(
+            second.total_tokens, 700,
+            "trace-2 should count its own leaf generation once"
         );
     }
 

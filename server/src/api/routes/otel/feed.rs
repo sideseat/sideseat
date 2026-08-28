@@ -275,6 +275,14 @@ pub async fn get_feed_messages(
         .get_messages(&MessageQueryParams {
             project_id: project_id.clone(),
             trace_ids: Some(trace_ids),
+            // Bounded above by the window the request asked for, and deliberately not below it.
+            //
+            // Context is what came *before*, so the lower bound must not be applied here - that is
+            // the whole reason `apply_time_window` runs on the answer instead. But without the upper
+            // bound the reconstruction also read spans recorded *after* the window, which changes
+            // what history detection collapses: a page of yesterday's feed could come back different
+            // today because the same trace has since continued.
+            to_timestamp: end_time,
             ..Default::default()
         })
         .await

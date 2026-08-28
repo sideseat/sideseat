@@ -1265,6 +1265,10 @@ fn describe_diff(label: &str, expected: &Golden, actual: &Golden) -> String {
         }
     }
 
+    // The feed view, which is not keyed - a change in it would otherwise print only "differs in a
+    // field not summarised above", which is what this whole function exists to avoid.
+    out.extend(compare_view("feed", &expected.feed_view, &actual.feed_view));
+
     if out.len() == 1 {
         out.push("  differs in a field not summarised above".to_string());
     }
@@ -1490,6 +1494,27 @@ fn invariant_checks_are_not_vacuous() {
     assert!(
         !fires(&|| assert_has_an_answer("strands/error", "synthetic", &unanswered, true)),
         "an exempt fixture must skip the check"
+    );
+
+    // The feed's weaker branch: it cannot ask about the last turn, but it must still fire when a
+    // question has no answer anywhere - the shape of a whole framework's replies going missing.
+    assert!(
+        fires(&|| assert_has_an_answer("test", "synthetic", &unanswered, false)),
+        "the unordered form must still report a question with no answer at all"
+    );
+    // And it must accept what it cannot judge: an answer before its question is ordinary in a feed,
+    // which descends across responses.
+    let newest_first = vec![
+        row("trace-a", 0, "assistant", "text", "second answer"),
+        row("trace-a", 1, "user", "text", "second question"),
+    ];
+    assert!(
+        !fires(&|| assert_has_an_answer("test", "synthetic", &newest_first, false)),
+        "the unordered form must not require the answer to follow the question"
+    );
+    assert!(
+        fires(&|| assert_has_an_answer("test", "synthetic", &newest_first, true)),
+        "and the ordered form must still reject that same list, or the two forms are the same check"
     );
 }
 

@@ -849,7 +849,7 @@ impl BlockSortKey {
     /// An index is not comparable across spans, so two blocks in different spans reporting the same
     /// instant would be ordered by a number that means nothing between them - and a tool result
     /// could precede the call it answers. That one case is settled before sorting instead, by
-    /// [`adopt_call_positions`]: such a result takes its position *from* its call, which is a
+    /// [`feed_positions`]: such a result takes its position *from* its call, which is a
     /// property of the block, so the key stays a set of values and the order stays total. Ranking by
     /// role at comparison time is what could not work.
     fn compare(&self, other: &Self) -> std::cmp::Ordering {
