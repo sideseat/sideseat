@@ -471,15 +471,19 @@ fn process_multi_trace_spans(rows: Vec<MessageSpanRow>) -> FeedResult {
             all_blocks.extend(result.messages);
             all_tool_defs.extend(result.tool_definitions);
             all_tool_names.extend(result.tool_names);
-            total_tokens += trace_tokens;
-            total_cost += trace_cost;
         }
+
+        // Counted whether or not the trace contributed a message. Cost is what the spans in scope
+        // were billed, not what survived history removal: a trace that only re-sent an earlier turn
+        // still called the model, and skipping it reported a session as cheaper than it was.
+        total_tokens += trace_tokens;
+        total_cost += trace_cost;
     }
 
     let block_count = all_blocks.len();
     let span_count = all_blocks
         .iter()
-        .map(|b| &b.span_id)
+        .map(|b| (&b.trace_id, &b.span_id))
         .collect::<HashSet<_>>()
         .len();
     let tool_definitions = deduplicate_tools(all_tool_defs);

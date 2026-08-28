@@ -9464,3 +9464,45 @@ fn the_feed_groups_a_trace_by_its_root_session_id() {
         "the re-sent turn survived, so the trace was processed as two conversations: {users:?}"
     );
 }
+
+/// A session's cost covers every trace in it, including one that only re-sent an earlier turn.
+///
+/// The multi-trace path added a trace's tokens only when it contributed a message the feed kept, so
+/// a trace whose content was all history counted as free. It still called the model. The response
+/// documents its totals as covering the spans in scope, and that is what they now do.
+#[test]
+fn a_replayed_trace_still_counts_towards_the_session() {
+    let first = json!([
+        {
+            "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+            "content": {"role": "user", "content": "the question"}
+        },
+        {
+            "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:01Z"}},
+            "content": {"role": "assistant", "content": "the answer"}
+        }
+    ]);
+    // The second trace re-sends the same turn and adds nothing.
+    let replay = first.clone();
+
+    let mut a = make_span_row("trace1", "span1", None, &first.to_string(), "[]", "[]");
+    a.session_id = Some("session-1".to_string());
+    let mut b = make_span_row("trace2", "span2", None, &replay.to_string(), "[]", "[]");
+    b.session_id = Some("session-1".to_string());
+    b.span_timestamp = a.span_timestamp + chrono::Duration::seconds(10);
+    let per_trace_tokens = a.total_tokens;
+    let per_trace_cost = a.cost_total;
+
+    let result = process_spans(vec![a, b], &FeedOptions::new());
+
+    assert_eq!(
+        result.metadata.total_tokens,
+        per_trace_tokens * 2,
+        "the replayed trace called the model and must be counted"
+    );
+    assert!(
+        (result.metadata.total_cost - per_trace_cost * 2.0).abs() < f64::EPSILON,
+        "the replayed trace's cost is missing: {}",
+        result.metadata.total_cost
+    );
+}

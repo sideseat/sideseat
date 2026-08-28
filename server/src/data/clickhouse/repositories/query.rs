@@ -418,6 +418,24 @@ impl ConditionBuilder {
         }
     }
 
+    /// Add any filter on the trace's displayed name, as a subquery over the traces that match it.
+    fn add_displayed_name_filters(&mut self, filters: &[Filter], project_id: &str) {
+        for filter in filters.iter().filter(|f| f.column() == "trace_name") {
+            let mut inner_params: Vec<QueryParam> = Vec::new();
+            let condition = crate::data::clickhouse::filters::to_clickhouse_sql_against(
+                filter,
+                &mut inner_params,
+                &trace_display_name("n", DisplayNameDialect::ClickHouse),
+            );
+            self.conditions.push(format!(
+                "trace_id IN (SELECT n.trace_id FROM otel_spans n FINAL WHERE n.project_id = ? \
+                 GROUP BY n.project_id, n.trace_id HAVING {condition})"
+            ));
+            self.params.push(QueryParam::String(project_id.to_string()));
+            self.params.extend(inner_params);
+        }
+    }
+
     /// Build the WHERE clause (without "WHERE" keyword)
     fn build(&self) -> String {
         self.conditions.join(" AND ")
@@ -754,37 +772,23 @@ pub async fn list_traces(
     }
 
     // The UI's filter bar. Ignored entirely until now: a trace list filtered by model, token
-    // count, cost or error status came back unfiltered on this backend. `trace_name` is held back
-    // for the HAVING below, where the displayed name exists.
+    // count, cost or error status came back unfiltered on this backend.
     cb.add_filters_except(
         &params.filters,
         columns::map_trace_column_to_spans,
         "",
         "trace_name",
     );
+    // A name filter selects the traces whose *displayed* name matches, computed over each trace's
+    // whole span set and scoped to the project alone - not over the rows the filters above leave
+    // behind, which for a root-agent/generation-child trace filtered by model is the child. An
+    // uncorrelated IN subquery rather than a join: ClickHouse rejects a correlated subquery
+    // (Code 48) and its analyzer treats a joined CTE's columns as ambiguous here.
+    cb.add_displayed_name_filters(&params.filters, &params.project_id);
 
     let where_clause = cb.build();
 
-    // The displayed-name filter, rendered against the aggregate. Needed by the count as well as the
-    // page: a total that ignored it reported more traces than the pages contain.
-    let mut count_name_params: Vec<QueryParam> = Vec::new();
-    let name_having: Vec<String> = params
-        .filters
-        .iter()
-        .filter(|f| f.column() == "trace_name")
-        .map(|f| {
-            crate::data::clickhouse::filters::to_clickhouse_sql_against(
-                f,
-                &mut count_name_params,
-                &trace_display_name("", DisplayNameDialect::ClickHouse),
-            )
-        })
-        .collect();
-    let count_name_having = if name_having.is_empty() {
-        String::new()
-    } else {
-        format!(" HAVING {}", name_having.join(" AND "))
-    };
+    // The name filter is part of `where_clause`, so the count gets it for free.
 
     let (count_sql, needs_double_bind) = if !params.include_nongenai {
         (
@@ -799,12 +803,11 @@ pub async fn list_traces(
                            SELECT trace_id FROM otel_spans FINAL WHERE {}
                              AND ({genai})
                        )
-                       GROUP BY trace_id{name_having}
+                       GROUP BY trace_id
                    )"#,
                 where_clause,
                 where_clause,
-                genai = genai_span_predicate(""),
-                name_having = count_name_having
+                genai = genai_span_predicate("")
             ),
             true,
         )
@@ -813,10 +816,9 @@ pub async fn list_traces(
             format!(
                 r#"SELECT count() as cnt FROM (
                        SELECT trace_id FROM otel_spans FINAL WHERE {}
-                       GROUP BY trace_id{name_having}
+                       GROUP BY trace_id
                    )"#,
-                where_clause,
-                name_having = count_name_having
+                where_clause
             ),
             false,
         )
@@ -824,8 +826,8 @@ pub async fn list_traces(
 
     // Bind parameters (twice if subquery used), then the name filter's, which the HAVING names last.
     let bind_times = if needs_double_bind { 2 } else { 1 };
-    let count_query = cb.bind_to_n(client.query(&count_sql), bind_times);
-    let total: u64 = bind_params(count_query, &count_name_params)
+    let total: u64 = cb
+        .bind_to_n(client.query(&count_sql), bind_times)
         .fetch_one()
         .await?;
 
@@ -864,14 +866,6 @@ pub async fn list_traces(
     if !params.include_nongenai {
         // Matches the count query and DuckDB: an observation, or a span carrying GenAI attributes.
         having_parts.push("observation_count > 0 OR genai_span_count > 0".to_string());
-    }
-    let mut name_params: Vec<QueryParam> = Vec::new();
-    for filter in params.filters.iter().filter(|f| f.column() == "trace_name") {
-        having_parts.push(crate::data::clickhouse::filters::to_clickhouse_sql_against(
-            filter,
-            &mut name_params,
-            &trace_display_name("sp", DisplayNameDialect::ClickHouse),
-        ));
     }
     let having_clause = if having_parts.is_empty() {
         String::new()
@@ -938,12 +932,10 @@ pub async fn list_traces(
         offset = offset
     );
 
-    // Bind: dedup_lookup(project_id + time-scope params) + where_clause x2 + the HAVING's, which
-    // the SQL names after the second where_clause.
+    // Bind: dedup_lookup(project_id + time-scope params) + where_clause x2
     let query = client.query(&data_sql).bind(params.project_id.as_str());
     let query = bind_params(query, &dedup.1);
-    let query = bind_params(cb.bind_to_n(query, 2), &name_params);
-    let rows: Vec<ChTraceRow> = query.fetch_all().await?;
+    let rows: Vec<ChTraceRow> = cb.bind_to_n(query, 2).fetch_all().await?;
 
     Ok((rows.into_iter().map(TraceRow::from).collect(), total))
 }

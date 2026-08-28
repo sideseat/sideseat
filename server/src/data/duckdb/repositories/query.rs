@@ -34,10 +34,20 @@ pub(crate) const DEDUP_SPANS: &str = "(SELECT s.* FROM otel_spans s \
 
 /// Build span conditions with optional table alias.
 /// Returns (WHERE clause, bind values).
-fn build_trace_span_conditions(
-    params: &ListTracesParams,
-    alias: &str,
-) -> (String, String, Vec<String>, Vec<String>) {
+/// The alias to qualify a column with, or a table name when the query does not alias.
+fn alias_or<'a>(fallback: &'a str, alias: &'a str) -> &'a str {
+    if alias.is_empty() {
+        if fallback.is_empty() {
+            "otel_spans"
+        } else {
+            fallback
+        }
+    } else {
+        alias
+    }
+}
+
+fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (String, Vec<String>) {
     let mut conditions = Vec::new();
     let mut bind_values = Vec::new();
     let mut sql_params = SqlParams::default();
@@ -95,20 +105,30 @@ fn build_trace_span_conditions(
 
     // Advanced filters with aliasing.
     //
-    // A trace_name filter is held back: it has to be matched against the name the list *displays*,
-    // which is a per-trace aggregate, so it belongs in the HAVING of the grouping query rather than
-    // in a row predicate. Matching the raw span_name of any span meant selecting "agent" also
-    // returned traces displayed under another name that happened to contain an agent span.
-    let mut having_conditions = Vec::new();
-    let mut having_values = Vec::new();
+    // A trace_name filter is special-cased: it has to match the name the list *displays*, which is a
+    // per-trace aggregate. Matching the raw span_name of any span meant selecting "agent" also
+    // returned traces displayed under another name that merely contained an agent span.
     for filter in &params.filters {
         if filter.column() == "trace_name" {
-            let mut params = SqlParams::default();
-            having_conditions.push(filter.to_sql_against(
-                &mut params,
-                &trace_display_name(alias, DisplayNameDialect::DuckDb),
+            // Selects the traces whose *displayed* name matches, computed over each trace's whole
+            // span set - not over the rows this query's other filters leave behind, which for a
+            // root-agent/generation-child trace filtered by model is the child, so the row came
+            // back labelled something the filter had not asked for.
+            //
+            // A subquery in the WHERE, the same shape the ClickHouse backend uses, so the two mean
+            // the same thing and the parity test can hold them to it.
+            let mut inner = SqlParams::default();
+            let condition = filter.to_sql_against(
+                &mut inner,
+                &trace_display_name("n", DisplayNameDialect::DuckDb),
+            );
+            conditions.push(format!(
+                "{}.trace_id IN (SELECT n.trace_id FROM otel_spans n WHERE n.project_id = ? \
+                 GROUP BY n.project_id, n.trace_id HAVING {condition})",
+                alias_or("otel_spans", alias)
             ));
-            having_values.extend(params.values);
+            bind_values.push(params.project_id.clone());
+            bind_values.extend(inner.values);
             continue;
         }
         conditions.push(filter.to_sql_aliased(
@@ -119,14 +139,7 @@ fn build_trace_span_conditions(
     }
     bind_values.extend(sql_params.values);
 
-    // The HAVING values are returned separately: a caller that renders only the WHERE - the token
-    // CTE does - must not bind values for placeholders its SQL does not contain.
-    (
-        conditions.join(" AND "),
-        having_conditions.join(" AND "),
-        bind_values,
-        having_values,
-    )
+    (conditions.join(" AND "), bind_values)
 }
 
 /// List traces with pagination and filters
@@ -140,9 +153,7 @@ pub fn list_traces(
     params: &ListTracesParams,
 ) -> Result<(Vec<TraceRow>, u64), DuckdbError> {
     // Build WHERE clause without alias for count query (single table)
-    let (span_where, span_having, mut bind_values, having_values) =
-        build_trace_span_conditions(params, "");
-    bind_values.extend(having_values);
+    let (span_where, bind_values) = build_trace_span_conditions(params, "");
 
     // Count query — raw otel_spans avoids the DEDUP_SPANS self-join. Safe because duplicates share
     // identical data for all filterable columns, and the HAVING checks are immune to row
@@ -157,9 +168,6 @@ pub fn list_traces(
             genai_span_predicate("")
         ));
     }
-    if !span_having.is_empty() {
-        count_having.push(span_having.clone());
-    }
     let count_sql = if count_having.is_empty() {
         format!(
             "SELECT COUNT(DISTINCT trace_id) FROM otel_spans WHERE {}",
@@ -167,9 +175,11 @@ pub fn list_traces(
         )
     } else {
         format!(
+            // project_id is in the GROUP BY so the name subquery in the HAVING can correlate on
+            // it. The WHERE already fixes it to one value, so the grouping is unchanged.
             r#"SELECT COUNT(*) FROM (
                 SELECT trace_id FROM otel_spans WHERE {}
-                GROUP BY trace_id
+                GROUP BY project_id, trace_id
                 HAVING {}
             ) t"#,
             span_where,
@@ -209,10 +219,8 @@ pub fn list_traces(
 
     // Build aliased WHERE clauses for CTEs
     // gen_totals CTE uses alias "g", filtered_traces CTE uses alias "sp"
-    let (span_where_g, _, bind_values_g, _) = build_trace_span_conditions(params, "g");
-    let (span_where_sp, span_having_sp, mut bind_values_sp, having_values_sp) =
-        build_trace_span_conditions(params, "sp");
-    bind_values_sp.extend(having_values_sp);
+    let (span_where_g, bind_values_g) = build_trace_span_conditions(params, "g");
+    let (span_where_sp, bind_values_sp) = build_trace_span_conditions(params, "sp");
 
     // HAVING clause to filter traces with GenAI spans when not including non-GenAI traces
     let mut having_parts: Vec<String> = Vec::new();
@@ -221,9 +229,6 @@ pub fn list_traces(
         // Bedrock span is classified as a plain span on purpose, so such a trace has no
         // observations even though its GenAI data is present and aggregated.
         having_parts.push("observation_count > 0 OR genai_span_count > 0".to_string());
-    }
-    if !span_having_sp.is_empty() {
-        having_parts.push(span_having_sp);
     }
     let having_clause = if having_parts.is_empty() {
         String::new()

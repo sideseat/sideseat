@@ -192,15 +192,19 @@ pub async fn get_feed_messages(
     // Process spans through feed pipeline (handles grouping, dedup, sorting)
     // History filtering is automatic (duplicates are detected and filtered)
     //
-    // Known limit: history detection sees one page at a time. Cross-trace prefix stripping needs
-    // the earlier traces of a session, and a page holds whatever rows the cursor selected - so if a
-    // newer trace's replay of an older turn is on this page and the turn's own trace is on the
-    // next, the replay is not recognised and the same content appears on both pages.
+    // Known limit: reconstruction sees one page at a time, and the page is chosen before it runs.
+    // Everything the pipeline decides by looking across spans is therefore page-local:
     //
-    // Fixing it means loading each session on the page in full as context and scoping back, the way
-    // the trace endpoint does. That is one extra query per session per page on a real-time endpoint,
-    // so it is a deliberate omission rather than an oversight; the trace and session views, which
-    // are what a user reads a conversation in, do load their whole session.
+    // - a replay and the turn it replays can land on different pages, so both are returned;
+    // - a tool call and its result can be split, leaving the result uncorrelated on its page;
+    // - pages are selected by ingestion time and each is then ordered by message time, so
+    //   concatenating them is not guaranteed to be globally ordered.
+    //
+    // Fixing it means loading each conversation on the page in full as context and scoping back,
+    // the way the trace endpoint does - one extra query per session per page on a real-time
+    // endpoint, and an unbounded one for a long session. That is a deliberate trade rather than an
+    // oversight, and it is why the trace and session views, which are where a conversation is
+    // actually read, load their whole session instead of paginating.
     let options = FeedOptions::new().with_role(query.role.clone());
 
     let processed = process_feed(spans, &options);
