@@ -244,8 +244,13 @@ pub struct MessageQueryParams {
     pub session_id: Option<String>,
     /// Several traces at once, for the project feed: a page of the feed holds spans from many
     /// traces, and reconstruction has to see each of those traces whole. Lower priority than the
-    /// single-entity selectors; empty means unused.
-    pub trace_ids: Vec<String>,
+    /// single-entity selectors.
+    ///
+    /// An `Option` so that "no trace list given" and "a list that happens to be empty" cannot be
+    /// confused. As a bare `Vec`, an empty one read as *unused*, and a caller whose only selector
+    /// was this list then asked for the whole project with no content filter - an empty feed page
+    /// turning into an unbounded read. `Some(empty)` matches nothing.
+    pub trace_ids: Option<Vec<String>>,
     pub from_timestamp: Option<DateTime<Utc>>,
     pub to_timestamp: Option<DateTime<Utc>>,
 }

@@ -124,10 +124,15 @@ pub async fn get_messages(
         conditions.push("trace_id = ?".to_string());
         string_binds.push(trace_id.clone());
         conditions.push(MESSAGE_CONTENT_FILTER.to_string());
-    } else if !params.trace_ids.is_empty() {
-        let placeholders: Vec<&str> = params.trace_ids.iter().map(|_| "?").collect();
-        conditions.push(format!("trace_id IN ({})", placeholders.join(", ")));
-        string_binds.extend(params.trace_ids.iter().cloned());
+    } else if let Some(trace_ids) = &params.trace_ids {
+        // An empty list matches nothing; see the DuckDB backend.
+        if trace_ids.is_empty() {
+            conditions.push("1 = 0".to_string());
+        } else {
+            let placeholders: Vec<&str> = trace_ids.iter().map(|_| "?").collect();
+            conditions.push(format!("trace_id IN ({})", placeholders.join(", ")));
+            string_binds.extend(trace_ids.iter().cloned());
+        }
         conditions.push(MESSAGE_CONTENT_FILTER.to_string());
     }
 

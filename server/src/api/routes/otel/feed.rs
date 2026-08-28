@@ -19,7 +19,7 @@ use super::types::{
 use crate::api::auth::ProjectRead;
 use crate::api::types::{ApiError, parse_timestamp_param};
 use crate::data::types::{FeedMessagesParams, FeedSpansParams, MessageQueryParams};
-use crate::domain::sideml::{FeedOptions, process_feed};
+use crate::domain::sideml::{FeedOptions, extract_tools_from_rows, process_feed};
 
 // ============================================================================
 // Constants
@@ -223,6 +223,27 @@ pub async fn get_feed_messages(
     // pages are selected by ingestion time while each is ordered by message time, so concatenating
     // them is not guaranteed to be globally ordered. The trace and session views, which are where a
     // conversation is actually read, load their whole session for that reason.
+    // An empty page loads nothing. `trace_ids` empty means "selector unused" to the message
+    // queries, so passing it on would ask for the whole project with no content filter - a future
+    // time window or an exhausted cursor turning into an unbounded read.
+    if spans.is_empty() {
+        return Ok(Json(FeedMessagesResponse {
+            data: Vec::new(),
+            pagination: FeedPagination {
+                next_cursor,
+                has_more,
+            },
+            metadata: FeedMessagesMetadata {
+                message_count: 0,
+                span_count: 0,
+                total_tokens: 0,
+                total_cost: 0.0,
+            },
+            tool_definitions: Vec::new(),
+            tool_names: Vec::new(),
+        }));
+    }
+
     let page_spans: HashSet<(String, String)> = spans
         .iter()
         .map(|s| (s.trace_id.clone(), s.span_id.clone()))
@@ -241,6 +262,11 @@ pub async fn get_feed_messages(
     }
     let page_span_count = counted.len() as u32;
 
+    // The tools a page offers are the tools its own spans declared. Taken from the reconstruction
+    // instead, a page would list tools that exist only on spans it does not show - the trace view
+    // scopes them the same way when it loads a whole session.
+    let page_tools = extract_tools_from_rows(spans.iter());
+
     let mut trace_ids: Vec<String> = spans.iter().map(|s| s.trace_id.clone()).collect();
     trace_ids.sort();
     trace_ids.dedup();
@@ -248,7 +274,7 @@ pub async fn get_feed_messages(
     let context = repo
         .get_messages(&MessageQueryParams {
             project_id: project_id.clone(),
-            trace_ids,
+            trace_ids: Some(trace_ids),
             ..Default::default()
         })
         .await
@@ -258,8 +284,8 @@ pub async fn get_feed_messages(
 
     let processed = process_feed(context.rows, &options);
     let all_messages = scope_feed_to_page(processed.messages, &page_spans);
-    let tool_definitions = processed.tool_definitions;
-    let tool_names = processed.tool_names;
+    let tool_definitions = page_tools.tool_definitions;
+    let tool_names = page_tools.tool_names;
 
     // The page's totals, computed from the page's rows above rather than from the pipeline's - the
     // pipeline now sees whole traces, so its totals cover more than the page shows.
@@ -517,6 +543,32 @@ mod tests {
             session_id: None,
             ingested_at: t,
         }
+    }
+
+    /// The tools a page lists are the tools its own spans declared.
+    ///
+    /// Reconstruction is handed whole traces, so taking the tool set from its result would expose
+    /// tools that exist only on spans the page does not show.
+    #[test]
+    fn page_tools_come_from_the_page() {
+        let mut on_page = feed_row("trace-1", "span-1", "[]", 0);
+        on_page.tool_names_json = r#"["on_page_tool"]"#.to_string();
+        let mut off_page = feed_row("trace-1", "span-2", "[]", 5);
+        off_page.tool_names_json = r#"["off_page_tool"]"#.to_string();
+
+        // The page holds one span; the context load would add the other.
+        let page_tools = extract_tools_from_rows([on_page.clone()].iter());
+        assert_eq!(
+            page_tools.tool_names,
+            vec!["on_page_tool".to_string()],
+            "the page's tools must come from its own rows"
+        );
+
+        let context_tools = extract_tools_from_rows([on_page, off_page].iter());
+        assert!(
+            context_tools.tool_names.len() > page_tools.tool_names.len(),
+            "the context holds more tools than the page, or this test proves nothing"
+        );
     }
 
     /// A trace split across two pages must not show the same turn twice.

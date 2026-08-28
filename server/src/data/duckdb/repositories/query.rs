@@ -4056,6 +4056,44 @@ mod tests {
         );
     }
 
+    /// An empty "none of" is not a filter, and must not exclude everything.
+    ///
+    /// The negated form is rendered by excluding the matches of its positive twin, and an empty
+    /// option list renders as `1 = 1` - so negating the subquery around it excluded every trace.
+    /// "None of nothing" has to mean "everything".
+    #[tokio::test]
+    async fn an_empty_exclusion_list_filters_nothing() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let project_id = "test-project";
+        let spans = vec![make_generation_span(
+            project_id, "trace-1", "gen-1", None, 0.01, 100,
+        )];
+        {
+            let conn = analytics.conn();
+            insert_batch(&conn, &spans).expect("insert");
+        }
+
+        let conn = analytics.conn();
+        let (rows, total) = list_traces(
+            &conn,
+            &trace_filter_params(
+                project_id,
+                vec![Filter::StringOptions {
+                    column: "gen_ai_request_model".to_string(),
+                    operator: OptionsOp::NoneOf,
+                    value: vec![],
+                }],
+            ),
+        )
+        .expect("query");
+        assert_eq!(
+            rows.len(),
+            1,
+            "an empty exclusion list excluded the trace instead of filtering nothing"
+        );
+        assert_eq!(total, 1, "the count must agree with the page");
+    }
+
     /// A filtered session list shows the whole session, not the part that matched.
     ///
     /// Selection and membership are separate questions. Answering both with one predicate returned a

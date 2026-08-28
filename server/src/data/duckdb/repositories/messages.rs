@@ -76,10 +76,15 @@ pub fn get_messages(
         conditions.push("trace_id = ?".to_string());
         bind_values.push(trace_id.clone());
         conditions.push(MESSAGE_CONTENT_FILTER.to_string());
-    } else if !params.trace_ids.is_empty() {
-        let placeholders: Vec<&str> = params.trace_ids.iter().map(|_| "?").collect();
-        conditions.push(format!("trace_id IN ({})", placeholders.join(", ")));
-        bind_values.extend(params.trace_ids.iter().cloned());
+    } else if let Some(trace_ids) = &params.trace_ids {
+        // An empty list matches nothing, rather than falling through to every trace in the project.
+        if trace_ids.is_empty() {
+            conditions.push("1 = 0".to_string());
+        } else {
+            let placeholders: Vec<&str> = trace_ids.iter().map(|_| "?").collect();
+            conditions.push(format!("trace_id IN ({})", placeholders.join(", ")));
+            bind_values.extend(trace_ids.iter().cloned());
+        }
         conditions.push(MESSAGE_CONTENT_FILTER.to_string());
     }
 
