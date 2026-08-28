@@ -93,9 +93,16 @@ def _get_reasoning_options(client) -> dict:
 
     # Bedrock is reached through the OpenAI-compatible endpoint, which does not accept
     # `reasoning`; only a real OpenAI base URL does.
-    if isinstance(client, OpenAIChatClient) and "openai.com" in str(
-        getattr(client, "base_url", "") or ""
-    ):
+    #
+    # The URL lives on the wrapped SDK client. OpenAIChatClient does expose a `base_url`, but it
+    # holds the value that was passed to the constructor - None whenever the default endpoint is
+    # used - so reading it alone reported no base URL for ordinary OpenAI configuration and this
+    # sample ran without reasoning enabled, silently.
+    inner = getattr(client, "client", None)
+    base_url = str(
+        getattr(inner, "base_url", None) or getattr(client, "base_url", None) or ""
+    )
+    if isinstance(client, OpenAIChatClient) and "openai.com" in base_url:
         return {"reasoning": {"effort": "medium"}}
 
     return {}

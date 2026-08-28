@@ -140,9 +140,16 @@ pub fn get_project_messages(
         bind_values.push(cursor_trace_id.clone());
     }
 
-    // Event time filters
+    // Event time filters.
+    //
+    // The lower bound is on the span's *end*, so the page holds every span that overlaps the window.
+    // A completed response carries its span's end time, so a span that began before the window and
+    // finished inside it produces a message dated inside the window - and comparing the span's start
+    // dropped it before reconstruction ever saw it. The upper bound stays on the start: a span that
+    // begins after the window is irrelevant to it. `apply_time_window` then decides per message,
+    // which is where the window belongs.
     if let Some(start) = &params.start_time {
-        conditions.push("timestamp_start >= ?".to_string());
+        conditions.push("COALESCE(timestamp_end, timestamp_start) >= ?".to_string());
         bind_values.push(start.format("%Y-%m-%d %H:%M:%S%.6f").to_string());
     }
     if let Some(end) = &params.end_time {

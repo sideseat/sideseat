@@ -107,6 +107,11 @@ pub fn genai_span_predicate(alias: &str) -> String {
         format!("{prefix}gen_ai_agent_name IS NOT NULL"),
         format!("{prefix}gen_ai_tool_name IS NOT NULL"),
         format!("{prefix}gen_ai_usage_total_tokens > 0"),
+        // Cost as well as tokens. OpenInference reports `llm.cost.*` directly, and extraction keeps
+        // it, so a span can carry what a call cost without carrying the usage it was computed from.
+        // Listing only tokens left such a span a plain span, hidden from every view that filters to
+        // GenAI - which the commit adding this predicate claimed was fixed, and was not.
+        format!("{prefix}gen_ai_cost_total > 0"),
     ]
     .join(" OR ")
 }
