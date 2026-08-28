@@ -1090,6 +1090,28 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             },
         ),
         (
+            // A name filter combined with another one. The name has to be computed from the trace's
+            // whole span set, as the projection computes it - not from the rows the model filter
+            // left behind, which for a root-agent/generation-child trace is the child, so the row
+            // came back labelled "agent" after being selected as "generation".
+            "filtered by name and model together",
+            ListTracesParams {
+                filters: vec![
+                    Filter::StringOptions {
+                        column: "trace_name".to_string(),
+                        operator: OptionsOp::AnyOf,
+                        value: vec!["agent".to_string()],
+                    },
+                    Filter::String {
+                        column: "gen_ai_request_model".to_string(),
+                        operator: StringOp::Eq,
+                        value: "claude-haiku".to_string(),
+                    },
+                ],
+                ..trace_params()
+            },
+        ),
+        (
             "filtered by a name substring",
             ListTracesParams {
                 filters: vec![Filter::String {
@@ -1238,6 +1260,18 @@ async fn clickhouse_matches_duckdb_on_every_read() {
                     !kept.contains(&&"trace-e".to_string())
                         && !kept.contains(&&"trace-f".to_string()),
                     "the GenAI filter kept a trace with no GenAI data at all: {kept:?}"
+                );
+            }
+            "filtered by name and model together" => {
+                let names: Vec<Option<&String>> = d.iter().map(|t| t.trace_name.as_ref()).collect();
+                assert!(
+                    names.iter().all(|n| n.map(String::as_str) == Some("agent")),
+                    "combining the filters returned a trace displayed under another name: {names:?}"
+                );
+                assert_eq!(
+                    d.len(),
+                    2,
+                    "both agent-named traces have a span carrying the model: {names:?}"
                 );
             }
             "filtered by the displayed name" => {
