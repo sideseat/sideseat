@@ -2,7 +2,7 @@
 
 Inputs for `server/src/domain/traces/message_goldens_tests.rs`, which checks that message
 **count, content, ordering and absence of duplicates** hold for every framework *that has a
-fixture here*, in all four views the API exposes. Coverage is 11 of the 33 frameworks SideSeat
+fixture here*, in all four views the API exposes. Coverage is 11 of the 32 frameworks SideSeat
 recognises and not every fixture has a session view - see [What is and is not
 covered](#what-is-and-is-not-covered), which is the honest version of this sentence:
 
@@ -104,16 +104,18 @@ not hide the rest.
 
 ## What is and is not covered
 
-107 samples in 13 captured suites, plus `_synthetic`. A suite is not a framework: `strands` and
-`strands-js`, and `claude-agent-sdk` and `claude-agent-sdk-js`, are one framework each in two
-languages, so the 13 suites cover **11** of the 33 frameworks SideSeat recognises. Every framework is
-not covered, and the gap is deliberate rather than hidden:
+**107 expectation files: 106 captured in 13 suites, plus 1 synthetic.** A suite is not a framework:
+`strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
+languages, so the 13 captured suites cover **11 of the 32** frameworks SideSeat recognises. (32 is
+the union of the server's `Framework` classifier and the SDK's framework list, excluding `Unknown`:
+28 named server variants plus `anthropic`, `openai`, `google-genai` and `pydantic-ai`, which only the
+SDK names.) Every framework is not covered, and the gap is deliberate rather than hidden:
 
-| Covered by fixtures | strands, langgraph, crewai, adk, bedrock, openai, openai-agents, anthropic, agent-framework, claude-agent-sdk, vercel-ai — the last three of those through JS suites (`strands-js`, `vercel-ai-js`, `claude-agent-sdk-js`) as well as, or instead of, Python |
+| Covered by fixtures (11) | strands, langgraph, crewai, google-adk, bedrock, openai, openai-agents, anthropic, agent-framework, claude-agent-sdk, vercel-ai — strands and claude-agent-sdk in both languages, vercel-ai in JS only |
 | ------------------- | --- |
-| Not a framework | `_synthetic` — one hand-written payload (`tool_use`), for a shape no captured sample produces. It is in the suite count and not in the framework count. |
+| Synthetic, not a framework | `_synthetic/tool_use` — one hand-written payload for a shape no captured sample produces. Counted in the 107 files and in neither the 13 suites nor the 11 frameworks. |
 | Has samples, no fixtures | `autogen` — its runner has no Bedrock path, so capturing it needs a first-party key. Listed in the capture script and skipped with a message, so its absence is visible. |
-| Recognised, no samples | LangChain, PydanticAI, Agno, Smolagents, AgentScope, Langflow, AG2, Haystack, browser-use, Google GenAI, Vertex AI, LlamaIndex, Semantic Kernel, Azure OpenAI / AI Foundry, Logfire, MLflow, TraceLoop, LiveKit |
+| Recognised, no fixtures (21) | ag2, agentscope, agno, autogen, azure-ai-foundry, azure-openai, browser-use, google-genai, haystack, langchain, langflow, livekit, llamaindex, logfire, mlflow, **openinference**, pydantic-ai, semantic-kernel, smolagents, traceloop, vertex-ai |
 
 The second group shares extractors with covered frameworks, so the *parsing logic* is exercised
 — but nothing here proves their emitted payloads match what those extractors expect. Adding a

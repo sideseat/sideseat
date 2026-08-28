@@ -109,31 +109,31 @@ fn query_main_aggregation(
               AND g.timestamp_start <= ?
               AND (
                   (g.observation_type = 'generation'
-                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens + g.gen_ai_usage_total_tokens) > 0 OR g.gen_ai_cost_total > 0)
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens + g.gen_ai_usage_total_tokens + g.gen_ai_usage_cache_read_tokens + g.gen_ai_usage_cache_write_tokens + g.gen_ai_usage_reasoning_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
                          AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
-                         AND ((c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens + c.gen_ai_usage_total_tokens) > 0 OR c.gen_ai_cost_total > 0)
+                         AND ((c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens + c.gen_ai_usage_total_tokens + c.gen_ai_usage_cache_read_tokens + c.gen_ai_usage_cache_write_tokens + c.gen_ai_usage_reasoning_tokens) > 0 OR c.gen_ai_cost_total > 0)
                    ))
                   OR
                   ((g.observation_type IS NULL OR g.observation_type != 'generation')
-                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens + g.gen_ai_usage_total_tokens) > 0 OR g.gen_ai_cost_total > 0)
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens + g.gen_ai_usage_total_tokens + g.gen_ai_usage_cache_read_tokens + g.gen_ai_usage_cache_write_tokens + g.gen_ai_usage_reasoning_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans gen
                        WHERE gen.trace_id = g.trace_id
                          AND gen.project_id = g.project_id
                          AND gen.observation_type = 'generation'
-                         AND ((gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens + gen.gen_ai_usage_total_tokens) > 0 OR gen.gen_ai_cost_total > 0)
+                         AND ((gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens + gen.gen_ai_usage_total_tokens + gen.gen_ai_usage_cache_read_tokens + gen.gen_ai_usage_cache_write_tokens + gen.gen_ai_usage_reasoning_tokens) > 0 OR gen.gen_ai_cost_total > 0)
                    )
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
                          AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
-                         AND ((p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens + p.gen_ai_usage_total_tokens) > 0 OR p.gen_ai_cost_total > 0)
+                         AND ((p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens + p.gen_ai_usage_total_tokens + p.gen_ai_usage_cache_read_tokens + p.gen_ai_usage_cache_write_tokens + p.gen_ai_usage_reasoning_tokens) > 0 OR p.gen_ai_cost_total > 0)
                    ))
               )
         )
@@ -347,31 +347,31 @@ fn query_model_breakdown(
               AND g.timestamp_start <= ?
               AND (
                   (g.observation_type = 'generation'
-                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens + g.gen_ai_usage_total_tokens) > 0 OR g.gen_ai_cost_total > 0)
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens + g.gen_ai_usage_total_tokens + g.gen_ai_usage_cache_read_tokens + g.gen_ai_usage_cache_write_tokens + g.gen_ai_usage_reasoning_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
                          AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
-                         AND ((c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens + c.gen_ai_usage_total_tokens) > 0 OR c.gen_ai_cost_total > 0)
+                         AND ((c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens + c.gen_ai_usage_total_tokens + c.gen_ai_usage_cache_read_tokens + c.gen_ai_usage_cache_write_tokens + c.gen_ai_usage_reasoning_tokens) > 0 OR c.gen_ai_cost_total > 0)
                    ))
                   OR
                   ((g.observation_type IS NULL OR g.observation_type != 'generation')
-                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens + g.gen_ai_usage_total_tokens) > 0 OR g.gen_ai_cost_total > 0)
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens + g.gen_ai_usage_total_tokens + g.gen_ai_usage_cache_read_tokens + g.gen_ai_usage_cache_write_tokens + g.gen_ai_usage_reasoning_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans gen
                        WHERE gen.trace_id = g.trace_id
                          AND gen.project_id = g.project_id
                          AND gen.observation_type = 'generation'
-                         AND ((gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens + gen.gen_ai_usage_total_tokens) > 0 OR gen.gen_ai_cost_total > 0)
+                         AND ((gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens + gen.gen_ai_usage_total_tokens + gen.gen_ai_usage_cache_read_tokens + gen.gen_ai_usage_cache_write_tokens + gen.gen_ai_usage_reasoning_tokens) > 0 OR gen.gen_ai_cost_total > 0)
                    )
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
                          AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
-                         AND ((p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens + p.gen_ai_usage_total_tokens) > 0 OR p.gen_ai_cost_total > 0)
+                         AND ((p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens + p.gen_ai_usage_total_tokens + p.gen_ai_usage_cache_read_tokens + p.gen_ai_usage_cache_write_tokens + p.gen_ai_usage_reasoning_tokens) > 0 OR p.gen_ai_cost_total > 0)
                    ))
               )
         ),
@@ -463,31 +463,31 @@ fn query_trend_data(
               AND g.timestamp_start <= ?
               AND (
                   (g.observation_type = 'generation'
-                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens + g.gen_ai_usage_total_tokens) > 0 OR g.gen_ai_cost_total > 0)
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens + g.gen_ai_usage_total_tokens + g.gen_ai_usage_cache_read_tokens + g.gen_ai_usage_cache_write_tokens + g.gen_ai_usage_reasoning_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans c
                        WHERE c.parent_span_id = g.span_id
                          AND c.trace_id = g.trace_id
                          AND c.project_id = g.project_id
                          AND c.observation_type = 'generation'
-                         AND ((c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens + c.gen_ai_usage_total_tokens) > 0 OR c.gen_ai_cost_total > 0)
+                         AND ((c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens + c.gen_ai_usage_total_tokens + c.gen_ai_usage_cache_read_tokens + c.gen_ai_usage_cache_write_tokens + c.gen_ai_usage_reasoning_tokens) > 0 OR c.gen_ai_cost_total > 0)
                    ))
                   OR
                   ((g.observation_type IS NULL OR g.observation_type != 'generation')
-                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens + g.gen_ai_usage_total_tokens) > 0 OR g.gen_ai_cost_total > 0)
+                   AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens + g.gen_ai_usage_total_tokens + g.gen_ai_usage_cache_read_tokens + g.gen_ai_usage_cache_write_tokens + g.gen_ai_usage_reasoning_tokens) > 0 OR g.gen_ai_cost_total > 0)
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans gen
                        WHERE gen.trace_id = g.trace_id
                          AND gen.project_id = g.project_id
                          AND gen.observation_type = 'generation'
-                         AND ((gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens + gen.gen_ai_usage_total_tokens) > 0 OR gen.gen_ai_cost_total > 0)
+                         AND ((gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens + gen.gen_ai_usage_total_tokens + gen.gen_ai_usage_cache_read_tokens + gen.gen_ai_usage_cache_write_tokens + gen.gen_ai_usage_reasoning_tokens) > 0 OR gen.gen_ai_cost_total > 0)
                    )
                    AND NOT EXISTS (
                        SELECT 1 FROM otel_spans p
                        WHERE p.span_id = g.parent_span_id
                          AND p.trace_id = g.trace_id
                          AND p.project_id = g.project_id
-                         AND ((p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens + p.gen_ai_usage_total_tokens) > 0 OR p.gen_ai_cost_total > 0)
+                         AND ((p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens + p.gen_ai_usage_total_tokens + p.gen_ai_usage_cache_read_tokens + p.gen_ai_usage_cache_write_tokens + p.gen_ai_usage_reasoning_tokens) > 0 OR p.gen_ai_cost_total > 0)
                    ))
               )
         ),
