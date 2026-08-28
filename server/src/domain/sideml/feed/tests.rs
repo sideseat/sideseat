@@ -9719,3 +9719,34 @@ fn every_block_carries_a_distinct_position_within_its_payload() {
         "a position must name the route it was read by: {positions:?}"
     );
 }
+
+/// A framework re-listing its own messages in one payload is not two calls.
+///
+/// LangChain's `output.value` carries accumulated state: the same tool call appears twice in one
+/// attribute, at different positions, describing one call. Position alone therefore cannot decide a
+/// repeat - ranking by it turned every such echo into a second call. The provider's id is the
+/// evidence when there is one, and position is the fallback for payloads that carry no ids.
+#[test]
+fn an_echoed_call_within_one_payload_is_one_call() {
+    let t = fixed_time();
+    let call = json!({
+        "type": "tool_use", "id": "tooluse_same", "name": "generate_image",
+        "input": {"prompt": "a cat"}
+    });
+    // One carrier, the same call listed twice - accumulated state, not a repeat.
+    let messages = json!([{
+        "source": {"attribute": {"key": "output.value", "time": t.to_rfc3339()}},
+        "content": {"role": "assistant", "content": [call.clone(), call]}
+    }]);
+    let row = make_span_row("trace1", "span1", None, &messages.to_string(), "[]", "[]");
+    let result = process_spans(vec![row], &FeedOptions::new());
+    let calls = result
+        .messages
+        .iter()
+        .filter(|b| b.entry_type == "tool_use")
+        .count();
+    assert_eq!(
+        calls, 1,
+        "the same id twice in one payload is one call, whatever its positions"
+    );
+}

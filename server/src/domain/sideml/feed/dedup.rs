@@ -171,6 +171,21 @@ impl MessageIdentity {
 /// A tool *result* inherits the rank of the call it answers, so two results of two identical calls
 /// stay two. Everything else ranks 0: without an id there is no evidence of a genuine repeat, and
 /// treating repeated text as two messages would undo the history collapsing this pipeline exists for.
+/// What identifies one call among same-shaped calls of a response: the provider's id, or failing
+/// that, where the call sat.
+#[derive(PartialEq, Eq)]
+enum CallKey<'a> {
+    Id(&'a str),
+    Position(&'a PositionPath),
+}
+
+fn call_key<'a>(block: &'a BlockEntry, id: Option<&'a str>) -> CallKey<'a> {
+    match id.filter(|s| !s.is_empty()) {
+        Some(id) => CallKey::Id(id),
+        None => CallKey::Position(&block.position),
+    }
+}
+
 pub(super) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Vec<u32> {
     // (trace, span, source, call shape) -> the ids seen, in order of first appearance.
     type ResponseKey<'a> = (
@@ -181,17 +196,23 @@ pub(super) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Vec<u32> {
         Option<&'a str>,
         u64,
     );
-    // The *positions* seen for one call shape in one response, in document order. Position rather
-    // than call id: the position is structure the payload stated, so it distinguishes two identical
-    // calls even from a framework that sends no ids - which id-ranking could not.
-    let mut positions_by_response: HashMap<ResponseKey<'_>, Vec<&PositionPath>> = HashMap::new();
+    // What tells two same-shaped calls of one response apart: the provider's id where there is one,
+    // and the position otherwise.
+    //
+    // The id has to win when present. A framework's accumulated state re-lists its own messages -
+    // LangChain's `output.value` carries each tool call twice - and those copies sit at different
+    // positions while describing one call. Ranking by position alone turned every such echo into a
+    // second call, which the goldens' duplicate invariant caught. The position still earns its place
+    // where no id was sent: two identical calls with no ids are otherwise indistinguishable.
+    let mut keys_by_response: HashMap<ResponseKey<'_>, Vec<CallKey<'_>>> = HashMap::new();
     // (trace, call id) -> that call's rank, for the results that answer it.
     let mut rank_by_call: HashMap<(&str, &str), u32> = HashMap::new();
 
     for block in blocks {
         if let ContentBlock::ToolUse { id, name, input } = &block.content {
             let shape = compute_tool_call_hash(name, input);
-            let seen = positions_by_response
+            let key = call_key(block, id.as_deref());
+            let seen = keys_by_response
                 .entry((
                     block.trace_id.as_str(),
                     block.span_id.as_str(),
@@ -201,10 +222,10 @@ pub(super) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Vec<u32> {
                     shape,
                 ))
                 .or_default();
-            let rank = match seen.iter().position(|seen| **seen == block.position) {
+            let rank = match seen.iter().position(|seen| *seen == key) {
                 Some(position) => position as u32,
                 None => {
-                    seen.push(&block.position);
+                    seen.push(key);
                     (seen.len() - 1) as u32
                 }
             };
@@ -219,9 +240,10 @@ pub(super) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Vec<u32> {
     blocks
         .iter()
         .map(|block| match &block.content {
-            ContentBlock::ToolUse { name, input, .. } => {
+            ContentBlock::ToolUse { id, name, input } => {
                 let shape = compute_tool_call_hash(name, input);
-                positions_by_response
+                let key = call_key(block, id.as_deref());
+                keys_by_response
                     .get(&(
                         block.trace_id.as_str(),
                         block.span_id.as_str(),
@@ -230,7 +252,7 @@ pub(super) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Vec<u32> {
                         block.source_attribute.as_deref(),
                         shape,
                     ))
-                    .and_then(|seen| seen.iter().position(|seen| **seen == block.position))
+                    .and_then(|seen| seen.iter().position(|seen| *seen == key))
                     .map(|rank| rank as u32)
                     .unwrap_or(0)
             }
