@@ -2098,18 +2098,13 @@ fn the_scaffold_reproduces_the_existing_order() {
                 continue;
             }
             let (legacy, scaffold) = legacy_and_scaffold_order(rows);
+            // The whole block, serialised. A role/type/span/hash fingerprint is too weak: two
+            // identical tool calls with distinct ids share it, so swapping them would have passed -
+            // and those two calls are exactly what the resolver's contraction reasons about.
             let seq = |blocks: &[crate::domain::sideml::feed::BlockEntry]| -> Vec<String> {
                 blocks
                     .iter()
-                    .map(|b| {
-                        format!(
-                            "{}/{}/{}/{}",
-                            b.role.as_str(),
-                            b.entry_type,
-                            b.span_id,
-                            b.content_hash
-                        )
-                    })
+                    .map(|b| serde_json::to_string(b).expect("a block serialises"))
                     .collect()
             };
             assert_eq!(
