@@ -119,29 +119,43 @@ impl UnionFind {
 /// This is the promotion dial for the redesign. `SCAFFOLD` builds the whole graph and runs the whole
 /// resolve, but enforces only what the existing order already satisfies, so its output is provably
 /// the existing order — that is what lets the machinery go into production before any behaviour
-/// changes. Flipping one field to `false` afterwards promotes exactly one constraint class, and its
-/// golden delta is that class's alone.
+/// changes.
+///
+/// One field per behaviour, deliberately: promoting a class means flipping *one* of them, so the
+/// resulting golden delta is attributable to that class alone. A single bundled flag turned all four
+/// on at once, which would have made the first promotion's diff uninterpretable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct Constraints {
-    /// Drop an edge, and skip a contraction, that the legacy order does not already satisfy.
+    /// Contract an emission whose survivors are not already adjacent in the legacy order.
     ///
-    /// Both halves matter. Filtering edges alone is not enough to be neutral: contracting an
-    /// emission whose survivors are *not* already adjacent in the legacy order moves them together,
-    /// which is a reorder - and it is precisely the reorder this redesign exists to make (the
-    /// `strands-js/swarm` intro text). So the scaffold contracts only what is already contiguous.
-    pub enforce_only_satisfied: bool,
+    /// This is the half of neutrality that filtering edges does not cover: moving an emission's
+    /// scattered members together is a reorder, and it is precisely the reorder the redesign exists
+    /// to make (the `strands-js/swarm` intro text).
+    pub contract_non_contiguous_emissions: bool,
+    /// Enforce a call → result edge that the legacy order has backwards.
+    pub enforce_backward_call_edges: bool,
+    /// Order units by time first, rather than by their legacy index.
+    pub time_priority: bool,
+    /// Order a unit's members by their source position rather than by legacy index.
+    pub source_position_member_order: bool,
 }
 
 impl Constraints {
     /// Provably output-neutral: every constraint is built and resolved, none can move a block.
     pub(super) const SCAFFOLD: Self = Self {
-        enforce_only_satisfied: true,
+        contract_non_contiguous_emissions: false,
+        enforce_backward_call_edges: false,
+        time_priority: false,
+        source_position_member_order: false,
     };
 
     /// Every constraint enforced - the redesign's intended answer.
     #[cfg(test)]
     pub(super) const FULL: Self = Self {
-        enforce_only_satisfied: false,
+        contract_non_contiguous_emissions: true,
+        enforce_backward_call_edges: true,
+        time_priority: true,
+        source_position_member_order: true,
     };
 }
 
@@ -169,10 +183,27 @@ pub(super) fn resolve(
         return survivors.to_vec();
     }
 
-    // Identity -> survivor index (survivors are unique by identity after dedup).
+    // Identity -> survivor index.
+    //
+    // Survivors are *not* unique by `MessageIdentity`: dedup keys on `(identity, repeat ordinal)`, so
+    // a response holding two identical tool calls with distinct ids keeps both, and they share an
+    // identity. Collecting into a map silently kept the last, which projected the first call's
+    // evidence onto the second - `crewai/mcp_tools` is the one trace in the corpus that does this.
+    //
+    // Until dedup carries a lineage from each observation to the survivor it became, an ambiguous
+    // identity is left unprojected: contributing no evidence is a gap, while contributing it to the
+    // wrong survivor is a wrong answer. The same conservatism covers an identity that changed under
+    // `withdraw_unbacked_ids` after the evidence was captured.
+    let mut identity_counts: HashMap<MessageIdentity, usize> = HashMap::new();
+    for block in survivors {
+        *identity_counts
+            .entry(MessageIdentity::from_block(block))
+            .or_insert(0) += 1;
+    }
     let survivor_of: HashMap<MessageIdentity, usize> = survivors
         .iter()
         .enumerate()
+        .filter(|(_, b)| identity_counts[&MessageIdentity::from_block(b)] == 1)
         .map(|(i, b)| (MessageIdentity::from_block(b), i))
         .collect();
 
@@ -203,43 +234,91 @@ pub(super) fn resolve(
         by_instance.iter().collect();
     instances.sort_by(|a, b| a.0.cmp(b.0));
 
+    // A survivor is routinely claimed by *two* emission instances: an inner generation span emits a
+    // message and its parent agent span re-emits the same one as its own output. That is the common
+    // shape, not an anomaly, so instances are merged rather than rejected - and the consequence is
+    // that a unit's members can carry position paths rooted in different payloads, whose coordinates
+    // are not comparable. Taking a global minimum position across them can violate the source order
+    // of both emissions.
+    //
+    // So each instance contributes *adjacency* rather than coordinates: consecutive members of one
+    // emission become an edge, and a unit's members are ordered by resolving those edges. Two
+    // emissions that agree are both honoured; if they disagree the unit falls back to legacy order,
+    // which is the only answer that cannot claim to satisfy evidence it contradicts.
     let mut uf = UnionFind::new(n);
-    let mut intra_unit_key = vec![(i32::MAX, i32::MAX); n];
+    let mut intra_edges: Vec<(usize, usize)> = Vec::new();
     for (_, members) in instances {
-        // The scaffold contracts only an emission whose survivors are already adjacent in the legacy
-        // order: moving them together is otherwise a reorder, and the whole point of the scaffold is
-        // that it cannot reorder. This is the half of neutrality that filtering edges does not cover.
-        if constraints.enforce_only_satisfied {
-            let mut legacy: Vec<usize> = members.iter().map(|&(_, _, s)| s).collect();
-            legacy.sort_unstable();
-            legacy.dedup();
-            let contiguous = legacy.windows(2).all(|w| w[1] == w[0] + 1);
-            if !contiguous {
-                continue;
+        let mut legacy: Vec<usize> = members.iter().map(|&(_, _, s)| s).collect();
+        legacy.sort_unstable();
+        legacy.dedup();
+
+        if !constraints.contract_non_contiguous_emissions
+            && !legacy.windows(2).all(|w| w[1] == w[0] + 1)
+        {
+            continue;
+        }
+
+        // This emission's own order, by source position, deduplicated: two blocks of one message can
+        // map to one survivor.
+        let mut ordered: Vec<EmissionMember> = members.clone();
+        ordered.sort_by_key(|&(msg_idx, entry_idx, survivor)| (msg_idx, entry_idx, survivor));
+        let mut sequence: Vec<usize> = Vec::with_capacity(ordered.len());
+        for (_, _, survivor) in ordered {
+            if sequence.last() != Some(&survivor) {
+                sequence.push(survivor);
             }
         }
-        for &(msg_idx, entry_idx, survivor) in members {
-            // Keep the earliest source position seen for this survivor as its within-unit key.
-            if (msg_idx, entry_idx) < (intra_unit_key[survivor].0, intra_unit_key[survivor].1) {
-                intra_unit_key[survivor] = (msg_idx, entry_idx);
+        for pair in sequence.windows(2) {
+            if pair[0] != pair[1] {
+                intra_edges.push((pair[0], pair[1]));
             }
         }
         // Union all survivors of this instance together.
-        let first = members[0].2;
-        for &(_, _, survivor) in &members[1..] {
+        let first = sequence[0];
+        for &survivor in &sequence[1..] {
             uf.union(first, survivor);
         }
     }
 
     let unit_of: Vec<usize> = (0..n).map(|i| uf.find(i)).collect();
 
-    // Priority per unit: the earliest effective time among its members. Time seeds the topological
-    // pop; it never forces an order an edge does not. (A later increment weights a credible emission
-    // above a re-listed copy here; this increment takes the plain minimum.)
+    // Priority per unit: the earliest time the *evidence* gives it. Time seeds the topological pop;
+    // it never forces an order an edge does not.
+    //
+    // Taken from the pre-dedup occurrences, not from the survivors. A survivor's `timestamp` has
+    // already been overwritten by `process_dedup` with its old batch anchor, so reading it here would
+    // make the new order a function of the order it is replacing - and would carry the very
+    // copy-survival dependence this redesign exists to remove: whichever copy won would decide the
+    // anchor. Only a credible emission counts as evidence of a time (a re-listed snapshot's time is
+    // when it was assembled), with the survivor's own effective time as the fallback where an
+    // identity has no emission at all - a user message read from an attribute array, say.
     let mut unit_priority: HashMap<usize, DateTime<Utc>> = HashMap::new();
-    for (i, block) in survivors.iter().enumerate() {
+    let record = |unit: usize, time: DateTime<Utc>, map: &mut HashMap<usize, DateTime<Utc>>| {
+        map.entry(unit)
+            .and_modify(|t| {
+                if time < *t {
+                    *t = time;
+                }
+            })
+            .or_insert(time);
+    };
+    let mut from_emission: HashMap<usize, DateTime<Utc>> = HashMap::new();
+    for block in pre_dedup {
+        if block.is_history || !is_credible_emission(block) {
+            continue;
+        }
+        let Some(&survivor) = survivor_of.get(&MessageIdentity::from_block(block)) else {
+            continue;
+        };
         let time = effective_timestamp(block, span_timestamps);
+        record(unit_of[survivor], time, &mut from_emission);
+    }
+    for (i, block) in survivors.iter().enumerate() {
         let unit = unit_of[i];
+        let time = from_emission
+            .get(&unit)
+            .copied()
+            .unwrap_or_else(|| effective_timestamp(block, span_timestamps));
         unit_priority
             .entry(unit)
             .and_modify(|t| {
@@ -298,7 +377,7 @@ pub(super) fn resolve(
         // The scaffold enforces only an edge the legacy order already respects, so no edge of its
         // graph can move anything. Promoting this class is what makes a result that today precedes
         // its call move behind it.
-        if constraints.enforce_only_satisfied
+        if !constraints.enforce_backward_call_edges
             && unit_min_legacy[&call_unit] > unit_min_legacy[&result_unit]
         {
             continue;
@@ -323,10 +402,10 @@ pub(super) fn resolve(
     let key = |u: usize,
                unit_priority: &HashMap<usize, DateTime<Utc>>,
                unit_min_legacy: &HashMap<usize, usize>| {
-        let primary = if constraints.enforce_only_satisfied {
-            None
-        } else {
+        let primary = if constraints.time_priority {
             Some(unit_priority[&u])
+        } else {
+            None
         };
         (primary, unit_min_legacy[&u], u)
     };
@@ -353,7 +432,7 @@ pub(super) fn resolve(
         }
     }
 
-    // Emit each unit's members in source order, then legacy order as a final tie-break.
+    // Emit each unit's members, ordered by the emissions' own adjacency.
     let mut members_of: HashMap<usize, Vec<usize>> =
         units.iter().map(|&u| (u, Vec::new())).collect();
     for (i, &unit) in unit_of.iter().enumerate() {
@@ -362,16 +441,59 @@ pub(super) fn resolve(
     let mut out = Vec::with_capacity(n);
     for unit in order {
         let mut members = members_of.remove(&unit).unwrap_or_default();
-        if constraints.enforce_only_satisfied {
-            // Legacy order within the unit too. Its members are contiguous there, but not
-            // necessarily in source order - a span may list a call before the text that introduces
-            // it - so sorting by source position would reorder inside the unit and break neutrality.
-            members.sort_unstable();
-        } else {
-            members.sort_by_key(|&i| (intra_unit_key[i], i));
+        members.sort_unstable();
+        if constraints.source_position_member_order {
+            members = order_within_unit(&members, &intra_edges);
         }
         for i in members {
             out.push(survivors[i].clone());
+        }
+    }
+    out
+}
+
+/// Order one unit's members by the adjacency its emissions stated, smallest legacy index first among
+/// the members nothing else has to precede.
+///
+/// Falls back to the given (legacy) order when the edges restricted to this unit contain a cycle: two
+/// emissions disagreeing about the order of the same pair is a contradiction in the evidence, and
+/// legacy order is the one answer that does not claim to satisfy either.
+fn order_within_unit(members: &[usize], intra_edges: &[(usize, usize)]) -> Vec<usize> {
+    if members.len() < 2 {
+        return members.to_vec();
+    }
+    let inside: HashMap<usize, ()> = members.iter().map(|&m| (m, ())).collect();
+    let mut successors: HashMap<usize, Vec<usize>> =
+        members.iter().map(|&m| (m, Vec::new())).collect();
+    let mut indegree: HashMap<usize, usize> = members.iter().map(|&m| (m, 0)).collect();
+    for &(from, to) in intra_edges {
+        if !inside.contains_key(&from) || !inside.contains_key(&to) {
+            continue;
+        }
+        let succ = successors.get_mut(&from).expect("member present");
+        if !succ.contains(&to) {
+            succ.push(to);
+            *indegree.get_mut(&to).expect("member present") += 1;
+        }
+    }
+
+    let mut out: Vec<usize> = Vec::with_capacity(members.len());
+    let mut remaining: Vec<usize> = members.to_vec();
+    while !remaining.is_empty() {
+        let Some(&next) = remaining
+            .iter()
+            .filter(|m| indegree[m] == 0)
+            .min_by_key(|&&m| m)
+        else {
+            // Cycle: the emissions contradict each other about this unit.
+            return members.to_vec();
+        };
+        out.push(next);
+        remaining.retain(|&m| m != next);
+        for &s in &successors[&next] {
+            if let Some(d) = indegree.get_mut(&s) {
+                *d = d.saturating_sub(1);
+            }
         }
     }
     out
