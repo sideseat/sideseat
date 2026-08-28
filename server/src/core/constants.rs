@@ -78,9 +78,15 @@ pub const SECRET_SERVICE_NAME: &str = "sideseat";
 ///
 /// A keychain read can block on a user prompt, and where there is nobody to answer it - a
 /// background process, an SSH session, CI - it blocks forever. Startup then hangs with no output
-/// at all, because nothing else logs before this point. Long enough to click "Allow", short enough
-/// that a machine with no one at the keyboard fails with a message instead of hanging.
-pub const SECRETS_LOAD_TIMEOUT_SECS: u64 = 20;
+/// at all, because nothing else logs before this point.
+///
+/// Sized for what the prompt actually asks: macOS opens a window wanting the login *password*,
+/// and it can open behind the terminal. Finding it and typing takes longer than clicking "Allow",
+/// so a budget tight enough to look responsive would abort startup while someone was still
+/// typing - the one case where waiting is correct. A machine with nobody at the keyboard pays
+/// this once and then fails with a message that says how to avoid it (approve with Always Allow,
+/// or use the file backend), which beats hanging forever.
+pub const SECRETS_LOAD_TIMEOUT_SECS: u64 = 120;
 
 /// Secret key name for JWT signing key
 pub const SECRET_KEY_JWT_SIGNING: &str = "jwt_signing_key";
