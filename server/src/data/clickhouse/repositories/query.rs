@@ -455,7 +455,13 @@ impl ConditionBuilder {
     /// two filters ANDed on one row ask for a span carrying both values, which the usual
     /// root-span/generation-child split does not have. Both backends have to mean the same thing
     /// here, and the parity test holds them to it.
-    fn add_trace_filters(&mut self, filters: &[Filter], project_id: &str) {
+    fn add_trace_filters(
+        &mut self,
+        filters: &[Filter],
+        project_id: &str,
+        from: Option<&DateTime<Utc>>,
+        to: Option<&DateTime<Utc>>,
+    ) {
         let mut aggregate_conditions: Vec<String> = Vec::new();
         let mut aggregate_params: Vec<QueryParam> = Vec::new();
         let mut join_totals = false;
@@ -501,15 +507,29 @@ impl ConditionBuilder {
         let mut prelude = String::new();
         let mut totals_join = String::new();
         if join_totals {
+            // Scoped over the same rows the projection sums, time window included: every other
+            // condition here is trace-level and so cannot change a total, while the window still
+            // selects spans - and a filter compared against an all-time total would select traces
+            // by a number the row does not show.
+            let mut scope = "g.project_id = ?".to_string();
+            let mut scope_params = vec![QueryParam::String(project_id.to_string())];
+            if let Some(from) = from {
+                scope.push_str(" AND g.timestamp_start >= fromUnixTimestamp64Micro(?)");
+                scope_params.push(QueryParam::Int64(from.timestamp_micros()));
+            }
+            if let Some(to) = to {
+                scope.push_str(" AND g.timestamp_start <= fromUnixTimestamp64Micro(?)");
+                scope_params.push(QueryParam::Int64(to.timestamp_micros()));
+            }
             prelude = format!(
                 "WITH {}, {} ",
                 build_dedup_lookup_cte(""),
-                gen_totals_cte(Some("g.trace_id"), "g.project_id = ?")
+                gen_totals_cte(Some("g.trace_id"), &scope)
             );
             totals_join = "LEFT JOIN gen_totals gtf ON gtf.trace_id = n.trace_id".to_string();
-            // Bound in the order the SQL names them: dedup_lookup's project, then gen_totals'.
+            // Bound in the order the SQL names them: dedup_lookup's project, then gen_totals' scope.
             self.params.push(QueryParam::String(project_id.to_string()));
-            self.params.push(QueryParam::String(project_id.to_string()));
+            self.params.extend(scope_params);
         }
         self.conditions.push(format!(
             "trace_id IN ({prelude}SELECT n.trace_id FROM otel_spans n FINAL {totals_join} \
@@ -840,13 +860,33 @@ pub async fn list_traces(
             .push(QueryParam::String(params.project_id.clone()));
         cb.params.push(QueryParam::String(sid.clone()));
     }
+    // Trace-level, like the session above: a user id is on the spans that carry one, so a row
+    // predicate selected the same traces but summed only those spans, reporting a trace's tokens as
+    // whatever the matching spans held. The DuckDB copy says the same.
     if let Some(ref uid) = params.user_id {
-        cb.add_eq("user_id", uid);
+        cb.conditions.push(
+            "trace_id IN (SELECT DISTINCT trace_id FROM otel_spans FINAL \
+             WHERE project_id = ? AND user_id = ?)"
+                .to_string(),
+        );
+        cb.params
+            .push(QueryParam::String(params.project_id.clone()));
+        cb.params.push(QueryParam::String(uid.clone()));
     }
     if let Some(ref envs) = params.environment
         && !envs.is_empty()
     {
-        cb.add_in("environment", envs);
+        let placeholders: Vec<&str> = envs.iter().map(|_| "?").collect();
+        cb.conditions.push(format!(
+            "trace_id IN (SELECT DISTINCT trace_id FROM otel_spans FINAL \
+             WHERE project_id = ? AND environment IN ({}))",
+            placeholders.join(", ")
+        ));
+        cb.params
+            .push(QueryParam::String(params.project_id.clone()));
+        for env in envs {
+            cb.params.push(QueryParam::String(env.clone()));
+        }
     }
     if let Some(ref from) = params.from_timestamp {
         cb.add_timestamp_gte("timestamp_start", from);
@@ -858,7 +898,12 @@ pub async fn list_traces(
     // The UI's filter bar. Ignored entirely until recently: a trace list filtered by model, token
     // count, cost or error status came back unfiltered on this backend. Every filter selects
     // traces - see `add_trace_filters`.
-    cb.add_trace_filters(&params.filters, &params.project_id);
+    cb.add_trace_filters(
+        &params.filters,
+        &params.project_id,
+        params.from_timestamp.as_ref(),
+        params.to_timestamp.as_ref(),
+    );
 
     let where_clause = cb.build();
 
