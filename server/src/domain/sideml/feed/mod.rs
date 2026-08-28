@@ -437,8 +437,20 @@ fn process_multi_trace_spans(rows: Vec<MessageSpanRow>) -> FeedResult {
     let mut total_cost: f64 = 0.0;
 
     for (trace_idx, trace_rows) in trace_groups.into_iter().enumerate() {
-        let trace_tokens: i64 = trace_rows.iter().map(|r| r.total_tokens).sum();
-        let trace_cost: f64 = trace_rows.iter().map(|r| r.cost_total).sum();
+        // Once per span, not once per row, for the same reason `compute_metadata` does it: a
+        // re-ingested span is two rows in the DuckDB row set (that query reads the raw table,
+        // ClickHouse reads it with FINAL), and summing rows billed the retry as a second call.
+        // The session view was the last place still summing rows, so a session and the traces
+        // inside it disagreed about their totals whenever a delivery had been retried.
+        let mut counted: HashSet<(&str, &str)> = HashSet::new();
+        let mut trace_tokens = 0i64;
+        let mut trace_cost = 0.0f64;
+        for row in &trace_rows {
+            if counted.insert((row.trace_id.as_str(), row.span_id.as_str())) {
+                trace_tokens += row.total_tokens;
+                trace_cost += row.cost_total;
+            }
+        }
 
         // First trace: no prefix. Subsequent traces: pass accumulated prefix
         // for pre-dedup marking of history re-sends.
