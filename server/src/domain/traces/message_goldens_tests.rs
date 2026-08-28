@@ -718,17 +718,21 @@ fn assert_has_an_answer(label: &str, view_name: &str, rows: &[InvariantRow]) {
         return;
     }
 
-    let asked = rows.iter().any(|r| r.role == "user");
-    if !asked {
+    // Keyed on the *last* question, not on whether the view holds an answer anywhere. "Some
+    // assistant message exists" is satisfied by an earlier turn's reply, so a view that answered
+    // turn 1 and lost the answer to turn 2 passed - which is most of the CrewAI defect, since
+    // every one of its runs kept the history and only ever dropped the current reply.
+    let Some(last_question) = rows.iter().rposition(|r| r.role == "user") else {
         return;
-    }
-    let answered = rows
+    };
+    let answered = rows[last_question + 1..]
         .iter()
         .any(|r| r.role == "assistant" || r.role == "tool");
     assert!(
         answered,
-        "{label} / {view_name}: {} messages, a user message among them, and nothing from the \
-         assistant or a tool - an answer is missing rather than merely out of order",
+        "{label} / {view_name}: {} messages, the last of them a user message at index \
+         {last_question} with nothing from the assistant or a tool after it - the reply to the \
+         final turn is missing rather than merely out of order",
         rows.len()
     );
 }
@@ -1364,6 +1368,61 @@ fn invariant_checks_are_not_vacuous() {
     assert!(
         fires(&|| assert_projection_consistent("test", "synthetic", &inconsistent)),
         "projection consistency check failed to fire"
+    );
+
+    // A missing answer. The whole point of this check is a view that looks orderly, so the cases
+    // it must fire on are all well-formed.
+    let unanswered = vec![row("trace-a", 0, "user", "text", "the question")];
+    assert!(
+        fires(&|| assert_has_an_answer("test", "synthetic", &unanswered)),
+        "a question with no reply at all must be reported"
+    );
+
+    // The case that matters, and that the first version of this check missed: an earlier turn was
+    // answered, the last one was not. "Some assistant message exists" is true here.
+    let last_turn_dropped = vec![
+        row("trace-a", 0, "user", "text", "first question"),
+        row("trace-a", 1, "assistant", "text", "first answer"),
+        row("trace-a", 2, "user", "text", "second question"),
+    ];
+    assert!(
+        fires(&|| assert_has_an_answer("test", "synthetic", &last_turn_dropped)),
+        "an unanswered final turn must be reported even when an earlier turn was answered"
+    );
+
+    let answered = vec![
+        row("trace-a", 0, "user", "text", "first question"),
+        row("trace-a", 1, "assistant", "text", "first answer"),
+        row("trace-a", 2, "user", "text", "second question"),
+        row("trace-a", 3, "assistant", "text", "second answer"),
+    ];
+    assert!(
+        !fires(&|| assert_has_an_answer("test", "synthetic", &answered)),
+        "a complete conversation must pass"
+    );
+
+    // A tool result counts as an answer: the turn was acted on, and the reply may be in a span
+    // this view does not contain.
+    let answered_by_tool = vec![
+        row("trace-a", 0, "user", "text", "the question"),
+        row("trace-a", 1, "tool", "tool_result", "the result"),
+    ];
+    assert!(
+        !fires(&|| assert_has_an_answer("test", "synthetic", &answered_by_tool)),
+        "a tool result is an answer"
+    );
+
+    // Nothing was asked, so nothing is owed - a tool span's view holds no user message.
+    let no_question = vec![row("trace-a", 0, "assistant", "tool_use", "call")];
+    assert!(
+        !fires(&|| assert_has_an_answer("test", "synthetic", &no_question)),
+        "a view with no question must not be required to hold an answer"
+    );
+
+    // The exemption is by label, and must actually exempt - otherwise strands/error fails.
+    assert!(
+        !fires(&|| assert_has_an_answer("strands/error", "synthetic", &unanswered)),
+        "an exempt fixture must skip the check"
     );
 }
 
