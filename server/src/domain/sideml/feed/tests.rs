@@ -9392,3 +9392,75 @@ fn a_cross_span_tie_orders_by_index_not_by_role() {
         "the documented outcome of a cross-span tie: index order, so the result precedes its call"
     );
 }
+
+/// A span delivered twice must be billed once.
+///
+/// The DuckDB message query reads the raw span table, where a re-ingested span appears twice, while
+/// ClickHouse reads it with FINAL. Summing rows therefore doubled a conversation's tokens and cost
+/// on one backend, even though the messages themselves are deduplicated and appear once.
+#[test]
+fn a_span_delivered_twice_is_counted_once() {
+    let msg = json!([{
+        "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+        "content": {"role": "user", "content": "hello"}
+    }]);
+    let row = make_span_row("trace1", "span1", None, &msg.to_string(), "[]", "[]");
+
+    let once = process_spans(vec![row.clone()], &FeedOptions::new());
+    let twice = process_spans(vec![row.clone(), row], &FeedOptions::new());
+
+    assert_eq!(
+        twice.messages.len(),
+        once.messages.len(),
+        "the duplicate delivery added a message"
+    );
+    assert_eq!(
+        twice.metadata.total_tokens, once.metadata.total_tokens,
+        "the duplicate delivery was billed twice"
+    );
+    assert_eq!(twice.metadata.total_cost, once.metadata.total_cost);
+    assert_eq!(twice.metadata.span_count, 1);
+}
+
+/// The feed must keep a trace whole when only its root span names the session.
+///
+/// Several frameworks record the session id on the root span alone. Grouping by each row's own id
+/// then split a conversation: the root joined the session group and its children a trace group, so
+/// history detection ran on the halves separately and a re-sent turn survived in one of them.
+#[test]
+fn the_feed_groups_a_trace_by_its_root_session_id() {
+    let first = json!([{
+        "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+        "content": {"role": "user", "content": "first question"}
+    }]);
+    // The child re-sends the first turn, as a generation span does, and adds nothing new.
+    let child = json!([{
+        "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+        "content": {"role": "user", "content": "first question"}
+    }]);
+
+    let mut root = make_span_row("trace1", "root", None, &first.to_string(), "[]", "[]");
+    root.session_id = Some("session-1".to_string());
+    // No session id on the child, which is what the frameworks in question emit.
+    let child_row = make_span_row(
+        "trace1",
+        "child",
+        Some("root"),
+        &child.to_string(),
+        "[]",
+        "[]",
+    );
+
+    let feed = process_feed(vec![root, child_row], &FeedOptions::new());
+    let users: Vec<&str> = feed
+        .messages
+        .iter()
+        .filter(|b| b.role == ChatRole::User)
+        .map(|b| b.span_id.as_str())
+        .collect();
+    assert_eq!(
+        users.len(),
+        1,
+        "the re-sent turn survived, so the trace was processed as two conversations: {users:?}"
+    );
+}

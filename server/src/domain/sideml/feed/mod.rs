@@ -632,13 +632,34 @@ fn group_and_sort_traces(rows: Vec<MessageSpanRow>) -> Vec<Vec<MessageSpanRow>> 
 /// Groups spans by conversation boundary (session_id or trace_id),
 /// processes each conversation separately, then merges results.
 pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedResult {
-    // Group by conversation boundary
+    // A trace's session is resolved from any of its rows that names one, then applied to all of
+    // them.
+    //
+    // Reading each row's own session id split a conversation in half whenever the id is recorded on
+    // the root span only, which is how several frameworks record it: the root went to the session
+    // group and its children to a trace group, so history detection ran on the two halves
+    // separately and had nothing to recognise a re-send against.
+    let mut session_of_trace: HashMap<&str, &str> = HashMap::new();
+    for row in &rows {
+        if let Some(session) = row.session_id.as_deref().filter(|s| !s.is_empty()) {
+            session_of_trace.entry(&row.trace_id).or_insert(session);
+        }
+    }
+    let conversation_of_trace: HashMap<String, String> = rows
+        .iter()
+        .map(|row| {
+            let key = session_of_trace
+                .get(row.trace_id.as_str())
+                .map(|session| (*session).to_string())
+                .unwrap_or_else(|| format!("trace:{}", row.trace_id));
+            (row.trace_id.clone(), key)
+        })
+        .collect();
+
     let mut spans_by_conversation: HashMap<String, Vec<MessageSpanRow>> = HashMap::new();
     for row in rows {
-        let key = row
-            .session_id
-            .as_ref()
-            .filter(|s| !s.is_empty())
+        let key = conversation_of_trace
+            .get(&row.trace_id)
             .cloned()
             .unwrap_or_else(|| format!("trace:{}", row.trace_id));
         spans_by_conversation.entry(key).or_default().push(row);
@@ -654,9 +675,12 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
 
     for (_, conversation_spans) in spans_by_conversation {
         for row in &conversation_spans {
-            span_ids.insert((row.trace_id.clone(), row.span_id.clone()));
-            total_tokens += row.total_tokens;
-            total_cost += row.cost_total;
+            // Once per span: a re-ingested span appears twice in the DuckDB row set, and summing
+            // rows doubled the page's tokens and cost.
+            if span_ids.insert((row.trace_id.clone(), row.span_id.clone())) {
+                total_tokens += row.total_tokens;
+                total_cost += row.cost_total;
+            }
         }
         let processed = process_spans_unfiltered(conversation_spans);
         all_blocks.extend(processed.messages);
@@ -664,39 +688,21 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
         all_tool_names.extend(processed.tool_names);
     }
 
-    // Sort merged blocks for feed display (DESC order: newest first)
-    // But within a single response (same span + same timestamp), preserve natural order
+    // Sorted newest-first by an explicit key, for the same reason process_dedup is: a comparator
+    // with a same-batch special case is not a total order. Here the batch was keyed on the
+    // timestamp it also ordered by, so no cycle was constructible - but two blocks in different
+    // traces sharing a span id and a timestamp compared *equal*, which let their position depend on
+    // the order conversations came out of a HashMap.
+    //
+    // Time descending, then the response, then position within it.
     all_blocks.sort_by(|a, b| {
-        use std::cmp::Ordering;
-
-        // Same-batch detection: same span + same timestamp. These blocks are from one response
-        // and keep their source order.
-        //
-        // This stays a total order only because `timestamp` here is the birth time that
-        // process_dedup materialised, and it is also the field the cross-batch comparison uses: a
-        // pair can only be "same batch" when it ties on that field, so every outside block
-        // compares identically to both. The same shape in process_dedup was *not* total, because
-        // there the batch was keyed on the event time while ordering used birth time, and one
-        // response's blocks can differ in birth time - see the note there.
-        let same_batch =
-            a.trace_id == b.trace_id && a.span_id == b.span_id && a.timestamp == b.timestamp;
-
-        if same_batch {
-            // Within a batch: ASC order (text before tool_use)
-            match a.message_index.cmp(&b.message_index) {
-                Ordering::Equal => return a.entry_index.cmp(&b.entry_index),
-                other => return other,
-            }
-        }
-
-        // Primary: timestamp DESC (newest first)
-        match b.timestamp.cmp(&a.timestamp) {
-            Ordering::Equal => {}
-            other => return other,
-        }
-
-        // Different batches with same timestamp: span_id ASC for stability
-        a.span_id.cmp(&b.span_id)
+        b.timestamp
+            .cmp(&a.timestamp)
+            .then_with(|| a.trace_id.cmp(&b.trace_id))
+            .then_with(|| a.span_id.cmp(&b.span_id))
+            .then_with(|| a.message_index.cmp(&b.message_index))
+            .then_with(|| a.entry_index.cmp(&b.entry_index))
+            .then_with(|| a.content_hash.cmp(&b.content_hash))
     });
 
     // Deduplicate tools across conversations
@@ -1462,8 +1468,20 @@ fn compute_metadata(blocks: &[BlockEntry], span_rows: &[MessageSpanRow]) -> Feed
     // Keyed by (trace, span): a span id is unique only within a trace, and a session view holds
     // several traces, so counting by span id alone under-reported the span count.
     let span_ids: HashSet<_> = blocks.iter().map(|b| (&b.trace_id, &b.span_id)).collect();
-    let total_tokens: i64 = span_rows.iter().map(|r| r.total_tokens).sum();
-    let total_cost: f64 = span_rows.iter().map(|r| r.cost_total).sum();
+
+    // Summed once per span, not once per row. A re-ingested span appears twice in the DuckDB row
+    // set - that query reads the raw table, while ClickHouse reads it with FINAL - so summing rows
+    // doubled the tokens and cost of a conversation whose spans had been delivered twice, even
+    // though the messages themselves are deduplicated and appear once.
+    let mut counted: HashSet<(&str, &str)> = HashSet::new();
+    let mut total_tokens = 0i64;
+    let mut total_cost = 0.0f64;
+    for row in span_rows {
+        if counted.insert((row.trace_id.as_str(), row.span_id.as_str())) {
+            total_tokens += row.total_tokens;
+            total_cost += row.cost_total;
+        }
+    }
 
     FeedMetadata {
         block_count: blocks.len(),
