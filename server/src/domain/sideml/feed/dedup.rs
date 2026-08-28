@@ -726,12 +726,79 @@ fn batch_times(
     times
 }
 
+/// Give a tool result the position of the call it answers, where its own position says nothing.
+///
+/// A message index and an entry index are positions *within a span*; between spans they are not
+/// comparable. Two blocks in different spans that report the same instant were therefore ordered by
+/// whichever happened to have the smaller index, and a tool result could come back before its call.
+///
+/// Only that case is adjusted: same batch time, different spans. A same-span pair already orders
+/// correctly by index, and taking the call's position there would break the two shapes the ordering
+/// note describes - ADK's `user, call, result, call` in one span, and Vercel's parallel
+/// `call, call, result, result`, which would interleave.
+///
+/// This runs before sorting and derives each key from the block and its own call, never from the
+/// pair being compared, so it cannot introduce the cycle that a role-ranking comparator did.
+fn adopt_call_positions(keyed: &mut [(BlockSortKey, DateTime<Utc>, BlockEntry)]) {
+    /// Where one call sits: the time of the response it belongs to, its span, and its position in it.
+    struct CallPosition {
+        batch_time: DateTime<Utc>,
+        span: (String, String),
+        message_index: i32,
+        entry_index: i32,
+    }
+
+    // Keyed by trace and call id. Two calls in one trace share an id only where a framework reuses
+    // it, in which case the first is the one a result answers.
+    let mut calls: HashMap<(String, String), CallPosition> = HashMap::new();
+    for (key, _, block) in keyed.iter() {
+        if block.entry_type != "tool_use" {
+            continue;
+        }
+        if let Some(id) = block.tool_use_id.as_ref().filter(|s| !s.is_empty()) {
+            calls
+                .entry((block.trace_id.clone(), id.clone()))
+                .or_insert(CallPosition {
+                    batch_time: key.batch_time,
+                    span: key.span.clone(),
+                    message_index: key.message_index,
+                    entry_index: key.entry_index,
+                });
+        }
+    }
+    if calls.is_empty() {
+        return;
+    }
+
+    for (key, _, block) in keyed.iter_mut() {
+        if block.entry_type != "tool_result" {
+            continue;
+        }
+        let Some(id) = block.tool_use_id.as_ref().filter(|s| !s.is_empty()) else {
+            continue;
+        };
+        let Some(call) = calls.get(&(block.trace_id.clone(), id.clone())) else {
+            continue;
+        };
+        if call.batch_time != key.batch_time || call.span == key.span {
+            continue;
+        }
+        key.span = call.span.clone();
+        key.message_index = call.message_index;
+        key.entry_index = call.entry_index;
+        key.after_call = true;
+    }
+}
+
 /// The sort key of one block, built once.
 struct BlockSortKey {
     batch_time: DateTime<Utc>,
     span: (String, String),
     message_index: i32,
     entry_index: i32,
+    /// Set on a tool result that took its position from the call it answers, so it sorts
+    /// immediately after that call rather than tying with it.
+    after_call: bool,
     content_hash: String,
 }
 
@@ -759,16 +826,19 @@ impl BlockSortKey {
     /// - per span merges Vercel's parallel calls with their results, turning `call, call, result,
     ///   result` into `call, result, call, result`.
     ///
-    /// What that costs: two blocks in different spans with identical times are ordered by index,
-    /// which is not comparable across spans, so a tool result can precede the call it answers in
-    /// that tie. It needs both spans to report the same instant, which a framework that timestamps
-    /// its tool spans does not do.
+    /// An index is not comparable across spans, so two blocks in different spans reporting the same
+    /// instant would be ordered by a number that means nothing between them - and a tool result
+    /// could precede the call it answers. That one case is settled before sorting instead, by
+    /// [`adopt_call_positions`]: such a result takes its position *from* its call, which is a
+    /// property of the block, so the key stays a set of values and the order stays total. Ranking by
+    /// role at comparison time is what could not work.
     fn compare(&self, other: &Self) -> std::cmp::Ordering {
         self.batch_time
             .cmp(&other.batch_time)
             .then_with(|| self.message_index.cmp(&other.message_index))
             .then_with(|| self.entry_index.cmp(&other.entry_index))
             .then_with(|| self.span.cmp(&other.span))
+            .then_with(|| self.after_call.cmp(&other.after_call))
             .then_with(|| self.content_hash.cmp(&other.content_hash))
     }
 }
@@ -948,11 +1018,13 @@ pub fn process_dedup(
                 span,
                 message_index: block.message_index,
                 entry_index: block.entry_index,
+                after_call: false,
                 content_hash: block.content_hash.clone(),
             };
             (key, birth, block)
         })
         .collect();
+    adopt_call_positions(&mut keyed);
     keyed.sort_by(|(a, _, _), (b, _, _)| a.compare(b));
 
     // The response's time, not each block's own birth time, is what gets materialised - see the
