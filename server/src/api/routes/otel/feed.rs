@@ -19,7 +19,9 @@ use super::types::{
 use crate::api::auth::ProjectRead;
 use crate::api::types::{ApiError, parse_timestamp_param};
 use crate::data::types::{FeedMessagesParams, FeedSpansParams, MessageQueryParams};
-use crate::domain::sideml::{FeedOptions, extract_tools_from_rows, process_feed};
+use crate::domain::sideml::{
+    FeedOptions, apply_time_window, extract_tools_from_rows, process_feed,
+};
 
 // ============================================================================
 // Constants
@@ -290,7 +292,13 @@ pub async fn get_feed_messages(
 
     let options = FeedOptions::new().with_role(query.role.clone());
 
-    let processed = process_feed(context.rows, &options);
+    // The window is a filter on the answer, here as in the other three views.
+    //
+    // The queries bound `timestamp_start`, and a completed response is timestamped at *span end* -
+    // so a span that started inside the window and finished after it returned a message dated past
+    // the window the request asked for. The upper bound on the context load does not cover that: it
+    // decides which spans are read, not what time their messages carry.
+    let processed = apply_time_window(process_feed(context.rows, &options), start_time, end_time);
     let all_messages = scope_feed_to_page(processed.messages, &page_spans);
     let tool_definitions = page_tools.tool_definitions;
     let tool_names = page_tools.tool_names;
@@ -551,6 +559,52 @@ mod tests {
             session_id: None,
             ingested_at: t,
         }
+    }
+
+    /// A response that completed after the window is not in the window.
+    ///
+    /// The queries bound `timestamp_start`, and a completed response carries its span's *end* time -
+    /// so a span that began inside the window and finished after it produced a message dated past the
+    /// window the request asked for. The window has to be applied to the answer, as the span, trace
+    /// and session endpoints all do.
+    #[test]
+    fn a_response_finishing_after_the_window_is_excluded() {
+        let start = Utc.with_ymd_and_hms(2025, 1, 15, 10, 30, 0).unwrap();
+        // The span begins inside the window and ends a minute later, outside it.
+        let messages = format!(
+            r#"[{{"source":{{"event":{{"name":"gen_ai.user.message","time":"{}"}}}},
+                 "content":{{"role":"user","content":"the question"}}}},
+                {{"source":{{"event":{{"name":"gen_ai.choice","time":"{}"}}}},
+                 "content":{{"role":"assistant","content":"the answer"}}}}]"#,
+            start.to_rfc3339(),
+            (start + chrono::Duration::seconds(60)).to_rfc3339()
+        );
+        let mut row = feed_row("trace-1", "span-1", &messages, 0);
+        row.span_end_timestamp = Some(start + chrono::Duration::seconds(60));
+
+        let options = FeedOptions::new();
+        let window_end = start + chrono::Duration::seconds(30);
+
+        let unwindowed = process_feed(vec![row.clone()], &options);
+        assert!(
+            unwindowed.messages.iter().any(|b| b.timestamp > window_end),
+            "premise: the completed response is dated after the window closes"
+        );
+
+        let windowed = apply_time_window(process_feed(vec![row], &options), None, Some(window_end));
+        assert!(
+            windowed.messages.iter().all(|b| b.timestamp < window_end),
+            "a message dated after the window was returned: {:?}",
+            windowed
+                .messages
+                .iter()
+                .map(|b| (b.role.as_str(), b.timestamp))
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            windowed.messages.len() < unwindowed.messages.len(),
+            "the window removed nothing, so this test proves nothing"
+        );
     }
 
     /// The tools a page lists are the tools its own spans declared.
