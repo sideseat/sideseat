@@ -16,6 +16,45 @@ use super::analytics::SpanIdentity;
 /// Every name here is a column on `otel_spans` in both schemas. The allowlist exists to keep
 /// a caller-supplied column name out of the SQL, so adding a name that is not a real column
 /// turns a filter into an error rather than an injection.
+/// The trace name a list row displays: the root span's name, else the earliest named span's.
+///
+/// The same expression in both dialects, because three places have to agree on it - the projection
+/// that displays it, the filter options that offer it, and the filter that matches it. `alias`
+/// qualifies the column for queries that name their table.
+///
+/// A `trace_name` filter has to be evaluated against *this*, per trace. Matching the raw
+/// `span_name` of any span meant selecting "agent" also returned traces displayed under another
+/// name that merely contained an agent span.
+pub fn trace_display_name(alias: &str, dialect_first: DisplayNameDialect) -> String {
+    let prefix = if alias.is_empty() {
+        String::new()
+    } else {
+        format!("{alias}.")
+    };
+    match dialect_first {
+        DisplayNameDialect::DuckDb => format!(
+            "COALESCE(\
+             FIRST({prefix}span_name ORDER BY {prefix}timestamp_start) \
+             FILTER (WHERE {prefix}parent_span_id IS NULL AND {prefix}span_name IS NOT NULL), \
+             FIRST({prefix}span_name ORDER BY {prefix}timestamp_start) \
+             FILTER (WHERE {prefix}span_name IS NOT NULL))"
+        ),
+        DisplayNameDialect::ClickHouse => format!(
+            "coalesce(\
+             argMinIf({prefix}span_name, {prefix}timestamp_start, \
+             {prefix}parent_span_id IS NULL AND {prefix}span_name IS NOT NULL), \
+             argMinIf({prefix}span_name, {prefix}timestamp_start, {prefix}span_name IS NOT NULL))"
+        ),
+    }
+}
+
+/// Which aggregate syntax to render the display name in.
+#[derive(Clone, Copy)]
+pub enum DisplayNameDialect {
+    DuckDb,
+    ClickHouse,
+}
+
 /// What makes a span a GenAI span, for the "GenAI only" trace and session lists.
 ///
 /// A span qualifies through its observation type or through any GenAI attribute. Recognising only

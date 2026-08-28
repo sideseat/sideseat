@@ -7,7 +7,7 @@ use clickhouse::{Client, Row};
 use serde::Deserialize;
 
 use crate::data::duckdb::filters::{Filter, columns};
-use crate::data::types::genai_span_predicate;
+use crate::data::types::{DisplayNameDialect, genai_span_predicate, trace_display_name};
 
 // ============================================================================
 // Token Dedup SQL Fragments
@@ -386,7 +386,28 @@ impl ConditionBuilder {
     where
         F: Fn(&'a str) -> &'a str + Copy,
     {
+        self.add_filters_except(filters, mapper, alias, "");
+    }
+
+    /// Add the filters, skipping one column.
+    ///
+    /// The trace list holds `trace_name` back: it has to be matched against the name the list
+    /// *displays*, which is an aggregate over the trace's spans, so it belongs in a HAVING rather
+    /// than in a row predicate - matching the raw span name of any span meant selecting "agent" also
+    /// returned traces displayed under another name that merely contained an agent span.
+    fn add_filters_except<'a, F>(
+        &mut self,
+        filters: &'a [Filter],
+        mapper: F,
+        alias: &str,
+        skip_column: &str,
+    ) where
+        F: Fn(&'a str) -> &'a str + Copy,
+    {
         for filter in filters {
+            if !skip_column.is_empty() && filter.column() == skip_column {
+                continue;
+            }
             let condition = crate::data::clickhouse::filters::to_clickhouse_sql(
                 filter,
                 &mut self.params,
@@ -733,10 +754,37 @@ pub async fn list_traces(
     }
 
     // The UI's filter bar. Ignored entirely until now: a trace list filtered by model, token
-    // count, cost or error status came back unfiltered on this backend.
-    cb.add_filters(&params.filters, columns::map_trace_column_to_spans, "");
+    // count, cost or error status came back unfiltered on this backend. `trace_name` is held back
+    // for the HAVING below, where the displayed name exists.
+    cb.add_filters_except(
+        &params.filters,
+        columns::map_trace_column_to_spans,
+        "",
+        "trace_name",
+    );
 
     let where_clause = cb.build();
+
+    // The displayed-name filter, rendered against the aggregate. Needed by the count as well as the
+    // page: a total that ignored it reported more traces than the pages contain.
+    let mut count_name_params: Vec<QueryParam> = Vec::new();
+    let name_having: Vec<String> = params
+        .filters
+        .iter()
+        .filter(|f| f.column() == "trace_name")
+        .map(|f| {
+            crate::data::clickhouse::filters::to_clickhouse_sql_against(
+                f,
+                &mut count_name_params,
+                &trace_display_name("", DisplayNameDialect::ClickHouse),
+            )
+        })
+        .collect();
+    let count_name_having = if name_having.is_empty() {
+        String::new()
+    } else {
+        format!(" HAVING {}", name_having.join(" AND "))
+    };
 
     let (count_sql, needs_double_bind) = if !params.include_nongenai {
         (
@@ -745,31 +793,39 @@ pub async fn list_traces(
                 // attributes. Requiring an observation hid traces from transport-level
                 // instrumentation, which records gen_ai.* on a plain span - and hid them only on
                 // this backend, because DuckDB accepts either.
-                r#"SELECT count(DISTINCT trace_id) as cnt FROM otel_spans FINAL
-                   WHERE {} AND trace_id IN (
-                       SELECT trace_id FROM otel_spans FINAL WHERE {}
-                         AND ({genai})
+                r#"SELECT count() as cnt FROM (
+                       SELECT trace_id FROM otel_spans FINAL
+                       WHERE {} AND trace_id IN (
+                           SELECT trace_id FROM otel_spans FINAL WHERE {}
+                             AND ({genai})
+                       )
+                       GROUP BY trace_id{name_having}
                    )"#,
                 where_clause,
                 where_clause,
-                genai = genai_span_predicate("")
+                genai = genai_span_predicate(""),
+                name_having = count_name_having
             ),
             true,
         )
     } else {
         (
             format!(
-                "SELECT count(DISTINCT trace_id) as cnt FROM otel_spans FINAL WHERE {}",
-                where_clause
+                r#"SELECT count() as cnt FROM (
+                       SELECT trace_id FROM otel_spans FINAL WHERE {}
+                       GROUP BY trace_id{name_having}
+                   )"#,
+                where_clause,
+                name_having = count_name_having
             ),
             false,
         )
     };
 
-    // Bind parameters (twice if subquery used)
+    // Bind parameters (twice if subquery used), then the name filter's, which the HAVING names last.
     let bind_times = if needs_double_bind { 2 } else { 1 };
-    let total: u64 = cb
-        .bind_to_n(client.query(&count_sql), bind_times)
+    let count_query = cb.bind_to_n(client.query(&count_sql), bind_times);
+    let total: u64 = bind_params(count_query, &count_name_params)
         .fetch_one()
         .await?;
 
@@ -800,12 +856,27 @@ pub async fn list_traces(
 
     let offset = (params.page.saturating_sub(1)) * params.limit;
 
-    // GenAI filter for having clause
-    // Matches the count query and DuckDB: an observation, or a span carrying GenAI attributes.
-    let having_clause = if !params.include_nongenai {
-        "HAVING observation_count > 0 OR genai_span_count > 0"
+    // The HAVING clause: the GenAI predicate, and any filter on the displayed trace name.
+    //
+    // Its parameters bind after the WHERE's, in the order the SQL names them - the name filter sits
+    // in the CTE that also carries `where_clause`, so its values follow that occurrence's.
+    let mut having_parts: Vec<String> = Vec::new();
+    if !params.include_nongenai {
+        // Matches the count query and DuckDB: an observation, or a span carrying GenAI attributes.
+        having_parts.push("observation_count > 0 OR genai_span_count > 0".to_string());
+    }
+    let mut name_params: Vec<QueryParam> = Vec::new();
+    for filter in params.filters.iter().filter(|f| f.column() == "trace_name") {
+        having_parts.push(crate::data::clickhouse::filters::to_clickhouse_sql_against(
+            filter,
+            &mut name_params,
+            &trace_display_name("sp", DisplayNameDialect::ClickHouse),
+        ));
+    }
+    let having_clause = if having_parts.is_empty() {
+        String::new()
     } else {
-        ""
+        format!("HAVING {}", having_parts.join(" AND "))
     };
 
     // Scope dedup CTE to traces in the time range when available.
@@ -867,10 +938,12 @@ pub async fn list_traces(
         offset = offset
     );
 
-    // Bind: dedup_lookup(project_id + time-scope params) + where_clause x2
+    // Bind: dedup_lookup(project_id + time-scope params) + where_clause x2 + the HAVING's, which
+    // the SQL names after the second where_clause.
     let query = client.query(&data_sql).bind(params.project_id.as_str());
     let query = bind_params(query, &dedup.1);
-    let rows: Vec<ChTraceRow> = cb.bind_to_n(query, 2).fetch_all().await?;
+    let query = bind_params(cb.bind_to_n(query, 2), &name_params);
+    let rows: Vec<ChTraceRow> = query.fetch_all().await?;
 
     Ok((rows.into_iter().map(TraceRow::from).collect(), total))
 }

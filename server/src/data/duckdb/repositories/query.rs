@@ -7,9 +7,10 @@ use crate::api::routes::otel::filters::{SqlParams, columns};
 use crate::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_TRACE};
 use crate::data::duckdb::{DuckdbError, in_transaction};
 use crate::data::types::{
-    EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams,
-    SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, SessionRow, SpanRow,
-    TRACE_FILTER_OPTION_COLUMNS, TraceRow, genai_span_predicate, parse_tags,
+    DisplayNameDialect, EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams,
+    ListTracesParams, SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, SessionRow,
+    SpanRow, TRACE_FILTER_OPTION_COLUMNS, TraceRow, genai_span_predicate, parse_tags,
+    trace_display_name,
 };
 use crate::utils::time::{micros_to_datetime, parse_iso_timestamp};
 
@@ -33,7 +34,10 @@ pub(crate) const DEDUP_SPANS: &str = "(SELECT s.* FROM otel_spans s \
 
 /// Build span conditions with optional table alias.
 /// Returns (WHERE clause, bind values).
-fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (String, Vec<String>) {
+fn build_trace_span_conditions(
+    params: &ListTracesParams,
+    alias: &str,
+) -> (String, String, Vec<String>, Vec<String>) {
     let mut conditions = Vec::new();
     let mut bind_values = Vec::new();
     let mut sql_params = SqlParams::default();
@@ -89,8 +93,24 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
         bind_values.push(to.to_rfc3339());
     }
 
-    // Advanced filters with aliasing
+    // Advanced filters with aliasing.
+    //
+    // A trace_name filter is held back: it has to be matched against the name the list *displays*,
+    // which is a per-trace aggregate, so it belongs in the HAVING of the grouping query rather than
+    // in a row predicate. Matching the raw span_name of any span meant selecting "agent" also
+    // returned traces displayed under another name that happened to contain an agent span.
+    let mut having_conditions = Vec::new();
+    let mut having_values = Vec::new();
     for filter in &params.filters {
+        if filter.column() == "trace_name" {
+            let mut params = SqlParams::default();
+            having_conditions.push(filter.to_sql_against(
+                &mut params,
+                &trace_display_name(alias, DisplayNameDialect::DuckDb),
+            ));
+            having_values.extend(params.values);
+            continue;
+        }
         conditions.push(filter.to_sql_aliased(
             &mut sql_params,
             columns::map_trace_column_to_spans,
@@ -99,7 +119,14 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
     }
     bind_values.extend(sql_params.values);
 
-    (conditions.join(" AND "), bind_values)
+    // The HAVING values are returned separately: a caller that renders only the WHERE - the token
+    // CTE does - must not bind values for placeholders its SQL does not contain.
+    (
+        conditions.join(" AND "),
+        having_conditions.join(" AND "),
+        bind_values,
+        having_values,
+    )
 }
 
 /// List traces with pagination and filters
@@ -113,26 +140,40 @@ pub fn list_traces(
     params: &ListTracesParams,
 ) -> Result<(Vec<TraceRow>, u64), DuckdbError> {
     // Build WHERE clause without alias for count query (single table)
-    let (span_where, bind_values) = build_trace_span_conditions(params, "");
+    let (span_where, span_having, mut bind_values, having_values) =
+        build_trace_span_conditions(params, "");
+    bind_values.extend(having_values);
 
-    // Count query: when filtering to GenAI only, use HAVING to filter traces with GenAI spans
-    // Count query — raw otel_spans avoids the DEDUP_SPANS self-join.
-    // Safe because duplicates share identical data for all filterable columns,
-    // and the HAVING > 0 check is immune to row duplication.
-    let count_sql = if !params.include_nongenai {
+    // Count query — raw otel_spans avoids the DEDUP_SPANS self-join. Safe because duplicates share
+    // identical data for all filterable columns, and the HAVING checks are immune to row
+    // duplication.
+    //
+    // Both HAVING conditions belong here as well as in the page query: a count that ignored them
+    // reported more traces than the pages contain.
+    let mut count_having: Vec<String> = Vec::new();
+    if !params.include_nongenai {
+        count_having.push(format!(
+            "COUNT(*) FILTER (WHERE {}) > 0",
+            genai_span_predicate("")
+        ));
+    }
+    if !span_having.is_empty() {
+        count_having.push(span_having.clone());
+    }
+    let count_sql = if count_having.is_empty() {
+        format!(
+            "SELECT COUNT(DISTINCT trace_id) FROM otel_spans WHERE {}",
+            span_where
+        )
+    } else {
         format!(
             r#"SELECT COUNT(*) FROM (
                 SELECT trace_id FROM otel_spans WHERE {}
                 GROUP BY trace_id
-                HAVING COUNT(*) FILTER (WHERE {genai}) > 0
+                HAVING {}
             ) t"#,
             span_where,
-            genai = genai_span_predicate("")
-        )
-    } else {
-        format!(
-            "SELECT COUNT(DISTINCT trace_id) FROM otel_spans WHERE {}",
-            span_where
+            count_having.join(" AND ")
         )
     };
     let total = execute_count(conn, &count_sql, &bind_values)?;
@@ -168,17 +209,26 @@ pub fn list_traces(
 
     // Build aliased WHERE clauses for CTEs
     // gen_totals CTE uses alias "g", filtered_traces CTE uses alias "sp"
-    let (span_where_g, bind_values_g) = build_trace_span_conditions(params, "g");
-    let (span_where_sp, bind_values_sp) = build_trace_span_conditions(params, "sp");
+    let (span_where_g, _, bind_values_g, _) = build_trace_span_conditions(params, "g");
+    let (span_where_sp, span_having_sp, mut bind_values_sp, having_values_sp) =
+        build_trace_span_conditions(params, "sp");
+    bind_values_sp.extend(having_values_sp);
 
     // HAVING clause to filter traces with GenAI spans when not including non-GenAI traces
-    let having_clause = if !params.include_nongenai {
-        // The second arm keeps the documented "without the SDK" path visible: a
-        // transport-tagged Bedrock span is classified as a plain span on purpose, so such a
-        // trace has no observations even though its GenAI data is present and aggregated.
-        "HAVING observation_count > 0 OR genai_span_count > 0"
+    let mut having_parts: Vec<String> = Vec::new();
+    if !params.include_nongenai {
+        // The second term keeps the documented "without the SDK" path visible: a transport-tagged
+        // Bedrock span is classified as a plain span on purpose, so such a trace has no
+        // observations even though its GenAI data is present and aggregated.
+        having_parts.push("observation_count > 0 OR genai_span_count > 0".to_string());
+    }
+    if !span_having_sp.is_empty() {
+        having_parts.push(span_having_sp);
+    }
+    let having_clause = if having_parts.is_empty() {
+        String::new()
     } else {
-        ""
+        format!("HAVING {}", having_parts.join(" AND "))
     };
 
     let data_sql = format!(
