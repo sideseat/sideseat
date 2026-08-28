@@ -199,10 +199,45 @@ impl Filter {
                 NullOp::IsNull => format!("{expression} IS NULL"),
                 NullOp::IsNotNull => format!("{expression} IS NOT NULL"),
             },
-            // Only the operators the UI offers for a name. A numeric, datetime or boolean filter on
-            // a name is not something the API accepts, and inventing a comparison for it here would
-            // be worse than declining.
-            _ => "1=1".to_string(),
+            // Numbers and timestamps, because most of what a trace row displays is an aggregate:
+            // its tokens and cost are sums over its spans and its duration spans all of them. A
+            // filter on those has to be evaluated where the aggregate exists, so this renderer
+            // carries every operator the trace filter bar offers, not only the string ones a name
+            // needs.
+            Self::Number {
+                operator, value, ..
+            } => {
+                params.values.push(value.to_string());
+                let op = match operator {
+                    NumberOp::Eq => "=",
+                    NumberOp::Gt => ">",
+                    NumberOp::Lt => "<",
+                    NumberOp::Gte => ">=",
+                    NumberOp::Lte => "<=",
+                };
+                format!("{expression} {op} ?")
+            }
+            Self::Datetime {
+                operator, value, ..
+            } => {
+                params.values.push(value.clone());
+                let op = match operator {
+                    DatetimeOp::Gt => ">",
+                    DatetimeOp::Lt => "<",
+                    DatetimeOp::Gte => ">=",
+                    DatetimeOp::Lte => "<=",
+                };
+                format!("{expression} {op} ?")
+            }
+            Self::Boolean {
+                operator, value, ..
+            } => {
+                let literal = if *value { "true" } else { "false" };
+                match operator {
+                    BooleanOp::Eq => format!("{expression} = {literal}"),
+                    BooleanOp::Ne => format!("{expression} != {literal}"),
+                }
+            }
         }
     }
 

@@ -306,6 +306,36 @@ pub(crate) fn bind_params<'a>(
     query
 }
 
+/// The expression a trace list row displays for a filterable column, where that value is an
+/// aggregate over the trace's spans. The ClickHouse counterpart of the DuckDB map, column for
+/// column - a column treated as an aggregate on one backend and as a span attribute on the other
+/// would make the same filter mean two things.
+///
+/// `None` means a plain span attribute, where "the trace has a span with this value" is the reading.
+/// Aliases: `n` for the span rows, `gtf` for the joined totals.
+fn ch_trace_aggregate_expression(view_column: &str) -> Option<String> {
+    // coalesce, because a LEFT JOIN that found no totals row yields NULL and a comparison against
+    // NULL is NULL rather than false - a trace with no usage would drop out of `< n` instead of
+    // counting as the zero the list shows.
+    let totals = |col: &str| Some(format!("coalesce(max(gtf.{col}), 0)"));
+    match view_column {
+        "trace_name" => Some(trace_display_name("n", DisplayNameDialect::ClickHouse)),
+        "start_time" => Some("min(n.timestamp_start)".to_string()),
+        "end_time" => Some("max(coalesce(n.timestamp_end, n.timestamp_start))".to_string()),
+        "duration_ms" => Some(
+            "dateDiff('millisecond', min(n.timestamp_start), \
+             max(coalesce(n.timestamp_end, n.timestamp_start)))"
+                .to_string(),
+        ),
+        "input_tokens" | "output_tokens" | "total_tokens" | "cache_read_tokens"
+        | "cache_write_tokens" | "reasoning_tokens" | "input_cost" | "output_cost"
+        | "cache_read_cost" | "cache_write_cost" | "reasoning_cost" | "total_cost" => {
+            totals(view_column)
+        }
+        _ => None,
+    }
+}
+
 /// Builder for constructing parameterized SQL WHERE clauses.
 ///
 /// Collects conditions and their parameter values, then allows binding
@@ -418,22 +448,76 @@ impl ConditionBuilder {
         }
     }
 
-    /// Add any filter on the trace's displayed name, as a subquery over the traces that match it.
-    fn add_displayed_name_filters(&mut self, filters: &[Filter], project_id: &str) {
-        for filter in filters.iter().filter(|f| f.column() == "trace_name") {
-            let mut inner_params: Vec<QueryParam> = Vec::new();
-            let condition = crate::data::clickhouse::filters::to_clickhouse_sql_against(
-                filter,
-                &mut inner_params,
-                &trace_display_name("n", DisplayNameDialect::ClickHouse),
-            );
-            self.conditions.push(format!(
-                "trace_id IN (SELECT n.trace_id FROM otel_spans n FINAL WHERE n.project_id = ? \
-                 GROUP BY n.project_id, n.trace_id HAVING {condition})"
-            ));
-            self.params.push(QueryParam::String(project_id.to_string()));
-            self.params.extend(inner_params);
+    /// Add the trace list's filters, each as a predicate on the *trace* rather than on a span row.
+    ///
+    /// The reasoning is in the DuckDB copy of this: a trace's tokens, cost and duration are
+    /// aggregates, so comparing one span row against them contradicts what the list displays, and
+    /// two filters ANDed on one row ask for a span carrying both values, which the usual
+    /// root-span/generation-child split does not have. Both backends have to mean the same thing
+    /// here, and the parity test holds them to it.
+    fn add_trace_filters(&mut self, filters: &[Filter], project_id: &str) {
+        let mut aggregate_conditions: Vec<String> = Vec::new();
+        let mut aggregate_params: Vec<QueryParam> = Vec::new();
+        let mut join_totals = false;
+
+        for filter in filters {
+            match ch_trace_aggregate_expression(filter.column()) {
+                Some(expression) => {
+                    aggregate_conditions.push(
+                        crate::data::clickhouse::filters::to_clickhouse_sql_against(
+                            filter,
+                            &mut aggregate_params,
+                            &expression,
+                        ),
+                    );
+                    join_totals |= expression.contains("gtf.");
+                }
+                None => {
+                    let mut inner_params: Vec<QueryParam> = Vec::new();
+                    let condition = crate::data::clickhouse::filters::to_clickhouse_sql(
+                        filter,
+                        &mut inner_params,
+                        columns::map_trace_column_to_spans,
+                        "n",
+                    );
+                    self.conditions.push(format!(
+                        "trace_id IN (SELECT n.trace_id FROM otel_spans n FINAL \
+                         WHERE n.project_id = ? AND {condition})"
+                    ));
+                    self.params.push(QueryParam::String(project_id.to_string()));
+                    self.params.extend(inner_params);
+                }
+            }
         }
+
+        if aggregate_conditions.is_empty() {
+            return;
+        }
+
+        // The subquery carries its own WITH. `where_clause` is embedded in the count query, which
+        // has no CTEs at all, and twice in the data query, whose own `gen_totals` is scoped
+        // differently - so referencing the enclosing query's CTEs would work in one place and fail
+        // in the other. Self-contained means one string that means the same thing everywhere.
+        let mut prelude = String::new();
+        let mut totals_join = String::new();
+        if join_totals {
+            prelude = format!(
+                "WITH {}, {} ",
+                build_dedup_lookup_cte(""),
+                gen_totals_cte(Some("g.trace_id"), "g.project_id = ?")
+            );
+            totals_join = "LEFT JOIN gen_totals gtf ON gtf.trace_id = n.trace_id".to_string();
+            // Bound in the order the SQL names them: dedup_lookup's project, then gen_totals'.
+            self.params.push(QueryParam::String(project_id.to_string()));
+            self.params.push(QueryParam::String(project_id.to_string()));
+        }
+        self.conditions.push(format!(
+            "trace_id IN ({prelude}SELECT n.trace_id FROM otel_spans n FINAL {totals_join} \
+             WHERE n.project_id = ? GROUP BY n.project_id, n.trace_id HAVING {})",
+            aggregate_conditions.join(" AND ")
+        ));
+        self.params.push(QueryParam::String(project_id.to_string()));
+        self.params.extend(aggregate_params);
     }
 
     /// Build the WHERE clause (without "WHERE" keyword)
@@ -771,20 +855,10 @@ pub async fn list_traces(
         cb.add_timestamp_lte("timestamp_start", to);
     }
 
-    // The UI's filter bar. Ignored entirely until now: a trace list filtered by model, token
-    // count, cost or error status came back unfiltered on this backend.
-    cb.add_filters_except(
-        &params.filters,
-        columns::map_trace_column_to_spans,
-        "",
-        "trace_name",
-    );
-    // A name filter selects the traces whose *displayed* name matches, computed over each trace's
-    // whole span set and scoped to the project alone - not over the rows the filters above leave
-    // behind, which for a root-agent/generation-child trace filtered by model is the child. An
-    // uncorrelated IN subquery rather than a join: ClickHouse rejects a correlated subquery
-    // (Code 48) and its analyzer treats a joined CTE's columns as ambiguous here.
-    cb.add_displayed_name_filters(&params.filters, &params.project_id);
+    // The UI's filter bar. Ignored entirely until recently: a trace list filtered by model, token
+    // count, cost or error status came back unfiltered on this backend. Every filter selects
+    // traces - see `add_trace_filters`.
+    cb.add_trace_filters(&params.filters, &params.project_id);
 
     let where_clause = cb.build();
 
