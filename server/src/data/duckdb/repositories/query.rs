@@ -166,8 +166,15 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
         bind_values.push(sid.clone());
     }
 
+    // A trace-level subquery, like the session above and for the same reason: a user id sits on the
+    // spans that carry one, so a row predicate selected the same traces but summed only those spans,
+    // reporting a trace's tokens as whatever the matching spans held rather than the trace's own.
     if let Some(ref uid) = params.user_id {
-        conditions.push(format!("{} = ?", col("user_id")));
+        conditions.push(format!(
+            "{} IN (SELECT DISTINCT trace_id FROM otel_spans WHERE project_id = ? AND user_id = ?)",
+            col("trace_id")
+        ));
+        bind_values.push(params.project_id.clone());
         bind_values.push(uid.clone());
     }
 
@@ -176,10 +183,12 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
     {
         let placeholders: Vec<&str> = envs.iter().map(|_| "?").collect();
         conditions.push(format!(
-            "{} IN ({})",
-            col("environment"),
+            "{} IN (SELECT DISTINCT trace_id FROM otel_spans WHERE project_id = ? \
+             AND environment IN ({}))",
+            col("trace_id"),
             placeholders.join(", ")
         ));
+        bind_values.push(params.project_id.clone());
         bind_values.extend(envs.iter().cloned());
     }
 
@@ -245,12 +254,27 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
     if !aggregate_conditions.is_empty() {
         let mut totals_join = String::new();
         if join_totals {
+            // Scoped over the same rows the projection sums, time window included. Every other
+            // condition on this query is trace-level, so it keeps or drops a trace whole and cannot
+            // change a total; the window is the one that still selects spans, and a filter comparing
+            // against an all-time total would have selected traces by a number the row does not
+            // show - the defect this whole path exists to remove.
+            let mut scope = "g.project_id = ?".to_string();
+            let mut scope_binds = vec![params.project_id.clone()];
+            if let Some(ref from) = params.from_timestamp {
+                scope.push_str(" AND g.timestamp_start >= ?");
+                scope_binds.push(from.to_rfc3339());
+            }
+            if let Some(ref to) = params.to_timestamp {
+                scope.push_str(" AND g.timestamp_start <= ?");
+                scope_binds.push(to.to_rfc3339());
+            }
             totals_join = format!(
                 "LEFT JOIN ({}) gtf ON gtf.trace_id = n.trace_id",
-                gen_totals_sql("g.project_id = ?")
+                gen_totals_sql(&scope)
             );
             // Bound before the outer project_id: the join is rendered ahead of the WHERE.
-            bind_values.push(params.project_id.clone());
+            bind_values.extend(scope_binds);
         }
         conditions.push(format!(
             "{}.trace_id IN (SELECT n.trace_id FROM otel_spans n {totals_join} \
