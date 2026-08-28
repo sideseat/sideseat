@@ -839,6 +839,16 @@ async fn clickhouse_matches_duckdb_on_every_read() {
                 ..Default::default()
             },
         ),
+        (
+            // Several traces at once, which is how the project feed loads the traces on a page in
+            // full before narrowing the reconstruction back to the page.
+            "many traces",
+            MessageQueryParams {
+                project_id: PROJECT.to_string(),
+                trace_ids: vec!["trace-a".to_string(), "trace-b".to_string()],
+                ..Default::default()
+            },
+        ),
     ];
     for (label, params) in message_scopes {
         let d = duck.get_messages(&params).await.expect("duckdb messages");
@@ -859,6 +869,18 @@ async fn clickhouse_matches_duckdb_on_every_read() {
                 );
                 assert_eq!(d.rows[0].messages_json, "[]");
                 assert_eq!(d.rows[0].status_code.as_deref(), Some("ERROR"));
+            }
+            // Both traces must come back, not just the first: an IN over several ids is a new
+            // clause in both dialects, and one that silently matched only one id would still look
+            // non-empty.
+            "many traces" => {
+                let traces: std::collections::BTreeSet<&str> =
+                    d.rows.iter().map(|r| r.trace_id.as_str()).collect();
+                assert_eq!(
+                    traces.into_iter().collect::<Vec<_>>(),
+                    vec!["trace-a", "trace-b"],
+                    "the multi-trace query did not return both traces"
+                );
             }
             _ => assert!(
                 !d.rows.is_empty(),

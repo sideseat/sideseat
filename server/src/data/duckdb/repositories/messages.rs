@@ -48,7 +48,7 @@ const MESSAGE_SELECT_COLUMNS: &str = r#"
 
 /// Get span rows for a span, trace, or session (unified query).
 ///
-/// Priority: span_id > session_id > trace_id
+/// Priority: span_id > session_id > trace_id > trace_ids
 pub fn get_messages(
     conn: &Connection,
     params: &MessageQueryParams,
@@ -75,6 +75,11 @@ pub fn get_messages(
     } else if let Some(trace_id) = &params.trace_id {
         conditions.push("trace_id = ?".to_string());
         bind_values.push(trace_id.clone());
+        conditions.push(MESSAGE_CONTENT_FILTER.to_string());
+    } else if !params.trace_ids.is_empty() {
+        let placeholders: Vec<&str> = params.trace_ids.iter().map(|_| "?").collect();
+        conditions.push(format!("trace_id IN ({})", placeholders.join(", ")));
+        bind_values.extend(params.trace_ids.iter().cloned());
         conditions.push(MESSAGE_CONTENT_FILTER.to_string());
     }
 

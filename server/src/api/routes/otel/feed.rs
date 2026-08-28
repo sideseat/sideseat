@@ -2,6 +2,8 @@
 //!
 //! Provides cursor-based pagination for real-time activity feeds.
 
+use std::collections::HashSet;
+
 use axum::Json;
 use axum::extract::State;
 use base64::Engine;
@@ -16,7 +18,7 @@ use super::types::{
 };
 use crate::api::auth::ProjectRead;
 use crate::api::types::{ApiError, parse_timestamp_param};
-use crate::data::types::{FeedMessagesParams, FeedSpansParams};
+use crate::data::types::{FeedMessagesParams, FeedSpansParams, MessageQueryParams};
 use crate::domain::sideml::{FeedOptions, process_feed};
 
 // ============================================================================
@@ -123,6 +125,21 @@ fn validate_limit(limit: Option<u32>) -> u32 {
     limit.unwrap_or(DEFAULT_FEED_LIMIT).clamp(1, MAX_FEED_LIMIT)
 }
 
+/// Keep the blocks belonging to the spans a feed page holds.
+///
+/// The pipeline is given whole traces so that reconstruction does not depend on where the page
+/// boundary fell; this is what narrows the answer back to the page. The same shape as the trace
+/// view's scoping of a session-loaded feed.
+fn scope_feed_to_page(
+    messages: Vec<crate::domain::sideml::BlockEntry>,
+    page_spans: &HashSet<(String, String)>,
+) -> Vec<crate::domain::sideml::BlockEntry> {
+    messages
+        .into_iter()
+        .filter(|b| page_spans.contains(&(b.trace_id.clone(), b.span_id.clone())))
+        .collect()
+}
+
 // ============================================================================
 // Feed messages endpoint
 // ============================================================================
@@ -189,39 +206,72 @@ pub async fn get_feed_messages(
         .last()
         .map(|s| encode_cursor(s.ingested_at, &s.span_id, &s.trace_id));
 
-    // Process spans through feed pipeline (handles grouping, dedup, sorting)
-    // History filtering is automatic (duplicates are detected and filtered)
+    // Reconstruct over whole traces, then narrow to the page.
     //
-    // Known limit: reconstruction sees one page at a time, and the page is chosen before it runs.
-    // Everything the pipeline decides by looking across spans is therefore page-local:
+    // The page is chosen before the pipeline runs, so anything the pipeline decides by looking
+    // across spans - which copy of a re-sent turn survives, which call a result answers - used to be
+    // decided from a fragment. A trace split across two pages was reconstructed twice, from half its
+    // spans each time, and both halves could show the same turn.
     //
-    // - a replay and the turn it replays can land on different pages, so both are returned;
-    // - a tool call and its result can be split, leaving the result uncorrelated on its page;
-    // - pages are selected by ingestion time and each is then ordered by message time, so
-    //   concatenating them is not guaranteed to be globally ordered.
+    // Loading each trace on the page in full removes that: the traces are already named by the rows
+    // just selected, so it is one further query bounded by the page, and the answer for a trace no
+    // longer depends on where the page boundary fell. Blocks are then kept only for the spans the
+    // page actually holds, the way the trace view scopes a session-loaded feed back to one trace.
     //
-    // Fixing it means loading each conversation on the page in full as context and scoping back,
-    // the way the trace endpoint does - one extra query per session per page on a real-time
-    // endpoint, and an unbounded one for a long session. That is a deliberate trade rather than an
-    // oversight, and it is why the trace and session views, which are where a conversation is
-    // actually read, load their whole session instead of paginating.
+    // What remains page-local, and cannot be otherwise on a cursor-paginated endpoint: a replay that
+    // crosses *traces* within a session is only recognised when both traces are on the page, and
+    // pages are selected by ingestion time while each is ordered by message time, so concatenating
+    // them is not guaranteed to be globally ordered. The trace and session views, which are where a
+    // conversation is actually read, load their whole session for that reason.
+    let page_spans: HashSet<(String, String)> = spans
+        .iter()
+        .map(|s| (s.trace_id.clone(), s.span_id.clone()))
+        .collect();
+    // Totals from the page's own rows, before the context load widens the row set. Counted once per
+    // span: a re-ingested span is two rows on DuckDB, which reads the raw table, and one on
+    // ClickHouse, which reads it with FINAL.
+    let mut counted: HashSet<(&str, &str)> = HashSet::new();
+    let mut page_tokens = 0i64;
+    let mut page_cost = 0.0f64;
+    for row in &spans {
+        if counted.insert((row.trace_id.as_str(), row.span_id.as_str())) {
+            page_tokens += row.total_tokens;
+            page_cost += row.cost_total;
+        }
+    }
+    let page_span_count = counted.len() as u32;
+
+    let mut trace_ids: Vec<String> = spans.iter().map(|s| s.trace_id.clone()).collect();
+    trace_ids.sort();
+    trace_ids.dedup();
+
+    let context = repo
+        .get_messages(&MessageQueryParams {
+            project_id: project_id.clone(),
+            trace_ids,
+            ..Default::default()
+        })
+        .await
+        .map_err(ApiError::from_data)?;
+
     let options = FeedOptions::new().with_role(query.role.clone());
 
-    let processed = process_feed(spans, &options);
-    let all_messages = processed.messages;
+    let processed = process_feed(context.rows, &options);
+    let all_messages = scope_feed_to_page(processed.messages, &page_spans);
     let tool_definitions = processed.tool_definitions;
     let tool_names = processed.tool_names;
 
-    // The pipeline's totals: sums over the spans on this page, not over the blocks returned.
+    // The page's totals, computed from the page's rows above rather than from the pipeline's - the
+    // pipeline now sees whole traces, so its totals cover more than the page shows.
     //
-    // Summing the returned blocks made a billed span contribute nothing whenever all of its
-    // messages were dropped as history or by the role filter, so the page's reported cost fell
-    // below what was actually spent.
+    // Sums over spans, not over the blocks returned: summing blocks made a billed span contribute
+    // nothing whenever all of its messages were dropped as history or by the role filter, so the
+    // page's reported cost fell below what was actually spent.
     let metadata = FeedMessagesMetadata {
         message_count: all_messages.len() as u32,
-        span_count: processed.metadata.span_count as u32,
-        total_tokens: processed.metadata.total_tokens,
-        total_cost: processed.metadata.total_cost,
+        span_count: page_span_count,
+        total_tokens: page_tokens,
+        total_cost: page_cost,
     };
 
     // Build response
@@ -329,6 +379,7 @@ pub async fn get_feed_spans(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::types::MessageSpanRow;
     use chrono::TimeZone;
 
     // ========================================================================
@@ -434,5 +485,103 @@ mod tests {
     #[test]
     fn test_validate_limit_clamped_to_min() {
         assert_eq!(validate_limit(Some(0)), 1);
+    }
+
+    // ========================================================================
+    // Page-scoped reconstruction
+    // ========================================================================
+
+    fn feed_row(trace: &str, span: &str, messages: &str, second: i64) -> MessageSpanRow {
+        let t = Utc.with_ymd_and_hms(2025, 1, 15, 10, 30, 0).unwrap()
+            + chrono::Duration::seconds(second);
+        MessageSpanRow {
+            trace_id: trace.to_string(),
+            span_id: span.to_string(),
+            parent_span_id: None,
+            span_timestamp: t,
+            span_end_timestamp: Some(t),
+            messages_json: messages.to_string(),
+            tool_definitions_json: "[]".to_string(),
+            tool_names_json: "[]".to_string(),
+            model: None,
+            provider: None,
+            status_code: None,
+            exception_type: None,
+            exception_message: None,
+            exception_stacktrace: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cost_total: 0.0,
+            observation_type: Some("generation".to_string()),
+            session_id: None,
+            ingested_at: t,
+        }
+    }
+
+    /// A trace split across two pages must not show the same turn twice.
+    ///
+    /// Each generation span re-sends the conversation so far, which is what the pipeline collapses.
+    /// Reconstructing one page at a time meant each page saw only its own half of the trace, so the
+    /// re-sent turn had nothing to collapse against and both pages returned it. Reconstructing the
+    /// whole trace and then narrowing to the page removes that, and the two pages together return
+    /// each turn once.
+    #[test]
+    fn a_trace_split_across_pages_returns_each_turn_once() {
+        let first_turn = r#"[{"source":{"event":{"name":"gen_ai.user.message","time":"2025-01-15T10:30:00Z"}},
+             "content":{"role":"user","content":"the question"}}]"#;
+        // The second span re-sends the first turn, as every framework that keeps history does.
+        let with_history = r#"[{"source":{"event":{"name":"gen_ai.user.message","time":"2025-01-15T10:30:00Z"}},
+             "content":{"role":"user","content":"the question"}},
+            {"source":{"event":{"name":"gen_ai.choice","time":"2025-01-15T10:30:05Z"}},
+             "content":{"role":"assistant","content":"the answer"}}]"#;
+
+        let rows = vec![
+            feed_row("trace-1", "span-1", first_turn, 0),
+            feed_row("trace-1", "span-2", with_history, 5),
+        ];
+
+        let options = FeedOptions::new();
+        let whole = process_feed(rows.clone(), &options);
+
+        // Two pages, one span each - the boundary a cursor would fall on.
+        let page_one: HashSet<(String, String)> = [("trace-1".to_string(), "span-1".to_string())]
+            .into_iter()
+            .collect();
+        let page_two: HashSet<(String, String)> = [("trace-1".to_string(), "span-2".to_string())]
+            .into_iter()
+            .collect();
+
+        let mut returned: Vec<String> = scope_feed_to_page(whole.messages.clone(), &page_one)
+            .iter()
+            .chain(scope_feed_to_page(whole.messages.clone(), &page_two).iter())
+            .map(|b| format!("{}:{}", b.role.as_str(), b.content_hash))
+            .collect();
+        let before_dedup = returned.len();
+        returned.sort();
+        returned.dedup();
+        assert_eq!(
+            returned.len(),
+            before_dedup,
+            "a turn was returned on both pages: {returned:?}"
+        );
+
+        // And the conversation is complete across the two pages: the question and the answer.
+        assert_eq!(
+            before_dedup, 2,
+            "the two pages together must hold the question and the answer, not {before_dedup} blocks"
+        );
+
+        // What it replaces: reconstructing each page on its own sees half the trace, so the re-sent
+        // question has nothing to collapse against and comes back twice.
+        let page_local: usize = [vec![rows[0].clone()], vec![rows[1].clone()]]
+            .into_iter()
+            .map(|page| process_feed(page, &options).messages.len())
+            .sum();
+        assert!(
+            page_local > before_dedup,
+            "the page-local reconstruction returned {page_local} blocks and the trace-complete one \
+             {before_dedup}; if they agree this test no longer distinguishes them"
+        );
     }
 }
