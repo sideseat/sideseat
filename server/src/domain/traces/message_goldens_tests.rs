@@ -9,17 +9,21 @@
 //! sample sent (captured by `misc/record-otlp.py`, see `misc/capture-message-fixtures.sh`).
 //! It is replayed through the real ingestion path — `extract_attributes_batch`,
 //! `extract_messages_batch`, SideML conversion, enrichment — and then through each of the
-//! three feed views the API exposes:
+//! four views the API exposes:
 //!
-//! | View    | Feed entry point            | API endpoint                     |
-//! |---------|-----------------------------|----------------------------------|
-//! | span    | `process_spans` (1 span)    | `/spans/{trace}/{span}/messages` |
-//! | trace   | `process_spans` (1 trace)   | `/traces/{id}/messages`          |
-//! | session | `process_spans` (whole session) | `/sessions/{id}/messages`    |
+//! | View    | Feed entry point                | API endpoint                     |
+//! |---------|---------------------------------|----------------------------------|
+//! | span    | `process_spans` (1 span)        | `/spans/{trace}/{span}/messages` |
+//! | trace   | `process_spans` (1 trace)       | `/traces/{id}/messages`          |
+//! | session | `process_spans` (whole session) | `/sessions/{id}/messages`        |
+//! | feed    | `process_feed` (every row)      | `/feed/messages`                 |
 //!
-//! All three use `process_spans` and differ only in their row set. `process_feed` belongs to the
-//! project feed endpoint and sorts newest-first, so using it here tested an ordering no session
-//! request can return.
+//! The first three use `process_spans` and differ only in their row set, so each must be built with
+//! its own row set - using `process_feed` for a session tested an ordering no session request can
+//! return. The feed is the fourth because it is the one view with its own pipeline entry point and
+//! its own ordering, and while it was left out it was the only place a duplicate could still
+//! surface unchecked. Pagination is not modelled: it is a property of the endpoint rather than of
+//! parsing, so the feed view is the whole fixture as one page.
 //!
 //! The result is compared against a committed expectation file. Regenerate with:
 //!
@@ -43,7 +47,9 @@ use serde_json::json;
 use crate::api::routes::otel::messages::scope_feed_to_trace;
 use crate::data::types::MessageSpanRow;
 use crate::domain::pricing::PricingService;
-use crate::domain::sideml::feed::{FeedOptions, extract_tools_from_rows, process_spans};
+use crate::domain::sideml::feed::{
+    FeedOptions, extract_tools_from_rows, process_feed, process_spans,
+};
 
 // ============================================================================
 // Fixture discovery
@@ -151,7 +157,7 @@ struct GoldenMessage {
     observation_type: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 struct GoldenView {
     message_count: usize,
     /// Role sequence on its own line: the single most reviewable signal for ordering bugs.
@@ -178,6 +184,9 @@ struct Golden {
     /// the endpoint serves one session at a time. Merging them all into a single view tested a
     /// request no client can make.
     session_views: BTreeMap<String, GoldenView>,
+    /// The project feed over every row of the fixture, newest first.
+    #[serde(default)]
+    feed_view: GoldenView,
 }
 
 const MAX_CONTENT: usize = 240;
@@ -288,6 +297,14 @@ enum View<'a> {
         trace_id: &'a str,
         session_scoped: bool,
     },
+    /// `/feed/messages` - the project feed, newest first, over every row the fixture holds.
+    ///
+    /// The one view that used `process_feed`, and the one the harness did not check. It is where a
+    /// duplicate can still surface: it has its own ordering and, before the trace-complete
+    /// reconstruction, its own answer to what collapses. A page is not modelled - pagination is a
+    /// property of the endpoint, not of parsing - so this is the whole fixture as one page, which is
+    /// what a page of a small project is.
+    Feed,
 }
 
 fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<InvariantRow>) {
@@ -307,6 +324,7 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
             scope_feed_to_trace(&mut processed, scoped_tools, trace_id);
             processed
         }
+        View::Feed => process_feed(rows, &options),
         _ => process_spans(rows, &options),
     };
 
@@ -364,9 +382,17 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
 /// checking is worse than none.
 #[derive(Debug, Clone)]
 enum Scope {
-    Span { trace_id: String, span_id: String },
-    Trace { trace_id: String },
+    Span {
+        trace_id: String,
+        span_id: String,
+    },
+    Trace {
+        trace_id: String,
+    },
     Session,
+    /// The project feed: every trace in the project belongs, so scope constrains nothing - and the
+    /// order is newest-first, which the answer check has to account for.
+    Feed,
 }
 
 /// Golden plus the per-view invariant rows, which are checked but never serialized.
@@ -594,6 +620,19 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
         session_views.insert(sid.clone(), view);
     }
 
+    // The project feed over every row the fixture holds. The endpoint applies the same content
+    // filter the trace and session queries do, so the row set is built the same way.
+    let feed_rows = sorted_by_timestamp(
+        by_span
+            .values()
+            .flat_map(|rows| rows.1.iter())
+            .filter(|r| passes_content_filter(r))
+            .cloned()
+            .collect(),
+    );
+    let (feed_view, feed_inv) = build_view(feed_rows, View::Feed);
+    invariants.push(("feed".to_string(), Scope::Feed, feed_inv));
+
     Built {
         golden: Golden {
             label: label.to_string(),
@@ -604,6 +643,7 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
             span_views,
             trace_views,
             session_views,
+            feed_view,
         },
         invariants,
         traces_of_session,
@@ -712,9 +752,27 @@ const NO_ANSWER_EXPECTED: &[(&str, &str)] = &[(
 /// The other invariants are all about *not* returning the wrong thing - scope, duplicates, pairing.
 /// None of them notices content that never arrives, which is the failure mode of a broken extractor:
 /// the feed looks orderly and is missing the reply.
-fn assert_has_an_answer(label: &str, view_name: &str, rows: &[InvariantRow]) {
+///
+/// `ordered` asks the stronger question - that the *last* turn was answered - and is false only for
+/// the project feed, whose order is descending across responses and ascending within one, so no
+/// position in it is the last turn.
+fn assert_has_an_answer(label: &str, view_name: &str, rows: &[InvariantRow], ordered: bool) {
     if let Some((_, reason)) = NO_ANSWER_EXPECTED.iter().find(|(l, _)| *l == label) {
         eprintln!("message_goldens: {label}: answer check skipped - {reason}");
+        return;
+    }
+
+    if !ordered {
+        if !rows.iter().any(|r| r.role == "user") {
+            return;
+        }
+        assert!(
+            rows.iter()
+                .any(|r| r.role == "assistant" || r.role == "tool"),
+            "{label} / {view_name}: {} messages, a question among them, and nothing from the \
+             assistant or a tool anywhere",
+            rows.len()
+        );
         return;
     }
 
@@ -840,8 +898,9 @@ fn assert_scope(label: &str, view_name: &str, scope: &Scope, rows: &[InvariantRo
                 );
             }
         }
-        // A session legitimately spans traces, so there is nothing to constrain.
-        Scope::Session => {}
+        // A session legitimately spans traces, and the project feed spans everything, so there is
+        // nothing to constrain in either.
+        Scope::Session | Scope::Feed => {}
     }
 }
 
@@ -929,6 +988,7 @@ fn check_invariants(label: &str, built: &Built) {
                 .iter()
                 .map(|(k, v)| (format!("session {k}"), v)),
         )
+        .chain(std::iter::once(("feed".to_string(), &golden.feed_view)))
         .collect();
 
     for (name, view) in &views {
@@ -945,7 +1005,14 @@ fn check_invariants(label: &str, built: &Built) {
             assert_tool_pairing(label, name, rows);
             // Span views are excluded here too: one span legitimately holds only the request or
             // only the reply.
-            assert_has_an_answer(label, name, rows);
+            //
+            // The feed gets the weaker form. Its order is descending across responses and ascending
+            // within one, so no single position is "the last turn" - reversing it does not give
+            // chronological order either. What still holds, and would still have caught a whole
+            // framework's answers going missing, is that a feed showing a question shows something
+            // that answered one.
+            let ordered = !matches!(scope, Scope::Feed);
+            assert_has_an_answer(label, name, rows, ordered);
         }
     }
 
@@ -1374,7 +1441,7 @@ fn invariant_checks_are_not_vacuous() {
     // it must fire on are all well-formed.
     let unanswered = vec![row("trace-a", 0, "user", "text", "the question")];
     assert!(
-        fires(&|| assert_has_an_answer("test", "synthetic", &unanswered)),
+        fires(&|| assert_has_an_answer("test", "synthetic", &unanswered, true)),
         "a question with no reply at all must be reported"
     );
 
@@ -1386,7 +1453,7 @@ fn invariant_checks_are_not_vacuous() {
         row("trace-a", 2, "user", "text", "second question"),
     ];
     assert!(
-        fires(&|| assert_has_an_answer("test", "synthetic", &last_turn_dropped)),
+        fires(&|| assert_has_an_answer("test", "synthetic", &last_turn_dropped, true)),
         "an unanswered final turn must be reported even when an earlier turn was answered"
     );
 
@@ -1397,7 +1464,7 @@ fn invariant_checks_are_not_vacuous() {
         row("trace-a", 3, "assistant", "text", "second answer"),
     ];
     assert!(
-        !fires(&|| assert_has_an_answer("test", "synthetic", &answered)),
+        !fires(&|| assert_has_an_answer("test", "synthetic", &answered, true)),
         "a complete conversation must pass"
     );
 
@@ -1408,20 +1475,20 @@ fn invariant_checks_are_not_vacuous() {
         row("trace-a", 1, "tool", "tool_result", "the result"),
     ];
     assert!(
-        !fires(&|| assert_has_an_answer("test", "synthetic", &answered_by_tool)),
+        !fires(&|| assert_has_an_answer("test", "synthetic", &answered_by_tool, true)),
         "a tool result is an answer"
     );
 
     // Nothing was asked, so nothing is owed - a tool span's view holds no user message.
     let no_question = vec![row("trace-a", 0, "assistant", "tool_use", "call")];
     assert!(
-        !fires(&|| assert_has_an_answer("test", "synthetic", &no_question)),
+        !fires(&|| assert_has_an_answer("test", "synthetic", &no_question, true)),
         "a view with no question must not be required to hold an answer"
     );
 
     // The exemption is by label, and must actually exempt - otherwise strands/error fails.
     assert!(
-        !fires(&|| assert_has_an_answer("strands/error", "synthetic", &unanswered)),
+        !fires(&|| assert_has_an_answer("strands/error", "synthetic", &unanswered, true)),
         "an exempt fixture must skip the check"
     );
 }

@@ -413,5 +413,107 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 10,
+    "role_sequence": [
+      "tool",
+      "tool",
+      "assistant",
+      "assistant",
+      "assistant",
+      "tool",
+      "assistant",
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "File created successfully at: /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-permissions-ahh76d_g/reviewed/notes.txt (file state is current in your context — no need to Read it back)",
+        "content_digest": "4d5458fa7470a686",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Writing secrets files is not allowed <system-reminder> <total_tokens>14980567 tokens left</total_tokens> </system-reminder>",
+        "content_digest": "7fc9f570ad8c7964",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "## Results: **notes.txt** ✅ **Successfully created** - Created at: `notes.txt` - Content: `hello` - The file was written successfully with the intended content. **secrets.txt** ❌ **Failed to create** - Attempted to create at: `secrets.txt` …[671 chars]",
+        "content_digest": "44cd0913e4d2725f",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_012vn11VfQE5yTuq4GmUrL4Q\",\"name\":\"Write\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-permissions-ahh76d_g/secrets.txt\",\"content\":\"token=abc123\"}}",
+        "content_digest": "a627fa6fabdf625b",
+        "tool_name": "Write",
+        "observation_type": "tool"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_015ejViKrMuTe2x632mKgPws\",\"name\":\"Write\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-permissions-ahh76d_g/notes.txt\",\"content\":\"hello\"}}",
+        "content_digest": "62aa54cde168e4ac",
+        "tool_name": "Write",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-permissions-ahh76d_g <system-reminder> <total_tokens>14980873 tokens left</total_tokens> </system-reminder>",
+        "content_digest": "23bfdacd2b1244aa",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Now I'll create both files in the current directory:",
+        "content_digest": "67fb62ba2c0af789",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Q5tATzyQxgzZYBDzCWwjKx\",\"name\":\"Bash\",\"input\":{\"command\":\"pwd\",\"description\":\"Get current working directory\"}}",
+        "content_digest": "4c6d55daeaa08e6e",
+        "tool_name": "Bash",
+        "observation_type": "tool"
+      },
+      {
+        "index": 8,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a careful file assistant.",
+        "content_digest": "da933aef5e68e44a",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Using relative paths in the current directory, create notes.txt containing 'hello', then create secrets.txt containing 'token=abc123'. Report what happened for each.",
+        "content_digest": "ca6d7a77696b0b67",
+        "observation_type": "span"
+      }
+    ]
   }
 }

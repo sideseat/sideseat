@@ -131,5 +131,33 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 2,
+    "role_sequence": [
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[9614 chars]",
+        "content_digest": "cbf99c2303a7ad52",
+        "finish_reason": "Error",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"agent\":{\"entity_type\":\"agent\",\"id\":\"c32551d5-0bfb-40de-b531-c5ed529f2af3\",\"role\":\"Assistant\",\"goal\":\"Answer questions\",\"backstory\":\"You are a helpful assistant.\",\"cache\":true,\"verbose\":false,\"max_rpm\":null,\"allow_del…[1302 chars]",
+        "content_digest": "e4d5815df07a1450",
+        "observation_type": "agent"
+      }
+    ]
   }
 }

@@ -188,5 +188,41 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\",\"postal_code\":null},\"contacts\":[{\"email\":\"jane@example.com\",\"phone\":null}],\"skills\":[\"systems administration\"]}}",
+        "content_digest": "7d1830555fee12bf",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a helpful assistant that extracts structured information from text.",
+        "content_digest": "965dc7374dfb1d1c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+        "content_digest": "6a08cceee02e13c8",
+        "observation_type": "generation"
+      }
+    ]
   }
 }

@@ -281,5 +281,53 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 4,
+    "role_sequence": [
+      "assistant",
+      "assistant",
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the Converse operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sides…[3723 chars]",
+        "content_digest": "4cd7b0e7587fa085",
+        "finish_reason": "Error",
+        "observation_type": "chain"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the Converse operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sides…[2369 chars]",
+        "content_digest": "48d1b16ad04cb8fb",
+        "finish_reason": "Error",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the Converse operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sides…[1408 chars]",
+        "content_digest": "5c9425cc4a6e502e",
+        "finish_reason": "Error",
+        "observation_type": "span"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is 2 + 2?",
+        "content_digest": "63ddd3c6a93ba932",
+        "observation_type": "chain"
+      }
+    ]
   }
 }

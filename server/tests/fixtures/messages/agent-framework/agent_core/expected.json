@@ -515,5 +515,80 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 7,
+    "role_sequence": [
+      "assistant",
+      "system",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+      "tool"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 3,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Your favorite number is **7**, and its square is **49**.",
+        "content_digest": "5ce8577bc3d21ed0",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an AI assistant that validates answers through code execution. When asked about code, algorithms, or calculations, write Python code to verify your answers. When asked about user preferences or personal information (like favorite nu…[327 chars]",
+        "content_digest": "1ab7d8797a11bcd8",
+        "observation_type": "agent"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Calculate my favorite number squared. First retrieve my favorite number using the retrieve_memory tool with 'favorite_number' as the key. Then use the execute_python_code tool to compute and verify the square with code like: print(7 ** 2)",
+        "content_digest": "5bd6d0949770a576",
+        "observation_type": "agent"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_9a0e0ec784d4582081f25a54172d3761\",\"name\":\"retrieve_memory\",\"input\":{\"key\":\"favorite_number\"}}",
+        "content_digest": "79c6d4e635e2a889",
+        "tool_name": "retrieve_memory",
+        "observation_type": "agent"
+      },
+      {
+        "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_9a0e0ec784d4582081f25a54172d3761\",\"content\":[{\"type\":\"text\",\"text\":\"7\"}]}",
+        "content_digest": "4076aa209cbcca0c",
+        "observation_type": "agent"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_fcec744ed99a57018c31780e378cd09d\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"print(7 ** 2)\"}}",
+        "content_digest": "c28e5c1b999f809f",
+        "tool_name": "execute_python_code",
+        "observation_type": "agent"
+      },
+      {
+        "index": 6,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_fcec744ed99a57018c31780e378cd09d\",\"content\":[{\"type\":\"text\",\"text\":\"49\\n\"}]}",
+        "content_digest": "3e56be159a9c582b",
+        "observation_type": "agent"
+      }
+    ]
   }
 }

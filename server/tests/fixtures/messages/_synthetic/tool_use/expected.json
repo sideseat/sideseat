@@ -232,5 +232,62 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "17 * 23 = 391.",
+        "content_digest": "31a2921a7958f22a",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "391",
+        "content_digest": "5245a39f6f120043",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_abc123\",\"name\":\"calculator\",\"input\":{\"expression\":\"17 * 23\"}}",
+        "content_digest": "6004a25dd57fe6a0",
+        "tool_name": "calculator",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is 17 * 23?",
+        "content_digest": "c2201148fae02ae7",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a precise calculator.",
+        "content_digest": "14d3157937730bf4",
+        "observation_type": "generation"
+      }
+    ]
   }
 }

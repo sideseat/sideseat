@@ -83,5 +83,33 @@
       ]
     }
   },
-  "session_views": {}
+  "session_views": {},
+  "feed_view": {
+    "message_count": 2,
+    "role_sequence": [
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[960 chars]",
+        "content_digest": "bb257f8ec3ebb238",
+        "finish_reason": "Error",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Hello",
+        "content_digest": "ec371cafa6a5b98e",
+        "observation_type": "generation"
+      }
+    ]
+  }
 }

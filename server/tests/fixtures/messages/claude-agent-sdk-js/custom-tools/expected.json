@@ -855,5 +855,163 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 16,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "tool",
+      "tool",
+      "assistant",
+      "assistant",
+      "assistant",
+      "tool",
+      "user",
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[{\"type\":\"text\",\"text\":\"flange: now 25 in stock\"}]",
+        "content_digest": "f73f47540888e25e",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Done! I've restocked flanges with 25 units. The new count is **25 units** in stock.",
+        "content_digest": "3694afae0d90047a",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Y51QskZdGEhPCJD3iWwnU5\",\"name\":\"mcp__inventory__restock\",\"input\":{\"part\":\"flanges\",\"count\":25}}",
+        "content_digest": "1e10d1f19f45476a",
+        "tool_name": "mcp__inventory__restock",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__restock\"},{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__check_stock\"}]",
+        "content_digest": "a512b5e9e8be85aa",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_016MQUK8GvtiupgZ1DAX3b7q\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__inventory__restock,mcp__inventory__check_stock\",\"max_results\":2}}",
+        "content_digest": "92ee09e988099104",
+        "tool_name": "ToolSearch",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Restock flanges with 25 units, then tell me the new count.",
+        "content_digest": "560c04033b10fa99",
+        "observation_type": "span"
+      },
+      {
+        "index": 6,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[{\"type\":\"text\",\"text\":\"widget: 12 in stock\"}]",
+        "content_digest": "2a639d93670db63b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[{\"type\":\"text\",\"text\":\"flange: 0 in stock\"}]",
+        "content_digest": "897c164684e94dd9",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Based on the inventory check: - **Widgets**: 12 in stock - **Flanges**: 0 in stock Note that flanges are currently out of stock and may need to be reordered.",
+        "content_digest": "9713f06ca1148704",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01DKahViv2kQNDsBtnr3FP4L\",\"name\":\"mcp__inventory__check_stock\",\"input\":{\"part\":\"flanges\"}}",
+        "content_digest": "0ee1a044d1364686",
+        "tool_name": "mcp__inventory__check_stock",
+        "observation_type": "tool"
+      },
+      {
+        "index": 10,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01S9Rda5WcdtWU4guXpEeqWQ\",\"name\":\"mcp__inventory__check_stock\",\"input\":{\"part\":\"widgets\"}}",
+        "content_digest": "e0e51f8d97ac687f",
+        "tool_name": "mcp__inventory__check_stock",
+        "observation_type": "tool"
+      },
+      {
+        "index": 11,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__inventory__check_stock\"}]",
+        "content_digest": "0c059356a560a5c0",
+        "observation_type": "generation"
+      },
+      {
+        "index": 12,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Tool loaded.",
+        "content_digest": "fa8faf6aaa3f4c78",
+        "observation_type": "generation"
+      },
+      {
+        "index": 13,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01CGuHsvGtZMNku9s3Xf1ytj\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__inventory__check_stock\",\"max_results\":1}}",
+        "content_digest": "fe96222897020306",
+        "tool_name": "ToolSearch",
+        "observation_type": "tool"
+      },
+      {
+        "index": 14,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a warehouse assistant. Use the inventory tools for all lookups.",
+        "content_digest": "e7381e8e903d37bd",
+        "observation_type": "generation"
+      },
+      {
+        "index": 15,
+        "role": "user",
+        "entry_type": "text",
+        "content": "How many widgets and flanges are in stock?",
+        "content_digest": "0fd6ddf013dd19c3",
+        "observation_type": "span"
+      }
+    ]
   }
 }

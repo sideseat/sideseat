@@ -379,5 +379,114 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 11,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant",
+      "assistant",
+      "system",
+      "user",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Sunny, 22C, light breeze",
+        "content_digest": "8eafae25d6148cb4",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Paris is sunny and 22°C, with a light breeze.",
+        "content_digest": "8d3dfa41c600ffd0",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "Use tools when available.",
+        "content_digest": "709a9d31106ec8be",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What's the weather in Paris?",
+        "content_digest": "e0a7ad259126b9f7",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_0\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+        "content_digest": "81323e802979587c",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "At standard atmospheric pressure (1 atmosphere), water boils at 100°C (212°F).",
+        "content_digest": "4363849831b3f92a",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "system",
+        "entry_type": "text",
+        "content": "Answer in one sentence.",
+        "content_digest": "eb0b73db0db1ed63",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the boiling point of water?",
+        "content_digest": "30d19820dbb43177",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "system",
+        "entry_type": "text",
+        "content": "Answer in one sentence.",
+        "content_digest": "eb0b73db0db1ed63",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the speed of light?",
+        "content_digest": "6cd7e48e0fe698ef",
+        "observation_type": "generation"
+      },
+      {
+        "index": 10,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The speed of light in a vacuum is exactly 299,792,458 meters per second (approximately 300,000 kilometers per second).",
+        "content_digest": "c9bbde77cf11a0ea",
+        "observation_type": "generation"
+      }
+    ]
   }
 }

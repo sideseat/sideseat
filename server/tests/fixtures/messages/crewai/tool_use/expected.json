@@ -1250,5 +1250,274 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 28,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant",
+      "assistant",
+      "tool",
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant",
+      "assistant",
+      "tool",
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant",
+      "assistant",
+      "tool",
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant",
+      "assistant",
+      "tool",
+      "tool",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are Weather Forecaster. You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and fri…[4427 chars]",
+        "content_digest": "2c6a80d23a873aa8",
+        "observation_type": "chain"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Current Task: Provide a 14-day weather forecast for London. This is the expected criteria for your final answer: A friendly greeting followed by a detailed weather forecast. you MUST return the actual complete content as the final answer, n…[253 chars]",
+        "content_digest": "399c104a6431ab73",
+        "observation_type": "chain"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_678IyiN38N5g0PgpC4ynD7\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
+        "content_digest": "f89fcb43d4704f86",
+        "tool_name": "temperature_forecast",
+        "observation_type": "chain"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_fo75JFZRF1FljMBDZxDKQA\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
+        "content_digest": "61f8423c3f063913",
+        "tool_name": "precipitation_forecast",
+        "observation_type": "chain"
+      },
+      {
+        "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_678IyiN38N5g0PgpC4ynD7\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"London\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\"…[504 chars]",
+        "content_digest": "4d780ac3513aff64",
+        "observation_type": "chain"
+      },
+      {
+        "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "The precipitation forecast for London for the next 7 days is: Light rain expected on day 2.",
+        "content_digest": "7d000515ab5f9a40",
+        "observation_type": "chain"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Hello! 👋 Welcome! I'm delighted to help you with the weather forecast for London. I should note that the available forecast tools currently support up to 7 days of predictions. Here's the detailed **7-day weather forecast for London**: **Te…[1332 chars]",
+        "content_digest": "f07e336cd522a9c7",
+        "observation_type": "chain"
+      },
+      {
+        "index": 7,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are Weather Forecaster. You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and fri…[4427 chars]",
+        "content_digest": "2c6a80d23a873aa8",
+        "observation_type": "chain"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Current Task: Provide a 7-day weather forecast for Los Angeles. This is the expected criteria for your final answer: A friendly greeting followed by a detailed weather forecast. you MUST return the actual complete content as the final answe…[257 chars]",
+        "content_digest": "31ce4a86c68d7edc",
+        "observation_type": "chain"
+      },
+      {
+        "index": 9,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_roitPtsUrpVqTj6MaeQO2H\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
+        "content_digest": "44bab90b501b2580",
+        "tool_name": "temperature_forecast",
+        "observation_type": "chain"
+      },
+      {
+        "index": 10,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_z7LHvfwaO4GuaDA4aeY2x1\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
+        "content_digest": "c4c971fc4e37fc51",
+        "tool_name": "precipitation_forecast",
+        "observation_type": "chain"
+      },
+      {
+        "index": 11,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_roitPtsUrpVqTj6MaeQO2H\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"…[509 chars]",
+        "content_digest": "0036ef1b22d28d54",
+        "observation_type": "chain"
+      },
+      {
+        "index": 12,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.",
+        "content_digest": "d5843db8211f7202",
+        "observation_type": "chain"
+      },
+      {
+        "index": 13,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Hello! 👋 Welcome! I'm delighted to provide you with a comprehensive 7-day weather forecast for Los Angeles! ## **7-Day Weather Forecast for Los Angeles** **Day 1:** Sunny - High: 25°C (77°F) - Low: 15°C (59°F) - Conditions: Perfect sunny we…[1393 chars]",
+        "content_digest": "62534d480e50c8bc",
+        "observation_type": "chain"
+      },
+      {
+        "index": 14,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are Weather Forecaster. You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and fri…[4427 chars]",
+        "content_digest": "2c6a80d23a873aa8",
+        "observation_type": "chain"
+      },
+      {
+        "index": 15,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Current Task: Provide a 3-day weather forecast for New York City. This is the expected criteria for your final answer: A friendly greeting followed by a detailed weather forecast. you MUST return the actual complete content as the final ans…[259 chars]",
+        "content_digest": "703ab5a629bc0a33",
+        "observation_type": "chain"
+      },
+      {
+        "index": 16,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BFoiYVoZuqMbxWgVhsHVP4\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+        "content_digest": "847e84c1186d7ca8",
+        "tool_name": "temperature_forecast",
+        "observation_type": "chain"
+      },
+      {
+        "index": 17,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_9HO81Z3qmXshZYOtUIWnIO\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+        "content_digest": "fc8fa3c7c647e09a",
+        "tool_name": "precipitation_forecast",
+        "observation_type": "chain"
+      },
+      {
+        "index": 18,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_BFoiYVoZuqMbxWgVhsHVP4\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\"…[315 chars]",
+        "content_digest": "8d1945b6f487fbf0",
+        "observation_type": "chain"
+      },
+      {
+        "index": 19,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.",
+        "content_digest": "1cf41fcdcf981095",
+        "observation_type": "chain"
+      },
+      {
+        "index": 20,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Hello! 👋 Welcome to your weather forecast! I'm delighted to provide you with a detailed 3-day weather forecast for **New York City**: --- **📅 3-Day Weather Forecast for New York City:** **Day 1:** - Condition: Sunny ☀️ - High: 25°C (77°F) -…[887 chars]",
+        "content_digest": "8d74e259b80521de",
+        "observation_type": "chain"
+      },
+      {
+        "index": 21,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are Weather Forecaster. You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and fri…[4427 chars]",
+        "content_digest": "2c6a80d23a873aa8",
+        "observation_type": "chain"
+      },
+      {
+        "index": 22,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Current Task: Provide a 3-day weather forecast for New York City. This is the expected criteria for your final answer: A friendly greeting followed by a detailed weather forecast. you MUST return the actual complete content as the final ans…[259 chars]",
+        "content_digest": "703ab5a629bc0a33",
+        "observation_type": "chain"
+      },
+      {
+        "index": 23,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DJsnrZ0HD9ee08sQI7MPJJ\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+        "content_digest": "66644279e84f5bd4",
+        "tool_name": "temperature_forecast",
+        "observation_type": "chain"
+      },
+      {
+        "index": 24,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_180WKcGdf8BmrRIwYWEuWL\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+        "content_digest": "2ddef4a57d3bb536",
+        "tool_name": "precipitation_forecast",
+        "observation_type": "chain"
+      },
+      {
+        "index": 25,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_DJsnrZ0HD9ee08sQI7MPJJ\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\"…[315 chars]",
+        "content_digest": "91d6e8cc6edb5ce1",
+        "observation_type": "chain"
+      },
+      {
+        "index": 26,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.",
+        "content_digest": "8935132b7646608b",
+        "observation_type": "chain"
+      },
+      {
+        "index": 27,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Hello! Welcome! ☀️ I'm delighted to provide you with a detailed 3-day weather forecast for New York City. **3-Day Weather Forecast for New York City:** **Day 1:** - Condition: Sunny - High: 25°C (77°F) - Low: 15°C (59°F) - Precipitation: No…[962 chars]",
+        "content_digest": "51ffa2f24e215fa7",
+        "observation_type": "chain"
+      }
+    ]
   }
 }

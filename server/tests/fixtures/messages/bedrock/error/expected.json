@@ -65,5 +65,24 @@
       ]
     }
   },
-  "session_views": {}
+  "session_views": {},
+  "feed_view": {
+    "message_count": 1,
+    "role_sequence": [
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the Converse operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sides…[1200 chars]",
+        "content_digest": "6a1da5e2af45d70b",
+        "finish_reason": "Error",
+        "observation_type": "generation"
+      }
+    ]
+  }
 }

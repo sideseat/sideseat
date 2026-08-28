@@ -123,5 +123,24 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 1,
+    "role_sequence": [
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[5687 chars]",
+        "content_digest": "4b1bc2aa80e5f0de",
+        "finish_reason": "Error",
+        "observation_type": "agent"
+      }
+    ]
   }
 }

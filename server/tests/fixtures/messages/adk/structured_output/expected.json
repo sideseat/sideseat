@@ -141,5 +141,42 @@
         }
       ]
     }
+  },
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\",\"postal_code\":null},\"contacts\":[{\"email\":\"jane@example.com\",\"phone\":null}],\"skills\":[\"systems admin\"]}",
+        "content_digest": "50a0f9df20fde7d3",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a helpful assistant that extracts structured information from text. Extract all relevant details including name, age, address, contact information, and skills. Return the information in the exact format specified by the output schem…[306 chars]",
+        "content_digest": "c55cc928d0aa28d9",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+        "content_digest": "6a08cceee02e13c8",
+        "observation_type": "generation"
+      }
+    ]
   }
 }

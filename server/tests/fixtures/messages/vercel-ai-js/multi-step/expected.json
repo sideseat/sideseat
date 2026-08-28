@@ -864,5 +864,221 @@
       ]
     }
   },
-  "session_views": {}
+  "session_views": {},
+  "feed_view": {
+    "message_count": 21,
+    "role_sequence": [
+      "assistant",
+      "assistant",
+      "tool",
+      "assistant",
+      "assistant",
+      "tool",
+      "user",
+      "assistant",
+      "assistant",
+      "assistant",
+      "tool",
+      "user",
+      "assistant",
+      "assistant",
+      "assistant",
+      "assistant",
+      "tool",
+      "assistant",
+      "tool",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**The area of a circle with radius 5 is 78.54 square units** (using π ≈ 3.14159) The calculation: - r² = 5² = 25 - A = π × r² = 3.14159 × 25 = 78.53975 ≈ **78.54**",
+        "content_digest": "5edeb9bfdbadfb26",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_T9cxj1TJQbxuClmq4Ei3sN\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":3.14159,\"b\":25}}",
+        "content_digest": "a35c3f00a4393209",
+        "tool_name": "calculator",
+        "finish_reason": "ToolUse",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_T9cxj1TJQbxuClmq4Ei3sN\",\"content\":{\"operation\":\"multiply\",\"a\":3.14159,\"b\":25,\"result\":78.53975}}",
+        "content_digest": "60fc1282800c3871",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Now I'll multiply that result by π:",
+        "content_digest": "24b56b6302a0722b",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BHIUAiGmzhU4NhTZQ6O8qx\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":5,\"b\":5}}",
+        "content_digest": "9c89cb27b2583646",
+        "tool_name": "calculator",
+        "finish_reason": "ToolUse",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_BHIUAiGmzhU4NhTZQ6O8qx\",\"content\":{\"operation\":\"multiply\",\"a\":5,\"b\":5,\"result\":25}}",
+        "content_digest": "09d26219ef60d212",
+        "observation_type": "tool"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Calculate the area of a circle with radius 5 (use 3.14159 for pi)",
+        "content_digest": "f26f3ca7d4ec0f92",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I'll calculate the area of a circle with radius 5 using the formula A = πr².",
+        "content_digest": "e7d1333554570865",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "15% of 240 is **36**.",
+        "content_digest": "dc4869d0754529fa",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_lzuo63RyKawL8zyyLXJBdM\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":240,\"b\":0.15}}",
+        "content_digest": "527baf5b440482e2",
+        "tool_name": "calculator",
+        "finish_reason": "ToolUse",
+        "observation_type": "tool"
+      },
+      {
+        "index": 10,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_lzuo63RyKawL8zyyLXJBdM\",\"content\":{\"operation\":\"multiply\",\"a\":240,\"b\":0.15,\"result\":36}}",
+        "content_digest": "c7a0e5e1d431a4a7",
+        "observation_type": "tool"
+      },
+      {
+        "index": 11,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is 15% of 240?",
+        "content_digest": "796917473389523f",
+        "observation_type": "generation"
+      },
+      {
+        "index": 12,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I need to calculate 15% of 240, which is the same as multiplying 240 by 0.15.",
+        "content_digest": "f77e07dba50448a6",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 13,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Perfect! 579 × 2 = **1,158** **Answer: (123 + 456) * 2 = 1,158**",
+        "content_digest": "4ff6cb28e2b03623",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 14,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Great! 123 + 456 = **579** **Step 2: Now multiply the result by 2**",
+        "content_digest": "f33417d13a73331f",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 15,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pUHRgRAp85GmlCOLHT1mh9\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":579,\"b\":2}}",
+        "content_digest": "054040a205067971",
+        "tool_name": "calculator",
+        "finish_reason": "ToolUse",
+        "observation_type": "tool"
+      },
+      {
+        "index": 16,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_pUHRgRAp85GmlCOLHT1mh9\",\"content\":{\"operation\":\"multiply\",\"a\":579,\"b\":2,\"result\":1158}}",
+        "content_digest": "336f5ca985dc8263",
+        "observation_type": "tool"
+      },
+      {
+        "index": 17,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"name\":\"calculator\",\"input\":{\"operation\":\"add\",\"a\":123,\"b\":456}}",
+        "content_digest": "525a88527a167997",
+        "tool_name": "calculator",
+        "finish_reason": "ToolUse",
+        "observation_type": "tool"
+      },
+      {
+        "index": 18,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"content\":{\"operation\":\"add\",\"a\":123,\"b\":456,\"result\":579}}",
+        "content_digest": "f1b56fa5f09bbdb5",
+        "observation_type": "tool"
+      },
+      {
+        "index": 19,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Calculate step by step: What is (123 + 456) * 2?",
+        "content_digest": "96b787aa89baaa86",
+        "observation_type": "generation"
+      },
+      {
+        "index": 20,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I'll calculate this step by step for you. **Step 1: First, calculate 123 + 456**",
+        "content_digest": "1ffaba87c5c48f8f",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      }
+    ]
+  }
 }
