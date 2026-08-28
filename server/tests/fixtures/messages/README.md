@@ -79,6 +79,13 @@ snapshot still fail on a real defect:
   is linked to its call by position (oldest unclaimed call of that name), and where no call is
   available it stays unlinked rather than acquiring an invented id
 - no empty text or thinking blocks
+- a view holding a user message also holds something from the assistant or a tool. Every other
+  invariant here is about not returning the *wrong* thing; this is the only one that notices
+  content which never arrives at all, which is how CrewAI's answers went missing for as long as
+  they did — the extractor read the reply from a field it only consulted when no history was
+  present, so exactly the runs that had a conversation lost the response. A fixture that
+  legitimately has no answer is exempted by name with its reason (only `strands/error`, whose
+  sample exists to fail), so the exemption is a claim someone made rather than a silent pass
 - the projection is self-consistent (counts, role sequence and message list agree)
 - processing the same fixture twice gives the same answer, checked once per suite
 
