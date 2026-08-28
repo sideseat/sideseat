@@ -26,7 +26,8 @@ pub struct GetTraceInput {
 pub struct GetMessagesInput {
     /// Trace ID (provide this OR session_id; also pass it alongside span_id)
     pub trace_id: Option<String>,
-    /// Span ID. Span ids are unique only within a trace, so pass trace_id too
+    /// Span ID. Requires trace_id: a span id is unique only within a trace, so on its own it
+    /// identifies no single span and the request is refused rather than answered ambiguously.
     pub span_id: Option<String>,
     /// Session ID (provide this OR trace_id)
     pub session_id: Option<String>,

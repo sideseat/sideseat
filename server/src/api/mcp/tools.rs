@@ -150,7 +150,7 @@ impl McpServer {
     }
 
     #[tool(
-        description = "Get normalized LLM conversation. Returns messages with roles (system/user/assistant/tool), content blocks (text, tool_use, tool_result, thinking), tokens, costs. Provide one of: trace_id, span_id, or session_id."
+        description = "Get normalized LLM conversation. Returns messages with roles (system/user/assistant/tool), content blocks (text, tool_use, tool_result, thinking), tokens, costs. Provide trace_id, or session_id, or span_id together with its trace_id (a span id is unique only within a trace)."
     )]
     async fn get_messages(
         &self,
@@ -161,10 +161,24 @@ impl McpServer {
 
         // Simple path: span or session scoped (no cross-trace dedup needed)
         if input.span_id.is_some() || input.session_id.is_some() {
-            // With a span_id, trace_id narrows the scope: OTel span ids are 8 bytes and unique
-            // only within a trace, so span_id alone can return another trace's span. The HTTP
-            // route always carries both; here it is whatever the caller sent.
-            //
+            // A span id is 8 bytes and unique only within a trace, so it needs its trace to identify
+            // a span at all. The HTTP route always carries both; a caller here could send the span
+            // alone, and the answer was then whatever spans in the project happened to share that id
+            // - two traces' messages merged into one conversation, with nothing saying so. Declining
+            // is better than answering a question that has more than one answer.
+            if span_lacks_its_trace(
+                input.span_id.as_deref(),
+                input.trace_id.as_deref(),
+                input.session_id.as_deref(),
+            ) {
+                return Err(McpError::invalid_params(
+                    "span_id identifies a span only within a trace, because a span id is 8 bytes \
+                     and traces reuse them. Pass trace_id as well - list_spans and get_trace both \
+                     return it - or ask by trace_id or session_id instead.",
+                    None,
+                ));
+            }
+
             // Not applied to a session query - a session spans several traces, and adding one
             // would return part of it while the response still claims to be the session.
             let trace_id = input.span_id.as_ref().and(input.trace_id.clone());
@@ -850,9 +864,41 @@ fn parse_ts(s: &str) -> Option<DateTime<Utc>> {
     parse_opt_ts(Some(s.to_string()))
 }
 
+/// True when a request names a span but nothing that says which trace it belongs to.
+///
+/// A span id is 8 bytes and unique only within a trace, so on its own it can match spans in several
+/// traces at once. A session id is accepted in its place because it also scopes the query.
+fn span_lacks_its_trace(
+    span_id: Option<&str>,
+    trace_id: Option<&str>,
+    session_id: Option<&str>,
+) -> bool {
+    span_id.is_some() && trace_id.is_none() && session_id.is_none()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A span id alone is not a question with one answer, so the tool must decline it.
+    #[test]
+    fn a_span_id_without_its_trace_is_refused() {
+        assert!(
+            span_lacks_its_trace(Some("abc123"), None, None),
+            "a bare span id can match spans in several traces and must be refused"
+        );
+        assert!(
+            !span_lacks_its_trace(Some("abc123"), Some("trace-1"), None),
+            "a span id with its trace identifies one span"
+        );
+        assert!(
+            !span_lacks_its_trace(Some("abc123"), None, Some("session-1")),
+            "a session id also scopes the query"
+        );
+        // Nothing to refuse when no span was asked for.
+        assert!(!span_lacks_its_trace(None, None, None));
+        assert!(!span_lacks_its_trace(None, Some("trace-1"), None));
+    }
 
     #[test]
     fn test_python_snippets_have_no_top_level_await() {
