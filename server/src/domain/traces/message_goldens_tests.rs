@@ -696,6 +696,43 @@ const PAIRING_EXEMPT: &[(&str, &str)] = &[
     ),
 ];
 
+/// Fixtures whose source has no answer to show, with the reason.
+///
+/// Everything else is required to have one: a run that was asked something and completed must show
+/// what it replied. CrewAI's answers were dropped for months because no invariant said so - its
+/// reasoning fixture recorded `system -> user -> user -> user`, three questions and no answers, and
+/// the goldens blessed it as correct.
+const NO_ANSWER_EXPECTED: &[(&str, &str)] = &[(
+    "strands/error",
+    "the sample exists to fail, so the run never produced an answer",
+)];
+
+/// A conversation that asked something must show an answer.
+///
+/// The other invariants are all about *not* returning the wrong thing - scope, duplicates, pairing.
+/// None of them notices content that never arrives, which is the failure mode of a broken extractor:
+/// the feed looks orderly and is missing the reply.
+fn assert_has_an_answer(label: &str, view_name: &str, rows: &[InvariantRow]) {
+    if let Some((_, reason)) = NO_ANSWER_EXPECTED.iter().find(|(l, _)| *l == label) {
+        eprintln!("message_goldens: {label}: answer check skipped - {reason}");
+        return;
+    }
+
+    let asked = rows.iter().any(|r| r.role == "user");
+    if !asked {
+        return;
+    }
+    let answered = rows
+        .iter()
+        .any(|r| r.role == "assistant" || r.role == "tool");
+    assert!(
+        answered,
+        "{label} / {view_name}: {} messages, a user message among them, and nothing from the \
+         assistant or a tool - an answer is missing rather than merely out of order",
+        rows.len()
+    );
+}
+
 fn assert_tool_pairing(label: &str, view_name: &str, rows: &[InvariantRow]) {
     // Exempt fixtures skip only the "result must match a call" assertion, which their source
     // cannot satisfy. The duplicate-answer check below still applies: nothing about the Claude
@@ -902,6 +939,9 @@ fn check_invariants(label: &str, built: &Built) {
         // a call/result pair, so neither the pairing nor the id of the other half is present.
         if !name.starts_with("span ") {
             assert_tool_pairing(label, name, rows);
+            // Span views are excluded here too: one span legitimately holds only the request or
+            // only the reply.
+            assert_has_an_answer(label, name, rows);
         }
     }
 
