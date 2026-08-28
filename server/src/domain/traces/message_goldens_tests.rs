@@ -280,6 +280,10 @@ struct InvariantRow {
     /// Correlation id, so a result can be matched to the call it answers rather than merely
     /// counted against it.
     tool_use_id: Option<String>,
+    /// The event or attribute this block was read from - what an extractor claims.
+    carrier: String,
+    /// Where the block sat in that carrier's payload, as a sortable string.
+    position: String,
 }
 
 /// Which API endpoint a view reproduces. Every one of them calls `process_spans`; what
@@ -360,6 +364,12 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
             content_digest: m.content_digest.clone(),
             tool_name: m.tool_name.clone(),
             tool_use_id: block.tool_use_id.clone(),
+            carrier: match (&block.event_name, &block.source_attribute) {
+                (Some(event), _) => format!("event:{event}"),
+                (None, Some(attribute)) => format!("attr:{attribute}"),
+                (None, None) => "synthesised".to_string(),
+            },
+            position: block.position.to_string(),
         })
         .collect();
 
@@ -802,6 +812,116 @@ fn assert_has_an_answer(label: &str, view_name: &str, rows: &[InvariantRow], ord
     );
 }
 
+/// Invariant 5: a result follows the call it answers.
+///
+/// Causality, not adjacency - Vercel emits `call, call, result, result`, so requiring a result to come
+/// *immediately* after its call would falsely accuse it. Nor does it apply to the project feed, which
+/// is newest-first: there a call and the result of an earlier response are legitimately reversed, and
+/// asserting otherwise accused `_synthetic/tool_use` the moment this check was added. The pair is matched by id within one trace,
+/// exactly as `assert_tool_pairing` matches them.
+///
+/// A cross-span tie used to break this: an index restarts at zero in every span, so the tool span's
+/// result could sort before the generation span's call. That is what `adopt_call_positions` settles,
+/// and this is the property that says so.
+fn assert_tool_causality(label: &str, view_name: &str, rows: &[InvariantRow]) {
+    let mut call_at: HashMap<(&str, &str), usize> = HashMap::new();
+    for (position, row) in rows.iter().enumerate() {
+        if row.entry_type != "tool_use" {
+            continue;
+        }
+        if let Some(id) = row.tool_use_id.as_deref().filter(|s| !s.is_empty()) {
+            call_at
+                .entry((row.trace_id.as_str(), id))
+                .or_insert(position);
+        }
+    }
+
+    for (position, row) in rows.iter().enumerate() {
+        if row.entry_type != "tool_result" {
+            continue;
+        }
+        let Some(id) = row.tool_use_id.as_deref().filter(|s| !s.is_empty()) else {
+            continue;
+        };
+        // Only a *matched* pair constrains order. An unmatched result is the orphan case, which
+        // `assert_tool_pairing` judges.
+        let Some(&call_position) = call_at.get(&(row.trace_id.as_str(), id)) else {
+            continue;
+        };
+        assert!(
+            call_position < position,
+            "{label} / {view_name}: the result of {id} is at index {position}, before its call at \
+             {call_position} - an answer cannot precede its question"
+        );
+    }
+}
+
+/// Invariant 3: survivors from one carrier keep the order that carrier stated.
+///
+/// A carrier states order only where it *has* one: inside an array. Two entries of `messages` are
+/// ordered by their indices, and a block from `system` versus one from `messages` is not - object
+/// members have no order, and Anthropic's payload puts its system prompt in a sibling member of the
+/// array, which the pipeline deliberately renders first. So the comparison applies to paths that
+/// diverge at an index, and to nothing else.
+///
+/// Scoped per (trace, span, carrier): across carriers or spans, order comes from other evidence, and
+/// demanding a global position order would falsely accuse every re-sent history.
+fn assert_carrier_subsequence(label: &str, view_name: &str, rows: &[InvariantRow]) {
+    /// One carrier of one span: (trace, span, carrier).
+    type CarrierKey<'a> = (&'a str, &'a str, &'a str);
+    /// A block of that carrier: (position path, index in the returned feed).
+    type Placed<'a> = (&'a str, usize);
+
+    let mut seen: HashMap<CarrierKey<'_>, Vec<Placed<'_>>> = HashMap::new();
+    for (position, row) in rows.iter().enumerate() {
+        // A synthesised block has no place in any payload, so there is no order to keep.
+        if row.carrier == "synthesised" || row.position.is_empty() {
+            continue;
+        }
+        seen.entry((
+            row.trace_id.as_str(),
+            row.span_id.as_str(),
+            row.carrier.as_str(),
+        ))
+        .or_default()
+        .push((row.position.as_str(), position));
+    }
+
+    for ((_, span_id, carrier), blocks) in seen {
+        for (i, (earlier_path, earlier_index)) in blocks.iter().enumerate() {
+            for (later_path, later_index) in blocks.iter().skip(i + 1) {
+                let Some((earlier_sibling, later_sibling)) =
+                    diverging_array_indices(earlier_path, later_path)
+                else {
+                    continue;
+                };
+                assert!(
+                    earlier_sibling < later_sibling,
+                    "{label} / {view_name}: carrier {carrier} of span {span_id} returned {later_path} \
+                     at index {later_index} before {earlier_path} at index {earlier_index}, but the \
+                     payload lists them the other way round"
+                );
+            }
+        }
+    }
+}
+
+/// The pair of array indices at which two position paths diverge, if they diverge at one.
+///
+/// `None` when they diverge at an object member - where the payload states no order - or when one path
+/// is a prefix of the other, which is a parent and its child rather than two siblings.
+fn diverging_array_indices(left: &str, right: &str) -> Option<(usize, usize)> {
+    for (left_segment, right_segment) in left.split('.').zip(right.split('.')) {
+        if left_segment == right_segment {
+            continue;
+        }
+        let left_index = left_segment.parse::<usize>().ok()?;
+        let right_index = right_segment.parse::<usize>().ok()?;
+        return Some((left_index, right_index));
+    }
+    None
+}
+
 fn assert_tool_pairing(label: &str, view_name: &str, rows: &[InvariantRow]) {
     // Exempt fixtures skip only the "result must match a call" assertion, which their source
     // cannot satisfy. The duplicate-answer check below still applies: nothing about the Claude
@@ -1006,10 +1126,17 @@ fn check_invariants(label: &str, built: &Built) {
     for (name, scope, rows) in &built.invariants {
         assert_scope(label, name, scope, rows);
         assert_no_duplicates(label, name, rows);
+        assert_carrier_subsequence(label, name, rows);
         // Span views are excluded from both tool checks: a single span holds only one half of
         // a call/result pair, so neither the pairing nor the id of the other half is present.
         if !name.starts_with("span ") {
             assert_tool_pairing(label, name, rows);
+            // Causality applies to the canonical, chronological views. The project feed descends
+            // across responses on purpose, so a call and the result of an *earlier* response appear
+            // reversed there - demanding otherwise accuses the feed of its own contract.
+            if !matches!(scope, Scope::Feed) {
+                assert_tool_causality(label, name, rows);
+            }
             // Span views are excluded here too: one span legitimately holds only the request or
             // only the reply.
             //
@@ -1288,6 +1415,8 @@ fn describe_diff(label: &str, expected: &Golden, actual: &Golden) -> String {
 fn invariant_checks_are_not_vacuous() {
     fn row(trace: &str, index: usize, role: &str, kind: &str, content: &str) -> InvariantRow {
         InvariantRow {
+            carrier: "attr:test".to_string(),
+            position: index.to_string(),
             trace_id: trace.to_string(),
             span_id: "span-1".to_string(),
             index,
@@ -1302,6 +1431,8 @@ fn invariant_checks_are_not_vacuous() {
 
     fn tool_row(trace: &str, index: usize, kind: &str, id: &str) -> InvariantRow {
         InvariantRow {
+            carrier: "attr:test".to_string(),
+            position: index.to_string(),
             trace_id: trace.to_string(),
             span_id: "span-1".to_string(),
             index,
@@ -1388,6 +1519,8 @@ fn invariant_checks_are_not_vacuous() {
 
     // Scope: a span view must not contain another span's or another trace's block.
     let leaked = vec![InvariantRow {
+        carrier: "attr:test".to_string(),
+        position: "0".to_string(),
         trace_id: "aaaaaaaa1111".to_string(),
         span_id: "bbbb2222".to_string(),
         index: 0,
@@ -1571,6 +1704,80 @@ fn processing_is_deterministic() {
             first == second,
             "{label}: two identical runs produced different output:\n{}",
             describe_diff(label, &first, &second)
+        );
+    }
+}
+
+/// Invariant 1: redundant evidence changes nothing.
+///
+/// A retried OTLP delivery is the same span twice. Reconstruction must reach the same answer from the
+/// duplicate as from the original - not merely the same *count*, which the existing property test
+/// checks, but the same messages in the same order.
+///
+/// This is one of the two properties my carrier-claiming and output-timing experiments violated
+/// without any test noticing: both changed order globally, and the only detector was a 107-file diff.
+#[test]
+fn redundant_evidence_does_not_change_the_answer() {
+    let fixtures = discover_fixtures();
+    if fixtures.is_empty() {
+        eprintln!("redundant_evidence: no fixtures - skipping");
+        return;
+    }
+    let mut per_suite: BTreeMap<&str, &(String, Vec<PathBuf>)> = BTreeMap::new();
+    for f in &fixtures {
+        let suite = f.0.split('/').next().unwrap_or("");
+        per_suite.entry(suite).or_insert(f);
+    }
+
+    for (label, paths) in per_suite.into_values() {
+        let rows = rows_for(paths);
+        let baseline = build_golden(label, paths, &rows).golden;
+
+        // Re-deliver every span: the same rows again, as a retried export would arrive.
+        let doubled: Vec<(String, MessageSpanRow)> =
+            rows.iter().chain(rows.iter()).cloned().collect();
+        let with_duplicates = build_golden(label, paths, &doubled).golden;
+
+        assert!(
+            baseline == with_duplicates,
+            "{label}: re-delivering every span changed the answer:\n{}",
+            describe_diff(label, &baseline, &with_duplicates)
+        );
+    }
+}
+
+/// Invariant 7: the order spans arrive in does not decide the answer.
+///
+/// Spans reach the pipeline in whatever order a query returned them, and a page of the feed can hold
+/// them in a different order again. Anything the answer depends on has to come from the payloads, not
+/// from that arrival order - otherwise two identical requests can disagree, and an extraction change
+/// that merely shifts arrival order looks like a content change.
+#[test]
+fn the_order_spans_arrive_in_does_not_change_the_answer() {
+    let fixtures = discover_fixtures();
+    if fixtures.is_empty() {
+        eprintln!("arrival_order: no fixtures - skipping");
+        return;
+    }
+    let mut per_suite: BTreeMap<&str, &(String, Vec<PathBuf>)> = BTreeMap::new();
+    for f in &fixtures {
+        let suite = f.0.split('/').next().unwrap_or("");
+        per_suite.entry(suite).or_insert(f);
+    }
+
+    for (label, paths) in per_suite.into_values() {
+        let rows = rows_for(paths);
+        let baseline = build_golden(label, paths, &rows).golden;
+
+        // Reversed rather than randomly shuffled: deterministic, and the permutation most likely to
+        // expose a rule that depends on first-seen order.
+        let reversed: Vec<(String, MessageSpanRow)> = rows.iter().rev().cloned().collect();
+        let from_reversed = build_golden(label, paths, &reversed).golden;
+
+        assert!(
+            baseline == from_reversed,
+            "{label}: reversing the order spans arrived in changed the answer:\n{}",
+            describe_diff(label, &baseline, &from_reversed)
         );
     }
 }

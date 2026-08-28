@@ -98,6 +98,17 @@ snapshot still fail on a real defect:
   surface unchecked. The answer check is the weaker "something answered a question" there: no
   position in a feed is "the last turn", since it descends across responses and ascends within one
 - processing the same fixture twice gives the same answer, checked once per suite
+- **redundant evidence changes nothing**: re-delivering every span of a fixture yields the same
+  messages in the same order, not merely the same count
+- **arrival order decides nothing**: reversing the order spans reach the pipeline yields the same
+  answer, so an extraction change that merely shifts arrival order cannot look like a content change
+- **a matched tool result follows its call** - causality, not adjacency, since Vercel emits
+  `call, call, result, result`. Not applied to the project feed, which descends across responses by
+  design: there a call and an earlier response's result are legitimately reversed
+- **survivors of one carrier keep the order that carrier stated**, compared only where the carrier
+  *has* an order - two entries of one array. Paths that diverge at an object member are not compared,
+  because members have no order: Anthropic puts its system prompt in a sibling of `messages` and the
+  pipeline rightly renders it first
 
 `UPDATE_GOLDENS=1` reports invariant violations instead of aborting, so one bad fixture does
 not hide the rest.
