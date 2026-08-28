@@ -257,47 +257,52 @@ impl ClickhouseService {
         Ok(())
     }
 
-    /// Apply a specific versioned migration
-    #[allow(unused_variables, clippy::match_single_binding)]
+    /// Apply one versioned migration, from [`schema::MIGRATIONS`].
+    ///
+    /// Data rather than match arms: the table is what `migrations_cover_every_version` checks, so a
+    /// version bump with no migration fails a test instead of failing every existing database at its
+    /// first restart after the upgrade.
+    ///
+    /// Statements carry `{on_cluster}` where DDL needs it - required in distributed mode, empty
+    /// otherwise - and are applied in order. The version is recorded only after all of them succeed,
+    /// so a partial failure leaves the database at the previous version and the migration is retried
+    /// on the next start rather than being silently skipped.
     async fn apply_versioned_migration(&self, version: i32) -> Result<(), ClickhouseError> {
-        let now = chrono::Utc::now().timestamp();
-
-        // Add future migrations here as match arms
-        let (name, sql): (&str, &str) = match version {
-            // Example:
-            // 2 => ("add_some_column", "ALTER TABLE otel_spans ADD COLUMN ..."),
-            _ => {
-                return Err(ClickhouseError::MigrationFailed {
-                    version,
-                    name: "unknown".to_string(),
-                    error: format!("No migration defined for version {}", version),
-                });
-            }
+        let Some((_, name, statements)) = schema::MIGRATIONS.iter().find(|(v, _, _)| *v == version)
+        else {
+            return Err(ClickhouseError::MigrationFailed {
+                version,
+                name: "unknown".to_string(),
+                error: format!(
+                    "No migration defined for version {version}. A database at v{} cannot be \
+                     upgraded by this build; recreate it or add the migration.",
+                    version - 1
+                ),
+            });
         };
 
-        // Execute migration (unreachable until we add migrations above)
-        #[allow(unreachable_code)]
-        {
-            self.client.query(sql).execute().await.map_err(|e| {
+        let on_cluster = schema::get_on_cluster_clause(&self.config);
+        for statement in *statements {
+            let sql = statement.replace("{on_cluster}", &on_cluster);
+            self.client.query(&sql).execute().await.map_err(|e| {
                 ClickhouseError::MigrationFailed {
                     version,
-                    name: name.to_string(),
+                    name: (*name).to_string(),
                     error: e.to_string(),
                 }
             })?;
-
-            // Update schema version
-            self.client
-                .query("ALTER TABLE schema_version UPDATE version = ?, applied_at = ? WHERE id = 1")
-                .bind(version)
-                .bind(now)
-                .execute()
-                .await
-                .map_err(ClickhouseError::from)?;
-
-            tracing::debug!("ClickHouse migration v{} ({}) applied", version, name);
-            Ok(())
         }
+
+        self.client
+            .query("ALTER TABLE schema_version UPDATE version = ?, applied_at = ? WHERE id = 1")
+            .bind(version)
+            .bind(chrono::Utc::now().timestamp())
+            .execute()
+            .await
+            .map_err(ClickhouseError::from)?;
+
+        tracing::debug!("ClickHouse migration v{} ({}) applied", version, name);
+        Ok(())
     }
 
     /// Start health check task

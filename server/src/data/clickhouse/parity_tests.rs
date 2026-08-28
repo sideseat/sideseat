@@ -2185,11 +2185,24 @@ async fn a_span_redelivered_with_new_data_reads_the_same_on_both_backends() {
         ..Default::default()
     };
 
+    // The same message shape ingestion writes; the two deliveries differ so the test can tell which
+    // one the pipeline was handed.
+    let payload = |text: &str| {
+        Some(
+            serde_json::json!([{
+                "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+                "content": {"role": "user", "content": text}
+            }])
+            .to_string(),
+        )
+    };
+
     // First delivery: 100 tokens. Second: the same span, corrected to 900, ingested later.
     let first = NormalizedSpan {
         gen_ai_usage_input_tokens: 60,
         gen_ai_usage_output_tokens: 40,
         gen_ai_usage_total_tokens: 100,
+        messages: payload("the first attempt"),
         ingested_at: Some(ts(10)),
         ..base.clone()
     };
@@ -2197,6 +2210,7 @@ async fn a_span_redelivered_with_new_data_reads_the_same_on_both_backends() {
         gen_ai_usage_input_tokens: 500,
         gen_ai_usage_output_tokens: 400,
         gen_ai_usage_total_tokens: 900,
+        messages: payload("the corrected answer"),
         ingested_at: Some(ts(20)),
         ..base
     };
@@ -2227,6 +2241,43 @@ async fn a_span_redelivered_with_new_data_reads_the_same_on_both_backends() {
         "the corrected delivery must win on both backends: duckdb={} clickhouse={}",
         d.total_tokens,
         c.total_tokens
+    );
+
+    // And the message query hands the pipeline the same rows. It read otel_spans directly on DuckDB
+    // while ClickHouse read with FINAL, so reconstruction saw two copies of a re-delivered span on one
+    // backend and one on the other - the message dedup usually hid it, and the totals had to be
+    // protected against it by hand.
+    let params = MessageQueryParams {
+        project_id: PROJECT.to_string(),
+        trace_id: Some("trace-redelivered".to_string()),
+        ..Default::default()
+    };
+    let d_rows = duck.get_messages(&params).await.expect("duckdb messages");
+    let c_rows = ch.get_messages(&params).await.expect("clickhouse messages");
+    assert_eq!(
+        d_rows.rows.len(),
+        1,
+        "the re-delivered span must reach the pipeline once, not twice"
+    );
+    assert!(
+        d_rows.rows[0]
+            .messages_json
+            .contains("the corrected answer"),
+        "the pipeline was handed the superseded delivery: {}",
+        d_rows.rows[0].messages_json
+    );
+    assert_eq!(
+        d_rows
+            .rows
+            .iter()
+            .map(describe_message_row)
+            .collect::<Vec<_>>(),
+        c_rows
+            .rows
+            .iter()
+            .map(describe_message_row)
+            .collect::<Vec<_>>(),
+        "the message query returns different rows per backend for a re-delivered span"
     );
     assert_eq!(
         d.span_count, c.span_count,

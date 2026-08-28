@@ -98,10 +98,16 @@ pub fn get_messages(
     }
 
     let sql = format!(
+        // Deduplicated, like every other read: this query fed the pipeline *both* copies of a
+        // re-delivered span while ClickHouse, which reads with FINAL, handed it one. The message
+        // dedup usually hid that, but the two backends were reconstructing from different input, and
+        // the totals had to be protected against it by hand.
+        //
         // span_id breaks ties: ordering by timestamp alone leaves rows written in the same
         // microsecond to storage order, which is not stable between identical requests.
-        "SELECT {MESSAGE_SELECT_COLUMNS} FROM otel_spans WHERE {} ORDER BY timestamp_start ASC, span_id ASC",
-        conditions.join(" AND ")
+        "SELECT {MESSAGE_SELECT_COLUMNS} FROM {DEDUP_SPANS} WHERE {} ORDER BY timestamp_start ASC, span_id ASC",
+        conditions.join(" AND "),
+        DEDUP_SPANS = DEDUP_SPANS
     );
 
     let mut stmt = conn.prepare(&sql)?;

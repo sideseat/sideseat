@@ -16,6 +16,24 @@ use crate::core::config::ClickhouseConfig;
 /// Current schema version
 pub const SCHEMA_VERSION: i32 = 2;
 
+/// The oldest schema version this build can migrate *from*.
+///
+/// The ClickHouse backend was introduced already at v2, so no released database exists below it and
+/// there is nothing to migrate from v1. A database older than this has to be recreated.
+pub const MIN_UPGRADABLE_FROM: i32 = 2;
+
+/// One entry per version above [`MIN_UPGRADABLE_FROM`]: `(version, name, statements)`.
+///
+/// `{on_cluster}` in a statement is replaced with the ON CLUSTER clause, which is required for DDL in
+/// distributed mode and empty otherwise - see [`get_on_cluster_clause`].
+///
+/// A fresh database is created directly at [`SCHEMA_VERSION`] by the initial schema, so entries here
+/// exist solely for databases written by older builds. `migrations_cover_every_version` fails the build
+/// if a version bump arrives without one, which is the guard that was missing: the mechanism compiled,
+/// had no entries, and would have refused to start every existing database the moment the version
+/// moved.
+pub const MIGRATIONS: &[(i32, &str, &[&str])] = &[];
+
 /// Validate and return a cluster name safe for SQL interpolation.
 ///
 /// ClickHouse cluster names may contain alphanumeric characters, underscores,
@@ -727,6 +745,51 @@ mod tests {
             get_delete_table(&config, "otel_metrics"),
             "otel_metrics_local"
         );
+    }
+
+    /// A version bump without a migration is a database that cannot start.
+    ///
+    /// `apply_versioned_migration` walks `(current+1)..=SCHEMA_VERSION` and fails on any version it
+    /// does not know, so bumping the constant without adding an entry turns every existing database
+    /// into a startup error. That failure belongs here, not at a user's first restart after upgrading.
+    #[test]
+    fn migrations_cover_every_version() {
+        // Empty today, by design: the backend was introduced at v2 and nothing has been added since,
+        // so there is nothing to migrate from. Through locals, because clippy const-folds the literal
+        // range and reports the emptiness as the bug - here it is the expected state.
+        let first_upgradable = MIN_UPGRADABLE_FROM + 1;
+        let current = SCHEMA_VERSION;
+        for version in first_upgradable..=current {
+            assert!(
+                MIGRATIONS.iter().any(|(v, _, _)| *v == version),
+                "schema v{version} has no entry in MIGRATIONS: a database written by an older build \
+                 would fail to start. Add the migration, or raise MIN_UPGRADABLE_FROM if v{version} \
+                 was never released."
+            );
+        }
+    }
+
+    /// Entries must be ordered and unique, because they are applied in sequence.
+    #[test]
+    fn migrations_are_ordered_and_unique() {
+        let versions: Vec<i32> = MIGRATIONS.iter().map(|(v, _, _)| *v).collect();
+        let mut sorted = versions.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(
+            versions, sorted,
+            "MIGRATIONS must be strictly ascending with no repeats"
+        );
+        for (version, name, statements) in MIGRATIONS {
+            assert!(
+                *version > MIN_UPGRADABLE_FROM,
+                "migration v{version} ({name}) is at or below MIN_UPGRADABLE_FROM, so it can never run"
+            );
+            assert!(
+                !statements.is_empty(),
+                "migration v{version} ({name}) has no statements"
+            );
+        }
     }
 
     #[test]
