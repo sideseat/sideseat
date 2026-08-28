@@ -242,6 +242,10 @@ pub struct MessageQueryParams {
     pub span_id: Option<String>,
     pub trace_id: Option<String>,
     pub session_id: Option<String>,
+    /// Several traces at once, for the project feed: a page of the feed holds spans from many
+    /// traces, and reconstruction has to see each of those traces whole. Lower priority than the
+    /// single-entity selectors; empty means unused.
+    pub trace_ids: Vec<String>,
     pub from_timestamp: Option<DateTime<Utc>>,
     pub to_timestamp: Option<DateTime<Utc>>,
 }

@@ -96,7 +96,7 @@ impl From<ChMessageSpanRow> for MessageSpanRow {
 
 /// Get span rows for a span, trace, or session (unified query).
 ///
-/// Priority: span_id > session_id > trace_id
+/// Priority: span_id > session_id > trace_id > trace_ids
 pub async fn get_messages(
     client: &Client,
     params: &MessageQueryParams,
@@ -123,6 +123,11 @@ pub async fn get_messages(
     } else if let Some(trace_id) = &params.trace_id {
         conditions.push("trace_id = ?".to_string());
         string_binds.push(trace_id.clone());
+        conditions.push(MESSAGE_CONTENT_FILTER.to_string());
+    } else if !params.trace_ids.is_empty() {
+        let placeholders: Vec<&str> = params.trace_ids.iter().map(|_| "?").collect();
+        conditions.push(format!("trace_id IN ({})", placeholders.join(", ")));
+        string_binds.extend(params.trace_ids.iter().cloned());
         conditions.push(MESSAGE_CONTENT_FILTER.to_string());
     }
 
