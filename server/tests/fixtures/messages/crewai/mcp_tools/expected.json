@@ -20,10 +20,12 @@
       "messages": []
     },
     "trace-1/Calculator._execute_core/span-3": {
-      "message_count": 5,
+      "message_count": 7,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
+        "tool",
         "assistant",
         "tool",
         "assistant"
@@ -67,6 +69,23 @@
         {
           "index": 4,
           "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DbyBdc1bqwX1aT5goV2Gp4\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "a0e44bac5a811adf",
+          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
+          "content_digest": "5565130f72a85b5b",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I apologize for the confusion. Let me calculate this directly for you: 12345 + 6789 = **19134** The result of the calculation is **19134**.",
           "content_digest": "412aad50891214bc",
@@ -75,10 +94,12 @@
       ]
     },
     "trace-1/Crew_47ba1964-f3c4-4a94-af0e-007588d7b6d8.kickoff/span-2": {
-      "message_count": 5,
+      "message_count": 7,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
+        "tool",
         "assistant",
         "tool",
         "assistant"
@@ -121,6 +142,23 @@
         },
         {
           "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DbyBdc1bqwX1aT5goV2Gp4\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "a0e44bac5a811adf",
+          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
+          "content_digest": "5565130f72a85b5b",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
           "role": "assistant",
           "entry_type": "text",
           "content": "I apologize for the confusion. Let me calculate this directly for you: 12345 + 6789 = **19134** The result of the calculation is **19134**.",
@@ -139,10 +177,12 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 5,
+      "message_count": 7,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
+        "tool",
         "assistant",
         "tool",
         "assistant"
@@ -185,6 +225,23 @@
         },
         {
           "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DbyBdc1bqwX1aT5goV2Gp4\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "a0e44bac5a811adf",
+          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
+          "content_digest": "5565130f72a85b5b",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
           "role": "assistant",
           "entry_type": "text",
           "content": "I apologize for the confusion. Let me calculate this directly for you: 12345 + 6789 = **19134** The result of the calculation is **19134**.",
@@ -196,10 +253,12 @@
   },
   "session_views": {
     "crewai-mcp_tools-e25e079d": {
-      "message_count": 5,
+      "message_count": 7,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
+        "tool",
         "assistant",
         "tool",
         "assistant"
@@ -243,6 +302,23 @@
         {
           "index": 4,
           "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DbyBdc1bqwX1aT5goV2Gp4\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "a0e44bac5a811adf",
+          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
+          "content_digest": "5565130f72a85b5b",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
           "entry_type": "text",
           "content": "I apologize for the confusion. Let me calculate this directly for you: 12345 + 6789 = **19134** The result of the calculation is **19134**.",
           "content_digest": "412aad50891214bc",
@@ -252,10 +328,12 @@
     }
   },
   "feed_view": {
-    "message_count": 5,
+    "message_count": 7,
     "role_sequence": [
       "system",
       "user",
+      "assistant",
+      "tool",
       "assistant",
       "tool",
       "assistant"
@@ -298,6 +376,23 @@
       },
       {
         "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DbyBdc1bqwX1aT5goV2Gp4\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+        "content_digest": "a0e44bac5a811adf",
+        "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+        "observation_type": "chain"
+      },
+      {
+        "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
+        "content_digest": "5565130f72a85b5b",
+        "observation_type": "chain"
+      },
+      {
+        "index": 6,
         "role": "assistant",
         "entry_type": "text",
         "content": "I apologize for the confusion. Let me calculate this directly for you: 12345 + 6789 = **19134** The result of the calculation is **19134**.",

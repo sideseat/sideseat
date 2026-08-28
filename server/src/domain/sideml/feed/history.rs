@@ -479,7 +479,11 @@ fn find_duplicate_indices(
     span_timestamps: &HashMap<String, SpanTimestamps>,
 ) -> Vec<usize> {
     let call_identities = tool_call_identities(blocks);
-    let mut blocks_by_key: HashMap<DuplicateKey<'_>, Vec<usize>> = HashMap::new();
+    // The same call rank the final dedup uses, so the two stages agree about what "the same message"
+    // is. Without it this phase marked the second of two identical calls in one response as history,
+    // and the final dedup then had nothing to keep it for.
+    let ordinals = super::dedup::call_repeat_ordinals(blocks);
+    let mut blocks_by_key: HashMap<(DuplicateKey<'_>, u32), Vec<usize>> = HashMap::new();
 
     for (idx, block) in blocks.iter().enumerate() {
         if block.is_protected() || block.is_history {
@@ -518,7 +522,10 @@ fn find_duplicate_indices(
                 .unwrap_or(DuplicateKey::Content(&block.trace_id, &block.content_hash)),
             _ => DuplicateKey::Content(&block.trace_id, &block.content_hash),
         };
-        blocks_by_key.entry(key).or_default().push(idx);
+        blocks_by_key
+            .entry((key, ordinals[idx]))
+            .or_default()
+            .push(idx);
     }
 
     let mut to_mark = Vec::new();
