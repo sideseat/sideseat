@@ -147,6 +147,91 @@ impl MessageIdentity {
     }
 }
 
+/// How many *other* calls of the same shape precede this one in its own response.
+///
+/// A tool call's identity deliberately ignores the provider's call id, because a framework re-sending
+/// its history regenerates ids and the same call would otherwise appear twice. The cost was that a
+/// model asking for the same thing twice in one response - two `generate_image` calls with the same
+/// prompt, distinct ids - collapsed into one, and its second result was left answering a call that
+/// was no longer there.
+///
+/// Within one response, though, distinct ids are unambiguous: a provider does not issue two ids for
+/// one call. So each call takes the rank of its id among the same-shaped calls of that response, and
+/// that rank joins its identity. A single call ranks 0 and behaves exactly as before; a re-send of a
+/// pair ranks 0 and 1 again, whatever the ids were regenerated to, so the pair still collapses onto
+/// the pair rather than into one call.
+///
+/// A response is `(trace, span, source)` - the event or attribute the blocks arrived in. Not the
+/// message index: normalisation gives every tool call a message of its own, so two calls from one
+/// event already have different indices, and keying on them would put each call in a bucket of one.
+/// The source is what keeps a span's input array separate from its output event, which is where the
+/// same call legitimately appears twice.
+///
+/// A tool *result* inherits the rank of the call it answers, so two results of two identical calls
+/// stay two. Everything else ranks 0: without an id there is no evidence of a genuine repeat, and
+/// treating repeated text as two messages would undo the history collapsing this pipeline exists for.
+pub(super) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Vec<u32> {
+    // (trace, span, source, call shape) -> the ids seen, in order of first appearance.
+    type ResponseKey<'a> = (
+        &'a str,
+        &'a str,
+        &'a str,
+        Option<&'a str>,
+        Option<&'a str>,
+        u64,
+    );
+    let mut ids_by_response: HashMap<ResponseKey<'_>, Vec<&str>> = HashMap::new();
+    // (trace, call id) -> that call's rank, for the results that answer it.
+    let mut rank_by_call: HashMap<(&str, &str), u32> = HashMap::new();
+
+    for block in blocks {
+        if let ContentBlock::ToolUse { id, name, input } = &block.content
+            && let Some(id) = id.as_deref().filter(|s| !s.is_empty())
+        {
+            let shape = compute_tool_call_hash(name, input);
+            let seen = ids_by_response
+                .entry((
+                    block.trace_id.as_str(),
+                    block.span_id.as_str(),
+                    block.source_type.as_str(),
+                    block.event_name.as_deref(),
+                    block.source_attribute.as_deref(),
+                    shape,
+                ))
+                .or_default();
+            let rank = match seen.iter().position(|seen_id| *seen_id == id) {
+                Some(position) => position as u32,
+                None => {
+                    seen.push(id);
+                    (seen.len() - 1) as u32
+                }
+            };
+            rank_by_call
+                .entry((block.trace_id.as_str(), id))
+                .or_insert(rank);
+        }
+    }
+
+    blocks
+        .iter()
+        .map(|block| match &block.content {
+            ContentBlock::ToolUse { id, .. } => id
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .and_then(|id| rank_by_call.get(&(block.trace_id.as_str(), id)))
+                .copied()
+                .unwrap_or(0),
+            ContentBlock::ToolResult { tool_use_id, .. } => tool_use_id
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .and_then(|id| rank_by_call.get(&(block.trace_id.as_str(), id)))
+                .copied()
+                .unwrap_or(0),
+            _ => 0,
+        })
+        .collect()
+}
+
 /// Compute hash for tool call identity (name + input).
 pub(super) fn compute_tool_call_hash(name: &str, input: &serde_json::Value) -> u64 {
     let mut hasher = DefaultHasher::new();
@@ -878,22 +963,28 @@ fn deduplicate_blocks(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
     let input_count = blocks.len();
     let input_text_count = blocks.iter().filter(|b| b.entry_type == "text").count();
 
+    // Identity carries the rank of a call within its response - see `call_repeat_ordinals`. Without
+    // it, a model asking for the same thing twice in one response came back as one call.
+    let ordinals = call_repeat_ordinals(&blocks);
+
     // First: collect identities of non-history blocks
     // History-only messages (no current-turn equivalent) will be filtered out
-    let non_history_ids: HashSet<MessageIdentity> = blocks
+    let non_history_ids: HashSet<(MessageIdentity, u32)> = blocks
         .iter()
-        .filter(|b| !b.is_history)
-        .map(MessageIdentity::from_block)
+        .zip(&ordinals)
+        .filter(|(b, _)| !b.is_history)
+        .map(|(b, ordinal)| (MessageIdentity::from_block(b), *ordinal))
         .collect();
 
     // Filter: keep non-history blocks, and history blocks only if they have a non-history equivalent
     // This removes messages from previous turns that appear in history
-    let blocks: Vec<_> = blocks
+    let blocks: Vec<(BlockEntry, u32)> = blocks
         .into_iter()
-        .filter(|b| {
+        .zip(ordinals)
+        .filter(|(b, ordinal)| {
             if b.is_history {
                 // Keep history only if there's a non-history version to dedupe with
-                non_history_ids.contains(&MessageIdentity::from_block(b))
+                non_history_ids.contains(&(MessageIdentity::from_block(b), *ordinal))
             } else {
                 true
             }
@@ -905,10 +996,10 @@ fn deduplicate_blocks(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
     // Identity-based dedup: non-history will win due to quality scoring.
     // For tool results with tool_use_id, this collapses all versions
     // (raw + transformed) into the highest quality one.
-    let mut candidates: HashMap<MessageIdentity, (BlockEntry, u32)> = HashMap::new();
+    let mut candidates: HashMap<(MessageIdentity, u32), (BlockEntry, u32)> = HashMap::new();
 
-    for block in blocks {
-        let identity = MessageIdentity::from_block(&block);
+    for (block, ordinal) in blocks {
+        let identity = (MessageIdentity::from_block(&block), ordinal);
         let quality = compute_quality(&block);
 
         candidates

@@ -9564,3 +9564,78 @@ fn a_span_delivered_twice_is_counted_once_in_a_session() {
         "one span delivered twice is still one span"
     );
 }
+
+/// Two identical calls in one response are two calls.
+///
+/// A tool call's identity ignores the provider's call id, because history re-sends regenerate ids and
+/// the same call would otherwise appear twice. The cost was that a model asking for the same thing
+/// twice in one response came back as one call - `crewai/mcp_tools` really does retry an identical
+/// MCP call after a validation error, and the feed showed one call, one error, and an apology with
+/// nothing to explain it. Within one response the ids are unambiguous, so each call takes the rank of
+/// its id and that rank joins its identity.
+#[test]
+fn two_identical_calls_in_one_response_both_survive() {
+    let t = fixed_time();
+    let messages = json!([{
+        "source": {"event": {"name": "gen_ai.choice", "time": t.to_rfc3339()}},
+        "content": {"role": "assistant", "content": [
+            {"type": "tool_use", "id": "call_1", "name": "generate_image", "input": {"prompt": "a cat"}},
+            {"type": "tool_use", "id": "call_2", "name": "generate_image", "input": {"prompt": "a cat"}}
+        ]}
+    }]);
+    let row = make_span_row("trace1", "span1", None, &messages.to_string(), "[]", "[]");
+    let result = process_spans(vec![row], &FeedOptions::new());
+    let ids: Vec<&str> = result
+        .messages
+        .iter()
+        .filter(|b| b.entry_type == "tool_use")
+        .filter_map(|b| b.tool_use_id.as_deref())
+        .collect();
+    assert_eq!(
+        ids,
+        vec!["call_1", "call_2"],
+        "a response asking for the same thing twice must show both calls"
+    );
+}
+
+/// ...and a history re-send of that pair is still one pair, whatever its ids became.
+///
+/// This is the reason ids are not simply part of the identity: a framework re-sending its history
+/// regenerates them, and keying on the id would show every past call again on every turn. The rank is
+/// per response, so the re-sent pair ranks 0 and 1 again and collapses onto the original pair.
+#[test]
+fn a_resent_pair_of_identical_calls_is_still_one_pair() {
+    let t = fixed_time();
+    let call = |id: &str| json!({"type": "tool_use", "id": id, "name": "generate_image", "input": {"prompt": "a cat"}});
+    // The generation span emits the pair; a later span re-sends it as history with new ids.
+    let produced = json!([{
+        "source": {"event": {"name": "gen_ai.choice", "time": t.to_rfc3339()}},
+        "content": {"role": "assistant", "content": [call("call_1"), call("call_2")]}
+    }]);
+    let resent = json!([{
+        "source": {"event": {"name": "gen_ai.assistant.message", "time": (t + chrono::Duration::seconds(5)).to_rfc3339()}},
+        "content": {"role": "assistant", "content": [call("regenerated_9"), call("regenerated_10")]}
+    }]);
+
+    let first = make_span_row("trace1", "span1", None, &produced.to_string(), "[]", "[]");
+    let mut second = make_span_row("trace1", "span2", None, &resent.to_string(), "[]", "[]");
+    second.span_timestamp = first.span_timestamp + chrono::Duration::seconds(5);
+
+    let result = process_spans(vec![first, second], &FeedOptions::new());
+    let calls = result
+        .messages
+        .iter()
+        .filter(|b| b.entry_type == "tool_use")
+        .count();
+    assert_eq!(
+        calls,
+        2,
+        "the re-sent pair must collapse onto the original pair, not add to it: {:?}",
+        result
+            .messages
+            .iter()
+            .filter(|b| b.entry_type == "tool_use")
+            .map(|b| b.tool_use_id.as_deref())
+            .collect::<Vec<_>>()
+    );
+}

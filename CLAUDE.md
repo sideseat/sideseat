@@ -199,6 +199,8 @@ Note: gen_ai.assistant.message (history re-send) CAN be history. Only gen_ai.cho
 Cross-trace prefix strip (session mode): attribute-input only, per-span reset, role+content subsequence match.
 Event-based frameworks (Strands) stay trace-independent; no cross-trace stripping.
 
+**A repeat within one response is a repeat.** A tool call's identity ignores the provider's call id — history re-sends regenerate ids — so each call also carries the *rank* of its id among same-shaped calls of the same response (`call_repeat_ordinals`, `feed/dedup.rs`), and a tool result inherits its call's rank. Two identical calls in one response therefore rank 0 and 1 and both survive; a re-send of that pair ranks 0 and 1 again, whatever the ids became, and collapses onto it. A response here is `(trace, span, source)` — **not** message index, because normalisation gives every tool call a message of its own. Without this, `crewai/mcp_tools` showed one MCP call and one error where the model had retried an identical call and then apologised, with nothing in the feed to explain why. Plain messages get no rank: with no id there is no evidence of a genuine repeat, and treating repeated text as two messages would undo the history collapsing.
+
 **Content-based identity** (not ID-based):
 
 - Tool calls: hash(name + input) — call_id ignored (regenerated in history)
