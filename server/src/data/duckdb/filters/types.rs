@@ -135,6 +135,47 @@ impl Filter {
         }
     }
 
+    /// The positive form of a negated filter, for callers that express "none" by excluding the
+    /// matches of "any".
+    ///
+    /// A filter on a span column is asked of a whole entity: a trace has many spans, so "not this
+    /// model" has to mean *no* span used it. Rendered as written, inside a `trace_id IN (...)`
+    /// subquery, it meant "some span was something else" - so a trace that used the excluded model
+    /// in one call and another model in the next came back from the filter that excluded it. The
+    /// caller renders this twin and negates the subquery instead.
+    ///
+    /// `None` for an operator that is already positive.
+    pub fn positive_twin(&self) -> Option<Filter> {
+        match self {
+            Self::StringOptions {
+                column,
+                operator: OptionsOp::NoneOf,
+                value,
+            } => Some(Self::StringOptions {
+                column: column.clone(),
+                operator: OptionsOp::AnyOf,
+                value: value.clone(),
+            }),
+            Self::Null {
+                column,
+                operator: NullOp::IsNull,
+            } => Some(Self::Null {
+                column: column.clone(),
+                operator: NullOp::IsNotNull,
+            }),
+            Self::Boolean {
+                column,
+                operator: BooleanOp::Ne,
+                value,
+            } => Some(Self::Boolean {
+                column: column.clone(),
+                operator: BooleanOp::Eq,
+                value: *value,
+            }),
+            _ => None,
+        }
+    }
+
     /// Generate SQL WHERE clause fragment
     /// Returns the SQL clause with ? placeholders and updates params
     pub fn to_sql(&self, params: &mut SqlParams) -> String {

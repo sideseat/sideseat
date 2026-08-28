@@ -10,7 +10,7 @@ use crate::data::types::{
     DisplayNameDialect, EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams,
     ListTracesParams, SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, SessionRow,
     SpanRow, TRACE_FILTER_OPTION_COLUMNS, TraceRow, genai_span_predicate, parse_tags,
-    trace_display_name,
+    trace_display_first, trace_display_name,
 };
 use crate::utils::time::{micros_to_datetime, parse_iso_timestamp};
 
@@ -116,6 +116,13 @@ fn trace_aggregate_expression(view_column: &str) -> Option<String> {
     let totals = |col: &str| Some(format!("COALESCE(MAX(gtf.{col}), 0)"));
     match view_column {
         "trace_name" => Some(trace_display_name("n", DisplayNameDialect::DuckDb)),
+        // Displayed values too, though they are stored per span: the row shows the earliest span
+        // that carries one. See `trace_display_first`.
+        "session_id" | "user_id" | "environment" => Some(trace_display_first(
+            view_column,
+            "n",
+            DisplayNameDialect::DuckDb,
+        )),
         "start_time" => Some("MIN(n.timestamp_start)".to_string()),
         "end_time" => Some("MAX(COALESCE(n.timestamp_end, n.timestamp_start))".to_string()),
         "duration_ms" => Some(
@@ -234,11 +241,19 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
                 join_totals |= needs_gen_totals(filter.column());
             }
             None => {
+                // A column no row displays on its own - a model, a provider, a framework, a tag.
+                // "Some span of this trace" is the honest reading of the positive form; the
+                // negative one is "no span", which is the complement of the positive rather than
+                // the negated predicate. Asked as written, "none of claude-haiku" returned a trace
+                // that used claude-haiku in one call and something else in the next.
+                let twin = filter.positive_twin();
+                let rendered = twin.as_ref().unwrap_or(filter);
+                let quantifier = if twin.is_some() { "NOT IN" } else { "IN" };
                 let mut inner = SqlParams::default();
                 let condition =
-                    filter.to_sql_aliased(&mut inner, columns::map_trace_column_to_spans, "n");
+                    rendered.to_sql_aliased(&mut inner, columns::map_trace_column_to_spans, "n");
                 conditions.push(format!(
-                    "{}.trace_id IN (SELECT n.trace_id FROM otel_spans n \
+                    "{}.trace_id {quantifier} (SELECT n.trace_id FROM otel_spans n \
                      WHERE n.project_id = ? AND {condition})",
                     alias_or("otel_spans", alias)
                 ));
@@ -3955,7 +3970,7 @@ mod tests {
     // A trace filter means what the trace list displays
     // ========================================================================
 
-    use crate::data::duckdb::filters::{Filter, NumberOp, StringOp};
+    use crate::data::duckdb::filters::{Filter, NullOp, NumberOp, OptionsOp, StringOp};
 
     fn trace_filter_params(project_id: &str, filters: Vec<Filter>) -> ListTracesParams {
         ListTracesParams {
@@ -4030,6 +4045,97 @@ mod tests {
             rows.is_empty(),
             "a trace displaying 3000 tokens must not match `< 1500` because one span does"
         );
+    }
+
+    /// A filter on a value the row displays matches that value, not any span's copy of it.
+    ///
+    /// A trace records its session on the root span; its children carry none. Asked of span rows,
+    /// "session is null" was true of every such trace - the children satisfy it - so the filter
+    /// returned traces displayed under a session, and no filter excluded them.
+    #[tokio::test]
+    async fn a_filter_on_a_displayed_attribute_matches_what_the_row_shows() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let project_id = "test-project";
+
+        let mut with_session = make_agent_span(project_id, "trace-has-session", "agent-1", None);
+        with_session.session_id = Some("session-9".to_string());
+        // The child carries no session id, which is what made the row-level check wrong.
+        let child = make_generation_span(
+            project_id,
+            "trace-has-session",
+            "gen-1",
+            Some("agent-1"),
+            0.01,
+            100,
+        );
+        let lonely = make_generation_span(project_id, "trace-no-session", "gen-2", None, 0.01, 100);
+        {
+            let conn = analytics.conn();
+            insert_batch(&conn, &[with_session, child, lonely]).expect("insert");
+        }
+
+        let conn = analytics.conn();
+        let (rows, total) = list_traces(
+            &conn,
+            &trace_filter_params(
+                project_id,
+                vec![Filter::Null {
+                    column: "session_id".to_string(),
+                    operator: NullOp::IsNull,
+                }],
+            ),
+        )
+        .expect("query");
+        let ids: Vec<&String> = rows.iter().map(|t| &t.trace_id).collect();
+        assert_eq!(
+            ids,
+            vec![&"trace-no-session".to_string()],
+            "only the trace displaying no session has none: {ids:?}"
+        );
+        assert_eq!(total, 1, "the count must agree with the page");
+    }
+
+    /// "None of" means no span used it, not that some span used something else.
+    ///
+    /// A trace that called claude-haiku once and another model next came back from the filter that
+    /// excluded claude-haiku: the second span satisfied "not claude-haiku" on its own.
+    #[tokio::test]
+    async fn excluding_a_value_excludes_every_trace_that_used_it() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let project_id = "test-project";
+
+        let mut mixed = make_generation_span(project_id, "trace-mixed", "gen-1", None, 0.01, 100);
+        mixed.gen_ai_request_model = Some("claude-haiku".to_string());
+        let mut mixed_second =
+            make_generation_span(project_id, "trace-mixed", "gen-2", Some("gen-1"), 0.01, 100);
+        mixed_second.gen_ai_request_model = Some("claude-sonnet".to_string());
+        let mut other = make_generation_span(project_id, "trace-other", "gen-3", None, 0.01, 100);
+        other.gen_ai_request_model = Some("claude-sonnet".to_string());
+        {
+            let conn = analytics.conn();
+            insert_batch(&conn, &[mixed, mixed_second, other]).expect("insert");
+        }
+
+        let conn = analytics.conn();
+        let (rows, total) = list_traces(
+            &conn,
+            &trace_filter_params(
+                project_id,
+                vec![Filter::StringOptions {
+                    column: "gen_ai_request_model".to_string(),
+                    operator: OptionsOp::NoneOf,
+                    value: vec!["claude-haiku".to_string()],
+                }],
+            ),
+        )
+        .expect("query");
+        let ids: Vec<&String> = rows.iter().map(|t| &t.trace_id).collect();
+        assert_eq!(
+            ids,
+            vec![&"trace-other".to_string()],
+            "the trace that used claude-haiku in one of its two calls must be excluded: {ids:?}"
+        );
+        assert_eq!(total, 1, "the count must agree with the page");
     }
 
     /// Two filters describe the trace, not one span of it.

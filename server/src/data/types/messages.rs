@@ -55,6 +55,33 @@ pub enum DisplayNameDialect {
     ClickHouse,
 }
 
+/// The single value a trace row displays for a column that only some of its spans carry: the
+/// earliest span that has one.
+///
+/// A session id, a user id and an environment are recorded on the spans that know them - often the
+/// root alone - so the row shows one value chosen this way. A filter on such a column has to be
+/// evaluated against that value, not against "some span": a trace whose root names a session and
+/// whose children do not was returned by `session IS NULL` while displaying the session, and
+/// excluded by nothing.
+///
+/// The column name comes from this crate's allowlists, never from a request.
+pub fn trace_display_first(column: &str, alias: &str, dialect_first: DisplayNameDialect) -> String {
+    let prefix = if alias.is_empty() {
+        String::new()
+    } else {
+        format!("{alias}.")
+    };
+    match dialect_first {
+        DisplayNameDialect::DuckDb => format!(
+            "FIRST({prefix}{column} ORDER BY {prefix}timestamp_start) \
+             FILTER (WHERE {prefix}{column} IS NOT NULL)"
+        ),
+        DisplayNameDialect::ClickHouse => format!(
+            "argMinIf({prefix}{column}, {prefix}timestamp_start, {prefix}{column} IS NOT NULL)"
+        ),
+    }
+}
+
 /// What makes a span a GenAI span, for the "GenAI only" trace and session lists.
 ///
 /// A span qualifies through its observation type or through any GenAI attribute. Recognising only

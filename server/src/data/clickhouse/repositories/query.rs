@@ -7,7 +7,9 @@ use clickhouse::{Client, Row};
 use serde::Deserialize;
 
 use crate::data::duckdb::filters::{Filter, columns};
-use crate::data::types::{DisplayNameDialect, genai_span_predicate, trace_display_name};
+use crate::data::types::{
+    DisplayNameDialect, genai_span_predicate, trace_display_first, trace_display_name,
+};
 
 // ============================================================================
 // Token Dedup SQL Fragments
@@ -320,6 +322,13 @@ fn ch_trace_aggregate_expression(view_column: &str) -> Option<String> {
     let totals = |col: &str| Some(format!("coalesce(max(gtf.{col}), 0)"));
     match view_column {
         "trace_name" => Some(trace_display_name("n", DisplayNameDialect::ClickHouse)),
+        // Displayed values too, though they are stored per span: the row shows the earliest span
+        // that carries one. See `trace_display_first`.
+        "session_id" | "user_id" | "environment" => Some(trace_display_first(
+            view_column,
+            "n",
+            DisplayNameDialect::ClickHouse,
+        )),
         "start_time" => Some("min(n.timestamp_start)".to_string()),
         "end_time" => Some("max(coalesce(n.timestamp_end, n.timestamp_start))".to_string()),
         "duration_ms" => Some(
@@ -479,15 +488,21 @@ impl ConditionBuilder {
                     join_totals |= expression.contains("gtf.");
                 }
                 None => {
+                    // A column no row displays on its own. "Some span" for the positive form, "no
+                    // span" for the negative - the complement of the positive, not the negated
+                    // predicate. See the DuckDB copy for what that cost.
+                    let twin = filter.positive_twin();
+                    let rendered = twin.as_ref().unwrap_or(filter);
+                    let quantifier = if twin.is_some() { "NOT IN" } else { "IN" };
                     let mut inner_params: Vec<QueryParam> = Vec::new();
                     let condition = crate::data::clickhouse::filters::to_clickhouse_sql(
-                        filter,
+                        rendered,
                         &mut inner_params,
                         columns::map_trace_column_to_spans,
                         "n",
                     );
                     self.conditions.push(format!(
-                        "trace_id IN (SELECT n.trace_id FROM otel_spans n FINAL \
+                        "trace_id {quantifier} (SELECT n.trace_id FROM otel_spans n FINAL \
                          WHERE n.project_id = ? AND {condition})"
                     ));
                     self.params.push(QueryParam::String(project_id.to_string()));
