@@ -54,6 +54,18 @@ fn alias_or<'a>(fallback: &'a str, alias: &'a str) -> &'a str {
 /// its parent reports none either. Factored out because a filter on a token or cost column has to
 /// be evaluated against *this* number - the one the row displays - and reproducing the rule in a
 /// second place is how the two would drift apart.
+///
+/// "Billed" is tokens **or** cost, and either is enough on its own: instrumentation that reports
+/// `llm.cost.*` without usage exists, and requiring tokens billed those calls as free. The
+/// `observation_type` test is NULL-safe for the same reason - a plain span carrying usage is what
+/// transport-level instrumentation produces, and `NULL != 'generation'` is NULL, so such a span
+/// contributed nothing at all.
+///
+/// The consequence, for a shape that mixes the two: the deepest billed span is taken as *the*
+/// record of the call, so if a leaf reports a cost and no usage while its parent reported usage,
+/// the trace shows that cost and no tokens. The alternative - summing the leaf's cost with the
+/// parent's tokens - merges two records of one call, and there is nothing to say the parent's
+/// figure belongs to it. Reaching this needs two instrumentations inside one parent/child pair.
 fn gen_totals_sql(where_clause: &str) -> String {
     format!(
         r#"
