@@ -4,7 +4,7 @@
 
 #![allow(clippy::collapsible_if)]
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 use opentelemetry_proto::tonic::trace::v1::Span;
@@ -408,13 +408,40 @@ const EXTRACTORS: &[NamedExtractor] = &[
     },
 ];
 
+/// How a span's attributes are shared out among the extractors.
+///
+/// A mode rather than a straight replacement, because the two answers differ on real payloads and the
+/// difference has to be *measured* before it is adopted: `_synthetic/two_carriers_one_span` gains its
+/// missing answer under `PerCarrier`, and the langgraph fixtures also reorder, which is a separate
+/// problem to solve first. `messages_extracted_per_carrier` compares the two across every fixture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ExtractionMode {
+    /// Today's behaviour: the first extractor that recognises anything takes the whole span,
+    /// including the carriers it does not read.
+    FirstMatch,
+    /// Every extractor runs; each observation is kept for the carrier it names unless an earlier
+    /// extractor already produced one for that carrier.
+    PerCarrier,
+}
+
+/// The generic fallback, which reads the framework-agnostic `input.value`/`output.value` pair. It runs
+/// only when no framework-specific extractor produced anything, so a specific reading is never joined
+/// by a generic copy of the same content.
+const FALLBACK_RULE: &str = "raw_io";
+
 pub(crate) fn extract_messages_from_attrs(
     messages: &mut Vec<RawMessage>,
     tool_definitions: &mut Vec<RawToolDefinition>,
     attrs: &HashMap<String, String>,
     span_name: &str,
     timestamp: DateTime<Utc>,
+    mode: ExtractionMode,
 ) {
+    if mode == ExtractionMode::PerCarrier {
+        extract_per_carrier(messages, tool_definitions, attrs, span_name, timestamp);
+        return;
+    }
+
     // Try extractors in priority order - stop at first match
     for named in EXTRACTORS {
         if (named.extractor)(messages, tool_definitions, attrs, span_name, timestamp) {
@@ -429,6 +456,68 @@ pub(crate) fn extract_messages_from_attrs(
     }
 
     tracing::trace!(span_name = span_name, "No framework extractor matched");
+}
+
+/// Extractors claim *carriers*, not spans.
+///
+/// Stopping at the first extractor that recognised anything gives one framework's reader the whole
+/// span, including the attributes it does not read. On a LangChain `RunnableSequence` span the
+/// OpenInference reader claims because `llm.input_messages` is present and reads only that, so the
+/// span keeps the question and drops the answer sitting in its own `output.value` - which the LangGraph
+/// reader would have read. Five of seven langgraph fixtures show exactly that.
+fn extract_per_carrier(
+    messages: &mut Vec<RawMessage>,
+    tool_definitions: &mut Vec<RawToolDefinition>,
+    attrs: &HashMap<String, String>,
+    span_name: &str,
+    timestamp: DateTime<Utc>,
+) {
+    let mut claimed: HashSet<String> = messages.iter().map(|m| carrier_of(&m.source)).collect();
+    let mut any_specific = false;
+
+    for named in EXTRACTORS {
+        if named.name == FALLBACK_RULE {
+            continue;
+        }
+        let mut produced = Vec::new();
+        if !(named.extractor)(&mut produced, tool_definitions, attrs, span_name, timestamp) {
+            continue;
+        }
+        any_specific = true;
+
+        // Carriers are recorded after the whole batch, not per message: one extractor legitimately
+        // emits several observations for one carrier - an expanded message array is the usual case -
+        // and claiming as it goes would keep only the first.
+        let mut newly_claimed = Vec::new();
+        for message in produced {
+            let carrier = carrier_of(&message.source);
+            if claimed.contains(&carrier) {
+                continue;
+            }
+            newly_claimed.push(carrier);
+            messages.push(message);
+        }
+        claimed.extend(newly_claimed);
+        tracing::trace!(
+            extractor = named.name,
+            span_name = span_name,
+            "extractor claimed carriers"
+        );
+    }
+
+    if !any_specific {
+        for named in EXTRACTORS.iter().filter(|e| e.name == FALLBACK_RULE) {
+            (named.extractor)(messages, tool_definitions, attrs, span_name, timestamp);
+        }
+    }
+}
+
+/// The attribute or event an observation was read from - what an extractor claims.
+fn carrier_of(source: &MessageSource) -> String {
+    match source {
+        MessageSource::Event { name, .. } => format!("event:{name}"),
+        MessageSource::Attribute { key, .. } => format!("attr:{key}"),
+    }
 }
 
 /// Extract tool definitions from any span (runs even on tool spans)
@@ -3901,6 +3990,7 @@ pub(super) fn extract_messages_for_span(
     otlp_span: &Span,
     span_attrs: &HashMap<String, String>,
     timestamp: DateTime<Utc>,
+    mode: ExtractionMode,
 ) -> (Vec<RawMessage>, Vec<RawToolDefinition>, Vec<RawToolNames>) {
     let is_tool_span = is_tool_execution_span(span_attrs);
 
@@ -4068,6 +4158,7 @@ pub(super) fn extract_messages_for_span(
             span_attrs,
             &otlp_span.name,
             timestamp,
+            mode,
         );
     }
 

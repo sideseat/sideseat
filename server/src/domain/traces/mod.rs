@@ -41,9 +41,22 @@ pub(crate) fn normalize_for_test(
     request: &opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest,
     pricing: &crate::domain::pricing::PricingService,
 ) -> Vec<(String, crate::data::types::MessageSpanRow)> {
+    normalize_for_test_with_mode(request, pricing, extract::ExtractionMode::FirstMatch)
+}
+
+/// As [`normalize_for_test`], with the extraction mode chosen by the caller, so a test can compare
+/// what the two share out of a span's attributes.
+#[cfg(test)]
+pub(crate) fn normalize_for_test_with_mode(
+    request: &opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest,
+    pricing: &crate::domain::pricing::PricingService,
+    mode: extract::ExtractionMode,
+) -> Vec<(String, crate::data::types::MessageSpanRow)> {
     use crate::data::types::MessageSpanRow;
 
-    let Some((spans, _pending)) = pipeline::process_request_for_test(request, pricing) else {
+    let Some((spans, _pending)) =
+        pipeline::process_request_for_test_with_mode(request, pricing, mode)
+    else {
         return Vec::new();
     };
 

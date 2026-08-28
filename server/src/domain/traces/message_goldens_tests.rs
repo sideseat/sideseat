@@ -50,6 +50,7 @@ use crate::domain::pricing::PricingService;
 use crate::domain::sideml::feed::{
     FeedOptions, extract_tools_from_rows, process_feed, process_spans,
 };
+use crate::domain::traces::extract::ExtractionMode;
 
 // ============================================================================
 // Fixture discovery
@@ -759,19 +760,10 @@ const PAIRING_EXEMPT: &[(&str, &str)] = &[
 /// what it replied. CrewAI's answers were dropped for months because no invariant said so - its
 /// reasoning fixture recorded `system -> user -> user -> user`, three questions and no answers, and
 /// the goldens blessed it as correct.
-const NO_ANSWER_EXPECTED: &[(&str, &str)] = &[
-    (
-        "_synthetic/two_carriers_one_span",
-        "documents a defect on purpose: the question is in llm.input_messages and the answer in the \
-         same span's output.value, and extraction stops at the first extractor that claims the span, \
-         so the answer is never read. Remove this exemption when carrier-level claiming lands - the \
-         fixture is what proves it worked",
-    ),
-    (
-        "strands/error",
-        "the sample exists to fail, so the run never produced an answer",
-    ),
-];
+const NO_ANSWER_EXPECTED: &[(&str, &str)] = &[(
+    "strands/error",
+    "the sample exists to fail, so the run never produced an answer",
+)];
 
 /// A conversation that asked something must show an answer.
 ///
@@ -1789,6 +1781,142 @@ fn the_order_spans_arrive_in_does_not_change_the_answer() {
             describe_diff(label, &baseline, &from_reversed)
         );
     }
+}
+
+/// Invariant 2, as a metamorphic test: reading a carrier nobody read only *adds*.
+///
+/// `ExtractionMode::PerCarrier` shares a span's attributes out per carrier instead of giving the whole
+/// span to the first extractor that recognises anything. That is a strict increase in what is read, so
+/// the answer must be a strict extension of today's: every message that was there before is still
+/// there, in the same relative order, with the newly readable carriers' messages interleaved.
+///
+/// This is the property my first attempt at carrier claiming violated - it repaired the langgraph span
+/// views and reordered the trace views - and the only detector at the time was a 107-file snapshot
+/// diff. Here the failure names the fixture, the view, and the message that moved.
+///
+/// The fixtures listed in `REORDERS_UNDER_PER_CARRIER` are the known-bad set: they gain their missing
+/// answer *and* reorder. They are named so the defect is in the suite rather than in my head, and each
+/// one leaves the list when the ordering work lands.
+#[test]
+fn reading_more_carriers_only_adds_messages() {
+    let fixtures = discover_fixtures();
+    if fixtures.is_empty() {
+        eprintln!("metamorphic: no fixtures - skipping");
+        return;
+    }
+
+    let pricing = PricingService::init_for_test().expect("offline pricing service");
+    let mut reordered: Vec<String> = Vec::new();
+    let mut extended: Vec<String> = Vec::new();
+
+    for (label, paths) in &fixtures {
+        let baseline = rows_for_mode(&pricing, paths, ExtractionMode::FirstMatch);
+        let per_carrier = rows_for_mode(&pricing, paths, ExtractionMode::PerCarrier);
+
+        let before = build_golden(label, paths, &baseline).golden;
+        let after = build_golden(label, paths, &per_carrier).golden;
+
+        // Both views matter, and they answer different questions. A span view is where a carrier
+        // nobody read shows up as a *gain* - the langgraph RunnableSequence spans that showed a
+        // question and no answer. A trace view is where the same content already existed on another
+        // span, so it collapses and only the *order* can change.
+        let views = before
+            .trace_views
+            .iter()
+            .map(|(k, v)| (format!("trace {k}"), v, after.trace_views.get(k)))
+            .chain(
+                before
+                    .span_views
+                    .iter()
+                    .map(|(k, v)| (format!("span {k}"), v, after.span_views.get(k))),
+            );
+
+        for (name, before_view, after_view) in views {
+            let Some(after_view) = after_view else {
+                panic!("{label} / {name}: the view disappeared when more carriers were read");
+            };
+            if before_view.messages.len() < after_view.messages.len() {
+                extended.push(format!("{label} / {name}"));
+            }
+            if !is_subsequence(&before_view.role_sequence, &after_view.role_sequence) {
+                reordered.push(format!(
+                    "{label} / {name}: {:?} is not preserved in {:?}",
+                    before_view.role_sequence, after_view.role_sequence
+                ));
+            }
+        }
+    }
+
+    let unexpected: Vec<&String> = reordered
+        .iter()
+        .filter(|r| {
+            !REORDERS_UNDER_PER_CARRIER
+                .iter()
+                .any(|(fixture, _)| r.starts_with(fixture))
+        })
+        .collect();
+    assert!(
+        unexpected.is_empty(),
+        "reading more carriers reordered messages that were already visible:\n  {}",
+        unexpected
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join("\n  ")
+    );
+
+    // The known-bad list must stay honest in both directions: an entry that no longer reorders has
+    // been fixed and should be removed, or the test stops meaning anything.
+    for (fixture, reason) in REORDERS_UNDER_PER_CARRIER {
+        assert!(
+            reordered.iter().any(|r| r.starts_with(fixture)),
+            "{fixture} no longer reorders under PerCarrier ({reason}) - remove it from \
+             REORDERS_UNDER_PER_CARRIER"
+        );
+    }
+
+    assert!(
+        !extended.is_empty(),
+        "reading every carrier added nothing anywhere, so this test compares two identical runs"
+    );
+    eprintln!(
+        "metamorphic: {} view(s) gained messages under PerCarrier, {} reorder (all known)",
+        extended.len(),
+        reordered.len()
+    );
+}
+
+/// Fixtures whose already-visible messages *move* when more carriers are read.
+///
+/// Not an exemption for convenience: each is a defect with a diagnosis, kept in the suite so the
+/// ordering work has an acceptance test.
+const REORDERS_UNDER_PER_CARRIER: &[(&str, &str)] = &[(
+    "langgraph/",
+    "a RunnableSequence span carries the question in llm.input_messages and the answer in its own \
+     output.value. Reading both gains the answer and shifts the response batch times, so the final \
+     answer stops being last - see the ordering step in the plan",
+)];
+
+/// Replay a fixture through the real ingestion path in a chosen extraction mode.
+fn rows_for_mode(
+    pricing: &PricingService,
+    paths: &[PathBuf],
+    mode: ExtractionMode,
+) -> Vec<(String, MessageSpanRow)> {
+    let mut rows = Vec::new();
+    for path in paths {
+        let request = decode_request(path);
+        rows.extend(super::normalize_for_test_with_mode(&request, pricing, mode));
+    }
+    rows
+}
+
+/// Whether `needle` appears in `haystack` in order, with gaps allowed.
+fn is_subsequence(needle: &[String], haystack: &[String]) -> bool {
+    let mut haystack = haystack.iter();
+    needle
+        .iter()
+        .all(|wanted| haystack.any(|candidate| candidate == wanted))
 }
 
 /// The content digest must actually distinguish content, including changes past the preview
