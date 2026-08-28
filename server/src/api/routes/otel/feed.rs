@@ -298,6 +298,11 @@ pub async fn get_feed_messages(
     // so a span that started inside the window and finished after it returned a message dated past
     // the window the request asked for. The upper bound on the context load does not cover that: it
     // decides which spans are read, not what time their messages carry.
+    //
+    // A page whose every block is filtered out still reports `has_more` and a cursor, because both
+    // are properties of the row page rather than of the answer. That is how the role filter has
+    // always behaved here, and it is what lets a client keep paging rather than stopping at the
+    // first page a filter empties.
     let processed = apply_time_window(process_feed(context.rows, &options), start_time, end_time);
     let all_messages = scope_feed_to_page(processed.messages, &page_spans);
     let tool_definitions = page_tools.tool_definitions;
