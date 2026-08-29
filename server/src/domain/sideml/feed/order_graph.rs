@@ -7,13 +7,12 @@
 //! the conclusion, reviewed with Codex, is that ordering is a **partial order** and time is a
 //! *priority*, not a constraint.
 //!
-//! This module builds that partial order and resolves it. It runs in production, but under
-//! [`Constraints::SCAFFOLD`], which enforces only what the previous sort already satisfied — so the
-//! graph, the contraction, the Kahn resolve and the cycle fallback are all live and exercised while
-//! the answer is unchanged (`the_scaffold_reproduces_the_existing_order`). Each constraint class is
-//! promoted from there as its own small, explainable golden delta, rather than as one large rewrite.
-//! Under [`Constraints::FULL`] it produces the redesign's intended answer, which tests compare
-//! against.
+//! This module builds that partial order and resolves it. Production runs
+//! [`Constraints::PRODUCTION`], which lists exactly which classes are enforced and what each one was
+//! measured to change; [`Constraints::NEUTRAL`] enforces nothing and is provably unable to move a
+//! block, which keeps the machinery itself verifiable
+//! (`the_neutral_resolver_reproduces_the_legacy_order`) as classes are promoted one at a time. Under
+//! [`Constraints::FULL`] it produces the redesign's intended answer, which tests compare against.
 //!
 //! # Model (Codex's framing)
 //!
@@ -69,6 +68,16 @@ pub(super) struct OrderEvidence {
     effective: DateTime<Utc>,
     /// Usable as evidence of when the message happened: a credible emission, not a history re-send.
     credible: bool,
+    /// Which span carried this observation, interned.
+    span: usize,
+    /// Which carrier of that span, interned - the event or attribute it was read from.
+    carrier: usize,
+    /// That carrier's positions state the order its observations belong in.
+    carrier_ordered: bool,
+    /// The span produced this observation, rather than receiving it.
+    is_output: bool,
+    /// The span is a generation - a model call, so its input caused its output.
+    from_generation: bool,
 }
 
 /// Reduce the classified, pre-dedup blocks to what the resolver reads.
@@ -81,10 +90,26 @@ pub(super) fn collect_order_evidence(
     span_timestamps: &HashMap<String, SpanTimestamps>,
 ) -> Vec<OrderEvidence> {
     let mut instances: HashMap<(String, String), usize> = HashMap::new();
+    let mut spans: HashMap<&str, usize> = HashMap::new();
+    let mut carriers: HashMap<(&str, Option<&str>, Option<&str>), usize> = HashMap::new();
     blocks
         .iter()
         .map(|block| {
             let credible = is_credible_emission(block);
+            let next_span = spans.len();
+            let span = *spans.entry(block.span_id.as_str()).or_insert(next_span);
+            let semantics = crate::domain::sideml::carrier::semantics_for(
+                block.event_name.as_deref(),
+                block.source_attribute.as_deref(),
+            );
+            let next_carrier = carriers.len();
+            let carrier = *carriers
+                .entry((
+                    block.span_id.as_str(),
+                    block.event_name.as_deref(),
+                    block.source_attribute.as_deref(),
+                ))
+                .or_insert(next_carrier);
             let emission = credible.then(|| {
                 let root = block
                     .position
@@ -104,6 +129,11 @@ pub(super) fn collect_order_evidence(
                 entry_index: block.entry_index,
                 effective: effective_timestamp(block, span_timestamps),
                 credible: credible && !block.is_history,
+                span,
+                carrier,
+                carrier_ordered: semantics.position_provides_sequence_order,
+                is_output: block.is_output_source(),
+                from_generation: block.is_generation_span(),
             }
         })
         .collect()
@@ -172,30 +202,91 @@ pub(super) struct Constraints {
     /// scattered members together is a reorder, and it is precisely the reorder the redesign exists
     /// to make (the `strands-js/swarm` intro text).
     pub contract_non_contiguous_emissions: bool,
-    /// Enforce a call → result edge that the legacy order has backwards.
-    pub enforce_backward_call_edges: bool,
+    /// Enforce an edge of *any* class that the legacy order has backwards.
+    ///
+    /// This is the dial that lets the graph actually change an order rather than merely agree with
+    /// one, so it is the second half of every promotion: a class whose edges are all forward already
+    /// changes nothing.
+    pub enforce_backward_edges: bool,
     /// Order units by time first, rather than by their legacy index.
     pub time_priority: bool,
     /// Order a unit's members by their source position rather than by legacy index.
     pub source_position_member_order: bool,
+    /// Enforce the order a carrier's own payload states between its surviving observations.
+    ///
+    /// A message array is a sequence, and two blocks of one message are ordered by their position in
+    /// it. Without this the time priority can swap them - two blocks of one ADK `llm_response` came
+    /// back reversed - because a per-unit anchor says nothing about order *inside* a payload. This is
+    /// the constraint form of the `assert_carrier_subsequence` invariant.
+    pub carrier_sequence_edges: bool,
+    /// Enforce that what a generation span *received* precedes what it *produced*.
+    ///
+    /// The minimal turn structure, and deliberately local dataflow rather than a rule about roles: a
+    /// model call's input caused its output, so the system prompt and the tool results a call was given
+    /// precede the answer it produced, and transitivity carries that across spans. A global rule like
+    /// "the terminal assistant message follows the last user message and every intervening tool" says
+    /// something similar and is false for parallel branches, subagents, retries and abandoned calls.
+    pub generation_dataflow_edges: bool,
 }
 
 impl Constraints {
     /// Provably output-neutral: every constraint is built and resolved, none can move a block.
-    pub(super) const SCAFFOLD: Self = Self {
+    ///
+    /// Kept as its own configuration after promotions begin, because it is what
+    /// `the_neutral_resolver_reproduces_the_legacy_order` tests: the proof that the machinery cannot
+    /// move anything on its own has to stay checkable, or a promotion could hide a resolver bug.
+    #[cfg(test)]
+    pub(super) const NEUTRAL: Self = Self {
         contract_non_contiguous_emissions: false,
-        enforce_backward_call_edges: false,
+        enforce_backward_edges: false,
         time_priority: false,
         source_position_member_order: false,
+        carrier_sequence_edges: false,
+        generation_dataflow_edges: false,
+    };
+
+    /// What production enforces today.
+    ///
+    /// One class is promoted at a time, and each promotion's golden delta is read fixture by fixture
+    /// before it lands. Promoted so far:
+    ///
+    /// - **Atomic-emission contraction** with source-position member order: a turn's intro text and
+    ///   the call it introduces are one `gen_ai.choice`, so they stay together in the order that event
+    ///   listed them. `strands-js/swarm` was the case - the intro text trailed the tool result it was
+    ///   meant to introduce, because the text took its span's end time and the call took its event
+    ///   time, so they grouped separately.
+    /// - **Carrier-sequence edges**: the order a payload states between its own surviving blocks. On
+    ///   its own this changes nothing (it enforces what the previous sort already produced); it is
+    ///   promoted with contraction because it is what keeps two blocks of one message from being
+    ///   separated once anything else can move them.
+    ///
+    /// Not yet promoted, with what each does to the corpus, measured:
+    ///
+    /// - `time_priority`: needs auditing on ADK, where two system prompts of different turns become
+    ///   adjacent, and on the Claude Agent SDK, where a user turn moves eight positions later.
+    /// - `enforce_backward_edges`: moves `adk/tool_use`; needed before any edge class can *correct* an
+    ///   order rather than only agree with one.
+    /// - `generation_dataflow_edges`: removes every reorder that blocks `PerCarrier` extraction, which
+    ///   is what would recover the answers 20 span views are missing - the largest correctness win
+    ///   available, and gated on the two above.
+    pub(super) const PRODUCTION: Self = Self {
+        contract_non_contiguous_emissions: true,
+        enforce_backward_edges: false,
+        time_priority: false,
+        source_position_member_order: true,
+        carrier_sequence_edges: true,
+        generation_dataflow_edges: false,
     };
 
     /// Every constraint enforced - the redesign's intended answer.
     #[cfg(test)]
     pub(super) const FULL: Self = Self {
         contract_non_contiguous_emissions: true,
-        enforce_backward_call_edges: true,
+        enforce_backward_edges: true,
         time_priority: true,
         source_position_member_order: true,
+        carrier_sequence_edges: true,
+        generation_dataflow_edges: true,
     };
 }
 
@@ -207,7 +298,7 @@ impl Constraints {
 ///
 /// # Neutrality
 ///
-/// Under [`Constraints::SCAFFOLD`] the result is exactly `survivors`. Every enforced edge is already
+/// Under [`Constraints::NEUTRAL`] the result is exactly `survivors`. Every enforced edge is already
 /// forward in the legacy order and every contracted unit is already contiguous in it, so the legacy
 /// order is itself a topological order of the graph; popping the ready unit with the smallest legacy
 /// index therefore yields the legacy order, because any predecessor of the smallest-index unfinished
@@ -400,19 +491,111 @@ pub(super) fn resolve(
         if call_unit == result_unit {
             continue; // one emission already orders them
         }
-        // The scaffold enforces only an edge the legacy order already respects, so no edge of its
-        // graph can move anything. Promoting this class is what makes a result that today precedes
-        // its call move behind it.
-        if !constraints.enforce_backward_call_edges
-            && unit_min_legacy[&call_unit] > unit_min_legacy[&result_unit]
-        {
-            continue;
+        add_edge(
+            call_unit,
+            result_unit,
+            constraints,
+            &unit_min_legacy,
+            &mut successors,
+            &mut indegree,
+        );
+    }
+
+    // Carrier sequence: the order a payload states between its own surviving observations.
+    //
+    // Adjacent pairs only; the transitive closure adds nothing to a topological order. Ordered by the
+    // payload position, which is what `message_index`/`entry_index` carry for a carrier's blocks.
+    if constraints.carrier_sequence_edges {
+        let mut by_carrier: HashMap<usize, Vec<(i32, i32, usize)>> = HashMap::new();
+        for (observation, seen) in evidence.iter().enumerate() {
+            if !seen.carrier_ordered {
+                continue;
+            }
+            let Some(survivor) = survivor_of(observation) else {
+                continue;
+            };
+            by_carrier.entry(seen.carrier).or_default().push((
+                seen.message_index,
+                seen.entry_index,
+                survivor,
+            ));
         }
-        // Adjacent edge only; avoid duplicates.
-        let succ = successors.get_mut(&call_unit).expect("unit present");
-        if !succ.contains(&result_unit) {
-            succ.push(result_unit);
-            *indegree.get_mut(&result_unit).expect("unit present") += 1;
+        let mut carriers: Vec<&usize> = by_carrier.keys().collect();
+        carriers.sort_unstable();
+        let carriers: Vec<usize> = carriers.into_iter().copied().collect();
+        for carrier in carriers {
+            let mut members = by_carrier.remove(&carrier).unwrap_or_default();
+            members.sort_unstable();
+            let mut sequence: Vec<usize> = Vec::with_capacity(members.len());
+            for (_, _, survivor) in members {
+                let unit = unit_of[survivor];
+                if sequence.last() != Some(&unit) {
+                    sequence.push(unit);
+                }
+            }
+            for pair in sequence.windows(2) {
+                add_edge(
+                    pair[0],
+                    pair[1],
+                    constraints,
+                    &unit_min_legacy,
+                    &mut successors,
+                    &mut indegree,
+                );
+            }
+        }
+    }
+
+    // Generation dataflow: what a model call received precedes what it produced.
+    //
+    // Read from the evidence rather than from the survivors, because the copy on display often comes
+    // from a different span - the answer a chain span re-lists is still the generation's output, and
+    // the system prompt a generation received is still its input even when the surviving copy of it
+    // was read somewhere else.
+    //
+    // Only edges between *different* units are added, and an edge already implied by contraction is
+    // skipped. Under the scaffold an edge the legacy order has backwards is dropped, as everywhere.
+    if constraints.generation_dataflow_edges {
+        let mut inputs_by_span: HashMap<usize, Vec<usize>> = HashMap::new();
+        let mut outputs_by_span: HashMap<usize, Vec<usize>> = HashMap::new();
+        for (observation, seen) in evidence.iter().enumerate() {
+            if !seen.from_generation {
+                continue;
+            }
+            let Some(survivor) = survivor_of(observation) else {
+                continue;
+            };
+            let side = if seen.is_output {
+                &mut outputs_by_span
+            } else {
+                &mut inputs_by_span
+            };
+            let units = side.entry(seen.span).or_default();
+            let unit = unit_of[survivor];
+            if !units.contains(&unit) {
+                units.push(unit);
+            }
+        }
+        let mut spans: Vec<&usize> = inputs_by_span.keys().collect();
+        spans.sort_unstable();
+        let spans: Vec<usize> = spans.into_iter().copied().collect();
+        for span in spans {
+            let Some(outputs) = outputs_by_span.get(&span) else {
+                continue;
+            };
+            let inputs = &inputs_by_span[&span];
+            for &input in inputs {
+                for &output in outputs {
+                    add_edge(
+                        input,
+                        output,
+                        constraints,
+                        &unit_min_legacy,
+                        &mut successors,
+                        &mut indegree,
+                    );
+                }
+            }
         }
     }
 
@@ -476,6 +659,33 @@ pub(super) fn resolve(
         }
     }
     out
+}
+
+/// Add one precedence edge between units, unless the scaffold forbids it.
+///
+/// The scaffold enforces only an edge the legacy order already respects, so no edge of its graph can
+/// move anything - which is what makes the resolver safe to run in production before any class is
+/// promoted. Duplicate edges are skipped so an indegree cannot be counted twice.
+fn add_edge(
+    from: usize,
+    to: usize,
+    constraints: Constraints,
+    unit_min_legacy: &HashMap<usize, usize>,
+    successors: &mut HashMap<usize, Vec<usize>>,
+    indegree: &mut HashMap<usize, usize>,
+) {
+    if from == to {
+        return;
+    }
+    let backward = unit_min_legacy[&from] > unit_min_legacy[&to];
+    if backward && !constraints.enforce_backward_edges {
+        return;
+    }
+    let succ = successors.get_mut(&from).expect("unit present");
+    if !succ.contains(&to) {
+        succ.push(to);
+        *indegree.get_mut(&to).expect("unit present") += 1;
+    }
 }
 
 /// Order one unit's members by the adjacency its emissions stated, smallest legacy index first among

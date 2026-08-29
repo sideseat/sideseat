@@ -88,10 +88,9 @@ mod classify;
 mod correlate;
 mod dedup;
 mod history;
-// The order resolver of the reconstruction redesign. In production it runs under
-// `Constraints::SCAFFOLD`, which builds the whole constraint graph and resolves it but enforces only
-// what the existing order already satisfies - provably output-neutral, so the machinery is live and
-// exercised before any behaviour changes. Constraint classes are promoted one at a time from there.
+// The order resolver of the reconstruction redesign. Production runs `Constraints::PRODUCTION`; the
+// all-off `Constraints::NEUTRAL` is provably unable to move a block and is what the neutrality
+// property test checks, so the machinery stays verifiable as classes are promoted one at a time.
 mod order_graph;
 #[cfg(test)]
 mod props;
@@ -393,7 +392,7 @@ pub(crate) fn stage_timings(rows: Vec<MessageSpanRow>) -> Vec<(&'static str, std
         &survivors,
         &lineage,
         &span_timestamps,
-        order_graph::Constraints::SCAFFOLD,
+        order_graph::Constraints::NEUTRAL,
     );
     out.push(("resolve", t.elapsed()));
 
@@ -403,12 +402,12 @@ pub(crate) fn stage_timings(rows: Vec<MessageSpanRow>) -> Vec<(&'static str, std
     out
 }
 
-/// The order before the resolver and the order the production scaffold produces, for the same rows.
+/// The order before the resolver, and the order the resolver produces with every class off.
 ///
-/// The two must be identical: that is what "the scaffold cannot move a block" means, and it has to be
-/// a property rather than an observation about the current goldens, which are regenerable.
+/// The two must be identical: that is what "the resolver cannot move a block by itself" means, and it
+/// has to be a property rather than an observation about the current goldens, which are regenerable.
 #[cfg(test)]
-pub(crate) fn legacy_and_scaffold_order(
+pub(crate) fn legacy_and_neutral_order(
     rows: Vec<MessageSpanRow>,
 ) -> (Vec<BlockEntry>, Vec<BlockEntry>) {
     let (blocks, span_timestamps) = classify_span_blocks(&rows, None);
@@ -419,7 +418,7 @@ pub(crate) fn legacy_and_scaffold_order(
         &legacy,
         &lineage,
         &span_timestamps,
-        order_graph::Constraints::SCAFFOLD,
+        order_graph::Constraints::NEUTRAL,
     );
     (legacy, scaffold)
 }
@@ -498,7 +497,7 @@ fn process_trace_spans_core(
         &blocks,
         &lineage,
         &span_timestamps,
-        order_graph::Constraints::SCAFFOLD,
+        order_graph::Constraints::PRODUCTION,
     );
 
     // Debug: Log block counts after dedup
