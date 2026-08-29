@@ -52,6 +52,63 @@ use super::types::BlockEntry;
 /// survivor being contracted.
 type EmissionMember = (i32, i32, usize);
 
+/// What the resolver needs to know about one pre-dedup observation.
+///
+/// Deliberately not the observation itself. The resolver reads the evidence set *before* dedup, and
+/// holding onto whole blocks for that meant cloning every message's content on every request - on a
+/// fixture whose tool results carry base64 images that is the dominant cost, and none of it is ever
+/// read. This is the same set of facts in a handful of words per observation.
+pub(super) struct OrderEvidence {
+    /// Which emission instance this observation belongs to, when it is a credible emission of one.
+    emission: Option<usize>,
+    /// Where the observation sat in its payload, for the emission's own order.
+    message_index: i32,
+    entry_index: i32,
+    /// The observation's own effective time. The *survivor's* time is no use here: dedup overwrites it
+    /// with the old batch anchor, so reading it would make the new order a function of the old one.
+    effective: DateTime<Utc>,
+    /// Usable as evidence of when the message happened: a credible emission, not a history re-send.
+    credible: bool,
+}
+
+/// Reduce the classified, pre-dedup blocks to what the resolver reads.
+///
+/// An emission instance is `(span, position-path root)`: two `gen_ai.choice` events on one span have
+/// different roots, so this separates them while the blocks of one choice share it. Instances are
+/// interned to indices, so the only allocation is one key per distinct emission.
+pub(super) fn collect_order_evidence(
+    blocks: &[BlockEntry],
+    span_timestamps: &HashMap<String, SpanTimestamps>,
+) -> Vec<OrderEvidence> {
+    let mut instances: HashMap<(String, String), usize> = HashMap::new();
+    blocks
+        .iter()
+        .map(|block| {
+            let credible = is_credible_emission(block);
+            let emission = credible.then(|| {
+                let root = block
+                    .position
+                    .to_string()
+                    .split('.')
+                    .next()
+                    .unwrap_or("")
+                    .to_string();
+                let next = instances.len();
+                *instances
+                    .entry((block.span_id.clone(), root))
+                    .or_insert(next)
+            });
+            OrderEvidence {
+                emission,
+                message_index: block.message_index,
+                entry_index: block.entry_index,
+                effective: effective_timestamp(block, span_timestamps),
+                credible: credible && !block.is_history,
+            }
+        })
+        .collect()
+}
+
 /// Whether an observation is evidence of *when* a message happened and part of *one emission*.
 ///
 /// An atomic emission the span itself produced: `gen_ai.choice`, and only when the span is the
@@ -65,23 +122,6 @@ fn is_credible_emission(block: &BlockEntry) -> bool {
             block.source_attribute.as_deref(),
         )
         .carrier_is_atomic_emission
-}
-
-/// The emission instance a block belongs to: its span and the root of its position path. Two
-/// `gen_ai.choice` events in one span have different roots, so this separates them; the blocks of
-/// one choice share it.
-fn emission_instance(block: &BlockEntry) -> Option<(String, String)> {
-    if !is_credible_emission(block) {
-        return None;
-    }
-    let root = block
-        .position
-        .to_string()
-        .split('.')
-        .next()
-        .unwrap_or("")
-        .to_string();
-    Some((block.span_id.clone(), root))
 }
 
 /// A disjoint-set over survivor indices, used to contract co-emitted identities into one unit.
@@ -173,7 +213,7 @@ impl Constraints {
 /// index therefore yields the legacy order, because any predecessor of the smallest-index unfinished
 /// unit would have a smaller index and would already be done.
 pub(super) fn resolve(
-    pre_dedup: &[BlockEntry],
+    evidence: &[OrderEvidence],
     survivors: &[BlockEntry],
     lineage: &[Option<usize>],
     span_timestamps: &HashMap<String, SpanTimestamps>,
@@ -198,17 +238,17 @@ pub(super) fn resolve(
     // Co-emission sets from the evidence: group credible-emission observations by instance, collect
     // the surviving identities in each, in source order. A block whose identity did not survive is
     // ignored - the unit is over survivors.
-    let mut by_instance: HashMap<(String, String), Vec<EmissionMember>> = HashMap::new();
-    for (observation, block) in pre_dedup.iter().enumerate() {
-        let Some(instance) = emission_instance(block) else {
+    let mut by_instance: HashMap<usize, Vec<EmissionMember>> = HashMap::new();
+    for (observation, seen) in evidence.iter().enumerate() {
+        let Some(instance) = seen.emission else {
             continue;
         };
         let Some(survivor) = survivor_of(observation) else {
             continue;
         };
         by_instance.entry(instance).or_default().push((
-            block.message_index,
-            block.entry_index,
+            seen.message_index,
+            seen.entry_index,
             survivor,
         ));
     }
@@ -218,9 +258,8 @@ pub(super) fn resolve(
     // Iterated in a deterministic order: a HashMap's iteration order varies per run, and while
     // union-find's result does not depend on the order the unions arrive in, the intra-unit keys and
     // any later diagnostics do.
-    let mut instances: Vec<(&(String, String), &Vec<EmissionMember>)> =
-        by_instance.iter().collect();
-    instances.sort_by(|a, b| a.0.cmp(b.0));
+    let mut instances: Vec<(&usize, &Vec<EmissionMember>)> = by_instance.iter().collect();
+    instances.sort_by_key(|(instance, _)| **instance);
 
     // A survivor is routinely claimed by *two* emission instances: an inner generation span emits a
     // message and its parent agent span re-emits the same one as its own output. That is the common
@@ -291,15 +330,14 @@ pub(super) fn resolve(
             .or_insert(time);
     };
     let mut from_emission: HashMap<usize, DateTime<Utc>> = HashMap::new();
-    for (observation, block) in pre_dedup.iter().enumerate() {
-        if block.is_history || !is_credible_emission(block) {
+    for (observation, seen) in evidence.iter().enumerate() {
+        if !seen.credible {
             continue;
         }
         let Some(survivor) = survivor_of(observation) else {
             continue;
         };
-        let time = effective_timestamp(block, span_timestamps);
-        record(unit_of[survivor], time, &mut from_emission);
+        record(unit_of[survivor], seen.effective, &mut from_emission);
     }
     for (i, block) in survivors.iter().enumerate() {
         let unit = unit_of[i];

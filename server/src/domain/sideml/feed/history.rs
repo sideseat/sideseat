@@ -46,7 +46,7 @@
 use std::collections::{HashMap, HashSet};
 
 use super::dedup::{
-    SpanTimestamps, compute_tool_call_hash, effective_timestamp, normalize_tool_result_content,
+    SpanTimestamps, compute_tool_call_hash, effective_timestamp, hash_tool_result_content_into,
 };
 use super::types::BlockEntry;
 use crate::domain::sideml::types::{ChatRole, ContentBlock};
@@ -447,9 +447,9 @@ enum DuplicateKey<'a> {
 
 /// Hash a tool result's text alone, for comparing two results of the same call.
 fn hash_tool_result_text(content: &serde_json::Value) -> u64 {
-    use std::hash::{Hash, Hasher};
+    use std::hash::Hasher;
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    normalize_tool_result_content(content).hash(&mut hasher);
+    hash_tool_result_content_into(content, &mut hasher);
     hasher.finish()
 }
 
