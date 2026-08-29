@@ -791,36 +791,61 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
     )
 }
 
-/// Order a project feed newest-first.
+/// Order a project feed newest-first: **responses** descending, each response forward inside.
 ///
-/// Sorted by an explicit key, for the same reason `process_dedup` is: a comparator with a
-/// same-batch special case is not a total order. Two blocks in different traces sharing a span id
-/// and a time compared *equal*, which let their position depend on the order conversations came out
-/// of a HashMap.
+/// The feed is the one view that is not chronological, and that is a statement about *responses*, not
+/// about blocks: a turn's intro text still precedes the call it introduces, the call still precedes
+/// its result. So the newest-first part is applied by reversing the order of responses and leaving
+/// each response's own order alone.
 ///
-/// Time descending, then the response, then position within it.
+/// Taking each response's internal order from the reconstruction, rather than re-deriving it from
+/// positions, is what lets the order resolver reach this view at all. Re-deriving it meant the feed
+/// recomputed intra-response order from `(span, message_index, entry_index, after_call, hash)` - the
+/// same terms the old scalar key used - so any ordering the resolver improves would have landed in the
+/// three chronological views and silently vanished here.
 ///
-/// The time is `order_time`, never the displayed `timestamp`. The two hold the same value today, so
-/// reading either gives the same answer - but only one of them *means* "where this sorts", and
-/// `the_displayed_time_does_not_decide_the_order` holds this to it.
-///
-/// Position comes from the same helper the trace views use, so a tool result whose call sits in
-/// another span at the same instant follows that call here too. Sorting by the block's own span id
-/// instead ordered that tie arbitrarily - the answer could precede the question in the feed while
-/// the trace view had it right.
+/// A response is `(trace, order_time)`: `order_time` is the response's anchor, and it is `order_time`
+/// rather than the displayed `timestamp` because only one of them *means* "where this sorts"
+/// (`the_displayed_time_does_not_decide_the_order`). Keyed by trace as well, because two traces can
+/// share an anchor and blocks of different conversations must not interleave - which is the bug the
+/// previous explicit key was written to fix, where two blocks in different traces sharing a span id
+/// and a time compared equal and their order followed HashMap iteration.
 fn sort_feed_newest_first(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
+    // The chronological order first, exactly as a trace view would build it, so each response's
+    // internal order is the reconstructed one.
     let positions = feed_positions(&blocks, |i| blocks[i].order_time);
     let mut keyed: Vec<(FeedPosition, BlockEntry)> = positions.into_iter().zip(blocks).collect();
     keyed.sort_by(|(a_pos, a), (b_pos, b)| {
-        b.order_time
-            .cmp(&a.order_time)
+        a.order_time
+            .cmp(&b.order_time)
             .then_with(|| a_pos.span.cmp(&b_pos.span))
             .then_with(|| a_pos.message_index.cmp(&b_pos.message_index))
             .then_with(|| a_pos.entry_index.cmp(&b_pos.entry_index))
             .then_with(|| a_pos.after_call.cmp(&b_pos.after_call))
             .then_with(|| a.content_hash.cmp(&b.content_hash))
     });
-    keyed.into_iter().map(|(_, block)| block).collect()
+    let chronological: Vec<BlockEntry> = keyed.into_iter().map(|(_, block)| block).collect();
+
+    // Then responses, newest first. Maximal runs sharing `(trace, order_time)`, reversed as wholes.
+    let mut responses: Vec<Vec<BlockEntry>> = Vec::new();
+    for block in chronological {
+        let same_response = responses
+            .last()
+            .and_then(|run: &Vec<BlockEntry>| run.last())
+            .is_some_and(|last| {
+                last.trace_id == block.trace_id && last.order_time == block.order_time
+            });
+        if same_response {
+            responses
+                .last_mut()
+                .expect("a run exists when same_response is true")
+                .push(block);
+        } else {
+            responses.push(vec![block]);
+        }
+    }
+    responses.reverse();
+    responses.into_iter().flatten().collect()
 }
 
 /// Keep only the blocks inside a requested time window.
