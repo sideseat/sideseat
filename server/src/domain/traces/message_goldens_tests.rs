@@ -2067,6 +2067,60 @@ fn shadow_resolver_is_a_permutation_of_the_survivors() {
     }
 }
 
+/// The resolver returns every survivor exactly once, under the constraints production enforces.
+///
+/// Permutation was only ever checked for `NEUTRAL`, which is the configuration that provably cannot
+/// move anything - so it could not have caught a resolver that drops or duplicates a block once a
+/// class is promoted. Checked here against the real pipeline: the message *set* of a view must not
+/// depend on the ordering constraints at all, because ordering is downstream of deduplication.
+///
+/// Scope, deliberately stated: this covers the single-trace path only. Ordering and deduplication are
+/// *not* independent across traces - `process_multi_trace_spans` strips a session's repeated prefix by
+/// matching the previous trace's reconstructed sequence, so changing the order changes what is
+/// stripped. That coupling is why promoting the dataflow class moved `adk/tool_use`'s session count
+/// from 24 to 29, and it is an architectural problem rather than a test gap: a session's
+/// deduplication should not be a function of a sibling trace's presentation order.
+#[test]
+fn promoted_constraints_do_not_change_which_messages_appear() {
+    let mut checked = 0usize;
+    for (label, paths) in discover_fixtures() {
+        let all = rows_for(&paths);
+        let mut by_trace: BTreeMap<String, Vec<MessageSpanRow>> = BTreeMap::new();
+        for (_, row) in all {
+            by_trace.entry(row.trace_id.clone()).or_default().push(row);
+        }
+        for (trace_id, trace_rows) in by_trace {
+            let rows = sorted_by_timestamp(
+                trace_rows
+                    .into_iter()
+                    .filter(passes_content_filter)
+                    .collect(),
+            );
+            if rows.is_empty() {
+                continue;
+            }
+            let (legacy, _) = legacy_and_neutral_order(rows.clone());
+            let produced = process_spans(rows, &FeedOptions::new()).messages;
+            let digest = |blocks: &[crate::domain::sideml::feed::BlockEntry]| -> Vec<String> {
+                let mut out: Vec<String> = blocks
+                    .iter()
+                    .map(|b| format!("{}/{}/{}", b.role.as_str(), b.entry_type, b.content_hash))
+                    .collect();
+                out.sort();
+                out
+            };
+            assert_eq!(
+                digest(&produced),
+                digest(&legacy),
+                "{label} / trace {trace_id}: promoting an ordering constraint changed which \
+                 messages appear, not just their order"
+            );
+            checked += 1;
+        }
+    }
+    assert!(checked > 50, "only checked {checked} traces");
+}
+
 /// The resolver cannot move a block with every constraint class off.
 ///
 /// With `Constraints::NEUTRAL` the resolver enforces only what the previous sort already satisfies -
@@ -2333,5 +2387,40 @@ fn probe_per_carrier_diff() {
                 }
             }
         }
+    }
+}
+
+#[test]
+#[ignore]
+fn probe_blocks() {
+    let want = std::env::var("PROBE").unwrap_or_else(|_| "vercel-ai-js/tool-use".to_string());
+    let (_, paths) = discover_fixtures()
+        .into_iter()
+        .find(|(l, _)| *l == want)
+        .unwrap_or_else(|| panic!("fixture {want} not found"));
+    let all: Vec<MessageSpanRow> = rows_for(&paths).into_iter().map(|(_, r)| r).collect();
+    let first = all[0].trace_id.clone();
+    let rows = sorted_by_timestamp(
+        all.into_iter()
+            .filter(|r| r.trace_id == first && passes_content_filter(r))
+            .collect(),
+    );
+    for (i, b) in process_spans(rows, &FeedOptions::new())
+        .messages
+        .iter()
+        .enumerate()
+    {
+        eprintln!(
+            "{i:2} {:9} {:11} span={} msg={} entry={} pos={} carrier={:?}/{:?} out={}",
+            b.role.as_str(),
+            b.entry_type,
+            &b.span_id[..8],
+            b.message_index,
+            b.entry_index,
+            b.position,
+            b.event_name,
+            b.source_attribute,
+            b.is_output_source(),
+        );
     }
 }
