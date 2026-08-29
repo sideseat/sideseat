@@ -28,19 +28,19 @@ EXTENDS Naturals, FiniteSets, Sequences, TLC
 
 (* The model's atoms. Everything structural is derived below, because a .cfg    *)
 (* file cannot express a record, and the carrier profiles are records.          *)
-CONSTANTS ob1, ob2, ob3,     \* observations
-          sv1, sv2,          \* survivors
+CONSTANTS ob1, ob2, ob3, ob4,   \* observations
+          sv1, sv2, sv3,        \* survivors
           none,              \* sentinel: an observation that survived nothing
           spA, spB,          \* spans
           p1, p2, p3         \* payload instances
 
-Obs == {ob1, ob2, ob3}
-Surv == {sv1, sv2}
+Obs == {ob1, ob2, ob3, ob4}
+Surv == {sv1, sv2, sv3}
 NoSurv == none
 
 \* The pre-resolver order: what the previous scalar sort produced, and the
 \* deterministic tie-break here.
-Rank == (sv1 :> 0) @@ (sv2 :> 1)
+Rank == (sv1 :> 0) @@ (sv2 :> 1) @@ (sv3 :> 2)
 
 (* The carrier shapes, named for what they are in the corpus:                   *)
 (*   choice  - gen_ai.choice / ai.response: an emission the span produced       *)
@@ -276,6 +276,11 @@ Correct ==
     /\ Acyclic => Dataflow
 
 ----------------------------------------------------------------------------
+(* Three survivors, not two: with two, `Cohesion` is vacuous - there is no third  *)
+(* block that could land between a contracted pair, so the property cannot fail   *)
+(* however the resolver behaves. Three is the smallest model in which contraction *)
+(* has something to exclude.                                                      *)
+
 (* One state per input shape: TLC enumerates the inputs and checks Correct  *)
 (* on each, which is a bounded proof over all shapes rather than over the   *)
 (* shapes the fixture corpus happens to contain.                           *)

@@ -51,6 +51,11 @@ use super::types::BlockEntry;
 /// survivor being contracted.
 type EmissionMember = (i32, i32, usize);
 
+/// One payload instance: its span, the event or attribute it arrived on, and which instance of that
+/// carrier it was - the root of the position path. A span can emit `gen_ai.choice` more than once, and
+/// those are different payloads.
+type PayloadKey<'a> = (&'a str, Option<&'a str>, Option<&'a str>, String);
+
 /// What the resolver needs to know about one pre-dedup observation.
 ///
 /// Deliberately not the observation itself. The resolver reads the evidence set *before* dedup, and
@@ -91,7 +96,11 @@ pub(super) fn collect_order_evidence(
 ) -> Vec<OrderEvidence> {
     let mut instances: HashMap<(String, String), usize> = HashMap::new();
     let mut spans: HashMap<&str, usize> = HashMap::new();
-    let mut carriers: HashMap<(&str, Option<&str>, Option<&str>), usize> = HashMap::new();
+    // Keyed by payload *instance*, not carrier name: a span can emit `gen_ai.choice` several times,
+    // and interning by name merged those into one carrier - so a sequence edge could be drawn between
+    // two different emissions as though one payload had listed them. Contraction already keys on the
+    // instance; this is the same key, which is what the TLA+ model assumes throughout.
+    let mut carriers: HashMap<PayloadKey<'_>, usize> = HashMap::new();
     blocks
         .iter()
         .map(|block| {
@@ -102,12 +111,20 @@ pub(super) fn collect_order_evidence(
                 block.event_name.as_deref(),
                 block.source_attribute.as_deref(),
             );
+            let payload_root = block
+                .position
+                .to_string()
+                .split('.')
+                .next()
+                .unwrap_or("")
+                .to_string();
             let next_carrier = carriers.len();
             let carrier = *carriers
                 .entry((
                     block.span_id.as_str(),
                     block.event_name.as_deref(),
                     block.source_attribute.as_deref(),
+                    payload_root,
                 ))
                 .or_insert(next_carrier);
             let emission = credible.then(|| {
