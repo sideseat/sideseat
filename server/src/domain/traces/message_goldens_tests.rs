@@ -48,7 +48,7 @@ use crate::api::routes::otel::messages::scope_feed_to_trace;
 use crate::data::types::MessageSpanRow;
 use crate::domain::pricing::PricingService;
 use crate::domain::sideml::feed::{
-    FeedOptions, extract_tools_from_rows, legacy_and_scaffold_order, process_feed, process_spans,
+    FeedOptions, extract_tools_from_rows, legacy_and_neutral_order, process_feed, process_spans,
     shadow_resolved_order,
 };
 use crate::domain::traces::extract::ExtractionMode;
@@ -2067,19 +2067,18 @@ fn shadow_resolver_is_a_permutation_of_the_survivors() {
     }
 }
 
-/// The production scaffold cannot move a block.
+/// The resolver cannot move a block with every constraint class off.
 ///
-/// The order resolver runs on every trace/session request, but under `Constraints::SCAFFOLD` it
-/// enforces only the constraints the existing sort already satisfies - every edge already forward,
-/// every contracted emission already contiguous, the legacy index as the pop seed. So its output must
-/// be the existing order exactly, on every trace of every fixture. That is what makes the machinery
-/// safe to have live before any constraint class is promoted: the graph, the contraction, the Kahn
-/// resolve and the cycle fallback are all exercised in production while the answer is unchanged.
+/// With `Constraints::NEUTRAL` the resolver enforces only what the previous sort already satisfies -
+/// every edge already forward, every contracted emission already contiguous, the legacy index as the
+/// pop seed - so its output must be the previous order exactly, on every trace of every fixture. That
+/// is the proof the machinery has no opinion of its own: whatever production's promoted classes then
+/// change is attributable to those classes, not to the graph, the Kahn resolve or the cycle fallback.
 ///
 /// Checked as a property here rather than left to the goldens, which are regenerable: a golden diff
 /// would show a scaffold reorder as "expected output changed" and could be blessed by accident.
 #[test]
-fn the_scaffold_reproduces_the_existing_order() {
+fn the_neutral_resolver_reproduces_the_legacy_order() {
     let mut checked = 0usize;
     for (label, paths) in discover_fixtures() {
         let all = rows_for(&paths);
@@ -2097,7 +2096,7 @@ fn the_scaffold_reproduces_the_existing_order() {
             if rows.is_empty() {
                 continue;
             }
-            let (legacy, scaffold) = legacy_and_scaffold_order(rows);
+            let (legacy, neutral) = legacy_and_neutral_order(rows);
             // The whole block, serialised. A role/type/span/hash fingerprint is too weak: two
             // identical tool calls with distinct ids share it, so swapping them would have passed -
             // and those two calls are exactly what the resolver's contraction reasons about.
@@ -2108,9 +2107,10 @@ fn the_scaffold_reproduces_the_existing_order() {
                     .collect()
             };
             assert_eq!(
-                seq(&scaffold),
+                seq(&neutral),
                 seq(&legacy),
-                "{label} / trace {trace_id}: the scaffold moved a block, so it is not neutral"
+                "{label} / trace {trace_id}: the resolver moved a block with every class off, so the \
+                 machinery is not neutral"
             );
             checked += 1;
         }
@@ -2145,7 +2145,7 @@ fn repeated_identical_calls_keep_both_and_stay_resolvable() {
             .collect(),
     );
 
-    let (legacy, scaffold) = legacy_and_scaffold_order(rows.clone());
+    let (legacy, scaffold) = legacy_and_neutral_order(rows.clone());
     let calls = |blocks: &[crate::domain::sideml::feed::BlockEntry]| -> usize {
         blocks.iter().filter(|b| b.entry_type == "tool_use").count()
     };
@@ -2297,5 +2297,41 @@ fn probe_empty_traces() {
     eprintln!("{} rows", rows.len());
     for l in lines.iter().take(40) {
         eprintln!("{l}");
+    }
+}
+
+#[test]
+#[ignore]
+fn probe_per_carrier_diff() {
+    let want = std::env::var("PROBE").unwrap_or_else(|_| "langgraph/tool_use".to_string());
+    let pricing = PricingService::init_for_test().expect("offline pricing service");
+    for (label, paths) in discover_fixtures() {
+        if label != want {
+            continue;
+        }
+        let baseline = rows_for_mode(&pricing, paths.as_slice(), ExtractionMode::FirstMatch);
+        let per_carrier = rows_for_mode(&pricing, paths.as_slice(), ExtractionMode::PerCarrier);
+        let before = build_golden(&label, &paths, &baseline).golden;
+        let after = build_golden(&label, &paths, &per_carrier).golden;
+        for (name, b) in before.trace_views.iter().chain(before.session_views.iter()) {
+            let a = after
+                .trace_views
+                .get(name)
+                .or_else(|| after.session_views.get(name));
+            let Some(a) = a else { continue };
+            if b.role_sequence != a.role_sequence {
+                eprintln!("{label} / {name}:");
+                eprintln!("  FirstMatch: {:?}", b.role_sequence);
+                eprintln!("  PerCarrier: {:?}", a.role_sequence);
+                for (i, m) in a.messages.iter().enumerate() {
+                    eprintln!(
+                        "    [{i}] {}/{}: {}",
+                        m.role,
+                        m.entry_type,
+                        &m.content[..m.content.len().min(60)]
+                    );
+                }
+            }
+        }
     }
 }

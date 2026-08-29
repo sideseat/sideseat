@@ -133,8 +133,8 @@
       "role_sequence": [
         "system",
         "assistant",
-        "tool",
-        "assistant"
+        "assistant",
+        "tool"
       ],
       "tool_names": [
         "calculator"
@@ -152,6 +152,14 @@
         {
           "index": 1,
           "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down this project into a structured plan for building a weather app. Let me create a comprehensive project plan that identifies the key tasks and which specialists should handle them.",
+          "content_digest": "c1d8de83b3693175",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_dcScuDsYJezJEXrH0rvpxn\",\"name\":\"strands_structured_output\",\"input\":{\"message\":\"## Weather App Project Plan\\n\\n### Project Overview\\nBuild a weather app that displays forecasts for multiple cities with real-t…[3589 chars]",
           "content_digest": "a8293d389860ca7e",
@@ -159,20 +167,12 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_dcScuDsYJezJEXrH0rvpxn\",\"content\":{\"json\":{\"message\":\"## Weather App Project Plan\\n\\n### Project Overview\\nBuild a weather app that displays forecasts for multiple cities with real-time data, use…[3577 chars]",
           "content_digest": "1cd68985c7b29e5a",
           "observation_type": "tool"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "I'll break down this project into a structured plan for building a weather app. Let me create a comprehensive project plan that identifies the key tasks and which specialists should handle them.",
-          "content_digest": "c1d8de83b3693175",
-          "observation_type": "agent"
         }
       ]
     }
