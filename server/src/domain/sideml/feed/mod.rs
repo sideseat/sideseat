@@ -300,6 +300,18 @@ pub fn process_spans(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRe
 
 /// [`process_spans`] without the role filter, for callers that filter once at their own boundary.
 fn process_spans_unfiltered(rows: Vec<MessageSpanRow>) -> FeedResult {
+    process_spans_unfiltered_with(rows, order_graph::Constraints::PRODUCTION)
+}
+
+/// As [`process_spans_unfiltered`], with the ordering constraints named explicitly.
+///
+/// The parameter exists so a test can hold everything else fixed and vary only the presentation
+/// constraints - which is the acceptance property for this whole redesign: changing them must preserve
+/// which messages a session returns. Production always passes `PRODUCTION`.
+fn process_spans_unfiltered_with(
+    rows: Vec<MessageSpanRow>,
+    constraints: order_graph::Constraints,
+) -> FeedResult {
     // Detect multi-trace: if all rows share the same trace_id, single-trace path
     let is_multi_trace = rows.len() > 1
         && rows
@@ -308,9 +320,9 @@ fn process_spans_unfiltered(rows: Vec<MessageSpanRow>) -> FeedResult {
             .unwrap_or(false);
 
     if is_multi_trace {
-        process_multi_trace_spans(rows)
+        process_multi_trace_spans(rows, constraints)
     } else {
-        process_trace_spans_core(rows, None)
+        reconstruct_trace(rows, None, constraints).0
     }
 }
 
@@ -448,6 +460,23 @@ pub(crate) fn stage_timings(rows: Vec<MessageSpanRow>) -> Vec<(&'static str, std
     out
 }
 
+/// One view built twice: with the constraints production enforces, and with every class off.
+///
+/// This is the acceptance property of the ordering redesign, as a function a test can call: the two
+/// runs must return the *same messages*, differing only in their order. It takes the whole row set, so
+/// it exercises the multi-trace path where deduplication and ordering were coupled - a session's
+/// cross-trace replay stripping used to consume the presented order, so promoting a constraint changed
+/// which messages a later trace kept.
+#[cfg(test)]
+pub(crate) fn presented_and_unconstrained(
+    rows: Vec<MessageSpanRow>,
+) -> (Vec<BlockEntry>, Vec<BlockEntry>) {
+    let presented =
+        process_spans_unfiltered_with(rows.clone(), order_graph::Constraints::PRODUCTION);
+    let unconstrained = process_spans_unfiltered_with(rows, order_graph::Constraints::NEUTRAL);
+    (presented.messages, unconstrained.messages)
+}
+
 /// The order before the resolver, and the order the resolver produces with every class off.
 ///
 /// The two must be identical: that is what "the resolver cannot move a block by itself" means, and it
@@ -506,6 +535,28 @@ fn process_trace_spans_core(
     rows: Vec<MessageSpanRow>,
     cross_trace_prefix: Option<&CrossTracePrefixState>,
 ) -> FeedResult {
+    reconstruct_trace(
+        rows,
+        cross_trace_prefix,
+        order_graph::Constraints::PRODUCTION,
+    )
+    .0
+}
+
+/// The trace's answer, and the **causal transcript** a following trace matches its replay against.
+///
+/// Two separate outputs on purpose. The transcript is the survivors in the order reconstruction
+/// established *before* the order resolver applies any presentation constraint, so it is a function of
+/// the evidence alone. A session's deduplication must not depend on how the messages are laid out for
+/// a reader: accumulating the prefix from the presented order made promoting an ordering constraint
+/// change which messages a *later* trace kept, and `adk/tool_use`'s session view gained five replayed
+/// messages that way - the previous turns' tool results, re-appearing because the presented sequence no
+/// longer lined up with what ADK replays.
+fn reconstruct_trace(
+    rows: Vec<MessageSpanRow>,
+    cross_trace_prefix: Option<&CrossTracePrefixState>,
+    constraints: order_graph::Constraints,
+) -> (FeedResult, Vec<BlockEntry>) {
     // Extract tools from all rows
     let extracted_tools = extract_tools_from_rows(&rows);
 
@@ -538,13 +589,10 @@ fn process_trace_spans_core(
     // already satisfies - so it is live and exercised on every request while the answer stays exactly
     // what it was. `the_scaffold_reproduces_the_existing_order` holds it to that across the corpus.
     // Runs after id withdrawal so the call/result edges see the ids the view will actually show.
-    let blocks = order_graph::resolve(
-        &evidence,
-        &blocks,
-        &lineage,
-        &span_timestamps,
-        order_graph::Constraints::PRODUCTION,
-    );
+    // The transcript: survivors as reconstruction established them, before any presentation choice.
+    let transcript = blocks.clone();
+
+    let blocks = order_graph::resolve(&evidence, &blocks, &lineage, &span_timestamps, constraints);
 
     // Debug: Log block counts after dedup
     if tracing::enabled!(tracing::Level::DEBUG) {
@@ -565,12 +613,15 @@ fn process_trace_spans_core(
     // Stage 7: Compute metadata and return
     let metadata = compute_metadata(&blocks, &rows);
 
-    FeedResult {
-        messages: blocks,
-        tool_definitions: extracted_tools.tool_definitions,
-        tool_names: extracted_tools.tool_names,
-        metadata,
-    }
+    (
+        FeedResult {
+            messages: blocks,
+            tool_definitions: extracted_tools.tool_definitions,
+            tool_names: extracted_tools.tool_names,
+            metadata,
+        },
+        transcript,
+    )
 }
 
 /// Process spans from multiple traces with cross-trace prefix marking.
@@ -591,7 +642,10 @@ fn process_trace_spans_core(
 ///   are matched directly against accumulated.
 /// - **Non-root gen spans**: Phase 4b marks assistant input-source blocks as history.
 ///   Prefix scan consumes matched Phase 4b entries without re-marking.
-fn process_multi_trace_spans(rows: Vec<MessageSpanRow>) -> FeedResult {
+fn process_multi_trace_spans(
+    rows: Vec<MessageSpanRow>,
+    constraints: order_graph::Constraints,
+) -> FeedResult {
     let trace_groups = group_and_sort_traces(rows);
 
     let mut accumulated = CrossTracePrefixState::default();
@@ -625,13 +679,12 @@ fn process_multi_trace_spans(rows: Vec<MessageSpanRow>) -> FeedResult {
             Some(&accumulated)
         };
 
-        let result = process_trace_spans_core(trace_rows, cross_trace_prefix);
+        let (result, transcript) = reconstruct_trace(trace_rows, cross_trace_prefix, constraints);
 
         // First trace always contributes. Subsequent traces contribute only if
         // they have new non-system content (pure replay traces are skipped).
         let has_new_content = trace_idx == 0
-            || result
-                .messages
+            || transcript
                 .iter()
                 .any(|b| b.role != super::types::ChatRole::System);
 
@@ -640,7 +693,9 @@ fn process_multi_trace_spans(rows: Vec<MessageSpanRow>) -> FeedResult {
             // The prefix scan matches these against input-source blocks in
             // subsequent traces, handling both root gen spans (where assistant
             // blocks survive) and non-root gen spans (where Phase 4b marks them).
-            for block in &result.messages {
+            // From the transcript, never from `result.messages`: what a later trace strips must not
+            // depend on how this one is presented.
+            for block in &transcript {
                 if block.role != super::types::ChatRole::System {
                     accumulated.push_block(block);
                 }

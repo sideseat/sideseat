@@ -48,8 +48,8 @@ use crate::api::routes::otel::messages::scope_feed_to_trace;
 use crate::data::types::MessageSpanRow;
 use crate::domain::pricing::PricingService;
 use crate::domain::sideml::feed::{
-    FeedOptions, extract_tools_from_rows, legacy_and_neutral_order, process_feed, process_spans,
-    shadow_resolved_order,
+    FeedOptions, extract_tools_from_rows, legacy_and_neutral_order, presented_and_unconstrained,
+    process_feed, process_spans, shadow_resolved_order,
 };
 use crate::domain::traces::extract::ExtractionMode;
 
@@ -2074,6 +2074,9 @@ fn shadow_resolver_is_a_permutation_of_the_survivors() {
 /// class is promoted. Checked here against the real pipeline: the message *set* of a view must not
 /// depend on the ordering constraints at all, because ordering is downstream of deduplication.
 ///
+/// Companion to `ordering_constraints_do_not_change_a_session_s_messages`, which covers the session
+/// path this one cannot.
+///
 /// Scope, deliberately stated: this covers the single-trace path only. Ordering and deduplication are
 /// *not* independent across traces - `process_multi_trace_spans` strips a session's repeated prefix by
 /// matching the previous trace's reconstructed sequence, so changing the order changes what is
@@ -2455,4 +2458,54 @@ fn probe_session_set() {
             b.content_hash
         );
     }
+}
+
+/// Changing only the presentation constraints must not change which messages a session returns.
+///
+/// The acceptance property of the ordering redesign, and it was false until the causal transcript was
+/// separated from the presented order: `process_multi_trace_spans` accumulated its cross-trace replay
+/// prefix from each trace's *finished, ordered* messages, and the next trace consumed it as a sequence.
+/// So promoting an ordering constraint changed what a later trace stripped - `adk/tool_use`'s session
+/// view gained five replayed messages, the previous turns' tool results re-appearing, purely because
+/// the presented sequence no longer lined up with what ADK replays.
+///
+/// Run over the whole row set of every fixture, so the multi-trace path is the one under test.
+#[test]
+fn ordering_constraints_do_not_change_a_session_s_messages() {
+    let mut checked = 0usize;
+    for (label, paths) in discover_fixtures() {
+        let rows: Vec<MessageSpanRow> = rows_for(&paths)
+            .into_iter()
+            .map(|(_, r)| r)
+            .filter(passes_content_filter)
+            .collect();
+        if rows.is_empty() {
+            continue;
+        }
+        let (presented, unconstrained) = presented_and_unconstrained(sorted_by_timestamp(rows));
+        let multiset = |blocks: &[crate::domain::sideml::feed::BlockEntry]| -> Vec<String> {
+            let mut out: Vec<String> = blocks
+                .iter()
+                .map(|b| {
+                    format!(
+                        "{}/{}/{}/{}",
+                        b.trace_id,
+                        b.role.as_str(),
+                        b.entry_type,
+                        b.content_hash
+                    )
+                })
+                .collect();
+            out.sort();
+            out
+        };
+        assert_eq!(
+            multiset(&presented),
+            multiset(&unconstrained),
+            "{label}: the ordering constraints changed which messages the session returns, so \
+             deduplication still depends on presentation"
+        );
+        checked += 1;
+    }
+    assert!(checked > 80, "only checked {checked} fixtures");
 }
