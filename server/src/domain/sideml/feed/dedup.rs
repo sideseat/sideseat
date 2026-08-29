@@ -1079,6 +1079,78 @@ impl BlockSortKey {
 /// handles content transformations (e.g., Vercel AI SDK's `toModelOutput`).
 /// History re-sends with regenerated IDs are handled upstream by Phase 7
 /// in `history.rs` (content_hash-based duplicate detection).
+/// Map an *id-less* tool result onto the identity of the id-bearing result it is a copy of.
+///
+/// Two signals both mean "the same result", and neither subsumes the other:
+///
+///   same id, different content   - Vercel's `toModelOutput` rewrites a result and keeps its id
+///   no id, same content          - a framework re-sends a past result without the provider's id
+///
+/// Keying identity on "the id when present, else the content" made those two copies two identities, so
+/// they never deduped against each other: ADK's session view showed each forecast twice, once with an
+/// id and once without, and the only thing suppressing that was the cross-trace prefix scan - which
+/// consumes a *sequence*, so any ordering change resurrected the duplicates.
+///
+/// The rule is deliberately asymmetric, because the symmetric closure is unsound. Unioning on content
+/// alone collapsed three `generate_image` results that carried three distinct ids and happened to
+/// return identical bytes: a provider issues one id per result, so two ids are two results, whatever
+/// their content. So an id *always* decides, and content only speaks for a result that has no id -
+/// and then only when it names exactly one id-bearing result. Content matching several is ambiguous,
+/// and ambiguity leaves the block alone, for the same reason an ambiguous call id adds no edge.
+///
+/// Scoped to one `(trace, ordinal)`: the ordinal is what keeps a model's two genuinely identical calls
+/// - and their two identical results - apart, so matching across it would undo that.
+fn tool_result_aliases(blocks: &[(usize, BlockEntry, u32)]) -> HashMap<DedupKey, MessageIdentity> {
+    /// A result of one (trace, ordinal), by content: which identities carry an id, and which do not.
+    type Group = (String, u32, u64);
+
+    let mut with_id: HashMap<Group, Vec<(String, MessageIdentity)>> = HashMap::new();
+    let mut without_id: HashMap<Group, Vec<MessageIdentity>> = HashMap::new();
+    for (_, block, ordinal) in blocks {
+        let ContentBlock::ToolResult {
+            tool_use_id,
+            name,
+            content,
+            is_error,
+        } = &block.content
+        else {
+            continue;
+        };
+        let group = (
+            block.trace_id.clone(),
+            *ordinal,
+            compute_tool_result_hash(name.as_deref(), *is_error, content),
+        );
+        let identity = MessageIdentity::from_block(block);
+        match tool_use_id.as_deref().filter(|id| !id.is_empty()) {
+            Some(id) => with_id
+                .entry(group)
+                .or_default()
+                .push((id.to_string(), identity)),
+            None => without_id.entry(group).or_default().push(identity),
+        }
+    }
+
+    let mut aliases: HashMap<DedupKey, MessageIdentity> = HashMap::new();
+    for (group, idless) in without_id {
+        let Some(candidates) = with_id.get(&group) else {
+            continue;
+        };
+        // Exactly one id-bearing result of this content, or the copy names nothing in particular.
+        let mut ids: Vec<&str> = candidates.iter().map(|(id, _)| id.as_str()).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        if ids.len() != 1 {
+            continue;
+        }
+        let canonical = candidates[0].1.clone();
+        for identity in idless {
+            aliases.insert((identity, group.1), canonical.clone());
+        }
+    }
+    aliases
+}
+
 /// The key an observation was collapsed under: its identity and the rank of its call within its
 /// response. Two identical tool calls of one response differ only in the rank.
 pub(super) type DedupKey = (MessageIdentity, u32);
@@ -1132,13 +1204,30 @@ fn deduplicate_with_lineage(
 
     let after_history_filter = blocks.len();
 
+    // A tool result's identity is the equivalence *closure* of two signals, because both are real and
+    // keying on either alone loses the other:
+    //
+    //   same id, different content   - Vercel's `toModelOutput` rewrites a result and keeps its id
+    //   no id, same content         - a framework re-sends a past result without the provider's id
+    //
+    // Keying on "id when present, else content" made those two copies two identities, so they never
+    // deduped against each other: ADK's session view showed each forecast twice, once with an id and
+    // once without, and the only thing suppressing that was the cross-trace prefix scan - which
+    // consumes a *sequence*, so any ordering change resurrected the duplicates. Identity has to close
+    // over both signals for the collapse to be order-independent.
+    //
+    // Scoped to one `(trace, ordinal)`: the ordinal is what keeps a model's two genuinely identical
+    // calls - and their two identical results - apart, so unioning across it would undo that.
+    let result_alias = tool_result_aliases(&blocks);
+
     // Identity-based dedup: non-history will win due to quality scoring.
-    // For tool results with tool_use_id, this collapses all versions
-    // (raw + transformed) into the highest quality one.
     let mut candidates: HashMap<DedupKey, (BlockEntry, u32)> = HashMap::new();
 
     for (input_index, block, ordinal) in blocks {
-        let identity = (MessageIdentity::from_block(&block), ordinal);
+        let identity = match result_alias.get(&(MessageIdentity::from_block(&block), ordinal)) {
+            Some(canonical) => (canonical.clone(), ordinal),
+            None => (MessageIdentity::from_block(&block), ordinal),
+        };
         let quality = compute_quality(&block);
         input_keys[input_index] = Some(identity.clone());
 
@@ -1520,6 +1609,73 @@ mod tests {
             is_history: false,
             tool_use_id_correlated: false,
         }
+    }
+
+    /// A framework re-sending a result without the provider's id is the same result.
+    ///
+    /// Identity keyed on "the id when present, else the content" made these two copies two identities,
+    /// so nothing collapsed them: ADK showed each forecast twice, once with an id and once without,
+    /// suppressed only by the order-sensitive cross-trace prefix scan.
+    #[test]
+    fn an_idless_result_is_the_same_result_as_its_id_bearing_copy() {
+        let span_timestamps = HashMap::new();
+        let with_id = make_tool_result_block("t1", "s1", "call_1", "Sunny, 22C", utc(100));
+        let mut without_id = make_tool_result_block("t1", "s1", "call_1", "Sunny, 22C", utc(200));
+        if let ContentBlock::ToolResult { tool_use_id, .. } = &mut without_id.content {
+            *tool_use_id = None;
+        }
+        without_id.tool_use_id = None;
+
+        let result = process_dedup(vec![with_id, without_id], span_timestamps);
+        assert_eq!(
+            result.len(),
+            1,
+            "an id-less re-send of a result is that result, not a second one: {:?}",
+            result.iter().map(|b| &b.content).collect::<Vec<_>>()
+        );
+    }
+
+    /// Content is only evidence where it names *one* result. Three calls that return identical bytes
+    /// are three results - a provider issues one id per result, so two ids are two results whatever
+    /// their content, and the symmetric closure over content collapsed all three of
+    /// `agent-framework/image_gen`'s generated images into one.
+    #[test]
+    fn identical_content_under_distinct_ids_stays_distinct() {
+        let span_timestamps = HashMap::new();
+        let blocks = vec![
+            make_tool_result_block("t1", "s1", "call_a", "same bytes", utc(100)),
+            make_tool_result_block("t1", "s1", "call_b", "same bytes", utc(101)),
+            make_tool_result_block("t1", "s1", "call_c", "same bytes", utc(102)),
+        ];
+        let result = process_dedup(blocks, span_timestamps);
+        assert_eq!(
+            result.len(),
+            3,
+            "three ids are three results, however identical their content"
+        );
+    }
+
+    /// And an id-less copy whose content matches several id-bearing results names none of them, so it
+    /// is left alone rather than attached to an arbitrary one.
+    #[test]
+    fn an_idless_result_matching_several_is_left_alone() {
+        let span_timestamps = HashMap::new();
+        let mut idless = make_tool_result_block("t1", "s1", "call_x", "same bytes", utc(103));
+        if let ContentBlock::ToolResult { tool_use_id, .. } = &mut idless.content {
+            *tool_use_id = None;
+        }
+        idless.tool_use_id = None;
+        let blocks = vec![
+            make_tool_result_block("t1", "s1", "call_a", "same bytes", utc(100)),
+            make_tool_result_block("t1", "s1", "call_b", "same bytes", utc(101)),
+            idless,
+        ];
+        let result = process_dedup(blocks, span_timestamps);
+        assert_eq!(
+            result.len(),
+            3,
+            "ambiguous content must not be attached to an arbitrary call"
+        );
     }
 
     fn utc(secs: i64) -> DateTime<Utc> {
