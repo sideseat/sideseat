@@ -2424,3 +2424,35 @@ fn probe_blocks() {
         );
     }
 }
+
+#[test]
+#[ignore]
+fn probe_session_set() {
+    let want = std::env::var("PROBE").unwrap_or_else(|_| "adk/tool_use".to_string());
+    let (_, paths) = discover_fixtures()
+        .into_iter()
+        .find(|(l, _)| *l == want)
+        .unwrap_or_else(|| panic!("fixture {want} not found"));
+    let rows: Vec<MessageSpanRow> = rows_for(&paths)
+        .into_iter()
+        .map(|(_, r)| r)
+        .filter(passes_content_filter)
+        .collect();
+    let msgs = process_spans(sorted_by_timestamp(rows), &FeedOptions::new()).messages;
+    eprintln!("SESSION {} messages", msgs.len());
+    for (i, b) in msgs.iter().enumerate() {
+        let c: String = format!("{:?}", b.content).chars().take(70).collect();
+        let id_tail = b
+            .tool_use_id
+            .as_deref()
+            .map(|s| s[s.len().saturating_sub(8)..].to_string())
+            .unwrap_or_else(|| "-".to_string());
+        eprintln!(
+            "{i:2} {:9} {:11} span={} id={id_tail} hash={} {c}",
+            b.role.as_str(),
+            b.entry_type,
+            &b.span_id[..8],
+            b.content_hash
+        );
+    }
+}
