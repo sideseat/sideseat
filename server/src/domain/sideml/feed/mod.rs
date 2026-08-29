@@ -111,8 +111,8 @@ use crate::domain::traces::{MessageSource, RawMessage};
 
 use classify::uses_span_end;
 use dedup::{
-    FeedPosition, SpanTimestamps, feed_positions, normalize_json_for_hash,
-    normalize_structured_json_for_hash, normalize_tool_result_content,
+    FeedPosition, SpanTimestamps, feed_positions, hash_json_into, hash_structured_json_into,
+    hash_tool_result_content_into,
 };
 use history::mark_history;
 
@@ -350,6 +350,59 @@ fn classify_span_blocks(
 /// The shadow resolver's order over one trace's blocks — the redesign's partial-order timeline,
 /// built from the same evidence and survivors production uses, but consumed by nothing yet. Tests
 /// assert it derives orders the scalar sort key gets wrong.
+/// Stage timings for one trace's pipeline, for the performance bench.
+#[cfg(test)]
+pub(crate) fn stage_timings(rows: Vec<MessageSpanRow>) -> Vec<(&'static str, std::time::Duration)> {
+    let mut out = Vec::new();
+    let t = std::time::Instant::now();
+    let span_hierarchy = build_span_hierarchy(&rows);
+    let span_timestamps = build_span_timestamps(&rows);
+    out.push(("  hierarchy+timestamps", t.elapsed()));
+
+    let t = std::time::Instant::now();
+    let mut parsed_messages = parse_span_rows(&rows);
+    out.push(("  parse_span_rows", t.elapsed()));
+
+    let t = std::time::Instant::now();
+    append_error_messages(&mut parsed_messages, &rows);
+    out.push(("  append_error_messages", t.elapsed()));
+
+    let t = std::time::Instant::now();
+    let mut blocks = flatten_to_blocks(parsed_messages, &span_hierarchy);
+    out.push(("  flatten_to_blocks", t.elapsed()));
+
+    let t = std::time::Instant::now();
+    correlate::correlate_tool_results(&mut blocks);
+    out.push(("  correlate", t.elapsed()));
+
+    let t = std::time::Instant::now();
+    classify_blocks(&mut blocks, &span_timestamps);
+    out.push(("  classify_blocks(history)", t.elapsed()));
+
+    let t = std::time::Instant::now();
+    let evidence = order_graph::collect_order_evidence(&blocks, &span_timestamps);
+    out.push(("collect_evidence", t.elapsed()));
+
+    let t = std::time::Instant::now();
+    let (survivors, lineage) = survivors_with_lineage(blocks, &span_timestamps);
+    out.push(("dedup+withdraw", t.elapsed()));
+
+    let t = std::time::Instant::now();
+    let resolved = order_graph::resolve(
+        &evidence,
+        &survivors,
+        &lineage,
+        &span_timestamps,
+        order_graph::Constraints::SCAFFOLD,
+    );
+    out.push(("resolve", t.elapsed()));
+
+    let t = std::time::Instant::now();
+    let _ = compute_metadata(&resolved, &rows);
+    out.push(("metadata", t.elapsed()));
+    out
+}
+
 /// The order before the resolver and the order the production scaffold produces, for the same rows.
 ///
 /// The two must be identical: that is what "the scaffold cannot move a block" means, and it has to be
@@ -359,7 +412,7 @@ pub(crate) fn legacy_and_scaffold_order(
     rows: Vec<MessageSpanRow>,
 ) -> (Vec<BlockEntry>, Vec<BlockEntry>) {
     let (blocks, span_timestamps) = classify_span_blocks(&rows, None);
-    let evidence = blocks.clone();
+    let evidence = order_graph::collect_order_evidence(&blocks, &span_timestamps);
     let (legacy, lineage) = survivors_with_lineage(blocks, &span_timestamps);
     let scaffold = order_graph::resolve(
         &evidence,
@@ -374,10 +427,10 @@ pub(crate) fn legacy_and_scaffold_order(
 #[cfg(test)]
 pub(crate) fn shadow_resolved_order(rows: Vec<MessageSpanRow>) -> Vec<BlockEntry> {
     let (blocks, span_timestamps) = classify_span_blocks(&rows, None);
-    let pre_dedup = blocks.clone();
+    let evidence = order_graph::collect_order_evidence(&blocks, &span_timestamps);
     let (survivors, lineage) = survivors_with_lineage(blocks, &span_timestamps);
     order_graph::resolve(
-        &pre_dedup,
+        &evidence,
         &survivors,
         &lineage,
         &span_timestamps,
@@ -416,7 +469,10 @@ fn process_trace_spans_core(
     // reads the *evidence*: the emission binding a turn's intro text to its call is on one span while
     // dedup may keep a re-listed copy of that text from another, and only the pre-dedup set says so.
     let (blocks, span_timestamps) = classify_span_blocks(&rows, cross_trace_prefix);
-    let evidence = blocks.clone();
+    // Reduced to what the resolver reads, from the borrowed slice: holding the blocks themselves
+    // would clone every message's content, which on a trace carrying base64 images dominates the
+    // whole request and is never read.
+    let evidence = order_graph::collect_order_evidence(&blocks, &span_timestamps);
 
     // Stages 5-6: Deduplicate by identity and sort by birth time, then stage 6.5, withdrawing a
     // correlated id whose call did not survive.
@@ -1504,7 +1560,7 @@ fn compute_block_hash(block: &ContentBlock) -> u64 {
             // Hash by name + normalized input only (not id)
             "tool_use".hash(&mut hasher);
             name.hash(&mut hasher);
-            normalize_json_for_hash(input).hash(&mut hasher);
+            hash_json_into(input, &mut hasher);
         }
         ContentBlock::ToolResult {
             name,
@@ -1521,7 +1577,7 @@ fn compute_block_hash(block: &ContentBlock) -> u64 {
             "tool_result".hash(&mut hasher);
             name.hash(&mut hasher);
             is_error.hash(&mut hasher);
-            normalize_tool_result_content(content).hash(&mut hasher);
+            hash_tool_result_content_into(content, &mut hasher);
         }
         ContentBlock::Thinking { text, .. } => {
             "thinking".hash(&mut hasher);
@@ -1569,7 +1625,7 @@ fn compute_block_hash(block: &ContentBlock) -> u64 {
         ContentBlock::Context { data, context_type } => {
             "context".hash(&mut hasher);
             context_type.hash(&mut hasher);
-            normalize_json_for_hash(data).hash(&mut hasher); // Sort keys for consistent hash
+            hash_json_into(data, &mut hasher); // canonical key order
         }
         ContentBlock::Refusal { message } => {
             "refusal".hash(&mut hasher);
@@ -1579,11 +1635,11 @@ fn compute_block_hash(block: &ContentBlock) -> u64 {
             "json".hash(&mut hasher);
             // Structured normalization: a schema-filled answer and the model's raw one are the
             // same answer. See normalize_structured_json_for_hash.
-            normalize_structured_json_for_hash(data).hash(&mut hasher);
+            hash_structured_json_into(data, &mut hasher);
         }
         ContentBlock::Unknown { raw } => {
             "unknown".hash(&mut hasher);
-            normalize_json_for_hash(raw).hash(&mut hasher); // Sort keys for consistent hash
+            hash_json_into(raw, &mut hasher); // canonical key order
         }
     }
 

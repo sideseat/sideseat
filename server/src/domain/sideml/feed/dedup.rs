@@ -290,7 +290,7 @@ pub(super) fn compute_tool_call_hash(name: &str, input: &serde_json::Value) -> u
     let mut hasher = DefaultHasher::new();
     "tool_call".hash(&mut hasher);
     name.hash(&mut hasher);
-    normalize_json_for_hash(input).hash(&mut hasher);
+    hash_json_into(input, &mut hasher);
     hasher.finish()
 }
 
@@ -305,7 +305,7 @@ fn compute_tool_result_hash(
     "tool_result".hash(&mut hasher);
     name.hash(&mut hasher);
     is_error.hash(&mut hasher);
-    normalize_tool_result_content(content).hash(&mut hasher);
+    hash_tool_result_content_into(content, &mut hasher);
     hasher.finish()
 }
 
@@ -341,6 +341,7 @@ pub(super) fn normalize_json_for_hash(value: &serde_json::Value) -> String {
 /// distinction only stops mattering once a schema has supplied the empty value itself.
 ///
 /// Only identity is affected: what the API returns is still the block's own content.
+#[cfg(test)]
 pub(super) fn normalize_structured_json_for_hash(value: &serde_json::Value) -> String {
     normalize_json(value, EmptyMembers::Drop)
 }
@@ -375,6 +376,115 @@ fn normalize_json(value: &serde_json::Value, empty: EmptyMembers) -> String {
     }
 }
 
+/// Feed a JSON value's canonical form to a hasher **without building it**.
+///
+/// The canonical form used to be materialised as a `String` - nested `format!` and `join` at every
+/// level - purely so it could be hashed. For a tool result carrying a base64 image that copies
+/// megabytes once per nesting level, and it happens twice per block (once in flatten, again in
+/// history marking), which was 620 ms of a 700 ms request on `vercel-ai-js/image-gen`.
+///
+/// The bytes differ from the old string form, so hash *values* differ; what matters is preserved,
+/// which is that equal content hashes equally and unequal content does not. Lengths are hashed
+/// alongside the members so that concatenation cannot make two different shapes agree.
+pub(super) fn hash_json_into<H: Hasher>(value: &serde_json::Value, hasher: &mut H) {
+    hash_json_streaming(value, EmptyMembers::Keep, hasher);
+}
+
+/// As [`hash_json_into`], but treating a member with no value as absent - see
+/// [`normalize_structured_json_for_hash`] for why that is right for a structured answer only.
+pub(super) fn hash_structured_json_into<H: Hasher>(value: &serde_json::Value, hasher: &mut H) {
+    hash_json_streaming(value, EmptyMembers::Drop, hasher);
+}
+
+fn hash_json_streaming<H: Hasher>(value: &serde_json::Value, empty: EmptyMembers, hasher: &mut H) {
+    use serde_json::Value as JsonValue;
+    // A per-kind tag, so a string cannot hash as the object whose rendering it matches.
+    match value {
+        JsonValue::Object(map) => {
+            0u8.hash(hasher);
+            let mut keys: Vec<&str> = map
+                .iter()
+                .filter(|(_, v)| empty == EmptyMembers::Keep || !is_empty_json_member(v))
+                .map(|(k, _)| k.as_str())
+                .collect();
+            keys.sort_unstable();
+            keys.len().hash(hasher);
+            for key in keys {
+                key.hash(hasher);
+                if let Some(member) = map.get(key) {
+                    hash_json_streaming(member, empty, hasher);
+                }
+            }
+        }
+        JsonValue::Array(arr) => {
+            1u8.hash(hasher);
+            arr.len().hash(hasher);
+            for item in arr {
+                hash_json_streaming(item, empty, hasher);
+            }
+        }
+        // The one that matters: hashed in place, never copied or escaped.
+        JsonValue::String(s) => {
+            2u8.hash(hasher);
+            s.hash(hasher);
+        }
+        JsonValue::Number(n) => {
+            3u8.hash(hasher);
+            n.to_string().hash(hasher);
+        }
+        JsonValue::Bool(b) => {
+            4u8.hash(hasher);
+            b.hash(hasher);
+        }
+        JsonValue::Null => 5u8.hash(hasher),
+    }
+}
+
+/// Feed a tool result's canonical form to a hasher, unwrapping the shapes frameworks wrap them in.
+///
+/// A tool result arrives wrapped differently per framework - a bare string, an array of content
+/// blocks, `{"json": ...}`, `{"type": "text", "text": ...}`, `{"type": "json", "data": ...}` - and two
+/// wrappings of one answer must hash alike. The array-with-text branch still builds its joined text,
+/// which is small by construction: the megabytes live in image blocks, which yield no text and so take
+/// the streaming JSON path.
+pub(super) fn hash_tool_result_content_into<H: Hasher>(
+    content: &serde_json::Value,
+    hasher: &mut H,
+) {
+    use serde_json::Value as JsonValue;
+    match content {
+        JsonValue::String(s) => s.trim().hash(hasher),
+        JsonValue::Array(arr) => {
+            let texts: Vec<String> = arr.iter().filter_map(extract_text_from_block).collect();
+            if texts.is_empty() {
+                hash_json_into(content, hasher);
+            } else {
+                texts.join("\n").trim().hash(hasher);
+            }
+        }
+        JsonValue::Object(obj) => {
+            if let Some(inner) = obj.get("json") {
+                return hash_json_into(inner, hasher);
+            }
+            if obj.get("type").and_then(|t| t.as_str()) == Some("text")
+                && let Some(text) = obj.get("text").and_then(|t| t.as_str())
+            {
+                return text.trim().hash(hasher);
+            }
+            if obj.get("type").and_then(|t| t.as_str()) == Some("json")
+                && let Some(data) = obj.get("data")
+            {
+                if let Some(json) = data.get("json") {
+                    return hash_json_into(json, hasher);
+                }
+                return hash_json_into(data, hasher);
+            }
+            hash_json_into(content, hasher)
+        }
+        _ => content.to_string().hash(hasher),
+    }
+}
+
 /// True for a value that carries no information: `null`, `""`, `[]`, `{}`, or a container whose
 /// every member is itself empty.
 fn is_empty_json_member(value: &serde_json::Value) -> bool {
@@ -385,48 +495,6 @@ fn is_empty_json_member(value: &serde_json::Value) -> bool {
         JsonValue::Array(arr) => arr.iter().all(is_empty_json_member),
         JsonValue::Object(map) => map.values().all(is_empty_json_member),
         _ => false,
-    }
-}
-
-/// Normalize tool result content to canonical form for hashing.
-/// Handles: string, array of blocks, object with nested json.
-pub(super) fn normalize_tool_result_content(content: &serde_json::Value) -> String {
-    use serde_json::Value as JsonValue;
-    match content {
-        JsonValue::String(s) => s.trim().to_string(),
-        JsonValue::Array(arr) => {
-            // Extract text from content blocks, join
-            let texts: Vec<String> = arr.iter().filter_map(extract_text_from_block).collect();
-            if texts.is_empty() {
-                // Fallback: normalize the array as JSON
-                normalize_json_for_hash(content)
-            } else {
-                texts.join("\n").trim().to_string()
-            }
-        }
-        JsonValue::Object(obj) => {
-            // Handle {"json": {...}} wrapper
-            if let Some(inner) = obj.get("json") {
-                return normalize_json_for_hash(inner);
-            }
-            // Handle {"type": "text", "text": "..."}
-            if obj.get("type").and_then(|t| t.as_str()) == Some("text")
-                && let Some(text) = obj.get("text").and_then(|t| t.as_str())
-            {
-                return text.trim().to_string();
-            }
-            // Handle {"type": "json", "data": {...}}
-            if obj.get("type").and_then(|t| t.as_str()) == Some("json")
-                && let Some(data) = obj.get("data")
-            {
-                if let Some(json) = data.get("json") {
-                    return normalize_json_for_hash(json);
-                }
-                return normalize_json_for_hash(data);
-            }
-            normalize_json_for_hash(content)
-        }
-        _ => content.to_string(),
     }
 }
 

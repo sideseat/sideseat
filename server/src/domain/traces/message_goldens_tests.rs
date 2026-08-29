@@ -2224,3 +2224,78 @@ fn the_feed_keeps_each_response_forward() {
         "expected the corpus to contain same-response call/result pairs, found {checked}"
     );
 }
+
+#[test]
+#[ignore]
+fn bench_pipeline() {
+    let want = std::env::var("BENCH").unwrap_or_else(|_| "langgraph/swarm".to_string());
+    let (_, paths) = discover_fixtures()
+        .into_iter()
+        .find(|(l, _)| *l == want)
+        .unwrap_or_else(|| panic!("fixture {want} not found"));
+    let rows: Vec<MessageSpanRow> = rows_for(&paths).into_iter().map(|(_, r)| r).collect();
+    let iterations: u32 = std::env::var("ITERS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(20);
+
+    // The harness has to hand the pipeline owned rows, and cloning a fixture whose payloads are
+    // base64 images costs more than the pipeline does - so it is measured and subtracted rather than
+    // reported as pipeline time. Production reads its rows from the database and never pays it.
+    let _ = process_spans(rows.clone(), &FeedOptions::new());
+    let clone_start = std::time::Instant::now();
+    for _ in 0..iterations {
+        std::hint::black_box(rows.clone());
+    }
+    let clone_cost = clone_start.elapsed() / iterations;
+
+    let start = std::time::Instant::now();
+    let mut blocks = 0usize;
+    for _ in 0..iterations {
+        blocks = process_spans(rows.clone(), &FeedOptions::new())
+            .messages
+            .len();
+    }
+    let elapsed = start.elapsed() / iterations;
+    eprintln!(
+        "BENCH {want}: {} rows -> {blocks} blocks, {:?} pipeline ({:?} measured - {:?} row clone),          {iterations} runs",
+        rows.len(),
+        elapsed.saturating_sub(clone_cost),
+        elapsed,
+        clone_cost
+    );
+    for (stage, took) in crate::domain::sideml::feed::stage_timings(rows) {
+        eprintln!("  STAGE {stage}: {took:?}");
+    }
+}
+
+#[test]
+#[ignore]
+fn probe_empty_traces() {
+    let want = std::env::var("PROBE").unwrap_or_else(|_| "langgraph/swarm".to_string());
+    let (_, paths) = discover_fixtures()
+        .into_iter()
+        .find(|(l, _)| *l == want)
+        .unwrap_or_else(|| panic!("fixture {want} not found"));
+    let rows = rows_for(&paths);
+    let mut lines = Vec::new();
+    for (name, row) in &rows {
+        let msg_len = row.messages_json.len();
+        let has = row.messages_json != "[]";
+        lines.push(format!(
+            "trace={} span={} name={name:?} obs={:?} msgs={} bytes={} tools={} tokens={}",
+            &row.trace_id[..8],
+            &row.span_id[..8],
+            row.observation_type,
+            has,
+            msg_len,
+            row.tool_definitions_json != "[]",
+            row.total_tokens,
+        ));
+    }
+    lines.sort();
+    eprintln!("{} rows", rows.len());
+    for l in lines.iter().take(40) {
+        eprintln!("{l}");
+    }
+}
