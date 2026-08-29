@@ -78,6 +78,52 @@
 //! re-sending, which no framework in the fixture suite provides. So a conversation that really
 //! ran the same tool twice with the same arguments shows it once.
 //!
+//! # Shape of the pipeline
+//!
+//! ```mermaid
+//! flowchart TD
+//!     rows[MessageSpanRow set<br/>one span per row] --> parse[parse_span_rows<br/>JSON to SideML]
+//!     parse --> flatten[flatten_to_blocks<br/>one BlockEntry per ContentBlock]
+//!     flatten --> corr[correlate_tool_results<br/>id-less result adopts its call's id]
+//!     corr --> classify[classify_blocks<br/>uses_span_end, then eight-phase history]
+//!     classify --> evidence[collect_order_evidence<br/>the facts the resolver reads]
+//!     classify --> dedup[process_dedup_with_lineage<br/>identity, quality, birth times]
+//!     dedup --> withdraw[withdraw_unbacked_ids]
+//!     withdraw --> resolve[order_graph::resolve<br/>partial order over units]
+//!     evidence -.observations.-> resolve
+//!     dedup -.lineage.-> resolve
+//!     resolve --> out[FeedResult]
+//! ```
+//!
+//! The dotted edges are why the pre-dedup stages are kept: the resolver places *survivors* using
+//! evidence from *every* observation, and the lineage is what connects the two. Neither can be
+//! re-derived afterwards - dedup collapses on a key carrying a call's rank across the whole input, and
+//! withdrawal changes identities and drops blocks.
+//!
+//! ## Ordering is not downstream of deduplication across traces
+//!
+//! Within one trace it is: dedup picks survivors, then the resolver orders them. Across traces of one
+//! session it is circular, and that is worth stating because it makes every ordering change riskier
+//! than it looks:
+//!
+//! ```mermaid
+//! flowchart LR
+//!     t1[trace 1<br/>reconstruct] --> p1[accumulated prefix<br/>role + content, in order]
+//!     p1 --> t2[trace 2<br/>mark re-sent prefix as history]
+//!     t2 --> d2[dedup keeps the genuine copy]
+//!     d2 --> o2[resolve orders trace 2]
+//!     o2 --> p2[prefix grows]
+//!     p2 --> t3[trace 3 ...]
+//! ```
+//!
+//! The prefix is accumulated from each trace's *finished, ordered* messages, and the next trace's scan
+//! consumes it as a sequence. So a change to presentation order changes what the next trace strips,
+//! which changes its message *set*: promoting the generation-dataflow constraint moved
+//! `adk/tool_use`'s session view from 24 messages to 29 by this route alone. A session's
+//! deduplication should not be a function of a sibling trace's presentation order; until that is
+//! separated, `promoted_constraints_do_not_change_which_messages_appear` can only hold the
+//! single-trace path.
+//!
 //! # Framework Compatibility
 //!
 //! Works for all frameworks without special cases:
