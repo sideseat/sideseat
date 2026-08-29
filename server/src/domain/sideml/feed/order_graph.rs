@@ -131,7 +131,7 @@ pub(super) fn collect_order_evidence(
                 credible: credible && !block.is_history,
                 span,
                 carrier,
-                carrier_ordered: semantics.position_provides_sequence_order,
+                carrier_ordered: semantics.position_provides_sequence_order && !block.is_history,
                 is_output: block.is_output_source(),
                 from_generation: block.is_generation_span(),
             }
