@@ -139,7 +139,22 @@ mod correlate_tests;
 /// with the same text and different call ids are two messages to dedup; withdraw both ids and
 /// they become one message reported twice, and dedup has already run. So anything that collapses
 /// only after withdrawal is collapsed here, in source order, keeping the first.
+/// The withdrawn blocks, discarding the remap. Production composes the remap into a lineage, so this
+/// remains for the tests that only assert on the blocks.
+#[cfg(test)]
 pub fn withdraw_unbacked_ids(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
+    withdraw_unbacked_ids_with_remap(blocks).0
+}
+
+/// Withdraw, and say where each block ended up.
+///
+/// `remap[i]` is the new index of the block that was at `i`, or `None` where it was collapsed away.
+/// This stage both mutates identities (clearing a withdrawn id) and drops blocks, so a caller holding
+/// a lineage from before it has to compose this remap onto it - index-based lineage would otherwise
+/// silently point at the wrong block from the first dropped duplicate onward.
+pub fn withdraw_unbacked_ids_with_remap(
+    blocks: Vec<BlockEntry>,
+) -> (Vec<BlockEntry>, Vec<Option<usize>>) {
     let mut blocks = blocks;
     let surviving: std::collections::HashSet<(&str, &str)> = blocks
         .iter()
@@ -166,7 +181,8 @@ pub fn withdraw_unbacked_ids(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
         .collect();
 
     if unbacked.is_empty() {
-        return blocks;
+        let remap = (0..blocks.len()).map(Some).collect();
+        return (blocks, remap);
     }
 
     for idx in unbacked {
@@ -191,6 +207,7 @@ pub fn withdraw_unbacked_ids(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
     // been created here.
     let mut seen: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
     let mut keep = Vec::with_capacity(blocks.len());
+    let mut remap = Vec::with_capacity(blocks.len());
     for block in blocks {
         let id_less_result = matches!(
             &block.content,
@@ -200,9 +217,11 @@ pub fn withdraw_unbacked_ids(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
             }
         );
         if id_less_result && !seen.insert((block.trace_id.clone(), block.content_hash.clone())) {
+            remap.push(None);
             continue;
         }
+        remap.push(Some(keep.len()));
         keep.push(block);
     }
-    keep
+    (keep, remap)
 }

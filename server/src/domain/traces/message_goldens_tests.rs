@@ -2120,3 +2120,51 @@ fn the_scaffold_reproduces_the_existing_order() {
         "expected the corpus to contribute many traces, only checked {checked}"
     );
 }
+
+/// Lineage must actually project the evidence, not merely avoid projecting it wrongly.
+///
+/// Two identical tool calls in one response share a `MessageIdentity` and both survive, keyed by their
+/// rank. Recomputing identities after dedup could not tell them apart, so their evidence was left
+/// unprojected - safe, but a gap, and `crewai/mcp_tools` is the corpus trace that has the pair. With a
+/// lineage the pair projects, so the resolver sees both calls' emissions.
+///
+/// Asserted as "the resolver's answer still holds every survivor, and the two calls are both there":
+/// projection is internal, so what is checked is the observable consequence.
+#[test]
+fn repeated_identical_calls_keep_both_and_stay_resolvable() {
+    let label = "crewai/mcp_tools";
+    let (_, paths) = discover_fixtures()
+        .into_iter()
+        .find(|(l, _)| l == label)
+        .unwrap_or_else(|| panic!("fixture {label} not found"));
+    let all: Vec<MessageSpanRow> = rows_for(&paths).into_iter().map(|(_, r)| r).collect();
+    let first = all[0].trace_id.clone();
+    let rows = sorted_by_timestamp(
+        all.into_iter()
+            .filter(|r| r.trace_id == first && passes_content_filter(r))
+            .collect(),
+    );
+
+    let (legacy, scaffold) = legacy_and_scaffold_order(rows.clone());
+    let calls = |blocks: &[crate::domain::sideml::feed::BlockEntry]| -> usize {
+        blocks.iter().filter(|b| b.entry_type == "tool_use").count()
+    };
+    assert!(
+        calls(&legacy) >= 2,
+        "this fixture is here because it has repeated identical calls, found {}",
+        calls(&legacy)
+    );
+    assert_eq!(
+        calls(&scaffold),
+        calls(&legacy),
+        "the resolver dropped or duplicated a call"
+    );
+
+    // And under FULL the answer is still every survivor, exactly once.
+    let full = shadow_resolved_order(rows);
+    assert_eq!(
+        full.len(),
+        legacy.len(),
+        "FULL resolve is not a permutation for a trace with repeated identical calls"
+    );
+}

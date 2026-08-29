@@ -44,7 +44,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 
-use super::dedup::{MessageIdentity, SpanTimestamps, effective_timestamp};
+use super::dedup::{SpanTimestamps, effective_timestamp};
 use super::types::BlockEntry;
 
 /// A survivor's contribution to an emission instance: `(message_index, entry_index, survivor)`.
@@ -175,6 +175,7 @@ impl Constraints {
 pub(super) fn resolve(
     pre_dedup: &[BlockEntry],
     survivors: &[BlockEntry],
+    lineage: &[Option<usize>],
     span_timestamps: &HashMap<String, SpanTimestamps>,
     constraints: Constraints,
 ) -> Vec<BlockEntry> {
@@ -183,39 +184,26 @@ pub(super) fn resolve(
         return survivors.to_vec();
     }
 
-    // Identity -> survivor index.
+    // Which survivor each observation became, as the pipeline recorded it - not recomputed here.
     //
-    // Survivors are *not* unique by `MessageIdentity`: dedup keys on `(identity, repeat ordinal)`, so
-    // a response holding two identical tool calls with distinct ids keeps both, and they share an
-    // identity. Collecting into a map silently kept the last, which projected the first call's
-    // evidence onto the second - `crewai/mcp_tools` is the one trace in the corpus that does this.
-    //
-    // Until dedup carries a lineage from each observation to the survivor it became, an ambiguous
-    // identity is left unprojected: contributing no evidence is a gap, while contributing it to the
-    // wrong survivor is a wrong answer. The same conservatism covers an identity that changed under
-    // `withdraw_unbacked_ids` after the evidence was captured.
-    let mut identity_counts: HashMap<MessageIdentity, usize> = HashMap::new();
-    for block in survivors {
-        *identity_counts
-            .entry(MessageIdentity::from_block(block))
-            .or_insert(0) += 1;
-    }
-    let survivor_of: HashMap<MessageIdentity, usize> = survivors
-        .iter()
-        .enumerate()
-        .filter(|(_, b)| identity_counts[&MessageIdentity::from_block(b)] == 1)
-        .map(|(i, b)| (MessageIdentity::from_block(b), i))
-        .collect();
+    // Recomputing was wrong twice over. Survivors are not unique by `MessageIdentity`, because dedup
+    // keys on `(identity, repeat ordinal)`: a response holding two identical tool calls with distinct
+    // ids keeps both, and one map entry then took the other's evidence (`crewai/mcp_tools` is the
+    // corpus trace that does this). And `withdraw_unbacked_ids` runs in between, clearing a
+    // correlated result's id - which changes its identity outright, so its evidence stopped matching
+    // anything at all.
+    let survivor_of =
+        |observation: usize| -> Option<usize> { lineage.get(observation).copied().flatten() };
 
     // Co-emission sets from the evidence: group credible-emission observations by instance, collect
     // the surviving identities in each, in source order. A block whose identity did not survive is
     // ignored - the unit is over survivors.
     let mut by_instance: HashMap<(String, String), Vec<EmissionMember>> = HashMap::new();
-    for block in pre_dedup {
+    for (observation, block) in pre_dedup.iter().enumerate() {
         let Some(instance) = emission_instance(block) else {
             continue;
         };
-        let Some(&survivor) = survivor_of.get(&MessageIdentity::from_block(block)) else {
+        let Some(survivor) = survivor_of(observation) else {
             continue;
         };
         by_instance.entry(instance).or_default().push((
@@ -303,11 +291,11 @@ pub(super) fn resolve(
             .or_insert(time);
     };
     let mut from_emission: HashMap<usize, DateTime<Utc>> = HashMap::new();
-    for block in pre_dedup {
+    for (observation, block) in pre_dedup.iter().enumerate() {
         if block.is_history || !is_credible_emission(block) {
             continue;
         }
-        let Some(&survivor) = survivor_of.get(&MessageIdentity::from_block(block)) else {
+        let Some(survivor) = survivor_of(observation) else {
             continue;
         };
         let time = effective_timestamp(block, span_timestamps);

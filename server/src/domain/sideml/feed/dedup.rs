@@ -1011,7 +1011,18 @@ impl BlockSortKey {
 /// handles content transformations (e.g., Vercel AI SDK's `toModelOutput`).
 /// History re-sends with regenerated IDs are handled upstream by Phase 7
 /// in `history.rs` (content_hash-based duplicate detection).
-fn deduplicate_blocks(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
+/// The key an observation was collapsed under: its identity and the rank of its call within its
+/// response. Two identical tool calls of one response differ only in the rank.
+pub(super) type DedupKey = (MessageIdentity, u32);
+
+/// Deduplicate, and say which key each input block and each survivor was collapsed under.
+///
+/// The keys are what a caller needs to trace an observation to the survivor it became. Recomputing an
+/// identity afterwards does not work: the rank is a property of the whole pre-dedup list, and
+/// `withdraw_unbacked_ids` later clears a correlated result's id, which changes its identity outright.
+fn deduplicate_with_lineage(
+    blocks: Vec<BlockEntry>,
+) -> (Vec<BlockEntry>, Vec<Option<DedupKey>>, Vec<DedupKey>) {
     use std::collections::HashSet;
 
     let input_count = blocks.len();
@@ -1032,10 +1043,15 @@ fn deduplicate_blocks(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
 
     // Filter: keep non-history blocks, and history blocks only if they have a non-history equivalent
     // This removes messages from previous turns that appear in history
-    let blocks: Vec<(BlockEntry, u32)> = blocks
+    //
+    // The input index rides along so each observation can be told which key it ended up under; a
+    // block dropped here has no key, which is what `None` in the lineage means.
+    let mut input_keys: Vec<Option<DedupKey>> = vec![None; input_count];
+    let blocks: Vec<(usize, BlockEntry, u32)> = blocks
         .into_iter()
         .zip(ordinals)
-        .filter(|(b, ordinal)| {
+        .enumerate()
+        .filter(|(_, (b, ordinal))| {
             if b.is_history {
                 // Keep history only if there's a non-history version to dedupe with
                 non_history_ids.contains(&(MessageIdentity::from_block(b), *ordinal))
@@ -1043,6 +1059,7 @@ fn deduplicate_blocks(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
                 true
             }
         })
+        .map(|(i, (b, ordinal))| (i, b, ordinal))
         .collect();
 
     let after_history_filter = blocks.len();
@@ -1050,11 +1067,12 @@ fn deduplicate_blocks(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
     // Identity-based dedup: non-history will win due to quality scoring.
     // For tool results with tool_use_id, this collapses all versions
     // (raw + transformed) into the highest quality one.
-    let mut candidates: HashMap<(MessageIdentity, u32), (BlockEntry, u32)> = HashMap::new();
+    let mut candidates: HashMap<DedupKey, (BlockEntry, u32)> = HashMap::new();
 
-    for (block, ordinal) in blocks {
+    for (input_index, block, ordinal) in blocks {
         let identity = (MessageIdentity::from_block(&block), ordinal);
         let quality = compute_quality(&block);
+        input_keys[input_index] = Some(identity.clone());
 
         candidates
             .entry(identity)
@@ -1067,13 +1085,17 @@ fn deduplicate_blocks(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
             .or_insert((block, quality));
     }
 
-    let mut result: Vec<_> = candidates.into_values().map(|(block, _)| block).collect();
+    // Survivors keep their key alongside them, so the sort below permutes both together.
+    let mut result: Vec<(BlockEntry, DedupKey)> = candidates
+        .into_iter()
+        .map(|(key, (block, _))| (block, key))
+        .collect();
 
     // HashMap iteration order is arbitrary, and the feed sort downstream has ties it
     // cannot break (same span, same timestamp, same indices). Leaving those ties to hash
     // order lets two identical requests return the message list in different orders.
     // Anchor it here so the pipeline is a pure function of its input.
-    result.sort_by(|a, b| {
+    result.sort_by(|(a, _), (b, _)| {
         a.trace_id
             .cmp(&b.trace_id)
             .then_with(|| a.span_id.cmp(&b.span_id))
@@ -1097,18 +1119,34 @@ fn deduplicate_blocks(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
         non_history_ids = non_history_ids.len(),
         after_history_filter,
         output = result.len(),
-        output_text = result.iter().filter(|b| b.entry_type == "text").count(),
+        output_text = result
+            .iter()
+            .filter(|(b, _)| b.entry_type == "text")
+            .count(),
         "deduplicate_blocks: complete"
     );
 
-    result
+    let (survivors, survivor_keys): (Vec<BlockEntry>, Vec<DedupKey>) = result.into_iter().unzip();
+    (survivors, input_keys, survivor_keys)
 }
 
 // ============================================================================
 // PUBLIC API
 // ============================================================================
 
-/// Process blocks through the deduplication and ordering pipeline.
+/// The ordered survivors, discarding the lineage.
+///
+/// Production wants the lineage - the order resolver reads it - so this remains for the tests that
+/// only assert on the blocks. See [`process_dedup_with_lineage`] for the pipeline itself.
+#[cfg(test)]
+pub fn process_dedup(
+    blocks: Vec<BlockEntry>,
+    span_timestamps: HashMap<String, SpanTimestamps>,
+) -> Vec<BlockEntry> {
+    process_dedup_with_lineage(blocks, span_timestamps).0
+}
+
+/// Deduplicate and order, and say for each input observation which surviving block it became.
 ///
 /// # Pipeline
 ///
@@ -1117,16 +1155,21 @@ fn deduplicate_blocks(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
 /// 3. Pre-compute birth times into Vec (O(n) — avoids O(n log n) recomputation in sort)
 /// 4. Sort by birth time + semantic order (using pre-computed times)
 /// 5. Materialize birth times into block timestamps for API clients
-pub fn process_dedup(
+///
+/// `lineage[i]` is the index in the returned list of the survivor observation `i` was collapsed onto,
+/// or `None` where the observation was dropped as history-only. The order resolver needs this to
+/// project evidence: it cannot recompute the mapping, because the dedup key carries a call's rank
+/// within the whole pre-dedup list, and two identical calls of one response share everything else.
+pub fn process_dedup_with_lineage(
     blocks: Vec<BlockEntry>,
     span_timestamps: HashMap<String, SpanTimestamps>,
-) -> Vec<BlockEntry> {
+) -> (Vec<BlockEntry>, Vec<Option<usize>>) {
     if blocks.is_empty() {
-        return blocks;
+        return (blocks, Vec::new());
     }
 
     // Deduplicate by identity (keeps highest quality version)
-    let deduped = deduplicate_blocks(blocks);
+    let (deduped, input_keys, survivor_keys) = deduplicate_with_lineage(blocks);
 
     // Build birth time map (after dedup, from deduped blocks)
     let birth_map = build_birth_times(&deduped, &span_timestamps);
@@ -1158,6 +1201,8 @@ pub fn process_dedup(
 
     // Paired with their birth times so a sort keeps the two together.
     let paired: Vec<(DateTime<Utc>, BlockEntry)> = birth_times.into_iter().zip(deduped).collect();
+    // Where each deduped block started, so the lineage can follow it through the sort below.
+    let dedup_order: Vec<usize> = (0..paired.len()).collect();
 
     // Sorted by an explicit key, not by a comparator with a special case.
     //
@@ -1174,9 +1219,10 @@ pub fn process_dedup(
     // Keyed once per block, not per comparison: `batch_key` allocates, and a comparator that
     // builds it on both sides does so O(n log n) times on a feed that can hold thousands of blocks.
     let times = batch_times(&paired);
-    let mut keyed: Vec<(BlockSortKey, DateTime<Utc>, BlockEntry)> = paired
+    let mut keyed: Vec<(BlockSortKey, DateTime<Utc>, BlockEntry, usize)> = paired
         .into_iter()
-        .map(|(birth, block)| {
+        .zip(dedup_order)
+        .map(|((birth, block), dedup_index)| {
             let span = (block.trace_id.clone(), block.span_id.clone());
             let key = BlockSortKey {
                 batch_time: times.get(&batch_key(&block)).copied().unwrap_or(birth),
@@ -1186,15 +1232,15 @@ pub fn process_dedup(
                 after_call: false,
                 content_hash: block.content_hash.clone(),
             };
-            (key, birth, block)
+            (key, birth, block, dedup_index)
         })
         .collect();
     // Positions come from the shared helper, so this view and the project feed agree on where a
     // cross-span tool result sits.
     let blocks_for_positions: Vec<BlockEntry> =
-        keyed.iter().map(|(_, _, block)| block.clone()).collect();
+        keyed.iter().map(|(_, _, block, _)| block.clone()).collect();
     let batch_times_by_index: Vec<DateTime<Utc>> =
-        keyed.iter().map(|(key, _, _)| key.batch_time).collect();
+        keyed.iter().map(|(key, _, _, _)| key.batch_time).collect();
     let positions = feed_positions(&blocks_for_positions, |i| batch_times_by_index[i]);
     for (key, position) in keyed.iter_mut().zip(positions) {
         key.0.span = position.span;
@@ -1202,13 +1248,28 @@ pub fn process_dedup(
         key.0.entry_index = position.entry_index;
         key.0.after_call = position.after_call;
     }
-    keyed.sort_by(|(a, _, _), (b, _, _)| a.compare(b));
+    keyed.sort_by(|(a, _, _, _), (b, _, _, _)| a.compare(b));
 
     // The response's time, not each block's own birth time, is what gets materialised - see the
     // note at the end of this function.
+    // The sort's permutation, as a map from the deduped index to the final one.
+    let mut final_of_dedup: Vec<usize> = vec![0; keyed.len()];
+    for (final_index, (_, _, _, dedup_index)) in keyed.iter().enumerate() {
+        final_of_dedup[*dedup_index] = final_index;
+    }
+    let final_of_key: HashMap<&DedupKey, usize> = survivor_keys
+        .iter()
+        .enumerate()
+        .map(|(dedup_index, key)| (key, final_of_dedup[dedup_index]))
+        .collect();
+    let lineage: Vec<Option<usize>> = input_keys
+        .iter()
+        .map(|key| key.as_ref().and_then(|k| final_of_key.get(k).copied()))
+        .collect();
+
     let paired: Vec<(DateTime<Utc>, BlockEntry)> = keyed
         .into_iter()
-        .map(|(key, _birth, block)| (key.batch_time, block))
+        .map(|(key, _birth, block, _)| (key.batch_time, block))
         .collect();
 
     // Materialize computed timestamps for API clients.
@@ -1223,7 +1284,7 @@ pub fn process_dedup(
     // text was timestamped at span end and whose tool call was timestamped at event time stopped
     // being one response, and a tool result timestamped between them was returned *before the call
     // it answers*. One response, one time.
-    paired
+    let blocks = paired
         .into_iter()
         .map(|(batch_time, mut block)| {
             // Two fields, one value: what the block sorts at, and what it reports. Equal today, so
@@ -1233,7 +1294,8 @@ pub fn process_dedup(
             block.timestamp = batch_time;
             block
         })
-        .collect()
+        .collect();
+    (blocks, lineage)
 }
 
 // ============================================================================
