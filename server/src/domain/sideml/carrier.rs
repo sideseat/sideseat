@@ -93,14 +93,23 @@ pub fn semantics_for(event: Option<&str>, attribute: Option<&str>) -> CarrierSem
         Some("input.value") | Some("output.value") | Some("message") | Some("messages") => {
             CarrierSemantics::ACCUMULATED_STATE
         }
-        // An explicit message array: a conversation as this span saw it.
+        // What this span *produced*: one response, in one payload. Ordered, its own, and two of
+        // anything in it are two - the same reading as `gen_ai.choice`, which is the event form of the
+        // same thing. Being an emission is what keeps a response's parts together: Vercel puts a
+        // turn's intro text and the tool calls it introduces in one `ai.response`, and reading that as
+        // a snapshot let the two be ordered independently, so the text sorted after its own calls.
+        Some(key)
+            if key.starts_with("gen_ai.output.messages")
+                || key.starts_with("llm.output_messages")
+                || key.starts_with("ai.response") =>
+        {
+            CarrierSemantics::EMISSION
+        }
+        // What this span *received*: a conversation as it saw it, which may re-state earlier turns.
         Some(key)
             if key.starts_with("gen_ai.input.messages")
-                || key.starts_with("gen_ai.output.messages")
                 || key.starts_with("llm.input_messages")
-                || key.starts_with("llm.output_messages")
-                || key.starts_with("ai.prompt")
-                || key.starts_with("ai.response") =>
+                || key.starts_with("ai.prompt") =>
         {
             CarrierSemantics::SNAPSHOT
         }
