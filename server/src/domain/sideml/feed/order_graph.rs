@@ -262,8 +262,16 @@ impl Constraints {
     ///
     /// Not yet promoted, with what each does to the corpus, measured:
     ///
-    /// - `time_priority`: needs auditing on ADK, where two system prompts of different turns become
-    ///   adjacent, and on the Claude Agent SDK, where a user turn moves eight positions later.
+    /// - `time_priority`: blocked on the emission-instance key. An instance is `(span, position-path
+    ///   root)`, so it holds one payload - but Vercel spreads one response across *sibling attributes*
+    ///   (`ai.response.text` beside `ai.response.toolCalls`), which are different roots and so
+    ///   different instances. Contraction therefore cannot hold that response together, and promoting
+    ///   time alone displaces its intro text behind its own calls, which is the defect promotion 1
+    ///   fixed for Strands. It needs an instance notion that spans the sibling attributes of one
+    ///   response before it can be promoted. Measured with contraction already on: 3 fixtures change,
+    ///   `vercel-ai-js/image-gen` and `vercel-ai-js/tool-use` for the worse; `agent-framework/swarm`
+    ///   for the better, interleaving each specialist's system prompt with its own answer instead of
+    ///   listing all prompts first.
     /// - `enforce_backward_edges`: moves `adk/tool_use`; needed before any edge class can *correct* an
     ///   order rather than only agree with one.
     /// - `generation_dataflow_edges`: removes every reorder that blocks `PerCarrier` extraction, which
