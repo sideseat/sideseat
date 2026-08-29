@@ -112,7 +112,7 @@ use crate::domain::traces::{MessageSource, RawMessage};
 use classify::uses_span_end;
 use dedup::{
     FeedPosition, SpanTimestamps, feed_positions, normalize_json_for_hash,
-    normalize_structured_json_for_hash, normalize_tool_result_content, process_dedup,
+    normalize_structured_json_for_hash, normalize_tool_result_content,
 };
 use history::mark_history;
 
@@ -360,11 +360,11 @@ pub(crate) fn legacy_and_scaffold_order(
 ) -> (Vec<BlockEntry>, Vec<BlockEntry>) {
     let (blocks, span_timestamps) = classify_span_blocks(&rows, None);
     let evidence = blocks.clone();
-    let legacy =
-        correlate::withdraw_unbacked_ids(dedup::process_dedup(blocks, span_timestamps.clone()));
+    let (legacy, lineage) = survivors_with_lineage(blocks, &span_timestamps);
     let scaffold = order_graph::resolve(
         &evidence,
         &legacy,
+        &lineage,
         &span_timestamps,
         order_graph::Constraints::SCAFFOLD,
     );
@@ -375,14 +375,33 @@ pub(crate) fn legacy_and_scaffold_order(
 pub(crate) fn shadow_resolved_order(rows: Vec<MessageSpanRow>) -> Vec<BlockEntry> {
     let (blocks, span_timestamps) = classify_span_blocks(&rows, None);
     let pre_dedup = blocks.clone();
-    let survivors = dedup::process_dedup(blocks, span_timestamps.clone());
-    let survivors = correlate::withdraw_unbacked_ids(survivors);
+    let (survivors, lineage) = survivors_with_lineage(blocks, &span_timestamps);
     order_graph::resolve(
         &pre_dedup,
         &survivors,
+        &lineage,
         &span_timestamps,
         order_graph::Constraints::FULL,
     )
+}
+
+/// Dedup and withdrawal, with a lineage from each pre-dedup observation to the block it became.
+///
+/// Both stages change the mapping and neither can be inverted afterwards: dedup collapses on a key
+/// that carries a call's rank across the whole input, and withdrawal clears ids *and* drops blocks. So
+/// the two remaps are composed here, once, for every caller that needs to trace evidence.
+fn survivors_with_lineage(
+    blocks: Vec<BlockEntry>,
+    span_timestamps: &HashMap<String, SpanTimestamps>,
+) -> (Vec<BlockEntry>, Vec<Option<usize>>) {
+    let (blocks, dedup_lineage) =
+        dedup::process_dedup_with_lineage(blocks, span_timestamps.clone());
+    let (blocks, withdrawal_remap) = correlate::withdraw_unbacked_ids_with_remap(blocks);
+    let lineage = dedup_lineage
+        .into_iter()
+        .map(|survivor| survivor.and_then(|s| withdrawal_remap.get(s).copied().flatten()))
+        .collect();
+    (blocks, lineage)
 }
 
 fn process_trace_spans_core(
@@ -399,17 +418,18 @@ fn process_trace_spans_core(
     let (blocks, span_timestamps) = classify_span_blocks(&rows, cross_trace_prefix);
     let evidence = blocks.clone();
 
-    // Stages 5-6: Deduplicate by identity, sort by birth time
-    let blocks = process_dedup(blocks, span_timestamps.clone());
-
-    // Stage 6.5: Withdraw a correlated id whose call did not survive.
+    // Stages 5-6: Deduplicate by identity and sort by birth time, then stage 6.5, withdrawing a
+    // correlated id whose call did not survive.
     //
-    // Correlation only ever links to a call in the same block list, but dedup and history
-    // marking can drop that call afterwards - leaving the result pointing at something the
-    // response does not contain. Clearing the id restores "honestly uncorrelated"; keeping the
-    // block, because the result's content is real either way. Only correlated ids are withdrawn:
-    // a provider's own id may legitimately reference a call outside the requested scope.
-    let blocks = correlate::withdraw_unbacked_ids(blocks);
+    // Correlation only ever links to a call in the same block list, but dedup and history marking can
+    // drop that call afterwards - leaving the result pointing at something the response does not
+    // contain. Clearing the id restores "honestly uncorrelated"; keeping the block, because the
+    // result's content is real either way. Only correlated ids are withdrawn: a provider's own id may
+    // legitimately reference a call outside the requested scope.
+    //
+    // The two run together because the resolver below needs the *lineage* across both: each says which
+    // block an observation became, and neither mapping can be re-derived afterwards.
+    let (blocks, lineage) = survivors_with_lineage(blocks, &span_timestamps);
 
     // Stage 6.6: Resolve the order as a partial order rather than a scalar key.
     //
@@ -420,6 +440,7 @@ fn process_trace_spans_core(
     let blocks = order_graph::resolve(
         &evidence,
         &blocks,
+        &lineage,
         &span_timestamps,
         order_graph::Constraints::SCAFFOLD,
     );
