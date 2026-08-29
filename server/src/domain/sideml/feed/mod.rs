@@ -1562,30 +1562,25 @@ fn extract_tool_name_from_block(block: &ContentBlock) -> Option<String> {
     }
 }
 
-/// Hash binary content robustly for deduplication.
+/// Hash binary content for deduplication - all of it.
 ///
-/// Instead of just the first N bytes (which could miss differences),
-/// we hash: length + first chunk + last chunk. This catches:
-/// - Different file sizes (length differs)
-/// - Different headers (first chunk differs)
-/// - Different content/endings (last chunk differs)
+/// This used to hash the length plus the first and last 128 bytes, which is not a digest but a
+/// sample: two assets of the same size whose first and last 128 bytes agree are *deterministically*
+/// identical to dedup, so one of them silently disappears from the feed. Three images generated from
+/// one prompt in one turn are exactly that shape - same encoder, same dimensions, same header and
+/// trailer - and every invariant in the suite still passes, because one image vanishing is
+/// indistinguishable from a framework that only reported two.
+///
+/// Hashing the whole payload is what makes identity mean identity. It is affordable because nothing
+/// here allocates: the bytes go straight into the hasher, at gigabytes per second, and a content hash
+/// is computed once per block rather than once per comparison.
 #[inline]
 fn hash_binary_content<H: std::hash::Hasher>(data: &[u8], hasher: &mut H) {
     use std::hash::Hash;
 
-    const CHUNK_SIZE: usize = 128;
-
-    // Always hash length - different sizes = different content
+    // Length first, so that appending to a payload cannot collide with the payload itself.
     data.len().hash(hasher);
-
-    if data.len() <= CHUNK_SIZE * 2 {
-        // Small data: hash everything
-        data.hash(hasher);
-    } else {
-        // Large data: hash first + last chunks
-        data[..CHUNK_SIZE].hash(hasher);
-        data[data.len() - CHUNK_SIZE..].hash(hasher);
-    }
+    hasher.write(data);
 }
 
 /// Compute a hash for a content block.
