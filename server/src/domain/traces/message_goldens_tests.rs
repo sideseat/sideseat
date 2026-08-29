@@ -2168,3 +2168,59 @@ fn repeated_identical_calls_keep_both_and_stay_resolvable() {
         "FULL resolve is not a permutation for a trace with repeated identical calls"
     );
 }
+
+/// The feed is newest-first by *response*, and forward inside one.
+///
+/// The whole-view causality invariant is exempt for the feed, and correctly so: a call in one response
+/// and the result in the next legitimately appear reversed there. But *within* a response the feed is
+/// forward, and that is the property that lets the order resolver reach this view - the feed takes each
+/// response's internal order from the reconstruction instead of re-deriving it from positions, so any
+/// ordering the resolver improves shows up here too rather than only in the chronological views.
+///
+/// Checked as: a call and the result answering it, when they share a response, appear in that order.
+#[test]
+fn the_feed_keeps_each_response_forward() {
+    let mut checked = 0usize;
+    for (label, paths) in discover_fixtures() {
+        let rows: Vec<MessageSpanRow> = rows_for(&paths).into_iter().map(|(_, r)| r).collect();
+        if rows.is_empty() {
+            continue;
+        }
+        let feed = process_feed(rows, &FeedOptions::new()).messages;
+
+        // Where each call sits, per response.
+        type Response = (String, chrono::DateTime<chrono::Utc>);
+        let mut calls: HashMap<(Response, String), usize> = HashMap::new();
+        for (index, block) in feed.iter().enumerate() {
+            if block.entry_type != "tool_use" {
+                continue;
+            }
+            if let Some(id) = block.tool_use_id.as_deref().filter(|s| !s.is_empty()) {
+                let response = (block.trace_id.clone(), block.order_time);
+                calls.entry((response, id.to_string())).or_insert(index);
+            }
+        }
+        for (index, block) in feed.iter().enumerate() {
+            if block.entry_type != "tool_result" {
+                continue;
+            }
+            let Some(id) = block.tool_use_id.as_deref().filter(|s| !s.is_empty()) else {
+                continue;
+            };
+            let response = (block.trace_id.clone(), block.order_time);
+            let Some(&call_index) = calls.get(&(response, id.to_string())) else {
+                continue; // the call is in another response - the feed may show that reversed
+            };
+            assert!(
+                call_index < index,
+                "{label}: within one response the feed put result {id} at {index} before its call \
+                 at {call_index} - the response is not forward"
+            );
+            checked += 1;
+        }
+    }
+    assert!(
+        checked > 10,
+        "expected the corpus to contain same-response call/result pairs, found {checked}"
+    );
+}
