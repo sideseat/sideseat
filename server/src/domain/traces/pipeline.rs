@@ -439,12 +439,20 @@ impl TracePipeline {
         // Build SSE events before write (captures span metadata)
         let sse_events: Vec<SseSpanEvent> = all_db_spans.iter().map(SseSpanEvent::from).collect();
 
-        // DuckDB write + file persistence in parallel, SSE after both complete
-        let (db_ok, _) = tokio::join!(write_to_duckdb(all_db_spans, &self.analytics), async {
-            if !all_pending_files.is_empty() {
-                persist_extracted_files(all_pending_files, &self.file_service).await;
-            }
-        });
+        // Files first, then the rows that reference them.
+        //
+        // These used to run under one `tokio::join!`, which is faster and admits a state the reader
+        // cannot recover from: a span row committed with a `#!B64!#` reference to a file whose write
+        // failed. Writing the referenced object before the reference makes that impossible - the
+        // remaining failure mode is an orphaned file, which is reclaimable and invisible to a reader.
+        //
+        // The cost is their sum rather than their maximum. Worth it: parity between the analytics
+        // backends proves they *agree*, never that either faithfully represents the OTLP input, so a
+        // dangling reference is a class of corruption no read-side test can catch.
+        if !all_pending_files.is_empty() {
+            persist_extracted_files(all_pending_files, &self.file_service).await;
+        }
+        let db_ok = write_to_duckdb(all_db_spans, &self.analytics).await;
 
         let t_persist_done = std::time::Instant::now();
 
