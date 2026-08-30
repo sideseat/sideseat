@@ -245,48 +245,118 @@ struct ParsedMessage {
     observation_type: Option<String>,
 }
 
-/// Incremental cross-trace prefix state for replay stripping.
+/// What earlier traces of this session already showed, as a relation rather than a sequence.
 ///
-/// Stores an ordered prefix plus an index for O(log n) next-position lookup.
+/// A framework re-sends the conversation so far as the input of its next turn, and the same turn does
+/// not come back in the order it was emitted: a provider serialises a turn's *parallel* tool calls into
+/// a linear message list, so `call, call, result, result` is replayed as `call, result, call, result`.
+/// Matching that against a stored linearisation with one forward cursor reads as a mismatch at the
+/// second call - and since a mismatch ends the prefix, everything after it leaks. `adk/tool_use` is the
+/// corpus witness: its second trace re-executes the first turn, and the session view showed that turn
+/// twice, the second time in the provider's order.
+///
+/// So the prefix is stored as each prior trace's *precedence relation* plus the occurrences it holds,
+/// and a replay is accepted when it is some linear extension of that relation - which is what a
+/// provider's serialisation is. Injectively: each replayed block consumes one distinct prior
+/// occurrence, so a turn holding two identical calls is matched by two, never twice by one.
+///
+/// Across traces the relation is the trace order itself. Traces of a session are successive turns, so a
+/// replay listing turn 2's messages before turn 1's is not a linear extension of anything - and using
+/// the sequence there costs nothing, because history is replayed in order between turns even when it is
+/// reordered within one.
 #[derive(Debug, Default)]
 struct CrossTracePrefixState {
-    len: usize,
-    positions_by_role: HashMap<super::types::ChatRole, HashMap<String, Vec<usize>>>,
+    entries: Vec<PriorOccurrence>,
+    /// Where each `(role, content hash)` occurs among the entries, so a candidate lookup does not scan.
+    by_identity: HashMap<(super::types::ChatRole, String), Vec<usize>>,
+    /// One relation per contributing trace, indexed by that trace's transcript position.
+    relations: Vec<order_graph::Precedence>,
+}
+
+/// One occurrence an earlier trace established, and where to find it in that trace's relation.
+#[derive(Debug)]
+struct PriorOccurrence {
+    trace: usize,
+    /// Index into the trace's transcript, which is what its `Precedence` is indexed by.
+    position: usize,
+}
+
+/// A prior occurrence a replay has already claimed, kept so later blocks can be checked against it.
+struct MatchedPrior {
+    entry: usize,
 }
 
 impl CrossTracePrefixState {
     #[inline]
     fn is_empty(&self) -> bool {
-        self.len == 0
+        self.entries.is_empty()
     }
 
     #[inline]
     fn len(&self) -> usize {
-        self.len
+        self.entries.len()
     }
 
-    /// Add a block to accumulated cross-trace prefix history.
-    fn push_block(&mut self, block: &BlockEntry) {
-        let idx = self.len;
-        self.len += 1;
-        self.positions_by_role
-            .entry(block.role)
-            .or_default()
-            .entry(block.content_hash.clone())
-            .or_default()
-            .push(idx);
+    /// Add a trace's transcript and the relation the resolver derived over it.
+    ///
+    /// System blocks are skipped: a system prompt is per-trace framing that every turn re-sends, so it
+    /// is not evidence of history and matching it would consume a prefix entry for nothing.
+    fn push_trace(&mut self, transcript: &[BlockEntry], relation: order_graph::Precedence) {
+        let trace = self.relations.len();
+        self.relations.push(relation);
+        for (position, block) in transcript.iter().enumerate() {
+            if block.role == super::types::ChatRole::System {
+                continue;
+            }
+            let entry = self.entries.len();
+            self.entries.push(PriorOccurrence { trace, position });
+            self.by_identity
+                .entry((block.role, block.content_hash.clone()))
+                .or_default()
+                .push(entry);
+        }
     }
 
-    /// Find first accumulated position >= `min_index` for `(role, content_hash)`.
-    fn next_position(
+    /// The earliest unconsumed prior occurrence of this identity that the replay's order permits.
+    ///
+    /// "Permits" is the linear-extension test, and it is the whole difference from a cursor. A candidate
+    /// is rejected only when the evidence says it must come *before* something the replay already
+    /// matched - so a call and an unrelated result, which nothing orders, may arrive either way round.
+    fn next_match(
         &self,
         role: super::types::ChatRole,
         content_hash: &str,
-        min_index: usize,
+        matched: &[MatchedPrior],
+        must_precede: &HashMap<usize, HashSet<u32>>,
+        min_trace: usize,
     ) -> Option<usize> {
-        let positions = self.positions_by_role.get(&role)?.get(content_hash)?;
-        let rel = positions.partition_point(|&idx| idx < min_index);
-        positions.get(rel).copied()
+        let candidates = self.by_identity.get(&(role, content_hash.to_string()))?;
+        candidates
+            .iter()
+            .copied()
+            .find(|&entry| self.candidate_is_permitted(entry, matched, must_precede, min_trace))
+    }
+
+    fn candidate_is_permitted(
+        &self,
+        entry: usize,
+        matched: &[MatchedPrior],
+        must_precede: &HashMap<usize, HashSet<u32>>,
+        min_trace: usize,
+    ) -> bool {
+        if matched.iter().any(|m| m.entry == entry) {
+            return false; // injective: one prior occurrence answers for one replayed block
+        }
+        let candidate = &self.entries[entry];
+        if candidate.trace < min_trace {
+            return false; // a later turn's message cannot be replayed before an earlier turn's
+        }
+        // Would taking this candidate claim an order the evidence contradicts? It would exactly when the
+        // candidate must precede something the replay has already matched.
+        match must_precede.get(&candidate.trace) {
+            Some(ancestors) => !ancestors.contains(&(candidate.position as u32)),
+            None => true,
+        }
     }
 }
 
@@ -326,7 +396,7 @@ fn process_spans_unfiltered_with(
     if is_multi_trace {
         process_multi_trace_spans(rows, constraints)
     } else {
-        reconstruct_trace(rows, None, constraints).0
+        reconstruct_trace(rows, None, constraints, false).0
     }
 }
 
@@ -568,6 +638,7 @@ fn process_trace_spans_core(
         rows,
         cross_trace_prefix,
         order_graph::Constraints::PRODUCTION,
+        false,
     )
     .0
 }
@@ -585,7 +656,8 @@ fn reconstruct_trace(
     rows: Vec<MessageSpanRow>,
     cross_trace_prefix: Option<&CrossTracePrefixState>,
     constraints: order_graph::Constraints,
-) -> (FeedResult, Vec<BlockEntry>) {
+    needs_replay_relation: bool,
+) -> (FeedResult, Vec<BlockEntry>, order_graph::Precedence) {
     // Extract tools from all rows
     let extracted_tools = extract_tools_from_rows(&rows);
 
@@ -621,6 +693,15 @@ fn reconstruct_trace(
     // The transcript: survivors as reconstruction established them, before any presentation choice.
     let transcript = blocks.clone();
 
+    // The relation a following trace matches its replay against, over the *pre-resolve* survivors -
+    // which is what the transcript is. Built only when a later trace can use it: for a single-trace
+    // request nothing ever asks.
+    let replay_relation = if needs_replay_relation {
+        order_graph::causal_precedence(&evidence, &blocks, &lineage)
+    } else {
+        order_graph::Precedence::default()
+    };
+
     let blocks = order_graph::resolve(&evidence, &blocks, &lineage, &span_timestamps, constraints);
 
     // Debug: Log block counts after dedup
@@ -650,6 +731,7 @@ fn reconstruct_trace(
             metadata,
         },
         transcript,
+        replay_relation,
     )
 }
 
@@ -684,7 +766,11 @@ fn process_multi_trace_spans(
     let mut total_tokens: i64 = 0;
     let mut total_cost: f64 = 0.0;
 
+    let trace_count = trace_groups.len();
     for (trace_idx, trace_rows) in trace_groups.into_iter().enumerate() {
+        // The last trace's relation is never consulted, and building one is a second graph over the
+        // whole trace.
+        let more_traces_follow = trace_idx + 1 < trace_count;
         // Once per span, not once per row, for the same reason `compute_metadata` does it: a
         // re-ingested span is two rows in the DuckDB row set (that query reads the raw table,
         // ClickHouse reads it with FINAL), and summing rows billed the retry as a second call.
@@ -708,7 +794,12 @@ fn process_multi_trace_spans(
             Some(&accumulated)
         };
 
-        let (result, transcript) = reconstruct_trace(trace_rows, cross_trace_prefix, constraints);
+        let (result, transcript, relation) = reconstruct_trace(
+            trace_rows,
+            cross_trace_prefix,
+            constraints,
+            more_traces_follow,
+        );
 
         // First trace always contributes. Subsequent traces contribute only if
         // they have new non-system content (pure replay traces are skipped).
@@ -718,17 +809,10 @@ fn process_multi_trace_spans(
                 .any(|b| b.role != super::types::ChatRole::System);
 
         if has_new_content {
-            // Accumulate role-aware prefix entries from all non-System blocks.
-            // The prefix scan matches these against input-source blocks in
-            // subsequent traces, handling both root gen spans (where assistant
-            // blocks survive) and non-root gen spans (where Phase 4b marks them).
-            // From the transcript, never from `result.messages`: what a later trace strips must not
-            // depend on how this one is presented.
-            for block in &transcript {
-                if block.role != super::types::ChatRole::System {
-                    accumulated.push_block(block);
-                }
-            }
+            // From the transcript and its relation, never from `result.messages`: what a later trace
+            // strips must not depend on how this one is presented, and the relation is exactly the part
+            // a linearisation throws away.
+            accumulated.push_trace(&transcript, relation);
             all_blocks.extend(result.messages);
             all_tool_defs.extend(result.tool_definitions);
             all_tool_names.extend(result.tool_names);
@@ -763,7 +847,7 @@ fn process_multi_trace_spans(
     }
 }
 
-/// Mark input-source blocks matching the accumulated cross-trace prefix as history.
+/// Mark input-source blocks that replay what earlier traces already showed.
 ///
 /// Runs BEFORE `classify_blocks` (before Phase 4b and Phase 7) so that:
 /// - Phase 7 (duplicate detection) sees the marked copies as history and skips them,
@@ -772,11 +856,13 @@ fn process_multi_trace_spans(
 ///
 /// # Algorithm
 ///
-/// 1. **Guard**: If there are no attribute-sourced input blocks, skip.
-///    Event-based frameworks (Strands) should remain independent across traces.
-/// 2. **Per-span sequential scan**: For each span, iterate input-source blocks
-///    in order, matching against accumulated prefix entries. Mark matches as
-///    history. Stop at first non-match for that span.
+/// 1. **Guard**: if there are no attribute-sourced input blocks, skip. Event-based frameworks (Strands
+///    Python) keep original timestamps, so Phase 2 handles their history within each trace and they
+///    stay trace-independent.
+/// 2. **Per-span injective match**: for each span, walk its strippable input blocks in payload order and
+///    match each against a distinct prior occurrence whose position the relation permits (see
+///    [`CrossTracePrefixState`]). Stop at the first block nothing matches - past that point the span is
+///    sending new content, not history.
 fn mark_cross_trace_prefix(blocks: &mut [BlockEntry], accumulated: &CrossTracePrefixState) {
     if accumulated.is_empty() {
         return;
@@ -799,49 +885,54 @@ fn mark_cross_trace_prefix(blocks: &mut [BlockEntry], accumulated: &CrossTracePr
         return;
     }
 
-    // Sequential prefix match per span on strippable input blocks.
-    // Since this runs before any history marking, no blocks are is_history yet.
-    let mut acc_idx = 0;
     let mut current_span_id: Option<String> = None;
     let mut span_prefix_active = true;
+    // Per span, because each generation span of a trace replays the history independently - ADK and
+    // LangGraph re-send it at the start of every one, not only at the trace's start.
+    let mut matched: Vec<MatchedPrior> = Vec::new();
+    let mut must_precede: HashMap<usize, HashSet<u32>> = HashMap::new();
+    let mut min_trace = 0usize;
     let mut marked = 0;
-    let mut skipped = 0;
     let mut spans_scanned = 0;
     for block in blocks.iter_mut() {
-        // Prefix scan resets at each span boundary. ADK/LangGraph often replay
-        // history at the start of every generation span, not just trace start.
         if current_span_id.as_deref() != Some(block.span_id.as_str()) {
             current_span_id = Some(block.span_id.clone());
-            acc_idx = 0;
             span_prefix_active = true;
+            matched.clear();
+            must_precede.clear();
+            min_trace = 0;
             spans_scanned += 1;
         }
-        if acc_idx >= accumulated.len() || !span_prefix_active {
+        if !span_prefix_active || !is_strippable(block) {
             continue;
         }
-        let strippable = (block.is_input_source() && block.source_type == source_type::ATTRIBUTE)
-            || block.event_name.as_deref() == Some("gen_ai.input.messages");
-        if !strippable {
-            continue;
-        }
-        // System prompts are per-trace framing, not semantic history prefix.
-        // Treat them as transparent so leading system blocks don't break
-        // cross-trace prefix matching for subsequent user/tool content.
+        // System prompts are per-trace framing, not semantic history prefix. Treat them as transparent
+        // so leading system blocks do not break the match for the user/tool content after them.
         if block.role == super::types::ChatRole::System {
             continue;
         }
 
-        // Match against accumulated as an ordered subsequence (not strict
-        // adjacency). Prior traces can contain extra output-only blocks that
-        // are not replayed in the next trace's input prefix.
-        if let Some(next_idx) = accumulated.next_position(block.role, &block.content_hash, acc_idx)
-        {
-            block.is_history = true;
-            skipped += next_idx.saturating_sub(acc_idx);
-            acc_idx = next_idx + 1;
-            marked += 1;
-        } else {
-            span_prefix_active = false; // Prefix ends for this span
+        match accumulated.next_match(
+            block.role,
+            &block.content_hash,
+            &matched,
+            &must_precede,
+            min_trace,
+        ) {
+            Some(entry) => {
+                block.is_history = true;
+                marked += 1;
+                let prior = &accumulated.entries[entry];
+                // Everything that had to precede this occurrence now has to precede anything matched
+                // after it. Grown incrementally, so each block and edge of a trace's relation is walked
+                // once in total rather than once per candidate.
+                let ancestors = must_precede.entry(prior.trace).or_default();
+                accumulated.relations[prior.trace].collect_ancestors(prior.position, ancestors);
+                min_trace = prior.trace;
+                matched.push(MatchedPrior { entry });
+            }
+            // Nothing prior answers for this block, so the span has reached its new content.
+            None => span_prefix_active = false,
         }
     }
 
@@ -851,7 +942,6 @@ fn mark_cross_trace_prefix(blocks: &mut [BlockEntry], accumulated: &CrossTracePr
         strippable_input_count,
         spans_scanned,
         marked,
-        skipped,
         "cross-trace prefix marking complete"
     );
 }
