@@ -504,6 +504,49 @@ impl TransactionalRepository for Arc<SqliteService> {
             .map_err(Into::into)
     }
 
+    async fn associate_file(
+        &self,
+        trace_id: &str,
+        project_id: &str,
+        file_hash: &str,
+        media_type: Option<&str>,
+        size_bytes: i64,
+        hash_algo: &str,
+    ) -> Result<bool, DataError> {
+        file::associate_file(
+            self.pool(),
+            trace_id,
+            project_id,
+            file_hash,
+            media_type,
+            size_bytes,
+            hash_algo,
+        )
+        .await
+        .map_err(Into::into)
+    }
+
+    async fn get_file_reference_counts_for_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<(String, i64)>, DataError> {
+        file::get_file_reference_counts_for_traces(self.pool(), project_id, trace_ids)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn decrement_ref_count_by(
+        &self,
+        project_id: &str,
+        file_hash: &str,
+        by: i64,
+    ) -> Result<Option<i64>, DataError> {
+        file::decrement_ref_count_by(self.pool(), project_id, file_hash, by)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn insert_trace_file(
         &self,
         trace_id: &str,

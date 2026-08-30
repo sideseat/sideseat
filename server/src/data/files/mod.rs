@@ -267,17 +267,23 @@ impl FileService {
 
         let repo = self.database.repository();
 
-        // Get file hashes for these traces
-        let file_hashes = repo
-            .get_file_hashes_for_traces(project_id, trace_ids)
+        // How many references these traces hold per file, not just which files.
+        //
+        // `get_file_hashes_for_traces` returns each hash once, and the loop decremented once per hash -
+        // so deleting three traces that all referenced one file removed three associations and one
+        // reference, leaving the file permanently unreachable and uncollectable.
+        let references = repo
+            .get_file_reference_counts_for_traces(project_id, trace_ids)
             .await?;
 
         // Delete trace-file associations
         repo.delete_trace_files(project_id, trace_ids).await?;
 
-        // Decrement ref_count for each file, delete if zero
-        for hash in file_hashes {
-            let new_ref_count = repo.decrement_ref_count(project_id, &hash).await?;
+        // Decrement by the number of associations removed, and delete when nothing references it.
+        for (hash, count) in references {
+            let new_ref_count = repo
+                .decrement_ref_count_by(project_id, &hash, count)
+                .await?;
 
             if new_ref_count == Some(0) {
                 // Delete from storage first

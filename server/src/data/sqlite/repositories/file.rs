@@ -165,6 +165,124 @@ pub async fn delete_project_files(pool: &SqlitePool, project_id: &str) -> Result
     Ok(result.rows_affected())
 }
 
+/// Associate a file with a trace, and count the reference **only if the association is new**.
+///
+/// One transaction, because the two halves have to agree: `ref_count` must equal the number of
+/// associations, since that is what deletion decrements. Doing them separately drifted both ways -
+/// a retry re-incremented while `INSERT OR IGNORE` kept the existing association, and a failure
+/// between the two left an increment with no association, so the file outlived every trace that
+/// referenced it.
+///
+/// Returns whether the association was new, which is also whether the count moved.
+pub async fn associate_file(
+    pool: &SqlitePool,
+    trace_id: &str,
+    project_id: &str,
+    file_hash: &str,
+    media_type: Option<&str>,
+    size_bytes: i64,
+    hash_algo: &str,
+) -> Result<bool, SqliteError> {
+    let now = chrono::Utc::now().timestamp();
+    let mut tx = pool.begin().await?;
+
+    // The file row must exist before the association can reference it, and must not be counted here.
+    sqlx::query(
+        r#"
+        INSERT INTO files (project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+        ON CONFLICT(project_id, file_hash) DO UPDATE SET updated_at = ?
+        "#,
+    )
+    .bind(project_id)
+    .bind(file_hash)
+    .bind(media_type)
+    .bind(size_bytes)
+    .bind(hash_algo)
+    .bind(now)
+    .bind(now)
+    .bind(now)
+    .execute(&mut *tx)
+    .await?;
+
+    let inserted = sqlx::query(
+        "INSERT OR IGNORE INTO trace_files (trace_id, project_id, file_hash) VALUES (?, ?, ?)",
+    )
+    .bind(trace_id)
+    .bind(project_id)
+    .bind(file_hash)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected()
+        > 0;
+
+    if inserted {
+        sqlx::query(
+            r#"
+            UPDATE files SET ref_count = ref_count + 1, updated_at = ?
+            WHERE project_id = ? AND file_hash = ?
+            "#,
+        )
+        .bind(now)
+        .bind(project_id)
+        .bind(file_hash)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok(inserted)
+}
+
+/// How many of these traces reference each file, so deletion can decrement by that many.
+///
+/// `get_file_hashes_for_traces` returns each hash once, and deletion decremented once per hash - so
+/// deleting three traces that all referenced one file removed three associations and one reference.
+pub async fn get_file_reference_counts_for_traces(
+    pool: &SqlitePool,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<Vec<(String, i64)>, SqliteError> {
+    if trace_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = trace_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let query = format!(
+        "SELECT file_hash, COUNT(*) FROM trace_files \
+         WHERE project_id = ? AND trace_id IN ({placeholders}) GROUP BY file_hash"
+    );
+    let mut q = sqlx::query_as(&query).bind(project_id);
+    for trace_id in trace_ids {
+        q = q.bind(trace_id);
+    }
+    Ok(q.fetch_all(pool).await?)
+}
+
+/// Drop `by` references at once, for a deletion that removed that many associations.
+pub async fn decrement_ref_count_by(
+    pool: &SqlitePool,
+    project_id: &str,
+    file_hash: &str,
+    by: i64,
+) -> Result<Option<i64>, SqliteError> {
+    let now = chrono::Utc::now().timestamp();
+    let result: Option<(i64,)> = sqlx::query_as(
+        r#"
+        UPDATE files
+        SET ref_count = MAX(ref_count - ?, 0), updated_at = ?
+        WHERE project_id = ? AND file_hash = ?
+        RETURNING ref_count
+        "#,
+    )
+    .bind(by)
+    .bind(now)
+    .bind(project_id)
+    .bind(file_hash)
+    .fetch_optional(pool)
+    .await?;
+    Ok(result.map(|(count,)| count))
+}
+
 /// Insert a trace-file association
 pub async fn insert_trace_file(
     pool: &SqlitePool,
@@ -586,6 +704,93 @@ mod tests {
         assert_eq!(
             get_project_storage_bytes(&pool, "project2").await.unwrap(),
             2048
+        );
+    }
+
+    /// A retry must not count the same reference twice.
+    ///
+    /// With the increment separate from the association, `INSERT OR IGNORE` kept the existing
+    /// association while the increment ran again - so a redelivered batch inflated the count and the
+    /// file became uncollectable after its traces were gone.
+    #[tokio::test]
+    async fn associating_the_same_file_twice_counts_it_once() {
+        let pool = setup_test_pool().await;
+
+        let first = associate_file(
+            &pool,
+            "trace-a",
+            "default",
+            test_hash(),
+            Some("image/png"),
+            1024,
+            "sha256",
+        )
+        .await
+        .unwrap();
+        let second = associate_file(
+            &pool,
+            "trace-a",
+            "default",
+            test_hash(),
+            Some("image/png"),
+            1024,
+            "sha256",
+        )
+        .await
+        .unwrap();
+
+        assert!(first, "the first association is new");
+        assert!(!second, "the second is a retry of the same association");
+
+        let file = get_file(&pool, "default", test_hash())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            file.ref_count, 1,
+            "one association means one reference, however many times the batch is delivered"
+        );
+    }
+
+    /// Deleting several traces that share a file must release every reference they held.
+    ///
+    /// The loop decremented once per distinct hash, so deleting three traces that referenced one file
+    /// removed three associations and one reference - leaving a file nothing points at and nothing will
+    /// ever collect.
+    #[tokio::test]
+    async fn deleting_traces_releases_every_reference_they_held() {
+        let pool = setup_test_pool().await;
+        let traces = ["trace-a", "trace-b", "trace-c"];
+        for trace in traces {
+            associate_file(
+                &pool,
+                trace,
+                "default",
+                test_hash(),
+                Some("image/png"),
+                1024,
+                "sha256",
+            )
+            .await
+            .unwrap();
+        }
+
+        let counts = get_file_reference_counts_for_traces(
+            &pool,
+            "default",
+            &traces.iter().map(|t| t.to_string()).collect::<Vec<_>>(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(counts, vec![(test_hash().to_string(), 3)]);
+
+        let released = decrement_ref_count_by(&pool, "default", test_hash(), counts[0].1)
+            .await
+            .unwrap();
+        assert_eq!(
+            released,
+            Some(0),
+            "all three references released at once, so the file is collectable"
         );
     }
 
