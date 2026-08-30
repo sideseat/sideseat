@@ -85,6 +85,25 @@ const PIPELINE_BATCH_DRAIN_TIMEOUT_US: u64 = 5_000;
 /// 2. SideML (raw messages to SideML format)
 /// 3. Enrich (costs, previews)
 /// 4. Persist (SSE publish, DuckDB write, file extraction)
+/// What became of one request's spans.
+///
+/// `Dropped` exists because "stored" and "discarded because the project is going away" were both a `true`,
+/// and a caller told success for records that were dropped has no way to learn otherwise. The queue may
+/// acknowledge either - both are final - but a synchronous caller must be able to tell them apart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IngestOutcome {
+    Stored,
+    Dropped,
+    Failed,
+}
+
+impl IngestOutcome {
+    /// Whether the queue may acknowledge this message: nothing more will be done with it either way.
+    fn is_final(self) -> bool {
+        !matches!(self, Self::Failed)
+    }
+}
+
 pub struct TracePipeline {
     analytics: Arc<AnalyticsService>,
     pricing: Arc<PricingService>,
@@ -159,7 +178,7 @@ impl TracePipeline {
                     match tokio::time::timeout(Duration::from_millis(100), subscriber.recv()).await
                     {
                         Ok(Ok((msg_id, msg))) => {
-                            if self.run(&msg).await {
+                            if self.run(&msg).await.is_final() {
                                 if let Err(e) = acker.ack(&msg_id).await {
                                     tracing::warn!(error = %e, msg_id = %msg_id, "Failed to ack during drain");
                                 }
@@ -275,7 +294,7 @@ impl TracePipeline {
                     // Decode and process the claimed message
                     match ExportTraceServiceRequest::decode(&msg.payload[..]) {
                         Ok(request) => {
-                            if self.run(&request).await {
+                            if self.run(&request).await.is_final() {
                                 if let Err(e) = acker.ack(&msg.id).await {
                                     tracing::warn!(error = %e, msg_id = %msg.id, "Failed to ack claimed message");
                                 }
@@ -689,15 +708,13 @@ impl TracePipeline {
     /// acknowledgement before the write is a promise the process cannot keep, so the request writes
     /// first. Measured at roughly nine milliseconds per request against four when batched - which for an
     /// exporter that ships every few seconds is not a cost worth a lost trace.
-    pub async fn ingest_now(&self, request: &ExportTraceServiceRequest) -> bool {
+    pub async fn ingest_now(&self, request: &ExportTraceServiceRequest) -> IngestOutcome {
         self.run(request).await
     }
 
     /// Run the complete pipeline for a single request (used during shutdown drain
     /// and claimed message recovery). File I/O is done inline for reliability.
-    ///
-    /// Returns true if the DuckDB write succeeded, false otherwise.
-    async fn run(&self, request: &ExportTraceServiceRequest) -> bool {
+    async fn run(&self, request: &ExportTraceServiceRequest) -> IngestOutcome {
         // Wrapped, like every call on the batch path. This one was not, and it is the path that
         // handles *recovery* - so a message the batch path refused for panicking could be claimed here
         // and take down the whole pipeline task rather than one request.
@@ -715,12 +732,12 @@ impl TracePipeline {
             Err(_) => {
                 self.file_cache.invalidate_all();
                 tracing::error!("process_request panicked; refusing this request");
-                return false;
+                return IngestOutcome::Failed;
             }
         };
         if let Some((db_spans, pending_files, incoming)) = result {
             if db_spans.is_empty() {
-                return true;
+                return IngestOutcome::Stored; // nothing to store, and nothing was refused
             }
             let mut db_spans = db_spans;
 
@@ -734,8 +751,11 @@ impl TracePipeline {
                 .await
             {
                 Ok(true) => {}
-                Ok(false) => return true,
-                Err(()) => return false,
+                // Every span belonged to a project that will not accept writes. Reported as *dropped*
+                // rather than stored, because a caller told success for records that were discarded has no
+                // way to learn otherwise.
+                Ok(false) => return IngestOutcome::Dropped,
+                Err(()) => return IngestOutcome::Failed,
             }
 
             let sse_events: Vec<SseSpanEvent> = db_spans.iter().map(SseSpanEvent::from).collect();
@@ -749,7 +769,7 @@ impl TracePipeline {
                     failed = files.failed,
                     "Refusing to commit spans whose extracted files could not be stored"
                 );
-                return false;
+                return IngestOutcome::Failed;
             }
             let mut unresolvable = files.quota_skipped;
             let (unbacked, reconcile_failed) =
@@ -760,7 +780,7 @@ impl TracePipeline {
                     failed = reconcile_failed,
                     "Refusing the batch: could not settle whether some file references are backed"
                 );
-                return false;
+                return IngestOutcome::Failed;
             }
             unresolvable.extend(unbacked);
             if !unresolvable.is_empty() {
@@ -774,10 +794,12 @@ impl TracePipeline {
             let db_ok = write_to_duckdb(db_spans, &self.analytics).await;
             if db_ok {
                 publish_sse_events(&sse_events, &self.topics).await;
+                IngestOutcome::Stored
+            } else {
+                IngestOutcome::Failed
             }
-            db_ok
         } else {
-            true
+            IngestOutcome::Stored
         }
     }
 }

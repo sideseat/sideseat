@@ -15,6 +15,7 @@ use super::encoding::{OtlpContentType, decode_request, success_response};
 use super::{OtlpState, inject_project_id_traces};
 use crate::api::extractors::is_valid_project_id;
 use crate::core::constants::BACKPRESSURE_RETRY_AFTER_SECS;
+use crate::domain::traces::IngestOutcome;
 use crate::utils::debug::write_debug;
 use crate::utils::otlp::PROJECT_ID_ATTR;
 
@@ -81,16 +82,30 @@ pub async fn export(
     if !state.durable_queue
         && let Some(pipeline) = state.trace_pipeline.as_ref()
     {
-        if !pipeline.ingest_now(&request).await {
-            tracing::error!(%project_id, "Failed to store traces");
-            return (
-                StatusCode::SERVICE_UNAVAILABLE,
-                [(
-                    HeaderName::from_static("retry-after"),
-                    BACKPRESSURE_RETRY_AFTER_SECS.to_string(),
-                )],
-            )
-                .into_response();
+        match pipeline.ingest_now(&request).await {
+            IngestOutcome::Stored => {}
+            // The project stopped accepting writes between the check above and the write. Reported, not
+            // swallowed: a success for records that were discarded is the failure mode this whole path is
+            // about.
+            IngestOutcome::Dropped => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    [(header::CONTENT_TYPE, "text/plain")],
+                    "Unknown project, or it is being deleted",
+                )
+                    .into_response();
+            }
+            IngestOutcome::Failed => {
+                tracing::error!(%project_id, "Failed to store traces");
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    [(
+                        HeaderName::from_static("retry-after"),
+                        BACKPRESSURE_RETRY_AFTER_SECS.to_string(),
+                    )],
+                )
+                    .into_response();
+            }
         }
         let response = ExportTraceServiceResponse {
             partial_success: None,

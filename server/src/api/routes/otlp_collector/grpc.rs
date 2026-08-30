@@ -107,6 +107,7 @@ impl OtlpGrpcServer {
                     self.trace_topic,
                     debug_path.clone(),
                     self.trace_pipeline,
+                    Arc::clone(&self.database),
                 ))
                 .max_decoding_message_size(OTLP_BODY_LIMIT)
                 .max_encoding_message_size(OTLP_BODY_LIMIT),
@@ -163,6 +164,26 @@ pub struct IngestStores {
     pub trace_pipeline: Option<Arc<crate::domain::TracePipeline>>,
 }
 
+/// Whether this project exists and is not being deleted, for the gRPC services.
+///
+/// HTTP had this and gRPC did not, which meant the same deployment refused an unknown project on one
+/// transport and answered success on the other while the write path dropped the records. The authoritative
+/// check is still next to the write; this is where an exporter can be *told*.
+async fn project_accepts_writes(
+    database: &Arc<crate::data::TransactionalService>,
+    project_id: &str,
+) -> bool {
+    match database.repository().get_project(None, project_id).await {
+        Ok(found) => found.is_some(),
+        // Unknown: let the write path decide, as the HTTP twin does. Refusing on a lookup failure would
+        // turn a database blip into rejected telemetry.
+        Err(e) => {
+            tracing::warn!(project_id, error = %e, "Could not check the project at ingest");
+            true
+        }
+    }
+}
+
 /// gRPC trace service
 struct OtlpTraceService {
     topic: Arc<StreamTopic<ExportTraceServiceRequest>>,
@@ -171,6 +192,8 @@ struct OtlpTraceService {
     /// had this and gRPC did not, so the same deployment answered honestly on one transport and not the
     /// other.
     pipeline: Option<Arc<crate::domain::TracePipeline>>,
+    /// For telling an exporter now that its project will not accept writes.
+    database: Arc<crate::data::TransactionalService>,
 }
 
 impl OtlpTraceService {
@@ -178,11 +201,13 @@ impl OtlpTraceService {
         topic: Arc<StreamTopic<ExportTraceServiceRequest>>,
         debug_path: Option<PathBuf>,
         pipeline: Option<Arc<crate::domain::TracePipeline>>,
+        database: Arc<crate::data::TransactionalService>,
     ) -> Self {
         Self {
             topic,
             debug_path,
             pipeline,
+            database,
         }
     }
 }
@@ -195,6 +220,9 @@ impl TraceService for OtlpTraceService {
     ) -> Result<Response<ExportTraceServiceResponse>, Status> {
         let project_id = extract_project_id(&request)
             .ok_or_else(|| Status::invalid_argument("Invalid project_id"))?;
+        if !project_accepts_writes(&self.database, &project_id).await {
+            return Err(Status::not_found("unknown project, or it is being deleted"));
+        }
         let mut req = request.into_inner();
 
         // Inject project_id into resource attributes
@@ -208,9 +236,17 @@ impl TraceService for OtlpTraceService {
         // Acknowledge only what is durable - see the HTTP twin. When the queue is in memory, a published
         // trace is lost by the crash that this transport's success message has already denied.
         if let Some(pipeline) = self.pipeline.as_ref() {
-            if !pipeline.ingest_now(&req).await {
-                tracing::error!(%project_id, "Failed to store traces");
-                return Err(Status::unavailable("could not store traces"));
+            match pipeline.ingest_now(&req).await {
+                crate::domain::traces::IngestOutcome::Stored => {}
+                // Reported, not swallowed as success: an exporter told success for records that were
+                // discarded has no way to learn otherwise.
+                crate::domain::traces::IngestOutcome::Dropped => {
+                    return Err(Status::not_found("unknown project, or it is being deleted"));
+                }
+                crate::domain::traces::IngestOutcome::Failed => {
+                    tracing::error!(%project_id, "Failed to store traces");
+                    return Err(Status::unavailable("could not store traces"));
+                }
             }
             return Ok(Response::new(ExportTraceServiceResponse {
                 partial_success: None,
@@ -285,6 +321,9 @@ impl MetricsService for OtlpMetricsService {
     ) -> Result<Response<ExportMetricsServiceResponse>, Status> {
         let project_id = extract_project_id(&request)
             .ok_or_else(|| Status::invalid_argument("Invalid project_id"))?;
+        if !project_accepts_writes(&self.database, &project_id).await {
+            return Err(Status::not_found("unknown project, or it is being deleted"));
+        }
         let mut req = request.into_inner();
 
         // Inject project_id into resource attributes
@@ -297,13 +336,24 @@ impl MetricsService for OtlpMetricsService {
 
         // Written before the answer - see the HTTP twin: a queued acknowledgement was a 200 for records
         // an in-process buffer could lose.
-        if let Err(e) = crate::domain::ingest_metrics(&req, &self.analytics, &self.database).await {
-            tracing::error!(error = %e, %project_id, "Failed to store metrics");
-            return Err(Status::unavailable("could not store metrics"));
-        }
+        let stored =
+            match crate::domain::ingest_metrics(&req, &self.analytics, &self.database).await {
+                Ok(stored) => stored,
+                Err(e) => {
+                    tracing::error!(error = %e, %project_id, "Failed to store metrics");
+                    return Err(Status::unavailable("could not store metrics"));
+                }
+            };
 
+        // Reported, not swallowed - see the HTTP twin.
+        let rejected = stored.total.saturating_sub(stored.stored);
         Ok(Response::new(ExportMetricsServiceResponse {
-            partial_success: None,
+            partial_success: (rejected > 0).then(|| {
+                opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsPartialSuccess {
+                    rejected_data_points: rejected as i64,
+                    error_message: "the project is unknown or is being deleted".to_string(),
+                }
+            }),
         }))
     }
 }

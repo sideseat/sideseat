@@ -206,6 +206,14 @@ occurrence (injectivity is what keeps a genuinely repeated question from collaps
 without it `adk/tool_use` loses one of its two identical questions), and a candidate is refused only when
 the evidence says it must precede something already matched.
 
+The search reports when it is **not exhaustive** (`FeedMetadata::replay_matching_complete`, omitted from
+the response when true). The budget is a resource guard, and a guard that silently changes the answer is
+what a caller cannot reason about - so either the stripping is complete, or the response says it may repeat
+history. Failed states are memoised, which is what makes the search complete for shapes that used to
+exhaust it: `(replay position, set of claimed occurrences)`, so nine interchangeable calls do not re-explore
+`9!` orderings of the same dead end. Measured envelope: complete to 64 interchangeable two-level branches
+(128 blocks) and to 7 three-level branches (21 blocks); beyond that it under-strips and says so.
+
 Matching **searches**, it does not choose greedily. Two unordered branches give `callA → resultA` and
 `callB → resultB` with both results carrying the same identity (two tools answering `"ok"`); replayed as
 `callB, resultB, callA, resultA` — a valid linear extension — taking the first permitted candidate claims
@@ -459,6 +467,13 @@ mechanism delivers that depends on the topic backend (`TopicBackend::is_durable`
 | Traces | Published to the stream, acknowledged after the write, unacknowledged messages reclaimed | Queue skipped: `TracePipeline::ingest_now` writes inside the request |
 | Metrics | Written inside the request | Written inside the request |
 | Logs | Not stored; `partial_success` with every record rejected | Same |
+
+Both transports, and both apply it: gRPC used to publish and answer success regardless. And a record that
+is **dropped** rather than stored - the project stopped accepting writes between the admission check and
+the write - is reported as such: 404 for traces, `partial_success` with `rejected_data_points` for metrics.
+A bare `true` made "stored" and "discarded" the same answer (`IngestOutcome` now distinguishes them), which
+is the failure this whole path exists to remove. ClickHouse's `wait_for_async_insert` defaults to true, in
+the code *and* in the shipped example configs, or an acknowledgement would rest on a server-side buffer.
 
 Measured over HTTP on a release build, loopback, DuckDB + SQLite, warm process:
 

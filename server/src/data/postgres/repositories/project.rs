@@ -21,24 +21,41 @@ pub async fn create_project(
     let id = cuid2::create_id();
     let now = chrono::Utc::now().timestamp();
 
-    // `INSERT ... SELECT`, so the organization's liveness is checked by the insert - see the SQLite twin
-    // for the race a separate check loses.
-    let inserted = sqlx::query(
-        "INSERT INTO projects (id, organization_id, name, created_at, updated_at) \
-         SELECT $1, id, $2, $3, $4 FROM organizations WHERE id = $5 AND deleting_at IS NULL",
-    )
-    .bind(&id)
-    .bind(name)
-    .bind(now)
-    .bind(now)
-    .bind(organization_id)
-    .execute(pool)
-    .await?;
-    if inserted.rows_affected() == 0 {
+    // The parent row is *locked* first, then re-read, then the child inserted - all in one transaction.
+    //
+    // `INSERT ... SELECT ... WHERE deleting_at IS NULL` is not enough here, and the reason is specific to
+    // PostgreSQL: the statement reads under its own snapshot, and the organization claim updates only a
+    // non-key column, so the row lock it takes is `FOR NO KEY UPDATE` - compatible with the key-share lock
+    // a foreign-key insert wants. The insert therefore neither blocks nor sees the tombstone that
+    // committed after its snapshot, and a brand-new live project appears under an organization whose
+    // cleanup has already listed its projects. The caller gets 201 and then 404, and an ingest that passed
+    // the project fence in between can leave data with no row to find it by.
+    //
+    // `FOR UPDATE` conflicts with the claim's lock, so the two serialise, and the re-read happens after the
+    // lock is granted - which is when the tombstone is visible.
+    let mut tx = pool.begin().await?;
+    let live: Option<(Option<i64>,)> =
+        sqlx::query_as("SELECT deleting_at FROM organizations WHERE id = $1 FOR UPDATE")
+            .bind(organization_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    if !matches!(live, Some((None,))) {
         return Err(PostgresError::Conflict(format!(
             "organization {organization_id} does not exist or is being deleted"
         )));
     }
+    sqlx::query(
+        "INSERT INTO projects (id, organization_id, name, created_at, updated_at) \
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(&id)
+    .bind(organization_id)
+    .bind(name)
+    .bind(now)
+    .bind(now)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
 
     // Invalidate list caches AFTER successful insert
     if let Some(cache) = cache {
@@ -557,13 +574,26 @@ pub async fn claim_organization_for_deletion(
     id: &str,
 ) -> Result<bool, PostgresError> {
     let now = chrono::Utc::now().timestamp();
+    // `FOR UPDATE` before the update, so this serialises with `create_project`.
+    //
+    // The bare UPDATE takes a `FOR NO KEY UPDATE` lock - it changes no key column - which is *compatible*
+    // with the key-share lock a foreign-key insert takes on this row. So a project creation could commit
+    // under an organization this claim had already tombstoned. Taking the stronger lock first makes the
+    // two conflict, which is what forces one to see the other's outcome.
+    let mut tx = pool.begin().await?;
+    let _: Option<(Option<i64>,)> =
+        sqlx::query_as("SELECT deleting_at FROM organizations WHERE id = $1 FOR UPDATE")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
     let result = sqlx::query(
         "UPDATE organizations SET deleting_at = $1 WHERE id = $2 AND deleting_at IS NULL",
     )
     .bind(now)
     .bind(id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    tx.commit().await?;
     Ok(result.rows_affected() > 0)
 }
 

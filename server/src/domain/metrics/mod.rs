@@ -8,4 +8,4 @@ mod extract;
 mod ingest;
 mod persist;
 
-pub use ingest::ingest;
+pub use ingest::{Stored, ingest};

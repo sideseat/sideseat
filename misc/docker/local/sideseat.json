@@ -38,7 +38,7 @@
       "timeout_secs": 30,
       "compression": true,
       "async_insert": true,
-      "wait_for_async_insert": false
+      "wait_for_async_insert": true
     },
     "redis": {
       "url": "redis://:dev_password@127.0.0.1:6379/0"

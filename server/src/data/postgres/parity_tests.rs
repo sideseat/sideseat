@@ -757,6 +757,60 @@ async fn the_file_fence_holds_against_a_concurrent_association() {
     );
 }
 
+/// A project cannot be created under an organization whose deletion has committed.
+///
+/// PostgreSQL-specific, and it is why the check is a locking read rather than a `WHERE` clause on the
+/// insert. `INSERT ... SELECT ... WHERE deleting_at IS NULL` reads under its own snapshot, and the claim
+/// updates only a non-key column - so its row lock is `FOR NO KEY UPDATE`, which is *compatible* with the
+/// key-share lock a foreign-key insert takes. The insert would neither block nor see the tombstone, and a
+/// brand-new live project would appear under an organization whose cleanup had already listed its
+/// projects: the caller gets 201 and then 404, and an ingest that passed the project fence in between
+/// leaves data with no row to find it by.
+///
+/// The interleaving is pinned rather than hoped for: the creation is started while a transaction holds the
+/// organization locked, so it must block, and the tombstone commits before it is released.
+#[tokio::test]
+async fn a_project_cannot_be_created_under_a_deleting_organization() {
+    let Some((_, postgres)) = pair().await else {
+        return;
+    };
+
+    // Writer one: take the organization's row lock, as the claim does, and hold it.
+    let mut claim = postgres.pool().begin().await.unwrap();
+    let _: Option<(Option<i64>,)> =
+        sqlx::query_as("SELECT deleting_at FROM organizations WHERE id = $1 FOR UPDATE")
+            .bind("default")
+            .fetch_optional(&mut *claim)
+            .await
+            .unwrap();
+    sqlx::query("UPDATE organizations SET deleting_at = $1 WHERE id = $2")
+        .bind(chrono::Utc::now().timestamp())
+        .bind("default")
+        .execute(&mut *claim)
+        .await
+        .unwrap();
+
+    // Writer two: a creation that must wait for that lock.
+    let creation = {
+        let repo = Arc::clone(&postgres);
+        tokio::spawn(async move { repo.create_project(None, "default", "Sneaky").await })
+    };
+    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    assert!(
+        !creation.is_finished(),
+        "the creation answered without waiting for the organization's row, so it is reading a snapshot \
+         and this test is not exercising the interleaving it exists for"
+    );
+
+    claim.commit().await.unwrap();
+    let outcome = creation.await.unwrap();
+    assert!(
+        outcome.is_err(),
+        "a project was created under an organization whose deletion had committed; it would be live, \
+         accept writes, and be cascaded away without leaving a deletion record"
+    );
+}
+
 /// Two concurrent deletions of one project: exactly one owns it.
 ///
 /// The claim is what makes a project's cleanup single-owner, and a cleanup that runs twice deletes
