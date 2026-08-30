@@ -2878,14 +2878,35 @@ fn bench_session_scaling() {
             let built = build.elapsed();
             let payload: usize = rows.iter().map(|r| r.messages_json.len()).sum();
 
+            // Cold, then warm: the second read is what a user's second look at a session costs, and
+            // whether the memo earns its place is exactly that difference.
+            let cache = crate::domain::sideml::feed::cache::ReconstructionCache::new();
             let start = std::time::Instant::now();
-            let result = crate::domain::sideml::feed::process_spans(rows, &FeedOptions::new());
-            let elapsed = start.elapsed();
+            let result = crate::domain::sideml::feed::process_spans_cached(
+                &cache,
+                rows.clone(),
+                &FeedOptions::new(),
+            );
+            let cold = start.elapsed();
+            let start = std::time::Instant::now();
+            let warm_result = crate::domain::sideml::feed::process_spans_cached(
+                &cache,
+                rows,
+                &FeedOptions::new(),
+            );
+            let warm = start.elapsed();
+            assert_eq!(
+                warm_result.messages.len(),
+                result.messages.len(),
+                "a warm read must answer with the same blocks"
+            );
             eprintln!(
-                "SESSION {shape} {turns} turns: {} KB input -> {} blocks in {:?} (fixture built in {:?})",
+                "SESSION {shape} {turns} turns: {} KB input -> {} blocks, cold {:?}, warm {:?} \
+                 (fixture built in {:?})",
                 payload / 1024,
                 result.messages.len(),
-                elapsed,
+                cold,
+                warm,
                 built
             );
         }

@@ -30,6 +30,9 @@ pub struct OtelApiState {
     pub file_service: Arc<FileService>,
     pub database: Arc<TransactionalService>,
     pub cache: Arc<CacheService>,
+    /// Reconstructions already computed, keyed by the rows they came from. Process-local, so a new
+    /// build never serves an answer the previous pipeline produced.
+    pub reconstruction: crate::domain::sideml::feed::cache::ReconstructionCache,
     pub shutdown_rx: watch::Receiver<bool>,
 }
 
@@ -48,6 +51,7 @@ pub fn routes(
         file_service,
         database,
         cache,
+        reconstruction: crate::domain::sideml::feed::cache::ReconstructionCache::new(),
         shutdown_rx,
     };
 
