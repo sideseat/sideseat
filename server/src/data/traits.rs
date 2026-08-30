@@ -583,6 +583,16 @@ pub trait TransactionalRepository: Send + Sync {
         trace_ids: &[String],
     ) -> Result<Vec<(String, i64)>, DataError>;
 
+    /// Delete a file's metadata only if nothing references it, and say whether it was deleted.
+    ///
+    /// The condition belongs inside the statement: reading a count of zero and then deleting races with
+    /// a concurrent association, and loses.
+    async fn delete_file_if_unreferenced(
+        &self,
+        project_id: &str,
+        file_hash: &str,
+    ) -> Result<bool, DataError>;
+
     /// Recompute a file's reference count from the associations that exist, and return it.
     ///
     /// The count is a cached `COUNT(*)`; deriving it is the only form immune to two concurrent

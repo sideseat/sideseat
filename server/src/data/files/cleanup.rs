@@ -172,24 +172,39 @@ pub async fn cleanup_zero_ref_files(
     let mut deleted = 0u64;
 
     for (project_id, hash) in orphan_files {
-        // Delete from storage
+        // The metadata row first, and only if nothing references the file *now*.
+        //
+        // `get_orphan_files` selects on the stored `ref_count`, which is a cached count - so a stale
+        // zero, or one read before an association landed, would have deleted live content. The
+        // conditional delete asks the associations directly, and deleting the row before the bytes
+        // means the surviving failure is bytes without metadata rather than a row pointing at nothing.
+        match repo.delete_file_if_unreferenced(&project_id, &hash).await {
+            Ok(true) => {}
+            Ok(false) => {
+                tracing::debug!(
+                    project_id,
+                    hash,
+                    "Orphan file is referenced after all; keeping it"
+                );
+                continue;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    project_id,
+                    hash,
+                    "Failed to delete orphan file metadata from database"
+                );
+                continue;
+            }
+        }
+
         if let Err(e) = storage.delete(&project_id, &hash).await {
             tracing::warn!(
                 error = %e,
                 project_id,
                 hash,
-                "Failed to delete orphan file from storage"
-            );
-            continue;
-        }
-
-        // Delete from database
-        if let Err(e) = repo.delete_file(&project_id, &hash).await {
-            tracing::warn!(
-                error = %e,
-                project_id,
-                hash,
-                "Failed to delete orphan file metadata from database"
+                "Deleted orphan metadata but its bytes remain; a later sweep will retry"
             );
             continue;
         }

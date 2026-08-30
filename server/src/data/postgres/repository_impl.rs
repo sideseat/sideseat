@@ -536,6 +536,16 @@ impl TransactionalRepository for Arc<PostgresService> {
             .map_err(Into::into)
     }
 
+    async fn delete_file_if_unreferenced(
+        &self,
+        project_id: &str,
+        file_hash: &str,
+    ) -> Result<bool, DataError> {
+        file::delete_file_if_unreferenced(self.pool(), project_id, file_hash)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn sync_ref_count(
         &self,
         project_id: &str,
