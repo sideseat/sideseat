@@ -869,8 +869,13 @@
     "message_count": 21,
     "role_sequence": [
       "assistant",
+      "tool",
+      "assistant",
       "assistant",
       "tool",
+      "assistant",
+      "assistant",
+      "user",
       "assistant",
       "assistant",
       "tool",
@@ -878,16 +883,11 @@
       "user",
       "assistant",
       "assistant",
-      "assistant",
-      "tool",
-      "user",
-      "assistant",
-      "assistant",
-      "assistant",
       "tool",
       "assistant",
       "assistant",
       "tool",
+      "assistant",
       "user"
     ],
     "tool_names": [],
@@ -904,20 +904,20 @@
       },
       {
         "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_T9cxj1TJQbxuClmq4Ei3sN\",\"content\":{\"operation\":\"multiply\",\"a\":3.14159,\"b\":25,\"result\":78.53975}}",
+        "content_digest": "60fc1282800c3871",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_T9cxj1TJQbxuClmq4Ei3sN\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":3.14159,\"b\":25}}",
         "content_digest": "a35c3f00a4393209",
         "tool_name": "calculator",
         "finish_reason": "ToolUse",
-        "observation_type": "tool"
-      },
-      {
-        "index": 2,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_T9cxj1TJQbxuClmq4Ei3sN\",\"content\":{\"operation\":\"multiply\",\"a\":3.14159,\"b\":25,\"result\":78.53975}}",
-        "content_digest": "60fc1282800c3871",
         "observation_type": "tool"
       },
       {
@@ -931,20 +931,20 @@
       },
       {
         "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_BHIUAiGmzhU4NhTZQ6O8qx\",\"content\":{\"operation\":\"multiply\",\"a\":5,\"b\":5,\"result\":25}}",
+        "content_digest": "09d26219ef60d212",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BHIUAiGmzhU4NhTZQ6O8qx\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":5,\"b\":5}}",
         "content_digest": "9c89cb27b2583646",
         "tool_name": "calculator",
         "finish_reason": "ToolUse",
-        "observation_type": "tool"
-      },
-      {
-        "index": 5,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_BHIUAiGmzhU4NhTZQ6O8qx\",\"content\":{\"operation\":\"multiply\",\"a\":5,\"b\":5,\"result\":25}}",
-        "content_digest": "09d26219ef60d212",
         "observation_type": "tool"
       },
       {
@@ -984,20 +984,20 @@
       },
       {
         "index": 10,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_lzuo63RyKawL8zyyLXJBdM\",\"content\":{\"operation\":\"multiply\",\"a\":240,\"b\":0.15,\"result\":36}}",
+        "content_digest": "c7a0e5e1d431a4a7",
+        "observation_type": "tool"
+      },
+      {
+        "index": 11,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_lzuo63RyKawL8zyyLXJBdM\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":240,\"b\":0.15}}",
         "content_digest": "527baf5b440482e2",
         "tool_name": "calculator",
         "finish_reason": "ToolUse",
-        "observation_type": "tool"
-      },
-      {
-        "index": 11,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_lzuo63RyKawL8zyyLXJBdM\",\"content\":{\"operation\":\"multiply\",\"a\":240,\"b\":0.15,\"result\":36}}",
-        "content_digest": "c7a0e5e1d431a4a7",
         "observation_type": "tool"
       },
       {
@@ -1028,20 +1028,20 @@
       },
       {
         "index": 15,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_pUHRgRAp85GmlCOLHT1mh9\",\"content\":{\"operation\":\"multiply\",\"a\":579,\"b\":2,\"result\":1158}}",
+        "content_digest": "336f5ca985dc8263",
+        "observation_type": "tool"
+      },
+      {
+        "index": 16,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pUHRgRAp85GmlCOLHT1mh9\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":579,\"b\":2}}",
         "content_digest": "054040a205067971",
         "tool_name": "calculator",
         "finish_reason": "ToolUse",
-        "observation_type": "tool"
-      },
-      {
-        "index": 16,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_pUHRgRAp85GmlCOLHT1mh9\",\"content\":{\"operation\":\"multiply\",\"a\":579,\"b\":2,\"result\":1158}}",
-        "content_digest": "336f5ca985dc8263",
         "observation_type": "tool"
       },
       {
@@ -1055,20 +1055,20 @@
       },
       {
         "index": 18,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"content\":{\"operation\":\"add\",\"a\":123,\"b\":456,\"result\":579}}",
+        "content_digest": "f1b56fa5f09bbdb5",
+        "observation_type": "tool"
+      },
+      {
+        "index": 19,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"name\":\"calculator\",\"input\":{\"operation\":\"add\",\"a\":123,\"b\":456}}",
         "content_digest": "525a88527a167997",
         "tool_name": "calculator",
         "finish_reason": "ToolUse",
-        "observation_type": "tool"
-      },
-      {
-        "index": 19,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"content\":{\"operation\":\"add\",\"a\":123,\"b\":456,\"result\":579}}",
-        "content_digest": "f1b56fa5f09bbdb5",
         "observation_type": "tool"
       },
       {

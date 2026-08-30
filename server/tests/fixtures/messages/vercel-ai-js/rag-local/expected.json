@@ -682,18 +682,18 @@
     "message_count": 15,
     "role_sequence": [
       "assistant",
-      "assistant",
       "tool",
+      "assistant",
       "system",
       "user",
       "assistant",
-      "assistant",
       "tool",
+      "assistant",
       "system",
       "user",
       "assistant",
-      "assistant",
       "tool",
+      "assistant",
       "system",
       "user"
     ],
@@ -711,20 +711,20 @@
       },
       {
         "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.56) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. [2] (relevance: 0.54) Embeddings a…[1074 chars]",
+        "content_digest": "8658fc4058d67428",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pL7dNwJRg6e2OhaPz51d8H\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\",\"num_results\":5}}",
         "content_digest": "4a2e4c2a74d46900",
         "tool_name": "search_knowledge",
         "finish_reason": "ToolUse",
-        "observation_type": "tool"
-      },
-      {
-        "index": 2,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "[1] (relevance: 0.56) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. [2] (relevance: 0.54) Embeddings a…[1074 chars]",
-        "content_digest": "8658fc4058d67428",
         "observation_type": "tool"
       },
       {
@@ -754,20 +754,20 @@
       },
       {
         "index": 6,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.65) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity. [2] (relevance: 0.15) Stran…[1067 chars]",
+        "content_digest": "c961d5a314aa2757",
+        "observation_type": "tool"
+      },
+      {
+        "index": 7,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_WhrXJhptBxavwDlOlN8bdR\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"RAG how it works key components\",\"num_results\":5}}",
         "content_digest": "3652da9884902251",
         "tool_name": "search_knowledge",
         "finish_reason": "ToolUse",
-        "observation_type": "tool"
-      },
-      {
-        "index": 7,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "[1] (relevance: 0.65) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity. [2] (relevance: 0.15) Stran…[1067 chars]",
-        "content_digest": "c961d5a314aa2757",
         "observation_type": "tool"
       },
       {
@@ -797,20 +797,20 @@
       },
       {
         "index": 11,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.74) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging. [2] (relevance: 0.34) OpenTele…[646 chars]",
+        "content_digest": "49562c5913d10647",
+        "observation_type": "tool"
+      },
+      {
+        "index": 12,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4qNgHcwdWP8UpwLjbk2Voh\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":3}}",
         "content_digest": "69f5585ec1f03bc7",
         "tool_name": "search_knowledge",
         "finish_reason": "ToolUse",
-        "observation_type": "tool"
-      },
-      {
-        "index": 12,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "[1] (relevance: 0.74) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging. [2] (relevance: 0.34) OpenTele…[646 chars]",
-        "content_digest": "49562c5913d10647",
         "observation_type": "tool"
       },
       {

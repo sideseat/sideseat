@@ -617,16 +617,16 @@
           "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.",
-          "content_digest": "ccc080752c2ac0db",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_JuUesmZPJTSropalcHLFRR\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\"…[315 chars]",
+          "content_digest": "619899e5847f6bdb",
           "observation_type": "tool"
         },
         {
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_JuUesmZPJTSropalcHLFRR\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\"…[315 chars]",
-          "content_digest": "619899e5847f6bdb",
+          "content": "The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.",
+          "content_digest": "ccc080752c2ac0db",
           "observation_type": "tool"
         },
         {
@@ -811,24 +811,24 @@
     "role_sequence": [
       "assistant",
       "assistant",
-      "assistant",
+      "tool",
       "tool",
       "assistant",
-      "tool",
+      "assistant",
       "system",
       "user",
       "assistant",
-      "assistant",
       "tool",
       "assistant",
       "tool",
+      "assistant",
       "system",
       "user",
       "assistant",
-      "assistant",
+      "tool",
       "tool",
       "assistant",
-      "tool",
+      "assistant",
       "system",
       "user"
     ],
@@ -855,12 +855,10 @@
       },
       {
         "index": 2,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4eeS6qQqnJKVxsJgZSHZAu\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
-        "content_digest": "e3d65d69e1ac9022",
-        "tool_name": "precipitation_forecast",
-        "finish_reason": "ToolUse",
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_cKlqLr4Ze8GffmhcxhUyQN\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"London\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\"…[504 chars]",
+        "content_digest": "0ae0a2c2452e335c",
         "observation_type": "tool"
       },
       {
@@ -875,18 +873,20 @@
         "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_cKlqLr4Ze8GffmhcxhUyQN\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
-        "content_digest": "b8c95853b4c27b09",
-        "tool_name": "temperature_forecast",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4eeS6qQqnJKVxsJgZSHZAu\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
+        "content_digest": "e3d65d69e1ac9022",
+        "tool_name": "precipitation_forecast",
         "finish_reason": "ToolUse",
         "observation_type": "tool"
       },
       {
         "index": 5,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_cKlqLr4Ze8GffmhcxhUyQN\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"London\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\"…[504 chars]",
-        "content_digest": "0ae0a2c2452e335c",
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_cKlqLr4Ze8GffmhcxhUyQN\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
+        "content_digest": "b8c95853b4c27b09",
+        "tool_name": "temperature_forecast",
+        "finish_reason": "ToolUse",
         "observation_type": "tool"
       },
       {
@@ -916,6 +916,14 @@
       },
       {
         "index": 9,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.",
+        "content_digest": "3a04eedad16ac73f",
+        "observation_type": "tool"
+      },
+      {
+        "index": 10,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_G0tME8qRMk2o4MQNJmJuNe\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
@@ -925,29 +933,21 @@
         "observation_type": "tool"
       },
       {
-        "index": 10,
+        "index": 11,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.",
-        "content_digest": "3a04eedad16ac73f",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_zOwGDlApkhLNDv8tAV2hcb\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"…[509 chars]",
+        "content_digest": "09a4368eb1ee2575",
         "observation_type": "tool"
       },
       {
-        "index": 11,
+        "index": 12,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zOwGDlApkhLNDv8tAV2hcb\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
         "content_digest": "e50c12f299afbde6",
         "tool_name": "temperature_forecast",
         "finish_reason": "ToolUse",
-        "observation_type": "tool"
-      },
-      {
-        "index": 12,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_zOwGDlApkhLNDv8tAV2hcb\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"…[509 chars]",
-        "content_digest": "09a4368eb1ee2575",
         "observation_type": "tool"
       },
       {
@@ -977,6 +977,22 @@
       },
       {
         "index": 16,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.",
+        "content_digest": "ccc080752c2ac0db",
+        "observation_type": "tool"
+      },
+      {
+        "index": 17,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_JuUesmZPJTSropalcHLFRR\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\"…[315 chars]",
+        "content_digest": "619899e5847f6bdb",
+        "observation_type": "tool"
+      },
+      {
+        "index": 18,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_ioGoZFcc8kUFeH0GrZmub5\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
@@ -986,29 +1002,13 @@
         "observation_type": "tool"
       },
       {
-        "index": 17,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.",
-        "content_digest": "ccc080752c2ac0db",
-        "observation_type": "tool"
-      },
-      {
-        "index": 18,
+        "index": 19,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_JuUesmZPJTSropalcHLFRR\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
         "content_digest": "2f3da36002447553",
         "tool_name": "temperature_forecast",
         "finish_reason": "ToolUse",
-        "observation_type": "tool"
-      },
-      {
-        "index": 19,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_JuUesmZPJTSropalcHLFRR\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\"…[315 chars]",
-        "content_digest": "619899e5847f6bdb",
         "observation_type": "tool"
       },
       {

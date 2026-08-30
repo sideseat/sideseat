@@ -258,8 +258,8 @@
     "role_sequence": [
       "assistant",
       "assistant",
-      "assistant",
       "tool",
+      "assistant",
       "system",
       "user",
       "user"
@@ -287,20 +287,20 @@
       },
       {
         "index": 2,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_rBijYDxumYLKYwFSRv55Ak\",\"content\":{\"type\":\"image\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKC…[218755 chars]",
+        "content_digest": "739df64c079aea2b",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_rBijYDxumYLKYwFSRv55Ak\",\"name\":\"image_reader\",\"input\":{\"path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
         "content_digest": "d80bb86f5c2f5d50",
         "tool_name": "image_reader",
         "finish_reason": "ToolUse",
-        "observation_type": "tool"
-      },
-      {
-        "index": 3,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_rBijYDxumYLKYwFSRv55Ak\",\"content\":{\"type\":\"image\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKC…[218755 chars]",
-        "content_digest": "739df64c079aea2b",
         "observation_type": "tool"
       },
       {

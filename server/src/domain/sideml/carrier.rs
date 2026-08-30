@@ -93,8 +93,21 @@ impl CarrierSemantics {
 /// it declines to treat position as proof of a second occurrence, so a carrier nobody has classified
 /// cannot invent messages. It can only under-report, which the answer invariant would catch.
 pub fn semantics_for(event: Option<&str>, attribute: Option<&str>) -> CarrierSemantics {
+    declared_semantics(event, attribute).unwrap_or(CarrierSemantics::SNAPSHOT)
+}
+
+/// The table's entry for a carrier, or `None` where nothing names it.
+///
+/// Separate from [`semantics_for`] so that "nobody has classified this" is distinguishable from
+/// "classified, and it reads as a snapshot". The two are the same *value* and completely different
+/// facts, and `carrier_semantics_are_declared` needs to tell them apart - a test that compared the
+/// value could not, and reported every declared snapshot carrier as unclassified.
+pub fn declared_semantics(
+    event: Option<&str>,
+    attribute: Option<&str>,
+) -> Option<CarrierSemantics> {
     if let Some(event) = event {
-        return match event {
+        return Some(match event {
             // The model's own output, and a span's record of a tool it ran: each is one emission the
             // span produced.
             "gen_ai.choice"
@@ -111,11 +124,19 @@ pub fn semantics_for(event: Option<&str>, attribute: Option<&str>) -> CarrierSem
             // A re-sent turn, by definition history. `gen_ai.assistant.message` is the awkward one:
             // it is a replay for most frameworks and the actual output for a choiceless Logfire
             // generation span, so it is read as a snapshot and direction is decided elsewhere.
-            _ => CarrierSemantics::SNAPSHOT,
-        };
+            // A re-sent turn, by definition history. `gen_ai.assistant.message` is the awkward one:
+            // it is a replay for most frameworks and the actual output for a choiceless Logfire
+            // generation span, so it is read as a snapshot and direction is decided elsewhere.
+            "gen_ai.user.message"
+            | "gen_ai.system.message"
+            | "gen_ai.assistant.message"
+            | "gen_ai.content.prompt"
+            | "gen_ai.input.messages" => CarrierSemantics::SNAPSHOT,
+            _ => return None,
+        });
     }
 
-    match attribute {
+    Some(match attribute {
         // The generic IO pair, and the framework-state attributes that behave like it. LangChain's
         // `output.value` re-lists its own tool calls, which is the case that forced this distinction.
         Some("output.value") => CarrierSemantics::ACCUMULATED_STATE,
@@ -141,12 +162,34 @@ pub fn semantics_for(event: Option<&str>, attribute: Option<&str>) -> CarrierSem
         Some(key)
             if key.starts_with("gen_ai.input.messages")
                 || key.starts_with("llm.input_messages")
-                || key.starts_with("ai.prompt") =>
+                || key.starts_with("ai.prompt")
+                // The system prompt a model was given, under each framework's name for it.
+                || key == "gen_ai.system_instructions"
+                || key == "user_system_prompt"
+                // Logfire's request payload, and the Claude Code CLI's turns and tool results.
+                || key == "request_data"
+                || key == "new_context" =>
         {
             CarrierSemantics::SNAPSHOT
         }
-        _ => CarrierSemantics::SNAPSHOT,
-    }
+        // A tool span's own pair: it was handed the arguments and it produced the result. One emission
+        // each - a tool is called once - differing only in direction, which is the clearest case for
+        // direction being its own fact rather than something inferred from the shape.
+        Some("ai.toolCall.result") => CarrierSemantics::EMISSION,
+        Some("ai.toolCall.args") | Some("tool_name") => CarrierSemantics {
+            carrier_holds_span_output: false,
+            ..CarrierSemantics::EMISSION
+        },
+        // The model's reply, under the Claude Code CLI's name for it.
+        Some("response.model_output") => CarrierSemantics::EMISSION,
+        // The error built from a span's exception fields. The span produced it, it is not a re-send,
+        // and it has no position in any payload - it is composed rather than read.
+        Some("exception") => CarrierSemantics {
+            position_provides_sequence_order: false,
+            ..CarrierSemantics::EMISSION
+        },
+        _ => return None,
+    })
 }
 
 #[cfg(test)]
