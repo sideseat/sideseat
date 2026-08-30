@@ -657,8 +657,12 @@ pub(super) fn resolve(
     // Only edges between *different* units are added, and an edge already implied by contraction is
     // skipped. Under the scaffold an edge the legacy order has backwards is dropped, as everywhere.
     if constraints.generation_dataflow_edges {
-        let mut inputs_by_span: HashMap<usize, Vec<usize>> = HashMap::new();
-        let mut outputs_by_span: HashMap<usize, Vec<usize>> = HashMap::new();
+        // Ordered sets, not vectors with a membership scan: a generation span re-sending a long
+        // history has hundreds of input observations mapping to a handful of units, and checking each
+        // against a growing `Vec` made collecting them quadratic in the observation count. `BTreeSet`
+        // also fixes the iteration order, which a `HashSet` would leave to chance.
+        let mut inputs_by_span: HashMap<usize, BTreeSet<usize>> = HashMap::new();
+        let mut outputs_by_span: HashMap<usize, BTreeSet<usize>> = HashMap::new();
         for (observation, seen) in evidence.iter().enumerate() {
             if !seen.from_generation {
                 continue;
@@ -678,11 +682,7 @@ pub(super) fn resolve(
             } else {
                 &mut inputs_by_span
             };
-            let units = side.entry(seen.span).or_default();
-            let unit = unit_of[survivor];
-            if !units.contains(&unit) {
-                units.push(unit);
-            }
+            side.entry(seen.span).or_default().insert(unit_of[survivor]);
         }
         let mut spans: Vec<&usize> = inputs_by_span.keys().collect();
         spans.sort_unstable();
