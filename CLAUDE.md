@@ -196,7 +196,22 @@ Reconstructs conversation timelines from OTEL spans with history duplication.
 
 Note: gen_ai.assistant.message (history re-send) CAN be history. Only gen_ai.choice (actual LLM output) is protected.
 
-Cross-trace prefix strip (session mode): attribute-input only, per-span reset, role+content subsequence match.
+Cross-trace prefix strip (session mode): attribute-input only, per-span reset, and **injective matching
+against a partial order**, not a subsequence match against a sequence. A provider writes a conversation
+history as a flat list, so a turn's parallel tool calls come back interleaved with their results -
+`call, call, result, result` is replayed as `call, result, call, result`. That is a different
+linearisation of the same turn, and one forward cursor reads it as a mismatch at the second call, which
+ends the prefix and leaks the rest of the span. So each replayed block consumes one *distinct* prior
+occurrence (injectivity is what keeps a genuinely repeated question from collapsing onto the first ask -
+without it `adk/tool_use` loses one of its two identical questions), and a candidate is refused only when
+the evidence says it must precede something already matched.
+
+The relation is `order_graph::causal_precedence`, deliberately **not** the resolver's graph: that one is
+over contracted emission *units*, so `call_a → result_a` also asserts `call_b → result_a`, and it
+includes generation dataflow, whose input side keeps replayed history and after dedup asserts
+`call_b → call_a`. Both are right for presentation and false as statements about causal order. Being
+independent of the presentation constraints is also what keeps promoting an ordering class from changing
+which messages a session returns.
 Event-based frameworks (Strands) stay trace-independent; no cross-trace stripping.
 
 **A carrier's structure says what it is evidence of** (`sideml/carrier.rs`). Four independent facts per carrier, because a conversation snapshot and accumulated framework state are both ordered and both may hold history, and differ only in whether *position* proves multiplicity:

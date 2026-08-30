@@ -9846,3 +9846,119 @@ fn the_displayed_time_does_not_decide_the_order() {
         "the feed's order came from the displayed timestamp - the two fields are conflated again"
     );
 }
+
+// ----------------------------------------------------------------------------
+// Test: a replay in a different valid order is still a replay
+// ----------------------------------------------------------------------------
+
+/// The provider's serialisation of parallel tool calls is a *different linearisation* of one turn.
+///
+/// A model that calls two tools at once emits them together, and the results come back as they come:
+/// `call1, call2, result1, result2`. A conversation history is a flat message list, so the next turn
+/// re-sends that turn as `call1, result1, call2, result2` - every call immediately followed by its own
+/// result. Both orders satisfy the same constraints (each result after its own call; the two pairs
+/// unordered against each other), so the second is not new content, it is the same turn written down
+/// differently.
+///
+/// Matching that against a stored sequence with one forward cursor fails at the second call - it sits
+/// *behind* the cursor, which already passed it to reach `result1` - and since a mismatch ends the
+/// prefix, that call, its result and everything after leak into the session as duplicates. Matching
+/// against the relation accepts it, because a call and the other call's result are incomparable.
+#[test]
+fn a_replay_that_reorders_incomparable_blocks_is_still_stripped() {
+    let t0 = fixed_time();
+    let t1 = t0 + chrono::Duration::seconds(30);
+    let t2 = t0 + chrono::Duration::seconds(60);
+
+    // Turn 1, first call: the model emits both tool calls in one response.
+    let span1 = json!([
+        {"source": {"attribute": {"key": "llm.input_messages", "time": t0.to_rfc3339()}}, "content": {"role": "user", "content": "Weather in NYC and LA?"}},
+        {"source": {"event": {"name": "gen_ai.choice", "time": t0.to_rfc3339()}},
+         "content": {"role": "assistant", "content": [{"type": "tool_use", "id": "call_a", "name": "weather", "input": {"city": "NYC"}}, {"type": "tool_use", "id": "call_b", "name": "weather", "input": {"city": "LA"}}], "finish_reason": "tool_use"}}
+    ]);
+
+    // Turn 1, second call: the results come back, in the order they completed.
+    let span2 = json!([
+        {"source": {"attribute": {"key": "llm.input_messages", "time": t1.to_rfc3339()}}, "content": {"role": "user", "content": "Weather in NYC and LA?"}},
+        {"source": {"attribute": {"key": "llm.input_messages", "time": t1.to_rfc3339()}}, "content": {"role": "assistant", "content": [{"type": "tool_use", "id": "call_a", "name": "weather", "input": {"city": "NYC"}}, {"type": "tool_use", "id": "call_b", "name": "weather", "input": {"city": "LA"}}]}},
+        {"source": {"attribute": {"key": "llm.input_messages", "time": t1.to_rfc3339()}}, "content": {"role": "tool", "tool_call_id": "call_a", "content": "NYC is sunny"}},
+        {"source": {"attribute": {"key": "llm.input_messages", "time": t1.to_rfc3339()}}, "content": {"role": "tool", "tool_call_id": "call_b", "content": "LA is warm"}},
+        {"source": {"event": {"name": "gen_ai.choice", "time": t1.to_rfc3339()}},
+         "content": {"role": "assistant", "content": "NYC is sunny and LA is warm"}}
+    ]);
+
+    // Turn 2 replays turn 1 the way a provider writes a history down: each call beside its own result.
+    let span3 = json!([
+        {"source": {"attribute": {"key": "llm.input_messages", "time": t2.to_rfc3339()}}, "content": {"role": "user", "content": "Weather in NYC and LA?"}},
+        {"source": {"attribute": {"key": "llm.input_messages", "time": t2.to_rfc3339()}}, "content": {"role": "assistant", "content": [{"type": "tool_use", "id": "call_a", "name": "weather", "input": {"city": "NYC"}}]}},
+        {"source": {"attribute": {"key": "llm.input_messages", "time": t2.to_rfc3339()}}, "content": {"role": "tool", "tool_call_id": "call_a", "content": "NYC is sunny"}},
+        {"source": {"attribute": {"key": "llm.input_messages", "time": t2.to_rfc3339()}}, "content": {"role": "assistant", "content": [{"type": "tool_use", "id": "call_b", "name": "weather", "input": {"city": "LA"}}]}},
+        {"source": {"attribute": {"key": "llm.input_messages", "time": t2.to_rfc3339()}}, "content": {"role": "tool", "tool_call_id": "call_b", "content": "LA is warm"}},
+        {"source": {"attribute": {"key": "llm.input_messages", "time": t2.to_rfc3339()}}, "content": {"role": "assistant", "content": "NYC is sunny and LA is warm"}},
+        {"source": {"attribute": {"key": "llm.input_messages", "time": t2.to_rfc3339()}}, "content": {"role": "user", "content": "And tomorrow?"}},
+        {"source": {"event": {"name": "gen_ai.choice", "time": t2.to_rfc3339()}},
+         "content": {"role": "assistant", "content": "Tomorrow looks similar"}}
+    ]);
+
+    let rows = vec![
+        make_span_row_full(
+            "trace1",
+            "s1",
+            None,
+            &span1.to_string(),
+            t0,
+            Some(t0),
+            Some("generation"),
+        ),
+        make_span_row_full(
+            "trace1",
+            "s2",
+            None,
+            &span2.to_string(),
+            t1,
+            Some(t1),
+            Some("generation"),
+        ),
+        make_span_row_full(
+            "trace2",
+            "s3",
+            None,
+            &span3.to_string(),
+            t2,
+            Some(t2),
+            Some("generation"),
+        ),
+    ];
+
+    let result = process_spans(rows, &FeedOptions::default());
+    let shape: Vec<(crate::domain::sideml::types::ChatRole, &str)> = result
+        .messages
+        .iter()
+        .map(|b| (b.role, b.entry_type.as_str()))
+        .collect();
+
+    let calls: Vec<&str> = result
+        .messages
+        .iter()
+        .filter(|b| b.entry_type == "tool_use")
+        .filter_map(|b| b.tool_use_id.as_deref())
+        .collect();
+    assert_eq!(
+        calls.len(),
+        2,
+        "each call once, not once per order it was written in: {:?}",
+        shape
+    );
+    let results = result
+        .messages
+        .iter()
+        .filter(|b| b.entry_type == "tool_result")
+        .count();
+    assert_eq!(results, 2, "and each result once: {:?}", shape);
+    assert_eq!(
+        result.messages.len(),
+        8,
+        "the question, two calls, two results, the first answer, the new question, the second: {:?}",
+        shape
+    );
+}

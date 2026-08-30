@@ -39,7 +39,7 @@
 //! Generation input→output and snapshot-sequence edges are the next classes to add; they are
 //! deliberately absent here. Credible time is a **priority** for the topological pop, never an edge.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 
@@ -240,6 +240,143 @@ impl UnionFind {
         }
     }
 }
+/// What the evidence says must come before what, over *blocks*, as a relation rather than a sequence.
+///
+/// The resolver's answer is one linearisation of its own graph: a topological order chosen by time and
+/// legacy index among the many the constraints permit. That choice is presentation. Anything reasoning
+/// about causality has to ask the relation instead - and not the resolver's graph, for two reasons that
+/// both come from what that graph is *for*.
+///
+/// **It is over units, not blocks.** An emission is contracted to one node, so an edge into or out of it
+/// speaks for every block inside it: `call_a -> result_a` becomes `emission -> result_a`, which also
+/// asserts `call_b -> result_a`. Right for presentation, because an emission is atomic and stays
+/// contiguous - and wrong here, because a provider's conversation history is exactly what splits an
+/// emission apart, writing each call beside its own result.
+///
+/// **It includes generation dataflow**, whose input side deliberately keeps replayed history. "The tool
+/// result this answer cites came first" is the right reading there and a false statement about global
+/// order, as that class documents. Dedup then makes it self-contradictory: a span whose input replays
+/// the calls it is about to re-emit has them collapsed onto the same survivors, so the graph acquires
+/// `call_b -> barrier -> call_a` for two calls of one emission.
+///
+/// So this is built from the three classes that describe one emission and one payload, at block
+/// granularity: an emission's own sequence, exact call to result, and a carrier's stated order. Indices
+/// are into the survivor slice - the same indexing the pre-resolve transcript uses.
+#[derive(Debug, Clone, Default)]
+pub(super) struct Precedence {
+    /// Reverse adjacency over survivor indices.
+    predecessors: Vec<Vec<u32>>,
+}
+
+impl Precedence {
+    /// Everything that must precede `b`, accumulated into `seen` and skipping what it already holds.
+    ///
+    /// Amortised: a matcher checking many candidates against a growing set of matched occurrences pays
+    /// for each block and edge once in total, not once per query.
+    pub(super) fn collect_ancestors(&self, b: usize, seen: &mut HashSet<u32>) {
+        if b >= self.predecessors.len() {
+            return;
+        }
+        let mut stack = vec![b as u32];
+        while let Some(node) = stack.pop() {
+            for &p in self.predecessors.get(node as usize).into_iter().flatten() {
+                if seen.insert(p) {
+                    stack.push(p);
+                }
+            }
+        }
+    }
+}
+
+/// Which ordered thing a sequence edge came from. Both state an order over their own members, and
+/// neither says anything about the other's, so they are collected separately and keyed apart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum SequenceSource {
+    /// One emission instance: the blocks a single response produced, in the order it produced them.
+    Emission(usize),
+    /// One carrier: the order a payload states between its own observations.
+    Carrier(usize),
+}
+
+/// Build the block-level causal relation over a trace's survivors - see [`Precedence`] for why it is
+/// not the resolver's graph.
+pub(super) fn causal_precedence(
+    evidence: &[OrderEvidence],
+    survivors: &[BlockEntry],
+    lineage: &[Option<usize>],
+) -> Precedence {
+    let n = survivors.len();
+    let mut predecessors: Vec<Vec<u32>> = vec![Vec::new(); n];
+    let mut edges: HashSet<(u32, u32)> = HashSet::new();
+    let mut add = |from: usize, to: usize, predecessors: &mut Vec<Vec<u32>>| {
+        if from != to && from < n && to < n && edges.insert((from as u32, to as u32)) {
+            predecessors[to].push(from as u32);
+        }
+    };
+    let survivor_of = |observation: usize| lineage.get(observation).copied().flatten();
+
+    // An emission's own sequence, and a carrier's stated order: the same shape, so collected together.
+    // Consecutive members only - the transitive closure is what the walk computes.
+    let mut sequences: HashMap<SequenceSource, Vec<EmissionMember>> = HashMap::new();
+    for (observation, seen) in evidence.iter().enumerate() {
+        let Some(survivor) = survivor_of(observation) else {
+            continue;
+        };
+        if let Some(instance) = seen.emission {
+            sequences
+                .entry(SequenceSource::Emission(instance))
+                .or_default()
+                .push((seen.message_index, seen.entry_index, survivor));
+        }
+        if seen.carrier_ordered {
+            sequences
+                .entry(SequenceSource::Carrier(seen.carrier))
+                .or_default()
+                .push((seen.message_index, seen.entry_index, survivor));
+        }
+    }
+    let mut keys: Vec<SequenceSource> = sequences.keys().copied().collect();
+    keys.sort_unstable();
+    for key in keys {
+        let mut members = sequences.remove(&key).unwrap_or_default();
+        members.sort_unstable();
+        let mut sequence: Vec<usize> = Vec::with_capacity(members.len());
+        for (_, _, survivor) in members {
+            if sequence.last() != Some(&survivor) {
+                sequence.push(survivor);
+            }
+        }
+        for pair in sequence.windows(2) {
+            add(pair[0], pair[1], &mut predecessors);
+        }
+    }
+
+    // Exact call to result, at block granularity and only where the id is unambiguous - a reused or
+    // regenerated id says nothing.
+    let mut calls: HashMap<&str, Vec<usize>> = HashMap::new();
+    for (i, block) in survivors.iter().enumerate() {
+        if block.entry_type == "tool_use"
+            && let Some(id) = block.tool_use_id.as_deref().filter(|s| !s.is_empty())
+        {
+            calls.entry(id).or_default().push(i);
+        }
+    }
+    for (i, block) in survivors.iter().enumerate() {
+        if block.entry_type != "tool_result" {
+            continue;
+        }
+        let Some(id) = block.tool_use_id.as_deref().filter(|s| !s.is_empty()) else {
+            continue;
+        };
+        if let Some(callers) = calls.get(id)
+            && callers.len() == 1
+        {
+            add(callers[0], i, &mut predecessors);
+        }
+    }
+
+    Precedence { predecessors }
+}
 
 /// Which constraints the resolver is allowed to *change the answer* with.
 ///
@@ -356,14 +493,14 @@ impl Constraints {
     ///
     /// Every class is now promoted. What remains is not a dial:
     ///
-    /// - **Replay matching** is still a single linear transcript rather than injective matching against
-    ///   a partial order, so a replay that picks a different valid interleaving can end the scan early.
-    /// - **The dataflow class still emits the product** of a span's inputs and outputs. Two of the three
-    ///   quadratic paths are gone - Kahn no longer rescans every unit, and duplicate edges are detected
-    ///   by set membership - but the product itself needs a barrier node per span (inputs to barrier to
-    ///   outputs, `in + out` edges instead of `in * out`), which changes the node set the cohesion
-    ///   property and the TLA+ model are written over. In practice outputs number one to three, so the
-    ///   product is near-linear; adversarially it is not bounded.
+    /// - **The dataflow class still emits the product** of a span's inputs and outputs where the two
+    ///   sets overlap. Elsewhere a barrier node bounds it to `in + out`; the pairwise form is kept only
+    ///   for the overlap case, which no corpus fixture reaches. In practice outputs number one to three,
+    ///   so the product is near-linear; adversarially it is not bounded.
+    ///
+    /// Replay matching used to be on this list. It is now injective matching against
+    /// [`causal_precedence`], which is a *different* relation from this graph on purpose - see that
+    /// type for why a presentation graph cannot answer a causality question.
     pub(super) const PRODUCTION: Self = Self {
         pairwise_dataflow_edges: false,
         contract_non_contiguous_emissions: true,
