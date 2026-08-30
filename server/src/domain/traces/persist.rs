@@ -507,9 +507,18 @@ async fn write_and_record_files(
 
         if is_new {
             if file.data.is_empty() {
+                // Unreachable by design, and a failure rather than an assumption. This branch used to
+                // mean "cache hit, so the bytes are already in storage" - a claim the extraction cache
+                // could not support, since it is global and keyed on the source text. Cache hits now
+                // carry their bytes, so no data means a producer built a `PendingFileWrite` without
+                // any, and writing a reference to nothing is exactly what must not happen.
                 cache_hits += 1;
-                // Cache hit from previous extraction: the bytes are already in storage, and the
-                // reference count is incremented below with the trace association.
+                failures += 1;
+                tracing::error!(
+                    hash = %file.hash,
+                    project_id = %file.project_id,
+                    "Pending file has no data; refusing to record a reference to it"
+                );
             } else {
                 // Fresh extraction: decode base64, write temp file, upsert metadata, finalize
                 let decoded = match BASE64_STANDARD.decode(&file.data) {

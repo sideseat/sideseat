@@ -340,9 +340,17 @@ fn extract_or_cache(
 
     // Cache hit: skip charset validation + BLAKE3
     if let Some(cached) = cache_key.and_then(|key| cache.unwrap().get(&key)) {
+        // A hit carries the bytes, from the source string it was keyed on.
+        //
+        // It used to carry `Vec::new()`, and persistence read empty data as "already in storage" -
+        // which is a claim the cache is in no position to make. The cache is global and keyed on the
+        // *source text*, so a hit in project B says only that some project once hashed these bytes;
+        // B may never have stored them. The same reasoning applies after a failed or quota-rejected
+        // write in the same project. What the cache legitimately saves is the charset validation and
+        // the BLAKE3, which is the expensive part - not the copy.
         let uri = record_extracted_file(
             cached.hash,
-            Vec::new(),
+            strip_base64_whitespace(s),
             cached.media_type,
             cached.size,
             files,

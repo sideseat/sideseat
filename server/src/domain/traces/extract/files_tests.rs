@@ -1632,11 +1632,18 @@ fn test_cached_extraction_produces_same_uri() {
 
     assert_eq!(uri1, uri2, "Cached and uncached URIs must match");
     assert_eq!(result1.files.len(), 1, "First should extract file");
-    // Cache hit: file still appears but with empty data
     assert_eq!(result2.files.len(), 1, "Cache hit should still record file");
+    // A hit carries the bytes, and this assertion used to require the opposite. Empty data was read
+    // downstream as "already in storage", which the cache cannot know: it is global and keyed on the
+    // source text, so a hit in one project says only that some project once hashed these bytes. What
+    // the cache saves is the charset validation and the BLAKE3, not the copy.
+    assert_eq!(
+        result2.files[0].data, result1.files[0].data,
+        "a cache hit must carry the same bytes as the extraction it stands in for"
+    );
     assert!(
-        result2.files[0].data.is_empty(),
-        "Cache hit file should have empty data"
+        !result2.files[0].data.is_empty(),
+        "a cache hit must not claim the bytes are already stored"
     );
 }
 
