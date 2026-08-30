@@ -286,25 +286,39 @@ impl FileService {
         // under the fourth. Recomputing cannot do that - whatever else happened, the count becomes the
         // truth.
         for (hash, _) in references {
-            let new_ref_count = repo.sync_ref_count(project_id, &hash).await?;
+            // The count is kept accurate for display, but it is not what authorises the deletion.
+            repo.sync_ref_count(project_id, &hash).await?;
 
-            if new_ref_count == Some(0) {
-                // Delete from storage first
-                if let Err(e) = self.storage.delete(project_id, &hash).await {
-                    tracing::warn!(
-                        project_id,
-                        hash,
-                        error = %e,
-                        "Failed to delete file from storage, keeping metadata for retry"
-                    );
-                    continue;
-                }
-
-                // Only delete metadata after successful storage deletion
-                repo.delete_file(project_id, &hash).await?;
-
-                tracing::debug!(project_id, hash, "Deleted orphaned file");
+            // The metadata row goes first, and only if nothing references the file *at that instant*.
+            //
+            // Deciding from a count read earlier races with ingestion and loses: cleanup recomputes
+            // zero, a new trace associates, and the delete fires anyway - taking the bytes from under a
+            // span that was just committed. With the condition inside the statement, the association
+            // makes the delete match nothing and the file stays.
+            //
+            // Deleting the row before the bytes also means the surviving failure mode is bytes with no
+            // metadata - a leak - rather than a row pointing at bytes that are gone, which is what a
+            // reader would see as corruption.
+            if !repo.delete_file_if_unreferenced(project_id, &hash).await? {
+                tracing::debug!(
+                    project_id,
+                    hash,
+                    "File was referenced again before deletion; keeping it"
+                );
+                continue;
             }
+
+            if let Err(e) = self.storage.delete(project_id, &hash).await {
+                tracing::warn!(
+                    project_id,
+                    hash,
+                    error = %e,
+                    "Deleted file metadata but its bytes remain; the orphan sweep will retry"
+                );
+                continue;
+            }
+
+            tracing::debug!(project_id, hash, "Deleted orphaned file");
         }
 
         self.invalidate_quota_cache(&[project_id]).await;

@@ -165,6 +165,35 @@ pub async fn delete_project_files(pool: &SqlitePool, project_id: &str) -> Result
     Ok(result.rows_affected())
 }
 
+/// Delete a file's metadata **only if nothing references it**, and say whether it was deleted.
+///
+/// The condition is part of the statement, which is what makes it safe against a concurrent
+/// association. Reading a count of zero and then deleting is not: cleanup can recompute zero,
+/// ingestion can associate a new trace, and the delete still fires - taking the bytes out from under a
+/// span that was just committed. Here the association makes the delete match nothing, cleanup sees
+/// that it deleted nothing, and the file stays.
+pub async fn delete_file_if_unreferenced(
+    pool: &SqlitePool,
+    project_id: &str,
+    file_hash: &str,
+) -> Result<bool, SqliteError> {
+    let result = sqlx::query(
+        r#"
+        DELETE FROM files
+        WHERE project_id = ? AND file_hash = ?
+          AND NOT EXISTS (
+              SELECT 1 FROM trace_files
+              WHERE project_id = files.project_id AND file_hash = files.file_hash
+          )
+        "#,
+    )
+    .bind(project_id)
+    .bind(file_hash)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
 /// Set a file's reference count to the number of associations that actually exist.
 ///
 /// Derived, not maintained. `ref_count` is a cached `COUNT(*)` over `trace_files`, and every way it
@@ -724,6 +753,65 @@ mod tests {
         assert_eq!(
             get_project_storage_bytes(&pool, "project2").await.unwrap(),
             2048
+        );
+    }
+
+    /// A file re-associated between the count and the delete must survive.
+    ///
+    /// The interleaving a count-then-delete cannot survive: cleanup recomputes zero, ingestion
+    /// associates a new trace, and the delete fires anyway - taking the bytes from under a span that was
+    /// just committed. With the condition inside the delete, the association makes it match nothing.
+    #[tokio::test]
+    async fn a_file_referenced_again_before_deletion_survives() {
+        let pool = setup_test_pool().await;
+        associate_file(
+            &pool,
+            "old-trace",
+            "default",
+            test_hash(),
+            Some("image/png"),
+            1024,
+            "sha256",
+        )
+        .await
+        .unwrap();
+
+        // Cleanup: associations for the doomed trace are gone, and the count reads zero.
+        delete_trace_files(&pool, "default", &["old-trace".to_string()])
+            .await
+            .unwrap();
+        assert_eq!(
+            sync_ref_count(&pool, "default", test_hash()).await.unwrap(),
+            Some(0)
+        );
+
+        // Ingestion gets in first, associating a new trace with the same content.
+        associate_file(
+            &pool,
+            "new-trace",
+            "default",
+            test_hash(),
+            Some("image/png"),
+            1024,
+            "sha256",
+        )
+        .await
+        .unwrap();
+
+        // The delete must now refuse.
+        let deleted = delete_file_if_unreferenced(&pool, "default", test_hash())
+            .await
+            .unwrap();
+        assert!(
+            !deleted,
+            "the file is referenced by new-trace, so it must not be deleted"
+        );
+        assert!(
+            get_file(&pool, "default", test_hash())
+                .await
+                .unwrap()
+                .is_some(),
+            "and its metadata must still be there"
         );
     }
 

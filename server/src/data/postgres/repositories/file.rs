@@ -165,6 +165,30 @@ pub async fn delete_project_files(pool: &PgPool, project_id: &str) -> Result<u64
     Ok(result.rows_affected())
 }
 
+/// Delete a file's metadata only if nothing references it - see the SQLite twin for why the condition
+/// has to be inside the statement.
+pub async fn delete_file_if_unreferenced(
+    pool: &PgPool,
+    project_id: &str,
+    file_hash: &str,
+) -> Result<bool, PostgresError> {
+    let result = sqlx::query(
+        r#"
+        DELETE FROM files
+        WHERE project_id = $1 AND file_hash = $2
+          AND NOT EXISTS (
+              SELECT 1 FROM trace_files
+              WHERE project_id = files.project_id AND file_hash = files.file_hash
+          )
+        "#,
+    )
+    .bind(project_id)
+    .bind(file_hash)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
 /// Set a file's reference count to the number of associations that actually exist.
 ///
 /// See the SQLite twin: `ref_count` is a cached `COUNT(*)`, and recomputing it is the only form immune
