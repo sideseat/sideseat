@@ -1129,16 +1129,19 @@ fn check_invariants(label: &str, built: &Built) {
         assert_scope(label, name, scope, rows);
         assert_no_duplicates(label, name, rows);
         assert_carrier_subsequence(label, name, rows);
-        // Span views are excluded from both tool checks: a single span holds only one half of
-        // a call/result pair, so neither the pairing nor the id of the other half is present.
+        // Causality applies to every chronological view, span views included. It reads only *matched*
+        // pairs, so it is vacuous for the usual span holding one half - while a span that holds both,
+        // as an ADK `call_llm` does, is exactly where an inversion hides: one such view listed both
+        // tool results ahead of both calls and no invariant objected, because the blanket exemption
+        // covered it. The project feed keeps its exemption: it descends across responses by contract,
+        // so a call and an earlier response's result do appear reversed there.
+        if !matches!(scope, Scope::Feed) {
+            assert_tool_causality(label, name, rows);
+        }
+        // Pairing stays span-exempt: a single span usually holds only one half, so the *other* half's
+        // id is legitimately absent and demanding it would accuse every ordinary span view.
         if !name.starts_with("span ") {
             assert_tool_pairing(label, name, rows);
-            // Causality applies to the canonical, chronological views. The project feed descends
-            // across responses on purpose, so a call and the result of an *earlier* response appear
-            // reversed there - demanding otherwise accuses the feed of its own contract.
-            if !matches!(scope, Scope::Feed) {
-                assert_tool_causality(label, name, rows);
-            }
             // Span views are excluded here too: one span legitimately holds only the request or
             // only the reply.
             //

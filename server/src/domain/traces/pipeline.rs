@@ -424,9 +424,29 @@ impl TracePipeline {
 
         let mut all_db_spans: Vec<NormalizedSpan> = Vec::new();
         let mut all_pending_files: Vec<PendingFileWrite> = Vec::new();
-        for (db_spans, pending_files) in results.into_iter().flatten() {
-            all_db_spans.extend(db_spans);
-            all_pending_files.extend(pending_files);
+        let mut lost_requests = 0usize;
+        for result in results {
+            match result {
+                Some((db_spans, pending_files)) => {
+                    all_db_spans.extend(db_spans);
+                    all_pending_files.extend(pending_files);
+                }
+                // A request that panicked. `catch_unwind` stops it taking the batch down, which is
+                // right, and `flatten()` used to drop it here - so the batch reported success, the
+                // exporter acknowledged, and those spans were gone with nothing but a log line. The
+                // whole batch is refused instead: the exporter retries, and ingestion is idempotent by
+                // span id, so re-delivering the requests that did succeed costs a rewrite rather than a
+                // duplicate.
+                None => lost_requests += 1,
+            }
+        }
+        if lost_requests > 0 {
+            tracing::error!(
+                lost_requests,
+                requests = requests.len(),
+                "Refusing the batch: a request panicked and its spans would otherwise be acknowledged"
+            );
+            return false;
         }
 
         if all_db_spans.is_empty() {
