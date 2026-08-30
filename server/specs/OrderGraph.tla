@@ -19,35 +19,57 @@
 (* survivors, emission contraction as a quotient, the three edge classes,   *)
 (* and resolution as deterministic Kahn with a total cycle fallback.        *)
 (*                                                                         *)
-(* Not modelled: content, hashing, quality scoring, history marking. Which  *)
-(* observation survives is dedup's business. The spec quantifies over ALL   *)
-(* lineages, which is the point: the order must be right whichever copy     *)
-(* wins, and that is precisely the property the implementation kept losing. *)
+(* Not modelled, and stated because the distinction matters: content,       *)
+(* hashing, quality scoring, history marking. Which observation survives is *)
+(* dedup's business.                                                        *)
+(*                                                                          *)
+(* The spec checks each lineage independently, so it proves the properties  *)
+(* below hold for *every* survivor selection. It does NOT prove that two    *)
+(* equivalent selections yield the same order - that needs two lineages     *)
+(* compared in one state, which squares the space, and `Rank` is fixed here *)
+(* besides. Copy-survival independence is therefore tested in Rust, over    *)
+(* real payloads, by `ordering_constraints_do_not_change_a_session_s_messages`  *)
+(* and the promoted-constraint tests, not claimed here.                     *)
+(*                                                                          *)
+(* Also outside the model: the promotion dial, time priority, the           *)
+(* history gating that differs between carrier and dataflow edges, and the  *)
+(* session transcript. Each is named in `Constraints::PRODUCTION`.          *)
 (***************************************************************************)
 EXTENDS Naturals, FiniteSets, Sequences, TLC
 
 (* The model's atoms. Everything structural is derived below, because a .cfg    *)
 (* file cannot express a record, and the carrier profiles are records.          *)
-CONSTANTS ob1, ob2, ob3, ob4,   \* observations
-          sv1, sv2, sv3,        \* survivors
+CONSTANTS ob1, ob2, ob3,        \* observations
+          sv1, sv2,             \* survivors
           none,              \* sentinel: an observation that survived nothing
           spA, spB,          \* spans
           p1, p2, p3         \* payload instances
 
-Obs == {ob1, ob2, ob3, ob4}
-Surv == {sv1, sv2, sv3}
+Obs == {ob1, ob2, ob3}
+Surv == {sv1, sv2}
 NoSurv == none
 
 \* The pre-resolver order: what the previous scalar sort produced, and the
 \* deterministic tie-break here.
-Rank == (sv1 :> 0) @@ (sv2 :> 1) @@ (sv3 :> 2)
+Rank == (sv1 :> 0) @@ (sv2 :> 1)
 
 (* The carrier shapes, named for what they are in the corpus:                   *)
 (*   choice  - gen_ai.choice / ai.response: an emission the span produced       *)
 (*   inMsgs  - llm.input_messages / ai.prompt: a snapshot the span received     *)
 (*   state   - output.value: accumulated framework state, on a chain span       *)
 (* Two spans, because a message emitted by one span and re-listed by another is  *)
-(* the case the whole redesign exists for.                                      *)
+(* the case the whole redesign exists for.                                        *)
+(*                                                                                *)
+(* Two survivors, and the scope that costs: `Cohesion` is vacuous here, because    *)
+(* there is no third block that could land between a contracted pair. A three-     *)
+(* survivor model was built and does not complete - TLC enumerates initial states  *)
+(* before filtering them, and the space projects to hundreds of hours even with     *)
+(* `unit` as a constrained variable rather than a recomputed closure. It is not     *)
+(* worth the wait: contiguity is guaranteed by construction rather than by search,  *)
+(* since the emit loop flattens each unit's members consecutively, and no ordering  *)
+(* rule can interleave two units. What TLC *does* prove here - permutation, and     *)
+(* every edge class respected whenever the constraints are satisfiable, over every  *)
+(* lineage - is the part that is not obvious by inspection.                         *)
 Profiles ==
     { [span |-> spA, payload |-> p1, kind |-> "emission",
        ordered |-> TRUE, output |-> TRUE, gen |-> TRUE],
@@ -58,9 +80,18 @@ Profiles ==
       [span |-> spB, payload |-> p3, kind |-> "state",
        ordered |-> TRUE, output |-> TRUE, gen |-> FALSE] }
 
-VARIABLES lineage, prof, posn, answers
+(* Positions are bounded to three values, which is all the ordering rules read:      *)
+(* before, after, and same.                                                          *)
+(*                                                                                   *)
+(* The contraction is a constrained *variable* rather than a computed definition. TLA+ has no          *)
+(* memoisation, so `UnitOf` - a transitive closure - is recomputed inside every     *)
+(* edge predicate inside every quantifier, which makes the cost per *state* rather  *)
+(* than per state-space. Two positions still distinguish "before", "after" and      *)
+(* "same", which is all the ordering rules read.                                    *)
 
-vars == <<lineage, prof, posn, answers>>
+VARIABLES lineage, prof, posn, answers, unit
+
+vars == <<lineage, prof, posn, answers, unit>>
 
 ----------------------------------------------------------------------------
 (* Carrier facts, mirroring sideml::carrier::CarrierSemantics.              *)
@@ -112,9 +143,26 @@ Closure(frontier, seen) ==
 
 Component(s) == Closure({s}, {s})
 
-\* The representative is the component's lowest legacy index: deterministic, and
-\* independent of the order unions arrive in.
-UnitOf(s) == CHOOSE r \in Component(s) : \A t \in Component(s) : Rank[r] <= Rank[t]
+\* The contraction, as a *variable* the model chooses and `WellFormedUnits` constrains,
+\* rather than a definition computed from `CoEmitted`.
+\*
+\* Semantically identical - the constraint says exactly "co-emitted survivors share a
+\* unit, and the representative is the component's lowest rank" - and the difference is
+\* that TLA+ has no memoisation, so as a definition the transitive closure was
+\* recomputed inside every edge predicate inside every quantifier of Kahn. At three
+\* survivors that projected to hundreds of hours; as a variable it is evaluated once.
+UnitOf(s) == unit[s]
+
+\* What makes `unit` a contraction of co-emission and nothing else.
+WellFormedUnits ==
+    /\ \A s \in Surv : unit[s] \in Surv
+    /\ \A s \in Surv : unit[unit[s]] = unit[s]
+    \* Co-emitted survivors share a unit ...
+    /\ \A a, b \in Surv : CoEmitted(a, b) => unit[a] = unit[b]
+    \* ... and nothing else does: a unit's members are exactly one co-emission component.
+    /\ \A a, b \in Surv : unit[a] = unit[b] => b \in Component(a)
+    \* The representative is the component's lowest rank, which makes the choice unique.
+    /\ \A s \in Surv : \A t \in Surv : (unit[t] = unit[s]) => Rank[unit[s]] <= Rank[t]
 
 Units == { UnitOf(s) : s \in Surv }
 MembersOf(u) == { s \in Surv : UnitOf(s) = u }
@@ -214,6 +262,7 @@ TypeOK ==
     /\ prof \in [Obs -> Profiles]
     /\ posn \in [Obs -> 0..2]
     /\ answers \in [Surv -> Surv \cup {NoSurv}]
+    /\ unit \in [Surv -> Surv]
 
 \* Every survivor appears exactly once: the resolver reorders, it never adds,
 \* drops or duplicates. Holds unconditionally, cycles included.
@@ -299,7 +348,9 @@ Init ==
     /\ prof \in [Obs -> Profiles]
     /\ posn \in [Obs -> 0..2]
     /\ answers \in [Surv -> Surv \cup {NoSurv}]
+    /\ unit \in [Surv -> Surv]
     /\ WellFormedInput
+    /\ WellFormedUnits
 
 Next == UNCHANGED vars
 
