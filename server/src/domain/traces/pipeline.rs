@@ -449,8 +449,27 @@ impl TracePipeline {
         // The cost is their sum rather than their maximum. Worth it: parity between the analytics
         // backends proves they *agree*, never that either faithfully represents the OTLP input, so a
         // dangling reference is a class of corruption no read-side test can catch.
-        if !all_pending_files.is_empty() {
-            persist_extracted_files(all_pending_files, &self.file_service).await;
+        let files = persist_extracted_files(all_pending_files, &self.file_service).await;
+        if files.failed > 0 {
+            // A row referencing a file that is not there is worse than no row: the reference cannot
+            // be repaired by a later delivery, while the batch can. Refusing it lets the exporter
+            // retry, and ingestion is idempotent by span id.
+            tracing::error!(
+                failed = files.failed,
+                spans = span_count,
+                "Refusing to commit spans whose extracted files could not be stored"
+            );
+            return false;
+        }
+        if files.quota_skipped > 0 {
+            // Deliberate, not transient: retrying will not help. The span is kept because its text is
+            // real, and its file references will not resolve until they can be rendered as
+            // unavailable - a decision about what a reader should see, recorded rather than guessed.
+            tracing::error!(
+                skipped = files.quota_skipped,
+                spans = span_count,
+                "Storage quota exceeded: committing spans whose file references will not resolve"
+            );
         }
         let db_ok = write_to_duckdb(all_db_spans, &self.analytics).await;
 
@@ -490,10 +509,18 @@ impl TracePipeline {
                 return true;
             }
             let sse_events: Vec<SseSpanEvent> = db_spans.iter().map(SseSpanEvent::from).collect();
-            let (db_ok, _) = tokio::join!(
-                write_to_duckdb(db_spans, &self.analytics),
-                persist_extracted_files(pending_files, &self.file_service)
-            );
+            // Ordered, exactly as the batch path is: this path ran the two concurrently, so it could
+            // commit a row referencing a file whose write had failed - the same defect, in the path
+            // that runs at shutdown and recovery, where it is least likely to be noticed.
+            let files = persist_extracted_files(pending_files, &self.file_service).await;
+            if files.failed > 0 {
+                tracing::error!(
+                    failed = files.failed,
+                    "Refusing to commit spans whose extracted files could not be stored"
+                );
+                return false;
+            }
+            let db_ok = write_to_duckdb(db_spans, &self.analytics).await;
             if db_ok {
                 publish_sse_events(&sse_events, &self.topics).await;
             }
