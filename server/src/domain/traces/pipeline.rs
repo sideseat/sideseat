@@ -449,6 +449,9 @@ impl TracePipeline {
             }
         }
         if lost_requests > 0 {
+            // The requests that *did* succeed left cache entries but were never persisted, so the retry
+            // must not find them claiming otherwise. Every refusal clears the cache for that reason.
+            self.file_cache.invalidate_all();
             tracing::error!(
                 lost_requests,
                 requests = requests.len(),
@@ -552,6 +555,7 @@ impl TracePipeline {
             let mut db_spans = db_spans;
             let files = persist_extracted_files(pending_files, &self.file_service).await;
             if files.failed > 0 {
+                self.file_cache.invalidate_all();
                 tracing::error!(
                     failed = files.failed,
                     "Refusing to commit spans whose extracted files could not be stored"

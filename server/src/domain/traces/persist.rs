@@ -417,9 +417,16 @@ async fn filter_over_quota(
 ) {
     // Conservative estimate: may over-count when duplicates exist within the batch,
     // but actual dedup happens downstream in write_and_record_files and at the DB layer.
+    // Once per distinct file, not once per occurrence. A batch where one image appears in forty spans
+    // asked for forty times the space it needs, so a duplicate-heavy batch could be rejected for
+    // storage it was never going to use. Whether the file is *already* stored is not visible here, so
+    // this is still an over-estimate - but bounded by distinct content rather than by span count.
     let mut project_sizes: HashMap<String, usize> = HashMap::new();
+    let mut counted: HashSet<(String, String)> = HashSet::new();
     for f in &files {
-        *project_sizes.entry(f.project_id.clone()).or_default() += f.size;
+        if counted.insert((f.project_id.clone(), f.hash.clone())) {
+            *project_sizes.entry(f.project_id.clone()).or_default() += f.size;
+        }
     }
 
     let mut over_quota: HashSet<String> = HashSet::new();
