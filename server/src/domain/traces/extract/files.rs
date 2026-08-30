@@ -183,6 +183,40 @@ pub struct ExtractionResult {
     pub modified: bool,
 }
 
+/// Every `#!B64!#` reference present in a JSON value.
+///
+/// Used to find the ones that arrived *already formed*, by subtracting the hashes extraction just
+/// produced. A reference is a claim that bytes are in this project's file store, and nothing checked
+/// it: a client could send one for content it never uploaded, or replay one from another project, and
+/// the row would be committed pointing at nothing.
+pub fn collect_file_references(json: &JsonValue, into: &mut Vec<String>) {
+    match json {
+        JsonValue::String(s) => {
+            if is_file_uri(s) {
+                into.push(s.clone());
+            } else if s.contains(crate::utils::file_uri::FILE_URI_PREFIX) {
+                // Embedded in surrounding text, as data URLs are.
+                for candidate in s.split_whitespace() {
+                    if is_file_uri(candidate) {
+                        into.push(candidate.to_string());
+                    }
+                }
+            }
+        }
+        JsonValue::Array(items) => {
+            for item in items {
+                collect_file_references(item, into);
+            }
+        }
+        JsonValue::Object(map) => {
+            for value in map.values() {
+                collect_file_references(value, into);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Extract and replace base64 data in raw messages.
 ///
 /// Recursively scans JSON for base64 data >= 1KB in extractable fields.
@@ -440,7 +474,8 @@ fn try_extract_base64(s: &str) -> Option<ExtractedData> {
         return None;
     }
 
-    // Skip #!B64!# URIs (already extracted)
+    // Already a reference. Not extracted again - and not trusted either; see
+    // `ExtractionResult::incoming_references`, which the caller collects these into.
     if is_file_uri(s) {
         return None;
     }

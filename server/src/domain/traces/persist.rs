@@ -23,7 +23,8 @@ use serde_json::{Value as JsonValue, json};
 
 use super::enrich::SpanEnrichment;
 use super::extract::files::{
-    ExtractedFile, FileExtractionCache, extract_and_replace_files, extract_and_replace_files_cached,
+    ExtractedFile, FileExtractionCache, collect_file_references, extract_and_replace_files,
+    extract_and_replace_files_cached,
 };
 use super::extract::{RawMessage, RawToolDefinition, RawToolNames, SpanData};
 use crate::core::constants::{
@@ -116,13 +117,20 @@ pub(super) fn prepare_batch(
     input: BatchInput,
     files_enabled: bool,
     file_cache: Option<&FileExtractionCache>,
-) -> (Vec<NormalizedSpan>, Vec<PendingFileWrite>) {
+) -> (
+    Vec<NormalizedSpan>,
+    Vec<PendingFileWrite>,
+    Vec<IncomingReference>,
+) {
     let mut pending_files = Vec::new();
+    let mut incoming_references = Vec::new();
 
     // Extract files from messages (CPU only: replace base64 with URIs)
     let processed_messages = if files_enabled {
-        let (msgs, files) = extract_files_cpu_messages(input.messages, &input.spans, file_cache);
+        let (msgs, files, incoming) =
+            extract_files_cpu_messages(input.messages, &input.spans, file_cache);
         pending_files = files;
+        incoming_references = incoming;
         msgs
     } else {
         input.messages
@@ -143,7 +151,7 @@ pub(super) fn prepare_batch(
     );
     pending_files.extend(raw_span_files);
 
-    (db_spans, pending_files)
+    (db_spans, pending_files, incoming_references)
 }
 
 // ============================================================================
@@ -271,8 +279,13 @@ fn extract_files_cpu_messages(
     mut messages: Vec<Vec<RawMessage>>,
     spans: &[SpanData],
     cache: Option<&FileExtractionCache>,
-) -> (Vec<Vec<RawMessage>>, Vec<PendingFileWrite>) {
+) -> (
+    Vec<Vec<RawMessage>>,
+    Vec<PendingFileWrite>,
+    Vec<IncomingReference>,
+) {
     let mut pending = Vec::new();
+    let mut incoming = Vec::new();
 
     for (span_idx, span_messages) in messages.iter_mut().enumerate() {
         let span = &spans[span_idx];
@@ -284,11 +297,26 @@ fn extract_files_cpu_messages(
                 Some(c) => extract_and_replace_files_cached(&mut raw_message.content, c),
                 None => extract_and_replace_files(&mut raw_message.content),
             };
+            // References that arrived already formed, rather than being created here: everything in the
+            // message afterwards, minus what extraction just produced. A reference is a claim that
+            // bytes are in this project's file store, and nothing verified it.
+            let ours: HashSet<&str> = result.files.iter().map(|f| f.hash.as_str()).collect();
+            let mut present = Vec::new();
+            collect_file_references(&raw_message.content, &mut present);
+            for uri in present {
+                let is_ours = crate::utils::file_uri::parse_file_uri(&uri)
+                    .is_some_and(|parsed| ours.contains(parsed.hash));
+                if !is_ours {
+                    incoming.push((project_id.to_string(), trace_id.to_string(), uri));
+                }
+            }
             pending.extend(to_pending_files(result.files, project_id, trace_id));
         }
     }
 
-    (messages, pending)
+    incoming.sort_unstable();
+    incoming.dedup();
+    (messages, pending, incoming)
 }
 
 /// What became of a batch's files.
@@ -364,6 +392,92 @@ pub(super) fn note_unstored_files(
         }
     }
     rewritten
+}
+
+/// A `#!B64!#` reference that arrived already formed: `(project, trace, uri)`.
+///
+/// The trace is carried because a reference that *is* backed by a stored file still needs an
+/// association, or deleting the trace will not release it and the file outlives everything naming it.
+pub(super) type IncomingReference = (String, String, String);
+
+/// Check references that arrived already formed against storage, and reconcile them.
+///
+/// A `#!B64!#` reference is a claim that bytes are in this project's file store. Extraction created
+/// most of them and their bytes are in this batch - but a client can also send one directly, or replay
+/// one from another project, and nothing verified it. Committing an unverified reference is the same
+/// user-visible corruption as committing one whose write failed.
+///
+/// Storage is the authority, not the metadata table: a row can survive a failed finalisation, so
+/// `file_exists` would answer yes for bytes that are not there.
+///
+/// A reference that *is* backed gets an association, because otherwise deleting the trace will not
+/// release it and the file outlives everything that named it. One that is not gets returned, for the
+/// caller to replace with a note.
+pub(super) async fn reconcile_incoming_references(
+    incoming: &[IncomingReference],
+    file_service: &Arc<FileService>,
+) -> Vec<(String, String)> {
+    let mut unbacked = Vec::new();
+    if incoming.is_empty() {
+        return unbacked;
+    }
+    let storage = file_service.storage();
+    let repo = file_service.database().repository();
+    let mut checked: HashMap<(String, String), bool> = HashMap::new();
+
+    for (project_id, trace_id, uri) in incoming {
+        let Some(parsed) = crate::utils::file_uri::parse_file_uri(uri) else {
+            continue;
+        };
+        let key = (project_id.clone(), parsed.hash.to_string());
+        let exists = match checked.get(&key) {
+            Some(known) => *known,
+            None => {
+                let found = storage
+                    .exists(project_id, parsed.hash)
+                    .await
+                    .unwrap_or(false);
+                checked.insert(key, found);
+                found
+            }
+        };
+
+        if !exists {
+            tracing::warn!(
+                project_id,
+                hash = parsed.hash,
+                "Incoming file reference names content this project does not store"
+            );
+            unbacked.push((project_id.clone(), uri.clone()));
+            continue;
+        }
+
+        // Backed, so it needs an association - idempotent, and the reference count is derived from
+        // those associations.
+        if let Err(e) = repo
+            .associate_file(
+                trace_id,
+                project_id,
+                parsed.hash,
+                parsed.media_type,
+                0,
+                FILE_HASH_ALGORITHM,
+            )
+            .await
+        {
+            tracing::warn!(
+                error = %e,
+                project_id,
+                trace_id,
+                hash = parsed.hash,
+                "Failed to associate an incoming file reference with its trace"
+            );
+        }
+    }
+
+    unbacked.sort_unstable();
+    unbacked.dedup();
+    unbacked
 }
 
 /// Persist extracted files to storage (I/O phase).
