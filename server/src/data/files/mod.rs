@@ -148,8 +148,12 @@ impl FileService {
 
         // Run startup cleanup for files with ref_count=0 (failed storage deletions)
         if service.config.enabled
-            && let Err(e) =
-                cleanup::cleanup_zero_ref_files(&service.storage, &service.database).await
+            && let Err(e) = cleanup::cleanup_zero_ref_files(
+                &service.storage,
+                &service.database,
+                crate::core::constants::FILE_DELETION_CLAIM_STALE_SECS,
+            )
+            .await
         {
             tracing::warn!(error = %e, "Failed to cleanup zero-ref files on startup");
         }

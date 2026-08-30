@@ -153,21 +153,24 @@ pub async fn cleanup_orphan_temp_files(
     Ok(stats)
 }
 
-/// Run cleanup for files with ref_count=0 that weren't properly deleted
+/// Delete files nothing references, and finish deletions a crash abandoned.
 ///
-/// This handles Scenario C where decrement completed but storage deletion failed.
+/// Two shapes, one sweep. A zero-reference row whose bytes are still on disk is a decrement that
+/// completed while the storage delete failed. A row still claimed for deletion after
+/// `stale_claim_secs` is a process that died holding the fence - see the resumption block below for why
+/// that cannot be left alone.
+///
+/// `stale_claim_secs` is a parameter rather than read from the constant here so the caller owns the
+/// policy and a test can state the age it means directly.
 pub async fn cleanup_zero_ref_files(
     storage: &Arc<dyn FileStorage>,
     database: &Arc<TransactionalService>,
+    stale_claim_secs: i64,
 ) -> Result<u64, FileServiceError> {
     let repo = database.repository();
 
     // Get files with ref_count = 0
     let orphan_files = repo.get_orphan_files().await?;
-
-    if orphan_files.is_empty() {
-        return Ok(0);
-    }
 
     let mut deleted = 0u64;
 
@@ -224,18 +227,77 @@ pub async fn cleanup_zero_ref_files(
             continue;
         }
 
-        if let Err(e) = repo.delete_file_if_unreferenced(&project_id, &hash).await {
-            tracing::warn!(
-                error = %e,
-                project_id,
-                hash,
-                "Deleted orphan bytes but could not delete the row; it will read as missing content"
-            );
-            continue;
+        match repo.delete_file_if_unreferenced(&project_id, &hash).await {
+            Ok(true) => {}
+            // Referenced again while its bytes were being deleted. Counting this as a success was
+            // wrong twice over: nothing was cleaned, and the row now points at content that is gone.
+            Ok(false) => {
+                tracing::error!(
+                    project_id,
+                    hash,
+                    "Deleted a claimed file's bytes but its row is referenced again; it will read as \
+                     missing content until re-ingested"
+                );
+                continue;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    project_id,
+                    hash,
+                    "Deleted orphan bytes but could not delete the row; it will read as missing content"
+                );
+                continue;
+            }
         }
 
         deleted += 1;
         tracing::debug!(project_id, hash, "Deleted orphan file (ref_count=0)");
+    }
+
+    // Claims abandoned by a crash, resumed.
+    //
+    // A claim is durable on purpose - that is what makes it a fence - so a process that dies between
+    // claiming and finishing leaves one set. Without resuming it the file is stuck forever: this sweep
+    // sees a zero-reference row, tries to claim it, is refused by the claim already there, and skips it,
+    // while every ingestion naming that file keeps failing its batch on the same fence.
+    //
+    // Safe to resume because the state is unambiguous: a claim means nothing referenced the file when it
+    // was taken, and `delete_file_if_unreferenced` re-checks that before the row goes. Deleting bytes
+    // that are already gone is not an error.
+    match repo.get_stale_claimed_files(stale_claim_secs).await {
+        Ok(stale) => {
+            for (project_id, hash) in stale {
+                if let Err(e) = storage.delete(&project_id, &hash).await {
+                    tracing::warn!(
+                        error = %e,
+                        project_id,
+                        hash,
+                        "Could not finish an abandoned deletion; will retry"
+                    );
+                    continue;
+                }
+                match repo.delete_file_if_unreferenced(&project_id, &hash).await {
+                    Ok(true) => {
+                        deleted += 1;
+                        tracing::debug!(project_id, hash, "Finished an abandoned file deletion");
+                    }
+                    Ok(false) => tracing::error!(
+                        project_id,
+                        hash,
+                        "An abandoned deletion's file was referenced again after its bytes were \
+                         removed; it will read as missing content until re-ingested"
+                    ),
+                    Err(e) => tracing::warn!(
+                        error = %e,
+                        project_id,
+                        hash,
+                        "Could not delete the row of an abandoned deletion; will retry"
+                    ),
+                }
+            }
+        }
+        Err(e) => tracing::warn!(error = %e, "Could not look for abandoned file deletions"),
     }
 
     if deleted > 0 {
@@ -304,6 +366,7 @@ impl CleanupStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::constants::FILE_DELETION_CLAIM_STALE_SECS;
     use crate::data::SqliteService;
     use crate::data::files::FilesystemStorage;
     use tempfile::TempDir;
@@ -531,7 +594,9 @@ mod tests {
         repo.decrement_ref_count("project1", &hash).await.unwrap();
 
         // Run cleanup
-        let deleted = cleanup_zero_ref_files(&storage, &database).await.unwrap();
+        let deleted = cleanup_zero_ref_files(&storage, &database, FILE_DELETION_CLAIM_STALE_SECS)
+            .await
+            .unwrap();
 
         assert_eq!(deleted, 1);
 
@@ -539,6 +604,61 @@ mod tests {
         assert!(!storage.exists("project1", &hash).await.unwrap());
 
         // Cleanup temp_dir to avoid unused warning
+        drop(temp_dir);
+    }
+
+    /// A deletion abandoned mid-way is finished by the next sweep, not stranded.
+    ///
+    /// This is the crash the fence makes possible: the claim is durable, so nothing releases it, and the
+    /// ordinary zero-reference path cannot pick the file up because claiming it fails. Without resumption
+    /// the bytes stay on disk forever and every ingestion naming that file keeps failing its batch on a
+    /// claim nobody holds.
+    #[tokio::test]
+    async fn a_deletion_abandoned_by_a_crash_is_finished_by_the_next_sweep() {
+        let (temp_dir, database, storage) = setup_test().await;
+        let hash = test_hash();
+        storage
+            .store("project1", &hash, b"test content")
+            .await
+            .unwrap();
+        let repo = database.repository();
+        repo.upsert_file("project1", &hash, Some("text/plain"), 12, "sha256")
+            .await
+            .unwrap();
+        repo.decrement_ref_count("project1", &hash).await.unwrap();
+
+        // The crash: claimed, then nothing further.
+        assert!(
+            repo.claim_file_for_deletion("project1", &hash)
+                .await
+                .unwrap()
+        );
+        assert_eq!(
+            cleanup_zero_ref_files(&storage, &database, FILE_DELETION_CLAIM_STALE_SECS)
+                .await
+                .unwrap(),
+            0,
+            "a fresh claim is a deletion in progress; the sweep must leave it alone"
+        );
+        assert!(
+            storage.exists("project1", &hash).await.unwrap(),
+            "and must not touch its bytes"
+        );
+
+        // Treated as abandoned, the same sweep finishes it.
+        assert_eq!(
+            cleanup_zero_ref_files(&storage, &database, 0)
+                .await
+                .unwrap(),
+            1,
+            "an abandoned claim is resumed"
+        );
+        assert!(!storage.exists("project1", &hash).await.unwrap());
+        assert!(
+            repo.get_stale_claimed_files(0).await.unwrap().is_empty(),
+            "and nothing is left claimed"
+        );
+
         drop(temp_dir);
     }
 }

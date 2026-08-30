@@ -590,6 +590,13 @@ pub const QUERY_MAX_TOP_STATS: u32 = 10;
 /// Batch size for file cleanup operations
 pub const FILE_CLEANUP_BATCH_SIZE: u32 = 1000;
 
+/// How old a file deletion claim must be before a sweep treats it as abandoned and finishes it.
+///
+/// A claim fences ingestion off a file being deleted, and it is durable so that it survives a restart -
+/// which means a crash mid-deletion leaves one behind. Long enough that a slow deletion in progress is
+/// never mistaken for an abandoned one; short enough that a stuck file is not stuck for a day.
+pub const FILE_DELETION_CLAIM_STALE_SECS: i64 = 900;
+
 // =============================================================================
 // Error Message Limits
 // =============================================================================

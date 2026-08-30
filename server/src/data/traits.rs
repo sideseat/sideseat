@@ -594,6 +594,12 @@ pub trait TransactionalRepository: Send + Sync {
         file_hash: &str,
     ) -> Result<bool, DataError>;
 
+    /// Files claimed for deletion longer ago than `older_than_secs`, so an abandoned claim can be resumed.
+    async fn get_stale_claimed_files(
+        &self,
+        older_than_secs: i64,
+    ) -> Result<Vec<(String, String)>, DataError>;
+
     /// Claim a file for deletion, if nothing references it and nobody else has claimed it.
     ///
     /// The fence that closes the delete-then-recreate window: association refuses while a claim is set,
