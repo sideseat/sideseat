@@ -146,9 +146,10 @@
       ]
     },
     "trace-1/RunnableSequence/span-12": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -160,13 +161,22 @@
           "content": "Calculate an expression for me: What is 12345 plus 6789?",
           "content_digest": "2f005e8714b6ca59",
           "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "12345 plus 6789 equals **19134**.",
+          "content_digest": "0a3b078acdfcd530",
+          "observation_type": "chain"
         }
       ]
     },
     "trace-1/RunnableSequence/span-4": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -177,6 +187,15 @@
           "entry_type": "text",
           "content": "Calculate an expression for me: What is 12345 plus 6789?",
           "content_digest": "2f005e8714b6ca59",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uDVjihtF2Akt0rK95Zb8BM\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
+          "content_digest": "80423ffd281502f0",
+          "tool_name": "calculate",
           "observation_type": "chain"
         }
       ]
@@ -356,7 +375,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uDVjihtF2Akt0rK95Zb8BM\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
           "content_digest": "80423ffd281502f0",
           "tool_name": "calculate",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 3,
@@ -372,7 +391,7 @@
           "entry_type": "text",
           "content": "12345 plus 6789 equals **19134**.",
           "content_digest": "0a3b078acdfcd530",
-          "observation_type": "generation"
+          "observation_type": "chain"
         }
       ]
     },
@@ -429,7 +448,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uDVjihtF2Akt0rK95Zb8BM\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
           "content_digest": "80423ffd281502f0",
           "tool_name": "calculate",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 3,
@@ -445,7 +464,7 @@
           "entry_type": "text",
           "content": "12345 plus 6789 equals **19134**.",
           "content_digest": "0a3b078acdfcd530",
-          "observation_type": "generation"
+          "observation_type": "chain"
         }
       ]
     }
@@ -478,7 +497,7 @@
         "entry_type": "text",
         "content": "12345 plus 6789 equals **19134**.",
         "content_digest": "0a3b078acdfcd530",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 2,
@@ -495,7 +514,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uDVjihtF2Akt0rK95Zb8BM\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
         "content_digest": "80423ffd281502f0",
         "tool_name": "calculate",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 4,

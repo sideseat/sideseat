@@ -41,7 +41,7 @@ pub(crate) fn normalize_for_test(
     request: &opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest,
     pricing: &crate::domain::pricing::PricingService,
 ) -> Vec<(String, crate::data::types::MessageSpanRow)> {
-    normalize_for_test_with_mode(request, pricing, extract::ExtractionMode::FirstMatch)
+    normalize_for_test_with_mode(request, pricing, extract::ExtractionMode::PerCarrier)
 }
 
 /// As [`normalize_for_test`], with the extraction mode chosen by the caller, so a test can compare

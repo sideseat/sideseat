@@ -344,7 +344,7 @@ impl TracePipeline {
                                                 pricing,
                                                 files_enabled,
                                                 file_cache,
-                                                ExtractionMode::FirstMatch,
+                                                ExtractionMode::PerCarrier,
                                             )
                                         },
                                     )) {
@@ -390,7 +390,7 @@ impl TracePipeline {
                                                         pricing,
                                                         files_enabled,
                                                         file_cache,
-        ExtractionMode::FirstMatch,
+        ExtractionMode::PerCarrier,
     )
                                                 }),
                                             ) {
@@ -483,7 +483,7 @@ impl TracePipeline {
             &self.pricing,
             self.file_service.is_enabled(),
             &self.file_cache,
-            ExtractionMode::FirstMatch,
+            ExtractionMode::PerCarrier,
         );
         if let Some((db_spans, pending_files)) = result {
             if db_spans.is_empty() {

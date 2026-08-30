@@ -167,9 +167,10 @@
       ]
     },
     "trace-1/RunnableSequence/span-14": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -181,13 +182,23 @@
           "content": "Provide a 3-day weather forecast for New York City.",
           "content_digest": "75e9643b50cb90f4",
           "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Great! Here's your 3-day weather forecast for New York City: **Day 1:** ☀️ Sunny - High: 25°C | Low: 15°C - No precipitation expected **Day 2:** ☀️ Sunny - High: 26°C | Low: 16°C - Light rain expected **Day 3:** ☀️ Sunny - High: 27°C | Low:…[572 chars]",
+          "content_digest": "3dcf2a3b94295221",
+          "observation_type": "chain"
         }
       ]
     },
     "trace-1/RunnableSequence/span-4": {
-      "message_count": 1,
+      "message_count": 3,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -198,6 +209,24 @@
           "entry_type": "text",
           "content": "Provide a 3-day weather forecast for New York City.",
           "content_digest": "75e9643b50cb90f4",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_tXNb267X9sEs2KHhsv8eM0\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "3224ee8632b2bd73",
+          "tool_name": "temperature_forecast",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zK9aigPtGAE2CMfceohXgy\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "735e670682fa8ab8",
+          "tool_name": "precipitation_forecast",
           "observation_type": "chain"
         }
       ]
@@ -509,9 +538,10 @@
       ]
     },
     "trace-10/RunnableSequence/span-14": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -523,13 +553,24 @@
           "content": "Provide a 14-day weather forecast for London.",
           "content_digest": "7426414dbeed41d0",
           "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Great news! Here's your **7-day weather forecast for London**: **Temperature Forecast:** - **Day 1:** Sunny, High 25°C / Low 15°C - **Day 2:** Sunny, High 26°C / Low 16°C - **Day 3:** Sunny, High 27°C / Low 17°C - **Day 4:** Sunny, High 28°…[807 chars]",
+          "content_digest": "fe9c89b4c141595d",
+          "observation_type": "chain"
         }
       ]
     },
     "trace-10/RunnableSequence/span-4": {
-      "message_count": 1,
+      "message_count": 4,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant",
+        "assistant",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -540,6 +581,32 @@
           "entry_type": "text",
           "content": "Provide a 14-day weather forecast for London.",
           "content_digest": "7426414dbeed41d0",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I appreciate your interest in a 14-day forecast! However, I need to let you know that the maximum forecast period I can provide is 7 days. Let me get you the extended forecast for London for the next 7 days instead.",
+          "content_digest": "55ec208af3e0eca7",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_3YfwSsBgRzsl1Yelt8hymM\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
+          "content_digest": "180fc1126c10bbf1",
+          "tool_name": "temperature_forecast",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Mrzumei6lmN7xKoq2Hk2si\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
+          "content_digest": "3f73422e94496ed3",
+          "tool_name": "precipitation_forecast",
           "observation_type": "chain"
         }
       ]
@@ -870,9 +937,10 @@
       ]
     },
     "trace-4/RunnableSequence/span-14": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -884,13 +952,23 @@
           "content": "Provide a 3-day weather forecast for New York City.",
           "content_digest": "75e9643b50cb90f4",
           "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Great! Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny ☀️ - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny ☀️ - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny ☀️ - Hig…[564 chars]",
+          "content_digest": "67eff7e97e2b1ccc",
+          "observation_type": "chain"
         }
       ]
     },
     "trace-4/RunnableSequence/span-4": {
-      "message_count": 1,
+      "message_count": 3,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -901,6 +979,24 @@
           "entry_type": "text",
           "content": "Provide a 3-day weather forecast for New York City.",
           "content_digest": "75e9643b50cb90f4",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LiTKe69y3YspwcXSDM8aJh\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "0a3c87b2a2be5336",
+          "tool_name": "temperature_forecast",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_IwunIsbmYLptE8euenKtMf\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "04319f0b23e0ef7d",
+          "tool_name": "precipitation_forecast",
           "observation_type": "chain"
         }
       ]
@@ -1217,9 +1313,10 @@
       ]
     },
     "trace-7/RunnableSequence/span-14": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -1231,13 +1328,23 @@
           "content": "Provide a 7-day weather forecast for Los Angeles.",
           "content_digest": "984bf68a8a35a65a",
           "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Hello! 🌞 Here's your 7-day weather forecast for Los Angeles: **Temperature Forecast:** - **Day 1:** Sunny, High 25°C (77°F), Low 15°C (59°F) - **Day 2:** Sunny, High 26°C (79°F), Low 16°C (61°F) - **Day 3:** Sunny, High 27°C (81°F), Low 17°…[771 chars]",
+          "content_digest": "c0894b9cb43bb7c2",
+          "observation_type": "chain"
         }
       ]
     },
     "trace-7/RunnableSequence/span-4": {
-      "message_count": 1,
+      "message_count": 3,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -1248,6 +1355,24 @@
           "entry_type": "text",
           "content": "Provide a 7-day weather forecast for Los Angeles.",
           "content_digest": "984bf68a8a35a65a",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_U0UEg17zCUIgMJOm13vafd\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
+          "content_digest": "25911ed2cf011cf0",
+          "tool_name": "temperature_forecast",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_aWPLvh8iBzJQYPHT08t3Kn\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
+          "content_digest": "ba15b848b07a2b2e",
+          "tool_name": "precipitation_forecast",
           "observation_type": "chain"
         }
       ]
@@ -1444,7 +1569,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_tXNb267X9sEs2KHhsv8eM0\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
           "content_digest": "3224ee8632b2bd73",
           "tool_name": "temperature_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 3,
@@ -1453,7 +1578,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zK9aigPtGAE2CMfceohXgy\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
           "content_digest": "735e670682fa8ab8",
           "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 4,
@@ -1477,7 +1602,7 @@
           "entry_type": "text",
           "content": "Great! Here's your 3-day weather forecast for New York City: **Day 1:** ☀️ Sunny - High: 25°C | Low: 15°C - No precipitation expected **Day 2:** ☀️ Sunny - High: 26°C | Low: 16°C - Light rain expected **Day 3:** ☀️ Sunny - High: 27°C | Low:…[572 chars]",
           "content_digest": "3dcf2a3b94295221",
-          "observation_type": "generation"
+          "observation_type": "chain"
         }
       ]
     },
@@ -1521,7 +1646,7 @@
           "entry_type": "text",
           "content": "I appreciate your interest in a 14-day forecast! However, I need to let you know that the maximum forecast period I can provide is 7 days. Let me get you the extended forecast for London for the next 7 days instead.",
           "content_digest": "55ec208af3e0eca7",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 3,
@@ -1530,7 +1655,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_3YfwSsBgRzsl1Yelt8hymM\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
           "content_digest": "180fc1126c10bbf1",
           "tool_name": "temperature_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 4,
@@ -1539,7 +1664,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Mrzumei6lmN7xKoq2Hk2si\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
           "content_digest": "3f73422e94496ed3",
           "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 5,
@@ -1563,7 +1688,7 @@
           "entry_type": "text",
           "content": "Great news! Here's your **7-day weather forecast for London**: **Temperature Forecast:** - **Day 1:** Sunny, High 25°C / Low 15°C - **Day 2:** Sunny, High 26°C / Low 16°C - **Day 3:** Sunny, High 27°C / Low 17°C - **Day 4:** Sunny, High 28°…[807 chars]",
           "content_digest": "fe9c89b4c141595d",
-          "observation_type": "generation"
+          "observation_type": "chain"
         }
       ]
     },
@@ -1624,7 +1749,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LiTKe69y3YspwcXSDM8aJh\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
           "content_digest": "0a3c87b2a2be5336",
           "tool_name": "temperature_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 2,
@@ -1633,7 +1758,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_IwunIsbmYLptE8euenKtMf\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
           "content_digest": "04319f0b23e0ef7d",
           "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 3,
@@ -1641,7 +1766,7 @@
           "entry_type": "text",
           "content": "Great! Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny ☀️ - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny ☀️ - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny ☀️ - Hig…[564 chars]",
           "content_digest": "67eff7e97e2b1ccc",
-          "observation_type": "generation"
+          "observation_type": "chain"
         }
       ]
     },
@@ -1699,7 +1824,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_U0UEg17zCUIgMJOm13vafd\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
           "content_digest": "25911ed2cf011cf0",
           "tool_name": "temperature_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 3,
@@ -1708,7 +1833,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_aWPLvh8iBzJQYPHT08t3Kn\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
           "content_digest": "ba15b848b07a2b2e",
           "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 4,
@@ -1732,7 +1857,7 @@
           "entry_type": "text",
           "content": "Hello! 🌞 Here's your 7-day weather forecast for Los Angeles: **Temperature Forecast:** - **Day 1:** Sunny, High 25°C (77°F), Low 15°C (59°F) - **Day 2:** Sunny, High 26°C (79°F), Low 16°C (61°F) - **Day 3:** Sunny, High 27°C (81°F), Low 17°…[771 chars]",
           "content_digest": "c0894b9cb43bb7c2",
-          "observation_type": "generation"
+          "observation_type": "chain"
         }
       ]
     },
@@ -1811,7 +1936,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_tXNb267X9sEs2KHhsv8eM0\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
           "content_digest": "3224ee8632b2bd73",
           "tool_name": "temperature_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 3,
@@ -1820,7 +1945,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zK9aigPtGAE2CMfceohXgy\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
           "content_digest": "735e670682fa8ab8",
           "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 4,
@@ -1844,7 +1969,7 @@
           "entry_type": "text",
           "content": "Great! Here's your 3-day weather forecast for New York City: **Day 1:** ☀️ Sunny - High: 25°C | Low: 15°C - No precipitation expected **Day 2:** ☀️ Sunny - High: 26°C | Low: 16°C - Light rain expected **Day 3:** ☀️ Sunny - High: 27°C | Low:…[572 chars]",
           "content_digest": "3dcf2a3b94295221",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 7,
@@ -1861,7 +1986,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LiTKe69y3YspwcXSDM8aJh\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
           "content_digest": "0a3c87b2a2be5336",
           "tool_name": "temperature_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 9,
@@ -1870,7 +1995,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_IwunIsbmYLptE8euenKtMf\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
           "content_digest": "04319f0b23e0ef7d",
           "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 10,
@@ -1878,7 +2003,7 @@
           "entry_type": "text",
           "content": "Great! Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny ☀️ - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny ☀️ - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny ☀️ - Hig…[564 chars]",
           "content_digest": "67eff7e97e2b1ccc",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 11,
@@ -1903,7 +2028,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_U0UEg17zCUIgMJOm13vafd\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
           "content_digest": "25911ed2cf011cf0",
           "tool_name": "temperature_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 14,
@@ -1912,7 +2037,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_aWPLvh8iBzJQYPHT08t3Kn\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
           "content_digest": "ba15b848b07a2b2e",
           "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 15,
@@ -1936,7 +2061,7 @@
           "entry_type": "text",
           "content": "Hello! 🌞 Here's your 7-day weather forecast for Los Angeles: **Temperature Forecast:** - **Day 1:** Sunny, High 25°C (77°F), Low 15°C (59°F) - **Day 2:** Sunny, High 26°C (79°F), Low 16°C (61°F) - **Day 3:** Sunny, High 27°C (81°F), Low 17°…[771 chars]",
           "content_digest": "c0894b9cb43bb7c2",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 18,
@@ -1960,7 +2085,7 @@
           "entry_type": "text",
           "content": "I appreciate your interest in a 14-day forecast! However, I need to let you know that the maximum forecast period I can provide is 7 days. Let me get you the extended forecast for London for the next 7 days instead.",
           "content_digest": "55ec208af3e0eca7",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 21,
@@ -1969,7 +2094,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_3YfwSsBgRzsl1Yelt8hymM\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
           "content_digest": "180fc1126c10bbf1",
           "tool_name": "temperature_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 22,
@@ -1978,7 +2103,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Mrzumei6lmN7xKoq2Hk2si\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
           "content_digest": "3f73422e94496ed3",
           "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 23,
@@ -2002,7 +2127,7 @@
           "entry_type": "text",
           "content": "Great news! Here's your **7-day weather forecast for London**: **Temperature Forecast:** - **Day 1:** Sunny, High 25°C / Low 15°C - **Day 2:** Sunny, High 26°C / Low 16°C - **Day 3:** Sunny, High 27°C / Low 17°C - **Day 4:** Sunny, High 28°…[807 chars]",
           "content_digest": "fe9c89b4c141595d",
-          "observation_type": "generation"
+          "observation_type": "chain"
         }
       ]
     }
@@ -2065,7 +2190,7 @@
         "entry_type": "text",
         "content": "Great news! Here's your **7-day weather forecast for London**: **Temperature Forecast:** - **Day 1:** Sunny, High 25°C / Low 15°C - **Day 2:** Sunny, High 26°C / Low 16°C - **Day 3:** Sunny, High 27°C / Low 17°C - **Day 4:** Sunny, High 28°…[807 chars]",
         "content_digest": "fe9c89b4c141595d",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 3,
@@ -2081,7 +2206,7 @@
         "entry_type": "text",
         "content": "I appreciate your interest in a 14-day forecast! However, I need to let you know that the maximum forecast period I can provide is 7 days. Let me get you the extended forecast for London for the next 7 days instead.",
         "content_digest": "55ec208af3e0eca7",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 5,
@@ -2090,7 +2215,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_3YfwSsBgRzsl1Yelt8hymM\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
         "content_digest": "180fc1126c10bbf1",
         "tool_name": "temperature_forecast",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 6,
@@ -2099,7 +2224,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Mrzumei6lmN7xKoq2Hk2si\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
         "content_digest": "3f73422e94496ed3",
         "tool_name": "precipitation_forecast",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 7,
@@ -2131,7 +2256,7 @@
         "entry_type": "text",
         "content": "Hello! 🌞 Here's your 7-day weather forecast for Los Angeles: **Temperature Forecast:** - **Day 1:** Sunny, High 25°C (77°F), Low 15°C (59°F) - **Day 2:** Sunny, High 26°C (79°F), Low 16°C (61°F) - **Day 3:** Sunny, High 27°C (81°F), Low 17°…[771 chars]",
         "content_digest": "c0894b9cb43bb7c2",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 11,
@@ -2148,7 +2273,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_U0UEg17zCUIgMJOm13vafd\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
         "content_digest": "25911ed2cf011cf0",
         "tool_name": "temperature_forecast",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 13,
@@ -2157,7 +2282,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_aWPLvh8iBzJQYPHT08t3Kn\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
         "content_digest": "ba15b848b07a2b2e",
         "tool_name": "precipitation_forecast",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 14,
@@ -2173,7 +2298,7 @@
         "entry_type": "text",
         "content": "Great! Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny ☀️ - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny ☀️ - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny ☀️ - Hig…[564 chars]",
         "content_digest": "67eff7e97e2b1ccc",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 16,
@@ -2190,7 +2315,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LiTKe69y3YspwcXSDM8aJh\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
         "content_digest": "0a3c87b2a2be5336",
         "tool_name": "temperature_forecast",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 18,
@@ -2199,7 +2324,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_IwunIsbmYLptE8euenKtMf\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
         "content_digest": "04319f0b23e0ef7d",
         "tool_name": "precipitation_forecast",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 19,
@@ -2223,7 +2348,7 @@
         "entry_type": "text",
         "content": "Great! Here's your 3-day weather forecast for New York City: **Day 1:** ☀️ Sunny - High: 25°C | Low: 15°C - No precipitation expected **Day 2:** ☀️ Sunny - High: 26°C | Low: 16°C - Light rain expected **Day 3:** ☀️ Sunny - High: 27°C | Low:…[572 chars]",
         "content_digest": "3dcf2a3b94295221",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 22,
@@ -2240,7 +2365,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_tXNb267X9sEs2KHhsv8eM0\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
         "content_digest": "3224ee8632b2bd73",
         "tool_name": "temperature_forecast",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 24,
@@ -2249,7 +2374,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zK9aigPtGAE2CMfceohXgy\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
         "content_digest": "735e670682fa8ab8",
         "tool_name": "precipitation_forecast",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 25,
