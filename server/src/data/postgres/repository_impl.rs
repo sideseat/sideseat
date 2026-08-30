@@ -536,6 +536,17 @@ impl TransactionalRepository for Arc<PostgresService> {
             .map_err(Into::into)
     }
 
+    async fn associate_existing_file(
+        &self,
+        trace_id: &str,
+        project_id: &str,
+        file_hash: &str,
+    ) -> Result<bool, DataError> {
+        file::associate_existing_file(self.pool(), trace_id, project_id, file_hash)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn claim_file_for_deletion(
         &self,
         project_id: &str,

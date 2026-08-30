@@ -165,6 +165,59 @@ pub async fn delete_project_files(pool: &PgPool, project_id: &str) -> Result<u64
     Ok(result.rows_affected())
 }
 
+/// Associate a trace with a file that already exists, without inventing metadata - see the SQLite twin.
+pub async fn associate_existing_file(
+    pool: &PgPool,
+    trace_id: &str,
+    project_id: &str,
+    file_hash: &str,
+) -> Result<bool, PostgresError> {
+    let mut tx = pool.begin().await?;
+
+    let row: Option<(Option<i64>,)> =
+        sqlx::query_as("SELECT deleting_at FROM files WHERE project_id = $1 AND file_hash = $2")
+            .bind(project_id)
+            .bind(file_hash)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let Some((claim,)) = row else {
+        return Ok(false);
+    };
+    if claim.is_some() {
+        return Ok(false);
+    }
+
+    sqlx::query(
+        "INSERT INTO trace_files (trace_id, project_id, file_hash) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+    )
+    .bind(trace_id)
+    .bind(project_id)
+    .bind(file_hash)
+    .execute(&mut *tx)
+    .await?;
+
+    let now = chrono::Utc::now().timestamp();
+    sqlx::query(
+        r#"
+        UPDATE files
+        SET ref_count = (
+                SELECT COUNT(*) FROM trace_files
+                WHERE project_id = files.project_id AND file_hash = files.file_hash
+            ),
+            updated_at = $1
+        WHERE project_id = $2 AND file_hash = $3
+        "#,
+    )
+    .bind(now)
+    .bind(project_id)
+    .bind(file_hash)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(true)
+}
+
 /// Claim a file for deletion - see the SQLite twin for why a count cannot replace this.
 pub async fn claim_file_for_deletion(
     pool: &PgPool,
