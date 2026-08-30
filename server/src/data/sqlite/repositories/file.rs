@@ -226,6 +226,25 @@ pub async fn associate_existing_file(
     Ok(true)
 }
 
+/// Files claimed for deletion longer ago than `older_than`, so an abandoned claim can be resumed.
+///
+/// A claim is durable on purpose - that is what makes it a fence - which means a crash between claiming
+/// and finishing leaves it set. Without this the file is stuck: the sweep sees a zero-reference row,
+/// tries to claim it, gets refused by the claim already there, and skips it forever, while ingestion
+/// keeps failing its batch on the same fence.
+pub async fn get_stale_claimed_files(
+    pool: &SqlitePool,
+    older_than_secs: i64,
+) -> Result<Vec<(String, String)>, SqliteError> {
+    let cutoff = chrono::Utc::now().timestamp() - older_than_secs;
+    Ok(sqlx::query_as(
+        "SELECT project_id, file_hash FROM files WHERE deleting_at IS NOT NULL AND deleting_at <= ?",
+    )
+    .bind(cutoff)
+    .fetch_all(pool)
+    .await?)
+}
+
 /// Claim a file for deletion, if nothing references it and nobody else has claimed it.
 ///
 /// The fence. Deleting the metadata row and then the bytes leaves a window in which ingestion recreates
@@ -395,6 +414,10 @@ pub async fn associate_file(
     // Refuse through the fence. A claimed file is mid-deletion and its bytes may already be gone, so
     // associating with it would commit a reference to nothing. Refusing fails the batch, and the retry
     // finds the file either deleted - and writes it again, with the bytes in hand - or released.
+    //
+    // SQLite has one writer, and a transaction that reads and then writes fails with a busy error if
+    // another connection wrote in between - so the read-then-check pattern fails *safe* here, refusing
+    // the batch. Postgres needs `FOR UPDATE` to get the same guarantee; see the twin.
     let claimed: Option<(Option<i64>,)> =
         sqlx::query_as("SELECT deleting_at FROM files WHERE project_id = ? AND file_hash = ?")
             .bind(project_id)
@@ -981,6 +1004,68 @@ mod tests {
             .await
             .is_ok(),
             "once the claim is released the file can be referenced again"
+        );
+    }
+
+    /// An abandoned claim is findable, so a crash mid-deletion does not strand the file forever.
+    ///
+    /// The claim is durable by design - that is the whole point of a fence - so nothing releases it if the
+    /// process dies holding it. Then every sweep sees a zero-reference row it cannot claim and skips it,
+    /// and every ingestion naming that file fails its batch. It has to be discoverable by age.
+    #[tokio::test]
+    async fn an_abandoned_claim_is_found_by_age_and_a_fresh_one_is_not() {
+        let pool = setup_test_pool().await;
+        associate_file(
+            &pool,
+            "old-trace",
+            "default",
+            test_hash(),
+            Some("image/png"),
+            1024,
+            "sha256",
+        )
+        .await
+        .unwrap();
+        delete_trace_files(&pool, "default", &["old-trace".to_string()])
+            .await
+            .unwrap();
+        assert!(
+            claim_file_for_deletion(&pool, "default", test_hash())
+                .await
+                .unwrap()
+        );
+
+        assert!(
+            get_stale_claimed_files(&pool, 900)
+                .await
+                .unwrap()
+                .is_empty(),
+            "a claim taken a moment ago is a deletion in progress, not an abandoned one"
+        );
+
+        // Age it past the threshold rather than sleeping.
+        sqlx::query("UPDATE files SET deleting_at = deleting_at - 1000 WHERE file_hash = ?")
+            .bind(test_hash())
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            get_stale_claimed_files(&pool, 900).await.unwrap(),
+            vec![("default".to_string(), test_hash().to_string())],
+            "an old claim is reported so the sweep can finish what the crash left"
+        );
+
+        // And finishing it is exactly the normal path: the row goes, nothing is left claimed.
+        assert!(
+            delete_file_if_unreferenced(&pool, "default", test_hash())
+                .await
+                .unwrap()
+        );
+        assert!(
+            get_stale_claimed_files(&pool, 900)
+                .await
+                .unwrap()
+                .is_empty()
         );
     }
 
