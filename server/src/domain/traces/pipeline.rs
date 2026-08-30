@@ -537,13 +537,26 @@ impl TracePipeline {
     ///
     /// Returns true if the DuckDB write succeeded, false otherwise.
     async fn run(&self, request: &ExportTraceServiceRequest) -> bool {
-        let result = process_request(
-            request,
-            &self.pricing,
-            self.file_service.is_enabled(),
-            &self.file_cache,
-            ExtractionMode::PerCarrier,
-        );
+        // Wrapped, like every call on the batch path. This one was not, and it is the path that
+        // handles *recovery* - so a message the batch path refused for panicking could be claimed here
+        // and take down the whole pipeline task rather than one request.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            process_request(
+                request,
+                &self.pricing,
+                self.file_service.is_enabled(),
+                &self.file_cache,
+                ExtractionMode::PerCarrier,
+            )
+        }));
+        let result = match result {
+            Ok(result) => result,
+            Err(_) => {
+                self.file_cache.invalidate_all();
+                tracing::error!("process_request panicked; refusing this request");
+                return false;
+            }
+        };
         if let Some((db_spans, pending_files)) = result {
             if db_spans.is_empty() {
                 return true;

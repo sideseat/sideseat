@@ -489,8 +489,12 @@ async fn write_and_record_files(
 
     // Deduplicate: only write/upsert once per unique (project_id, hash)
     let mut written_hashes: HashSet<String> = HashSet::new();
-    // Deduplicate: only insert trace-file once per unique (trace_id, hash)
-    let mut trace_hashes: HashSet<(String, String)> = HashSet::new();
+    // Deduplicate: once per unique (project, trace, hash).
+    //
+    // Keyed without the project this suppressed one project's association whenever another project in
+    // the same batch had already claimed the same trace id and hash - the same collision the database
+    // primary key had, and widening only the key would have left this one in place.
+    let mut trace_hashes: HashSet<(String, String, String)> = HashSet::new();
     // Anything that did not reach storage: the row that references it must not be committed.
     let mut failures = 0usize;
 
@@ -526,6 +530,9 @@ async fn write_and_record_files(
                     project_id = %file.project_id,
                     "Pending file has no data; refusing to record a reference to it"
                 );
+                // And *stop*. Counting the failure while falling through to `associate_file` still
+                // recorded the association and the reference - the exact thing being refused.
+                continue;
             } else {
                 // Fresh extraction: decode base64, write temp file, upsert metadata, finalize
                 let decoded = match BASE64_STANDARD.decode(&file.data) {
@@ -579,7 +586,11 @@ async fn write_and_record_files(
         // it to zero, deleting a file the other trace still referenced. The invariant is `ref_count`
         // equals the number of associations; incrementing here, beside the association, is what keeps
         // it. The storage write above stays once per `(project, hash)`: the bytes are the same bytes.
-        let trace_key = (file.trace_id.clone(), file.hash.clone());
+        let trace_key = (
+            file.project_id.clone(),
+            file.trace_id.clone(),
+            file.hash.clone(),
+        );
         if trace_hashes.insert(trace_key)
             && let Err(e) = repo
                 .associate_file(

@@ -1689,6 +1689,37 @@ fn test_cache_different_content_different_hash() {
 // Regression Tests: Embedded Data URL + Cache Interaction
 // ========================================================================
 
+/// A cache hit on a `data:` URL must carry the *payload* bytes, not the URL.
+///
+/// The payload starts after `data:image/png;base64,`. Reconstructing the bytes from the source string
+/// handed the whole URL to persistence, which base64-decodes it - so every cached data-URL file failed
+/// to store while its reference was committed. The existing cache test compared only the generated
+/// URIs, which are identical either way, so it could not see this.
+#[test]
+fn cached_data_url_carries_the_payload_not_the_url() {
+    let cache = FileExtractionCache::new();
+    let data = vec![7u8; 2048];
+    let b64 = BASE64_STANDARD.encode(&data);
+    let text = format!("Image: data:image/png;base64,{}", b64);
+
+    let mut first = json!({ "output": text.clone() });
+    let miss = extract_and_replace_files_cached(&mut first, &cache);
+    let mut second = json!({ "output": text });
+    let hit = extract_and_replace_files_cached(&mut second, &cache);
+
+    assert_eq!(miss.files.len(), 1);
+    assert_eq!(hit.files.len(), 1, "a cache hit still records the file");
+    assert_eq!(
+        hit.files[0].data, miss.files[0].data,
+        "a hit must carry the same payload bytes the extraction produced"
+    );
+    assert_eq!(
+        BASE64_STANDARD.decode(&hit.files[0].data).unwrap(),
+        data,
+        "the cached payload must decode back to the original bytes"
+    );
+}
+
 #[test]
 fn test_embedded_data_url_cached_produces_same_uri() {
     let cache = FileExtractionCache::new();
