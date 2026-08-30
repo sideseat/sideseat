@@ -90,6 +90,21 @@ impl FileExtractionCache {
     fn insert(&self, key: blake3::Hash, value: CachedFileResult) {
         self.inner.insert(key, value);
     }
+
+    /// Forget everything, because an entry may now be claiming a file is stored when it is not.
+    ///
+    /// An entry is written when the bytes are *extracted*, which is before they are persisted. A hit
+    /// then returns no data, and persistence reads that as "already in storage" and only records
+    /// metadata. So if a write fails and the batch is retried, the retry would hit the cache and commit
+    /// a reference to bytes that were never stored - the dangling reference, arriving by the one route
+    /// that refusing the batch does not close.
+    ///
+    /// Wholesale rather than targeted because the key is a hash of the *source string*, not of the
+    /// file, so there is no way back from a failed file hash to its entries. Coarse is acceptable: this
+    /// runs only when a write has already failed, and the cost is re-extracting, which is the point.
+    pub fn invalidate_all(&self) {
+        self.inner.invalidate_all();
+    }
 }
 
 /// Fields that may contain base64 data to extract.
