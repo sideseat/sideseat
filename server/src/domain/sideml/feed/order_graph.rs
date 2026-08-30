@@ -83,6 +83,8 @@ pub(super) struct OrderEvidence {
     is_output: bool,
     /// The span is a generation - a model call, so its input caused its output.
     from_generation: bool,
+    /// The observation is a re-send of an earlier turn rather than news.
+    is_history: bool,
 }
 
 /// Reduce the classified, pre-dedup blocks to what the resolver reads.
@@ -151,6 +153,7 @@ pub(super) fn collect_order_evidence(
                 carrier_ordered: semantics.position_provides_sequence_order && !block.is_history,
                 is_output: block.is_output_source(),
                 from_generation: block.is_generation_span(),
+                is_history: block.is_history,
             }
         })
         .collect()
@@ -293,7 +296,30 @@ impl Constraints {
     ///   order rather than only agree with one.
     /// - `generation_dataflow_edges`: removes every reorder that blocks `PerCarrier` extraction, which
     ///   is what would recover the answers 20 span views are missing - the largest correctness win
-    ///   available, and gated on the two above.
+    ///   available. The session-membership objection to it is now gone (a session's dedup reads the
+    ///   causal transcript, so promoting it changes order only), but it is still **wrong** on a shape
+    ///   with known ground truth: `_synthetic/tool_use` has one span emit the call, a tool span return
+    ///   `391`, and a second span emit `17 * 23 = 391.` - so the answer must follow the result it
+    ///   cites, and under this class it precedes it. A snapshot diff could not have settled that; the
+    ///   fixture's own payload does.
+    ///
+    ///   The edge is identified, by tracing: a **dataflow** edge `result -> call`, drawn because an
+    ///   observation on the *same generation span that emitted the call* is classified as a non-history
+    ///   input and resolves to the tool result. Gating dataflow inputs on `!is_history` is the right
+    ///   refinement and it fixed `adk/tool_use` - a framework hands a model the whole conversation,
+    ///   including results of calls that span made, so reading a replay as input asserts
+    ///   result-before-call. But this observation is *not* marked history, so the gate misses it, and
+    ///   the fixture's payload has only `system, user, choice` on that span. So something upstream of
+    ///   the resolver attributes a tool result to the calling generation span as fresh input, and that
+    ///   is the next thing to find: the defect is in what claims to be a non-history input, not in the
+    ///   ordering class - which is why the class stays built and unpromoted rather than reshaped around
+    ///   a symptom.
+    ///
+    /// Also measured, and unresolved rather than wrong: promoting it turns `adk/tool_use`'s two
+    /// parallel calls from `call, call, result, result` into `call, result, call, result`. Plausible -
+    /// ADK runs its tools sequentially in-process, so interleaved may be the faithful reading, and the
+    /// grouped form the artifact - but the fixture does not settle it either way, and the documented
+    /// Vercel shape is explicitly the grouped one. Needs ground truth, not a preference.
     pub(super) const PRODUCTION: Self = Self {
         contract_non_contiguous_emissions: true,
         enforce_backward_edges: false,
@@ -585,6 +611,14 @@ pub(super) fn resolve(
         let mut outputs_by_span: HashMap<usize, Vec<usize>> = HashMap::new();
         for (observation, seen) in evidence.iter().enumerate() {
             if !seen.from_generation {
+                continue;
+            }
+            // A *re-sent* input is not this generation's cause. Frameworks hand a model the whole
+            // conversation, including results of calls this very span made, so reading history as input
+            // asserts result-before-call: on `_synthetic/tool_use` the tool result became an input of
+            // the span that emitted the call, and the edge inverted the pair that the fixture's own
+            // payload settles - call, then result, then the answer citing it.
+            if !seen.is_output && seen.is_history {
                 continue;
             }
             let Some(survivor) = survivor_of(observation) else {
