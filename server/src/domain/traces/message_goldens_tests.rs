@@ -2326,140 +2326,6 @@ fn bench_pipeline() {
     }
 }
 
-#[test]
-#[ignore]
-fn probe_empty_traces() {
-    let want = std::env::var("PROBE").unwrap_or_else(|_| "langgraph/swarm".to_string());
-    let (_, paths) = discover_fixtures()
-        .into_iter()
-        .find(|(l, _)| *l == want)
-        .unwrap_or_else(|| panic!("fixture {want} not found"));
-    let rows = rows_for(&paths);
-    let mut lines = Vec::new();
-    for (name, row) in &rows {
-        let msg_len = row.messages_json.len();
-        let has = row.messages_json != "[]";
-        lines.push(format!(
-            "trace={} span={} name={name:?} obs={:?} msgs={} bytes={} tools={} tokens={}",
-            &row.trace_id[..8],
-            &row.span_id[..8],
-            row.observation_type,
-            has,
-            msg_len,
-            row.tool_definitions_json != "[]",
-            row.total_tokens,
-        ));
-    }
-    lines.sort();
-    eprintln!("{} rows", rows.len());
-    for l in lines.iter().take(40) {
-        eprintln!("{l}");
-    }
-}
-
-#[test]
-#[ignore]
-fn probe_per_carrier_diff() {
-    let want = std::env::var("PROBE").unwrap_or_else(|_| "langgraph/tool_use".to_string());
-    let pricing = PricingService::init_for_test().expect("offline pricing service");
-    for (label, paths) in discover_fixtures() {
-        if label != want {
-            continue;
-        }
-        let baseline = rows_for_mode(&pricing, paths.as_slice(), ExtractionMode::FirstMatch);
-        let per_carrier = rows_for_mode(&pricing, paths.as_slice(), ExtractionMode::PerCarrier);
-        let before = build_golden(&label, &paths, &baseline).golden;
-        let after = build_golden(&label, &paths, &per_carrier).golden;
-        for (name, b) in before.trace_views.iter().chain(before.session_views.iter()) {
-            let a = after
-                .trace_views
-                .get(name)
-                .or_else(|| after.session_views.get(name));
-            let Some(a) = a else { continue };
-            if b.role_sequence != a.role_sequence {
-                eprintln!("{label} / {name}:");
-                eprintln!("  FirstMatch: {:?}", b.role_sequence);
-                eprintln!("  PerCarrier: {:?}", a.role_sequence);
-                for (i, m) in a.messages.iter().enumerate() {
-                    eprintln!(
-                        "    [{i}] {}/{}: {}",
-                        m.role,
-                        m.entry_type,
-                        &m.content[..m.content.len().min(60)]
-                    );
-                }
-            }
-        }
-    }
-}
-
-#[test]
-#[ignore]
-fn probe_blocks() {
-    let want = std::env::var("PROBE").unwrap_or_else(|_| "vercel-ai-js/tool-use".to_string());
-    let (_, paths) = discover_fixtures()
-        .into_iter()
-        .find(|(l, _)| *l == want)
-        .unwrap_or_else(|| panic!("fixture {want} not found"));
-    let all: Vec<MessageSpanRow> = rows_for(&paths).into_iter().map(|(_, r)| r).collect();
-    let first = all[0].trace_id.clone();
-    let rows = sorted_by_timestamp(
-        all.into_iter()
-            .filter(|r| r.trace_id == first && passes_content_filter(r))
-            .collect(),
-    );
-    for (i, b) in process_spans(rows, &FeedOptions::new())
-        .messages
-        .iter()
-        .enumerate()
-    {
-        eprintln!(
-            "{i:2} {:9} {:11} span={} msg={} entry={} pos={} carrier={:?}/{:?} out={}",
-            b.role.as_str(),
-            b.entry_type,
-            &b.span_id[..8],
-            b.message_index,
-            b.entry_index,
-            b.position,
-            b.event_name,
-            b.source_attribute,
-            b.is_output_source(),
-        );
-    }
-}
-
-#[test]
-#[ignore]
-fn probe_session_set() {
-    let want = std::env::var("PROBE").unwrap_or_else(|_| "adk/tool_use".to_string());
-    let (_, paths) = discover_fixtures()
-        .into_iter()
-        .find(|(l, _)| *l == want)
-        .unwrap_or_else(|| panic!("fixture {want} not found"));
-    let rows: Vec<MessageSpanRow> = rows_for(&paths)
-        .into_iter()
-        .map(|(_, r)| r)
-        .filter(passes_content_filter)
-        .collect();
-    let msgs = process_spans(sorted_by_timestamp(rows), &FeedOptions::new()).messages;
-    eprintln!("SESSION {} messages", msgs.len());
-    for (i, b) in msgs.iter().enumerate() {
-        let c: String = format!("{:?}", b.content).chars().take(70).collect();
-        let id_tail = b
-            .tool_use_id
-            .as_deref()
-            .map(|s| s[s.len().saturating_sub(8)..].to_string())
-            .unwrap_or_else(|| "-".to_string());
-        eprintln!(
-            "{i:2} {:9} {:11} span={} id={id_tail} hash={} {c}",
-            b.role.as_str(),
-            b.entry_type,
-            &b.span_id[..8],
-            b.content_hash
-        );
-    }
-}
-
 /// Changing only the presentation constraints must not change which messages a session returns.
 ///
 /// The acceptance property of the ordering redesign, and it was false until the causal transcript was
@@ -2508,4 +2374,36 @@ fn ordering_constraints_do_not_change_a_session_s_messages() {
         checked += 1;
     }
     assert!(checked > 80, "only checked {checked} fixtures");
+}
+
+#[test]
+#[ignore]
+fn probe_pre_dedup() {
+    let want = std::env::var("PROBE").unwrap_or_else(|_| "_synthetic/tool_use".to_string());
+    let (_, paths) = discover_fixtures()
+        .into_iter()
+        .find(|(l, _)| *l == want)
+        .unwrap_or_else(|| panic!("fixture {want} not found"));
+    let rows: Vec<MessageSpanRow> = rows_for(&paths)
+        .into_iter()
+        .map(|(_, r)| r)
+        .filter(passes_content_filter)
+        .collect();
+    for (i, b) in crate::domain::sideml::feed::classified_blocks_for_test(sorted_by_timestamp(rows))
+        .iter()
+        .enumerate()
+    {
+        let c: String = format!("{:?}", b.content).chars().take(60).collect();
+        eprintln!(
+            "{i:2} span={} {:9} {:11} out={} hist={} obs={:?} carrier={:?}/{:?} {c}",
+            &b.span_id[..8],
+            b.role.as_str(),
+            b.entry_type,
+            b.is_output_source(),
+            b.is_history,
+            b.observation_type,
+            b.event_name,
+            b.source_attribute
+        );
+    }
 }

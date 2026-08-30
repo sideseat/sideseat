@@ -460,6 +460,12 @@ pub(crate) fn stage_timings(rows: Vec<MessageSpanRow>) -> Vec<(&'static str, std
     out
 }
 
+/// The classified, pre-dedup blocks, for diagnosing what the resolver is given.
+#[cfg(test)]
+pub(crate) fn classified_blocks_for_test(rows: Vec<MessageSpanRow>) -> Vec<BlockEntry> {
+    classify_span_blocks(&rows, None).0
+}
+
 /// One view built twice: with the constraints production enforces, and with every class off.
 ///
 /// This is the acceptance property of the ordering redesign, as a function a test can call: the two
