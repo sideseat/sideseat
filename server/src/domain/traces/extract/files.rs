@@ -185,16 +185,37 @@ pub struct ExtractionResult {
 
 /// Every `#!B64!#` reference present in a JSON value.
 ///
-/// Used to find the ones that arrived *already formed*, by subtracting the hashes extraction just
-/// produced. A reference is a claim that bytes are in this project's file store, and nothing checked
-/// it: a client could send one for content it never uploaded, or replay one from another project, and
-/// the row would be committed pointing at nothing.
+/// Production scans the *serialised* rows instead (`collect_file_references_in_str`), because a
+/// reference can arrive in messages, tool definitions, raw span JSON or metadata and each is extracted
+/// by a different path - scanning what is about to be written covers all four by construction. This
+/// walker is what the tests use to assert on structure.
+#[cfg(test)]
 pub fn collect_file_references(json: &JsonValue, into: &mut Vec<String>) {
     match json {
-        JsonValue::String(s) => {
-            // Always scanned, never matched whole. `parse_file_uri` takes everything after `::` as the
-            // hash - spaces included - so a string holding two references parsed as one reference with
-            // a very odd hash, and both went unchecked.
+        JsonValue::String(s) => collect_file_references_in_str(s, into),
+        JsonValue::Array(items) => {
+            for item in items {
+                collect_file_references(item, into);
+            }
+        }
+        JsonValue::Object(map) => {
+            for value in map.values() {
+                collect_file_references(value, into);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Every `#!B64!#` reference in a string, including ones embedded in prose or JSON text.
+///
+/// Scanned, never matched whole: `parse_file_uri` takes everything after `::` as the hash - spaces
+/// included - so a string holding two references parsed as one reference with a very odd hash and both
+/// went unchecked. The end of each is found by walking the characters a hash can contain, because
+/// splitting on whitespace put a trailing full stop inside the hash and missed a quoted one entirely.
+pub fn collect_file_references_in_str(s: &str, into: &mut Vec<String>) {
+    {
+        {
             if let Some(mut from) = s.find(crate::utils::file_uri::FILE_URI_PREFIX) {
                 // Embedded in surrounding text, as data URLs are. Split on whitespace missed a
                 // reference followed by punctuation - `...::abc123.` parses as a hash of `abc123.` and
@@ -227,17 +248,6 @@ pub fn collect_file_references(json: &JsonValue, into: &mut Vec<String>) {
                 }
             }
         }
-        JsonValue::Array(items) => {
-            for item in items {
-                collect_file_references(item, into);
-            }
-        }
-        JsonValue::Object(map) => {
-            for value in map.values() {
-                collect_file_references(value, into);
-            }
-        }
-        _ => {}
     }
 }
 
