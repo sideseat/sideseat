@@ -168,7 +168,4 @@ impl PostgresService {
 }
 
 #[cfg(test)]
-mod tests {
-    // PostgreSQL tests require a running PostgreSQL instance
-    // and are typically run as integration tests
-}
+mod parity_tests;

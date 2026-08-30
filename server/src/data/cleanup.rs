@@ -4,6 +4,9 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow};
 
+use crate::core::constants::{
+    CLAIM_RECOVERY_INTERVAL_SECS, FILE_DELETION_CLAIM_STALE_SECS, PROJECT_DELETION_CLAIM_STALE_SECS,
+};
 use crate::data::AnalyticsService;
 use crate::data::TransactionalService;
 use crate::data::cache::{CacheKey, CacheService};
@@ -246,6 +249,66 @@ pub async fn resume_abandoned_project_deletions(
         }
     }
     Ok(finished)
+}
+
+/// A periodic sweep that finishes whatever a crash or a failed step left claimed.
+///
+/// Startup alone is not enough, and the gap is not hypothetical: a process that dies one second after
+/// claiming and restarts immediately leaves a claim the startup sweep reads as *fresh* - it is younger
+/// than the staleness threshold, which exists so a deletion in progress is never mistaken for an
+/// abandoned one. Nothing then looks again until the next restart, so the file stays unassociable and
+/// the project stays hidden for as long as the process happens to live.
+///
+/// Both kinds of claim are swept here rather than in two tasks: they are the same failure with two
+/// owners, and one timer is one thing to reason about.
+pub fn start_claim_recovery_task(
+    database: Arc<TransactionalService>,
+    analytics: Arc<AnalyticsService>,
+    file_service: Arc<FileService>,
+    mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut ticker =
+            tokio::time::interval(std::time::Duration::from_secs(CLAIM_RECOVERY_INTERVAL_SECS));
+        // The first tick fires immediately; startup has already swept, so skip it.
+        ticker.tick().await;
+        loop {
+            tokio::select! {
+                biased;
+                _ = shutdown_rx.changed() => {
+                    if *shutdown_rx.borrow() {
+                        tracing::debug!("Claim recovery task shutting down");
+                        break;
+                    }
+                }
+                _ = ticker.tick() => {
+                    match resume_abandoned_project_deletions(
+                        &database,
+                        &analytics,
+                        &file_service,
+                        PROJECT_DELETION_CLAIM_STALE_SECS,
+                    )
+                    .await
+                    {
+                        Ok(0) => {}
+                        Ok(n) => tracing::info!(finished = n, "Finished abandoned project deletions"),
+                        Err(e) => tracing::warn!(error = %e, "Could not sweep abandoned project deletions"),
+                    }
+                    match crate::data::files::cleanup::cleanup_zero_ref_files(
+                        file_service.storage(),
+                        &database,
+                        FILE_DELETION_CLAIM_STALE_SECS,
+                    )
+                    .await
+                    {
+                        Ok(0) => {}
+                        Ok(n) => tracing::debug!(deleted = n, "Reclaimed unreferenced files"),
+                        Err(e) => tracing::warn!(error = %e, "Could not sweep unreferenced files"),
+                    }
+                }
+            }
+        }
+    })
 }
 
 /// Invalidate API key caches for an organization

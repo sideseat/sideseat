@@ -246,6 +246,33 @@ pub async fn claim_file_for_deletion(
     file_hash: &str,
 ) -> Result<bool, PostgresError> {
     let now = chrono::Utc::now().timestamp();
+    let mut tx = pool.begin().await?;
+
+    // Lock the row *before* asking whether anything references it, in a statement of its own.
+    //
+    // As one UPDATE with `NOT EXISTS (SELECT ... FROM trace_files ...)` this was unsound in a way only a
+    // concurrent writer shows. Under READ COMMITTED an UPDATE that blocks on a locked row re-checks its
+    // qualification when the lock frees, but the re-check evaluates the subquery against the *statement's
+    // original* snapshot - so an `associate_file` that committed a `trace_files` row while this statement
+    // waited is invisible to it, and the claim succeeds on a file that is now referenced. Cleanup then
+    // deletes bytes a committed row points at. `the_file_fence_holds_against_a_concurrent_association`
+    // reproduces exactly that.
+    //
+    // Locking first and asking second fixes it because the second statement gets its own snapshot, taken
+    // after the lock was granted, which by then includes anything the other writer committed.
+    let existing: Option<(Option<i64>,)> = sqlx::query_as(
+        "SELECT deleting_at FROM files WHERE project_id = $1 AND file_hash = $2 FOR UPDATE",
+    )
+    .bind(project_id)
+    .bind(file_hash)
+    .fetch_optional(&mut *tx)
+    .await?;
+    match existing {
+        None => return Ok(false),             // no such file
+        Some((Some(_),)) => return Ok(false), // already claimed
+        Some((None,)) => {}
+    }
+
     let result = sqlx::query(
         r#"
         UPDATE files SET deleting_at = $1
@@ -259,9 +286,11 @@ pub async fn claim_file_for_deletion(
     .bind(now)
     .bind(project_id)
     .bind(file_hash)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
-    Ok(result.rows_affected() > 0)
+    let claimed = result.rows_affected() > 0;
+    tx.commit().await?;
+    Ok(claimed)
 }
 
 /// Give up a deletion claim, leaving the file in place.

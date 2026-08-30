@@ -604,6 +604,14 @@ pub const FILE_DELETION_CLAIM_STALE_SECS: i64 = 900;
 /// also the moment a crashed process's claims become findable, and nothing else can release them.
 pub const PROJECT_DELETION_CLAIM_STALE_SECS: i64 = 60;
 
+/// How often the background sweep looks for claims a crash or a failed step abandoned.
+///
+/// Startup sweeps once, which cannot be enough on its own: a claim taken a second before the crash is
+/// still *fresh* when the process comes back, so the sweep that runs then correctly leaves it alone and
+/// nothing looks again. Frequent enough that a stuck project is hidden for minutes rather than for the
+/// process's lifetime; the sweep is two indexed queries when there is nothing to do.
+pub const CLAIM_RECOVERY_INTERVAL_SECS: u64 = 120;
+
 // =============================================================================
 // Error Message Limits
 // =============================================================================

@@ -63,6 +63,7 @@
 #     test-rust          Rust tests, whole workspace (server + sdk/rust)
 #     test-server        Rust tests, server package only (inner loop)
 #     test-clickhouse    ClickHouse/DuckDB parity (starts a throwaway container)
+#     test-postgres      PostgreSQL/SQLite parity (starts a throwaway container)
 #     test-web           Web tests (vitest)
 #     test-sdk-js        JS SDK tests
 #     test-sdk-python    Python SDK tests (pytest)
@@ -224,7 +225,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: dev dev-server dev-web
 .PHONY: fmt fmt-check lint lint-advisory check
 .PHONY: secret-scan-tree secret-scan-staged secret-scan-range
-.PHONY: test test-rust test-server test-clickhouse test-web test-sdk-js test-sdk-python coverage
+.PHONY: test test-rust test-server test-clickhouse test-postgres test-web test-sdk-js test-sdk-python coverage
 .PHONY: build build-web build-server
 .PHONY: build-sdk build-sdk-js build-sdk-python
 .PHONY: build-cli build-cli-preflight build-cli-summary $(CLI_BUILD_TARGETS)
@@ -558,6 +559,37 @@ test-clickhouse:
 	cargo test -p sideseat-server clickhouse -- --test-threads=1; \
 	status=$$?; \
 	docker rm -f $(CH_TEST_CONTAINER) >/dev/null 2>&1; \
+	exit $$status
+
+# PostgreSQL/SQLite transactional parity. Same reasoning as test-clickhouse: the PostgreSQL SQL is
+# hand-written in a second dialect and, until this target existed, had never run against a server.
+PG_TEST_CONTAINER := sideseat-postgres-test
+PG_TEST_PORT ?= 5433
+# Pinned, so an upstream release cannot turn into a failure on an unrelated PR.
+PG_TEST_IMAGE ?= postgres:17-alpine
+
+test-postgres:
+	@command -v docker >/dev/null 2>&1 || { echo "[test-postgres] docker is required"; exit 1; }
+	@echo "[test-postgres] starting $(PG_TEST_IMAGE) on port $(PG_TEST_PORT)..."
+	@docker rm -f $(PG_TEST_CONTAINER) >/dev/null 2>&1 || true
+	@docker run -d --name $(PG_TEST_CONTAINER) -p $(PG_TEST_PORT):5432 \
+		-e POSTGRES_USER=sideseat -e POSTGRES_PASSWORD=sideseat -e POSTGRES_DB=sideseat \
+		$(PG_TEST_IMAGE) >/dev/null
+	@for i in $$(seq 1 60); do \
+		docker exec $(PG_TEST_CONTAINER) pg_isready -U sideseat -d sideseat >/dev/null 2>&1 && break; \
+		sleep 1; \
+	done; \
+	docker exec $(PG_TEST_CONTAINER) pg_isready -U sideseat -d sideseat >/dev/null 2>&1 || { \
+		echo "[test-postgres] server did not become ready"; \
+		docker logs --tail 20 $(PG_TEST_CONTAINER); \
+		docker rm -f $(PG_TEST_CONTAINER) >/dev/null 2>&1; \
+		exit 1; \
+	}
+	@set +e; \
+	SIDESEAT_TEST_POSTGRES_URL=postgres://sideseat:sideseat@127.0.0.1:$(PG_TEST_PORT)/sideseat \
+	cargo test -p sideseat-server parity_tests -- --test-threads=1; \
+	status=$$?; \
+	docker rm -f $(PG_TEST_CONTAINER) >/dev/null 2>&1; \
 	exit $$status
 
 test-web:
