@@ -2341,8 +2341,9 @@ fn bench_pipeline() {
         eprintln!("  STAGE {stage}: {took:?}");
     }
 
-    // Ingestion, which the read-side numbers say nothing about: OTLP bytes through extraction,
-    // normalisation and enrichment, exactly as `process_request` runs it.
+    // The CPU half of ingestion: OTLP bytes through extraction, normalisation and enrichment. NOT
+    // production ingestion - file extraction and every persistence step are outside this, so the
+    // number is a floor rather than a measurement of what a request costs.
     let pricing = PricingService::init_for_test().expect("offline pricing service");
     let requests: Vec<_> = paths.iter().map(|p| decode_request(p)).collect();
     let bytes: usize = paths
@@ -2359,7 +2360,7 @@ fn bench_pipeline() {
     }
     let per_run = start.elapsed() / iterations;
     eprintln!(
-        "  INGEST {want}: {produced} rows from {} KiB of OTLP, {per_run:?} per run",
+        "  INGEST(cpu only) {want}: {produced} rows from {} KiB of OTLP, {per_run:?} per run",
         bytes / 1024
     );
 }

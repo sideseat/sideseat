@@ -325,10 +325,11 @@ Correct ==
     /\ Acyclic => Dataflow
 
 ----------------------------------------------------------------------------
-(* Three survivors, not two: with two, `Cohesion` is vacuous - there is no third  *)
-(* block that could land between a contracted pair, so the property cannot fail   *)
-(* however the resolver behaves. Three is the smallest model in which contraction *)
-(* has something to exclude.                                                      *)
+(* Two survivors, and the scope that costs is stated in the module header: at this  *)
+(* size `Cohesion` is vacuous, because no third block can land between a contracted *)
+(* pair. A three-survivor model does not finish - TLC enumerates initial states      *)
+(* before filtering them - and contiguity holds by construction anyway, since the     *)
+(* emit loop flattens each unit's members consecutively.                              *)
 
 (* One state per input shape: TLC enumerates the inputs and checks Correct  *)
 (* on each, which is a bounded proof over all shapes rather than over the   *)
