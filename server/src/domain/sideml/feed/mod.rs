@@ -130,6 +130,7 @@
 //! - **With history**: Strands, LangGraph, LangChain (duplicates detected/filtered)
 //! - **Without history**: AutoGen, CrewAI (passes through unchanged)
 
+pub mod cache;
 mod classify;
 mod correlate;
 mod dedup;
@@ -459,6 +460,31 @@ impl PrefixSearch<'_> {
 /// `process_multi_trace_spans` for multi-trace data (cross-trace prefix stripping).
 pub fn process_spans(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedResult {
     apply_role_filter(process_spans_unfiltered(rows), options.role.as_deref())
+}
+
+/// [`process_spans`], memoised on the rows - see [`cache::ReconstructionCache`] for why that is safe.
+///
+/// The *unfiltered* reconstruction is what is remembered, and the role filter is applied to a copy of
+/// it: the filter narrows an answer rather than changing it, so one cached reconstruction serves every
+/// role a caller asks for.
+pub fn process_spans_cached(
+    cache: &cache::ReconstructionCache,
+    rows: Vec<MessageSpanRow>,
+    options: &FeedOptions,
+) -> FeedResult {
+    let reconstructed = cache.get_or_reconstruct(rows, process_spans_unfiltered);
+    apply_role_filter((*reconstructed).clone(), options.role.as_deref())
+}
+
+/// [`process_feed`], memoised on the rows, exactly as [`process_spans_cached`] is.
+pub fn process_feed_cached(
+    cache: &cache::ReconstructionCache,
+    rows: Vec<MessageSpanRow>,
+    options: &FeedOptions,
+) -> FeedResult {
+    let reconstructed =
+        cache.get_or_reconstruct(rows, |rows| process_feed(rows, &FeedOptions::new()));
+    apply_role_filter((*reconstructed).clone(), options.role.as_deref())
 }
 
 /// [`process_spans`] without the role filter, for callers that filter once at their own boundary.

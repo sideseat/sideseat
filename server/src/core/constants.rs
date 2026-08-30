@@ -612,6 +612,15 @@ pub const PROJECT_DELETION_CLAIM_STALE_SECS: i64 = 60;
 /// process's lifetime; the sweep is two indexed queries when there is nothing to do.
 pub const CLAIM_RECOVERY_INTERVAL_SECS: u64 = 120;
 
+/// How many session reconstructions to remember, and how long an unused one stays.
+///
+/// Entries are small - a reconstruction's *output* is the blocks a reader sees, not the megabytes of
+/// re-sent history that produced them - so the count can be generous. The idle window exists because a
+/// session that nobody opens again should not hold memory, not because an entry can go stale: the key is
+/// a hash of the rows, so a changed row is a different key.
+pub const RECONSTRUCTION_CACHE_MAX_ENTRIES: u64 = 512;
+pub const RECONSTRUCTION_CACHE_IDLE_SECS: u64 = 900;
+
 // =============================================================================
 // Error Message Limits
 // =============================================================================

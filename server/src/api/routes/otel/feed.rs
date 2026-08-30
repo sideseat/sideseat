@@ -20,7 +20,7 @@ use crate::api::auth::ProjectRead;
 use crate::api::types::{ApiError, parse_timestamp_param};
 use crate::data::types::{FeedMessagesParams, FeedSpansParams, MessageQueryParams};
 use crate::domain::sideml::{
-    FeedOptions, apply_time_window, extract_tools_from_rows, process_feed,
+    FeedOptions, apply_time_window, extract_tools_from_rows, process_feed_cached,
 };
 
 // ============================================================================
@@ -303,7 +303,11 @@ pub async fn get_feed_messages(
     // are properties of the row page rather than of the answer. That is how the role filter has
     // always behaved here, and it is what lets a client keep paging rather than stopping at the
     // first page a filter empties.
-    let processed = apply_time_window(process_feed(context.rows, &options), start_time, end_time);
+    let processed = apply_time_window(
+        process_feed_cached(&state.reconstruction, context.rows, &options),
+        start_time,
+        end_time,
+    );
     let all_messages = scope_feed_to_page(processed.messages, &page_spans);
     let tool_definitions = page_tools.tool_definitions;
     let tool_names = page_tools.tool_names;
@@ -427,6 +431,7 @@ pub async fn get_feed_spans(
 mod tests {
     use super::*;
     use crate::data::types::MessageSpanRow;
+    use crate::domain::sideml::process_feed;
     use chrono::TimeZone;
 
     // ========================================================================

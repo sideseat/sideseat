@@ -440,7 +440,7 @@ impl BlockEntry {
 // ============================================================================
 
 /// Result of processing spans through the feed pipeline.
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct FeedResult {
     pub messages: Vec<BlockEntry>,
     pub tool_definitions: Vec<JsonValue>,
@@ -459,7 +459,7 @@ pub struct ExtractedTools {
 }
 
 /// Metadata about the processed feed.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct FeedMetadata {
     pub block_count: usize,
     pub span_count: usize,

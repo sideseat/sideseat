@@ -382,18 +382,27 @@ reconstruction over synthetic sessions in the two shapes that differ in the way 
 *incremental* (each span carries its own turn, as Strands' per-message events do) and *replaying* (each
 generation span re-sends the whole conversation, as ADK, LangGraph and Vercel do):
 
-| Shape | Turns | Input | Blocks | Time |
-| --- | --- | --- | --- | --- |
-| incremental | 100 | 26 KB | 200 | 4.0 ms |
-| incremental | 1 000 | 269 KB | 2 000 | 23.8 ms |
-| incremental | 10 000 | 2.7 MB | 20 000 | 219 ms |
-| replaying | 100 | 697 KB | 200 | 27.8 ms |
-| replaying | 1 000 | 68 MB | 2 000 | 2.57 s |
+| Shape | Turns | Input | Blocks | Cold | Warm |
+| --- | --- | --- | --- | --- | --- |
+| incremental | 100 | 26 KB | 200 | 5.4 ms | 0.2 ms |
+| incremental | 1 000 | 269 KB | 2 000 | 20.3 ms | 1.6 ms |
+| incremental | 10 000 | 2.7 MB | 20 000 | 224 ms | 15.6 ms |
+| replaying | 100 | 697 KB | 200 | 24.9 ms | 0.8 ms |
+| replaying | 1 000 | 68 MB | 2 000 | 2.28 s | 47 ms |
 
 The pipeline is **linear in its input** in both shapes (~27 MB/s); what grows quadratically is the input
 itself, because a replaying framework emits the whole history once per turn. So the cost of a long
-session is a property of the telemetry, not of the normaliser - and the fix is not to make the pipeline
-faster but to stop paying it on every read, which is what the reconstruction cache does.
+session is a property of the telemetry, not of the normaliser, and making the pipeline faster is not the
+answer - not paying it twice for the same rows is.
+
+**Reconstruction is memoised on the rows** (`sideml/feed/cache.rs`). The key is a BLAKE3 digest of
+everything the pipeline reads from each row, so a changed row is a *different key* rather than a stale
+hit: there is no invalidation to get wrong and no TTL to tune. Hashing 68 MB costs the 47 ms in the warm
+column above, against the 2.28 s it replaces. The cache is **process-local and empty at startup**, which
+is what keeps "a fix applies to history without re-ingestion" true - a persisted cache would serve
+answers built by the previous pipeline, and a version constant someone must remember to bump is a hole
+rather than a design. The *unfiltered* reconstruction is cached and `?role=` is applied to a copy, so one
+entry serves every role.
 
 **Message-parsing goldens**: `cargo test -p sideseat-server message_goldens` verifies message count, content, ordering and absence of duplicates per framework across all three views (span / trace / session). Fixtures are captured OTLP payloads under `server/tests/fixtures/messages/<suite>/<sample>/`; capture with `misc/capture-message-fixtures.sh [suite] [sample]` (needs model credentials), then record with `UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens` and review the diff. Invariants (scope containment, per-trace dedup, tool-id correspondence, no empty thinking, determinism) hold independently of the goldens, so a blindly regenerated snapshot still fails on real defects. `UPDATE_GOLDENS=1` writes the files but still exits non-zero when an invariant was violated, so known-bad output cannot be committed as reviewed. See `server/tests/fixtures/messages/README.md`.
 

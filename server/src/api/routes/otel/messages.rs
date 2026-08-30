@@ -14,7 +14,7 @@ use crate::api::types::{ApiError, parse_timestamp_param};
 use crate::data::types::MessageQueryParams;
 use crate::domain::sideml::{
     ExtractedTools, FeedOptions, FeedResult, apply_time_window, extract_tools_from_rows,
-    process_spans,
+    process_spans_cached,
 };
 
 #[derive(Debug, Deserialize)]
@@ -83,7 +83,7 @@ pub async fn get_span_messages(
         .map_err(ApiError::from_data)?;
 
     // Process through feed pipeline
-    let processed = process_spans(result.rows, &options);
+    let processed = process_spans_cached(&state.reconstruction, result.rows, &options);
     let processed = apply_time_window(processed, from_timestamp, to_timestamp);
 
     let response = build_messages_response(processed, None);
@@ -169,7 +169,7 @@ pub async fn get_trace_messages(
     };
 
     // Process through feed pipeline (auto-routes to multi-trace if needed)
-    let mut processed = process_spans(result.rows, &options);
+    let mut processed = process_spans_cached(&state.reconstruction, result.rows, &options);
 
     // If session-loaded, retain only the target trace's blocks and apply scoped tools.
     // scoped_tools is Some iff session_id.is_some(), so use it as the single guard.
@@ -232,7 +232,7 @@ pub async fn get_session_messages(
         .map_err(ApiError::from_data)?;
 
     // Process through feed pipeline
-    let processed = process_spans(result.rows, &options);
+    let processed = process_spans_cached(&state.reconstruction, result.rows, &options);
     let processed = apply_time_window(processed, from_timestamp, to_timestamp);
 
     // The session's own totals, as the trace endpoint uses the trace's. The pipeline's totals cover

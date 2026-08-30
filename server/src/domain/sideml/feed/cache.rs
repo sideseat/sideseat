@@ -1,0 +1,222 @@
+//! Memoised reconstruction, so the same rows are not normalised twice.
+//!
+//! Normalisation happens at query time, which is deliberate: a fix to the pipeline applies to history
+//! that was ingested before it, with no re-ingestion. The cost is that every read pays for the whole
+//! session, and `bench_session_scaling` says what that is - the pipeline is linear in its input at about
+//! 27 MB/s, but a framework that re-sends the conversation as its next turn's input makes the *input*
+//! quadratic in the turn count. A thousand-turn LangGraph session is 68 MB of telemetry and 2.6 seconds
+//! of reconstruction, on every read, for an answer of two thousand blocks.
+//!
+//! # Why this cannot serve a stale answer
+//!
+//! The key is a hash of everything the pipeline reads - each row's identity and its payloads - so any
+//! change to any row is a different key rather than a stale hit. There is no invalidation to get wrong
+//! and no TTL to tune: a re-delivered span rewrites its row, the digest changes, and the old entry is
+//! simply never asked for again.
+//!
+//! Process-local and empty at startup, which is the other half. A cache that outlived the binary would
+//! serve reconstructions made by the *previous* version of the pipeline, silently undoing "fixes apply to
+//! historical data" - and the alternative, a version constant someone must remember to bump, is a hole
+//! rather than a design. A new build is a new process, so it starts from nothing.
+//!
+//! Keyed by the digest alone, not by the request: the same rows always reconstruct to the same blocks,
+//! and callers that narrow the answer afterwards (a trace scoped out of its session, a role filter, a
+//! feed page) do that to the cached result.
+
+use std::sync::Arc;
+use std::time::Duration;
+
+use moka::sync::Cache;
+
+use super::types::FeedResult;
+use crate::core::constants::{RECONSTRUCTION_CACHE_IDLE_SECS, RECONSTRUCTION_CACHE_MAX_ENTRIES};
+use crate::data::types::MessageSpanRow;
+
+/// A memo over `process_spans`, keyed by the content of the rows it was given.
+#[derive(Clone)]
+pub struct ReconstructionCache {
+    entries: Cache<[u8; 32], Arc<FeedResult>>,
+}
+
+impl Default for ReconstructionCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ReconstructionCache {
+    pub fn new() -> Self {
+        Self {
+            entries: Cache::builder()
+                .max_capacity(RECONSTRUCTION_CACHE_MAX_ENTRIES)
+                .time_to_idle(Duration::from_secs(RECONSTRUCTION_CACHE_IDLE_SECS))
+                .build(),
+        }
+    }
+
+    /// The reconstruction of these rows, computing it only if these exact rows have not been seen.
+    ///
+    /// `reconstruct` takes the rows by value because the pipeline consumes them; it runs only on a miss.
+    pub fn get_or_reconstruct(
+        &self,
+        rows: Vec<MessageSpanRow>,
+        reconstruct: impl FnOnce(Vec<MessageSpanRow>) -> FeedResult,
+    ) -> Arc<FeedResult> {
+        let key = digest(&rows);
+        if let Some(hit) = self.entries.get(&key) {
+            return hit;
+        }
+        let value = Arc::new(reconstruct(rows));
+        self.entries.insert(key, Arc::clone(&value));
+        value
+    }
+
+    /// How many reconstructions are held. For tests and diagnostics.
+    pub fn len(&self) -> u64 {
+        self.entries.run_pending_tasks();
+        self.entries.entry_count()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+/// A hash of everything reconstruction reads from these rows.
+///
+/// Hashing the payloads rather than a cheap proxy like `ingested_at`, because a proxy is a guess about
+/// when content changes and this is the one place that must not guess. It is also affordable by a wide
+/// margin: BLAKE3 runs at gigabytes per second, so digesting the 68 MB that a thousand-turn replaying
+/// session carries costs tens of milliseconds against the 2.6 seconds it saves.
+///
+/// Order matters and is included: the pipeline sorts internally, but two different row orders are two
+/// different inputs as far as this memo is concerned, and treating them as one would be a claim about the
+/// pipeline that this file has no business making.
+fn digest(rows: &[MessageSpanRow]) -> [u8; 32] {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(&(rows.len() as u64).to_le_bytes());
+    for row in rows {
+        for field in [
+            row.trace_id.as_str(),
+            row.span_id.as_str(),
+            row.parent_span_id.as_deref().unwrap_or(""),
+            row.session_id.as_deref().unwrap_or(""),
+            row.messages_json.as_str(),
+            row.tool_definitions_json.as_str(),
+            row.tool_names_json.as_str(),
+            row.model.as_deref().unwrap_or(""),
+            row.provider.as_deref().unwrap_or(""),
+            row.status_code.as_deref().unwrap_or(""),
+            row.exception_type.as_deref().unwrap_or(""),
+            row.exception_message.as_deref().unwrap_or(""),
+            row.exception_stacktrace.as_deref().unwrap_or(""),
+            row.observation_type.as_deref().unwrap_or(""),
+        ] {
+            // Length-prefixed, so `("ab", "c")` and `("a", "bc")` are different inputs.
+            hasher.update(&(field.len() as u64).to_le_bytes());
+            hasher.update(field.as_bytes());
+        }
+        hasher.update(&row.span_timestamp.timestamp_micros().to_le_bytes());
+        hasher.update(
+            &row.span_end_timestamp
+                .map(|t| t.timestamp_micros())
+                .unwrap_or(i64::MIN)
+                .to_le_bytes(),
+        );
+        hasher.update(&row.input_tokens.to_le_bytes());
+        hasher.update(&row.output_tokens.to_le_bytes());
+        hasher.update(&row.total_tokens.to_le_bytes());
+        hasher.update(&row.cost_total.to_le_bytes());
+    }
+    *hasher.finalize().as_bytes()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{TimeZone, Utc};
+
+    fn row(span: &str, messages: &str) -> MessageSpanRow {
+        let t = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).single().unwrap();
+        MessageSpanRow {
+            trace_id: "trace-1".to_string(),
+            span_id: span.to_string(),
+            parent_span_id: None,
+            span_timestamp: t,
+            span_end_timestamp: Some(t),
+            messages_json: messages.to_string(),
+            tool_definitions_json: "[]".to_string(),
+            tool_names_json: "[]".to_string(),
+            model: None,
+            provider: None,
+            status_code: None,
+            exception_type: None,
+            exception_message: None,
+            exception_stacktrace: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cost_total: 0.0,
+            observation_type: Some("generation".to_string()),
+            session_id: None,
+            ingested_at: t,
+        }
+    }
+
+    /// The same rows are reconstructed once; different rows are not confused for them.
+    #[test]
+    fn a_hit_needs_the_same_rows_and_a_change_of_any_kind_misses() {
+        let cache = ReconstructionCache::new();
+        let runs = std::cell::Cell::new(0);
+        let reconstruct = |_rows: Vec<MessageSpanRow>| {
+            runs.set(runs.get() + 1);
+            FeedResult::default()
+        };
+
+        let rows = vec![row("s1", "[]")];
+        cache.get_or_reconstruct(rows.clone(), reconstruct);
+        cache.get_or_reconstruct(rows.clone(), reconstruct);
+        assert_eq!(runs.get(), 1, "the second read of identical rows is a hit");
+
+        // A changed payload is a different input, so it must not read the first answer.
+        cache.get_or_reconstruct(vec![row("s1", "[{}]")], reconstruct);
+        assert_eq!(runs.get(), 2, "a payload change misses");
+
+        // So is an added row, and so is a different span carrying the same payload.
+        cache.get_or_reconstruct(vec![row("s1", "[]"), row("s2", "[]")], reconstruct);
+        assert_eq!(runs.get(), 3, "an added row misses");
+        cache.get_or_reconstruct(vec![row("s2", "[]")], reconstruct);
+        assert_eq!(runs.get(), 4, "a different span misses");
+
+        // And the order of the rows is part of the input.
+        cache.get_or_reconstruct(vec![row("s2", "[]"), row("s1", "[]")], reconstruct);
+        assert_eq!(runs.get(), 5, "a different order misses");
+    }
+
+    /// A re-delivered span changes its row, so the digest changes with it.
+    ///
+    /// This is what replaces invalidation: ingestion rewrites the row of a span it has seen before, and
+    /// the pipeline reads that row, so there is nothing to remember to expire.
+    #[test]
+    fn a_redelivered_span_is_a_different_input() {
+        let cache = ReconstructionCache::new();
+        let runs = std::cell::Cell::new(0);
+        let reconstruct = |_rows: Vec<MessageSpanRow>| {
+            runs.set(runs.get() + 1);
+            FeedResult::default()
+        };
+
+        let mut first = row("s1", "[]");
+        first.total_tokens = 100;
+        cache.get_or_reconstruct(vec![first.clone()], reconstruct);
+
+        let mut corrected = first.clone();
+        corrected.total_tokens = 900;
+        cache.get_or_reconstruct(vec![corrected], reconstruct);
+        assert_eq!(
+            runs.get(),
+            2,
+            "the corrected row is not answered from the old one"
+        );
+    }
+}
