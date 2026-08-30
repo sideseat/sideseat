@@ -23,7 +23,7 @@ use serde_json::{Value as JsonValue, json};
 
 use super::enrich::SpanEnrichment;
 use super::extract::files::{
-    ExtractedFile, FileExtractionCache, collect_file_references, extract_and_replace_files,
+    ExtractedFile, FileExtractionCache, collect_file_references_in_str, extract_and_replace_files,
     extract_and_replace_files_cached,
 };
 use super::extract::{RawMessage, RawToolDefinition, RawToolNames, SpanData};
@@ -127,10 +127,8 @@ pub(super) fn prepare_batch(
 
     // Extract files from messages (CPU only: replace base64 with URIs)
     let processed_messages = if files_enabled {
-        let (msgs, files, incoming) =
-            extract_files_cpu_messages(input.messages, &input.spans, file_cache);
+        let (msgs, files) = extract_files_cpu_messages(input.messages, &input.spans, file_cache);
         pending_files = files;
-        incoming_references = incoming;
         msgs
     } else {
         input.messages
@@ -150,6 +148,42 @@ pub(super) fn prepare_batch(
         file_cache,
     );
     pending_files.extend(raw_span_files);
+
+    // References that arrived already formed, read from the rows *about to be written* rather than from
+    // any one extraction step.
+    //
+    // A reference can appear in messages, tool definitions, raw span JSON or metadata, and each is
+    // extracted by a different path - so collecting per path missed whichever path was not covered.
+    // Scanning the committed strings states the invariant directly: every reference in a row that is
+    // written is either one this batch produced, or one that has been verified.
+    let ours: HashSet<String> = pending_files
+        .iter()
+        .map(|f| crate::utils::file_uri::build_file_uri(&f.hash, f.media_type.as_deref()))
+        .collect();
+    for span in &db_spans {
+        let project_id = span.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID);
+        let mut present = Vec::new();
+        for field in [
+            span.messages.as_deref(),
+            span.tool_definitions.as_deref(),
+            span.raw_span.as_deref(),
+            span.metadata.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            collect_file_references_in_str(field, &mut present);
+        }
+        for uri in present {
+            // The whole URI, not the hash: one carrying our hash with a different media type is not
+            // ours, and it would also miss the exact-string rewrite if it turned out unbacked.
+            if !ours.contains(&uri) {
+                incoming_references.push((project_id.to_string(), span.trace_id.clone(), uri));
+            }
+        }
+    }
+    incoming_references.sort_unstable();
+    incoming_references.dedup();
 
     (db_spans, pending_files, incoming_references)
 }
@@ -279,13 +313,8 @@ fn extract_files_cpu_messages(
     mut messages: Vec<Vec<RawMessage>>,
     spans: &[SpanData],
     cache: Option<&FileExtractionCache>,
-) -> (
-    Vec<Vec<RawMessage>>,
-    Vec<PendingFileWrite>,
-    Vec<IncomingReference>,
-) {
+) -> (Vec<Vec<RawMessage>>, Vec<PendingFileWrite>) {
     let mut pending = Vec::new();
-    let mut incoming = Vec::new();
 
     for (span_idx, span_messages) in messages.iter_mut().enumerate() {
         let span = &spans[span_idx];
@@ -297,31 +326,11 @@ fn extract_files_cpu_messages(
                 Some(c) => extract_and_replace_files_cached(&mut raw_message.content, c),
                 None => extract_and_replace_files(&mut raw_message.content),
             };
-            // References that arrived already formed, rather than being created here: everything in the
-            // message afterwards, minus what extraction just produced. A reference is a claim that
-            // bytes are in this project's file store, and nothing verified it.
-            // Matched on the whole URI, not the hash alone. A reference carrying our hash with a
-            // *different* media type is not one we created, and comparing hashes let it through
-            // unchecked - and it would also miss the exact-string rewrite if it turned out unbacked.
-            let ours: HashSet<String> = result
-                .files
-                .iter()
-                .map(|f| crate::utils::file_uri::build_file_uri(&f.hash, f.media_type.as_deref()))
-                .collect();
-            let mut present = Vec::new();
-            collect_file_references(&raw_message.content, &mut present);
-            for uri in present {
-                if !ours.contains(&uri) {
-                    incoming.push((project_id.to_string(), trace_id.to_string(), uri));
-                }
-            }
             pending.extend(to_pending_files(result.files, project_id, trace_id));
         }
     }
 
-    incoming.sort_unstable();
-    incoming.dedup();
-    (messages, pending, incoming)
+    (messages, pending)
 }
 
 /// What became of a batch's files.
