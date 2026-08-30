@@ -188,9 +188,9 @@ async fn finalize_pending_files(
     pending: Vec<PendingFinalization>,
     file_service: &Arc<FileService>,
     context: &str,
-) {
+) -> usize {
     if pending.is_empty() {
-        return;
+        return 0;
     }
 
     let count = pending.len();
@@ -242,6 +242,8 @@ async fn finalize_pending_files(
             "Files finalized successfully"
         );
     }
+
+    failure_count
 }
 
 /// Convert extracted files to pending writes for a given project/trace.
@@ -289,6 +291,23 @@ fn extract_files_cpu_messages(
     (messages, pending)
 }
 
+/// What became of a batch's files.
+///
+/// Returned rather than logged, because the caller has a decision to make that a `warn!` cannot: a
+/// span row carries `#!B64!#` references, so committing it when the file behind one is missing leaves
+/// a reader with a reference to nothing. Backend parity cannot catch that - it proves DuckDB and
+/// ClickHouse agree, never that either represents the OTLP input.
+#[derive(Default)]
+pub(super) struct FilePersistOutcome {
+    /// Files that could not be stored: decode, temp write, metadata or finalization failed. Transient
+    /// in nature, so the honest response is to fail the batch and let the exporter retry.
+    pub failed: usize,
+    /// Files deliberately not stored because the project is over its storage quota. Not an error and
+    /// not retryable - the reference will dangle until it can be marked as unavailable, which needs a
+    /// rendering decision rather than a fix here.
+    pub quota_skipped: usize,
+}
+
 /// Persist extracted files to storage (I/O phase).
 ///
 /// Handles temp file writes, metadata upserts, and finalization.
@@ -297,28 +316,36 @@ fn extract_files_cpu_messages(
 pub(super) async fn persist_extracted_files(
     files: Vec<PendingFileWrite>,
     file_service: &Arc<FileService>,
-) {
+) -> FilePersistOutcome {
+    let mut outcome = FilePersistOutcome::default();
     if files.is_empty() {
-        return;
+        return outcome;
     }
 
     // Phase 1: Quota filtering
+    let requested = files.len();
     let (files, project_sizes) = filter_over_quota(files, file_service).await;
+    outcome.quota_skipped = requested - files.len();
     if files.is_empty() {
-        return;
+        return outcome;
     }
 
     // Phase 2: Decode, write, and record files
-    let pending_finalizations = write_and_record_files(&files, file_service).await;
+    let (pending_finalizations, write_failures) =
+        write_and_record_files(&files, file_service).await;
 
     // Phase 3: Finalize temp files to permanent storage
-    finalize_pending_files(pending_finalizations, file_service, "batch").await;
+    let finalize_failures =
+        finalize_pending_files(pending_finalizations, file_service, "batch").await;
+    outcome.failed = write_failures + finalize_failures;
 
     // Phase 4: Invalidate quota cache for affected projects
     let affected_projects: Vec<&str> = project_sizes.keys().map(|s| s.as_str()).collect();
     file_service
         .invalidate_quota_cache(&affected_projects)
         .await;
+
+    outcome
 }
 
 /// Filter out files from projects that exceed storage quota.
@@ -370,7 +397,7 @@ async fn filter_over_quota(
 async fn write_and_record_files(
     files: &[PendingFileWrite],
     file_service: &Arc<FileService>,
-) -> Vec<PendingFinalization> {
+) -> (Vec<PendingFinalization>, usize) {
     let temp_dir = file_service.temp_dir();
     let repo = file_service.database().repository();
     let mut pending_finalizations: Vec<PendingFinalization> = Vec::new();
@@ -379,6 +406,8 @@ async fn write_and_record_files(
     let mut written_hashes: HashSet<String> = HashSet::new();
     // Deduplicate: only insert trace-file once per unique (trace_id, hash)
     let mut trace_hashes: HashSet<(String, String)> = HashSet::new();
+    // Anything that did not reach storage: the row that references it must not be committed.
+    let mut failures = 0usize;
 
     let mut cache_hits = 0usize;
     let mut fresh_ok = 0usize;
@@ -413,6 +442,7 @@ async fn write_and_record_files(
                     )
                     .await
                 {
+                    failures += 1;
                     tracing::warn!(
                         error = %e,
                         hash = %file.hash,
@@ -427,6 +457,7 @@ async fn write_and_record_files(
                     Err(e1) => match BASE64_URL_SAFE.decode(&file.data) {
                         Ok(d) => d,
                         Err(e) => {
+                            failures += 1;
                             tracing::warn!(
                                 error = %e,
                                 std_error = %e1,
@@ -442,6 +473,7 @@ async fn write_and_record_files(
 
                 let temp_path = temp_dir.join(format!("{}_{}", file.project_id, file.hash));
                 if let Err(e) = tokio::fs::write(&temp_path, &decoded).await {
+                    failures += 1;
                     tracing::warn!(
                         error = %e,
                         hash = %file.hash,
@@ -461,6 +493,7 @@ async fn write_and_record_files(
                     )
                     .await
                 {
+                    failures += 1;
                     tracing::warn!(
                         error = %e,
                         hash = %file.hash,
@@ -507,7 +540,7 @@ async fn write_and_record_files(
         "File write summary"
     );
 
-    pending_finalizations
+    (pending_finalizations, failures)
 }
 
 // ============================================================================
