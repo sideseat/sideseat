@@ -300,13 +300,18 @@ fn extract_files_cpu_messages(
             // References that arrived already formed, rather than being created here: everything in the
             // message afterwards, minus what extraction just produced. A reference is a claim that
             // bytes are in this project's file store, and nothing verified it.
-            let ours: HashSet<&str> = result.files.iter().map(|f| f.hash.as_str()).collect();
+            // Matched on the whole URI, not the hash alone. A reference carrying our hash with a
+            // *different* media type is not one we created, and comparing hashes let it through
+            // unchecked - and it would also miss the exact-string rewrite if it turned out unbacked.
+            let ours: HashSet<String> = result
+                .files
+                .iter()
+                .map(|f| crate::utils::file_uri::build_file_uri(&f.hash, f.media_type.as_deref()))
+                .collect();
             let mut present = Vec::new();
             collect_file_references(&raw_message.content, &mut present);
             for uri in present {
-                let is_ours = crate::utils::file_uri::parse_file_uri(&uri)
-                    .is_some_and(|parsed| ours.contains(parsed.hash));
-                if !is_ours {
+                if !ours.contains(&uri) {
                     incoming.push((project_id.to_string(), trace_id.to_string(), uri));
                 }
             }
@@ -416,10 +421,11 @@ pub(super) type IncomingReference = (String, String, String);
 pub(super) async fn reconcile_incoming_references(
     incoming: &[IncomingReference],
     file_service: &Arc<FileService>,
-) -> Vec<(String, String)> {
+) -> (Vec<(String, String)>, usize) {
     let mut unbacked = Vec::new();
+    let mut failed = 0usize;
     if incoming.is_empty() {
-        return unbacked;
+        return (unbacked, failed);
     }
     let storage = file_service.storage();
     let repo = file_service.database().repository();
@@ -432,14 +438,25 @@ pub(super) async fn reconcile_incoming_references(
         let key = (project_id.clone(), parsed.hash.to_string());
         let exists = match checked.get(&key) {
             Some(known) => *known,
-            None => {
-                let found = storage
-                    .exists(project_id, parsed.hash)
-                    .await
-                    .unwrap_or(false);
-                checked.insert(key, found);
-                found
-            }
+            None => match storage.exists(project_id, parsed.hash).await {
+                Ok(found) => {
+                    checked.insert(key, found);
+                    found
+                }
+                // A storage error is not an answer. Reading it as "not found" replaced a *valid*
+                // reference with a permanent note over a transient failure - the reference cannot be
+                // recovered afterwards, while the batch can be retried.
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        project_id,
+                        hash = parsed.hash,
+                        "Could not determine whether an incoming file reference is backed"
+                    );
+                    failed += 1;
+                    continue;
+                }
+            },
         };
 
         if !exists {
@@ -452,8 +469,34 @@ pub(super) async fn reconcile_incoming_references(
             continue;
         }
 
-        // Backed, so it needs an association - idempotent, and the reference count is derived from
-        // those associations.
+        // Backed in storage, but the metadata row is what quota is computed from - and
+        // `associate_file` would create one with size 0 if it were missing, undercounting the project's
+        // usage forever. A reference whose bytes exist without metadata is a state this cannot repair
+        // honestly, so it is refused rather than half-recorded.
+        match repo.get_file(project_id, parsed.hash).await {
+            Ok(Some(_)) => {}
+            Ok(None) => {
+                failed += 1;
+                tracing::warn!(
+                    project_id,
+                    hash = parsed.hash,
+                    "Incoming file reference has stored bytes but no metadata; refusing to guess its size"
+                );
+                continue;
+            }
+            Err(e) => {
+                failed += 1;
+                tracing::warn!(
+                    error = %e,
+                    project_id,
+                    hash = parsed.hash,
+                    "Could not read metadata for an incoming file reference"
+                );
+                continue;
+            }
+        }
+
+        // Idempotent, and the reference count is derived from these associations.
         if let Err(e) = repo
             .associate_file(
                 trace_id,
@@ -465,6 +508,9 @@ pub(super) async fn reconcile_incoming_references(
             )
             .await
         {
+            // Without the association, deleting this trace never releases the file and it outlives
+            // everything that named it. A leak is not something to commit and move on from.
+            failed += 1;
             tracing::warn!(
                 error = %e,
                 project_id,
@@ -477,7 +523,7 @@ pub(super) async fn reconcile_incoming_references(
 
     unbacked.sort_unstable();
     unbacked.dedup();
-    unbacked
+    (unbacked, failed)
 }
 
 /// Persist extracted files to storage (I/O phase).

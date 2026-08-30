@@ -150,6 +150,7 @@ DROP TABLE trace_files;
 ALTER TABLE trace_files_v4 RENAME TO trace_files;
 CREATE INDEX IF NOT EXISTS idx_trace_files_trace ON trace_files(trace_id);
 CREATE INDEX IF NOT EXISTS idx_trace_files_project ON trace_files(project_id);
+CREATE INDEX IF NOT EXISTS idx_trace_files_project_hash ON trace_files(project_id, file_hash);
 "#;
 
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {

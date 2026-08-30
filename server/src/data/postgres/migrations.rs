@@ -182,6 +182,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cred_perms_unique_org_default
     WHERE project_id IS NULL;
 "#,
         ),
+        4 => (
+            "project_scoped_trace_files",
+            // A trace id comes from the client, so two projects can present the same one. Keyed
+            // without the project, one project's association satisfied the other's conflict clause -
+            // leaving the second with no association and a file reference nothing would release.
+            //
+            // Postgres can drop and add a primary key in place, so no table rebuild is needed. The
+            // index is what makes the derived reference count cheap: it is a COUNT over
+            // `(project_id, file_hash)`, which the widened primary key leads with `project_id` but
+            // separates by `trace_id`.
+            r#"ALTER TABLE trace_files DROP CONSTRAINT IF EXISTS trace_files_pkey;
+ALTER TABLE trace_files ADD PRIMARY KEY (project_id, trace_id, file_hash);
+CREATE INDEX IF NOT EXISTS idx_trace_files_project_hash ON trace_files(project_id, file_hash);
+"#,
+        ),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,

@@ -2591,3 +2591,53 @@ fn which_copy_survives_does_not_change_the_order() {
         differing.join("\n  ")
     );
 }
+
+/// A barrier node orders exactly as the pairwise edges it replaces.
+///
+/// "Everything a generation received precedes everything it produced" is the *product* of the two sets
+/// as edges, and a span re-sending a long history has hundreds of inputs - so the graph grew
+/// quadratically in a span's message count. One barrier expresses the same relation in `inputs + outputs`
+/// edges, keyed to pop exactly when the earliest output would have.
+///
+/// That is only sound if the two agree, and they do not agree unconditionally: where a span both
+/// received and produced the same message the sets overlap, and a barrier would assert
+/// `u -> barrier -> u` while the product contains a real `u -> b`. Those spans keep the pairwise form,
+/// which is why this test compares the whole corpus rather than a constructed case.
+#[test]
+fn a_barrier_orders_exactly_as_pairwise_edges_do() {
+    use crate::domain::sideml::feed::barrier_and_pairwise_order;
+
+    let mut checked = 0usize;
+    for (label, paths) in discover_fixtures() {
+        let rows: Vec<MessageSpanRow> = rows_for(&paths)
+            .into_iter()
+            .map(|(_, r)| r)
+            .filter(passes_content_filter)
+            .collect();
+        if rows.is_empty() {
+            continue;
+        }
+        let (barrier, pairwise) = barrier_and_pairwise_order(sorted_by_timestamp(rows));
+        let shape = |blocks: &[crate::domain::sideml::feed::BlockEntry]| -> Vec<String> {
+            blocks
+                .iter()
+                .map(|b| {
+                    format!(
+                        "{}/{}/{}/{}",
+                        b.trace_id,
+                        b.role.as_str(),
+                        b.entry_type,
+                        b.content_hash
+                    )
+                })
+                .collect()
+        };
+        assert_eq!(
+            shape(&barrier),
+            shape(&pairwise),
+            "{label}: the barrier node changed the order the pairwise edges produce"
+        );
+        checked += 1;
+    }
+    assert!(checked > 80, "only checked {checked} fixtures");
+}

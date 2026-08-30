@@ -60,6 +60,14 @@ type PopKey = (Option<DateTime<Utc>>, usize, usize);
 /// those are different payloads.
 type PayloadKey<'a> = (&'a str, Option<&'a str>, Option<&'a str>, String);
 
+/// The synthetic node standing for "everything this span received precedes everything it produced".
+///
+/// Numbered past the real units so it cannot collide with one, and it emits no blocks - it exists only
+/// to keep the edge count linear in a span's messages rather than quadratic.
+fn barrier_unit(span: usize, survivor_count: usize) -> usize {
+    survivor_count + span
+}
+
 /// What the resolver needs to know about one pre-dedup observation.
 ///
 /// Deliberately not the observation itself. The resolver reads the evidence set *before* dedup, and
@@ -268,6 +276,13 @@ pub(super) struct Constraints {
     /// back reversed - because a per-unit anchor says nothing about order *inside* a payload. This is
     /// the constraint form of the `assert_carrier_subsequence` invariant.
     pub carrier_sequence_edges: bool,
+    /// Express generation dataflow as the product of a span's inputs and outputs, rather than through
+    /// a barrier node.
+    ///
+    /// The two must produce the same order - the barrier exists only to make the edge count linear in a
+    /// span's messages instead of quadratic - and `a_barrier_orders_exactly_as_pairwise_edges_do`
+    /// compares them across the corpus. Production uses the barrier.
+    pub pairwise_dataflow_edges: bool,
     /// Enforce that what a generation span *received* precedes what it *produced*.
     ///
     /// The minimal turn structure, and deliberately local dataflow rather than a rule about roles: a
@@ -286,6 +301,7 @@ impl Constraints {
     /// move anything on its own has to stay checkable, or a promotion could hide a resolver bug.
     #[cfg(test)]
     pub(super) const NEUTRAL: Self = Self {
+        pairwise_dataflow_edges: false,
         contract_non_contiguous_emissions: false,
         enforce_backward_edges: false,
         time_priority: false,
@@ -349,6 +365,7 @@ impl Constraints {
     ///   property and the TLA+ model are written over. In practice outputs number one to three, so the
     ///   product is near-linear; adversarially it is not bounded.
     pub(super) const PRODUCTION: Self = Self {
+        pairwise_dataflow_edges: false,
         contract_non_contiguous_emissions: true,
         enforce_backward_edges: true,
         time_priority: true,
@@ -360,6 +377,7 @@ impl Constraints {
     /// Every constraint enforced - the redesign's intended answer.
     #[cfg(test)]
     pub(super) const FULL: Self = Self {
+        pairwise_dataflow_edges: false,
         contract_non_contiguous_emissions: true,
         enforce_backward_edges: true,
         time_priority: true,
@@ -568,6 +586,40 @@ pub(super) fn resolve(
         u.sort_unstable();
         u
     };
+    // Under the scaffold the seed is the legacy index alone (`None` sorts before any `Some`, so the
+    // time term drops out entirely): that is what makes the resolve reproduce the legacy order rather
+    // than merely agree with it on this corpus. Promoting time to the primary key is its own delta.
+    let key = |u: usize,
+               unit_priority: &HashMap<usize, DateTime<Utc>>,
+               unit_min_legacy: &HashMap<usize, usize>| {
+        let primary = if constraints.time_priority {
+            Some(unit_priority[&u])
+        } else {
+            None
+        };
+        // Under `NEUTRAL` the legacy index alone decides, which is what makes the neutrality proof
+        // hold. Otherwise first-observation breaks the tie and the legacy index is the last resort,
+        // for a unit no observation projects to.
+        let secondary = if constraints.time_priority {
+            unit_first_seen
+                .get(&u)
+                .copied()
+                .unwrap_or(unit_min_legacy[&u])
+        } else {
+            unit_min_legacy[&u]
+        };
+        (primary, secondary, u)
+    };
+
+    // Keys first, because the dataflow class needs one for the barrier node it introduces. Computed
+    // once per unit rather than per edge: rebuilding a key on every indegree decrement made the resolve
+    // cost scale with the edge count, which is what the barrier exists to bound.
+    let mut keys_of_units: HashMap<usize, PopKey> = units
+        .iter()
+        .map(|&u| (u, key(u, &unit_priority, &unit_min_legacy)))
+        .collect();
+    let mut barriers: Vec<usize> = Vec::new();
+
     let mut successors: HashMap<usize, Vec<usize>> =
         units.iter().map(|&u| (u, Vec::new())).collect();
     let mut indegree: HashMap<usize, usize> = units.iter().map(|&u| (u, 0)).collect();
@@ -692,18 +744,84 @@ pub(super) fn resolve(
                 continue;
             };
             let inputs = &inputs_by_span[&span];
-            for &input in inputs {
-                for &output in outputs {
-                    add_edge(
-                        input,
-                        output,
-                        constraints,
-                        &unit_min_legacy,
-                        &mut successors,
-                        &mut indegree,
-                        &mut edges,
-                    );
+
+            // Overlapping sets keep the pairwise form. For inputs `{u, a}` and outputs `{u, b}` the
+            // product contains `u -> b`, and a barrier cannot express that without also asserting
+            // `u -> barrier -> u`. Dropping `u` from the input side loses the real edge; keeping it
+            // invents a cycle.
+            //
+            // Defensive rather than measured, and worth saying: no fixture in the corpus has a span
+            // that both received and produced the same message, so removing this guard does not fail
+            // `a_barrier_orders_exactly_as_pairwise_edges_do`. The equivalence that test *does* check is
+            // the one that matters for the bound - and overlap being absent is why the bound holds
+            // everywhere it is measured.
+            let overlaps = inputs.iter().any(|u| outputs.contains(u));
+            if overlaps || constraints.pairwise_dataflow_edges {
+                for &input in inputs {
+                    for &output in outputs {
+                        add_edge(
+                            input,
+                            output,
+                            constraints,
+                            &unit_min_legacy,
+                            &mut successors,
+                            &mut indegree,
+                            &mut edges,
+                        );
+                    }
                 }
+                continue;
+            }
+
+            // A barrier, rather than an edge from every input to every output.
+            //
+            // "Everything received precedes everything produced" is the *product* of the two sets as
+            // pairwise edges, and a span re-sending a long history has hundreds of inputs - so the graph
+            // grew quadratically in a span's message count. One barrier node expresses the same relation
+            // in `inputs + outputs` edges: every input precedes the barrier, the barrier precedes every
+            // output, and precedence is transitive.
+            //
+            // Its key is the smallest key among its outputs, so it is popped exactly when the earliest
+            // output would have been - it emits nothing, and the resulting order is unchanged.
+            let barrier = barrier_unit(span, survivors.len());
+            let barrier_key = outputs
+                .iter()
+                .filter_map(|u| keys_of_units.get(u).copied())
+                .min();
+            let barrier_legacy = outputs
+                .iter()
+                .filter_map(|u| unit_min_legacy.get(u).copied())
+                .min();
+            let (Some(barrier_key), Some(barrier_legacy)) = (barrier_key, barrier_legacy) else {
+                continue;
+            };
+            keys_of_units.insert(barrier, barrier_key);
+            unit_min_legacy.insert(barrier, barrier_legacy);
+            successors.entry(barrier).or_default();
+            indegree.entry(barrier).or_insert(0);
+            barriers.push(barrier);
+
+            for &input in inputs {
+                add_edge(
+                    input,
+                    barrier,
+                    constraints,
+                    &unit_min_legacy,
+                    &mut successors,
+                    &mut indegree,
+                    &mut edges,
+                );
+            }
+            for &output in outputs {
+                add_edge(
+                    barrier,
+                    output,
+                    constraints,
+                    &unit_min_legacy,
+                    &mut successors,
+                    &mut indegree,
+                    &mut edges,
+                );
             }
         }
     }
@@ -713,45 +831,18 @@ pub(super) fn resolve(
     // so the resolver is total rather than panicking. (Full SCC condensation is a later increment;
     // no corpus fixture cycles at this constraint density.)
     let mut order: Vec<usize> = Vec::with_capacity(units.len());
-    // Under the scaffold the seed is the legacy index alone (`None` sorts before any `Some`, so the
-    // time term drops out entirely): that is what makes the resolve reproduce the legacy order rather
-    // than merely agree with it on this corpus. Promoting time to the primary key is its own delta.
-    let key = |u: usize,
-               unit_priority: &HashMap<usize, DateTime<Utc>>,
-               unit_min_legacy: &HashMap<usize, usize>| {
-        let primary = if constraints.time_priority {
-            Some(unit_priority[&u])
-        } else {
-            None
-        };
-        // Under `NEUTRAL` the legacy index alone decides, which is what makes the neutrality proof
-        // hold. Otherwise first-observation breaks the tie and the legacy index is the last resort,
-        // for a unit no observation projects to.
-        let secondary = if constraints.time_priority {
-            unit_first_seen
-                .get(&u)
-                .copied()
-                .unwrap_or(unit_min_legacy[&u])
-        } else {
-            unit_min_legacy[&u]
-        };
-        (primary, secondary, u)
-    };
     // Two ordered sets rather than a rescan. The loop used to look at every unit on every iteration
     // to find the ready ones, which is quadratic in the number of units - and a session view can hold
     // thousands. `ready` yields the next unit in O(log n); `remaining` exists only for the cycle case,
     // where nothing is ready and the smallest key has to be released to keep the resolve total.
-    // Keys computed once per unit, not per edge. `key` was being rebuilt on every indegree
-    // decrement, and the dataflow class emits the *product* of a span's inputs and outputs, so on a
-    // span re-sending a long history that dominated everything else.
-    let keys: HashMap<usize, PopKey> = units
-        .iter()
-        .map(|&u| (u, key(u, &unit_priority, &unit_min_legacy)))
-        .collect();
+    // Barriers are nodes too: they carry no blocks, but they have to be popped for their outputs to
+    // become ready.
+    let nodes: Vec<usize> = units.iter().copied().chain(barriers).collect();
+    let keys = keys_of_units;
 
     let mut ready: BTreeSet<(PopKey, usize)> = BTreeSet::new();
     let mut remaining: BTreeSet<(PopKey, usize)> = BTreeSet::new();
-    for &u in &units {
+    for &u in &nodes {
         let entry = (keys[&u], u);
         remaining.insert(entry);
         if indegree[&u] == 0 {
@@ -759,7 +850,7 @@ pub(super) fn resolve(
         }
     }
 
-    while order.len() < units.len() {
+    while order.len() < nodes.len() {
         let next_entry = match ready.iter().next().copied() {
             Some(entry) => entry,
             // A cycle: the evidence contradicts itself. Release the smallest-key remaining unit so the
@@ -768,7 +859,7 @@ pub(super) fn resolve(
                 .iter()
                 .next()
                 .copied()
-                .expect("a unit remains while the order is incomplete"),
+                .expect("a node remains while the order is incomplete"),
         };
         ready.remove(&next_entry);
         remaining.remove(&next_entry);

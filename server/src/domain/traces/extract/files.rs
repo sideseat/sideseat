@@ -192,13 +192,37 @@ pub struct ExtractionResult {
 pub fn collect_file_references(json: &JsonValue, into: &mut Vec<String>) {
     match json {
         JsonValue::String(s) => {
-            if is_file_uri(s) {
-                into.push(s.clone());
-            } else if s.contains(crate::utils::file_uri::FILE_URI_PREFIX) {
-                // Embedded in surrounding text, as data URLs are.
-                for candidate in s.split_whitespace() {
+            // Always scanned, never matched whole. `parse_file_uri` takes everything after `::` as the
+            // hash - spaces included - so a string holding two references parsed as one reference with
+            // a very odd hash, and both went unchecked.
+            if let Some(mut from) = s.find(crate::utils::file_uri::FILE_URI_PREFIX) {
+                // Embedded in surrounding text, as data URLs are. Split on whitespace missed a
+                // reference followed by punctuation - `...::abc123.` parses as a hash of `abc123.` and
+                // `...::abc123",` not at all - so the end is found by scanning for characters a hash
+                // cannot contain.
+                let prefix = crate::utils::file_uri::FILE_URI_PREFIX;
+                loop {
+                    // The scan starts *after* the prefix: `#!B64!#` is itself made of characters a hash
+                    // cannot contain, so scanning from the start truncates at once.
+                    let body = &s[from + prefix.len()..];
+                    let taken = body
+                        .find(|c: char| {
+                            !(c.is_ascii_alphanumeric()
+                                || matches!(c, '-' | '_' | '/' | '.' | ':' | '+'))
+                        })
+                        .unwrap_or(body.len());
+                    let mut candidate = &s[from..from + prefix.len() + taken];
+                    // A trailing `.` or `:` is sentence punctuation, never part of a hash.
+                    while candidate.ends_with(['.', ':']) {
+                        candidate = &candidate[..candidate.len() - 1];
+                    }
                     if is_file_uri(candidate) {
                         into.push(candidate.to_string());
+                    }
+                    let resume = from + prefix.len() + taken;
+                    match s[resume..].find(prefix) {
+                        Some(next) => from = resume + next,
+                        None => break,
                     }
                 }
             }
