@@ -1839,7 +1839,18 @@ fn reading_more_carriers_only_adds_messages() {
             if before_view.messages.len() < after_view.messages.len() {
                 extended.push(format!("{label} / {name}"));
             }
-            if !is_subsequence(&before_view.role_sequence, &after_view.role_sequence) {
+            // Compared by message *identity*, not by role. A role sequence cannot tell two assistant
+            // messages apart, so swapping them read as order-preserving - which is exactly the failure
+            // this invariant exists to catch.
+            let identities = |view: &GoldenView| -> Vec<String> {
+                view.messages
+                    .iter()
+                    .map(|m| format!("{}/{}/{}", m.role, m.entry_type, m.content_digest))
+                    .collect()
+            };
+            let before_ids = identities(before_view);
+            let after_ids = identities(after_view);
+            if !is_subsequence(&before_ids, &after_ids) {
                 reordered.push(format!(
                     "{label} / {name}: {:?} is not preserved in {:?}",
                     before_view.role_sequence, after_view.role_sequence
@@ -2430,4 +2441,67 @@ fn probe_pre_dedup() {
             b.source_attribute
         );
     }
+}
+
+/// Every carrier the corpus produces is classified deliberately in `sideml::carrier`.
+///
+/// `carrier.rs` claims this test exists; until now it did not. It cannot prove a classification is
+/// semantically right - identical JSON can be accumulated state or one emission - but it can require
+/// that no carrier reaches the resolver on the catch-all default without someone having looked at it.
+/// That is the difference between a declaration and a guess.
+#[test]
+fn carrier_semantics_are_declared() {
+    use crate::domain::sideml::carrier::declared_semantics;
+
+    // Carriers the corpus contains that are knowingly left on the cautious default. Each one is a
+    // decision, not an oversight: the reading is "a conversation as this span saw it", which can
+    // under-report but never invent, and the answer invariant would catch under-reporting.
+    const KNOWN_DEFAULTED: &[&str] = &[
+        "attr:gcp.vertex.agent.llm_request",
+        "attr:gcp.vertex.agent.llm_response",
+        "attr:mlflow.spanInputs",
+        "attr:mlflow.spanOutputs",
+        "attr:traceloop.entity.input",
+        "attr:traceloop.entity.output",
+        "attr:response_data",
+        "attr:system_prompt",
+        "attr:crewai.crew.tasks_output",
+    ];
+
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    for (_, paths) in discover_fixtures() {
+        let rows: Vec<MessageSpanRow> = rows_for(&paths).into_iter().map(|(_, r)| r).collect();
+        for block in crate::domain::sideml::feed::classified_blocks_for_test(rows) {
+            match (&block.event_name, &block.source_attribute) {
+                (Some(event), _) => seen.insert(format!("event:{event}")),
+                (None, Some(attribute)) => seen.insert(format!("attr:{attribute}")),
+                (None, None) => false,
+            };
+        }
+    }
+    assert!(
+        seen.len() > 20,
+        "expected the corpus to exercise many carriers, found {}",
+        seen.len()
+    );
+
+    // Asked of the table directly, not by comparing values: a declared snapshot carrier and an
+    // unclassified one have the same semantics and are completely different facts.
+    let mut undeclared: Vec<String> = Vec::new();
+    for carrier in &seen {
+        let declared = match carrier.strip_prefix("event:") {
+            Some(event) => declared_semantics(Some(event), None),
+            None => declared_semantics(None, carrier.strip_prefix("attr:")),
+        };
+        if declared.is_none() && !KNOWN_DEFAULTED.contains(&carrier.as_str()) {
+            undeclared.push(carrier.clone());
+        }
+    }
+    assert!(
+        undeclared.is_empty(),
+        "these carriers reach the resolver on the catch-all default and nobody has classified them:\n  \
+         {}\nAdd each to `sideml::carrier::semantics_for`, or to KNOWN_DEFAULTED with the reason the \
+         cautious reading is right for it.",
+        undeclared.join("\n  ")
+    );
 }
