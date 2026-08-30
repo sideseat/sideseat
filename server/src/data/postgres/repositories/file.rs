@@ -175,7 +175,13 @@ pub async fn associate_existing_file(
     let mut tx = pool.begin().await?;
 
     let row: Option<(Option<i64>,)> =
-        sqlx::query_as("SELECT deleting_at FROM files WHERE project_id = $1 AND file_hash = $2")
+        // `FOR UPDATE`, not a bare read. Reading and then writing is a race that loses: ingestion sees
+        // no claim, cleanup claims the still-unreferenced file and commits, ingestion then associates
+        // and finalises the bytes, and cleanup deletes them - leaving a committed reference to nothing.
+        // The row lock makes the claim and the association serialise on the same object.
+        sqlx::query_as(
+            "SELECT deleting_at FROM files WHERE project_id = $1 AND file_hash = $2 FOR UPDATE",
+        )
             .bind(project_id)
             .bind(file_hash)
             .fetch_optional(&mut *tx)
@@ -216,6 +222,21 @@ pub async fn associate_existing_file(
 
     tx.commit().await?;
     Ok(true)
+}
+
+/// Files claimed for deletion longer ago than `older_than`, so an abandoned claim can be resumed - see
+/// the SQLite twin for why a durable claim needs this.
+pub async fn get_stale_claimed_files(
+    pool: &PgPool,
+    older_than_secs: i64,
+) -> Result<Vec<(String, String)>, PostgresError> {
+    let cutoff = chrono::Utc::now().timestamp() - older_than_secs;
+    Ok(sqlx::query_as(
+        "SELECT project_id, file_hash FROM files WHERE deleting_at IS NOT NULL AND deleting_at <= $1",
+    )
+    .bind(cutoff)
+    .fetch_all(pool)
+    .await?)
 }
 
 /// Claim a file for deletion - see the SQLite twin for why a count cannot replace this.
@@ -357,7 +378,13 @@ pub async fn associate_file(
 
     // Refuse through the fence - see the SQLite twin.
     let claimed: Option<(Option<i64>,)> =
-        sqlx::query_as("SELECT deleting_at FROM files WHERE project_id = $1 AND file_hash = $2")
+        // `FOR UPDATE`, not a bare read. Reading and then writing is a race that loses: ingestion sees
+        // no claim, cleanup claims the still-unreferenced file and commits, ingestion then associates
+        // and finalises the bytes, and cleanup deletes them - leaving a committed reference to nothing.
+        // The row lock makes the claim and the association serialise on the same object.
+        sqlx::query_as(
+            "SELECT deleting_at FROM files WHERE project_id = $1 AND file_hash = $2 FOR UPDATE",
+        )
             .bind(project_id)
             .bind(file_hash)
             .fetch_optional(&mut *tx)
