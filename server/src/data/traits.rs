@@ -562,6 +562,35 @@ pub trait TransactionalRepository: Send + Sync {
     /// Delete all file records for a project
     async fn delete_project_files(&self, project_id: &str) -> Result<u64, DataError>;
 
+    /// Associate a file with a trace, counting the reference only if the association is new.
+    ///
+    /// One operation because `ref_count` must equal the number of associations - that is what
+    /// deletion decrements, and doing the two separately drifted in both directions.
+    async fn associate_file(
+        &self,
+        trace_id: &str,
+        project_id: &str,
+        file_hash: &str,
+        media_type: Option<&str>,
+        size_bytes: i64,
+        hash_algo: &str,
+    ) -> Result<bool, DataError>;
+
+    /// How many of these traces reference each file, so deletion can decrement by that many.
+    async fn get_file_reference_counts_for_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<(String, i64)>, DataError>;
+
+    /// Drop `by` references at once, for a deletion that removed that many associations.
+    async fn decrement_ref_count_by(
+        &self,
+        project_id: &str,
+        file_hash: &str,
+        by: i64,
+    ) -> Result<Option<i64>, DataError>;
+
     /// Insert a trace-file association
     async fn insert_trace_file(
         &self,

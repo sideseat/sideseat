@@ -165,6 +165,108 @@ pub async fn delete_project_files(pool: &PgPool, project_id: &str) -> Result<u64
     Ok(result.rows_affected())
 }
 
+/// Associate a file with a trace, counting the reference only if the association is new.
+///
+/// See the SQLite twin for why this is one transaction: `ref_count` must equal the number of
+/// associations, because that is what deletion decrements.
+pub async fn associate_file(
+    pool: &PgPool,
+    trace_id: &str,
+    project_id: &str,
+    file_hash: &str,
+    media_type: Option<&str>,
+    size_bytes: i64,
+    hash_algo: &str,
+) -> Result<bool, PostgresError> {
+    let now = chrono::Utc::now().timestamp();
+    let mut tx = pool.begin().await?;
+
+    sqlx::query(
+        r#"
+        INSERT INTO files (project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, 0, $6, $6)
+        ON CONFLICT(project_id, file_hash) DO UPDATE SET updated_at = $6
+        "#,
+    )
+    .bind(project_id)
+    .bind(file_hash)
+    .bind(media_type)
+    .bind(size_bytes)
+    .bind(hash_algo)
+    .bind(now)
+    .execute(&mut *tx)
+    .await?;
+
+    let inserted = sqlx::query(
+        "INSERT INTO trace_files (trace_id, project_id, file_hash) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+    )
+    .bind(trace_id)
+    .bind(project_id)
+    .bind(file_hash)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected()
+        > 0;
+
+    if inserted {
+        sqlx::query(
+            "UPDATE files SET ref_count = ref_count + 1, updated_at = $1 WHERE project_id = $2 AND file_hash = $3",
+        )
+        .bind(now)
+        .bind(project_id)
+        .bind(file_hash)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok(inserted)
+}
+
+/// How many of these traces reference each file, so deletion can decrement by that many.
+pub async fn get_file_reference_counts_for_traces(
+    pool: &PgPool,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<Vec<(String, i64)>, PostgresError> {
+    if trace_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    Ok(sqlx::query_as(
+        "SELECT file_hash, COUNT(*)::bigint FROM trace_files \
+         WHERE project_id = $1 AND trace_id = ANY($2) GROUP BY file_hash",
+    )
+    .bind(project_id)
+    .bind(trace_ids)
+    .fetch_all(pool)
+    .await?)
+}
+
+/// Drop `by` references at once, for a deletion that removed that many associations.
+pub async fn decrement_ref_count_by(
+    pool: &PgPool,
+    project_id: &str,
+    file_hash: &str,
+    by: i64,
+) -> Result<Option<i64>, PostgresError> {
+    let now = chrono::Utc::now().timestamp();
+    let result: Option<(i64,)> = sqlx::query_as(
+        r#"
+        UPDATE files
+        SET ref_count = GREATEST(ref_count - $1, 0), updated_at = $2
+        WHERE project_id = $3 AND file_hash = $4
+        RETURNING ref_count
+        "#,
+    )
+    .bind(by)
+    .bind(now)
+    .bind(project_id)
+    .bind(file_hash)
+    .fetch_optional(pool)
+    .await?;
+    Ok(result.map(|(count,)| count))
+}
+
 /// Insert a trace-file association
 pub async fn insert_trace_file(
     pool: &PgPool,

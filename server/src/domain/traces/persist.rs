@@ -564,9 +564,10 @@ async fn write_and_record_files(
         // equals the number of associations; incrementing here, beside the association, is what keeps
         // it. The storage write above stays once per `(project, hash)`: the bytes are the same bytes.
         let trace_key = (file.trace_id.clone(), file.hash.clone());
-        if trace_hashes.insert(trace_key) {
-            if let Err(e) = repo
-                .upsert_file(
+        if trace_hashes.insert(trace_key)
+            && let Err(e) = repo
+                .associate_file(
+                    &file.trace_id,
                     &file.project_id,
                     &file.hash,
                     file.media_type.as_deref(),
@@ -574,30 +575,14 @@ async fn write_and_record_files(
                     &file.hash_algo,
                 )
                 .await
-            {
-                failures += 1;
-                tracing::warn!(
-                    error = %e,
-                    hash = %file.hash,
-                    project_id = %file.project_id,
-                    "Failed to record file metadata"
-                );
-            }
-            if let Err(e) = repo
-                .insert_trace_file(&file.trace_id, &file.project_id, &file.hash)
-                .await
-            {
-                // A missing association means this trace's deletion will not decrement the count it
-                // just incremented, so the file outlives every trace that referenced it. Counted as a
-                // failure so the batch is refused rather than leaking.
-                failures += 1;
-                tracing::warn!(
-                    error = %e,
-                    hash = %file.hash,
-                    trace_id = %file.trace_id,
-                    "Failed to insert trace-file association"
-                );
-            }
+        {
+            failures += 1;
+            tracing::warn!(
+                error = %e,
+                hash = %file.hash,
+                trace_id = %file.trace_id,
+                "Failed to associate file with trace"
+            );
         }
     }
 
