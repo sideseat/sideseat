@@ -410,14 +410,17 @@ const EXTRACTORS: &[NamedExtractor] = &[
 
 /// How a span's attributes are shared out among the extractors.
 ///
-/// A mode rather than a straight replacement, because the two answers differ on real payloads and the
-/// difference has to be *measured* before it is adopted: `_synthetic/two_carriers_one_span` gains its
-/// missing answer under `PerCarrier`, and the langgraph fixtures also reorder, which is a separate
-/// problem to solve first. `messages_extracted_per_carrier` compares the two across every fixture.
+/// Production reads every carrier (`PerCarrier`). The other mode is kept as the *baseline* the
+/// metamorphic invariant compares against: `reading_more_carriers_only_adds_messages` builds every
+/// fixture both ways and requires the richer reading to add messages without moving the ones already
+/// visible. Deleting it would delete the only check that an extraction improvement is monotonic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ExtractionMode {
-    /// Today's behaviour: the first extractor that recognises anything takes the whole span,
-    /// including the carriers it does not read.
+    /// The narrower reading, kept as a baseline: the first extractor that recognises anything takes the
+    /// whole span, including the carriers it does not read. This is what hid the answer on LangChain
+    /// `RunnableSequence` spans, where `openinference` won by order and emitted the question from
+    /// `llm.input_messages` while the span's own `output.value` held the reply.
+    #[cfg_attr(not(test), allow(dead_code))]
     FirstMatch,
     /// Every extractor runs; each observation is kept for the carrier it names unless an earlier
     /// extractor already produced one for that carrier.

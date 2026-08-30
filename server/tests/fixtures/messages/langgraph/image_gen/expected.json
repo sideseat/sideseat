@@ -184,9 +184,10 @@
       ]
     },
     "trace-1/RunnableSequence/span-16": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -198,13 +199,24 @@
           "content": "Generate 3 images of a dog",
           "content_digest": "89aa55f374613789",
           "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
+          "content_digest": "d1b8f16978f232c0",
+          "observation_type": "chain"
         }
       ]
     },
     "trace-1/RunnableSequence/span-4": {
-      "message_count": 1,
+      "message_count": 4,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant",
+        "assistant",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -215,6 +227,33 @@
           "entry_type": "text",
           "content": "Generate 3 images of a dog",
           "content_digest": "89aa55f374613789",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_QAdTYCKKAOVkM4GjFlG9st\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A happy golden retriever playing in a sunny park with green grass and trees in the background\"}}",
+          "content_digest": "88e93aa50e462499",
+          "tool_name": "generate_image",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FK95G3Y0Z3jUFhYmiJ2DTA\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A cute corgi wearing a colorful collar, sitting and looking at the camera with a friendly expression\"}}",
+          "content_digest": "acdc9c66dd01a4bf",
+          "tool_name": "generate_image",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_1UKnukpJ8askkqOT9I4ZBv\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic German Shepherd standing on a mountain overlooking a beautiful landscape\"}}",
+          "content_digest": "9bdffbfb13578450",
+          "tool_name": "generate_image",
           "observation_type": "chain"
         }
       ]
@@ -515,9 +554,10 @@
       ]
     },
     "trace-7/RunnableSequence/span-4": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -528,6 +568,14 @@
           "entry_type": "text",
           "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
           "content_digest": "d1b8f16978f232c0",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I understand. Thank you for letting me know about this issue with the image generation service. However, I should clarify my role: I'm actually designed to **analyze** images that you provide to me, not to generate them. If you have images …[554 chars]",
+          "content_digest": "bec25e1ee5c1c9df",
           "observation_type": "chain"
         }
       ]
@@ -636,7 +684,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_QAdTYCKKAOVkM4GjFlG9st\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A happy golden retriever playing in a sunny park with green grass and trees in the background\"}}",
           "content_digest": "88e93aa50e462499",
           "tool_name": "generate_image",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 3,
@@ -645,7 +693,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FK95G3Y0Z3jUFhYmiJ2DTA\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A cute corgi wearing a colorful collar, sitting and looking at the camera with a friendly expression\"}}",
           "content_digest": "acdc9c66dd01a4bf",
           "tool_name": "generate_image",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 4,
@@ -654,7 +702,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_1UKnukpJ8askkqOT9I4ZBv\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic German Shepherd standing on a mountain overlooking a beautiful landscape\"}}",
           "content_digest": "9bdffbfb13578450",
           "tool_name": "generate_image",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 5,
@@ -686,7 +734,7 @@
           "entry_type": "text",
           "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
           "content_digest": "d1b8f16978f232c0",
-          "observation_type": "generation"
+          "observation_type": "chain"
         }
       ]
     },
@@ -795,7 +843,7 @@
           "entry_type": "text",
           "content": "I understand. Thank you for letting me know about this issue with the image generation service. However, I should clarify my role: I'm actually designed to **analyze** images that you provide to me, not to generate them. If you have images …[554 chars]",
           "content_digest": "bec25e1ee5c1c9df",
-          "observation_type": "generation"
+          "observation_type": "chain"
         }
       ]
     },
@@ -853,7 +901,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_QAdTYCKKAOVkM4GjFlG9st\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A happy golden retriever playing in a sunny park with green grass and trees in the background\"}}",
           "content_digest": "88e93aa50e462499",
           "tool_name": "generate_image",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 3,
@@ -862,7 +910,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FK95G3Y0Z3jUFhYmiJ2DTA\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A cute corgi wearing a colorful collar, sitting and looking at the camera with a friendly expression\"}}",
           "content_digest": "acdc9c66dd01a4bf",
           "tool_name": "generate_image",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 4,
@@ -871,7 +919,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_1UKnukpJ8askkqOT9I4ZBv\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic German Shepherd standing on a mountain overlooking a beautiful landscape\"}}",
           "content_digest": "9bdffbfb13578450",
           "tool_name": "generate_image",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 5,
@@ -903,7 +951,7 @@
           "entry_type": "text",
           "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
           "content_digest": "d1b8f16978f232c0",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 9,
@@ -927,7 +975,7 @@
           "entry_type": "text",
           "content": "I understand. Thank you for letting me know about this issue with the image generation service. However, I should clarify my role: I'm actually designed to **analyze** images that you provide to me, not to generate them. If you have images …[554 chars]",
           "content_digest": "bec25e1ee5c1c9df",
-          "observation_type": "generation"
+          "observation_type": "chain"
         }
       ]
     }
@@ -971,7 +1019,7 @@
         "entry_type": "text",
         "content": "I understand. Thank you for letting me know about this issue with the image generation service. However, I should clarify my role: I'm actually designed to **analyze** images that you provide to me, not to generate them. If you have images …[554 chars]",
         "content_digest": "bec25e1ee5c1c9df",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 2,
@@ -1011,7 +1059,7 @@
         "entry_type": "text",
         "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",
         "content_digest": "d1b8f16978f232c0",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 7,
@@ -1055,7 +1103,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_QAdTYCKKAOVkM4GjFlG9st\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A happy golden retriever playing in a sunny park with green grass and trees in the background\"}}",
         "content_digest": "88e93aa50e462499",
         "tool_name": "generate_image",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 12,
@@ -1064,7 +1112,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FK95G3Y0Z3jUFhYmiJ2DTA\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A cute corgi wearing a colorful collar, sitting and looking at the camera with a friendly expression\"}}",
         "content_digest": "acdc9c66dd01a4bf",
         "tool_name": "generate_image",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 13,
@@ -1073,7 +1121,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_1UKnukpJ8askkqOT9I4ZBv\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic German Shepherd standing on a mountain overlooking a beautiful landscape\"}}",
         "content_digest": "9bdffbfb13578450",
         "tool_name": "generate_image",
-        "observation_type": "generation"
+        "observation_type": "chain"
       },
       {
         "index": 14,
