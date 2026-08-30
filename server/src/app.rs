@@ -327,6 +327,17 @@ impl CoreApp {
             self.shutdown.register(h).await;
         }
 
+        // Claims a crash abandoned. Startup swept once already, and that is not enough on its own: a
+        // claim taken just before the crash reads as a deletion in progress when the process returns.
+        self.shutdown
+            .register(crate::data::cleanup::start_claim_recovery_task(
+                Arc::clone(&self.database),
+                Arc::clone(&self.analytics),
+                Arc::clone(&self.files),
+                self.shutdown.subscribe(),
+            ))
+            .await;
+
         // Create stream topic for traces (at-least-once delivery with consumer groups)
         let traces_topic = self
             .topics

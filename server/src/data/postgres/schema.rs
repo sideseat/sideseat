@@ -3,7 +3,7 @@
 //! Initial schema with all tables. Compatible with SQLite schema structure.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 6;
+pub const SCHEMA_VERSION: i32 = 7;
 
 /// Complete schema SQL for PostgreSQL
 pub const SCHEMA: &str = r#"
@@ -114,13 +114,16 @@ CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(organization_id);
 -- 6. Files metadata (references projects)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS files (
-    id SERIAL PRIMARY KEY,
+    -- 64-bit, because `FileRow.id` and `FileRow.ref_count` are `i64` and SQLite's INTEGER is too. An
+    -- INT4 column decodes into `i64` only where a query remembers to cast, and one that forgot failed
+    -- at runtime rather than at compile time.
+    id BIGSERIAL PRIMARY KEY,
     project_id TEXT NOT NULL,
     file_hash TEXT NOT NULL,
     media_type TEXT,
     size_bytes BIGINT NOT NULL,
     hash_algo TEXT NOT NULL DEFAULT 'sha256',
-    ref_count INTEGER NOT NULL DEFAULT 1,
+    ref_count BIGINT NOT NULL DEFAULT 1,
     -- Set while cleanup is deleting this file; association refuses through the fence.
     deleting_at BIGINT,
     created_at BIGINT NOT NULL,

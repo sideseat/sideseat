@@ -102,15 +102,15 @@ async fn apply_initial_schema(conn: &mut PgConnection) -> Result<(), PostgresErr
 
     let mut tx = conn.begin().await?;
 
-    // Apply schema (split by semicolons — PostgreSQL doesn't support multiple statements per query)
-    for statement in SCHEMA.split(';').filter(|s| !s.trim().is_empty()) {
-        sqlx::query(statement.trim()).execute(&mut *tx).await?;
-    }
-
-    // Apply default data
-    for statement in DEFAULT_DATA.split(';').filter(|s| !s.trim().is_empty()) {
-        sqlx::query(statement.trim()).execute(&mut *tx).await?;
-    }
+    // One script, not statements split on `;`.
+    //
+    // Splitting was silently fatal: a semicolon inside a `--` comment ended a "statement" mid-table, so
+    // PostgreSQL rejected the fragment with "syntax error at end of input" and *no* fresh PostgreSQL
+    // database could be created at all. A comment is not a place anyone looks for a syntax hazard, and
+    // the same trap is waiting in any string literal containing a semicolon. `raw_sql` sends the script
+    // as a simple query, which is what a script is.
+    sqlx::raw_sql(SCHEMA).execute(&mut *tx).await?;
+    sqlx::raw_sql(DEFAULT_DATA).execute(&mut *tx).await?;
 
     // Record schema version
     sqlx::query(
@@ -213,6 +213,17 @@ CREATE INDEX IF NOT EXISTS idx_trace_files_project_hash ON trace_files(project_i
             // only once the data is verified gone. See the SQLite twin.
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleting_at BIGINT",
         ),
+        7 => (
+            "file_counters_are_64_bit",
+            // `FileRow.id` and `FileRow.ref_count` are `i64`, and SQLite's INTEGER is 64-bit, but these
+            // were INT4 - so decoding depended on each query remembering `::bigint`, and the one that
+            // forgot (`sync_ref_count`, whose `RETURNING ref_count` has no cast) failed at runtime with
+            // "Rust type `i64` is not compatible with SQL type `INT4`". Fixing the column removes the
+            // whole class rather than the instance.
+            r#"ALTER TABLE files ALTER COLUMN ref_count TYPE BIGINT;
+ALTER TABLE files ALTER COLUMN id TYPE BIGINT;
+"#,
+        ),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,
@@ -224,20 +235,15 @@ CREATE INDEX IF NOT EXISTS idx_trace_files_project_hash ON trace_files(project_i
 
     let mut tx = conn.begin().await?;
 
-    for statement in sql.split(';').filter(|s| !s.trim().is_empty()) {
-        sqlx::query(statement.trim())
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| PostgresError::MigrationFailed {
-                version,
-                name: name.to_string(),
-                error: format!(
-                    "Failed at statement: {} - {}",
-                    &statement.trim()[..statement.trim().len().min(50)],
-                    e
-                ),
-            })?;
-    }
+    // As one script - see `apply_initial_schema` for why splitting on `;` is a trap.
+    sqlx::raw_sql(sql)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| PostgresError::MigrationFailed {
+            version,
+            name: name.to_string(),
+            error: e.to_string(),
+        })?;
 
     let elapsed = start.elapsed().as_millis() as i64;
 

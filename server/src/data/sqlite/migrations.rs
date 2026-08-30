@@ -207,23 +207,18 @@ async fn apply_versioned_migration(
 
     let mut tx = pool.begin().await?;
 
-    // Execute migration SQL (split by semicolons for SQLite compatibility)
-    for statement in sql.split(';').filter(|s| !s.trim().is_empty()) {
-        let trimmed = statement.trim();
-        if !trimmed.is_empty() {
-            sqlx::query(trimmed).execute(&mut *tx).await.map_err(|e| {
-                SqliteError::MigrationFailed {
-                    version,
-                    name: name.to_string(),
-                    error: format!(
-                        "Failed at statement: {} - {}",
-                        &trimmed[..trimmed.len().min(50)],
-                        e
-                    ),
-                }
-            })?;
-        }
-    }
+    // One script, not statements split on `;`. A semicolon inside a `--` comment or a string literal
+    // ends a "statement" mid-construct, and the fragment is then rejected as a syntax error - which is
+    // exactly what happened to the PostgreSQL twin's initial schema, where it meant no fresh database
+    // could be created at all.
+    sqlx::raw_sql(sql)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| SqliteError::MigrationFailed {
+            version,
+            name: name.to_string(),
+            error: e.to_string(),
+        })?;
 
     // Update version
     let now = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
