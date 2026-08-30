@@ -376,6 +376,25 @@ the project fence - against a temp DuckDB, a temp SQLite and filesystem file sto
 `bench_pipeline`'s `INGEST(cpu only)` number is deliberately narrower - it stops before file extraction
 and every persistence step - so it is a floor, not a request's cost.
 
+**Read latency scales with the history the frameworks re-send, not with the answer**:
+`cargo test --release -p sideseat-server bench_session_scaling -- --ignored --nocapture` measures
+reconstruction over synthetic sessions in the two shapes that differ in the way that matters -
+*incremental* (each span carries its own turn, as Strands' per-message events do) and *replaying* (each
+generation span re-sends the whole conversation, as ADK, LangGraph and Vercel do):
+
+| Shape | Turns | Input | Blocks | Time |
+| --- | --- | --- | --- | --- |
+| incremental | 100 | 26 KB | 200 | 4.0 ms |
+| incremental | 1 000 | 269 KB | 2 000 | 23.8 ms |
+| incremental | 10 000 | 2.7 MB | 20 000 | 219 ms |
+| replaying | 100 | 697 KB | 200 | 27.8 ms |
+| replaying | 1 000 | 68 MB | 2 000 | 2.57 s |
+
+The pipeline is **linear in its input** in both shapes (~27 MB/s); what grows quadratically is the input
+itself, because a replaying framework emits the whole history once per turn. So the cost of a long
+session is a property of the telemetry, not of the normaliser - and the fix is not to make the pipeline
+faster but to stop paying it on every read, which is what the reconstruction cache does.
+
 **Message-parsing goldens**: `cargo test -p sideseat-server message_goldens` verifies message count, content, ordering and absence of duplicates per framework across all three views (span / trace / session). Fixtures are captured OTLP payloads under `server/tests/fixtures/messages/<suite>/<sample>/`; capture with `misc/capture-message-fixtures.sh [suite] [sample]` (needs model credentials), then record with `UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens` and review the diff. Invariants (scope containment, per-trace dedup, tool-id correspondence, no empty thinking, determinism) hold independently of the goldens, so a blindly regenerated snapshot still fails on real defects. `UPDATE_GOLDENS=1` writes the files but still exits non-zero when an invariant was violated, so known-bad output cannot be committed as reviewed. See `server/tests/fixtures/messages/README.md`.
 
 **ClickHouse parity**: `make test-clickhouse` starts a pinned container and runs
