@@ -1364,7 +1364,13 @@ impl AppConfig {
             let timeout_secs = file_ch.timeout_secs.unwrap_or(30);
             let compression = file_ch.compression.unwrap_or(true);
             let async_insert = file_ch.async_insert.unwrap_or(true);
-            let wait_for_async_insert = file_ch.wait_for_async_insert.unwrap_or(false);
+            // Waiting by default, because not waiting makes an acknowledgement a guess. With
+            // `wait_for_async_insert = 0` an insert returns once ClickHouse has buffered it: a metrics
+            // request answers 200 and a trace pipeline acknowledges its stream message on the strength of
+            // a buffer that a restart or an asynchronous insert failure empties. Server-side batching
+            // still applies - `async_insert` is on - it is only the acknowledgement that now means
+            // committed.
+            let wait_for_async_insert = file_ch.wait_for_async_insert.unwrap_or(true);
             let cluster = file_ch.cluster;
             // Kept as requested, not silently corrected. Folding `&& cluster.is_some()` in here
             // turned `distributed: true` with no cluster into single-node mode before validation
@@ -1725,7 +1731,7 @@ mod clickhouse_config_tests {
             timeout_secs: 30,
             compression: true,
             async_insert: true,
-            wait_for_async_insert: false,
+            wait_for_async_insert: true,
             cluster: cluster.map(str::to_owned),
             distributed,
         }

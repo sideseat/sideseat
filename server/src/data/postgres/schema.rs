@@ -3,7 +3,7 @@
 //! Initial schema with all tables. Compatible with SQLite schema structure.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 8;
+pub const SCHEMA_VERSION: i32 = 9;
 
 /// Complete schema SQL for PostgreSQL
 pub const SCHEMA: &str = r#"
@@ -112,6 +112,10 @@ CREATE TABLE IF NOT EXISTS projects (
     -- Consecutive sweeps that found no data for this project. Removal follows what has been observed,
     -- not how long ago the deletion started.
     clean_sweeps BIGINT NOT NULL DEFAULT 0,
+    -- When the sweep above was last *counted*. Without it the count measures sweeps rather than elapsed
+    -- observation, so N instances sweeping concurrently would reach the required number in one interval
+    -- instead of N - the barrier would get weaker the more instances you run.
+    last_sweep_at BIGINT,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL
 );

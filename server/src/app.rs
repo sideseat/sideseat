@@ -258,8 +258,20 @@ impl CoreApp {
                 &app.config.server.host,
                 &app.topics,
                 &app.storage,
-                Arc::clone(&app.analytics),
-                Arc::clone(&app.database),
+                crate::api::routes::otlp_collector::IngestStores {
+                    analytics: Arc::clone(&app.analytics),
+                    database: Arc::clone(&app.database),
+                    // Only where the queue cannot promise durability - then this transport writes in
+                    // the request too, as the HTTP one does.
+                    trace_pipeline: (!app.topics.is_durable()).then(|| {
+                        Arc::new(crate::domain::TracePipeline::new(
+                            app.analytics.clone(),
+                            app.pricing.clone(),
+                            app.topics.clone(),
+                            app.files.clone(),
+                        ))
+                    }),
+                },
                 app.config.debug,
             )?;
             let shutdown_rx = app.shutdown.subscribe();

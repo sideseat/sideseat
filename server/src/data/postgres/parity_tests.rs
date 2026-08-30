@@ -317,16 +317,22 @@ async fn projects_behave_identically() {
         for pass in 1..=3 {
             t.note(&format!(
                 "sweep_clean_{pass}={}",
-                repo.record_project_sweep(&beta.id, true, 3).await.unwrap()
+                repo.record_project_sweep(&beta.id, true, 3, 0)
+                    .await
+                    .unwrap()
             ));
         }
         t.note(&format!(
             "sweep_found_data={}",
-            repo.record_project_sweep(&beta.id, false, 3).await.unwrap()
+            repo.record_project_sweep(&beta.id, false, 3, 0)
+                .await
+                .unwrap()
         ));
         t.note(&format!(
             "sweep_after_reset={}",
-            repo.record_project_sweep(&beta.id, true, 3).await.unwrap()
+            repo.record_project_sweep(&beta.id, true, 3, 0)
+                .await
+                .unwrap()
         ));
 
         // Organizations carry the same tombstone, and their rows wait for their projects.

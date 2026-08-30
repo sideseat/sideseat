@@ -6,7 +6,7 @@ mod logs;
 mod metrics;
 mod traces;
 
-pub use grpc::OtlpGrpcServer;
+pub use grpc::{IngestStores, OtlpGrpcServer};
 
 use std::path::PathBuf;
 use std::sync::Arc;

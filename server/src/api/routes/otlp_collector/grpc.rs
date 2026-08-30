@@ -52,6 +52,9 @@ pub struct OtlpGrpcServer {
     /// Metrics are written in the request rather than queued, so this service needs the stores.
     analytics: Arc<crate::data::AnalyticsService>,
     database: Arc<crate::data::TransactionalService>,
+    /// Present exactly when the topic backend cannot promise durability, in which case traces are also
+    /// written in the request.
+    trace_pipeline: Option<Arc<crate::domain::TracePipeline>>,
     debug_path: Option<PathBuf>,
 }
 
@@ -61,10 +64,14 @@ impl OtlpGrpcServer {
         host: &str,
         topics: &Arc<TopicService>,
         storage: &AppStorage,
-        analytics: Arc<crate::data::AnalyticsService>,
-        database: Arc<crate::data::TransactionalService>,
+        stores: IngestStores,
         debug: bool,
     ) -> Result<Self> {
+        let IngestStores {
+            analytics,
+            database,
+            trace_pipeline,
+        } = stores;
         let addr = SocketAddr::new(host.parse()?, config.grpc_port);
         let debug_path = if debug {
             Some(storage.subdir(DataSubdir::Debug))
@@ -82,6 +89,7 @@ impl OtlpGrpcServer {
             trace_topic,
             analytics,
             database,
+            trace_pipeline,
             logs_publisher,
             debug_path,
         })
@@ -98,6 +106,7 @@ impl OtlpGrpcServer {
                 TraceServiceServer::new(OtlpTraceService::new(
                     self.trace_topic,
                     debug_path.clone(),
+                    self.trace_pipeline,
                 ))
                 .max_decoding_message_size(OTLP_BODY_LIMIT)
                 .max_encoding_message_size(OTLP_BODY_LIMIT),
@@ -143,18 +152,38 @@ fn extract_project_id<T>(request: &Request<T>) -> Option<String> {
     }
 }
 
+/// What the ingest services write through.
+///
+/// Grouped because they travel together and are passed as a unit: metrics are written inside their
+/// request, and traces are too whenever the topic backend cannot promise durability.
+pub struct IngestStores {
+    pub analytics: Arc<crate::data::AnalyticsService>,
+    pub database: Arc<crate::data::TransactionalService>,
+    /// Present exactly when the queue is not durable, in which case traces are written in the request.
+    pub trace_pipeline: Option<Arc<crate::domain::TracePipeline>>,
+}
+
 /// gRPC trace service
 struct OtlpTraceService {
     topic: Arc<StreamTopic<ExportTraceServiceRequest>>,
     debug_path: Option<PathBuf>,
+    /// The synchronous path, present exactly when the queue cannot promise durability. The HTTP handler
+    /// had this and gRPC did not, so the same deployment answered honestly on one transport and not the
+    /// other.
+    pipeline: Option<Arc<crate::domain::TracePipeline>>,
 }
 
 impl OtlpTraceService {
     fn new(
         topic: Arc<StreamTopic<ExportTraceServiceRequest>>,
         debug_path: Option<PathBuf>,
+        pipeline: Option<Arc<crate::domain::TracePipeline>>,
     ) -> Self {
-        Self { topic, debug_path }
+        Self {
+            topic,
+            debug_path,
+            pipeline,
+        }
     }
 }
 
@@ -174,6 +203,18 @@ impl TraceService for OtlpTraceService {
         // Write to debug file if debug mode is enabled
         if let Some(ref debug_path) = self.debug_path {
             write_debug(debug_path, "traces.jsonl", &project_id, &req).await;
+        }
+
+        // Acknowledge only what is durable - see the HTTP twin. When the queue is in memory, a published
+        // trace is lost by the crash that this transport's success message has already denied.
+        if let Some(pipeline) = self.pipeline.as_ref() {
+            if !pipeline.ingest_now(&req).await {
+                tracing::error!(%project_id, "Failed to store traces");
+                return Err(Status::unavailable("could not store traces"));
+            }
+            return Ok(Response::new(ExportTraceServiceResponse {
+                partial_success: None,
+            }));
         }
 
         // Publish to stream topic with retry (at-least-once delivery)

@@ -15,9 +15,6 @@ use crate::data::types::ApiKeyScope;
 // Cache TTLs
 // ============================================================================
 
-/// TTL for project->org mapping (rarely changes)
-const CACHE_TTL_PROJECT_ORG: Duration = Duration::from_secs(300); // 5 minutes
-
 /// TTL for user->org membership (can change, but not frequently)
 const CACHE_TTL_USER_ORG_MEMBER: Duration = Duration::from_secs(60); // 1 minute
 
@@ -123,16 +120,14 @@ impl AuthService {
         Ok(())
     }
 
-    /// Get project's organization ID (cached)
+    /// Get project's organization ID.
+    ///
+    /// Not cached, and for the same reason `get_project` is not: this mapping is only useful while the
+    /// project is live, and with a process-local cache one instance cannot invalidate another's - so a
+    /// project another instance tombstoned would stay reachable through *this* instance's auth path for
+    /// the cache's lifetime. `get_project` filters a tombstoned project out, so asking it every time is
+    /// what makes every request see the same fence.
     async fn get_project_org_id(&self, project_id: &str) -> Result<String, ApiError> {
-        let cache_key = CacheKey::project_org(project_id);
-
-        // Try cache first
-        if let Ok(Some(org_id)) = self.cache.get::<String>(&cache_key).await {
-            return Ok(org_id);
-        }
-
-        // Query database
         let project = self
             .database
             .repository()
@@ -145,37 +140,6 @@ impl AuthService {
                     format!("Project not found: {}", project_id),
                 )
             })?;
-
-        // Cache the mapping, then look again.
-        //
-        // Filling a read-through cache is a write that follows its read, so it races the project deletion
-        // fence: this read sees a live project, deletion claims it and invalidates the caches, and then
-        // this fill reinstates the mapping for its full TTL - which is how a deleted project stayed
-        // reachable through the auth path even after the row was gone. Re-reading the fence afterwards
-        // removes the entry in that ordering, and in the other ordering the claim's own invalidation
-        // comes after the fill.
-        if let Err(e) = self
-            .cache
-            .set(
-                &cache_key,
-                &project.organization_id,
-                Some(CACHE_TTL_PROJECT_ORG),
-            )
-            .await
-        {
-            tracing::warn!(project_id = %project_id, error = %e, "Failed to cache project->org mapping");
-        }
-        if !self
-            .database
-            .repository()
-            .project_accepts_writes(project_id)
-            .await
-            .unwrap_or(true)
-            && let Err(e) = self.cache.delete(&cache_key).await
-        {
-            tracing::warn!(project_id = %project_id, error = %e, "Cache invalidation error");
-        }
-
         Ok(project.organization_id)
     }
 

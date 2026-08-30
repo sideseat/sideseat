@@ -10244,3 +10244,49 @@ fn ten_interchangeable_branches_replayed_in_reverse_are_fully_stripped() {
     distinct.dedup();
     assert_eq!(distinct.len(), matched.len(), "and injectively");
 }
+
+/// Nine identical calls with distinct results, replayed in reverse: the budget's counterexample.
+///
+/// Codex's second shape, and it is the mirror of the first. A tool call's identity deliberately excludes
+/// the provider's call id, so nine calls of the same tool with the same input are *one* identity - which
+/// is what a model retrying the same call produces. Their results differ. Replayed branch by branch in
+/// reverse, every step offers nine permitted candidates for the call, and "fewest unmatched ancestors"
+/// cannot separate them: a call has no ancestors at all, so they tie.
+///
+/// The disambiguation has to come from the blocks whose identity is *unique* - the results - which is why
+/// the matcher matches in order of ambiguity rather than in replay order.
+#[test]
+fn nine_identical_calls_with_distinct_results_are_fully_stripped() {
+    const BRANCHES: usize = 9;
+
+    let mut identities: Vec<(ChatRole, String)> = Vec::new();
+    let mut edges: Vec<(usize, usize)> = Vec::new();
+    // All calls first, then all results, as a transcript records them - and `call_i -> result_i`.
+    for _ in 0..BRANCHES {
+        identities.push((ChatRole::Assistant, "call".to_string()));
+    }
+    for i in 0..BRANCHES {
+        identities.push((ChatRole::Tool, format!("result{i}")));
+        edges.push((i, BRANCHES + i));
+    }
+    let borrowed: Vec<(ChatRole, &str)> = identities
+        .iter()
+        .map(|(role, hash)| (*role, hash.as_str()))
+        .collect();
+    let prior = prior_state(&borrowed, &edges);
+
+    let mut replay: Vec<(ChatRole, &str)> = Vec::new();
+    for i in (0..BRANCHES).rev() {
+        replay.push(borrowed[i]);
+        replay.push(borrowed[BRANCHES + i]);
+    }
+
+    let matched = prior.longest_matching_prefix(&replay);
+    assert_eq!(
+        matched.len(),
+        replay.len(),
+        "every constraint is satisfied, so all {} blocks are history; matched {}",
+        replay.len(),
+        matched.len()
+    );
+}

@@ -457,6 +457,7 @@ pub trait TransactionalRepository: Send + Sync {
         id: &str,
         was_clean: bool,
         required: i64,
+        min_gap_secs: i64,
     ) -> Result<bool, DataError>;
 
     /// Claim an organization for deletion, if it exists and nobody else has claimed it.

@@ -340,8 +340,8 @@
             },
             "wait_for_async_insert": {
               "type": "boolean",
-              "description": "Wait for async insert to complete. Set to false for max throughput (fire-and-forget).",
-              "default": false
+              "description": "Wait for an async insert to be committed before the write returns. Setting this to false makes an acknowledgement a guess: an OTLP 200 and a trace pipeline's stream ack would rest on a server-side buffer that a restart empties.",
+              "default": true
             },
             "cluster": {
               "type": ["string", "null"],
