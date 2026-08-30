@@ -417,7 +417,22 @@ pub trait TransactionalRepository: Send + Sync {
         limit: u32,
     ) -> Result<(Vec<ProjectRow>, u64), DataError>;
 
-    /// Delete a project (cascades to files)
+    /// Claim a project for deletion, if it exists and nobody else has claimed it.
+    async fn claim_project_for_deletion(&self, id: &str) -> Result<bool, DataError>;
+
+    /// Whether this project is claimed for deletion. Read without the fence hiding the row, because
+    /// the write path needs to tell "going away" from "never existed" and the read paths do not.
+    async fn project_is_claimed(&self, id: &str) -> Result<bool, DataError>;
+
+    /// Projects claimed for deletion longer ago than `older_than_secs`, so a cleanup that died part
+    /// way through can be resumed.
+    async fn get_stale_claimed_projects(
+        &self,
+        older_than_secs: i64,
+    ) -> Result<Vec<String>, DataError>;
+
+    /// Delete a project's row. Only correct once its data is gone: the row is what every other path
+    /// finds the data by.
     async fn delete_project(
         &self,
         cache: Option<&CacheService>,

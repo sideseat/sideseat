@@ -3,7 +3,7 @@
 //! Initial schema with all tables. No migrations needed for first version.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 5;
+pub const SCHEMA_VERSION: i32 = 6;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -102,6 +102,10 @@ CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
     organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
+    -- Set while the project is being deleted. Deletion spans four stores with no transaction over
+    -- them, so the row has to say "being deleted" for the whole of it: reads treat the project as
+    -- gone, ingestion refuses it, and the row itself is removed only once the data really is.
+    deleting_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );

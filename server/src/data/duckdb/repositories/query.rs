@@ -1827,11 +1827,20 @@ pub fn delete_spans(
     })
 }
 
-/// Delete all OTEL data for a project
+/// Delete all OTEL data for a project: spans and metrics both.
+///
+/// Metrics were left behind, which the ClickHouse twin has always deleted - so the same deletion left
+/// different residue depending on the backend, and on DuckDB a project's metrics outlived the project
+/// itself with nothing able to reach them. One transaction, so a project's analytics data goes or
+/// stays as a whole. The returned count is spans, which is what the caller reports.
 pub fn delete_project_data(conn: &Connection, project_id: &str) -> Result<u64, DuckdbError> {
     in_transaction(conn, |conn| {
-        // Delete spans (events, links, and messages are embedded)
+        // Spans carry their events, links and messages inline.
         let deleted = conn.execute("DELETE FROM otel_spans WHERE project_id = ?", [project_id])?;
+        conn.execute(
+            "DELETE FROM otel_metrics WHERE project_id = ?",
+            [project_id],
+        )?;
         Ok(deleted as u64)
     })
 }

@@ -107,7 +107,8 @@ async fn get_project_from_db(
     id: &str,
 ) -> Result<Option<ProjectRow>, SqliteError> {
     let row = sqlx::query_as::<_, (String, String, String, i64, i64)>(
-        "SELECT id, organization_id, name, created_at, updated_at FROM projects WHERE id = ?",
+        "SELECT id, organization_id, name, created_at, updated_at FROM projects \
+         WHERE id = ? AND deleting_at IS NULL",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -134,14 +135,15 @@ pub async fn list_projects(
     let offset = (page.saturating_sub(1)) * limit;
 
     let rows = sqlx::query_as::<_, (String, String, String, i64, i64)>(
-        "SELECT id, organization_id, name, created_at, updated_at FROM projects ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        "SELECT id, organization_id, name, created_at, updated_at FROM projects \
+         WHERE deleting_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?",
     )
     .bind(limit)
     .bind(offset)
     .fetch_all(pool)
     .await?;
 
-    let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM projects")
+    let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM projects WHERE deleting_at IS NULL")
         .fetch_one(pool)
         .await?;
 
@@ -223,7 +225,7 @@ async fn list_for_user_from_db(
         SELECT p.id, p.organization_id, p.name, p.created_at, p.updated_at
         FROM projects p
         JOIN organization_members om ON p.organization_id = om.organization_id
-        WHERE om.user_id = ?
+        WHERE om.user_id = ? AND p.deleting_at IS NULL
         ORDER BY p.created_at DESC
         LIMIT ? OFFSET ?
         "#,
@@ -239,7 +241,7 @@ async fn list_for_user_from_db(
         SELECT COUNT(*)
         FROM projects p
         JOIN organization_members om ON p.organization_id = om.organization_id
-        WHERE om.user_id = ?
+        WHERE om.user_id = ? AND p.deleting_at IS NULL
         "#,
     )
     .bind(user_id)
@@ -323,7 +325,7 @@ async fn list_for_org_from_db(
         r#"
         SELECT id, organization_id, name, created_at, updated_at
         FROM projects
-        WHERE organization_id = ?
+        WHERE organization_id = ? AND deleting_at IS NULL
         ORDER BY created_at DESC
         LIMIT ? OFFSET ?
         "#,
@@ -334,10 +336,12 @@ async fn list_for_org_from_db(
     .fetch_all(pool)
     .await?;
 
-    let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM projects WHERE organization_id = ?")
-        .bind(org_id)
-        .fetch_one(pool)
-        .await?;
+    let total: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM projects WHERE organization_id = ? AND deleting_at IS NULL",
+    )
+    .bind(org_id)
+    .fetch_one(pool)
+    .await?;
 
     let projects = rows
         .into_iter()
@@ -367,12 +371,14 @@ pub async fn update_project(
 
     let now = chrono::Utc::now().timestamp();
 
-    let result = sqlx::query("UPDATE projects SET name = ?, updated_at = ? WHERE id = ?")
-        .bind(name)
-        .bind(now)
-        .bind(id)
-        .execute(pool)
-        .await?;
+    let result = sqlx::query(
+        "UPDATE projects SET name = ?, updated_at = ? WHERE id = ? AND deleting_at IS NULL",
+    )
+    .bind(name)
+    .bind(now)
+    .bind(id)
+    .execute(pool)
+    .await?;
 
     if result.rows_affected() == 0 {
         return Ok(None);
@@ -397,14 +403,80 @@ pub async fn update_project(
     get_project_from_db(pool, id).await
 }
 
+/// Claim a project for deletion, if it exists and nobody else has claimed it.
+///
+/// The compare-and-set is the whole mechanism: two admins deleting the same project concurrently, or a
+/// sweep racing a request, must not both run the cleanup - and every other path (reads, ingestion,
+/// rename) consults the claim, so setting it is what makes the project stop being live.
+///
+/// Returns false when the project does not exist or is already claimed.
+pub async fn claim_project_for_deletion(pool: &SqlitePool, id: &str) -> Result<bool, SqliteError> {
+    let now = chrono::Utc::now().timestamp();
+    let result =
+        sqlx::query("UPDATE projects SET deleting_at = ? WHERE id = ? AND deleting_at IS NULL")
+            .bind(now)
+            .bind(id)
+            .execute(pool)
+            .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// Whether this project is claimed for deletion, read without the fence hiding it.
+///
+/// The write path needs the distinction the read paths deliberately lose: `get_project` reports a
+/// claimed project as absent, which is right for a reader and useless for deciding whether a batch is
+/// being refused because the project is going away or because it never existed.
+pub async fn project_is_claimed(pool: &SqlitePool, id: &str) -> Result<bool, SqliteError> {
+    let row: Option<(Option<i64>,)> =
+        sqlx::query_as("SELECT deleting_at FROM projects WHERE id = ?")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
+    Ok(matches!(row, Some((Some(_),))))
+}
+
+/// Projects claimed for deletion longer ago than `older_than_secs`, so an abandoned cleanup can resume.
+///
+/// A project's cleanup spans four stores and can fail or crash part way through any of them. The claim
+/// is durable so the project stays fenced across a restart, which means nothing releases it either -
+/// and a half-deleted project nothing ever finishes is worse than one that was never deleted, because
+/// it is invisible to every read path while its data is still on disk.
+pub async fn get_stale_claimed_projects(
+    pool: &SqlitePool,
+    older_than_secs: i64,
+) -> Result<Vec<String>, SqliteError> {
+    let cutoff = chrono::Utc::now().timestamp() - older_than_secs;
+    let rows: Vec<(String,)> = sqlx::query_as(
+        "SELECT id FROM projects WHERE deleting_at IS NOT NULL AND deleting_at <= ?",
+    )
+    .bind(cutoff)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|(id,)| id).collect())
+}
+
+/// The organization a project belongs to, whether or not it is claimed for deletion.
+async fn org_of_project_ignoring_fence(
+    pool: &SqlitePool,
+    id: &str,
+) -> Result<Option<String>, SqliteError> {
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT organization_id FROM projects WHERE id = ?")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
+    Ok(row.map(|(org,)| org))
+}
+
 /// Delete a project by ID. Returns true if a project was deleted.
 pub async fn delete_project(
     pool: &SqlitePool,
     cache: Option<&CacheService>,
     id: &str,
 ) -> Result<bool, SqliteError> {
-    // Get old project for org_id to invalidate list cache
-    let old_project = get_project_from_db(pool, id).await?;
+    // Read through the fence: by the time deletion removes the row the project is claimed, so every
+    // ordinary read reports it absent - and the org id is still needed to invalidate that org's list.
+    let old_org = org_of_project_ignoring_fence(pool, id).await?;
 
     let result = sqlx::query("DELETE FROM projects WHERE id = ?")
         .bind(id)
@@ -420,16 +492,13 @@ pub async fn delete_project(
         }
 
         // Invalidate org's project list cache if project existed
-        if let Some(ref old) = old_project {
-            if let Err(e) = cache
-                .delete(&CacheKey::projects_for_org(&old.organization_id))
-                .await
-            {
-                tracing::warn!(org_id = %old.organization_id, error = %e, "Cache invalidation error");
+        if let Some(ref org_id) = old_org {
+            if let Err(e) = cache.delete(&CacheKey::projects_for_org(org_id)).await {
+                tracing::warn!(%org_id, error = %e, "Cache invalidation error");
             }
 
             // Invalidate projects_for_user for all org members
-            if let Ok(member_user_ids) = list_member_user_ids(pool, &old.organization_id).await {
+            if let Ok(member_user_ids) = list_member_user_ids(pool, org_id).await {
                 for user_id in &member_user_ids {
                     if let Err(e) = cache.delete(&CacheKey::projects_for_user(user_id)).await {
                         tracing::warn!(%user_id, error = %e, "Cache invalidation error");
@@ -615,6 +684,129 @@ mod tests {
 
         let fetched = get_project(&pool, None, &project.id).await.unwrap();
         assert!(fetched.is_none());
+    }
+
+    /// A claimed project is not a project any more, as far as every read is concerned.
+    ///
+    /// This is what makes the fence work at all: deletion spans four stores with no transaction over
+    /// them, so the claim is the only interval in which "this project is going away" is a fact anyone
+    /// can observe. If reads still returned it, a user could open a project whose spans were already
+    /// deleted and whose files were already gone.
+    #[tokio::test]
+    async fn a_project_claimed_for_deletion_reads_as_absent() {
+        let pool = setup_test_pool().await;
+        let project = create_project(&pool, None, "default", "Going Away")
+            .await
+            .unwrap();
+
+        assert!(
+            claim_project_for_deletion(&pool, &project.id)
+                .await
+                .unwrap()
+        );
+
+        assert!(
+            get_project(&pool, None, &project.id)
+                .await
+                .unwrap()
+                .is_none(),
+            "a claimed project is reported absent"
+        );
+        let (listed, total) = list_projects(&pool, 1, 100).await.unwrap();
+        assert!(
+            !listed.iter().any(|p| p.id == project.id),
+            "and is not listed"
+        );
+        assert_eq!(
+            total as usize,
+            listed.len(),
+            "the total must count what the page can show, or pagination reports a project nothing returns"
+        );
+        let (for_org, org_total) = list_for_org(&pool, None, "default", 1, 100).await.unwrap();
+        assert!(!for_org.iter().any(|p| p.id == project.id));
+        assert_eq!(org_total as usize, for_org.len());
+
+        // Renaming it is refused for the same reason: it is not there to rename.
+        assert!(
+            update_project(&pool, None, &project.id, "New Name")
+                .await
+                .unwrap()
+                .is_none()
+        );
+
+        // But deletion itself still reaches the row - it is the one thing that must.
+        assert!(delete_project(&pool, None, &project.id).await.unwrap());
+    }
+
+    /// Two deletions of one project: exactly one owns it.
+    #[tokio::test]
+    async fn only_one_claim_on_a_project_can_win() {
+        let pool = setup_test_pool().await;
+        let project = create_project(&pool, None, "default", "Contested")
+            .await
+            .unwrap();
+
+        assert!(
+            claim_project_for_deletion(&pool, &project.id)
+                .await
+                .unwrap()
+        );
+        assert!(
+            !claim_project_for_deletion(&pool, &project.id)
+                .await
+                .unwrap(),
+            "the second caller must learn it does not own this deletion"
+        );
+        assert!(
+            !claim_project_for_deletion(&pool, "no-such-project")
+                .await
+                .unwrap(),
+            "and a project that does not exist cannot be claimed"
+        );
+        assert!(project_is_claimed(&pool, &project.id).await.unwrap());
+    }
+
+    /// An abandoned project deletion is findable by age, so it can be finished.
+    ///
+    /// Nothing releases a claim - that is what lets it survive a restart - so without this a project
+    /// whose cleanup died is fenced forever: hidden from every read while its data is still on disk.
+    #[tokio::test]
+    async fn an_abandoned_project_claim_is_found_by_age() {
+        let pool = setup_test_pool().await;
+        let project = create_project(&pool, None, "default", "Half Deleted")
+            .await
+            .unwrap();
+        assert!(
+            claim_project_for_deletion(&pool, &project.id)
+                .await
+                .unwrap()
+        );
+
+        assert!(
+            get_stale_claimed_projects(&pool, 60)
+                .await
+                .unwrap()
+                .is_empty(),
+            "a claim taken a moment ago is a deletion in progress"
+        );
+
+        sqlx::query("UPDATE projects SET deleting_at = deleting_at - 1000 WHERE id = ?")
+            .bind(&project.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            get_stale_claimed_projects(&pool, 60).await.unwrap(),
+            vec![project.id.clone()]
+        );
+
+        delete_project(&pool, None, &project.id).await.unwrap();
+        assert!(
+            get_stale_claimed_projects(&pool, 0)
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[tokio::test]

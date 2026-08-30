@@ -204,6 +204,15 @@ CREATE INDEX IF NOT EXISTS idx_trace_files_project_hash ON trace_files(project_i
             // references. A count cannot express "deletion in progress"; this claim can.
             "ALTER TABLE files ADD COLUMN IF NOT EXISTS deleting_at BIGINT",
         ),
+        6 => (
+            "project_deletion_fence",
+            // Deleting a project touches four stores with no transaction over them, and used to delete
+            // the data first and the row last - so spans could arrive after their analytics rows were
+            // gone and survive the cleanup, attached to a project id with no row. The claim states the
+            // intent first: reads treat the project as absent, ingestion refuses it, and the row goes
+            // only once the data is verified gone. See the SQLite twin.
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleting_at BIGINT",
+        ),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,

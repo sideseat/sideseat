@@ -597,6 +597,13 @@ pub const FILE_CLEANUP_BATCH_SIZE: u32 = 1000;
 /// never mistaken for an abandoned one; short enough that a stuck file is not stuck for a day.
 pub const FILE_DELETION_CLAIM_STALE_SECS: i64 = 900;
 
+/// How old a project deletion claim must be before startup treats it as abandoned and finishes it.
+///
+/// Shorter than the file threshold has to be long, and for the opposite reason: a claimed project is
+/// invisible to every read path, so a stuck one looks to its owner exactly like data loss. Startup is
+/// also the moment a crashed process's claims become findable, and nothing else can release them.
+pub const PROJECT_DELETION_CLAIM_STALE_SECS: i64 = 60;
+
 // =============================================================================
 // Error Message Limits
 // =============================================================================

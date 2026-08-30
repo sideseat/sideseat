@@ -258,6 +258,27 @@ impl TransactionalRepository for Arc<PostgresService> {
             .map_err(Into::into)
     }
 
+    async fn claim_project_for_deletion(&self, id: &str) -> Result<bool, DataError> {
+        project::claim_project_for_deletion(self.pool(), id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn project_is_claimed(&self, id: &str) -> Result<bool, DataError> {
+        project::project_is_claimed(self.pool(), id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn get_stale_claimed_projects(
+        &self,
+        older_than_secs: i64,
+    ) -> Result<Vec<String>, DataError> {
+        project::get_stale_claimed_projects(self.pool(), older_than_secs)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn delete_project(
         &self,
         cache: Option<&CacheService>,
