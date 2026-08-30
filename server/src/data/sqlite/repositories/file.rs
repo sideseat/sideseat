@@ -588,4 +588,59 @@ mod tests {
             2048
         );
     }
+
+    /// `ref_count` must equal the number of trace associations, or deleting one trace deletes a file
+    /// another trace still shows.
+    ///
+    /// The defect this pins: ingestion incremented once per batch-unique hash while associating per
+    /// trace, so two traces of one batch sharing a file held two associations and one count. Deleting
+    /// either took the count to zero and removed the bytes from under the other.
+    #[tokio::test]
+    async fn ref_count_matches_the_number_of_trace_associations() {
+        let pool = setup_test_pool().await;
+
+        // Two traces of one batch reference the same content-addressed file. Ingestion increments
+        // once per association, which is what the loop in `write_and_record_files` now does.
+        for trace in ["trace-a", "trace-b"] {
+            upsert_file(
+                &pool,
+                "default",
+                test_hash(),
+                Some("image/png"),
+                1024,
+                "sha256",
+            )
+            .await
+            .unwrap();
+            insert_trace_file(&pool, trace, "default", test_hash())
+                .await
+                .unwrap();
+        }
+
+        // Deleting the first trace must leave the file alive for the second.
+        delete_trace_files(&pool, "default", &["trace-a".to_string()])
+            .await
+            .unwrap();
+        let after_first = decrement_ref_count(&pool, "default", test_hash())
+            .await
+            .unwrap();
+        assert_eq!(
+            after_first,
+            Some(1),
+            "the file is still referenced by trace-b, so it must not be collectable"
+        );
+
+        // Deleting the second releases it.
+        delete_trace_files(&pool, "default", &["trace-b".to_string()])
+            .await
+            .unwrap();
+        let after_second = decrement_ref_count(&pool, "default", test_hash())
+            .await
+            .unwrap();
+        assert_eq!(
+            after_second,
+            Some(0),
+            "with no trace referencing it the file is collectable"
+        );
+    }
 }

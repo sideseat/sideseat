@@ -302,10 +302,13 @@ pub(super) struct FilePersistOutcome {
     /// Files that could not be stored: decode, temp write, metadata or finalization failed. Transient
     /// in nature, so the honest response is to fail the batch and let the exporter retry.
     pub failed: usize,
-    /// URIs deliberately not stored because the project is over its storage quota. Not an error and
-    /// not retryable, so the batch is still committed - but the references have to be *rewritten*
-    /// first, because a reader cannot tell a reference to a rejected file from a broken one.
-    pub quota_skipped: Vec<String>,
+    /// `(project_id, uri)` deliberately not stored because the project is over its storage quota. Not
+    /// an error and not retryable, so the batch is still committed - but the references have to be
+    /// *rewritten* first, because a reader cannot tell a reference to a rejected file from a broken one.
+    ///
+    /// The project is part of the key because a batch spans projects and a hash is content-addressed:
+    /// the same URI can be rejected in one project and stored in another.
+    pub quota_skipped: Vec<(String, String)>,
 }
 
 /// Replace references to files that were not stored with a placeholder a reader can understand.
@@ -319,8 +322,11 @@ pub(super) struct FilePersistOutcome {
 /// So the reference is replaced by text that says what happened. It is a string substitution over the
 /// already-serialised JSON deliberately: a reference can appear in messages, tool definitions, raw
 /// span JSON or metadata, and re-parsing all of them to find it would cost more than the rejection.
-pub(super) fn note_unstored_files(spans: &mut [NormalizedSpan], skipped_uris: &[String]) -> usize {
-    if skipped_uris.is_empty() {
+pub(super) fn note_unstored_files(
+    spans: &mut [NormalizedSpan],
+    skipped: &[(String, String)],
+) -> usize {
+    if skipped.is_empty() {
         return 0;
     }
     let mut rewritten = 0usize;
@@ -331,7 +337,13 @@ pub(super) fn note_unstored_files(spans: &mut [NormalizedSpan], skipped_uris: &[
         }
     };
     for span in spans.iter_mut() {
-        for uri in skipped_uris {
+        let span_project = span.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID);
+        for (project_id, uri) in skipped {
+            // Only the project whose quota was exceeded. The same content-addressed URI can be stored
+            // in another project, and rewriting it there would replace a working reference with a note.
+            if project_id != span_project {
+                continue;
+            }
             let note = format!(
                 "[content not stored: project storage quota exceeded ({})]",
                 crate::utils::file_uri::parse_file_uri(uri)
@@ -398,7 +410,11 @@ pub(super) async fn persist_extracted_files(
 async fn filter_over_quota(
     files: Vec<PendingFileWrite>,
     file_service: &Arc<FileService>,
-) -> (Vec<PendingFileWrite>, HashMap<String, usize>, Vec<String>) {
+) -> (
+    Vec<PendingFileWrite>,
+    HashMap<String, usize>,
+    Vec<(String, String)>,
+) {
     // Conservative estimate: may over-count when duplicates exist within the batch,
     // but actual dedup happens downstream in write_and_record_files and at the DB layer.
     let mut project_sizes: HashMap<String, usize> = HashMap::new();
@@ -431,21 +447,28 @@ async fn filter_over_quota(
         }
     }
 
-    // The URIs of what is being dropped, so the rows that reference them can be corrected rather
-    // than committed pointing at a file that will never exist.
-    let mut skipped_uris: Vec<String> = files
+    // What is being dropped, so the rows that reference it can be corrected rather than committed
+    // pointing at a file that will never exist. Carries the project, because a batch spans projects:
+    // keyed on the URI alone, one project going over quota rewrote the *same* URI in another project's
+    // spans, where the file had been stored perfectly well.
+    let mut skipped: Vec<(String, String)> = files
         .iter()
         .filter(|f| over_quota.contains(&f.project_id))
-        .map(|f| crate::utils::file_uri::build_file_uri(&f.hash, f.media_type.as_deref()))
+        .map(|f| {
+            (
+                f.project_id.clone(),
+                crate::utils::file_uri::build_file_uri(&f.hash, f.media_type.as_deref()),
+            )
+        })
         .collect();
-    skipped_uris.sort_unstable();
-    skipped_uris.dedup();
+    skipped.sort_unstable();
+    skipped.dedup();
 
     let filtered: Vec<_> = files
         .into_iter()
         .filter(|f| !over_quota.contains(&f.project_id))
         .collect();
-    (filtered, project_sizes, skipped_uris)
+    (filtered, project_sizes, skipped)
 }
 
 /// Decode base64, write temp files, upsert metadata, and record trace associations.
@@ -485,26 +508,8 @@ async fn write_and_record_files(
         if is_new {
             if file.data.is_empty() {
                 cache_hits += 1;
-                // Cache hit from previous extraction — file already in storage.
-                // Just upsert metadata to maintain ref_count.
-                if let Err(e) = repo
-                    .upsert_file(
-                        &file.project_id,
-                        &file.hash,
-                        file.media_type.as_deref(),
-                        file.size as i64,
-                        &file.hash_algo,
-                    )
-                    .await
-                {
-                    failures += 1;
-                    tracing::warn!(
-                        error = %e,
-                        hash = %file.hash,
-                        project_id = %file.project_id,
-                        "Failed to upsert cached file metadata (ref_count may drift)"
-                    );
-                }
+                // Cache hit from previous extraction: the bytes are already in storage, and the
+                // reference count is incremented below with the trace association.
             } else {
                 // Fresh extraction: decode base64, write temp file, upsert metadata, finalize
                 let decoded = match BASE64_STANDARD.decode(&file.data) {
@@ -538,27 +543,7 @@ async fn write_and_record_files(
                     continue;
                 }
 
-                if let Err(e) = repo
-                    .upsert_file(
-                        &file.project_id,
-                        &file.hash,
-                        file.media_type.as_deref(),
-                        file.size as i64,
-                        &file.hash_algo,
-                    )
-                    .await
-                {
-                    failures += 1;
-                    tracing::warn!(
-                        error = %e,
-                        hash = %file.hash,
-                        project_id = %file.project_id,
-                        "Failed to upsert file metadata, cleaning up temp file"
-                    );
-                    let _ = tokio::fs::remove_file(&temp_path).await;
-                    continue;
-                }
-
+                // Metadata and the reference count are recorded below, once per trace association.
                 fresh_ok += 1;
                 pending_finalizations.push(PendingFinalization {
                     project_id: file.project_id.clone(),
@@ -570,19 +555,49 @@ async fn write_and_record_files(
             // Duplicate within batch, already handled above
         }
 
-        // Record trace-file association (once per trace+hash)
+        // One reference count per trace association, because that is what deletion decrements.
+        //
+        // `upsert_file` increments `ref_count`, and it used to be called once per batch-unique
+        // `(project, hash)` while associations are per `(trace, hash)`. So two traces of one batch
+        // sharing a file got two associations and *one* count - and deleting either trace decremented
+        // it to zero, deleting a file the other trace still referenced. The invariant is `ref_count`
+        // equals the number of associations; incrementing here, beside the association, is what keeps
+        // it. The storage write above stays once per `(project, hash)`: the bytes are the same bytes.
         let trace_key = (file.trace_id.clone(), file.hash.clone());
-        if trace_hashes.insert(trace_key)
-            && let Err(e) = repo
+        if trace_hashes.insert(trace_key) {
+            if let Err(e) = repo
+                .upsert_file(
+                    &file.project_id,
+                    &file.hash,
+                    file.media_type.as_deref(),
+                    file.size as i64,
+                    &file.hash_algo,
+                )
+                .await
+            {
+                failures += 1;
+                tracing::warn!(
+                    error = %e,
+                    hash = %file.hash,
+                    project_id = %file.project_id,
+                    "Failed to record file metadata"
+                );
+            }
+            if let Err(e) = repo
                 .insert_trace_file(&file.trace_id, &file.project_id, &file.hash)
                 .await
-        {
-            tracing::warn!(
-                error = %e,
-                hash = %file.hash,
-                trace_id = %file.trace_id,
-                "Failed to insert trace-file association"
-            );
+            {
+                // A missing association means this trace's deletion will not decrement the count it
+                // just incremented, so the file outlives every trace that referenced it. Counted as a
+                // failure so the batch is refused rather than leaking.
+                failures += 1;
+                tracing::warn!(
+                    error = %e,
+                    hash = %file.hash,
+                    trace_id = %file.trace_id,
+                    "Failed to insert trace-file association"
+                );
+            }
         }
     }
 
@@ -1272,6 +1287,7 @@ mod tests {
         let uri = crate::utils::file_uri::build_file_uri("abc123", Some("image/png"));
         let other = crate::utils::file_uri::build_file_uri("def456", Some("image/png"));
         let mut spans = vec![NormalizedSpan {
+            project_id: Some("proj".to_string()),
             messages: Some(format!(r#"[{{"content":"{uri}"}}]"#)),
             tool_definitions: Some(format!(r#"[{{"icon":"{uri}"}}]"#)),
             raw_span: Some(format!(r#"{{"attr":"{other}"}}"#)),
@@ -1279,7 +1295,7 @@ mod tests {
             ..NormalizedSpan::default()
         }];
 
-        let rewritten = note_unstored_files(&mut spans, std::slice::from_ref(&uri));
+        let rewritten = note_unstored_files(&mut spans, &[("proj".to_string(), uri.clone())]);
 
         assert_eq!(
             rewritten, 2,
@@ -1311,5 +1327,36 @@ mod tests {
         let before = spans[0].messages.clone();
         assert_eq!(note_unstored_files(&mut spans, &[]), 0);
         assert_eq!(spans[0].messages, before);
+    }
+
+    /// A hash is content-addressed, so the same URI can be rejected in one project and stored in
+    /// another. Rewriting it everywhere would replace a *working* reference with a note.
+    #[test]
+    fn a_quota_rejection_only_rewrites_the_project_it_happened_in() {
+        let uri = crate::utils::file_uri::build_file_uri("shared", Some("image/png"));
+        let mut spans = vec![
+            NormalizedSpan {
+                project_id: Some("over-quota".to_string()),
+                messages: Some(format!(r#"[{{"content":"{uri}"}}]"#)),
+                ..NormalizedSpan::default()
+            },
+            NormalizedSpan {
+                project_id: Some("healthy".to_string()),
+                messages: Some(format!(r#"[{{"content":"{uri}"}}]"#)),
+                ..NormalizedSpan::default()
+            },
+        ];
+
+        let rewritten = note_unstored_files(&mut spans, &[("over-quota".to_string(), uri.clone())]);
+
+        assert_eq!(
+            rewritten, 1,
+            "only the rejected project's reference is rewritten"
+        );
+        assert!(!spans[0].messages.as_deref().unwrap().contains(&uri));
+        assert!(
+            spans[1].messages.as_deref().unwrap().contains(&uri),
+            "the other project stored this file; its reference must be left alone"
+        );
     }
 }
