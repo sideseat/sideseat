@@ -313,6 +313,12 @@ impl TracePipeline {
     ///
     /// Returns true if the DuckDB write succeeded (messages should be ACKed),
     /// false if it failed (messages should NOT be ACKed for redelivery).
+    /// [`Self::run_batch`], for a benchmark that needs the whole write path rather than its CPU half.
+    #[cfg(test)]
+    pub(crate) async fn run_batch_for_test(&self, requests: &[ExportTraceServiceRequest]) -> bool {
+        self.run_batch(requests).await
+    }
+
     async fn run_batch(&self, requests: &[ExportTraceServiceRequest]) -> bool {
         let t_batch_start = std::time::Instant::now();
 

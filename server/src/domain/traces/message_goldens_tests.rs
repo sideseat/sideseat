@@ -2641,3 +2641,154 @@ fn a_barrier_orders_exactly_as_pairwise_edges_do() {
     }
     assert!(checked > 80, "only checked {checked} fixtures");
 }
+
+/// End-to-end ingestion: OTLP bytes through extraction, enrichment, file storage and both writes.
+///
+/// `bench_pipeline`'s ingestion number is explicitly the CPU half - it stops before file extraction and
+/// every persistence step - so what a request actually costs was unmeasured, which is not a claim anyone
+/// should accept about a write path. This runs the real `run_batch`: a temp DuckDB, a temp SQLite, real
+/// filesystem file storage, and the fence lookups included.
+///
+/// ```bash
+/// cargo test --release -p sideseat-server bench_ingestion -- --ignored --nocapture
+/// ```
+// The multi-threaded runtime, because `run_batch` uses `block_in_place` for its parallel extraction -
+// so the current-thread runtime a plain `#[tokio::test]` gives would panic rather than measure.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore]
+async fn bench_ingestion_end_to_end() {
+    use crate::core::config::{FilesConfig, StorageBackend};
+    use crate::core::storage::AppStorage;
+    use crate::data::files::FileService;
+    use crate::data::{AnalyticsService, TransactionalService};
+    use crate::domain::traces::TracePipeline;
+    use std::sync::Arc;
+
+    let want = std::env::var("BENCH").unwrap_or_else(|_| "langgraph/swarm".to_string());
+    let (label, paths) = discover_fixtures()
+        .into_iter()
+        .find(|(l, _)| *l == want)
+        .unwrap_or_else(|| panic!("fixture {want} not found; set BENCH=<suite>/<sample>"));
+    let requests: Vec<ExportTraceServiceRequest> =
+        paths.iter().map(|p| decode_request(p)).collect();
+    let bytes: usize = paths
+        .iter()
+        .map(|p| std::fs::metadata(p).map(|m| m.len() as usize).unwrap_or(0))
+        .sum();
+
+    let iterations = std::env::var("ITERATIONS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(10u32);
+
+    // Whatever refuses a batch says so through `tracing`, and a refused batch measures nothing - so the
+    // reason has to be visible rather than inferred.
+    let _ = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::WARN)
+        .with_test_writer()
+        .try_init();
+
+    let mut totals: Vec<std::time::Duration> = Vec::new();
+    let mut spans_written = 0u64;
+    for _ in 0..iterations {
+        // A fresh instance per iteration: ingestion is idempotent by span id, so re-delivering the same
+        // requests into one database would measure an update path rather than a first write.
+        let temp = tempfile::TempDir::new().expect("temp dir");
+        let storage = AppStorage::init_for_test(temp.path().to_path_buf());
+        tokio::fs::create_dir_all(temp.path().join("duckdb"))
+            .await
+            .expect("duckdb dir");
+        // Both, and `files_temp` is the one that is easy to miss: `AppStorage::subdir` does not create
+        // directories, and file writes stage into `files_temp` before being renamed into place - so
+        // without it every write fails and the batch is refused rather than measured.
+        tokio::fs::create_dir_all(temp.path().join("files"))
+            .await
+            .expect("files dir");
+        tokio::fs::create_dir_all(temp.path().join("files_temp"))
+            .await
+            .expect("files temp dir");
+        let analytics = Arc::new(AnalyticsService::Duckdb(Arc::new(
+            crate::data::duckdb::DuckdbService::init(&storage)
+                .await
+                .expect("duckdb"),
+        )));
+        let sqlite_pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect(":memory:")
+            .await
+            .expect("sqlite");
+        sqlx::raw_sql(crate::data::sqlite::schema::SCHEMA)
+            .execute(&sqlite_pool)
+            .await
+            .expect("sqlite schema");
+        let database = Arc::new(TransactionalService::Sqlite(Arc::new(
+            crate::data::sqlite::SqliteService::from_pool(sqlite_pool),
+        )));
+        let files = Arc::new(
+            FileService::new(
+                FilesConfig {
+                    enabled: true,
+                    storage: StorageBackend::Filesystem,
+                    quota_bytes: u64::MAX,
+                    filesystem_path: Some(temp.path().join("files").display().to_string()),
+                    s3: None,
+                },
+                &storage,
+                Arc::clone(&database),
+                Arc::new(
+                    crate::data::cache::CacheService::new(&crate::core::config::CacheConfig {
+                        backend: crate::core::config::CacheBackendType::Memory,
+                        max_entries: 1000,
+                        eviction_policy: crate::core::config::EvictionPolicy::TinyLfu,
+                        redis_url: None,
+                    })
+                    .await
+                    .expect("memory cache"),
+                ),
+            )
+            .await
+            .expect("file service"),
+        );
+        let pipeline = TracePipeline::new(
+            Arc::clone(&analytics),
+            Arc::new(PricingService::init_for_test().expect("offline pricing service")),
+            Arc::new(crate::core::TopicService::default()),
+            files,
+        );
+
+        let start = std::time::Instant::now();
+        let ok = pipeline.run_batch_for_test(&requests).await;
+        totals.push(start.elapsed());
+        assert!(
+            ok,
+            "{label}: the batch was refused, so this measures nothing"
+        );
+
+        spans_written = analytics
+            .repository()
+            .count_spans_by_project(&["default".to_string()])
+            .await
+            .map(|c| c.values().sum())
+            .unwrap_or(0);
+        assert!(
+            spans_written > 0,
+            "{label}: nothing was written - the batch was accepted but its spans went nowhere"
+        );
+    }
+
+    totals.sort();
+    let sum: std::time::Duration = totals.iter().sum();
+    eprintln!(
+        "INGEST(end to end) {label}: {} requests / {} KB -> {spans_written} spans, \
+         mean {:?}, p50 {:?}, max {:?} over {iterations} runs",
+        requests.len(),
+        bytes / 1024,
+        sum / iterations,
+        totals[totals.len() / 2],
+        totals[totals.len() - 1],
+    );
+    assert!(
+        spans_written > 0,
+        "nothing was written, so nothing was measured"
+    );
+}
