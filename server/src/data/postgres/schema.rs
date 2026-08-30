@@ -3,7 +3,7 @@
 //! Initial schema with all tables. Compatible with SQLite schema structure.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 4;
+pub const SCHEMA_VERSION: i32 = 5;
 
 /// Complete schema SQL for PostgreSQL
 pub const SCHEMA: &str = r#"
@@ -119,6 +119,8 @@ CREATE TABLE IF NOT EXISTS files (
     size_bytes BIGINT NOT NULL,
     hash_algo TEXT NOT NULL DEFAULT 'sha256',
     ref_count INTEGER NOT NULL DEFAULT 1,
+    -- Set while cleanup is deleting this file; association refuses through the fence.
+    deleting_at BIGINT,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
     UNIQUE(project_id, file_hash)

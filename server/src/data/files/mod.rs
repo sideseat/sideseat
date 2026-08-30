@@ -299,21 +299,52 @@ impl FileService {
             // Deleting the row before the bytes also means the surviving failure mode is bytes with no
             // metadata - a leak - rather than a row pointing at bytes that are gone, which is what a
             // reader would see as corruption.
-            if !repo.delete_file_if_unreferenced(project_id, &hash).await? {
+            // Claim first, then the bytes, then the row.
+            //
+            // The claim is what closes the window a conditional delete alone leaves open: with the row
+            // deleted, ingestion could recreate it, associate and finalise the bytes, and this loop
+            // would then delete content a committed row references. `associate_file` refuses through a
+            // claim, so that ingestion fails its batch and retries - by which time the file is either
+            // gone, and the retry writes it again with the bytes in hand, or the claim was released.
+            if !repo.claim_file_for_deletion(project_id, &hash).await? {
                 tracing::debug!(
                     project_id,
                     hash,
-                    "File was referenced again before deletion; keeping it"
+                    "File is referenced or already being deleted; leaving it"
                 );
                 continue;
             }
 
             if let Err(e) = self.storage.delete(project_id, &hash).await {
+                // The row is still there, holding the claim, so nothing has been lost - but the claim
+                // has to go or the file becomes permanently unassociable.
+                if let Err(release_error) = repo.release_deletion_claim(project_id, &hash).await {
+                    tracing::error!(
+                        project_id,
+                        hash,
+                        error = %e,
+                        release_error = %release_error,
+                        "Could not delete file bytes and could not release the deletion claim; the \
+                         file cannot be referenced again until it is cleared"
+                    );
+                    continue;
+                }
                 tracing::warn!(
                     project_id,
                     hash,
                     error = %e,
-                    "Deleted file metadata but its bytes remain; the orphan sweep will retry"
+                    "Could not delete file bytes; released the claim and left the file in place"
+                );
+                continue;
+            }
+
+            // Bytes gone, so the row must go too - it is the only thing that could still be found.
+            if !repo.delete_file_if_unreferenced(project_id, &hash).await? {
+                tracing::error!(
+                    project_id,
+                    hash,
+                    "Deleted a claimed file's bytes but its row is now referenced; it will read as \
+                     missing content until re-ingested"
                 );
                 continue;
             }

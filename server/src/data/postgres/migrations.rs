@@ -197,6 +197,13 @@ ALTER TABLE trace_files ADD PRIMARY KEY (project_id, trace_id, file_hash);
 CREATE INDEX IF NOT EXISTS idx_trace_files_project_hash ON trace_files(project_id, file_hash);
 "#,
         ),
+        5 => (
+            "file_deletion_fence",
+            // Deleting the row then the bytes leaves a window where ingestion recreates the row,
+            // associates and finalises - and the byte delete then removes content a committed row
+            // references. A count cannot express "deletion in progress"; this claim can.
+            "ALTER TABLE files ADD COLUMN IF NOT EXISTS deleting_at BIGINT",
+        ),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,

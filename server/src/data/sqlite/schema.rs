@@ -3,7 +3,7 @@
 //! Initial schema with all tables. No migrations needed for first version.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 4;
+pub const SCHEMA_VERSION: i32 = 5;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -119,6 +119,9 @@ CREATE TABLE IF NOT EXISTS files (
     size_bytes INTEGER NOT NULL,
     hash_algo TEXT NOT NULL DEFAULT 'sha256',
     ref_count INTEGER NOT NULL DEFAULT 1,
+    -- Set while cleanup is deleting this file. Association refuses through the fence, because a count
+    -- cannot express "deletion in progress" and the bytes may already be gone.
+    deleting_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     UNIQUE(project_id, file_hash)
