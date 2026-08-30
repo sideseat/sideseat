@@ -2509,3 +2509,85 @@ fn carrier_semantics_are_declared() {
         undeclared.join("\n  ")
     );
 }
+
+/// Which copy of a message survives deduplication must not change the *order* of the answer.
+///
+/// The central claim of the ordering redesign, and it had no test. Reversing the row order does not
+/// reach it - rows are re-sorted by timestamp before dedup - so nothing varied the one thing that used
+/// to decide the order: the surviving block's index in the previous sort.
+///
+/// `PREFER_LATER_ON_TIE` flips the tie-break, which changes the surviving copy in 17 of the 111
+/// fixtures, so the perturbation is real rather than theoretical. Content may legitimately differ when
+/// it flips - a copy carrying thinking blocks or model info is a better one, which is what quality
+/// scoring exists to pick - so what is compared is the sequence of roles and kinds, not the text.
+#[test]
+fn which_copy_survives_does_not_change_the_order() {
+    use crate::domain::sideml::feed::PREFER_LATER_ON_TIE;
+
+    let set = |value: bool| PREFER_LATER_ON_TIE.with(|flag| flag.set(value));
+
+    let mut differing: Vec<String> = Vec::new();
+    let mut perturbed = 0usize;
+    let content_of = |result: &crate::domain::sideml::feed::FeedResult| -> Vec<String> {
+        result
+            .messages
+            .iter()
+            .map(|b| b.content_hash.clone())
+            .collect()
+    };
+    for (label, paths) in discover_fixtures() {
+        let rows: Vec<MessageSpanRow> = rows_for(&paths)
+            .into_iter()
+            .map(|(_, r)| r)
+            .filter(passes_content_filter)
+            .collect();
+        if rows.is_empty() {
+            continue;
+        }
+        let rows = sorted_by_timestamp(rows);
+        let rows_again = rows.clone();
+
+        let shape = |blocks: &[crate::domain::sideml::feed::BlockEntry]| -> Vec<String> {
+            blocks
+                .iter()
+                .map(|b| format!("{}/{}", b.role.as_str(), b.entry_type))
+                .collect()
+        };
+
+        set(false);
+        let early = shape(&process_spans(rows.clone(), &FeedOptions::new()).messages);
+        set(true);
+        let late = shape(&process_spans(rows, &FeedOptions::new()).messages);
+        set(false);
+
+        if early != late {
+            differing.push(format!(
+                "{label}:\n    early: {early:?}\n    late:  {late:?}"
+            ));
+        }
+
+        // The perturbation has to be *reaching* dedup, or this test proves nothing. A flipped
+        // tie-break selects a different copy, and copies differ in content, so somewhere in the corpus
+        // the content must move even while the shape does not.
+        set(false);
+        let early_content = content_of(&process_spans(rows_again.clone(), &FeedOptions::new()));
+        set(true);
+        let late_content = content_of(&process_spans(rows_again, &FeedOptions::new()));
+        set(false);
+        if early_content != late_content {
+            perturbed += 1;
+        }
+    }
+
+    assert!(
+        perturbed > 0,
+        "flipping the dedup tie-break changed nothing anywhere, so this test is vacuous - the hook is \
+         not reaching dedup"
+    );
+    assert!(
+        differing.is_empty(),
+        "the order of the answer depends on which copy survived dedup, in {} view(s):\n  {}",
+        differing.len(),
+        differing.join("\n  ")
+    );
+}
