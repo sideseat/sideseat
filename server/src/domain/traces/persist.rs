@@ -493,55 +493,41 @@ pub(super) async fn reconcile_incoming_references(
             continue;
         }
 
-        // Backed in storage, but the metadata row is what quota is computed from - and
-        // `associate_file` would create one with size 0 if it were missing, undercounting the project's
-        // usage forever. A reference whose bytes exist without metadata is a state this cannot repair
-        // honestly, so it is refused rather than half-recorded.
-        match repo.get_file(project_id, parsed.hash).await {
-            Ok(Some(_)) => {}
-            Ok(None) => {
+        // The association is made in one operation that requires the metadata row to exist already.
+        //
+        // Checking for the row and *then* associating is a race - the row can vanish in between - and
+        // `associate_file` would have created one with size 0, undercounting the project's quota forever.
+        // Neither the size nor the media type is a fact this process has for a reference it did not
+        // produce, so it does not supply them. A file that is missing, or claimed for deletion, refuses:
+        // both mean the reference must not be committed.
+        match repo
+            .associate_existing_file(trace_id, project_id, parsed.hash)
+            .await
+        {
+            Ok(true) => {}
+            // Bytes without metadata, or a file mid-deletion. Not something to resolve either way here:
+            // rewriting would be wrong if it is only being deleted, and committing would be wrong if the
+            // bytes are about to go.
+            Ok(false) => {
                 failed += 1;
                 tracing::warn!(
                     project_id,
                     hash = parsed.hash,
-                    "Incoming file reference has stored bytes but no metadata; refusing to guess its size"
+                    "Incoming file reference has no metadata or is being deleted"
                 );
-                continue;
             }
+            // Without the association, deleting this trace never releases the file and it outlives
+            // everything that named it. A leak is not something to commit and move on from.
             Err(e) => {
                 failed += 1;
                 tracing::warn!(
                     error = %e,
                     project_id,
+                    trace_id,
                     hash = parsed.hash,
-                    "Could not read metadata for an incoming file reference"
+                    "Failed to associate an incoming file reference with its trace"
                 );
-                continue;
             }
-        }
-
-        // Idempotent, and the reference count is derived from these associations.
-        if let Err(e) = repo
-            .associate_file(
-                trace_id,
-                project_id,
-                parsed.hash,
-                parsed.media_type,
-                0,
-                FILE_HASH_ALGORITHM,
-            )
-            .await
-        {
-            // Without the association, deleting this trace never releases the file and it outlives
-            // everything that named it. A leak is not something to commit and move on from.
-            failed += 1;
-            tracing::warn!(
-                error = %e,
-                project_id,
-                trace_id,
-                hash = parsed.hash,
-                "Failed to associate an incoming file reference with its trace"
-            );
         }
     }
 

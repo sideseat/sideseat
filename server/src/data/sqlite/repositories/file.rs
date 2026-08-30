@@ -165,6 +165,67 @@ pub async fn delete_project_files(pool: &SqlitePool, project_id: &str) -> Result
     Ok(result.rows_affected())
 }
 
+/// Associate a trace with a file that **already exists**, without inventing metadata for it.
+///
+/// For a reference that arrived already formed: its bytes are in storage, so the size and media type are
+/// facts this process does not have. `associate_file` would create a row with size 0, undercounting the
+/// project's quota forever - and checking for the row first and then calling it is a race, because the
+/// row can vanish in between.
+///
+/// Returns false when there is no such file, or when it is claimed for deletion. Both mean the caller
+/// must not commit a reference to it.
+pub async fn associate_existing_file(
+    pool: &SqlitePool,
+    trace_id: &str,
+    project_id: &str,
+    file_hash: &str,
+) -> Result<bool, SqliteError> {
+    let mut tx = pool.begin().await?;
+
+    let row: Option<(Option<i64>,)> =
+        sqlx::query_as("SELECT deleting_at FROM files WHERE project_id = ? AND file_hash = ?")
+            .bind(project_id)
+            .bind(file_hash)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let Some((claim,)) = row else {
+        return Ok(false);
+    };
+    if claim.is_some() {
+        return Ok(false);
+    }
+
+    sqlx::query(
+        "INSERT OR IGNORE INTO trace_files (trace_id, project_id, file_hash) VALUES (?, ?, ?)",
+    )
+    .bind(trace_id)
+    .bind(project_id)
+    .bind(file_hash)
+    .execute(&mut *tx)
+    .await?;
+
+    let now = chrono::Utc::now().timestamp();
+    sqlx::query(
+        r#"
+        UPDATE files
+        SET ref_count = (
+                SELECT COUNT(*) FROM trace_files
+                WHERE project_id = files.project_id AND file_hash = files.file_hash
+            ),
+            updated_at = ?
+        WHERE project_id = ? AND file_hash = ?
+        "#,
+    )
+    .bind(now)
+    .bind(project_id)
+    .bind(file_hash)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(true)
+}
+
 /// Claim a file for deletion, if nothing references it and nobody else has claimed it.
 ///
 /// The fence. Deleting the metadata row and then the bytes leaves a window in which ingestion recreates

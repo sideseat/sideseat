@@ -583,6 +583,17 @@ pub trait TransactionalRepository: Send + Sync {
         trace_ids: &[String],
     ) -> Result<Vec<(String, i64)>, DataError>;
 
+    /// Associate a trace with a file that already exists, without inventing metadata for it.
+    ///
+    /// Returns false when there is no such file, or it is claimed for deletion - both mean the caller
+    /// must not commit a reference to it.
+    async fn associate_existing_file(
+        &self,
+        trace_id: &str,
+        project_id: &str,
+        file_hash: &str,
+    ) -> Result<bool, DataError>;
+
     /// Claim a file for deletion, if nothing references it and nobody else has claimed it.
     ///
     /// The fence that closes the delete-then-recreate window: association refuses while a claim is set,
