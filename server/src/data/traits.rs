@@ -229,6 +229,13 @@ pub trait AnalyticsRepository: Send + Sync {
     /// Delete all data for a project
     async fn delete_project_data(&self, project_id: &str) -> Result<u64, DataError>;
 
+    /// Count the rows a project still owns, over every table this backend holds for it.
+    ///
+    /// Deletion verification asks this rather than counting spans, because "the data is gone" has to mean
+    /// all of it: metrics live in their own table, ClickHouse applies its deletes as asynchronous
+    /// mutations, and a project whose metrics outlived it is as unreachable as one whose spans did.
+    async fn count_project_rows(&self, project_id: &str) -> Result<u64, DataError>;
+
     /// Count spans grouped by project for a set of project IDs.
     /// Used for org/user-level span count aggregation.
     async fn count_spans_by_project(

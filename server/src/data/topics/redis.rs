@@ -712,6 +712,12 @@ impl TopicBackend for RedisTopicBackend {
     fn backend_name(&self) -> &'static str {
         "redis"
     }
+
+    fn is_durable(&self) -> bool {
+        // A Redis stream holds the message until it is acknowledged, and an unacknowledged one is
+        // reclaimed by another consumer - which is what makes acknowledging before writing honest.
+        true
+    }
 }
 
 /// Parse XREADGROUP response to extract messages

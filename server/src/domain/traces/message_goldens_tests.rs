@@ -2827,8 +2827,21 @@ async fn bench_ingestion_end_to_end() {
             files,
         );
 
+        // `PER_REQUEST=1` measures the same work with no batching, which is what acknowledging only
+        // what is stored would cost: one write per request instead of one per batch.
+        let per_request = std::env::var("PER_REQUEST").is_ok();
         let start = std::time::Instant::now();
-        let ok = pipeline.run_batch_for_test(&requests).await;
+        let ok = if per_request {
+            let mut all = true;
+            for request in &requests {
+                all &= pipeline
+                    .run_batch_for_test(std::slice::from_ref(request))
+                    .await;
+            }
+            all
+        } else {
+            pipeline.run_batch_for_test(&requests).await
+        };
         totals.push(start.elapsed());
         assert!(
             ok,

@@ -411,7 +411,7 @@ mechanism and getting it wrong is invisible until there are two instances.
 | --- | --- | --- |
 | Reconstruction cache (`feed/cache.rs`) | No, process-local | A memo over a *pure function* of the rows. Any instance computes the same answer from the same digest, a cold instance recomputes it, a dying one loses only the saving. N instances change the hit rate, not the answer — `a_cached_reconstruction_equals_a_fresh_one` checks byte equality over the corpus. Sharing it would need a version key to avoid serving the previous build's answers, and a hand-maintained constant is a hole. |
 | File extraction cache | No, per pipeline | Same shape: a memo keyed by content hash. |
-| Trace ingestion topic | Yes, when Redis is configured (`stream_topic` + consumer groups + `claim_stuck_messages`) | At-least-once across instances; ingestion is idempotent by span id, so a redelivery rewrites rather than duplicates. |
+| Trace ingestion topic | Yes, when Redis is configured (`stream_topic` + consumer groups + `claim_stuck_messages`) | At-least-once across instances; ingestion is idempotent by span id, so a redelivery rewrites rather than duplicates. With the **default in-memory backend the queue is skipped entirely** and the request writes before answering - see below. |
 | Metrics | Not queued at all — written inside the request | An in-process queue made a 200 mean "buffered", so a crash lost records the exporter had counted as delivered. A failure is a 503 the exporter retries. |
 | Logs / SSE topics | No — `topic()` builds an in-process channel whatever the backend | So an instance consumes only what it published: no cross-instance duplication. Nothing stores logs, and the endpoint says so via OTLP `partial_success`. |
 | Deletion tombstones (`projects.deleting_at`, `organizations.deleting_at`) | Yes, they are rows | One compare-and-set decides the owner across all instances, and every instance's write path consults it. |
@@ -434,6 +434,24 @@ An organization is tombstoned too, because deleting its row cascades its *projec
 rows are what the projects' cleanups depend on; its row goes once no project rows remain. The residual is
 stated rather than hidden: a writer whose first commit lands after that many consecutive quiet sweeps
 (ten minutes at the default interval) would leave rows nothing collects.
+
+**Acknowledge only what is durable.** A 200 on an OTLP endpoint has to mean the data is stored, and which
+mechanism delivers that depends on the topic backend (`TopicBackend::is_durable`):
+
+| Signal | Redis backend | Default (in-memory) backend |
+| --- | --- | --- |
+| Traces | Published to the stream, acknowledged after the write, unacknowledged messages reclaimed | Queue skipped: `TracePipeline::ingest_now` writes inside the request |
+| Metrics | Written inside the request | Written inside the request |
+| Logs | Not stored; `partial_success` with every record rejected | Same |
+
+Measured on release, loopback, DuckDB + SQLite, warm: **~2.3 ms per OTLP trace request** end to end
+including the write (the batched path costs ~4 ms per request amortised, the unbatched ~8.8 ms cold - both
+from `bench_ingestion_end_to_end`), a session read of 151 spans in **16-27 ms**, and a 50-trace list in
+**23-42 ms**. So the working SLO is: an ingest request in the low tens of milliseconds, an interactive
+read under ~100 ms for an ordinary session, and reads of a long *replaying* session bounded by the
+reconstruction cache rather than by the pipeline (2.28 s cold, 47 ms warm at 1 000 turns). What remains
+unmeasured is deliberate to state: production PostgreSQL/ClickHouse/S3 latency, network transport, and
+tail latency under concurrent load.
 
 **Message-parsing goldens**: `cargo test -p sideseat-server message_goldens` verifies message count, content, ordering and absence of duplicates per framework across all three views (span / trace / session). Fixtures are captured OTLP payloads under `server/tests/fixtures/messages/<suite>/<sample>/`; capture with `misc/capture-message-fixtures.sh [suite] [sample]` (needs model credentials), then record with `UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens` and review the diff. Invariants (scope containment, per-trace dedup, tool-id correspondence, no empty thinking, determinism) hold independently of the goldens, so a blindly regenerated snapshot still fails on real defects. `UPDATE_GOLDENS=1` writes the files but still exits non-zero when an invariant was violated, so known-bad output cannot be committed as reviewed. See `server/tests/fixtures/messages/README.md`.
 

@@ -264,6 +264,12 @@ impl AnalyticsRepository for DedupAnalyticsRepository {
         self.inner.delete_project_data(project_id).await
     }
 
+    async fn count_project_rows(&self, project_id: &str) -> Result<u64, DataError> {
+        // Deliberately not deduplicated: this asks whether *any* row is left, and a redelivered span that
+        // dedup would hide is still a row that a deleted project must not own.
+        self.inner.count_project_rows(project_id).await
+    }
+
     async fn count_spans_by_project(
         &self,
         project_ids: &[String],

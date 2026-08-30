@@ -320,6 +320,13 @@ impl AnalyticsRepository for Arc<ClickhouseService> {
         .map_err(Into::into)
     }
 
+    async fn count_project_rows(&self, project_id: &str) -> Result<u64, DataError> {
+        let metrics_table = self.delete_table("otel_metrics");
+        query::count_project_rows(self.client(), &metrics_table, project_id)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn count_spans_by_project(
         &self,
         project_ids: &[String],

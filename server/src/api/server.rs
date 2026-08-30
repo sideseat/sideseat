@@ -99,6 +99,16 @@ impl ApiServer {
             app.database.clone(),
             app.analytics.clone(),
             app.cache.clone(),
+            // Only where the queue cannot promise durability: there the handler writes before it
+            // answers. Its own extraction cache is a memo, so a second instance costs nothing but a map.
+            (!app.topics.is_durable()).then(|| {
+                Arc::new(crate::domain::TracePipeline::new(
+                    app.analytics.clone(),
+                    app.pricing.clone(),
+                    app.topics.clone(),
+                    app.files.clone(),
+                ))
+            }),
         )
         .layer(DefaultBodyLimit::max(OTLP_BODY_LIMIT));
         let otlp_routes = if rate_limit_enabled {

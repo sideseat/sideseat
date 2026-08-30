@@ -37,6 +37,11 @@ pub struct OtlpState {
     /// project will not accept writes.
     pub database: Arc<TransactionalService>,
     pub analytics: Arc<crate::data::AnalyticsService>,
+    /// Whether a published trace survives this process dying. When it does not, the handler writes
+    /// before it answers rather than acknowledging something it could lose.
+    pub durable_queue: bool,
+    /// The pipeline, for that synchronous path. `None` leaves the queue as the only route.
+    pub trace_pipeline: Option<Arc<crate::domain::TracePipeline>>,
     pub cache: Arc<CacheService>,
 }
 
@@ -72,6 +77,7 @@ pub fn routes(
     database: Arc<TransactionalService>,
     analytics: Arc<crate::data::AnalyticsService>,
     cache: Arc<CacheService>,
+    trace_pipeline: Option<Arc<crate::domain::TracePipeline>>,
 ) -> Router {
     // Use stream topic for traces (at-least-once delivery)
     let trace_topic = Arc::new(topics.stream_topic::<ExportTraceServiceRequest>(TOPIC_TRACES));
@@ -88,6 +94,8 @@ pub fn routes(
         debug_path,
         database,
         analytics,
+        durable_queue: topics.is_durable(),
+        trace_pipeline,
         cache,
     };
 

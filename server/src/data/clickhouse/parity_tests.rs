@@ -2112,6 +2112,26 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         c.get(PROJECT),
         "count_spans_by_project differs between backends"
     );
+    // What deletion verification reads: every row a project owns, not only its spans. Kept beside the
+    // span count because the two must agree here - this fixture inserts no metrics - and the point of
+    // asking both is that they disagree the moment one backend forgets a table.
+    let d_all = duck
+        .count_project_rows(PROJECT)
+        .await
+        .expect("duckdb project rows");
+    let c_all = ch
+        .count_project_rows(PROJECT)
+        .await
+        .expect("clickhouse project rows");
+    assert_eq!(
+        d_all, c_all,
+        "count_project_rows differs between backends, so deletion would verify differently"
+    );
+    assert_eq!(
+        d_all,
+        spans.len() as u64,
+        "the project row count does not match what was inserted"
+    );
     assert_eq!(
         d.get(PROJECT),
         Some(&(spans.len() as u64)),

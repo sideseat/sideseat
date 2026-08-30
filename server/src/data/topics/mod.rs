@@ -238,6 +238,11 @@ impl TopicService {
         self.backend.backend_name()
     }
 
+    /// Whether a published message survives this process dying - see [`TopicBackend::is_durable`].
+    pub fn is_durable(&self) -> bool {
+        self.backend.is_durable()
+    }
+
     // ========================================================================
     // LOCAL TOPIC API (Backward compatible)
     // ========================================================================

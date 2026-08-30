@@ -1845,6 +1845,24 @@ pub fn delete_project_data(conn: &Connection, project_id: &str) -> Result<u64, D
     })
 }
 
+/// Count every row a project still owns, spans and metrics together.
+///
+/// Deletion verification reads this: "the data is gone" has to mean all of it, and metrics live in their
+/// own table.
+pub fn count_project_rows(conn: &Connection, project_id: &str) -> Result<u64, DuckdbError> {
+    let spans: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM otel_spans WHERE project_id = ?",
+        [project_id],
+        |row| row.get(0),
+    )?;
+    let metrics: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM otel_metrics WHERE project_id = ?",
+        [project_id],
+        |row| row.get(0),
+    )?;
+    Ok((spans + metrics) as u64)
+}
+
 /// Count spans grouped by project for a set of project IDs.
 pub fn count_spans_by_project(
     conn: &Connection,
