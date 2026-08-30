@@ -1151,6 +1151,35 @@ fn tool_result_aliases(blocks: &[(usize, BlockEntry, u32)]) -> HashMap<DedupKey,
     aliases
 }
 
+// Test-only: prefer the *later* of two tied copies instead of the earlier.
+//
+// Which copy survives a quality tie is decided by arrival order, and it is not something a caller can
+// vary - reversing the row order does not reach it, because rows are re-sorted by timestamp before
+// dedup ever sees them. So the property "the *order* of the answer does not depend on which copy
+// survived" had no test, which is the central claim of the ordering redesign.
+//
+// Flipping this changes which copy survives, and content differs between copies - so the test asserts
+// the shape is unchanged *and* that the content moved somewhere, since a perturbation that reaches
+// nothing proves nothing.
+//
+// Thread-local, not a global: the suite runs in parallel, and a process-wide flag changed what every
+// other test was measuring at the same time. The read path runs on its caller's thread, so a
+// thread-local reaches exactly the pipeline under test.
+#[cfg(test)]
+thread_local! {
+    pub(crate) static PREFER_LATER_ON_TIE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(test)]
+fn prefer_later_on_tie() -> bool {
+    PREFER_LATER_ON_TIE.with(|flag| flag.get())
+}
+
+#[cfg(not(test))]
+fn prefer_later_on_tie() -> bool {
+    false
+}
+
 /// The key an observation was collapsed under: its identity and the rank of its call within its
 /// response. Two identical tool calls of one response differ only in the rank.
 pub(super) type DedupKey = (MessageIdentity, u32);
@@ -1234,7 +1263,12 @@ fn deduplicate_with_lineage(
         candidates
             .entry(identity)
             .and_modify(|(existing, existing_quality)| {
-                if quality > *existing_quality {
+                let wins = if prefer_later_on_tie() {
+                    quality >= *existing_quality
+                } else {
+                    quality > *existing_quality
+                };
+                if wins {
                     *existing = block.clone();
                     *existing_quality = quality;
                 }

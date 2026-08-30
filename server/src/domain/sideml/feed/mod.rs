@@ -164,6 +164,10 @@ use history::mark_history;
 // Re-exports for public API
 pub use types::{BlockEntry, ExtractedTools, FeedMetadata, FeedOptions, FeedResult};
 
+// The dedup tie-break hook, for the test that varies which copy survives.
+#[cfg(test)]
+pub(crate) use dedup::PREFER_LATER_ON_TIE;
+
 // ============================================================================
 // SHARED CONSTANTS
 // ============================================================================

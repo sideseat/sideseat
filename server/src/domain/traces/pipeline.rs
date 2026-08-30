@@ -322,122 +322,130 @@ impl TracePipeline {
         // so parallel processing across CPU cores significantly reduces batch time.
         // The FileExtractionCache is shared across threads (moka is Send+Sync) to skip
         // redundant decode + BLAKE3 for the same base64 content.
-        let results: Vec<Option<(Vec<NormalizedSpan>, Vec<PendingFileWrite>)>> =
-            tokio::task::block_in_place(|| {
-                let num_workers = std::thread::available_parallelism()
-                    .map(|p| p.get())
-                    .unwrap_or(4);
+        let results: Vec<Prepared> = tokio::task::block_in_place(|| {
+            let num_workers = std::thread::available_parallelism()
+                .map(|p| p.get())
+                .unwrap_or(4);
 
-                if requests.len() <= num_workers {
-                    // Few requests: one thread per request.
-                    // Each is wrapped in catch_unwind so a panic in one request
-                    // doesn't propagate through thread::scope and drop the batch.
-                    std::thread::scope(|s| {
-                        let handles: Vec<_> = requests
-                            .iter()
-                            .map(|request| {
-                                s.spawn(|| {
-                                    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(
-                                        || {
-                                            process_request(
-                                                request,
-                                                pricing,
-                                                files_enabled,
-                                                file_cache,
-                                                ExtractionMode::PerCarrier,
-                                            )
-                                        },
-                                    )) {
-                                        Ok(result) => result,
-                                        Err(_) => {
-                                            tracing::error!(
-                                                "process_request panicked, skipping one request"
-                                            );
-                                            None
-                                        }
+            if requests.len() <= num_workers {
+                // Few requests: one thread per request.
+                // Each is wrapped in catch_unwind so a panic in one request
+                // doesn't propagate through thread::scope and drop the batch.
+                std::thread::scope(|s| {
+                    let handles: Vec<_> = requests
+                        .iter()
+                        .map(|request| {
+                            s.spawn(|| {
+                                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                    process_request(
+                                        request,
+                                        pricing,
+                                        files_enabled,
+                                        file_cache,
+                                        ExtractionMode::PerCarrier,
+                                    )
+                                })) {
+                                    Ok(Some((spans, files))) => Prepared::Ready(spans, files),
+                                    Ok(None) => Prepared::Nothing,
+                                    Err(_) => {
+                                        tracing::error!(
+                                            "process_request panicked, refusing the batch"
+                                        );
+                                        Prepared::Panicked
                                     }
-                                })
-                            })
-                            .collect();
-                        handles
-                            .into_iter()
-                            .map(|h| match h.join() {
-                                Ok(result) => result,
-                                Err(_) => {
-                                    tracing::error!("process_request thread panicked unexpectedly");
-                                    None
                                 }
                             })
-                            .collect()
-                    })
-                } else {
-                    // Many requests: chunk into worker-sized groups.
-                    // Each request is individually wrapped in catch_unwind so a panic
-                    // in one request doesn't drop the entire chunk.
-                    let chunk_size = requests.len().div_ceil(num_workers);
-                    std::thread::scope(|s| {
-                        let handles: Vec<_> = requests
-                            .chunks(chunk_size)
-                            .map(|chunk| {
-                                s.spawn(|| {
-                                    chunk
-                                        .iter()
-                                        .map(|request| {
-                                            match std::panic::catch_unwind(
-                                                std::panic::AssertUnwindSafe(|| {
-                                                    process_request(
-                                                        request,
-                                                        pricing,
-                                                        files_enabled,
-                                                        file_cache,
-        ExtractionMode::PerCarrier,
-    )
-                                                }),
-                                            ) {
-                                                Ok(result) => result,
-                                                Err(_) => {
-                                                    tracing::error!(
-                                                        "process_request panicked, skipping one request"
-                                                    );
-                                                    None
-                                                }
+                        })
+                        .collect();
+                    handles
+                        .into_iter()
+                        .map(|h| match h.join() {
+                            Ok(result) => result,
+                            Err(_) => {
+                                tracing::error!("process_request thread panicked unexpectedly");
+                                Prepared::Panicked
+                            }
+                        })
+                        .collect()
+                })
+            } else {
+                // Many requests: chunk into worker-sized groups.
+                // Each request is individually wrapped in catch_unwind so a panic
+                // in one request doesn't drop the entire chunk.
+                let chunk_size = requests.len().div_ceil(num_workers);
+                std::thread::scope(|s| {
+                    let handles: Vec<_> = requests
+                        .chunks(chunk_size)
+                        .map(|chunk| {
+                            s.spawn(|| {
+                                chunk
+                                    .iter()
+                                    .map(|request| {
+                                        match std::panic::catch_unwind(
+                                            std::panic::AssertUnwindSafe(|| {
+                                                process_request(
+                                                    request,
+                                                    pricing,
+                                                    files_enabled,
+                                                    file_cache,
+                                                    ExtractionMode::PerCarrier,
+                                                )
+                                            }),
+                                        ) {
+                                            Ok(Some((spans, files))) => {
+                                                Prepared::Ready(spans, files)
                                             }
-                                        })
-                                        .collect::<Vec<_>>()
-                                })
+                                            Ok(None) => Prepared::Nothing,
+                                            Err(_) => {
+                                                tracing::error!(
+                                                    "process_request panicked, refusing the batch"
+                                                );
+                                                Prepared::Panicked
+                                            }
+                                        }
+                                    })
+                                    .collect::<Vec<_>>()
                             })
-                            .collect();
+                        })
+                        .collect();
 
-                        handles
-                            .into_iter()
-                            .flat_map(|h| match h.join() {
-                                Ok(results) => results,
-                                Err(_) => {
-                                    tracing::error!("process_request thread panicked unexpectedly");
-                                    Vec::new()
-                                }
-                            })
-                            .collect()
-                    })
-                }
-            });
+                    handles
+                        .into_iter()
+                        .flat_map(|h| match h.join() {
+                            Ok(results) => results,
+                            Err(_) => {
+                                // A worker thread panicked, so its whole chunk is unaccounted for.
+                                // Returning an empty vector hid that: the results would simply be
+                                // short, and a count of `Panicked` entries would miss them. The
+                                // cardinality check below is what catches it.
+                                tracing::error!("process_request thread panicked unexpectedly");
+                                Vec::new()
+                            }
+                        })
+                        .collect()
+                })
+            }
+        });
 
         let mut all_db_spans: Vec<NormalizedSpan> = Vec::new();
         let mut all_pending_files: Vec<PendingFileWrite> = Vec::new();
-        let mut lost_requests = 0usize;
+        // Short results mean a worker thread died with its whole chunk, which no per-request outcome can
+        // report - so cardinality is checked, not just the outcomes.
+        let mut lost_requests = requests.len().saturating_sub(results.len());
         for result in results {
             match result {
-                Some((db_spans, pending_files)) => {
+                Prepared::Ready(db_spans, pending_files) => {
                     all_db_spans.extend(db_spans);
                     all_pending_files.extend(pending_files);
                 }
-                // A request that panicked. `catch_unwind` stops it taking the batch down, which is
-                // right, and `flatten()` used to drop it here - so the batch reported success, the
-                // exporter acknowledged, and those spans were gone with nothing but a log line. The
-                // whole batch is refused instead: the exporter retries, and ingestion is idempotent by
-                // span id, so re-delivering the requests that did succeed costs a rewrite rather than a
-                // duplicate.
-                None => lost_requests += 1,
+                // Normal: nothing to persist, nothing to refuse.
+                Prepared::Nothing => {}
+                // `catch_unwind` stops one request's panic taking the batch down, which is right, and
+                // the result used to be dropped here - so the batch reported success, the exporter
+                // acknowledged, and those spans were gone with nothing but a log line. The batch is
+                // refused instead: the exporter retries, and ingestion is idempotent by span id, so
+                // re-delivering the requests that did succeed costs a rewrite rather than a duplicate.
+                Prepared::Panicked => lost_requests += 1,
             }
         }
         if lost_requests > 0 {
@@ -591,6 +599,20 @@ pub(crate) fn process_request_for_test_with_mode(
     mode: ExtractionMode,
 ) -> Option<(Vec<NormalizedSpan>, Vec<PendingFileWrite>)> {
     process_request(request, pricing, false, &FileExtractionCache::new(), mode)
+}
+
+/// What became of one request in the CPU phase.
+///
+/// `Option` conflated two outcomes that need opposite handling, and the conflation was live: a request
+/// with no spans is perfectly normal, and treating it as a panic made its batch refuse itself forever.
+/// A panic must refuse the batch; nothing to do must not.
+enum Prepared {
+    /// Spans ready to persist, with the files they reference.
+    Ready(Vec<NormalizedSpan>, Vec<PendingFileWrite>),
+    /// The request held no spans. Not an error.
+    Nothing,
+    /// The request panicked. Its spans, if any, are unknown and must not be acknowledged.
+    Panicked,
 }
 
 /// Process a single OTLP request through stages 1-4.
