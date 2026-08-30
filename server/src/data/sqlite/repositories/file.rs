@@ -174,7 +174,8 @@ pub async fn delete_project_files(pool: &SqlitePool, project_id: &str) -> Result
 /// that four traces referenced down to zero.
 ///
 /// Recomputing is idempotent and immune to all of it: whatever else happened concurrently, the count
-/// becomes the truth. Cheap, because `(project_id, file_hash)` is the association table's key prefix.
+/// becomes the truth. `idx_trace_files_project_hash` is what makes it cheap: the primary key leads
+/// with `project_id` but separates it from `file_hash` by `trace_id`, so the count needs its own index.
 pub async fn sync_ref_count(
     pool: &SqlitePool,
     project_id: &str,

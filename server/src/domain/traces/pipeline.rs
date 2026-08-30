@@ -511,7 +511,17 @@ impl TracePipeline {
         // here, with the ones that hold getting an association and the rest joining the quota-rejected
         // set - both are "a reference a reader cannot resolve", and both are replaced with a note.
         let mut unresolvable = files.quota_skipped;
-        unresolvable.extend(reconcile_incoming_references(&all_incoming, &self.file_service).await);
+        let (unbacked, reconcile_failed) =
+            reconcile_incoming_references(&all_incoming, &self.file_service).await;
+        if reconcile_failed > 0 {
+            self.file_cache.invalidate_all();
+            tracing::error!(
+                failed = reconcile_failed,
+                "Refusing the batch: could not settle whether some file references are backed"
+            );
+            return false;
+        }
+        unresolvable.extend(unbacked);
         if !unresolvable.is_empty() {
             let rewritten = note_unstored_files(&mut all_db_spans, &unresolvable);
             tracing::error!(
@@ -586,7 +596,17 @@ impl TracePipeline {
                 return false;
             }
             let mut unresolvable = files.quota_skipped;
-            unresolvable.extend(reconcile_incoming_references(&incoming, &self.file_service).await);
+            let (unbacked, reconcile_failed) =
+                reconcile_incoming_references(&incoming, &self.file_service).await;
+            if reconcile_failed > 0 {
+                self.file_cache.invalidate_all();
+                tracing::error!(
+                    failed = reconcile_failed,
+                    "Refusing the batch: could not settle whether some file references are backed"
+                );
+                return false;
+            }
+            unresolvable.extend(unbacked);
             if !unresolvable.is_empty() {
                 let rewritten = note_unstored_files(&mut db_spans, &unresolvable);
                 tracing::error!(

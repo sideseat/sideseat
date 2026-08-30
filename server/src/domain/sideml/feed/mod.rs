@@ -470,6 +470,25 @@ pub(crate) fn classified_blocks_for_test(rows: Vec<MessageSpanRow>) -> Vec<Block
     classify_span_blocks(&rows, None).0
 }
 
+/// One view built twice: with generation dataflow expressed through a barrier node, and as the product
+/// of each span's inputs and outputs.
+///
+/// The barrier exists only to bound the edge count; it must not change the answer.
+#[cfg(test)]
+pub(crate) fn barrier_and_pairwise_order(
+    rows: Vec<MessageSpanRow>,
+) -> (Vec<BlockEntry>, Vec<BlockEntry>) {
+    let barrier = process_spans_unfiltered_with(rows.clone(), order_graph::Constraints::PRODUCTION);
+    let pairwise = process_spans_unfiltered_with(
+        rows,
+        order_graph::Constraints {
+            pairwise_dataflow_edges: true,
+            ..order_graph::Constraints::PRODUCTION
+        },
+    );
+    (barrier.messages, pairwise.messages)
+}
+
 /// One view built twice: with the constraints production enforces, and with every class off.
 ///
 /// This is the acceptance property of the ordering redesign, as a function a test can call: the two

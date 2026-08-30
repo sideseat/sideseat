@@ -3,7 +3,7 @@
 //! Initial schema with all tables. Compatible with SQLite schema structure.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 3;
+pub const SCHEMA_VERSION: i32 = 4;
 
 /// Complete schema SQL for PostgreSQL
 pub const SCHEMA: &str = r#"
@@ -144,6 +144,9 @@ CREATE TABLE IF NOT EXISTS trace_files (
 
 CREATE INDEX IF NOT EXISTS idx_trace_files_trace ON trace_files(trace_id);
 CREATE INDEX IF NOT EXISTS idx_trace_files_project ON trace_files(project_id);
+-- The derived reference count is a COUNT over (project_id, file_hash). The primary key leads with
+-- project_id but separates the two by trace_id, so without this the count scans a project.
+CREATE INDEX IF NOT EXISTS idx_trace_files_project_hash ON trace_files(project_id, file_hash);
 
 -- =============================================================================
 -- 8. Favorites (user-scoped, references users and projects)

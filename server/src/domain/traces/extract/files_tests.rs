@@ -1689,6 +1689,34 @@ fn test_cache_different_content_different_hash() {
 // Regression Tests: Embedded Data URL + Cache Interaction
 // ========================================================================
 
+/// A reference embedded in prose is found whatever punctuation follows it.
+///
+/// Splitting on whitespace missed these: `...::abc123.` parsed as a hash of `abc123.` and
+/// `...::abc123",` did not parse at all - so a forged reference could hide behind a full stop.
+#[test]
+fn an_embedded_reference_is_found_next_to_punctuation() {
+    let uri = crate::utils::file_uri::build_file_uri("abc123", Some("image/png"));
+    for (text, why) in [
+        (format!("see {uri}"), "plain"),
+        (format!("see {uri}."), "sentence end"),
+        (format!("see {uri}, and more"), "comma"),
+        (format!("{{\"u\":\"{uri}\"}}"), "quoted inside text"),
+        (format!("{uri} {uri}"), "twice"),
+    ] {
+        let mut found = Vec::new();
+        collect_file_references(&json!({ "text": text.clone() }), &mut found);
+        assert!(
+            found.contains(&uri),
+            "{why}: expected to find {uri} in {text:?}, found {found:?}"
+        );
+    }
+
+    // And twice really is twice, so a repeated reference is reconciled for each occurrence.
+    let mut twice = Vec::new();
+    collect_file_references(&json!({ "text": format!("{uri} {uri}") }), &mut twice);
+    assert_eq!(twice.len(), 2, "both occurrences are reported: {twice:?}");
+}
+
 /// A reference that arrives already formed is *found*, not silently trusted.
 ///
 /// Extraction skips `#!B64!#` strings, which is right - they are already references - but nothing
