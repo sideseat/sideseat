@@ -17,7 +17,7 @@ mod pipeline;
 // Public API - only types needed by external modules
 pub use extract::{MessageSource, RawMessage};
 pub use persist::SseSpanEvent;
-pub use pipeline::TracePipeline;
+pub use pipeline::{IngestOutcome, TracePipeline};
 
 // Internal re-exports for use within domain crate
 pub(crate) use extract::SpanData;

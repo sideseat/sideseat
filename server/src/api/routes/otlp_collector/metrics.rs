@@ -5,7 +5,7 @@ use axum::extract::{Path, State};
 use axum::http::{HeaderMap, HeaderName, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use opentelemetry_proto::tonic::collector::metrics::v1::{
-    ExportMetricsServiceRequest, ExportMetricsServiceResponse,
+    ExportMetricsPartialSuccess, ExportMetricsServiceRequest, ExportMetricsServiceResponse,
 };
 
 use super::encoding::{OtlpContentType, decode_request, success_response};
@@ -60,22 +60,31 @@ pub async fn export(
     // Written before the answer, not queued behind it. A 200 used to mean "in an in-process buffer", so
     // a crash or a database that stayed down through its retries lost records the exporter had counted as
     // delivered - and nothing surfaced it. A failure is now a 503 the exporter retries.
-    if let Err(e) = crate::domain::ingest_metrics(&request, &state.analytics, &state.database).await
-    {
-        tracing::error!(error = %e, %project_id, "Failed to store metrics");
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            [(
-                HeaderName::from_static("retry-after"),
-                BACKPRESSURE_RETRY_AFTER_SECS.to_string(),
-            )],
-        )
-            .into_response();
-    }
+    let stored =
+        match crate::domain::ingest_metrics(&request, &state.analytics, &state.database).await {
+            Ok(stored) => stored,
+            Err(e) => {
+                tracing::error!(error = %e, %project_id, "Failed to store metrics");
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    [(
+                        HeaderName::from_static("retry-after"),
+                        BACKPRESSURE_RETRY_AFTER_SECS.to_string(),
+                    )],
+                )
+                    .into_response();
+            }
+        };
 
-    // Return OTLP-compliant response (matching request content type)
+    // Anything dropped is *reported* dropped. A project that stopped accepting writes between the check
+    // above and the write leaves records unstored, and an unqualified success would have the exporter
+    // count them as delivered.
+    let rejected = stored.total.saturating_sub(stored.stored);
     let response = ExportMetricsServiceResponse {
-        partial_success: None,
+        partial_success: (rejected > 0).then(|| ExportMetricsPartialSuccess {
+            rejected_data_points: rejected as i64,
+            error_message: "the project is unknown or is being deleted".to_string(),
+        }),
     };
     success_response(&response, content_type)
 }

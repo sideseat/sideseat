@@ -345,7 +345,10 @@ impl CrossTracePrefixState {
     /// far, which under-strips rather than over-strips - the failure a user sees as duplicates rather
     /// than as missing messages. In practice the first candidate is right and the search is linear: the
     /// budget is never approached by any corpus fixture.
-    fn longest_matching_prefix(&self, replay: &[(super::types::ChatRole, &str)]) -> Vec<usize> {
+    fn longest_matching_prefix(
+        &self,
+        replay: &[(super::types::ChatRole, &str)],
+    ) -> (Vec<usize>, bool) {
         /// Assignments tried before the search gives up and reports what it has.
         const MATCH_BUDGET: u32 = 20_000;
 
@@ -355,10 +358,12 @@ impl CrossTracePrefixState {
             must_precede: HashMap::new(),
             chosen: Vec::with_capacity(replay.len()),
             best: Vec::new(),
+            failed: HashSet::new(),
             budget: MATCH_BUDGET,
         };
         search.extend(replay, 0);
-        if search.budget == 0 {
+        let exhaustive = search.budget > 0;
+        if !exhaustive {
             tracing::warn!(
                 replay = replay.len(),
                 prior = self.entries.len(),
@@ -366,7 +371,7 @@ impl CrossTracePrefixState {
                 "Cross-trace replay matching hit its budget; some history may be shown twice"
             );
         }
-        search.best
+        (search.best, exhaustive)
     }
 }
 
@@ -383,6 +388,14 @@ struct PrefixSearch<'a> {
     must_precede: HashMap<usize, HashSet<u32>>,
     chosen: Vec<usize>,
     best: Vec<usize>,
+    /// States already known not to extend to a full match, as `(replay position, claimed occurrences)`.
+    ///
+    /// Without this the search re-explores the same dead end once per path that reaches it, which is what
+    /// made a budget necessary at all: nine interchangeable calls have `9!` orderings of the same set, and
+    /// every one of them fails identically. With it each distinct state is explored once, so the shapes
+    /// that used to exhaust the budget finish immediately - and the budget becomes a guard against
+    /// pathological input rather than the thing that decides the answer.
+    failed: HashSet<(usize, Vec<u64>)>,
     budget: u32,
 }
 
@@ -394,6 +407,12 @@ impl PrefixSearch<'_> {
         let Some(&(role, content_hash)) = replay.get(self.chosen.len()) else {
             return; // the whole replay matched
         };
+        // Seen this exact state fail before? Then it fails again - which set of occurrences has been
+        // claimed is all that matters, not the order they were claimed in.
+        let signature = (self.chosen.len(), self.consumed_signature());
+        if self.failed.contains(&signature) {
+            return;
+        }
         let Some(candidates) = self
             .state
             .by_identity
@@ -467,6 +486,23 @@ impl PrefixSearch<'_> {
                 return; // nothing beats a full match
             }
         }
+
+        // Every candidate was tried and none led to a full match, so this state never will.
+        if self.best.len() < replay.len() {
+            self.failed.insert(signature);
+        }
+    }
+
+    /// The set of claimed occurrences, as a bitset - the part of the state that decides whether a dead
+    /// end is the same dead end.
+    fn consumed_signature(&self) -> Vec<u64> {
+        let mut bits = vec![0u64; self.consumed.len().div_ceil(64)];
+        for (entry, &taken) in self.consumed.iter().enumerate() {
+            if taken {
+                bits[entry / 64] |= 1 << (entry % 64);
+            }
+        }
+        bits
     }
 
     /// Whether this candidate's immediate successors include what the replay asks for next: `0` if they
@@ -634,7 +670,7 @@ pub fn process_trace_spans(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> 
 fn classify_span_blocks(
     rows: &[MessageSpanRow],
     cross_trace_prefix: Option<&CrossTracePrefixState>,
-) -> (Vec<BlockEntry>, HashMap<String, SpanTimestamps>) {
+) -> (Vec<BlockEntry>, HashMap<String, SpanTimestamps>, bool) {
     // Build span hierarchy for span_path computation
     let span_hierarchy = build_span_hierarchy(rows);
 
@@ -657,9 +693,10 @@ fn classify_span_blocks(
     // cross-trace would mark the first → both become history → genuine content lost.
     // Running before ensures Phase 7 sees the first copy as already-history and
     // skips it, preserving the genuine (second) copy.
-    if let Some(prefix) = cross_trace_prefix {
-        mark_cross_trace_prefix(&mut blocks, prefix);
-    }
+    let replay_matching_complete = match cross_trace_prefix {
+        Some(prefix) => mark_cross_trace_prefix(&mut blocks, prefix),
+        None => true,
+    };
 
     // Stage 2.6: Correlate tool results to their calls.
     //
@@ -676,7 +713,7 @@ fn classify_span_blocks(
     // - is_history: marks non-authoritative blocks for filtering
     classify_blocks(&mut blocks, &span_timestamps);
 
-    (blocks, span_timestamps)
+    (blocks, span_timestamps, replay_matching_complete)
 }
 
 /// The shadow resolver's order over one trace's blocks — the redesign's partial-order timeline,
@@ -730,7 +767,7 @@ pub(crate) fn stage_timings(rows: Vec<MessageSpanRow>) -> Vec<(&'static str, std
     out.push(("resolve", t.elapsed()));
 
     let t = std::time::Instant::now();
-    let _ = compute_metadata(&resolved, &rows);
+    let _ = compute_metadata(&resolved, &rows, true);
     out.push(("metadata", t.elapsed()));
     out
 }
@@ -785,7 +822,7 @@ pub(crate) fn presented_and_unconstrained(
 pub(crate) fn legacy_and_neutral_order(
     rows: Vec<MessageSpanRow>,
 ) -> (Vec<BlockEntry>, Vec<BlockEntry>) {
-    let (blocks, span_timestamps) = classify_span_blocks(&rows, None);
+    let (blocks, span_timestamps, _) = classify_span_blocks(&rows, None);
     let evidence = order_graph::collect_order_evidence(&blocks, &span_timestamps);
     let (legacy, lineage) = survivors_with_lineage(blocks, &span_timestamps);
     let scaffold = order_graph::resolve(
@@ -800,7 +837,7 @@ pub(crate) fn legacy_and_neutral_order(
 
 #[cfg(test)]
 pub(crate) fn shadow_resolved_order(rows: Vec<MessageSpanRow>) -> Vec<BlockEntry> {
-    let (blocks, span_timestamps) = classify_span_blocks(&rows, None);
+    let (blocks, span_timestamps, _) = classify_span_blocks(&rows, None);
     let evidence = order_graph::collect_order_evidence(&blocks, &span_timestamps);
     let (survivors, lineage) = survivors_with_lineage(blocks, &span_timestamps);
     order_graph::resolve(
@@ -866,7 +903,8 @@ fn reconstruct_trace(
     // dedup collapses the observations to one representative each. Kept, because the order resolver
     // reads the *evidence*: the emission binding a turn's intro text to its call is on one span while
     // dedup may keep a re-listed copy of that text from another, and only the pre-dedup set says so.
-    let (blocks, span_timestamps) = classify_span_blocks(&rows, cross_trace_prefix);
+    let (blocks, span_timestamps, replay_matching_complete) =
+        classify_span_blocks(&rows, cross_trace_prefix);
     // Reduced to what the resolver reads, from the borrowed slice: holding the blocks themselves
     // would clone every message's content, which on a trace carrying base64 images dominates the
     // whole request and is never read.
@@ -922,7 +960,7 @@ fn reconstruct_trace(
     }
 
     // Stage 7: Compute metadata and return
-    let metadata = compute_metadata(&blocks, &rows);
+    let metadata = compute_metadata(&blocks, &rows, replay_matching_complete);
 
     (
         FeedResult {
@@ -966,6 +1004,8 @@ fn process_multi_trace_spans(
     let mut all_tool_names: Vec<String> = Vec::new();
     let mut total_tokens: i64 = 0;
     let mut total_cost: f64 = 0.0;
+    // One incomplete match anywhere makes the session's answer possibly-repeating, so it is reported.
+    let mut replay_matching_complete = true;
 
     let trace_count = trace_groups.len();
     for (trace_idx, trace_rows) in trace_groups.into_iter().enumerate() {
@@ -1009,6 +1049,8 @@ fn process_multi_trace_spans(
                 .iter()
                 .any(|b| b.role != super::types::ChatRole::System);
 
+        replay_matching_complete &= result.metadata.replay_matching_complete;
+
         if has_new_content {
             // From the transcript and its relation, never from `result.messages`: what a later trace
             // strips must not depend on how this one is presented, and the relation is exactly the part
@@ -1044,6 +1086,9 @@ fn process_multi_trace_spans(
             span_count,
             total_tokens,
             total_cost,
+            // False if any trace's replay matching was cut short - the session's answer may then repeat
+            // history, and saying so is the point.
+            replay_matching_complete,
         },
     }
 }
@@ -1064,9 +1109,12 @@ fn process_multi_trace_spans(
 ///    match each against a distinct prior occurrence whose position the relation permits (see
 ///    [`CrossTracePrefixState`]). Stop at the first block nothing matches - past that point the span is
 ///    sending new content, not history.
-fn mark_cross_trace_prefix(blocks: &mut [BlockEntry], accumulated: &CrossTracePrefixState) {
+///
+/// Returns whether every span's replay was matched exhaustively. `false` means a search hit its budget, so
+/// some history may be shown twice - which the answer reports rather than hides.
+fn mark_cross_trace_prefix(blocks: &mut [BlockEntry], accumulated: &CrossTracePrefixState) -> bool {
     if accumulated.is_empty() {
-        return;
+        return true;
     }
 
     // A block is "cross-trace strippable" if it represents history re-sent to a new LLM call:
@@ -1083,8 +1131,9 @@ fn mark_cross_trace_prefix(blocks: &mut [BlockEntry], accumulated: &CrossTracePr
     let input_source_count = blocks.iter().filter(|b| b.is_input_source()).count();
     let strippable_input_count = blocks.iter().filter(|b| is_strippable(b)).count();
     if strippable_input_count == 0 {
-        return;
+        return true;
     }
+    let mut replay_matching_complete = true;
 
     // Per span, because each generation span of a trace replays the history independently - ADK and
     // LangGraph re-send it at the start of every one, not only at the trace's start. The blocks are
@@ -1113,7 +1162,8 @@ fn mark_cross_trace_prefix(blocks: &mut [BlockEntry], accumulated: &CrossTracePr
             .map(|&i| (blocks[i].role, blocks[i].content_hash.as_str()))
             .collect();
 
-        let matched = accumulated.longest_matching_prefix(&identities);
+        let (matched, exhaustive) = accumulated.longest_matching_prefix(&identities);
+        replay_matching_complete &= exhaustive;
         for &i in replayable.iter().take(matched.len()) {
             blocks[i].is_history = true;
             marked += 1;
@@ -1128,8 +1178,10 @@ fn mark_cross_trace_prefix(blocks: &mut [BlockEntry], accumulated: &CrossTracePr
         strippable_input_count,
         spans_scanned,
         marked,
+        replay_matching_complete,
         "cross-trace prefix marking complete"
     );
+    replay_matching_complete
 }
 
 /// Group rows by trace_id and sort trace groups chronologically.
@@ -1213,6 +1265,8 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
     let mut total_tokens: i64 = 0;
     let mut total_cost: f64 = 0.0;
     let mut span_ids: HashSet<(String, String)> = HashSet::new();
+    // One conversation's incomplete match makes the page possibly-repeating, so the page says so.
+    let mut replay_matching_complete = true;
 
     for (_, conversation_spans) in spans_by_conversation {
         for row in &conversation_spans {
@@ -1224,6 +1278,7 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
             }
         }
         let processed = process_spans_unfiltered(conversation_spans);
+        replay_matching_complete &= processed.metadata.replay_matching_complete;
         all_blocks.extend(processed.messages);
         all_tool_defs.extend(processed.tool_definitions);
         all_tool_names.extend(processed.tool_names);
@@ -1246,6 +1301,7 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
                 span_count: span_ids.len(),
                 total_tokens,
                 total_cost,
+                replay_matching_complete,
             },
         },
         options.role.as_deref(),
@@ -2055,7 +2111,11 @@ fn compute_block_hash(block: &ContentBlock) -> u64 {
 // ============================================================================
 
 /// Compute metadata from processed blocks.
-fn compute_metadata(blocks: &[BlockEntry], span_rows: &[MessageSpanRow]) -> FeedMetadata {
+fn compute_metadata(
+    blocks: &[BlockEntry],
+    span_rows: &[MessageSpanRow],
+    replay_matching_complete: bool,
+) -> FeedMetadata {
     // Keyed by (trace, span): a span id is unique only within a trace, and a session view holds
     // several traces, so counting by span id alone under-reported the span count.
     let span_ids: HashSet<_> = blocks.iter().map(|b| (&b.trace_id, &b.span_id)).collect();
@@ -2079,6 +2139,7 @@ fn compute_metadata(blocks: &[BlockEntry], span_rows: &[MessageSpanRow]) -> Feed
         span_count: span_ids.len(),
         total_tokens,
         total_cost,
+        replay_matching_complete,
     }
 }
 

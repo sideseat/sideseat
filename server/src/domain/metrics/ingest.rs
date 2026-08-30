@@ -27,15 +27,26 @@ use super::persist::persist_batch;
 use crate::core::constants::DEFAULT_PROJECT_ID;
 use crate::data::{AnalyticsService, TransactionalService};
 
+/// How many of a request's data points were stored, out of how many it had.
+///
+/// The two differ when a project will not accept writes. Returned rather than folded into a bare success,
+/// because a caller told success for records that were dropped has no way to learn otherwise - which is
+/// the failure this path exists to remove.
+pub struct Stored {
+    pub stored: usize,
+    pub total: usize,
+}
+
 /// Extract, fence and write a metrics request. `Err` means nothing was stored and a retry is warranted.
 pub async fn ingest(
     request: &ExportMetricsServiceRequest,
     analytics: &Arc<AnalyticsService>,
     database: &Arc<TransactionalService>,
-) -> Result<(), String> {
+) -> Result<Stored, String> {
     let mut metrics = extract_metrics_batch(request);
+    let total = metrics.len();
     if metrics.is_empty() {
-        return Ok(());
+        return Ok(Stored { stored: 0, total });
     }
 
     // The project deletion fence, which this path did not apply at all. A request admitted before a
@@ -78,9 +89,13 @@ pub async fn ingest(
             "Dropped metrics for projects that do not accept writes"
         );
         if metrics.is_empty() {
-            return Ok(());
+            return Ok(Stored { stored: 0, total });
         }
     }
 
-    persist_batch(&metrics, analytics).await
+    persist_batch(&metrics, analytics).await?;
+    Ok(Stored {
+        stored: metrics.len(),
+        total,
+    })
 }

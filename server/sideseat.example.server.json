@@ -54,7 +54,7 @@
       "timeout_secs": 30,
       "compression": true,
       "async_insert": true,
-      "wait_for_async_insert": false,
+      "wait_for_async_insert": true,
       "cluster": "sideseat_cluster",
       "distributed": true
     },

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result, anyhow};
 
 use crate::core::constants::{
-    CLAIM_RECOVERY_INTERVAL_SECS, DELETED_PROJECT_RETENTION_SECS, FILE_DELETION_CLAIM_STALE_SECS,
+    CLAIM_RECOVERY_INTERVAL_SECS, FILE_DELETION_CLAIM_STALE_SECS,
     PROJECT_DELETION_CLAIM_STALE_SECS, PROJECT_TOMBSTONE_CLEAN_SWEEPS,
 };
 use crate::data::AnalyticsService;
@@ -369,8 +369,17 @@ pub async fn advance_pending_deletions(
     match repo.list_deleted_projects().await {
         Ok(deleted) => {
             for project_id in deleted {
-                let remaining = analytics.repository().count_project_rows(&project_id).await;
-                match remaining {
+                // Files first, and *unconditionally*. Gating this on the analytics count was wrong in the
+                // one direction that matters: a batch can pass the fence, pause, and then store file bytes
+                // and their `trace_files` associations while its spans are dropped by the check next to the
+                // write - so the analytics count is zero while bytes and rows remain, unreachable and
+                // counted against the project's quota forever. Deleting files that are already gone is a
+                // no-op, so asking every time costs nothing.
+                if let Err(e) = file_service.delete_project(&project_id).await {
+                    tracing::warn!(project_id, error = %e, "Could not collect a deleted project's files");
+                }
+
+                match analytics.repository().count_project_rows(&project_id).await {
                     Ok(0) => {}
                     Ok(rows) => {
                         tracing::warn!(
@@ -386,9 +395,6 @@ pub async fn advance_pending_deletions(
                             tracing::warn!(project_id, error = %e, "Could not collect them");
                             continue;
                         }
-                        if let Err(e) = file_service.delete_project(&project_id).await {
-                            tracing::warn!(project_id, error = %e, "Could not collect its files");
-                        }
                         advanced += 1;
                     }
                     Err(e) => {
@@ -399,14 +405,15 @@ pub async fn advance_pending_deletions(
         }
         Err(e) => tracing::warn!(error = %e, "Could not list deleted projects"),
     }
-    match repo
-        .forget_deleted_projects(DELETED_PROJECT_RETENTION_SECS)
-        .await
-    {
-        Ok(0) => {}
-        Ok(n) => tracing::debug!(forgotten = n, "Forgot projects deleted past the retention"),
-        Err(e) => tracing::warn!(error = %e, "Could not prune remembered deletions"),
-    }
+
+    // Nothing prunes `deleted_projects`, and that is the design rather than an omission.
+    //
+    // Any retention is a bound on how late a pre-tombstone writer may commit and still be collected, and
+    // there is no honest value for one: a stalled writer is not on a schedule. Keeping the record forever
+    // removes the bound - "no data outlives its project" stops being "for seven days". The cost is one
+    // narrow row per project ever deleted, and ids are cuid2, so a record is never ambiguous about which
+    // project it speaks for. `forget_deleted_projects` exists for an operator who wants them gone; the
+    // only thing deleting one loses is the collection of a write in flight since then.
 
     if advanced > 0 {
         // "Advanced", not "finished": most passes only add to the evidence a tombstone waits for, and a

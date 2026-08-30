@@ -96,25 +96,37 @@ fn digest(rows: &[MessageSpanRow]) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new();
     hasher.update(&(rows.len() as u64).to_le_bytes());
     for row in rows {
+        // Present-or-absent is hashed as well as the value. Mapping `None` to `""` made them the same
+        // input, and an empty attribute is accepted - so a span whose `status_code` went from absent to
+        // empty (or the reverse) shared a key with its old self, and a warm instance would answer with the
+        // field missing where a cold one reconstructs it as present-and-empty.
         for field in [
-            row.trace_id.as_str(),
-            row.span_id.as_str(),
-            row.parent_span_id.as_deref().unwrap_or(""),
-            row.session_id.as_deref().unwrap_or(""),
-            row.messages_json.as_str(),
-            row.tool_definitions_json.as_str(),
-            row.tool_names_json.as_str(),
-            row.model.as_deref().unwrap_or(""),
-            row.provider.as_deref().unwrap_or(""),
-            row.status_code.as_deref().unwrap_or(""),
-            row.exception_type.as_deref().unwrap_or(""),
-            row.exception_message.as_deref().unwrap_or(""),
-            row.exception_stacktrace.as_deref().unwrap_or(""),
-            row.observation_type.as_deref().unwrap_or(""),
+            Some(row.trace_id.as_str()),
+            Some(row.span_id.as_str()),
+            row.parent_span_id.as_deref(),
+            row.session_id.as_deref(),
+            Some(row.messages_json.as_str()),
+            Some(row.tool_definitions_json.as_str()),
+            Some(row.tool_names_json.as_str()),
+            row.model.as_deref(),
+            row.provider.as_deref(),
+            row.status_code.as_deref(),
+            row.exception_type.as_deref(),
+            row.exception_message.as_deref(),
+            row.exception_stacktrace.as_deref(),
+            row.observation_type.as_deref(),
         ] {
-            // Length-prefixed, so `("ab", "c")` and `("a", "bc")` are different inputs.
-            hasher.update(&(field.len() as u64).to_le_bytes());
-            hasher.update(field.as_bytes());
+            match field {
+                // Length-prefixed, so `("ab", "c")` and `("a", "bc")` are different inputs.
+                Some(value) => {
+                    hasher.update(&[1u8]);
+                    hasher.update(&(value.len() as u64).to_le_bytes());
+                    hasher.update(value.as_bytes());
+                }
+                None => {
+                    hasher.update(&[0u8]);
+                }
+            }
         }
         hasher.update(&row.span_timestamp.timestamp_micros().to_le_bytes());
         hasher.update(
@@ -196,6 +208,31 @@ mod tests {
         // And the order of the rows is part of the input.
         cache.get_or_reconstruct(vec![row("s2", "[]"), row("s1", "[]")], reconstruct);
         assert_eq!(runs.get(), 5, "a different order misses");
+    }
+
+    /// An absent field and an empty one are different inputs.
+    ///
+    /// Mapping `None` to `""` made them the same key, and an empty attribute is accepted - so a row whose
+    /// field went from absent to empty shared a key with its old self, and a warm instance would answer
+    /// with the field missing where a cold one reconstructs it present-and-empty. Two instances
+    /// disagreeing about the same row is exactly what the digest exists to prevent.
+    #[test]
+    fn an_absent_field_is_not_an_empty_one() {
+        let cache = ReconstructionCache::new();
+        let runs = std::cell::Cell::new(0);
+        let reconstruct = |_rows: Vec<MessageSpanRow>| {
+            runs.set(runs.get() + 1);
+            FeedResult::default()
+        };
+
+        let absent = row("s1", "[]");
+        assert!(absent.status_code.is_none());
+        cache.get_or_reconstruct(vec![absent.clone()], reconstruct);
+
+        let mut empty = absent.clone();
+        empty.status_code = Some(String::new());
+        cache.get_or_reconstruct(vec![empty], reconstruct);
+        assert_eq!(runs.get(), 2, "absent and empty are not the same input");
     }
 
     /// Ingestion time is part of the input, because the pipeline reads it.

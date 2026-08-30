@@ -10052,7 +10052,7 @@ fn interchangeable_results_do_not_end_the_prefix() {
         (ChatRole::Assistant, "callA"),
         (ChatRole::Tool, "ok"),
     ];
-    let matched = prior.longest_matching_prefix(&replay);
+    let (matched, _) = prior.longest_matching_prefix(&replay);
     assert_eq!(
         matched.len(),
         replay.len(),
@@ -10079,7 +10079,7 @@ fn a_replay_that_contradicts_the_order_is_not_stripped() {
         &[(ChatRole::Assistant, "call"), (ChatRole::Tool, "ok")],
         &[(0, 1)],
     );
-    let matched =
+    let (matched, _) =
         prior.longest_matching_prefix(&[(ChatRole::Tool, "ok"), (ChatRole::Assistant, "call")]);
     assert_eq!(
         matched.len(),
@@ -10167,7 +10167,7 @@ fn every_linear_extension_of_every_small_relation_is_fully_stripped() {
                 extensions += 1;
 
                 let replay: Vec<(ChatRole, &str)> = order.iter().map(|&i| identities[i]).collect();
-                let matched = prior.longest_matching_prefix(&replay);
+                let (matched, _) = prior.longest_matching_prefix(&replay);
                 assert_eq!(
                     matched.len(),
                     replay.len(),
@@ -10231,7 +10231,7 @@ fn ten_interchangeable_branches_replayed_in_reverse_are_fully_stripped() {
         replay.push(borrowed[2 * i + 1]);
     }
 
-    let matched = prior.longest_matching_prefix(&replay);
+    let (matched, _) = prior.longest_matching_prefix(&replay);
     assert_eq!(
         matched.len(),
         replay.len(),
@@ -10281,12 +10281,143 @@ fn nine_identical_calls_with_distinct_results_are_fully_stripped() {
         replay.push(borrowed[BRANCHES + i]);
     }
 
-    let matched = prior.longest_matching_prefix(&replay);
+    let (matched, _) = prior.longest_matching_prefix(&replay);
     assert_eq!(
         matched.len(),
         replay.len(),
         "every constraint is satisfied, so all {} blocks are history; matched {}",
         replay.len(),
         matched.len()
+    );
+}
+
+/// How far the bounded search reaches on the three-level shape, reported rather than assumed.
+///
+/// Codex's harder construction: identical roots, identical middles, unique leaves, `root_i -> middle_i ->
+/// leaf_i`, replayed branch by branch in reverse. Two levels of interchangeable blocks rather than one.
+#[test]
+#[ignore]
+fn probe_matcher_envelope_three_level() {
+    for branches in [4usize, 6, 7, 8, 10, 12, 16] {
+        let mut identities: Vec<(ChatRole, String)> = Vec::new();
+        let mut edges: Vec<(usize, usize)> = Vec::new();
+        for _ in 0..branches {
+            identities.push((ChatRole::Assistant, "root".to_string()));
+        }
+        for _ in 0..branches {
+            identities.push((ChatRole::Assistant, "middle".to_string()));
+        }
+        for i in 0..branches {
+            identities.push((ChatRole::Tool, format!("leaf{i}")));
+            edges.push((i, branches + i));
+            edges.push((branches + i, 2 * branches + i));
+        }
+        let borrowed: Vec<(ChatRole, &str)> = identities
+            .iter()
+            .map(|(role, hash)| (*role, hash.as_str()))
+            .collect();
+        let prior = prior_state(&borrowed, &edges);
+        let mut replay: Vec<(ChatRole, &str)> = Vec::new();
+        for i in (0..branches).rev() {
+            replay.push(borrowed[i]);
+            replay.push(borrowed[branches + i]);
+            replay.push(borrowed[2 * branches + i]);
+        }
+        let start = std::time::Instant::now();
+        let (matched, _) = prior.longest_matching_prefix(&replay);
+        eprintln!(
+            "THREE-LEVEL {branches:3} branches ({} blocks): matched {} in {:?}",
+            replay.len(),
+            matched.len(),
+            start.elapsed()
+        );
+    }
+}
+
+/// How far the bounded search actually reaches, reported rather than assumed.
+#[test]
+#[ignore]
+fn probe_matcher_envelope() {
+    for branches in [9usize, 16, 24, 32, 48, 64] {
+        let mut identities: Vec<(ChatRole, String)> = Vec::new();
+        let mut edges: Vec<(usize, usize)> = Vec::new();
+        for _ in 0..branches {
+            identities.push((ChatRole::Assistant, "call".to_string()));
+        }
+        for i in 0..branches {
+            identities.push((ChatRole::Tool, format!("result{i}")));
+            edges.push((i, branches + i));
+        }
+        let borrowed: Vec<(ChatRole, &str)> = identities
+            .iter()
+            .map(|(role, hash)| (*role, hash.as_str()))
+            .collect();
+        let prior = prior_state(&borrowed, &edges);
+        let mut replay: Vec<(ChatRole, &str)> = Vec::new();
+        for i in (0..branches).rev() {
+            replay.push(borrowed[i]);
+            replay.push(borrowed[branches + i]);
+        }
+        let start = std::time::Instant::now();
+        let (matched, _) = prior.longest_matching_prefix(&replay);
+        eprintln!(
+            "ENVELOPE {branches:3} branches ({} blocks): matched {} in {:?}",
+            replay.len(),
+            matched.len(),
+            start.elapsed()
+        );
+    }
+}
+
+/// When the search is cut short, the answer says so.
+///
+/// The budget is a resource guard, and a guard that silently changes the answer is the thing a caller
+/// cannot reason about. So `longest_matching_prefix` reports whether it was exhaustive, and that travels to
+/// `FeedMetadata::replay_matching_complete`: either the stripping is complete, or the response says it may
+/// repeat history. Under-stripping is the safe direction - duplicated history rather than missing messages
+/// - but only if the caller is told.
+#[test]
+fn an_incomplete_search_is_reported_as_incomplete() {
+    // Three levels of interchangeable blocks, wide enough to exhaust the budget: identical roots,
+    // identical middles, unique leaves, replayed branch by branch in reverse.
+    const BRANCHES: usize = 12;
+    let mut identities: Vec<(ChatRole, String)> = Vec::new();
+    let mut edges: Vec<(usize, usize)> = Vec::new();
+    for _ in 0..BRANCHES {
+        identities.push((ChatRole::Assistant, "root".to_string()));
+    }
+    for _ in 0..BRANCHES {
+        identities.push((ChatRole::Assistant, "middle".to_string()));
+    }
+    for i in 0..BRANCHES {
+        identities.push((ChatRole::Tool, format!("leaf{i}")));
+        edges.push((i, BRANCHES + i));
+        edges.push((BRANCHES + i, 2 * BRANCHES + i));
+    }
+    let borrowed: Vec<(ChatRole, &str)> = identities
+        .iter()
+        .map(|(role, hash)| (*role, hash.as_str()))
+        .collect();
+    let prior = prior_state(&borrowed, &edges);
+    let mut replay: Vec<(ChatRole, &str)> = Vec::new();
+    for i in (0..BRANCHES).rev() {
+        replay.push(borrowed[i]);
+        replay.push(borrowed[BRANCHES + i]);
+        replay.push(borrowed[2 * BRANCHES + i]);
+    }
+
+    let (matched, exhaustive) = prior.longest_matching_prefix(&replay);
+    assert!(
+        !exhaustive,
+        "this shape is meant to exhaust the budget; if it no longer does, widen it rather than delete \
+         the test - the point is that the flag is reachable"
+    );
+    assert!(
+        matched.len() < replay.len(),
+        "and an exhausted search is exactly when the answer is short"
+    );
+    assert!(
+        !matched.is_empty(),
+        "but it still strips what it found, rather than giving up entirely"
     );
 }

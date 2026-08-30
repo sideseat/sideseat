@@ -459,12 +459,38 @@ pub struct ExtractedTools {
 }
 
 /// Metadata about the processed feed.
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct FeedMetadata {
     pub block_count: usize,
     pub span_count: usize,
     pub total_tokens: i64,
     pub total_cost: f64,
+    /// False when a cross-trace replay match hit its search budget, so this answer may repeat history it
+    /// would otherwise have collapsed.
+    ///
+    /// Reported rather than hidden, because an incomplete result that looks complete is the one outcome a
+    /// caller cannot reason about. The search is exhaustive for every relation over four blocks and for
+    /// the adversarial shapes in the tests; where it is not, it *under*-strips - duplicated history rather
+    /// than missing messages - and says so here.
+    #[serde(skip_serializing_if = "is_true")]
+    pub replay_matching_complete: bool,
+}
+
+impl Default for FeedMetadata {
+    fn default() -> Self {
+        Self {
+            block_count: 0,
+            span_count: 0,
+            total_tokens: 0,
+            total_cost: 0.0,
+            // Complete until something says otherwise: an empty answer hid nothing.
+            replay_matching_complete: true,
+        }
+    }
+}
+
+fn is_true(value: &bool) -> bool {
+    *value
 }
 
 // ============================================================================
