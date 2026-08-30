@@ -153,6 +153,16 @@ CREATE INDEX IF NOT EXISTS idx_trace_files_project ON trace_files(project_id);
 CREATE INDEX IF NOT EXISTS idx_trace_files_project_hash ON trace_files(project_id, file_hash);
 "#;
 
+/// A durable fence for file deletion.
+///
+/// Deleting the metadata row and then the bytes is not enough: ingestion can recreate the row, write an
+/// association and finalise the bytes in that window, and then the byte delete removes content a
+/// committed row references. The count cannot express "deletion in progress" - only a claim can.
+///
+/// `deleting_at` is that claim. Cleanup sets it before touching storage; association refuses while it
+/// is set, which refuses the batch and lets the exporter retry once deletion has finished.
+const MIGRATION_V5: &str = "ALTER TABLE files ADD COLUMN deleting_at INTEGER";
+
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
     match version {
         1 => {
@@ -162,6 +172,7 @@ async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteEr
         2 => apply_versioned_migration(pool, 2, "add_hash_algo_to_files", MIGRATION_V2).await,
         3 => apply_versioned_migration(pool, 3, "add_credentials_tables", MIGRATION_V3).await,
         4 => apply_versioned_migration(pool, 4, "project_scoped_trace_files", MIGRATION_V4).await,
+        5 => apply_versioned_migration(pool, 5, "file_deletion_fence", MIGRATION_V5).await,
         _ => Err(SqliteError::MigrationFailed {
             version,
             name: "unknown".to_string(),

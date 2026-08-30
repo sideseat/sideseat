@@ -156,9 +156,21 @@ pub(super) fn prepare_batch(
     // extracted by a different path - so collecting per path missed whichever path was not covered.
     // Scanning the committed strings states the invariant directly: every reference in a row that is
     // written is either one this batch produced, or one that has been verified.
-    let ours: HashSet<String> = pending_files
+    // Keyed by `(project, trace, uri)`, not by URI alone.
+    //
+    // Global, one trace extracting URI `U` exempted *every* row containing `U` from reconciliation - so
+    // a trace that supplied `U` already formed got no association, and cross-project it could be
+    // dangling immediately. Same project, it survived only until the trace that really produced it was
+    // deleted.
+    let ours: HashSet<(&str, &str, String)> = pending_files
         .iter()
-        .map(|f| crate::utils::file_uri::build_file_uri(&f.hash, f.media_type.as_deref()))
+        .map(|f| {
+            (
+                f.project_id.as_str(),
+                f.trace_id.as_str(),
+                crate::utils::file_uri::build_file_uri(&f.hash, f.media_type.as_deref()),
+            )
+        })
         .collect();
     for span in &db_spans {
         let project_id = span.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID);
@@ -177,7 +189,7 @@ pub(super) fn prepare_batch(
         for uri in present {
             // The whole URI, not the hash: one carrying our hash with a different media type is not
             // ours, and it would also miss the exact-string rewrite if it turned out unbacked.
-            if !ours.contains(&uri) {
+            if !ours.contains(&(project_id, span.trace_id.as_str(), uri.clone())) {
                 incoming_references.push((project_id.to_string(), span.trace_id.clone(), uri));
             }
         }
@@ -386,8 +398,11 @@ pub(super) fn note_unstored_files(
             if project_id != span_project {
                 continue;
             }
+            // Says only what is known. This set holds two kinds - content rejected for quota, and a
+            // reference whose bytes this project does not have - and naming quota for both told readers
+            // something that may be untrue of their case.
             let note = format!(
-                "[content not stored: project storage quota exceeded ({})]",
+                "[content not stored ({})]",
                 crate::utils::file_uri::parse_file_uri(uri)
                     .and_then(|parsed| parsed.media_type.map(str::to_string))
                     .unwrap_or_else(|| "unknown type".to_string())
@@ -1488,7 +1503,7 @@ mod tests {
             "the rejected reference is still committed: {messages}"
         );
         assert!(
-            messages.contains("quota exceeded") && messages.contains("image/png"),
+            messages.contains("not stored") && messages.contains("image/png"),
             "the note must say what happened and to what: {messages}"
         );
         assert!(

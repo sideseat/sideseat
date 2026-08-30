@@ -536,6 +536,46 @@ impl TransactionalRepository for Arc<PostgresService> {
             .map_err(Into::into)
     }
 
+    async fn claim_file_for_deletion(
+        &self,
+        project_id: &str,
+        file_hash: &str,
+    ) -> Result<bool, DataError> {
+        file::claim_file_for_deletion(self.pool(), project_id, file_hash)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn release_deletion_claim(
+        &self,
+        project_id: &str,
+        file_hash: &str,
+    ) -> Result<(), DataError> {
+        file::release_deletion_claim(self.pool(), project_id, file_hash)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn restore_orphan_metadata(
+        &self,
+        project_id: &str,
+        file_hash: &str,
+        media_type: Option<&str>,
+        size_bytes: i64,
+        hash_algo: &str,
+    ) -> Result<(), DataError> {
+        file::restore_orphan_metadata(
+            self.pool(),
+            project_id,
+            file_hash,
+            media_type,
+            size_bytes,
+            hash_algo,
+        )
+        .await
+        .map_err(Into::into)
+    }
+
     async fn delete_file_if_unreferenced(
         &self,
         project_id: &str,

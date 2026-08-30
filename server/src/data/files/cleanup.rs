@@ -178,13 +178,17 @@ pub async fn cleanup_zero_ref_files(
         // zero, or one read before an association landed, would have deleted live content. The
         // conditional delete asks the associations directly, and deleting the row before the bytes
         // means the surviving failure is bytes without metadata rather than a row pointing at nothing.
-        match repo.delete_file_if_unreferenced(&project_id, &hash).await {
+        // Claimed first, exactly as `delete_files_for_traces` does: `get_orphan_files` selects on the
+        // stored `ref_count`, which is a cached count, so a stale zero would otherwise delete live
+        // content - and without the claim, ingestion could recreate and finalise between the row delete
+        // and the byte delete.
+        match repo.claim_file_for_deletion(&project_id, &hash).await {
             Ok(true) => {}
             Ok(false) => {
                 tracing::debug!(
                     project_id,
                     hash,
-                    "Orphan file is referenced after all; keeping it"
+                    "Orphan file is referenced or already being deleted; keeping it"
                 );
                 continue;
             }
@@ -193,18 +197,39 @@ pub async fn cleanup_zero_ref_files(
                     error = %e,
                     project_id,
                     hash,
-                    "Failed to delete orphan file metadata from database"
+                    "Failed to claim orphan file for deletion"
                 );
                 continue;
             }
         }
 
         if let Err(e) = storage.delete(&project_id, &hash).await {
+            if let Err(release_error) = repo.release_deletion_claim(&project_id, &hash).await {
+                tracing::error!(
+                    error = %e,
+                    release_error = %release_error,
+                    project_id,
+                    hash,
+                    "Could not delete orphan bytes or release the claim; the file cannot be \
+                     referenced again until it is cleared"
+                );
+                continue;
+            }
             tracing::warn!(
                 error = %e,
                 project_id,
                 hash,
-                "Deleted orphan metadata but its bytes remain; a later sweep will retry"
+                "Could not delete orphan bytes; released the claim and left the file in place"
+            );
+            continue;
+        }
+
+        if let Err(e) = repo.delete_file_if_unreferenced(&project_id, &hash).await {
+            tracing::warn!(
+                error = %e,
+                project_id,
+                hash,
+                "Deleted orphan bytes but could not delete the row; it will read as missing content"
             );
             continue;
         }

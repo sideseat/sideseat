@@ -583,6 +583,33 @@ pub trait TransactionalRepository: Send + Sync {
         trace_ids: &[String],
     ) -> Result<Vec<(String, i64)>, DataError>;
 
+    /// Claim a file for deletion, if nothing references it and nobody else has claimed it.
+    ///
+    /// The fence that closes the delete-then-recreate window: association refuses while a claim is set,
+    /// because a claimed file's bytes may already be gone.
+    async fn claim_file_for_deletion(
+        &self,
+        project_id: &str,
+        file_hash: &str,
+    ) -> Result<bool, DataError>;
+
+    /// Give up a deletion claim, leaving the file in place.
+    async fn release_deletion_claim(
+        &self,
+        project_id: &str,
+        file_hash: &str,
+    ) -> Result<(), DataError>;
+
+    /// Put back a metadata row whose bytes could not be deleted, as an orphan for a later sweep.
+    async fn restore_orphan_metadata(
+        &self,
+        project_id: &str,
+        file_hash: &str,
+        media_type: Option<&str>,
+        size_bytes: i64,
+        hash_algo: &str,
+    ) -> Result<(), DataError>;
+
     /// Delete a file's metadata only if nothing references it, and say whether it was deleted.
     ///
     /// The condition belongs inside the statement: reading a count of zero and then deleting races with

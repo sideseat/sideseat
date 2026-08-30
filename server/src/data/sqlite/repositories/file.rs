@@ -165,6 +165,85 @@ pub async fn delete_project_files(pool: &SqlitePool, project_id: &str) -> Result
     Ok(result.rows_affected())
 }
 
+/// Claim a file for deletion, if nothing references it and nobody else has claimed it.
+///
+/// The fence. Deleting the metadata row and then the bytes leaves a window in which ingestion recreates
+/// the row, writes an association and finalises the bytes - and the byte delete then removes content a
+/// committed row references. A reference count cannot express "deletion in progress"; this claim can,
+/// and `associate_file` refuses while it is set.
+pub async fn claim_file_for_deletion(
+    pool: &SqlitePool,
+    project_id: &str,
+    file_hash: &str,
+) -> Result<bool, SqliteError> {
+    let now = chrono::Utc::now().timestamp();
+    let result = sqlx::query(
+        r#"
+        UPDATE files SET deleting_at = ?
+        WHERE project_id = ? AND file_hash = ? AND deleting_at IS NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM trace_files
+              WHERE project_id = files.project_id AND file_hash = files.file_hash
+          )
+        "#,
+    )
+    .bind(now)
+    .bind(project_id)
+    .bind(file_hash)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// Give up a deletion claim, leaving the file in place.
+pub async fn release_deletion_claim(
+    pool: &SqlitePool,
+    project_id: &str,
+    file_hash: &str,
+) -> Result<(), SqliteError> {
+    sqlx::query("UPDATE files SET deleting_at = NULL WHERE project_id = ? AND file_hash = ?")
+        .bind(project_id)
+        .bind(file_hash)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Put back a metadata row whose bytes could not be deleted, as an orphan for a later sweep.
+///
+/// Deleting the row before the bytes is deliberate - the surviving failure is then a leak rather than a
+/// row pointing at nothing a reader can fetch. But `get_orphan_files` selects on `ref_count`, so with
+/// the row gone the leak is invisible and nothing would ever retry. Restoring it with no references
+/// makes it an orphan again, which is exactly what the sweep looks for.
+pub async fn restore_orphan_metadata(
+    pool: &SqlitePool,
+    project_id: &str,
+    file_hash: &str,
+    media_type: Option<&str>,
+    size_bytes: i64,
+    hash_algo: &str,
+) -> Result<(), SqliteError> {
+    let now = chrono::Utc::now().timestamp();
+    sqlx::query(
+        r#"
+        INSERT INTO files (project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+        ON CONFLICT(project_id, file_hash) DO UPDATE SET updated_at = ?
+        "#,
+    )
+    .bind(project_id)
+    .bind(file_hash)
+    .bind(media_type)
+    .bind(size_bytes)
+    .bind(hash_algo)
+    .bind(now)
+    .bind(now)
+    .bind(now)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// Delete a file's metadata **only if nothing references it**, and say whether it was deleted.
 ///
 /// The condition is part of the statement, which is what makes it safe against a concurrent
@@ -251,6 +330,21 @@ pub async fn associate_file(
 ) -> Result<bool, SqliteError> {
     let now = chrono::Utc::now().timestamp();
     let mut tx = pool.begin().await?;
+
+    // Refuse through the fence. A claimed file is mid-deletion and its bytes may already be gone, so
+    // associating with it would commit a reference to nothing. Refusing fails the batch, and the retry
+    // finds the file either deleted - and writes it again, with the bytes in hand - or released.
+    let claimed: Option<(Option<i64>,)> =
+        sqlx::query_as("SELECT deleting_at FROM files WHERE project_id = ? AND file_hash = ?")
+            .bind(project_id)
+            .bind(file_hash)
+            .fetch_optional(&mut *tx)
+            .await?;
+    if let Some((Some(_),)) = claimed {
+        return Err(SqliteError::Conflict(format!(
+            "file {file_hash} in project {project_id} is being deleted"
+        )));
+    }
 
     // The file row must exist before the association can reference it, and must not be counted here.
     sqlx::query(
@@ -753,6 +847,79 @@ mod tests {
         assert_eq!(
             get_project_storage_bytes(&pool, "project2").await.unwrap(),
             2048
+        );
+    }
+
+    /// A claimed file cannot be associated, so its bytes cannot be deleted out from under a new row.
+    ///
+    /// The interleaving a conditional delete alone leaves open: the row is deleted, ingestion recreates
+    /// it, associates and finalises the bytes, and cleanup then deletes those bytes - leaving a
+    /// committed reference to nothing. Refusing association through the claim is what closes it; the
+    /// batch fails and its retry finds the file either gone, and writes it again, or released.
+    #[tokio::test]
+    async fn a_claimed_file_refuses_association() {
+        let pool = setup_test_pool().await;
+        associate_file(
+            &pool,
+            "old-trace",
+            "default",
+            test_hash(),
+            Some("image/png"),
+            1024,
+            "sha256",
+        )
+        .await
+        .unwrap();
+        delete_trace_files(&pool, "default", &["old-trace".to_string()])
+            .await
+            .unwrap();
+
+        assert!(
+            claim_file_for_deletion(&pool, "default", test_hash())
+                .await
+                .unwrap(),
+            "nothing references it, so it can be claimed"
+        );
+        assert!(
+            !claim_file_for_deletion(&pool, "default", test_hash())
+                .await
+                .unwrap(),
+            "and a second cleanup cannot claim it as well"
+        );
+
+        // Ingestion must not be able to reference bytes that are being deleted.
+        let associated = associate_file(
+            &pool,
+            "new-trace",
+            "default",
+            test_hash(),
+            Some("image/png"),
+            1024,
+            "sha256",
+        )
+        .await;
+        assert!(
+            associated.is_err(),
+            "associating with a claimed file must fail so the batch is refused"
+        );
+
+        // Released, it is available again.
+        release_deletion_claim(&pool, "default", test_hash())
+            .await
+            .unwrap();
+        assert!(
+            associate_file(
+                &pool,
+                "new-trace",
+                "default",
+                test_hash(),
+                Some("image/png"),
+                1024,
+                "sha256",
+            )
+            .await
+            .is_ok(),
+            "once the claim is released the file can be referenced again"
         );
     }
 

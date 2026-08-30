@@ -165,6 +165,73 @@ pub async fn delete_project_files(pool: &PgPool, project_id: &str) -> Result<u64
     Ok(result.rows_affected())
 }
 
+/// Claim a file for deletion - see the SQLite twin for why a count cannot replace this.
+pub async fn claim_file_for_deletion(
+    pool: &PgPool,
+    project_id: &str,
+    file_hash: &str,
+) -> Result<bool, PostgresError> {
+    let now = chrono::Utc::now().timestamp();
+    let result = sqlx::query(
+        r#"
+        UPDATE files SET deleting_at = $1
+        WHERE project_id = $2 AND file_hash = $3 AND deleting_at IS NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM trace_files
+              WHERE project_id = files.project_id AND file_hash = files.file_hash
+          )
+        "#,
+    )
+    .bind(now)
+    .bind(project_id)
+    .bind(file_hash)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// Give up a deletion claim, leaving the file in place.
+pub async fn release_deletion_claim(
+    pool: &PgPool,
+    project_id: &str,
+    file_hash: &str,
+) -> Result<(), PostgresError> {
+    sqlx::query("UPDATE files SET deleting_at = NULL WHERE project_id = $1 AND file_hash = $2")
+        .bind(project_id)
+        .bind(file_hash)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Put back a metadata row whose bytes could not be deleted - see the SQLite twin.
+pub async fn restore_orphan_metadata(
+    pool: &PgPool,
+    project_id: &str,
+    file_hash: &str,
+    media_type: Option<&str>,
+    size_bytes: i64,
+    hash_algo: &str,
+) -> Result<(), PostgresError> {
+    let now = chrono::Utc::now().timestamp();
+    sqlx::query(
+        r#"
+        INSERT INTO files (project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, 0, $6, $6)
+        ON CONFLICT(project_id, file_hash) DO UPDATE SET updated_at = $6
+        "#,
+    )
+    .bind(project_id)
+    .bind(file_hash)
+    .bind(media_type)
+    .bind(size_bytes)
+    .bind(hash_algo)
+    .bind(now)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// Delete a file's metadata only if nothing references it - see the SQLite twin for why the condition
 /// has to be inside the statement.
 pub async fn delete_file_if_unreferenced(
@@ -234,6 +301,19 @@ pub async fn associate_file(
 ) -> Result<bool, PostgresError> {
     let now = chrono::Utc::now().timestamp();
     let mut tx = pool.begin().await?;
+
+    // Refuse through the fence - see the SQLite twin.
+    let claimed: Option<(Option<i64>,)> =
+        sqlx::query_as("SELECT deleting_at FROM files WHERE project_id = $1 AND file_hash = $2")
+            .bind(project_id)
+            .bind(file_hash)
+            .fetch_optional(&mut *tx)
+            .await?;
+    if let Some((Some(_),)) = claimed {
+        return Err(PostgresError::Conflict(format!(
+            "file {file_hash} in project {project_id} is being deleted"
+        )));
+    }
 
     sqlx::query(
         r#"
