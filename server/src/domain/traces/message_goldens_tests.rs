@@ -2792,3 +2792,102 @@ async fn bench_ingestion_end_to_end() {
         "nothing was written, so nothing was measured"
     );
 }
+
+/// How reconstruction scales with the history a read has to reprocess.
+///
+/// Normalisation happens at query time, so a session read reparses and rehashes the whole session on
+/// every request - there is no cache. Whether that matters is a question about the curve, not about the
+/// design, and the curve was unmeasured. Two shapes, because frameworks differ in the one way that
+/// decides the answer:
+///
+/// - **replaying**: every generation span re-sends the whole conversation so far, which is what ADK,
+///   LangGraph and Vercel do. The *input* is then quadratic in the turn count however fast the pipeline
+///   is, so this is the shape that can hurt.
+/// - **incremental**: every span carries only its own turn, as Strands' per-message events do. Linear
+///   input.
+///
+/// ```bash
+/// cargo test --release -p sideseat-server bench_session_scaling -- --ignored --nocapture
+/// ```
+#[test]
+#[ignore]
+fn bench_session_scaling() {
+    fn row(
+        trace: usize,
+        span: usize,
+        messages: String,
+        t: chrono::DateTime<chrono::Utc>,
+    ) -> MessageSpanRow {
+        MessageSpanRow {
+            trace_id: format!("trace-{trace}"),
+            span_id: format!("span-{trace}-{span}"),
+            parent_span_id: None,
+            span_timestamp: t,
+            span_end_timestamp: Some(t),
+            messages_json: messages,
+            tool_definitions_json: "[]".to_string(),
+            tool_names_json: "[]".to_string(),
+            model: Some("claude".to_string()),
+            provider: Some("bedrock".to_string()),
+            status_code: None,
+            exception_type: None,
+            exception_message: None,
+            exception_stacktrace: None,
+            input_tokens: 10,
+            output_tokens: 5,
+            total_tokens: 15,
+            cost_total: 0.001,
+            observation_type: Some("generation".to_string()),
+            session_id: Some("session-1".to_string()),
+            ingested_at: t,
+        }
+    }
+
+    use chrono::TimeZone;
+    let t0 = chrono::Utc
+        .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
+        .single()
+        .expect("valid time");
+
+    for turns in [100usize, 1_000, 10_000] {
+        for shape in ["incremental", "replaying"] {
+            // The replaying shape is quadratic in its own input, so the largest size would be 10^8
+            // message entries - which measures the fixture generator, not the pipeline.
+            if shape == "replaying" && turns > 1_000 {
+                continue;
+            }
+
+            let build = std::time::Instant::now();
+            let mut rows = Vec::with_capacity(turns);
+            for turn in 0..turns {
+                let t = t0 + chrono::Duration::seconds(turn as i64);
+                let mut entries: Vec<String> = Vec::new();
+                let history = if shape == "replaying" { 0 } else { turn };
+                for past in history..=turn {
+                    entries.push(format!(
+                        r#"{{"source":{{"attribute":{{"key":"llm.input_messages","time":"{}"}}}},"content":{{"role":"user","content":"question {past}"}}}}"#,
+                        (t0 + chrono::Duration::seconds(past as i64)).to_rfc3339()
+                    ));
+                }
+                entries.push(format!(
+                    r#"{{"source":{{"event":{{"name":"gen_ai.choice","time":"{}"}}}},"content":{{"role":"assistant","content":"answer {turn}"}}}}"#,
+                    t.to_rfc3339()
+                ));
+                rows.push(row(turn, 0, format!("[{}]", entries.join(",")), t));
+            }
+            let built = build.elapsed();
+            let payload: usize = rows.iter().map(|r| r.messages_json.len()).sum();
+
+            let start = std::time::Instant::now();
+            let result = crate::domain::sideml::feed::process_spans(rows, &FeedOptions::new());
+            let elapsed = start.elapsed();
+            eprintln!(
+                "SESSION {shape} {turns} turns: {} KB input -> {} blocks in {:?} (fixture built in {:?})",
+                payload / 1024,
+                result.messages.len(),
+                elapsed,
+                built
+            );
+        }
+    }
+}
