@@ -41,8 +41,8 @@ use super::enrich::enrich_batch;
 use super::extract::files::FileExtractionCache;
 use super::extract::{ExtractionMode, extract_attributes_batch, extract_messages_batch};
 use super::persist::{
-    BatchInput, PendingFileWrite, SseSpanEvent, persist_extracted_files, prepare_batch,
-    publish_sse_events, write_to_duckdb,
+    BatchInput, PendingFileWrite, SseSpanEvent, note_unstored_files, persist_extracted_files,
+    prepare_batch, publish_sse_events, write_to_duckdb,
 };
 use crate::core::TopicService;
 use crate::data::AnalyticsService;
@@ -461,14 +461,17 @@ impl TracePipeline {
             );
             return false;
         }
-        if files.quota_skipped > 0 {
-            // Deliberate, not transient: retrying will not help. The span is kept because its text is
-            // real, and its file references will not resolve until they can be rendered as
-            // unavailable - a decision about what a reader should see, recorded rather than guessed.
+        // Deliberate, not transient: retrying will not help, so the spans are still committed - but
+        // their references to the rejected files are rewritten first. A reader cannot tell a reference
+        // to a rejected file from a corrupt one; both render as a broken image, and nothing on the span
+        // says which. The placeholder says which.
+        if !files.quota_skipped.is_empty() {
+            let rewritten = note_unstored_files(&mut all_db_spans, &files.quota_skipped);
             tracing::error!(
-                skipped = files.quota_skipped,
+                files = files.quota_skipped.len(),
+                references_rewritten = rewritten,
                 spans = span_count,
-                "Storage quota exceeded: committing spans whose file references will not resolve"
+                "Storage quota exceeded: file content was not stored, references replaced with a note"
             );
         }
         let db_ok = write_to_duckdb(all_db_spans, &self.analytics).await;
@@ -512,6 +515,7 @@ impl TracePipeline {
             // Ordered, exactly as the batch path is: this path ran the two concurrently, so it could
             // commit a row referencing a file whose write had failed - the same defect, in the path
             // that runs at shutdown and recovery, where it is least likely to be noticed.
+            let mut db_spans = db_spans;
             let files = persist_extracted_files(pending_files, &self.file_service).await;
             if files.failed > 0 {
                 tracing::error!(
@@ -519,6 +523,14 @@ impl TracePipeline {
                     "Refusing to commit spans whose extracted files could not be stored"
                 );
                 return false;
+            }
+            if !files.quota_skipped.is_empty() {
+                let rewritten = note_unstored_files(&mut db_spans, &files.quota_skipped);
+                tracing::error!(
+                    files = files.quota_skipped.len(),
+                    references_rewritten = rewritten,
+                    "Storage quota exceeded: file content was not stored, references replaced with a note"
+                );
             }
             let db_ok = write_to_duckdb(db_spans, &self.analytics).await;
             if db_ok {

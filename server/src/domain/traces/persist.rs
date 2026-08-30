@@ -302,10 +302,56 @@ pub(super) struct FilePersistOutcome {
     /// Files that could not be stored: decode, temp write, metadata or finalization failed. Transient
     /// in nature, so the honest response is to fail the batch and let the exporter retry.
     pub failed: usize,
-    /// Files deliberately not stored because the project is over its storage quota. Not an error and
-    /// not retryable - the reference will dangle until it can be marked as unavailable, which needs a
-    /// rendering decision rather than a fix here.
-    pub quota_skipped: usize,
+    /// URIs deliberately not stored because the project is over its storage quota. Not an error and
+    /// not retryable, so the batch is still committed - but the references have to be *rewritten*
+    /// first, because a reader cannot tell a reference to a rejected file from a broken one.
+    pub quota_skipped: Vec<String>,
+}
+
+/// Replace references to files that were not stored with a placeholder a reader can understand.
+///
+/// A `#!B64!#` reference means "the bytes are in the file store". When a quota rejection means they
+/// never got there, committing the reference unchanged leaves a reader unable to tell a *rejected*
+/// file from a corrupt one - it renders as a broken image either way, and nothing on the span says
+/// which. Neither is acceptable, and keeping the base64 inline is not either: that defeats the quota
+/// by moving the bytes into the analytics store, where they are harder to reclaim.
+///
+/// So the reference is replaced by text that says what happened. It is a string substitution over the
+/// already-serialised JSON deliberately: a reference can appear in messages, tool definitions, raw
+/// span JSON or metadata, and re-parsing all of them to find it would cost more than the rejection.
+pub(super) fn note_unstored_files(spans: &mut [NormalizedSpan], skipped_uris: &[String]) -> usize {
+    if skipped_uris.is_empty() {
+        return 0;
+    }
+    let mut rewritten = 0usize;
+    let replace = |field: &mut String, uri: &str, note: &str, count: &mut usize| {
+        if field.contains(uri) {
+            *count += field.matches(uri).count();
+            *field = field.replace(uri, note);
+        }
+    };
+    for span in spans.iter_mut() {
+        for uri in skipped_uris {
+            let note = format!(
+                "[content not stored: project storage quota exceeded ({})]",
+                crate::utils::file_uri::parse_file_uri(uri)
+                    .and_then(|parsed| parsed.media_type.map(str::to_string))
+                    .unwrap_or_else(|| "unknown type".to_string())
+            );
+            for field in [
+                span.messages.as_mut(),
+                span.tool_definitions.as_mut(),
+                span.raw_span.as_mut(),
+                span.metadata.as_mut(),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                replace(field, uri, &note, &mut rewritten);
+            }
+        }
+    }
+    rewritten
 }
 
 /// Persist extracted files to storage (I/O phase).
@@ -323,9 +369,8 @@ pub(super) async fn persist_extracted_files(
     }
 
     // Phase 1: Quota filtering
-    let requested = files.len();
-    let (files, project_sizes) = filter_over_quota(files, file_service).await;
-    outcome.quota_skipped = requested - files.len();
+    let (files, project_sizes, skipped) = filter_over_quota(files, file_service).await;
+    outcome.quota_skipped = skipped;
     if files.is_empty() {
         return outcome;
     }
@@ -353,7 +398,7 @@ pub(super) async fn persist_extracted_files(
 async fn filter_over_quota(
     files: Vec<PendingFileWrite>,
     file_service: &Arc<FileService>,
-) -> (Vec<PendingFileWrite>, HashMap<String, usize>) {
+) -> (Vec<PendingFileWrite>, HashMap<String, usize>, Vec<String>) {
     // Conservative estimate: may over-count when duplicates exist within the batch,
     // but actual dedup happens downstream in write_and_record_files and at the DB layer.
     let mut project_sizes: HashMap<String, usize> = HashMap::new();
@@ -386,11 +431,21 @@ async fn filter_over_quota(
         }
     }
 
+    // The URIs of what is being dropped, so the rows that reference them can be corrected rather
+    // than committed pointing at a file that will never exist.
+    let mut skipped_uris: Vec<String> = files
+        .iter()
+        .filter(|f| over_quota.contains(&f.project_id))
+        .map(|f| crate::utils::file_uri::build_file_uri(&f.hash, f.media_type.as_deref()))
+        .collect();
+    skipped_uris.sort_unstable();
+    skipped_uris.dedup();
+
     let filtered: Vec<_> = files
         .into_iter()
         .filter(|f| !over_quota.contains(&f.project_id))
         .collect();
-    (filtered, project_sizes)
+    (filtered, project_sizes, skipped_uris)
 }
 
 /// Decode base64, write temp files, upsert metadata, and record trace associations.
@@ -1206,5 +1261,55 @@ mod tests {
         assert_eq!(result[0].gen_ai_cost_total, 0.003);
         assert_eq!(result[0].input_preview, Some("Hello".to_string()));
         assert_eq!(result[0].output_preview, Some("Hi".to_string()));
+    }
+
+    /// A reference to a file that was rejected must not be committed as though the file exists.
+    ///
+    /// The failure it guards is silent: a `#!B64!#` reference to a quota-rejected file renders exactly
+    /// like a reference to a corrupt one, and nothing on the span distinguishes them.
+    #[test]
+    fn a_rejected_file_reference_is_replaced_with_a_note() {
+        let uri = crate::utils::file_uri::build_file_uri("abc123", Some("image/png"));
+        let other = crate::utils::file_uri::build_file_uri("def456", Some("image/png"));
+        let mut spans = vec![NormalizedSpan {
+            messages: Some(format!(r#"[{{"content":"{uri}"}}]"#)),
+            tool_definitions: Some(format!(r#"[{{"icon":"{uri}"}}]"#)),
+            raw_span: Some(format!(r#"{{"attr":"{other}"}}"#)),
+            metadata: None,
+            ..NormalizedSpan::default()
+        }];
+
+        let rewritten = note_unstored_files(&mut spans, std::slice::from_ref(&uri));
+
+        assert_eq!(
+            rewritten, 2,
+            "both references to the rejected file are rewritten"
+        );
+        let messages = spans[0].messages.as_deref().unwrap();
+        assert!(
+            !messages.contains(&uri),
+            "the rejected reference is still committed: {messages}"
+        );
+        assert!(
+            messages.contains("quota exceeded") && messages.contains("image/png"),
+            "the note must say what happened and to what: {messages}"
+        );
+        assert!(
+            spans[0].raw_span.as_deref().unwrap().contains(&other),
+            "a reference to a file that *was* stored must be left alone"
+        );
+    }
+
+    /// Nothing to rewrite must cost nothing and change nothing.
+    #[test]
+    fn no_rejected_files_leaves_spans_untouched() {
+        let uri = crate::utils::file_uri::build_file_uri("abc123", None);
+        let mut spans = vec![NormalizedSpan {
+            messages: Some(format!(r#"[{{"content":"{uri}"}}]"#)),
+            ..NormalizedSpan::default()
+        }];
+        let before = spans[0].messages.clone();
+        assert_eq!(note_unstored_files(&mut spans, &[]), 0);
+        assert_eq!(spans[0].messages, before);
     }
 }
