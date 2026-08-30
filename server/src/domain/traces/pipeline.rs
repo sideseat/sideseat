@@ -474,6 +474,12 @@ impl TracePipeline {
             // A row referencing a file that is not there is worse than no row: the reference cannot
             // be repaired by a later delivery, while the batch can. Refusing it lets the exporter
             // retry, and ingestion is idempotent by span id.
+            //
+            // The cache has to be cleared first. Its entries are written when bytes are *extracted*,
+            // before they are stored, and a hit carries no data - which persistence reads as "already
+            // in storage". Left in place, the retry this refusal invites would commit exactly the
+            // dangling reference the refusal is meant to prevent.
+            self.file_cache.invalidate_all();
             tracing::error!(
                 failed = files.failed,
                 spans = span_count,
