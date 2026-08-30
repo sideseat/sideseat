@@ -479,49 +479,38 @@ impl TracePipeline {
 
         // Spans for a project that will not accept writes are dropped, not written.
         //
-        // This is the authoritative half of the project deletion fence, and an HTTP-edge check would not
-        // be: a request passes the edge, goes onto a topic and persists seconds later, so a check there
-        // says nothing about the write. Next to the write it is sound.
+        // Checked twice, and the second one is the check that matters. The fence lives in the
+        // transactional store and the spans in the analytics store, so no transaction spans both and the
+        // gap between reading the fence and committing is real. Making that gap as small as possible is
+        // what bounds it: the second check sits immediately before the analytics write, so what remains
+        // is the write itself rather than the whole batch - and a batch can take a hundred milliseconds
+        // on inlined base64 images, or much longer if object storage is slow.
         //
-        // "Will not accept writes" covers a project that is claimed for deletion *and* one whose row is
-        // gone. The second is what makes the fence airtight rather than merely narrow: a batch that read
-        // the fence before a claim can commit after it, and the only reason that is harmless is that the
-        // row outlives the claim by long enough for such a batch to finish, after which writes for the
-        // absent project are refused outright. Spans for a project with no row were never readable
-        // anyway - every read path finds data through the project row.
+        // The first check is an optimisation with the same rule: no point storing a dying project's file
+        // bytes. Neither can be replaced by an HTTP-edge check, which says nothing about a write that
+        // happens seconds later on a topic consumer.
+        //
+        // "Will not accept writes" covers a project claimed for deletion *and* one whose row is gone.
+        // The second is what makes the fence airtight rather than narrow, together with the row
+        // outliving its claim: a batch that read the fence before a claim commits within one batch, and
+        // after the row goes such writes are refused outright. Spans for a project with no row were
+        // never readable anyway - every read path finds data through the project row.
         //
         // Dropped rather than refused: the project is not coming back, so a refusal would have the
         // exporter retry a doomed batch, and a batch mixing a live project with a dying one would lose
         // the live one's spans too.
-        match self.projects_refusing_writes(&all_db_spans).await {
-            Ok(refusing) if !refusing.is_empty() => {
-                let before = all_db_spans.len();
-                all_db_spans.retain(|s| {
-                    !refusing.contains(s.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID))
-                });
-                all_pending_files.retain(|f| !refusing.contains(f.project_id.as_str()));
-                all_incoming.retain(|(project, _, _)| !refusing.contains(project.as_str()));
-                tracing::warn!(
-                    dropped = before - all_db_spans.len(),
-                    projects = ?refusing,
-                    "Dropped spans for projects that do not accept writes (deleted or being deleted)"
-                );
-                if all_db_spans.is_empty() {
-                    return true;
-                }
-            }
-            Ok(_) => {}
-            Err(e) => {
-                // Unknown, so refused rather than assumed open. The cache must go with it for the same
-                // reason every other refusal clears it: entries are written when bytes are extracted.
-                self.file_cache.invalidate_all();
-                tracing::error!(
-                    error = %e,
-                    spans = all_db_spans.len(),
-                    "Refusing the batch: could not settle whether its project accepts writes"
-                );
-                return false;
-            }
+        match self
+            .drop_spans_for_dead_projects(
+                &mut all_db_spans,
+                &mut all_pending_files,
+                &mut all_incoming,
+            )
+            .await
+        {
+            Ok(true) => {}
+            // Nothing left to write.
+            Ok(false) => return true,
+            Err(()) => return false,
         }
 
         let t_prepare_done = std::time::Instant::now();
@@ -586,6 +575,19 @@ impl TracePipeline {
                 "File content is not stored for some references; replaced them with a note"
             );
         }
+        // Again, with the write next in line. Between the first check and here the batch stored its
+        // files, which can take a while, and a claim may have landed in that time.
+        let mut no_files: Vec<PendingFileWrite> = Vec::new();
+        let mut no_incoming: Vec<IncomingReference> = Vec::new();
+        match self
+            .drop_spans_for_dead_projects(&mut all_db_spans, &mut no_files, &mut no_incoming)
+            .await
+        {
+            Ok(true) => {}
+            Ok(false) => return true,
+            Err(()) => return false,
+        }
+
         let db_ok = write_to_duckdb(all_db_spans, &self.analytics).await;
 
         let t_persist_done = std::time::Instant::now();
@@ -605,6 +607,45 @@ impl TracePipeline {
         );
 
         db_ok
+    }
+
+    /// Remove everything belonging to a project that will not accept writes.
+    ///
+    /// `Ok(true)` means work remains, `Ok(false)` that the batch is now empty and may be acknowledged,
+    /// and `Err(())` that the fence could not be read - which refuses the batch rather than assuming the
+    /// fence is open, and clears the extraction cache as every refusal must, because its entries are
+    /// written when bytes are extracted rather than when they are stored.
+    async fn drop_spans_for_dead_projects(
+        &self,
+        spans: &mut Vec<NormalizedSpan>,
+        files: &mut Vec<PendingFileWrite>,
+        incoming: &mut Vec<IncomingReference>,
+    ) -> Result<bool, ()> {
+        let refusing = match self.projects_refusing_writes(spans).await {
+            Ok(refusing) => refusing,
+            Err(e) => {
+                self.file_cache.invalidate_all();
+                tracing::error!(
+                    error = %e,
+                    spans = spans.len(),
+                    "Refusing the batch: could not settle whether its project accepts writes"
+                );
+                return Err(());
+            }
+        };
+        if refusing.is_empty() {
+            return Ok(true);
+        }
+        let before = spans.len();
+        spans.retain(|s| !refusing.contains(s.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID)));
+        files.retain(|f| !refusing.contains(f.project_id.as_str()));
+        incoming.retain(|(project, _, _)| !refusing.contains(project.as_str()));
+        tracing::warn!(
+            dropped = before - spans.len(),
+            projects = ?refusing,
+            "Dropped spans for projects that do not accept writes (deleted or being deleted)"
+        );
+        Ok(!spans.is_empty())
     }
 
     /// Which of a batch's projects will not accept writes, and whether the question could be answered.
@@ -674,37 +715,17 @@ impl TracePipeline {
             let mut db_spans = db_spans;
 
             // The project fence, exactly as the batch path applies it. This path had no check at all,
-            // which is worse than it sounds: it is the *recovery* path, so it handles messages that were
-            // queued before a restart - precisely the ones most likely to name a project that has been
-            // deleted since.
+            // which is worse than it sounds: it is the *recovery* path, so it handles messages queued
+            // before a restart - precisely the ones most likely to name a project deleted since.
             let mut pending_files = pending_files;
             let mut incoming = incoming;
-            match self.projects_refusing_writes(&db_spans).await {
-                Ok(refusing) if !refusing.is_empty() => {
-                    let before = db_spans.len();
-                    db_spans.retain(|s| {
-                        !refusing.contains(s.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID))
-                    });
-                    pending_files.retain(|f| !refusing.contains(f.project_id.as_str()));
-                    incoming.retain(|(project, _, _)| !refusing.contains(project.as_str()));
-                    tracing::warn!(
-                        dropped = before - db_spans.len(),
-                        projects = ?refusing,
-                        "Dropped spans for projects that do not accept writes"
-                    );
-                    if db_spans.is_empty() {
-                        return true;
-                    }
-                }
-                Ok(_) => {}
-                Err(e) => {
-                    self.file_cache.invalidate_all();
-                    tracing::error!(
-                        error = %e,
-                        "Refusing the request: could not settle whether its project accepts writes"
-                    );
-                    return false;
-                }
+            match self
+                .drop_spans_for_dead_projects(&mut db_spans, &mut pending_files, &mut incoming)
+                .await
+            {
+                Ok(true) => {}
+                Ok(false) => return true,
+                Err(()) => return false,
             }
 
             let sse_events: Vec<SseSpanEvent> = db_spans.iter().map(SseSpanEvent::from).collect();

@@ -2364,6 +2364,77 @@ fn bench_pipeline() {
         bytes / 1024
     );
 }
+/// A cached reconstruction is what recomputation would have produced, byte for byte.
+///
+/// The memo is only sound if reconstruction is a pure function of the rows, and that is a claim about
+/// every stage rather than an intention - a single read of the clock, or an output order that follows a
+/// `HashMap`'s iteration, and a cached answer stops matching a fresh one. Checked over the whole corpus
+/// rather than argued: reconstruct each fixture cold, then warm, and require the serialised blocks to be
+/// identical.
+///
+/// It also settles the horizontally-scaled question. Instances do not need to share this cache or agree
+/// on when to drop entries, because the memo is over a pure function: the same rows give the same answer
+/// on any instance, an instance that starts cold simply recomputes it, and an instance that dies loses
+/// nothing but the saving. What N instances change is the hit rate, not the answer.
+#[test]
+fn a_cached_reconstruction_equals_a_fresh_one() {
+    use crate::domain::sideml::feed::cache::ReconstructionCache;
+    use crate::domain::sideml::feed::{process_spans, process_spans_cached};
+
+    let mut checked = 0usize;
+    for (label, paths) in discover_fixtures() {
+        let rows: Vec<MessageSpanRow> = rows_for(&paths)
+            .into_iter()
+            .map(|(_, r)| r)
+            .filter(passes_content_filter)
+            .collect();
+        if rows.is_empty() {
+            continue;
+        }
+        let rows = sorted_by_timestamp(rows);
+
+        let fresh = process_spans(rows.clone(), &FeedOptions::new());
+        let cache = ReconstructionCache::new();
+        let cold = process_spans_cached(&cache, rows.clone(), &FeedOptions::new());
+        let warm = process_spans_cached(&cache, rows, &FeedOptions::new());
+        assert_eq!(
+            cache.len(),
+            1,
+            "{label}: the second read must have been a hit"
+        );
+
+        let serialise = |result: &crate::domain::sideml::feed::FeedResult| -> String {
+            result
+                .messages
+                .iter()
+                .map(|b| {
+                    format!(
+                        "{}|{}|{}|{:?}|{}|{}",
+                        b.trace_id,
+                        b.span_id,
+                        b.role.as_str(),
+                        b.content,
+                        b.timestamp.to_rfc3339(),
+                        b.is_history
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        assert_eq!(
+            serialise(&cold),
+            serialise(&fresh),
+            "{label}: the cached path's cold read differs from the uncached one"
+        );
+        assert_eq!(
+            serialise(&warm),
+            serialise(&fresh),
+            "{label}: a warm read differs from recomputing, so the memo is not transparent"
+        );
+        checked += 1;
+    }
+    assert!(checked > 80, "only checked {checked} fixtures");
+}
 
 /// Changing only the presentation constraints must not change which messages a session returns.
 ///

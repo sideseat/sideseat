@@ -360,7 +360,8 @@ impl CoreApp {
             .topic::<ExportMetricsServiceRequest>(TOPIC_METRICS)
             .map_err(|e| anyhow::anyhow!("Failed to create metrics topic: {}", e))?;
 
-        let metrics_pipeline = crate::domain::MetricsPipeline::new(self.analytics.clone());
+        let metrics_pipeline =
+            crate::domain::MetricsPipeline::new(self.analytics.clone(), self.database.clone());
 
         self.shutdown
             .register(metrics_pipeline.start(metrics_topic, self.shutdown.subscribe()))
