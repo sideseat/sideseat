@@ -265,21 +265,25 @@ async fn projects_behave_identically() {
         // The fence.
         t.note(&format!(
             "claim={}",
-            repo.claim_project_for_deletion(&beta.id).await.unwrap()
-        ));
-        t.note(&format!(
-            "claim_again={}",
-            repo.claim_project_for_deletion(&beta.id).await.unwrap()
-        ));
-        t.note(&format!(
-            "claim_missing={}",
-            repo.claim_project_for_deletion("no-such-project")
+            repo.claim_project_for_deletion(None, &beta.id)
                 .await
                 .unwrap()
         ));
         t.note(&format!(
-            "is_claimed={}",
-            repo.project_is_claimed(&beta.id).await.unwrap()
+            "claim_again={}",
+            repo.claim_project_for_deletion(None, &beta.id)
+                .await
+                .unwrap()
+        ));
+        t.note(&format!(
+            "claim_missing={}",
+            repo.claim_project_for_deletion(None, "no-such-project")
+                .await
+                .unwrap()
+        ));
+        t.note(&format!(
+            "accepts_writes_while_claimed={}",
+            repo.project_accepts_writes(&beta.id).await.unwrap()
         ));
         t.note(&format!(
             "get_claimed_is_none={}",
@@ -316,6 +320,10 @@ async fn projects_behave_identically() {
         t.note(&format!(
             "delete_again={}",
             repo.delete_project(None, &beta.id).await.unwrap()
+        ));
+        t.note(&format!(
+            "accepts_writes_when_absent={}",
+            repo.project_accepts_writes(&beta.id).await.unwrap()
         ));
         t.note(&format!(
             "stale_after_delete={}",
@@ -704,7 +712,7 @@ async fn only_one_concurrent_project_claim_wins() {
         let repo = Arc::clone(&postgres);
         let id = project.id.clone();
         handles.push(tokio::spawn(async move {
-            repo.claim_project_for_deletion(&id).await
+            repo.claim_project_for_deletion(None, &id).await
         }));
     }
     for handle in handles {

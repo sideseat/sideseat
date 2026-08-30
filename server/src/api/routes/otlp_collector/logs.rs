@@ -30,6 +30,17 @@ pub async fn export(
             .into_response();
     }
 
+    // Say so now, rather than accepting the request and dropping its spans at the write. The write path
+    // is where the fence is authoritative; this is where the exporter can still be told.
+    if !super::project_accepts_writes(&state, &project_id).await {
+        return (
+            StatusCode::NOT_FOUND,
+            [(header::CONTENT_TYPE, "text/plain")],
+            "Unknown project, or it is being deleted",
+        )
+            .into_response();
+    }
+
     let content_type = OtlpContentType::from_headers(&headers);
 
     // Parse request (protobuf or JSON based on content type)

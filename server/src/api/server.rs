@@ -93,8 +93,13 @@ impl ApiServer {
             };
 
         // Build OTLP ingestion routes (rate limited by project, optionally auth required)
-        let otlp_routes = otlp_collector::routes(&app.topics, debug_path)
-            .layer(DefaultBodyLimit::max(OTLP_BODY_LIMIT));
+        let otlp_routes = otlp_collector::routes(
+            &app.topics,
+            debug_path,
+            app.database.clone(),
+            app.cache.clone(),
+        )
+        .layer(DefaultBodyLimit::max(OTLP_BODY_LIMIT));
         let otlp_routes = if rate_limit_enabled {
             otlp_routes.layer(axum::middleware::from_fn_with_state(
                 make_rate_limit_state(
