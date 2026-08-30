@@ -34,6 +34,21 @@ pub struct CarrierSemantics {
     pub carrier_is_atomic_emission: bool,
     /// The carrier may re-state earlier turns, so its observations can be history rather than news.
     pub carrier_may_contain_history_or_state: bool,
+    /// The span *produced* what this carrier holds, rather than receiving it.
+    ///
+    /// Declared per carrier because it cannot be inferred from the others, and because inferring it
+    /// from a prefix list is what let it drift: the Vercel SDK moved from `ai.result.*` to
+    /// `ai.response.*` and the extractor followed while the list did not, so every Vercel response read
+    /// as something the span *received*. It also cannot be derived from
+    /// `carrier_is_atomic_emission` - `output.value` is accumulated state and still the span's output -
+    /// nor from the event name alone: `gen_ai.tool.result` on the span that made the call is that
+    /// span's own record of what came back, while `gen_ai.tool.message` is the framework handing a past
+    /// result back to a model.
+    ///
+    /// The ordering resolver reads it to decide what a generation *received*, which is the input side
+    /// of "input precedes output". Deriving that side by negating an inferred flag made it read a tool
+    /// answer as a precondition of the call that produced it.
+    pub carrier_holds_span_output: bool,
 }
 
 impl CarrierSemantics {
@@ -43,6 +58,7 @@ impl CarrierSemantics {
         position_provides_sequence_order: true,
         carrier_is_atomic_emission: true,
         carrier_may_contain_history_or_state: false,
+        carrier_holds_span_output: true,
     };
 
     /// A conversation as one span saw it: ordered, may repeat earlier turns, and a repeat inside it
@@ -52,15 +68,20 @@ impl CarrierSemantics {
         position_provides_sequence_order: true,
         carrier_is_atomic_emission: false,
         carrier_may_contain_history_or_state: true,
+        carrier_holds_span_output: false,
     };
 
     /// Framework state that happens to contain messages - LangChain's `output.value`, an agent's
     /// accumulated scratchpad. Ordered, re-lists itself, and says nothing about multiplicity.
+    /// Accumulated state is the span's *output* - `output.value` is what the chain produced - while
+    /// still being a re-listing rather than one emission. That combination is why direction cannot be
+    /// derived from `carrier_is_atomic_emission`.
     const ACCUMULATED_STATE: Self = Self {
         position_proves_distinct_occurrence: false,
         position_provides_sequence_order: true,
         carrier_is_atomic_emission: false,
         carrier_may_contain_history_or_state: true,
+        carrier_holds_span_output: true,
     };
 }
 
@@ -74,12 +95,19 @@ impl CarrierSemantics {
 pub fn semantics_for(event: Option<&str>, attribute: Option<&str>) -> CarrierSemantics {
     if let Some(event) = event {
         return match event {
-            // The model's own output, and tool execution results: each is one emission.
+            // The model's own output, and a span's record of a tool it ran: each is one emission the
+            // span produced.
             "gen_ai.choice"
             | "gen_ai.content.completion"
             | "gen_ai.output.messages"
-            | "gen_ai.tool.message"
             | "gen_ai.tool.result" => CarrierSemantics::EMISSION,
+            // One emission too, but *received*: this is the framework handing a past result back to a
+            // model, so its time is the hand-back and it is input to whatever the span then produces.
+            // Reading it as output made a re-sent result look like a generation's own answer.
+            "gen_ai.tool.message" => CarrierSemantics {
+                carrier_holds_span_output: false,
+                ..CarrierSemantics::EMISSION
+            },
             // A re-sent turn, by definition history. `gen_ai.assistant.message` is the awkward one:
             // it is a replay for most frameworks and the actual output for a choiceless Logfire
             // generation span, so it is read as a snapshot and direction is decided elsewhere.
@@ -90,9 +118,13 @@ pub fn semantics_for(event: Option<&str>, attribute: Option<&str>) -> CarrierSem
     match attribute {
         // The generic IO pair, and the framework-state attributes that behave like it. LangChain's
         // `output.value` re-lists its own tool calls, which is the case that forced this distinction.
-        Some("input.value") | Some("output.value") | Some("message") | Some("messages") => {
-            CarrierSemantics::ACCUMULATED_STATE
-        }
+        Some("output.value") => CarrierSemantics::ACCUMULATED_STATE,
+        // The same shape on the receiving side: state handed *to* the span. Same reading of position
+        // and history, opposite direction - which is why direction is its own fact.
+        Some("input.value") | Some("message") | Some("messages") => CarrierSemantics {
+            carrier_holds_span_output: false,
+            ..CarrierSemantics::ACCUMULATED_STATE
+        },
         // What this span *produced*: one response, in one payload. Ordered, its own, and two of
         // anything in it are two - the same reading as `gen_ai.choice`, which is the event form of the
         // same thing. Being an emission is what keeps a response's parts together: Vercel puts a

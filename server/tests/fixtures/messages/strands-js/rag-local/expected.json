@@ -1091,16 +1091,16 @@
           "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "[1] (relevance: 0.70) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity. [2] (relevance: 0.54) Vecto…[1074 chars]",
-          "content_digest": "6f5b54641be6357c",
+          "content": "[1] (relevance: 0.73) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity. [2] (relevance: 0.18) Stran…[1074 chars]",
+          "content_digest": "774dc4593fa1e77c",
           "observation_type": "tool"
         },
         {
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "[1] (relevance: 0.73) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity. [2] (relevance: 0.18) Stran…[1074 chars]",
-          "content_digest": "774dc4593fa1e77c",
+          "content": "[1] (relevance: 0.70) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity. [2] (relevance: 0.54) Vecto…[1074 chars]",
+          "content_digest": "6f5b54641be6357c",
           "observation_type": "tool"
         },
         {

@@ -3042,8 +3042,8 @@
       "message_count": 3,
       "role_sequence": [
         "user",
-        "assistant",
-        "system"
+        "system",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -3063,19 +3063,19 @@
         },
         {
           "index": 1,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
-          "content_digest": "2f44606d440855e4",
-          "observation_type": "chain"
-        },
-        {
-          "index": 2,
           "role": "system",
           "entry_type": "text",
           "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
           "content_digest": "94f9aa950c09d1c4",
           "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
+          "observation_type": "chain"
         }
       ]
     },
@@ -3190,8 +3190,8 @@
       "message_count": 3,
       "role_sequence": [
         "user",
-        "assistant",
-        "system"
+        "system",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -3211,19 +3211,19 @@
         },
         {
           "index": 1,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
-          "content_digest": "2f44606d440855e4",
-          "observation_type": "chain"
-        },
-        {
-          "index": 2,
           "role": "system",
           "entry_type": "text",
           "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
           "content_digest": "94f9aa950c09d1c4",
           "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
+          "observation_type": "chain"
         }
       ]
     }

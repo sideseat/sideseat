@@ -879,24 +879,24 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_bdY3n9v29M5FTstNcp3SZu\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_cute_small_puppy_beagle.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source…[273 chars]",
-          "content_digest": "fa98b894cd769b72",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2EHYcPwzDsxDRqNbuRG6i7\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_friendly_golden_retriever_playing.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpe…[283 chars]",
+          "content_digest": "5d439927f6a72426",
           "observation_type": "tool"
         },
         {
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2EHYcPwzDsxDRqNbuRG6i7\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_friendly_golden_retriever_playing.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpe…[283 chars]",
-          "content_digest": "5d439927f6a72426",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_043hP1RJzP2tNQrAV9FRb9\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_noble_german_shepherd_sitting.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"…[279 chars]",
+          "content_digest": "e26fe6748882939b",
           "observation_type": "tool"
         },
         {
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_043hP1RJzP2tNQrAV9FRb9\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_noble_german_shepherd_sitting.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"…[279 chars]",
-          "content_digest": "e26fe6748882939b",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_bdY3n9v29M5FTstNcp3SZu\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_cute_small_puppy_beagle.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source…[273 chars]",
+          "content_digest": "fa98b894cd769b72",
           "observation_type": "tool"
         },
         {
@@ -985,16 +985,16 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_GFxEvZHigrtcdo4DTFweB4\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
-          "content_digest": "ff371f64b83c88cc",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_DNud09RQAotFRpBxlAnWmN\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "5b792b95e016099b",
           "observation_type": "tool"
         },
         {
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_DNud09RQAotFRpBxlAnWmN\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
-          "content_digest": "5b792b95e016099b",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_GFxEvZHigrtcdo4DTFweB4\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "ff371f64b83c88cc",
           "observation_type": "tool"
         },
         {
@@ -1104,24 +1104,24 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_bdY3n9v29M5FTstNcp3SZu\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_cute_small_puppy_beagle.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source…[273 chars]",
-          "content_digest": "fa98b894cd769b72",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2EHYcPwzDsxDRqNbuRG6i7\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_friendly_golden_retriever_playing.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpe…[283 chars]",
+          "content_digest": "5d439927f6a72426",
           "observation_type": "tool"
         },
         {
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2EHYcPwzDsxDRqNbuRG6i7\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_friendly_golden_retriever_playing.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpe…[283 chars]",
-          "content_digest": "5d439927f6a72426",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_043hP1RJzP2tNQrAV9FRb9\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_noble_german_shepherd_sitting.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"…[279 chars]",
+          "content_digest": "e26fe6748882939b",
           "observation_type": "tool"
         },
         {
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_043hP1RJzP2tNQrAV9FRb9\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_noble_german_shepherd_sitting.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"…[279 chars]",
-          "content_digest": "e26fe6748882939b",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_bdY3n9v29M5FTstNcp3SZu\",\"content\":[{\"type\":\"text\",\"text\":\"The generated image has been saved locally to output/a_cute_small_puppy_beagle.jpeg. \"},{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source…[273 chars]",
+          "content_digest": "fa98b894cd769b72",
           "observation_type": "tool"
         },
         {
@@ -1189,16 +1189,16 @@
           "index": 16,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_GFxEvZHigrtcdo4DTFweB4\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
-          "content_digest": "ff371f64b83c88cc",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_DNud09RQAotFRpBxlAnWmN\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "5b792b95e016099b",
           "observation_type": "tool"
         },
         {
           "index": 17,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_DNud09RQAotFRpBxlAnWmN\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
-          "content_digest": "5b792b95e016099b",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_GFxEvZHigrtcdo4DTFweB4\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
+          "content_digest": "ff371f64b83c88cc",
           "observation_type": "tool"
         },
         {

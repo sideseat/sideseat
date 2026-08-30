@@ -637,8 +637,8 @@
         "assistant",
         "tool",
         "assistant",
-        "tool",
         "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -682,6 +682,15 @@
         {
           "index": 4,
           "role": "assistant",
+          "entry_type": "text",
+          "content": "Great! 123 + 456 = **579** **Step 2: Now multiply the result by 2**",
+          "content_digest": "f33417d13a73331f",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_pUHRgRAp85GmlCOLHT1mh9\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":579,\"b\":2}}",
           "content_digest": "054040a205067971",
@@ -690,21 +699,12 @@
           "observation_type": "tool"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_pUHRgRAp85GmlCOLHT1mh9\",\"content\":{\"operation\":\"multiply\",\"a\":579,\"b\":2,\"result\":1158}}",
           "content_digest": "336f5ca985dc8263",
           "observation_type": "tool"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "Great! 123 + 456 = **579** **Step 2: Now multiply the result by 2**",
-          "content_digest": "f33417d13a73331f",
-          "finish_reason": "ToolUse",
-          "observation_type": "generation"
         },
         {
           "index": 7,
@@ -874,6 +874,7 @@
       "assistant",
       "assistant",
       "tool",
+      "assistant",
       "user",
       "assistant",
       "assistant",
@@ -883,12 +884,11 @@
       "assistant",
       "assistant",
       "assistant",
-      "assistant",
       "tool",
       "assistant",
+      "assistant",
       "tool",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 1,
@@ -949,19 +949,19 @@
       },
       {
         "index": 6,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Calculate the area of a circle with radius 5 (use 3.14159 for pi)",
-        "content_digest": "f26f3ca7d4ec0f92",
-        "observation_type": "generation"
-      },
-      {
-        "index": 7,
         "role": "assistant",
         "entry_type": "text",
         "content": "I'll calculate the area of a circle with radius 5 using the formula A = πr².",
         "content_digest": "e7d1333554570865",
         "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Calculate the area of a circle with radius 5 (use 3.14159 for pi)",
+        "content_digest": "f26f3ca7d4ec0f92",
         "observation_type": "generation"
       },
       {
@@ -976,6 +976,15 @@
       {
         "index": 9,
         "role": "assistant",
+        "entry_type": "text",
+        "content": "I need to calculate 15% of 240, which is the same as multiplying 240 by 0.15.",
+        "content_digest": "f77e07dba50448a6",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 10,
+        "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_lzuo63RyKawL8zyyLXJBdM\",\"name\":\"calculator\",\"input\":{\"operation\":\"multiply\",\"a\":240,\"b\":0.15}}",
         "content_digest": "527baf5b440482e2",
@@ -984,7 +993,7 @@
         "observation_type": "tool"
       },
       {
-        "index": 10,
+        "index": 11,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_lzuo63RyKawL8zyyLXJBdM\",\"content\":{\"operation\":\"multiply\",\"a\":240,\"b\":0.15,\"result\":36}}",
@@ -992,20 +1001,11 @@
         "observation_type": "tool"
       },
       {
-        "index": 11,
+        "index": 12,
         "role": "user",
         "entry_type": "text",
         "content": "What is 15% of 240?",
         "content_digest": "796917473389523f",
-        "observation_type": "generation"
-      },
-      {
-        "index": 12,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "I need to calculate 15% of 240, which is the same as multiplying 240 by 0.15.",
-        "content_digest": "f77e07dba50448a6",
-        "finish_reason": "ToolUse",
         "observation_type": "generation"
       },
       {
@@ -1047,6 +1047,15 @@
       {
         "index": 17,
         "role": "assistant",
+        "entry_type": "text",
+        "content": "I'll calculate this step by step for you. **Step 1: First, calculate 123 + 456**",
+        "content_digest": "1ffaba87c5c48f8f",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 18,
+        "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"name\":\"calculator\",\"input\":{\"operation\":\"add\",\"a\":123,\"b\":456}}",
         "content_digest": "525a88527a167997",
@@ -1055,7 +1064,7 @@
         "observation_type": "tool"
       },
       {
-        "index": 18,
+        "index": 19,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_yUUtxjsJXGdLxVUoX96tuT\",\"content\":{\"operation\":\"add\",\"a\":123,\"b\":456,\"result\":579}}",
@@ -1063,20 +1072,11 @@
         "observation_type": "tool"
       },
       {
-        "index": 19,
+        "index": 20,
         "role": "user",
         "entry_type": "text",
         "content": "Calculate step by step: What is (123 + 456) * 2?",
         "content_digest": "96b787aa89baaa86",
-        "observation_type": "generation"
-      },
-      {
-        "index": 20,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "I'll calculate this step by step for you. **Step 1: First, calculate 123 + 456**",
-        "content_digest": "1ffaba87c5c48f8f",
-        "finish_reason": "ToolUse",
         "observation_type": "generation"
       }
     ]
