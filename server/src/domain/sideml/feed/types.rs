@@ -184,6 +184,15 @@ pub struct BlockEntry {
     /// evidence of the opposite.
     #[serde(skip_serializing)]
     pub tool_use_id_correlated: bool,
+
+    /// The pipeline decided this block is its span's output even though its carrier is not.
+    ///
+    /// Set only by the choiceless-generation promotion in `classify_blocks`. It is a separate field
+    /// rather than the `GenAIChoice` category that promotion also sets, because that category means
+    /// "this is a model reply" and is carried by blocks nobody promoted - reading direction from it
+    /// changed the grouping of an ordinary `gen_ai.choice` text and its tool call.
+    #[serde(skip_serializing)]
+    pub promoted_to_span_output: bool,
 }
 
 impl BlockEntry {
@@ -374,6 +383,16 @@ impl BlockEntry {
         {
             return true;
         }
+        // Direction is a property of the carrier *and* of what the pipeline has since decided about
+        // this block - so the promotion is read from its own field rather than inferred from the
+        // category it also sets. A choiceless generation span (Logfire, OpenAI Agents) carries its
+        // reply on `gen_ai.assistant.message`, which is a replay for every other framework, so the
+        // carrier reads as received and `classify_blocks` promotes the block instead. Without this the
+        // promotion was visible to the timestamp rules and invisible to the order resolver, which then
+        // treated a span's own reply as something it received.
+        if self.promoted_to_span_output {
+            return true;
+        }
         self.source_attribute.as_ref().is_some_and(|attr| {
             attr.starts_with("gen_ai.completion.")
                 // ADK / Vertex
@@ -495,6 +514,7 @@ mod tests {
             uses_span_end: false,
             is_history: false,
             tool_use_id_correlated: false,
+            promoted_to_span_output: false,
         }
     }
 

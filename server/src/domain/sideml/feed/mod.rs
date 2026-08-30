@@ -1517,6 +1517,7 @@ fn flatten_to_blocks(
                 uses_span_end: false, // Will be set by classify_blocks()
                 is_history: false,    // Will be set by classify_blocks()
                 tool_use_id_correlated: false, // Will be set by correlate_tool_results()
+                promoted_to_span_output: false, // Will be set by classify_blocks()
             });
         }
     }
@@ -1577,6 +1578,9 @@ fn classify_blocks(blocks: &mut [BlockEntry], span_timestamps: &HashMap<String, 
         {
             block.uses_span_end = true;
             block.category = MessageCategory::GenAIChoice;
+            // Effective direction, in one place: the order resolver reads this to know the span
+            // produced the block, which its carrier does not say.
+            block.promoted_to_span_output = true;
             // Update timestamp to span_end so the block exits the same-batch group
             // (Logfire emits all events at span_start, so without this the sort
             // would preserve array index order instead of using birth_time).

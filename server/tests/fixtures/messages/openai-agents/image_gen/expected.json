@@ -360,10 +360,10 @@
         "tool",
         "tool",
         "assistant",
-        "assistant",
         "system",
         "user",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -455,14 +455,6 @@
         },
         {
           "index": 10,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "[Scrubbed due to 'credential']",
-          "content_digest": "9e91982d7ac8ddb4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 11,
           "role": "system",
           "entry_type": "text",
           "content": "You are an experienced art critic. Use the read_image tool to load and visually inspect each image. Evaluate based on creativity, composition, and appeal. Your final line must include: FINAL DECISION: [path to best image]",
@@ -470,7 +462,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 12,
+          "index": 11,
           "role": "user",
           "entry_type": "text",
           "content": "Evaluate these generated images and select the best one: Unable to generate the images because image-generation credentials are unavailable.",
@@ -478,8 +470,16 @@
           "observation_type": "generation"
         },
         {
-          "index": 13,
+          "index": 12,
           "role": "user",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "9e91982d7ac8ddb4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
           "entry_type": "text",
           "content": "[Scrubbed due to 'credential']",
           "content_digest": "9e91982d7ac8ddb4",
@@ -510,10 +510,10 @@
         "tool",
         "tool",
         "assistant",
-        "assistant",
         "system",
         "user",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -605,14 +605,6 @@
         },
         {
           "index": 10,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "[Scrubbed due to 'credential']",
-          "content_digest": "9e91982d7ac8ddb4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 11,
           "role": "system",
           "entry_type": "text",
           "content": "You are an experienced art critic. Use the read_image tool to load and visually inspect each image. Evaluate based on creativity, composition, and appeal. Your final line must include: FINAL DECISION: [path to best image]",
@@ -620,7 +612,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 12,
+          "index": 11,
           "role": "user",
           "entry_type": "text",
           "content": "Evaluate these generated images and select the best one: Unable to generate the images because image-generation credentials are unavailable.",
@@ -628,8 +620,16 @@
           "observation_type": "generation"
         },
         {
-          "index": 13,
+          "index": 12,
           "role": "user",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "9e91982d7ac8ddb4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
           "entry_type": "text",
           "content": "[Scrubbed due to 'credential']",
           "content_digest": "9e91982d7ac8ddb4",
@@ -658,10 +658,10 @@
         "tool",
         "tool",
         "assistant",
-        "assistant",
         "system",
         "user",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -753,14 +753,6 @@
         },
         {
           "index": 10,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "[Scrubbed due to 'credential']",
-          "content_digest": "9e91982d7ac8ddb4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 11,
           "role": "system",
           "entry_type": "text",
           "content": "You are an experienced art critic. Use the read_image tool to load and visually inspect each image. Evaluate based on creativity, composition, and appeal. Your final line must include: FINAL DECISION: [path to best image]",
@@ -768,7 +760,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 12,
+          "index": 11,
           "role": "user",
           "entry_type": "text",
           "content": "Evaluate these generated images and select the best one: Unable to generate the images because image-generation credentials are unavailable.",
@@ -776,8 +768,16 @@
           "observation_type": "generation"
         },
         {
-          "index": 13,
+          "index": 12,
           "role": "user",
+          "entry_type": "text",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "9e91982d7ac8ddb4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
           "entry_type": "text",
           "content": "[Scrubbed due to 'credential']",
           "content_digest": "9e91982d7ac8ddb4",
