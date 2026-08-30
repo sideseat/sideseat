@@ -39,7 +39,7 @@
 //! Generation input→output and snapshot-sequence edges are the next classes to add; they are
 //! deliberately absent here. Credible time is a **priority** for the topological pop, never an edge.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use chrono::{DateTime, Utc};
 
@@ -50,6 +50,10 @@ use super::types::BlockEntry;
 /// The pair fixes the block's source order within the emission; the index points back at the
 /// survivor being contracted.
 type EmissionMember = (i32, i32, usize);
+
+/// What orders one unit against another when the constraints leave them free: the anchor its evidence
+/// gives it, where it was first observed, and its own id as the final discriminator.
+type PopKey = (Option<DateTime<Utc>>, usize, usize);
 
 /// One payload instance: its span, the event or attribute it arrived on, and which instance of that
 /// carrier it was - the root of the position path. A span can emit `gen_ai.choice` more than once, and
@@ -334,10 +338,16 @@ impl Constraints {
     ///   specialists' system prompts ahead of all three answers and interleaves each prompt with its own
     ///   agent's reply.
     ///
-    /// Every class is now promoted. What remains is not a dial but the two items Codex named: replay
-    /// matching is still a single linear transcript rather than injective matching against a partial
-    /// order, and the resolver has no complexity bound - dataflow builds up to `inputs x outputs` edges,
-    /// duplicate-edge checks are linear, and Kahn rescans every unit per iteration.
+    /// Every class is now promoted. What remains is not a dial:
+    ///
+    /// - **Replay matching** is still a single linear transcript rather than injective matching against
+    ///   a partial order, so a replay that picks a different valid interleaving can end the scan early.
+    /// - **The dataflow class still emits the product** of a span's inputs and outputs. Two of the three
+    ///   quadratic paths are gone - Kahn no longer rescans every unit, and duplicate edges are detected
+    ///   by set membership - but the product itself needs a barrier node per span (inputs to barrier to
+    ///   outputs, `in + out` edges instead of `in * out`), which changes the node set the cohesion
+    ///   property and the TLA+ model are written over. In practice outputs number one to three, so the
+    ///   product is near-linear; adversarially it is not bounded.
     pub(super) const PRODUCTION: Self = Self {
         contract_non_contiguous_emissions: true,
         enforce_backward_edges: true,
@@ -561,6 +571,7 @@ pub(super) fn resolve(
     let mut successors: HashMap<usize, Vec<usize>> =
         units.iter().map(|&u| (u, Vec::new())).collect();
     let mut indegree: HashMap<usize, usize> = units.iter().map(|&u| (u, 0)).collect();
+    let mut edges: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
     for (i, block) in survivors.iter().enumerate() {
         if block.entry_type != "tool_result" {
             continue;
@@ -586,6 +597,7 @@ pub(super) fn resolve(
             &unit_min_legacy,
             &mut successors,
             &mut indegree,
+            &mut edges,
         );
     }
 
@@ -629,6 +641,7 @@ pub(super) fn resolve(
                     &unit_min_legacy,
                     &mut successors,
                     &mut indegree,
+                    &mut edges,
                 );
             }
         }
@@ -688,6 +701,7 @@ pub(super) fn resolve(
                         &unit_min_legacy,
                         &mut successors,
                         &mut indegree,
+                        &mut edges,
                     );
                 }
             }
@@ -699,7 +713,6 @@ pub(super) fn resolve(
     // so the resolver is total rather than panicking. (Full SCC condensation is a later increment;
     // no corpus fixture cycles at this constraint density.)
     let mut order: Vec<usize> = Vec::with_capacity(units.len());
-    let mut done: HashMap<usize, bool> = units.iter().map(|&u| (u, false)).collect();
     // Under the scaffold the seed is the legacy index alone (`None` sorts before any `Some`, so the
     // time term drops out entirely): that is what makes the resolve reproduce the legacy order rather
     // than merely agree with it on this corpus. Promoting time to the primary key is its own delta.
@@ -724,25 +737,52 @@ pub(super) fn resolve(
         };
         (primary, secondary, u)
     };
-    while order.len() < units.len() {
-        let mut ready: Vec<usize> = units
-            .iter()
-            .copied()
-            .filter(|u| !done[u] && indegree[u] == 0)
-            .collect();
-        if ready.is_empty() {
-            // Cycle: release the smallest-key remaining unit.
-            ready = units.iter().copied().filter(|u| !done[u]).collect();
+    // Two ordered sets rather than a rescan. The loop used to look at every unit on every iteration
+    // to find the ready ones, which is quadratic in the number of units - and a session view can hold
+    // thousands. `ready` yields the next unit in O(log n); `remaining` exists only for the cycle case,
+    // where nothing is ready and the smallest key has to be released to keep the resolve total.
+    // Keys computed once per unit, not per edge. `key` was being rebuilt on every indegree
+    // decrement, and the dataflow class emits the *product* of a span's inputs and outputs, so on a
+    // span re-sending a long history that dominated everything else.
+    let keys: HashMap<usize, PopKey> = units
+        .iter()
+        .map(|&u| (u, key(u, &unit_priority, &unit_min_legacy)))
+        .collect();
+
+    let mut ready: BTreeSet<(PopKey, usize)> = BTreeSet::new();
+    let mut remaining: BTreeSet<(PopKey, usize)> = BTreeSet::new();
+    for &u in &units {
+        let entry = (keys[&u], u);
+        remaining.insert(entry);
+        if indegree[&u] == 0 {
+            ready.insert(entry);
         }
-        let next = *ready
-            .iter()
-            .min_by_key(|&&u| key(u, &unit_priority, &unit_min_legacy))
-            .expect("at least one unit remains");
+    }
+
+    while order.len() < units.len() {
+        let next_entry = match ready.iter().next().copied() {
+            Some(entry) => entry,
+            // A cycle: the evidence contradicts itself. Release the smallest-key remaining unit so the
+            // result is still a total order.
+            None => remaining
+                .iter()
+                .next()
+                .copied()
+                .expect("a unit remains while the order is incomplete"),
+        };
+        ready.remove(&next_entry);
+        remaining.remove(&next_entry);
+        let next = next_entry.1;
         order.push(next);
-        done.insert(next, true);
         for &s in &successors[&next] {
             if let Some(d) = indegree.get_mut(&s) {
                 *d = d.saturating_sub(1);
+                if *d == 0 {
+                    let entry = (keys[&s], s);
+                    if remaining.contains(&entry) {
+                        ready.insert(entry);
+                    }
+                }
             }
         }
     }
@@ -779,6 +819,7 @@ fn add_edge(
     unit_min_legacy: &HashMap<usize, usize>,
     successors: &mut HashMap<usize, Vec<usize>>,
     indegree: &mut HashMap<usize, usize>,
+    edges: &mut std::collections::HashSet<(usize, usize)>,
 ) {
     if from == to {
         return;
@@ -787,9 +828,11 @@ fn add_edge(
     if backward && !constraints.enforce_backward_edges {
         return;
     }
-    let succ = successors.get_mut(&from).expect("unit present");
-    if !succ.contains(&to) {
-        succ.push(to);
+    // Set membership, not a linear scan of the successor list: a generation span with many inputs and
+    // many outputs produces their product in edges, and checking each against a growing `Vec` made
+    // building the graph quadratic in that product.
+    if edges.insert((from, to)) {
+        successors.get_mut(&from).expect("unit present").push(to);
         *indegree.get_mut(&to).expect("unit present") += 1;
     }
 }
