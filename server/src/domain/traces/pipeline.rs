@@ -41,8 +41,9 @@ use super::enrich::enrich_batch;
 use super::extract::files::FileExtractionCache;
 use super::extract::{ExtractionMode, extract_attributes_batch, extract_messages_batch};
 use super::persist::{
-    BatchInput, PendingFileWrite, SseSpanEvent, note_unstored_files, persist_extracted_files,
-    prepare_batch, publish_sse_events, write_to_duckdb,
+    BatchInput, IncomingReference, PendingFileWrite, SseSpanEvent, note_unstored_files,
+    persist_extracted_files, prepare_batch, publish_sse_events, reconcile_incoming_references,
+    write_to_duckdb,
 };
 use crate::core::TopicService;
 use crate::data::AnalyticsService;
@@ -345,7 +346,9 @@ impl TracePipeline {
                                         ExtractionMode::PerCarrier,
                                     )
                                 })) {
-                                    Ok(Some((spans, files))) => Prepared::Ready(spans, files),
+                                    Ok(Some((spans, files, incoming))) => {
+                                        Prepared::Ready(spans, files, incoming)
+                                    }
                                     Ok(None) => Prepared::Nothing,
                                     Err(_) => {
                                         tracing::error!(
@@ -392,8 +395,8 @@ impl TracePipeline {
                                                 )
                                             }),
                                         ) {
-                                            Ok(Some((spans, files))) => {
-                                                Prepared::Ready(spans, files)
+                                            Ok(Some((spans, files, incoming))) => {
+                                                Prepared::Ready(spans, files, incoming)
                                             }
                                             Ok(None) => Prepared::Nothing,
                                             Err(_) => {
@@ -429,14 +432,16 @@ impl TracePipeline {
 
         let mut all_db_spans: Vec<NormalizedSpan> = Vec::new();
         let mut all_pending_files: Vec<PendingFileWrite> = Vec::new();
+        let mut all_incoming: Vec<IncomingReference> = Vec::new();
         // Short results mean a worker thread died with its whole chunk, which no per-request outcome can
         // report - so cardinality is checked, not just the outcomes.
         let mut lost_requests = requests.len().saturating_sub(results.len());
         for result in results {
             match result {
-                Prepared::Ready(db_spans, pending_files) => {
+                Prepared::Ready(db_spans, pending_files, incoming) => {
                     all_db_spans.extend(db_spans);
                     all_pending_files.extend(pending_files);
+                    all_incoming.extend(incoming);
                 }
                 // Normal: nothing to persist, nothing to refuse.
                 Prepared::Nothing => {}
@@ -502,13 +507,18 @@ impl TracePipeline {
         // their references to the rejected files are rewritten first. A reader cannot tell a reference
         // to a rejected file from a corrupt one; both render as a broken image, and nothing on the span
         // says which. The placeholder says which.
-        if !files.quota_skipped.is_empty() {
-            let rewritten = note_unstored_files(&mut all_db_spans, &files.quota_skipped);
+        // References that arrived already formed are claims about storage that nothing verified. Checked
+        // here, with the ones that hold getting an association and the rest joining the quota-rejected
+        // set - both are "a reference a reader cannot resolve", and both are replaced with a note.
+        let mut unresolvable = files.quota_skipped;
+        unresolvable.extend(reconcile_incoming_references(&all_incoming, &self.file_service).await);
+        if !unresolvable.is_empty() {
+            let rewritten = note_unstored_files(&mut all_db_spans, &unresolvable);
             tracing::error!(
-                files = files.quota_skipped.len(),
+                files = unresolvable.len(),
                 references_rewritten = rewritten,
                 spans = span_count,
-                "Storage quota exceeded: file content was not stored, references replaced with a note"
+                "File content is not stored for some references; replaced them with a note"
             );
         }
         let db_ok = write_to_duckdb(all_db_spans, &self.analytics).await;
@@ -557,7 +567,7 @@ impl TracePipeline {
                 return false;
             }
         };
-        if let Some((db_spans, pending_files)) = result {
+        if let Some((db_spans, pending_files, incoming)) = result {
             if db_spans.is_empty() {
                 return true;
             }
@@ -575,12 +585,14 @@ impl TracePipeline {
                 );
                 return false;
             }
-            if !files.quota_skipped.is_empty() {
-                let rewritten = note_unstored_files(&mut db_spans, &files.quota_skipped);
+            let mut unresolvable = files.quota_skipped;
+            unresolvable.extend(reconcile_incoming_references(&incoming, &self.file_service).await);
+            if !unresolvable.is_empty() {
+                let rewritten = note_unstored_files(&mut db_spans, &unresolvable);
                 tracing::error!(
-                    files = files.quota_skipped.len(),
+                    files = unresolvable.len(),
                     references_rewritten = rewritten,
-                    "Storage quota exceeded: file content was not stored, references replaced with a note"
+                    "File content is not stored for some references; replaced them with a note"
                 );
             }
             let db_ok = write_to_duckdb(db_spans, &self.analytics).await;
@@ -616,6 +628,7 @@ pub(crate) fn process_request_for_test_with_mode(
     mode: ExtractionMode,
 ) -> Option<(Vec<NormalizedSpan>, Vec<PendingFileWrite>)> {
     process_request(request, pricing, false, &FileExtractionCache::new(), mode)
+        .map(|(spans, files, _)| (spans, files))
 }
 
 /// What became of one request in the CPU phase.
@@ -624,8 +637,12 @@ pub(crate) fn process_request_for_test_with_mode(
 /// with no spans is perfectly normal, and treating it as a panic made its batch refuse itself forever.
 /// A panic must refuse the batch; nothing to do must not.
 enum Prepared {
-    /// Spans ready to persist, with the files they reference.
-    Ready(Vec<NormalizedSpan>, Vec<PendingFileWrite>),
+    /// Spans ready to persist, with the files they reference and any references that arrived formed.
+    Ready(
+        Vec<NormalizedSpan>,
+        Vec<PendingFileWrite>,
+        Vec<IncomingReference>,
+    ),
     /// The request held no spans. Not an error.
     Nothing,
     /// The request panicked. Its spans, if any, are unknown and must not be acknowledged.
@@ -642,7 +659,11 @@ fn process_request(
     files_enabled: bool,
     file_cache: &FileExtractionCache,
     mode: crate::domain::traces::extract::ExtractionMode,
-) -> Option<(Vec<NormalizedSpan>, Vec<PendingFileWrite>)> {
+) -> Option<(
+    Vec<NormalizedSpan>,
+    Vec<PendingFileWrite>,
+    Vec<IncomingReference>,
+)> {
     // Stage 1a: Extract Attributes
     let spans = extract_attributes_batch(request);
     if spans.is_empty() {
@@ -660,7 +681,7 @@ fn process_request(
     let enrichments = enrich_batch(&spans, &messages, pricing);
 
     // Stage 4: Prepare (CPU-only file extraction + flatten to NormalizedSpan)
-    let (db_spans, pending_files) = prepare_batch(
+    let (db_spans, pending_files, incoming_references) = prepare_batch(
         request,
         BatchInput {
             spans,
@@ -673,5 +694,5 @@ fn process_request(
         Some(file_cache),
     );
 
-    Some((db_spans, pending_files))
+    Some((db_spans, pending_files, incoming_references))
 }

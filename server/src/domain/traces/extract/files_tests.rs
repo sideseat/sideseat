@@ -1689,6 +1689,44 @@ fn test_cache_different_content_different_hash() {
 // Regression Tests: Embedded Data URL + Cache Interaction
 // ========================================================================
 
+/// A reference that arrives already formed is *found*, not silently trusted.
+///
+/// Extraction skips `#!B64!#` strings, which is right - they are already references - but nothing
+/// reported them, so a client could send one for content it never uploaded and the row would be
+/// committed pointing at nothing. `collect_file_references` is what lets the caller subtract the
+/// references extraction just created and reconcile the rest against storage.
+#[test]
+fn an_incoming_reference_is_collected_and_ours_are_distinguishable() {
+    let forged = crate::utils::file_uri::build_file_uri("never-uploaded", Some("image/png"));
+    let data = vec![3u8; 2048];
+    let b64 = BASE64_STANDARD.encode(&data);
+
+    let mut msg = json!({
+        "forged": forged.clone(),
+        "bytes": b64,
+        "nested": [{ "also_forged": forged.clone() }],
+    });
+    let result = extract_and_replace_files(&mut msg);
+
+    let mut found = Vec::new();
+    collect_file_references(&msg, &mut found);
+
+    assert_eq!(result.files.len(), 1, "the real payload was extracted");
+    let ours = crate::utils::file_uri::build_file_uri(
+        &result.files[0].hash,
+        result.files[0].media_type.as_deref(),
+    );
+    assert!(
+        found.contains(&ours),
+        "the reference extraction created is present: {found:?}"
+    );
+    assert_eq!(
+        found.iter().filter(|u| **u == forged).count(),
+        2,
+        "both forged references are found, including the nested one: {found:?}"
+    );
+}
+
 /// A cache hit on a `data:` URL must carry the *payload* bytes, not the URL.
 ///
 /// The payload starts after `data:image/png;base64,`. Reconstructing the bytes from the source string
