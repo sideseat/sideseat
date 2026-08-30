@@ -163,10 +163,10 @@
       "role_sequence": [
         "system",
         "user",
-        "tool",
+        "assistant",
         "tool",
         "assistant",
-        "assistant"
+        "tool"
       ],
       "tool_names": [],
       "tool_definition_count": 2,
@@ -189,24 +189,6 @@
         },
         {
           "index": 2,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
-          "content_digest": "f026c51bdebb0c32",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "d2b21e8ed9e4a942",
-          "tool_name": "precipitation_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
@@ -215,11 +197,29 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
+          "content_digest": "f026c51bdebb0c32",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
           "content_digest": "03f15361a5d4e079",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "d2b21e8ed9e4a942",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         }
