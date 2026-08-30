@@ -9962,3 +9962,243 @@ fn a_replay_that_reorders_incomparable_blocks_is_still_stripped() {
         shape
     );
 }
+
+// ----------------------------------------------------------------------------
+// The replay matcher, against shapes no captured fixture contains
+// ----------------------------------------------------------------------------
+
+/// Build prior state from `(role, hash)` identities and a relation over them, as one trace.
+#[cfg(test)]
+fn prior_state(
+    identities: &[(ChatRole, &str)],
+    edges: &[(usize, usize)],
+) -> super::CrossTracePrefixState {
+    let t0 = fixed_time();
+    let transcript: Vec<BlockEntry> = identities
+        .iter()
+        .enumerate()
+        .map(|(i, &(role, hash))| BlockEntry {
+            position: PositionPath::default(),
+            entry_type: "text".to_string(),
+            content: ContentBlock::Text {
+                text: hash.to_string(),
+            },
+            role,
+            trace_id: "trace1".to_string(),
+            span_id: "s1".to_string(),
+            session_id: None,
+            message_index: i as i32,
+            entry_index: 0,
+            parent_span_id: None,
+            span_path: vec!["s1".to_string()],
+            timestamp: t0,
+            order_time: t0,
+            observation_type: Some("generation".to_string()),
+            model: None,
+            provider: None,
+            name: None,
+            finish_reason: None,
+            tool_use_id: None,
+            tool_name: None,
+            tokens: None,
+            cost: None,
+            status_code: None,
+            is_error: false,
+            source_type: "attribute".to_string(),
+            event_name: None,
+            source_attribute: Some("llm.input_messages".to_string()),
+            category: crate::data::types::MessageCategory::GenAIUserMessage,
+            content_hash: hash.to_string(),
+            is_semantic: true,
+            uses_span_end: false,
+            is_history: false,
+            tool_use_id_correlated: false,
+            promoted_to_span_output: false,
+        })
+        .collect();
+    let mut state = super::CrossTracePrefixState::default();
+    state.push_trace(
+        &transcript,
+        super::order_graph::Precedence::from_edges(identities.len(), edges),
+    );
+    state
+}
+
+/// Two interchangeable results, and the choice between them decides whether the rest strips.
+///
+/// The shape Codex found in the greedy matcher, and the reason the matcher searches. Two unordered
+/// branches give `callA -> resultA` and `callB -> resultB`, and both results carry the *same* identity -
+/// two tools that each answered `"ok"`, which is ordinary. Replayed as `callB, resultB, callA, resultA`,
+/// a valid linear extension, taking the first permitted candidate for `resultB` claims `resultA`; that
+/// assignment then requires `callA` to have come earlier, so `callA` is refused and everything after it
+/// is duplicated in the session view. Only the order constraints distinguish the two choices.
+#[test]
+fn interchangeable_results_do_not_end_the_prefix() {
+    // 0: callA  1: resultA  2: callB  3: resultB, with each result after its own call and the two
+    // branches unordered against each other.
+    let prior = prior_state(
+        &[
+            (ChatRole::Assistant, "callA"),
+            (ChatRole::Tool, "ok"),
+            (ChatRole::Assistant, "callB"),
+            (ChatRole::Tool, "ok"),
+        ],
+        &[(0, 1), (2, 3)],
+    );
+
+    let replay = [
+        (ChatRole::Assistant, "callB"),
+        (ChatRole::Tool, "ok"),
+        (ChatRole::Assistant, "callA"),
+        (ChatRole::Tool, "ok"),
+    ];
+    let matched = prior.longest_matching_prefix(&replay);
+    assert_eq!(
+        matched.len(),
+        replay.len(),
+        "the whole replay is a linear extension of the prior order, so all of it is history"
+    );
+    let mut consumed = matched.clone();
+    consumed.sort_unstable();
+    consumed.dedup();
+    assert_eq!(
+        consumed.len(),
+        matched.len(),
+        "and each block claimed a distinct occurrence"
+    );
+}
+
+/// A replay that contradicts the order is *not* history, however identical its content.
+///
+/// The other side of the property: without this the matcher could strip anything that merely looks alike,
+/// which would delete real messages rather than duplicate them.
+#[test]
+fn a_replay_that_contradicts_the_order_is_not_stripped() {
+    // A tool result cannot precede the call it answers.
+    let prior = prior_state(
+        &[(ChatRole::Assistant, "call"), (ChatRole::Tool, "ok")],
+        &[(0, 1)],
+    );
+    let matched =
+        prior.longest_matching_prefix(&[(ChatRole::Tool, "ok"), (ChatRole::Assistant, "call")]);
+    assert_eq!(
+        matched.len(),
+        1,
+        "the result matches, and the call after it contradicts the evidence, so the prefix ends"
+    );
+}
+
+/// Every linear extension of a prior relation is recognised as a replay of it.
+///
+/// The completeness property, over shapes rather than over examples. For each of a set of relations,
+/// every topological order of the blocks is generated and required to match in full - which is the claim
+/// "a replay is accepted when it is some linear extension of the relation", checked exhaustively at this
+/// size instead of asserted. Identities repeat deliberately: interchangeable candidates are what make the
+/// choice non-obvious, and the case the greedy version got wrong.
+#[test]
+fn every_linear_extension_of_the_prior_order_is_fully_stripped() {
+    /// One turn to enumerate: the blocks it holds, and what the evidence says must precede what.
+    struct Shape {
+        identities: &'static [(ChatRole, &'static str)],
+        edges: &'static [(usize, usize)],
+    }
+
+    // Four blocks each, so all 24 orders are enumerated per shape.
+    let cases: &[Shape] = &[
+        // Two branches, both results identical: Codex's counterexample and its mirror.
+        Shape {
+            identities: &[
+                (ChatRole::Assistant, "callA"),
+                (ChatRole::Tool, "ok"),
+                (ChatRole::Assistant, "callB"),
+                (ChatRole::Tool, "ok"),
+            ],
+            edges: &[(0, 1), (2, 3)],
+        },
+        // All four interchangeable, nothing ordered: every permutation must match.
+        Shape {
+            identities: &[
+                (ChatRole::Tool, "ok"),
+                (ChatRole::Tool, "ok"),
+                (ChatRole::Tool, "ok"),
+                (ChatRole::Tool, "ok"),
+            ],
+            edges: &[],
+        },
+        // A chain, so exactly one order is a linear extension.
+        Shape {
+            identities: &[
+                (ChatRole::User, "q"),
+                (ChatRole::Assistant, "call"),
+                (ChatRole::Tool, "ok"),
+                (ChatRole::Assistant, "answer"),
+            ],
+            edges: &[(0, 1), (1, 2), (2, 3)],
+        },
+        // One emission of two identical calls, then their identical results.
+        Shape {
+            identities: &[
+                (ChatRole::Assistant, "call"),
+                (ChatRole::Assistant, "call"),
+                (ChatRole::Tool, "ok"),
+                (ChatRole::Tool, "ok"),
+            ],
+            edges: &[(0, 1), (0, 2), (1, 3)],
+        },
+    ];
+
+    fn permutations(n: usize) -> Vec<Vec<usize>> {
+        let mut out = Vec::new();
+        let mut current: Vec<usize> = (0..n).collect();
+        fn go(current: &mut Vec<usize>, k: usize, out: &mut Vec<Vec<usize>>) {
+            if k == current.len() {
+                out.push(current.clone());
+                return;
+            }
+            for i in k..current.len() {
+                current.swap(k, i);
+                go(current, k + 1, out);
+                current.swap(k, i);
+            }
+        }
+        go(&mut current, 0, &mut out);
+        out
+    }
+
+    for Shape { identities, edges } in cases {
+        let prior = prior_state(identities, edges);
+        let mut checked = 0;
+        for order in permutations(identities.len()) {
+            // Only linear extensions are replays of this turn; anything else contradicts it.
+            let position: Vec<usize> = {
+                let mut p = vec![0; order.len()];
+                for (at, &block) in order.iter().enumerate() {
+                    p[block] = at;
+                }
+                p
+            };
+            if edges.iter().any(|&(a, b)| position[a] > position[b]) {
+                continue;
+            }
+            checked += 1;
+
+            let replay: Vec<(ChatRole, &str)> = order.iter().map(|&i| identities[i]).collect();
+            let matched = prior.longest_matching_prefix(&replay);
+            assert_eq!(
+                matched.len(),
+                replay.len(),
+                "this order satisfies every constraint, so it is a replay: {:?} under {:?}",
+                order,
+                edges
+            );
+            let mut distinct = matched.clone();
+            distinct.sort_unstable();
+            distinct.dedup();
+            assert_eq!(distinct.len(), matched.len(), "matched injectively");
+        }
+        assert!(
+            checked > 0,
+            "a case with no linear extension proves nothing"
+        );
+    }
+}

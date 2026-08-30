@@ -269,6 +269,19 @@ pub(super) struct Precedence {
 }
 
 impl Precedence {
+    /// A relation stated directly as `(before, after)` pairs over block indices, for tests that need to
+    /// exercise the matcher against a shape no captured fixture contains.
+    #[cfg(test)]
+    pub(super) fn from_edges(blocks: usize, edges: &[(usize, usize)]) -> Self {
+        let mut predecessors = vec![Vec::new(); blocks];
+        for &(before, after) in edges {
+            if before < blocks && after < blocks {
+                predecessors[after].push(before as u32);
+            }
+        }
+        Self { predecessors }
+    }
+
     /// Everything that must precede `b`, accumulated into `seen` and skipping what it already holds.
     ///
     /// Amortised: a matcher checking many candidates against a growing set of matched occurrences pays

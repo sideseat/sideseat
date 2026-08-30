@@ -281,11 +281,6 @@ struct PriorOccurrence {
     position: usize,
 }
 
-/// A prior occurrence a replay has already claimed, kept so later blocks can be checked against it.
-struct MatchedPrior {
-    entry: usize,
-}
-
 impl CrossTracePrefixState {
     #[inline]
     fn is_empty(&self) -> bool {
@@ -317,46 +312,140 @@ impl CrossTracePrefixState {
         }
     }
 
-    /// The earliest unconsumed prior occurrence of this identity that the replay's order permits.
+    /// The longest prefix of `replay` that can be matched to distinct prior occurrences, in an order the
+    /// evidence permits.
     ///
-    /// "Permits" is the linear-extension test, and it is the whole difference from a cursor. A candidate
-    /// is rejected only when the evidence says it must come *before* something the replay already
-    /// matched - so a call and an unrelated result, which nothing orders, may arrive either way round.
-    fn next_match(
-        &self,
-        role: super::types::ChatRole,
-        content_hash: &str,
-        matched: &[MatchedPrior],
-        must_precede: &HashMap<usize, HashSet<u32>>,
-        min_trace: usize,
-    ) -> Option<usize> {
-        let candidates = self.by_identity.get(&(role, content_hash.to_string()))?;
-        candidates
-            .iter()
-            .copied()
-            .find(|&entry| self.candidate_is_permitted(entry, matched, must_precede, min_trace))
+    /// Returns the entry each matched block claimed. `replay` is one span's strippable blocks in payload
+    /// order, as `(role, content hash)`.
+    ///
+    /// # Why this searches instead of choosing
+    ///
+    /// Taking the first locally permitted candidate is wrong, and not subtly. Two unordered branches
+    /// establish `callA -> resultA` and `callB -> resultB`, and the two results carry the same identity -
+    /// two tools that both answered `"ok"`, which is ordinary. Replayed as `callB, resultB, callA,
+    /// resultA`, a valid linear extension, the greedy step matches `resultB` against *`resultA`* because
+    /// it comes first among equals. That assignment then requires `callA` to have come earlier, `callA` is
+    /// refused, and the prefix ends: the rest of the turn is duplicated in the session. Choosing
+    /// `resultB` instead matches everything. The identities are interchangeable, so only the order
+    /// constraints can tell the two choices apart, and that is a search.
+    ///
+    /// Bounded, because a matching problem with interchangeable candidates is exponential in the worst
+    /// case. `MATCH_BUDGET` caps the assignments tried; exceeding it returns the longest prefix found so
+    /// far, which under-strips rather than over-strips - the failure a user sees as duplicates rather
+    /// than as missing messages. In practice the first candidate is right and the search is linear: the
+    /// budget is never approached by any corpus fixture.
+    fn longest_matching_prefix(&self, replay: &[(super::types::ChatRole, &str)]) -> Vec<usize> {
+        /// Assignments tried before the search gives up and reports what it has.
+        const MATCH_BUDGET: u32 = 20_000;
+
+        let mut search = PrefixSearch {
+            state: self,
+            consumed: vec![false; self.entries.len()],
+            must_precede: HashMap::new(),
+            chosen: Vec::with_capacity(replay.len()),
+            best: Vec::new(),
+            budget: MATCH_BUDGET,
+        };
+        search.extend(replay, 0);
+        if search.budget == 0 {
+            tracing::warn!(
+                replay = replay.len(),
+                prior = self.entries.len(),
+                matched = search.best.len(),
+                "Cross-trace replay matching hit its budget; some history may be shown twice"
+            );
+        }
+        search.best
+    }
+}
+
+/// One depth-first search for the longest matchable prefix of a replay.
+///
+/// State is mutated and undone as the search backtracks, so each block and edge of a trace's relation is
+/// walked once per path rather than once per candidate.
+struct PrefixSearch<'a> {
+    state: &'a CrossTracePrefixState,
+    /// Which prior occurrences the current partial assignment has claimed. Injectivity, and what keeps a
+    /// genuinely repeated question from collapsing onto the first ask.
+    consumed: Vec<bool>,
+    /// Per trace, everything that must precede something already matched.
+    must_precede: HashMap<usize, HashSet<u32>>,
+    chosen: Vec<usize>,
+    best: Vec<usize>,
+    budget: u32,
+}
+
+impl PrefixSearch<'_> {
+    fn extend(&mut self, replay: &[(super::types::ChatRole, &str)], min_trace: usize) {
+        if self.chosen.len() > self.best.len() {
+            self.best = self.chosen.clone();
+        }
+        let Some(&(role, content_hash)) = replay.get(self.chosen.len()) else {
+            return; // the whole replay matched
+        };
+        let Some(candidates) = self
+            .state
+            .by_identity
+            .get(&(role, content_hash.to_string()))
+        else {
+            return; // nothing prior looks like this block, so the prefix ends here
+        };
+        for &entry in candidates {
+            if self.budget == 0 {
+                return;
+            }
+            if self.consumed[entry] {
+                continue;
+            }
+            let occurrence = &self.state.entries[entry];
+            if occurrence.trace < min_trace {
+                continue; // a later turn's message cannot be replayed before an earlier turn's
+            }
+            // Would taking this candidate claim an order the evidence contradicts? It would exactly when
+            // the candidate must precede something the replay has already matched.
+            if self
+                .must_precede
+                .get(&occurrence.trace)
+                .is_some_and(|ancestors| ancestors.contains(&(occurrence.position as u32)))
+            {
+                continue;
+            }
+
+            self.budget -= 1;
+            self.consumed[entry] = true;
+            self.chosen.push(entry);
+            let added = self.add_ancestors(occurrence.trace, occurrence.position);
+
+            self.extend(replay, occurrence.trace);
+
+            for node in added {
+                self.must_precede
+                    .get_mut(&occurrence.trace)
+                    .expect("the set this step added to")
+                    .remove(&node);
+            }
+            self.chosen.pop();
+            self.consumed[entry] = false;
+
+            if self.best.len() == replay.len() {
+                return; // nothing beats a full match
+            }
+        }
     }
 
-    fn candidate_is_permitted(
-        &self,
-        entry: usize,
-        matched: &[MatchedPrior],
-        must_precede: &HashMap<usize, HashSet<u32>>,
-        min_trace: usize,
-    ) -> bool {
-        if matched.iter().any(|m| m.entry == entry) {
-            return false; // injective: one prior occurrence answers for one replayed block
+    /// Record everything that must precede this occurrence, returning what was newly added so the
+    /// caller can undo it.
+    fn add_ancestors(&mut self, trace: usize, position: usize) -> Vec<u32> {
+        let mut reached: HashSet<u32> = HashSet::new();
+        self.state.relations[trace].collect_ancestors(position, &mut reached);
+        let known = self.must_precede.entry(trace).or_default();
+        let mut added = Vec::new();
+        for node in reached {
+            if known.insert(node) {
+                added.push(node);
+            }
         }
-        let candidate = &self.entries[entry];
-        if candidate.trace < min_trace {
-            return false; // a later turn's message cannot be replayed before an earlier turn's
-        }
-        // Would taking this candidate claim an order the evidence contradicts? It would exactly when the
-        // candidate must precede something the replay has already matched.
-        match must_precede.get(&candidate.trace) {
-            Some(ancestors) => !ancestors.contains(&(candidate.position as u32)),
-            None => true,
-        }
+        added
     }
 }
 
@@ -885,55 +974,40 @@ fn mark_cross_trace_prefix(blocks: &mut [BlockEntry], accumulated: &CrossTracePr
         return;
     }
 
-    let mut current_span_id: Option<String> = None;
-    let mut span_prefix_active = true;
     // Per span, because each generation span of a trace replays the history independently - ADK and
-    // LangGraph re-send it at the start of every one, not only at the trace's start.
-    let mut matched: Vec<MatchedPrior> = Vec::new();
-    let mut must_precede: HashMap<usize, HashSet<u32>> = HashMap::new();
-    let mut min_trace = 0usize;
+    // LangGraph re-send it at the start of every one, not only at the trace's start. The blocks are
+    // gathered first and matched as a whole, because the choice made for one block can depend on the
+    // blocks after it (see `longest_matching_prefix`).
     let mut marked = 0;
     let mut spans_scanned = 0;
-    for block in blocks.iter_mut() {
-        if current_span_id.as_deref() != Some(block.span_id.as_str()) {
-            current_span_id = Some(block.span_id.clone());
-            span_prefix_active = true;
-            matched.clear();
-            must_precede.clear();
-            min_trace = 0;
-            spans_scanned += 1;
+    let mut span_start = 0usize;
+    while span_start < blocks.len() {
+        let span_id = blocks[span_start].span_id.clone();
+        let mut span_end = span_start;
+        while span_end < blocks.len() && blocks[span_end].span_id == span_id {
+            span_end += 1;
         }
-        if !span_prefix_active || !is_strippable(block) {
-            continue;
-        }
-        // System prompts are per-trace framing, not semantic history prefix. Treat them as transparent
-        // so leading system blocks do not break the match for the user/tool content after them.
-        if block.role == super::types::ChatRole::System {
-            continue;
+        spans_scanned += 1;
+
+        // The span's replayable blocks, in payload order. System prompts are per-trace framing rather
+        // than history, so they are transparent: skipped without ending the prefix.
+        let replayable: Vec<usize> = (span_start..span_end)
+            .filter(|&i| {
+                is_strippable(&blocks[i]) && blocks[i].role != super::types::ChatRole::System
+            })
+            .collect();
+        let identities: Vec<(super::types::ChatRole, &str)> = replayable
+            .iter()
+            .map(|&i| (blocks[i].role, blocks[i].content_hash.as_str()))
+            .collect();
+
+        let matched = accumulated.longest_matching_prefix(&identities);
+        for &i in replayable.iter().take(matched.len()) {
+            blocks[i].is_history = true;
+            marked += 1;
         }
 
-        match accumulated.next_match(
-            block.role,
-            &block.content_hash,
-            &matched,
-            &must_precede,
-            min_trace,
-        ) {
-            Some(entry) => {
-                block.is_history = true;
-                marked += 1;
-                let prior = &accumulated.entries[entry];
-                // Everything that had to precede this occurrence now has to precede anything matched
-                // after it. Grown incrementally, so each block and edge of a trace's relation is walked
-                // once in total rather than once per candidate.
-                let ancestors = must_precede.entry(prior.trace).or_default();
-                accumulated.relations[prior.trace].collect_ancestors(prior.position, ancestors);
-                min_trace = prior.trace;
-                matched.push(MatchedPrior { entry });
-            }
-            // Nothing prior answers for this block, so the span has reached its new content.
-            None => span_prefix_active = false,
-        }
+        span_start = span_end;
     }
 
     tracing::debug!(
