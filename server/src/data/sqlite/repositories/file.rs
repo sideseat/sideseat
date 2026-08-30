@@ -707,6 +707,40 @@ mod tests {
         );
     }
 
+    /// Two projects can present the same trace id, and their associations must not collide.
+    ///
+    /// A trace id comes from the client. Keyed without the project, the first project's association
+    /// satisfied `INSERT OR IGNORE` for the second - so the second got no association, `associate_file`
+    /// reported "not new" and skipped the increment, and the second project's file was left with a
+    /// reference count nothing would ever release.
+    #[tokio::test]
+    async fn two_projects_sharing_a_trace_id_each_get_their_own_association() {
+        let pool = setup_test_pool().await;
+
+        for project in ["project-a", "project-b"] {
+            let inserted = associate_file(
+                &pool,
+                "same-trace-id",
+                project,
+                test_hash(),
+                Some("image/png"),
+                1024,
+                "sha256",
+            )
+            .await
+            .unwrap();
+            assert!(
+                inserted,
+                "{project} must get its own association for a trace id it happens to share"
+            );
+            let file = get_file(&pool, project, test_hash())
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(file.ref_count, 1, "{project} holds exactly one reference");
+        }
+    }
+
     /// A retry must not count the same reference twice.
     ///
     /// With the increment separate from the association, `INSERT OR IGNORE` kept the existing

@@ -3,7 +3,7 @@
 //! Initial schema with all tables. No migrations needed for first version.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 3;
+pub const SCHEMA_VERSION: i32 = 4;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -135,7 +135,10 @@ CREATE TABLE IF NOT EXISTS trace_files (
     trace_id TEXT NOT NULL,
     project_id TEXT NOT NULL,
     file_hash TEXT NOT NULL,
-    PRIMARY KEY (trace_id, file_hash),
+    -- Project first: a trace id comes from the client, so two projects can present the same one.
+    -- Keyed without the project, one project's association satisfied `INSERT OR IGNORE` for the
+    -- other, leaving the second with no association and a reference nothing would release.
+    PRIMARY KEY (project_id, trace_id, file_hash),
     FOREIGN KEY (project_id, file_hash) REFERENCES files(project_id, file_hash) ON DELETE CASCADE
 );
 
