@@ -165,6 +165,42 @@ pub async fn delete_project_files(pool: &SqlitePool, project_id: &str) -> Result
     Ok(result.rows_affected())
 }
 
+/// Set a file's reference count to the number of associations that actually exist.
+///
+/// Derived, not maintained. `ref_count` is a cached `COUNT(*)` over `trace_files`, and every way it
+/// drifted came from trying to keep the cache in step by hand: increment once per batch instead of per
+/// association, decrement once per hash instead of per association, or - the one no careful pairing can
+/// fix - two concurrent cleanups that both read a count of three and both subtract three, taking a file
+/// that four traces referenced down to zero.
+///
+/// Recomputing is idempotent and immune to all of it: whatever else happened concurrently, the count
+/// becomes the truth. Cheap, because `(project_id, file_hash)` is the association table's key prefix.
+pub async fn sync_ref_count(
+    pool: &SqlitePool,
+    project_id: &str,
+    file_hash: &str,
+) -> Result<Option<i64>, SqliteError> {
+    let now = chrono::Utc::now().timestamp();
+    let result: Option<(i64,)> = sqlx::query_as(
+        r#"
+        UPDATE files
+        SET ref_count = (
+                SELECT COUNT(*) FROM trace_files
+                WHERE project_id = files.project_id AND file_hash = files.file_hash
+            ),
+            updated_at = ?
+        WHERE project_id = ? AND file_hash = ?
+        RETURNING ref_count
+        "#,
+    )
+    .bind(now)
+    .bind(project_id)
+    .bind(file_hash)
+    .fetch_optional(pool)
+    .await?;
+    Ok(result.map(|(count,)| count))
+}
+
 /// Associate a file with a trace, and count the reference **only if the association is new**.
 ///
 /// One transaction, because the two halves have to agree: `ref_count` must equal the number of
@@ -216,10 +252,18 @@ pub async fn associate_file(
     .rows_affected()
         > 0;
 
+    // Recomputed from the associations, not incremented. Same reasoning as `sync_ref_count`: a
+    // maintained counter drifts, a derived one cannot. Inside the transaction, so the association it
+    // counts is the one just inserted.
     if inserted {
         sqlx::query(
             r#"
-            UPDATE files SET ref_count = ref_count + 1, updated_at = ?
+            UPDATE files
+            SET ref_count = (
+                    SELECT COUNT(*) FROM trace_files
+                    WHERE project_id = files.project_id AND file_hash = files.file_hash
+                ),
+                updated_at = ?
             WHERE project_id = ? AND file_hash = ?
             "#,
         )
@@ -256,31 +300,6 @@ pub async fn get_file_reference_counts_for_traces(
         q = q.bind(trace_id);
     }
     Ok(q.fetch_all(pool).await?)
-}
-
-/// Drop `by` references at once, for a deletion that removed that many associations.
-pub async fn decrement_ref_count_by(
-    pool: &SqlitePool,
-    project_id: &str,
-    file_hash: &str,
-    by: i64,
-) -> Result<Option<i64>, SqliteError> {
-    let now = chrono::Utc::now().timestamp();
-    let result: Option<(i64,)> = sqlx::query_as(
-        r#"
-        UPDATE files
-        SET ref_count = MAX(ref_count - ?, 0), updated_at = ?
-        WHERE project_id = ? AND file_hash = ?
-        RETURNING ref_count
-        "#,
-    )
-    .bind(by)
-    .bind(now)
-    .bind(project_id)
-    .bind(file_hash)
-    .fetch_optional(pool)
-    .await?;
-    Ok(result.map(|(count,)| count))
 }
 
 /// Insert a trace-file association
@@ -707,6 +726,45 @@ mod tests {
         );
     }
 
+    /// Two cleanups deleting overlapping trace sets must not release a reference twice.
+    ///
+    /// The case a maintained counter cannot survive: four traces reference one file, two cleanups both
+    /// read a count of three for the same three traces, and both subtract three - taking the count to
+    /// zero and deleting a file the fourth trace still shows. Derived from the associations, the count
+    /// is simply what remains, however many times it is recomputed.
+    #[tokio::test]
+    async fn recomputing_a_reference_count_is_idempotent() {
+        let pool = setup_test_pool().await;
+        let all = ["t1", "t2", "t3", "t4"];
+        for trace in all {
+            associate_file(
+                &pool,
+                trace,
+                "default",
+                test_hash(),
+                Some("image/png"),
+                1024,
+                "sha256",
+            )
+            .await
+            .unwrap();
+        }
+
+        // Both cleanups target the same three traces; only one deletion actually removes rows.
+        let doomed: Vec<String> = ["t1", "t2", "t3"].iter().map(|t| t.to_string()).collect();
+        delete_trace_files(&pool, "default", &doomed).await.unwrap();
+
+        // Two recomputations, as two concurrent cleanups would each do.
+        let first = sync_ref_count(&pool, "default", test_hash()).await.unwrap();
+        let second = sync_ref_count(&pool, "default", test_hash()).await.unwrap();
+
+        assert_eq!(first, Some(1), "t4 still references the file");
+        assert_eq!(
+            second, first,
+            "recomputing again must not release t4's reference a second time"
+        );
+    }
+
     /// Two projects can present the same trace id, and their associations must not collide.
     ///
     /// A trace id comes from the client. Keyed without the project, the first project's association
@@ -818,9 +876,14 @@ mod tests {
         .unwrap();
         assert_eq!(counts, vec![(test_hash().to_string(), 3)]);
 
-        let released = decrement_ref_count_by(&pool, "default", test_hash(), counts[0].1)
-            .await
-            .unwrap();
+        delete_trace_files(
+            &pool,
+            "default",
+            &traces.iter().map(|t| t.to_string()).collect::<Vec<_>>(),
+        )
+        .await
+        .unwrap();
+        let released = sync_ref_count(&pool, "default", test_hash()).await.unwrap();
         assert_eq!(
             released,
             Some(0),

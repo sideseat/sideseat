@@ -536,13 +536,12 @@ impl TransactionalRepository for Arc<PostgresService> {
             .map_err(Into::into)
     }
 
-    async fn decrement_ref_count_by(
+    async fn sync_ref_count(
         &self,
         project_id: &str,
         file_hash: &str,
-        by: i64,
     ) -> Result<Option<i64>, DataError> {
-        file::decrement_ref_count_by(self.pool(), project_id, file_hash, by)
+        file::sync_ref_count(self.pool(), project_id, file_hash)
             .await
             .map_err(Into::into)
     }

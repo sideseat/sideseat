@@ -165,6 +165,36 @@ pub async fn delete_project_files(pool: &PgPool, project_id: &str) -> Result<u64
     Ok(result.rows_affected())
 }
 
+/// Set a file's reference count to the number of associations that actually exist.
+///
+/// See the SQLite twin: `ref_count` is a cached `COUNT(*)`, and recomputing it is the only form immune
+/// to concurrent cleanups both subtracting the same references.
+pub async fn sync_ref_count(
+    pool: &PgPool,
+    project_id: &str,
+    file_hash: &str,
+) -> Result<Option<i64>, PostgresError> {
+    let now = chrono::Utc::now().timestamp();
+    let result: Option<(i64,)> = sqlx::query_as(
+        r#"
+        UPDATE files
+        SET ref_count = (
+                SELECT COUNT(*) FROM trace_files
+                WHERE project_id = files.project_id AND file_hash = files.file_hash
+            ),
+            updated_at = $1
+        WHERE project_id = $2 AND file_hash = $3
+        RETURNING ref_count
+        "#,
+    )
+    .bind(now)
+    .bind(project_id)
+    .bind(file_hash)
+    .fetch_optional(pool)
+    .await?;
+    Ok(result.map(|(count,)| count))
+}
+
 /// Associate a file with a trace, counting the reference only if the association is new.
 ///
 /// See the SQLite twin for why this is one transaction: `ref_count` must equal the number of
@@ -208,9 +238,18 @@ pub async fn associate_file(
     .rows_affected()
         > 0;
 
+    // Recomputed from the associations, not incremented - see `sync_ref_count`.
     if inserted {
         sqlx::query(
-            "UPDATE files SET ref_count = ref_count + 1, updated_at = $1 WHERE project_id = $2 AND file_hash = $3",
+            r#"
+            UPDATE files
+            SET ref_count = (
+                    SELECT COUNT(*) FROM trace_files
+                    WHERE project_id = files.project_id AND file_hash = files.file_hash
+                ),
+                updated_at = $1
+            WHERE project_id = $2 AND file_hash = $3
+            "#,
         )
         .bind(now)
         .bind(project_id)
@@ -240,31 +279,6 @@ pub async fn get_file_reference_counts_for_traces(
     .bind(trace_ids)
     .fetch_all(pool)
     .await?)
-}
-
-/// Drop `by` references at once, for a deletion that removed that many associations.
-pub async fn decrement_ref_count_by(
-    pool: &PgPool,
-    project_id: &str,
-    file_hash: &str,
-    by: i64,
-) -> Result<Option<i64>, PostgresError> {
-    let now = chrono::Utc::now().timestamp();
-    let result: Option<(i64,)> = sqlx::query_as(
-        r#"
-        UPDATE files
-        SET ref_count = GREATEST(ref_count - $1, 0), updated_at = $2
-        WHERE project_id = $3 AND file_hash = $4
-        RETURNING ref_count
-        "#,
-    )
-    .bind(by)
-    .bind(now)
-    .bind(project_id)
-    .bind(file_hash)
-    .fetch_optional(pool)
-    .await?;
-    Ok(result.map(|(count,)| count))
 }
 
 /// Insert a trace-file association

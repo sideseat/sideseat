@@ -279,11 +279,14 @@ impl FileService {
         // Delete trace-file associations
         repo.delete_trace_files(project_id, trace_ids).await?;
 
-        // Decrement by the number of associations removed, and delete when nothing references it.
-        for (hash, count) in references {
-            let new_ref_count = repo
-                .decrement_ref_count_by(project_id, &hash, count)
-                .await?;
+        // Recompute each count from the associations that remain, and delete when none do.
+        //
+        // Subtracting a previously-read number is not safe against a concurrent cleanup: both would read
+        // three, both subtract three, and a file four traces referenced would reach zero and be deleted
+        // under the fourth. Recomputing cannot do that - whatever else happened, the count becomes the
+        // truth.
+        for (hash, _) in references {
+            let new_ref_count = repo.sync_ref_count(project_id, &hash).await?;
 
             if new_ref_count == Some(0) {
                 // Delete from storage first
