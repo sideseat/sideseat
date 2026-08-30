@@ -128,16 +128,9 @@ pub(super) fn collect_order_evidence(
                 ))
                 .or_insert(next_carrier);
             let emission = credible.then(|| {
-                let root = block
-                    .position
-                    .to_string()
-                    .split('.')
-                    .next()
-                    .unwrap_or("")
-                    .to_string();
                 let next = instances.len();
                 *instances
-                    .entry((block.span_id.clone(), root))
+                    .entry((block.span_id.clone(), emission_scope(block)))
                     .or_insert(next)
             });
             OrderEvidence {
@@ -154,6 +147,41 @@ pub(super) fn collect_order_evidence(
             }
         })
         .collect()
+}
+
+/// Which emission of its span an observation belongs to.
+///
+/// Two different scopes, because frameworks split one response two different ways:
+///
+/// - An **event** carrier, or an array under one attribute, is one payload per instance, and a span
+///   can emit `gen_ai.choice` more than once - so the scope is the root of the position path, which
+///   distinguishes those instances.
+/// - A **split** attribute carrier spreads one response across sibling keys: Vercel writes
+///   `ai.response.text` beside `ai.response.toolCalls`, and those have different position roots while
+///   being one emission. So the scope is the attribute's *family* - the key with its last segment
+///   dropped - which binds the siblings without merging every output the span produced.
+///
+/// `(span, direction)` was the tempting generalisation and it overreaches: one span can hold several
+/// emissions, and duplicate output forms of the same one.
+fn emission_scope(block: &BlockEntry) -> String {
+    let payload_root = || {
+        block
+            .position
+            .to_string()
+            .split('.')
+            .next()
+            .unwrap_or("")
+            .to_string()
+    };
+    match block.source_attribute.as_deref() {
+        // A family only where the key actually has one: `ai.response.text` -> `ai.response`. A
+        // single-segment key is its own family.
+        Some(attribute) => match attribute.rsplit_once('.') {
+            Some((family, _)) if !family.is_empty() => format!("attr:{family}"),
+            _ => format!("attr:{attribute}"),
+        },
+        None => format!("event:{}", payload_root()),
+    }
 }
 
 /// Whether an observation is evidence of *when* a message happened and part of *one emission*.
@@ -288,23 +316,32 @@ impl Constraints {
     ///   replay; "these are in this relative order globally" is not, and that reading dragged ADK's
     ///   second system prompt to the front of a session.
     ///
-    /// Not yet promoted:
+    /// - **Occurrence anchors** (`time_priority`): a unit sorts at the earliest time its *evidence*
+    ///   gives it, and ties break on where it was **first observed** across every copy - not on the
+    ///   surviving block's index in the previous sort, which is what survivor choice could move.
     ///
-    /// - `time_priority`: still blocked on the emission-instance key. Vercel spreads one response
-    ///   across sibling attributes (`ai.response.text` beside `ai.response.toolCalls`), which are
-    ///   different payload roots and so different instances, so contraction cannot hold that response
-    ///   together and promoting time alone displaces its intro text behind its own calls.
+    ///   This needed the emission scope generalised first. Vercel spreads one response across sibling
+    ///   attributes (`ai.response.text` beside `ai.response.toolCalls`), which have different position
+    ///   roots, so contraction could not hold that response together and promoting time alone displaced
+    ///   its intro text behind its own calls. `emission_scope` now uses the attribute *family* for split
+    ///   carriers and the payload root for event carriers - `(span, direction)` was the tempting
+    ///   generalisation and overreaches, since one span can hold several emissions.
     ///
-    /// Known residual, recorded rather than blessed: `adk/tool_use`'s middle trace now interleaves
-    /// `call, result, call, result` where its first and third traces keep `call, call, result, result`.
-    /// Same framework, same shape, different answer - because ADK re-sends everything and which copy
-    /// survives dedup decides which results are non-history inputs of which span. That is exactly the
-    /// copy-survival dependence this redesign exists to remove, so it is a symptom of unfinished work
-    /// (occurrence anchors), not a reading to defend. It is order-only and violates no invariant.
+    ///   Effect, measured: two fixtures, both repairs. An `adk/tool_use` span view showed both tool
+    ///   *results before* both calls and now reads `call, result, call, result`; the whole-view
+    ///   causality invariant had missed it because span views are exempt (a span usually holds only one
+    ///   half of a pair) and this span holds both. `agent-framework/swarm` stops batching all three
+    ///   specialists' system prompts ahead of all three answers and interleaves each prompt with its own
+    ///   agent's reply.
+    ///
+    /// Every class is now promoted. What remains is not a dial but the two items Codex named: replay
+    /// matching is still a single linear transcript rather than injective matching against a partial
+    /// order, and the resolver has no complexity bound - dataflow builds up to `inputs x outputs` edges,
+    /// duplicate-edge checks are linear, and Kahn rescans every unit per iteration.
     pub(super) const PRODUCTION: Self = Self {
         contract_non_contiguous_emissions: true,
         enforce_backward_edges: true,
-        time_priority: false,
+        time_priority: true,
         source_position_member_order: true,
         carrier_sequence_edges: true,
         generation_dataflow_edges: true,
@@ -477,13 +514,32 @@ pub(super) fn resolve(
             })
             .or_insert(time);
     }
-    // The smallest legacy index in each unit, for a stable tie-break and the neutrality seed.
+    // The smallest legacy index in each unit: the neutrality seed, and the tie-break of last resort.
     let mut unit_min_legacy: HashMap<usize, usize> = HashMap::new();
     for (i, &unit) in unit_of.iter().enumerate() {
         unit_min_legacy
             .entry(unit)
             .and_modify(|m| *m = (*m).min(i))
             .or_insert(i);
+    }
+
+    // Where each unit was *first observed*, over every observation that projects to it.
+    //
+    // This is the tie-break that survivor choice cannot move. The legacy index is the position of the
+    // *surviving* block in the previous sort, so two units with nothing ordering them were separated by
+    // which copy happened to win dedup - which is the dependence this redesign exists to remove, and
+    // what makes `adk/tool_use` group its tool calls in two traces and interleave them in a third.
+    // First observation is a property of the evidence: it considers every copy, so it does not change
+    // when a different one survives.
+    let mut unit_first_seen: HashMap<usize, usize> = HashMap::new();
+    for (observation, _) in evidence.iter().enumerate() {
+        let Some(survivor) = survivor_of(observation) else {
+            continue;
+        };
+        unit_first_seen
+            .entry(unit_of[survivor])
+            .and_modify(|m| *m = (*m).min(observation))
+            .or_insert(observation);
     }
 
     // Exact call -> result edges over units. A result's unit follows its call's unit, but only when
@@ -655,7 +711,18 @@ pub(super) fn resolve(
         } else {
             None
         };
-        (primary, unit_min_legacy[&u], u)
+        // Under `NEUTRAL` the legacy index alone decides, which is what makes the neutrality proof
+        // hold. Otherwise first-observation breaks the tie and the legacy index is the last resort,
+        // for a unit no observation projects to.
+        let secondary = if constraints.time_priority {
+            unit_first_seen
+                .get(&u)
+                .copied()
+                .unwrap_or(unit_min_legacy[&u])
+        } else {
+            unit_min_legacy[&u]
+        };
+        (primary, secondary, u)
     };
     while order.len() < units.len() {
         let mut ready: Vec<usize> = units
