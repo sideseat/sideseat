@@ -2068,13 +2068,31 @@ pub async fn delete_project_data(
     );
     client.query(&sql).bind(project_id).execute().await?;
 
-    // Delete metrics too (best-effort - table may not exist in all deployments)
-    let metrics_sql = format!(
-        "ALTER TABLE {}{} DELETE WHERE project_id = ?",
-        metrics_table, on_cluster
-    );
-    if let Err(e) = client.query(&metrics_sql).bind(project_id).execute().await {
-        tracing::debug!("Metrics deletion skipped (table may not exist): {}", e);
+    // Metrics too, and a failure here is reported rather than swallowed.
+    //
+    // This used to log at debug and continue, on the reasoning that the table "may not exist in all
+    // deployments" - but the schema in this repository always creates it, so the only thing that
+    // rationale bought was hiding real failures. A project's metrics are not reachable through the
+    // project row either, so metrics left behind by a swallowed error are the same class of orphan as
+    // spans left behind, and the caller's verification would never look at them.
+    //
+    // The one case the old comment was right about is asked directly instead of inferred from an error:
+    // if the table is genuinely absent there is nothing to delete.
+    let table_exists: u64 = client
+        .query("SELECT count() FROM system.tables WHERE database = currentDatabase() AND name = ?")
+        .bind(metrics_table)
+        .fetch_one()
+        .await?;
+    if table_exists > 0 {
+        let metrics_sql = format!(
+            "ALTER TABLE {}{} DELETE WHERE project_id = ?",
+            metrics_table, on_cluster
+        );
+        client
+            .query(&metrics_sql)
+            .bind(project_id)
+            .execute()
+            .await?;
     }
 
     Ok(count)
