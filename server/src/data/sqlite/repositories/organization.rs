@@ -148,7 +148,8 @@ async fn get_organization_from_db(
     id: &str,
 ) -> Result<Option<OrganizationRow>, SqliteError> {
     let row = sqlx::query_as::<_, (String, String, String, i64, i64)>(
-        "SELECT id, name, slug, created_at, updated_at FROM organizations WHERE id = ?",
+        "SELECT id, name, slug, created_at, updated_at FROM organizations \
+         WHERE id = ? AND deleting_at IS NULL",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -224,7 +225,7 @@ async fn list_for_user_from_db(
         SELECT o.id, o.name, o.slug, om.role, o.created_at, o.updated_at
         FROM organizations o
         JOIN organization_members om ON o.id = om.organization_id
-        WHERE om.user_id = ?
+        WHERE om.user_id = ? AND o.deleting_at IS NULL
         ORDER BY o.created_at DESC
         LIMIT ? OFFSET ?
         "#,
@@ -240,7 +241,7 @@ async fn list_for_user_from_db(
         SELECT COUNT(*)
         FROM organizations o
         JOIN organization_members om ON o.id = om.organization_id
-        WHERE om.user_id = ?
+        WHERE om.user_id = ? AND o.deleting_at IS NULL
         "#,
     )
     .bind(user_id)
@@ -276,12 +277,14 @@ pub async fn update_organization(
 
     let now = chrono::Utc::now().timestamp();
 
-    let result = sqlx::query("UPDATE organizations SET name = ?, updated_at = ? WHERE id = ?")
-        .bind(name)
-        .bind(now)
-        .bind(id)
-        .execute(pool)
-        .await?;
+    let result = sqlx::query(
+        "UPDATE organizations SET name = ?, updated_at = ? WHERE id = ? AND deleting_at IS NULL",
+    )
+    .bind(name)
+    .bind(now)
+    .bind(id)
+    .execute(pool)
+    .await?;
 
     if result.rows_affected() == 0 {
         return Ok(None);

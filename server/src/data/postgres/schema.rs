@@ -3,7 +3,7 @@
 //! Initial schema with all tables. Compatible with SQLite schema structure.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 7;
+pub const SCHEMA_VERSION: i32 = 8;
 
 /// Complete schema SQL for PostgreSQL
 pub const SCHEMA: &str = r#"
@@ -36,6 +36,10 @@ CREATE TABLE IF NOT EXISTS organizations (
         (length(slug) >= 2 AND length(slug) <= 50 AND slug ~ '^[a-z0-9][a-z0-9-]*[a-z0-9]$')
         OR (length(slug) = 1 AND slug ~ '^[a-z0-9]$')
     ),
+    -- Set while the organization is being deleted, and a tombstone for the same reason a project's is:
+    -- deleting the row cascades its project rows away, and those rows *are* the projects' tombstones, so
+    -- removing it early would stop the cleanup that collects a stalled writer's spans.
+    deleting_at BIGINT,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL
 );
@@ -102,8 +106,12 @@ CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
     organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    -- Set while the project is being deleted - see the SQLite twin for what the fence is for.
+    -- Set while the project is being deleted - a tombstone, see the SQLite twin for why it outlives
+    -- the data rather than the other way round.
     deleting_at BIGINT,
+    -- Consecutive sweeps that found no data for this project. Removal follows what has been observed,
+    -- not how long ago the deletion started.
+    clean_sweeps BIGINT NOT NULL DEFAULT 0,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL
 );

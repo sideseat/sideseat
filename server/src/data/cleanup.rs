@@ -5,24 +5,27 @@ use std::sync::Arc;
 use anyhow::{Context, Result, anyhow};
 
 use crate::core::constants::{
-    CLAIM_RECOVERY_INTERVAL_SECS, FILE_DELETION_CLAIM_STALE_SECS, PROJECT_DELETION_CLAIM_STALE_SECS,
+    CLAIM_RECOVERY_INTERVAL_SECS, FILE_DELETION_CLAIM_STALE_SECS,
+    PROJECT_DELETION_CLAIM_STALE_SECS, PROJECT_TOMBSTONE_CLEAN_SWEEPS,
 };
 use crate::data::AnalyticsService;
 use crate::data::TransactionalService;
 use crate::data::cache::{CacheKey, CacheService};
 use crate::data::files::FileService;
 
-/// Cleanup for organization deletion
+/// Delete an organization: tombstone it, tombstone its projects, and let the sweep finish.
 ///
-/// Performs cleanup in the correct order:
-/// 1. Get project_ids before transactional cascade deletes them
-/// 2. Delete traces from analytics backend for each project
-/// 3. Delete files from filesystem for each project
-/// 4. Invalidate API key caches for the organization
-/// 5. Delete org from transactional backend (cascades to projects, members, api_keys)
+/// The organization row cannot go with its data, and the reason is the same one that makes a project's
+/// row a tombstone: deleting it cascades its *project* rows away, and those rows are what the projects'
+/// own cleanups depend on to keep running. Removing it early would therefore stop exactly the collection
+/// that a late write needs.
 ///
-/// All cleanup steps are attempted even if some fail. Errors are collected
-/// and returned after all steps complete to ensure maximum cleanup.
+/// So this claims the organization, claims every project under it, deletes what it can, and returns. From
+/// that moment the organization and its projects are invisible to every read and refuse every write; the
+/// sweep removes the project rows as each one's data is observed gone, and the organization row once no
+/// project rows remain.
+///
+/// Returns `Ok(false)` when there was no live organization to delete.
 pub async fn cleanup_organization(
     database: &Arc<TransactionalService>,
     analytics: &Arc<AnalyticsService>,
@@ -30,92 +33,85 @@ pub async fn cleanup_organization(
     cache: Option<&CacheService>,
     org_id: &str,
 ) -> Result<bool> {
+    let repo = database.repository();
+
+    if !repo
+        .claim_organization_for_deletion(org_id)
+        .await
+        .context("Failed to claim organization for deletion")?
+    {
+        return Ok(false);
+    }
+
+    // API keys are org-scoped, so their caches go now: the organization is no longer usable.
+    if let Some(cache) = cache {
+        invalidate_org_api_key_caches(repo.as_ref(), cache, org_id).await;
+    }
+
+    finish_organization_deletion(database, analytics, file_service, cache, org_id).await?;
+    Ok(true)
+}
+
+/// The resumable part of an organization deletion: everything after the claim.
+///
+/// Idempotent throughout, so the sweep can run it repeatedly - which it must, because the organization
+/// row waits for its projects and a project row waits for repeated evidence that its data is gone.
+pub async fn finish_organization_deletion(
+    database: &Arc<TransactionalService>,
+    analytics: &Arc<AnalyticsService>,
+    file_service: &Arc<FileService>,
+    cache: Option<&CacheService>,
+    org_id: &str,
+) -> Result<()> {
+    let repo = database.repository();
     let mut errors: Vec<String> = Vec::new();
 
-    let repo = database.repository();
-    let analytics_repo = analytics.repository();
-
-    // 1. Get project_ids before transactional cascade deletes them
-    let project_ids = repo.list_project_ids(org_id).await?;
-
-    // 2. Fence every project first, for the reason `cleanup_project` documents: until a project is
-    //    claimed it is live, so a batch can arrive behind the cleanup and outlive it. Losing a claim
-    //    means someone else is already deleting that project - their cleanup is the same work, and the
-    //    org cascade removes the row either way.
-    for project_id in &project_ids {
-        if let Err(e) = repo.claim_project_for_deletion(cache, project_id).await {
-            // Fatal, not collected. An unfenced project is one that can still be written to while its
-            // data is deleted, and the org row below would then take it away with spans still arriving.
+    // Every project fenced first. A project that is not fenced can still be written to while its data
+    // is being deleted, and nothing later in this function would notice.
+    for project_id in repo.list_project_ids(org_id).await? {
+        if let Err(e) = repo.claim_project_for_deletion(cache, &project_id).await {
             return Err(anyhow!(
-                "Failed to fence project {} for organization {} deletion: {}",
+                "Failed to fence project {} of organization {}: {}",
                 project_id,
                 org_id,
                 e
             ));
         }
-    }
-
-    // 3. Delete traces from analytics backend for each project
-    for project_id in &project_ids {
-        if let Err(e) = analytics_repo.delete_project_data(project_id).await {
-            errors.push(format!(
-                "Analytics delete failed for project {}: {}",
-                project_id, e
-            ));
+        if let Err(e) =
+            finish_project_deletion(database, analytics, file_service, &project_id).await
+        {
+            errors.push(format!("project {}: {}", project_id, e));
         }
     }
 
-    // 4. Delete files from filesystem for each project
-    for project_id in &project_ids {
-        if let Err(e) = file_service.delete_project(project_id).await {
-            errors.push(format!(
-                "File delete failed for project {}: {}",
-                project_id, e
-            ));
-        }
-    }
-
-    // 5. Invalidate API key caches for the organization
-    if let Some(cache) = cache {
-        invalidate_org_api_key_caches(repo.as_ref(), cache, org_id).await;
-    }
-
-    // 6. Refuse to remove the organization while any of its data is unaccounted for. Deleting it
-    //    cascades its project rows away, and a project row is what every read path finds data by - so
-    //    doing that after a failed step strands the survivors where nothing can ever reach them. The
-    //    projects stay claimed, which is to say invisible and unwritable, and the sweep retries.
     if !errors.is_empty() {
+        // The organization stays tombstoned, which is to say invisible and unwritable, and the sweep
+        // tries again. Deleting its row now would cascade away the project rows the retry needs.
         return Err(anyhow!(
-            "Organization {} cleanup failed with {} errors; its projects stay fenced for retry: {}",
+            "Organization {} cleanup is not finished; it stays fenced for retry: {}",
             org_id,
-            errors.len(),
             errors.join("; ")
         ));
     }
-    if !project_ids.is_empty() {
-        let counts = analytics_repo
-            .count_spans_by_project(&project_ids)
-            .await
-            .context("Failed to verify an organization's data is gone")?;
-        let remaining: u64 = counts.values().sum();
-        if remaining > 0 {
-            return Err(anyhow!(
-                "Organization {} still has {} spans after deletion; its projects stay fenced for retry",
-                org_id,
-                remaining
-            ));
-        }
+
+    // Only once no project rows are left. While one remains, its own cleanup is still relying on it.
+    let remaining = repo
+        .count_projects_of_organization(org_id)
+        .await
+        .context("Failed to count an organization's remaining projects")?;
+    if remaining > 0 {
+        tracing::debug!(
+            org_id,
+            remaining,
+            "Organization data deleted; its row waits for its projects' tombstones"
+        );
+        return Ok(());
     }
 
-    // 7. Delete org from transactional backend (cascades to projects, members, api_keys). Not to
-    //    `files`: `files.project_id` has no foreign key to `projects`, so step 4 is the only thing
-    //    that removes those rows.
-    let deleted = repo
-        .delete_organization(None, org_id)
+    repo.delete_organization(None, org_id)
         .await
-        .context("Failed to delete organization")?;
-
-    Ok(deleted)
+        .context("Failed to delete organization row")?;
+    Ok(())
 }
 
 /// Delete a project: everything it owns, then the row that owns it.
@@ -136,7 +132,8 @@ pub async fn cleanup_organization(
 ///     [*] --> Live
 ///     Live --> Claimed: claim (compare-and-set)
 ///     Claimed --> Claimed: sweep resumes an abandoned cleanup
-///     Claimed --> [*]: data verified gone, row deleted
+///     Claimed --> Claimed: a sweep deletes what appeared and counts a clean pass
+///     Claimed --> [*]: enough consecutive clean sweeps, row deleted
 ///     note right of Claimed
 ///         reads report absent
 ///         ingestion refuses
@@ -144,27 +141,40 @@ pub async fn cleanup_organization(
 ///     end note
 /// ```
 ///
-/// The claim is the fence and the tombstone at once: while it is set the project is not live, so no new
-/// data can appear behind the cleanup's back, and it survives a restart, so a crash leaves the project
-/// fenced rather than half-deleted and live.
+/// The claim is a **tombstone**: it outlives the data rather than the other way round. While it is set the
+/// project is not live, and it survives a restart, so a crash leaves the project fenced rather than
+/// half-deleted and live.
 ///
-/// # Why the row outlives the claim by a grace period
+/// # What the barrier does and does not promise
 ///
-/// The write path checks the fence and then writes, and the two cannot be one atomic act: spans live in
-/// the analytics store and the fence in the transactional one, so no transaction spans them. A batch can
-/// therefore read "live", have the claim land underneath it, and commit afterwards. Verifying the span
-/// count once does not close that - the verification is an observation, and the batch may commit after
-/// it.
+/// The write path checks the fence and then writes, and the two cannot be one act: spans live in the
+/// analytics store and the fence in the transactional one, so no transaction spans them. A writer can
+/// therefore read "live", have the tombstone land underneath it, and commit afterwards - and *no elapsed
+/// time bounds that*. A blocking insert can outlive its statement timeout, an object store can retry, a
+/// container can be paused. A wall-clock grace period was a guess dressed as a guarantee, which is why
+/// there is not one.
 ///
-/// What does close it is refusing writes for a project whose row is *absent* as well as claimed, plus
-/// leaving the row in place until the claim is older than [`PROJECT_DELETION_CLAIM_STALE_SECS`]. A batch
-/// that passed the check did so before the claim; by the time the row is allowed to go, that batch has
-/// long since committed or been refused, and its spans were deleted by the sweep that finally removes the
-/// row. So the row's disappearance is genuinely the last fact, and until then every read reports the
-/// project absent anyway.
+/// What the tombstone does promise, and it is enough:
 ///
-/// The consequence is that deletion is asynchronous: this returns once the data is gone and the project
-/// is invisible, and [`start_claim_recovery_task`] removes the row a couple of minutes later.
+/// 1. No **new** writer passes the fence, because every write path asks whether the project accepts
+///    writes and a tombstoned - or absent - project does not.
+/// 2. Cleanup keeps running for as long as the row exists, so a late writer's spans are deleted by the
+///    next sweep.
+/// 3. The row is removed only after [`PROJECT_TOMBSTONE_CLEAN_SWEEPS`] consecutive sweeps have found
+///    nothing, and a sweep that finds something starts that count over.
+///
+/// So a late write is *collected* rather than stranded, and the residual is stated rather than hidden: a
+/// writer whose first commit lands after that many consecutive quiet sweeps would leave rows nothing
+/// collects. That needs a writer stalled for ten minutes of wall clock while the request that started it
+/// is long gone.
+///
+/// The consequence is that deletion is asynchronous. This returns once the data is deleted and the
+/// project is invisible to every read and every write; [`start_claim_recovery_task`] removes the row once
+/// it has watched it stay empty.
+///
+/// It also needs nothing from the instance that started it, which is what makes it correct in a
+/// horizontally scaled deployment: the tombstone is a row, every instance's write path consults it, and
+/// every instance's sweep advances it. Concurrent sweeps duplicate work rather than corrupt state.
 ///
 /// Returns `Ok(false)` when there was no live project to delete.
 pub async fn cleanup_project(
@@ -243,76 +253,109 @@ pub async fn finish_project_deletion(
             u64::MAX
         });
     if remaining > 0 {
-        return Err(anyhow!(
-            "Project {} still has {} spans after deletion; leaving it claimed so the sweep retries",
+        // Not an error: this is the case the barrier exists for. A writer that read the fence before the
+        // tombstone has committed, its rows were just deleted again, and the sweep count below starts
+        // over - which is what "collected by continued cleanup" means in practice.
+        tracing::info!(
             project_id,
-            remaining
-        ));
+            remaining,
+            "A late writer's spans were collected; the project's tombstone stays"
+        );
     }
 
-    // The row goes only once the claim is old enough that no writer can still be holding a fence check
-    // taken before it - see this module's `cleanup_project` for why one verification cannot substitute
-    // for that wait. Until then the project is claimed, which is to say invisible and unwritable, and
-    // the sweep finishes the job.
-    let claim_age = repo
-        .project_claim_age_secs(project_id)
+    // The row goes on the strength of repeated observation, never on elapsed time.
+    //
+    // This is the barrier, and it is worth being precise about what it does and does not promise. It does
+    // not promise that no writer commits after the count above: the fence and the spans are in different
+    // stores, so a writer that read the fence before the tombstone can commit arbitrarily later - a
+    // blocking insert that outlived its statement timeout, an object store retrying, a container that was
+    // paused - and no elapsed time bounds that. A wall-clock grace period was therefore a guess dressed
+    // as a guarantee.
+    //
+    // What it does promise: while the tombstone exists, no *new* writer passes the fence, and every sweep
+    // deletes whatever has appeared. So a late write is collected by the next sweep, and the row is
+    // removed only after `PROJECT_TOMBSTONE_CLEAN_SWEEPS` consecutive sweeps have found nothing - a sweep
+    // that finds data resets the count and starts it over. The residual is stated rather than hidden: a
+    // writer that first commits after that many quiet sweeps leaves rows nothing collects, which needs a
+    // writer stalled for `CLAIM_RECOVERY_INTERVAL_SECS` times that many while its request is long gone.
+    let may_remove = repo
+        .record_project_sweep(project_id, remaining == 0, PROJECT_TOMBSTONE_CLEAN_SWEEPS)
         .await
-        .context("Failed to read a project's claim age")?;
-    match claim_age {
-        Some(age) if age >= PROJECT_DELETION_CLAIM_STALE_SECS => {
-            repo.delete_project(None, project_id)
-                .await
-                .context("Failed to delete project row")?;
-        }
-        Some(_) => {
-            tracing::debug!(
-                project_id,
-                "Project data deleted; the row waits for in-flight writers to finish"
-            );
-        }
-        // No claim means no row: another sweep finished it.
-        None => {}
+        .context("Failed to record a project cleanup sweep")?;
+    if may_remove {
+        repo.delete_project(None, project_id)
+            .await
+            .context("Failed to delete project row")?;
+    } else {
+        tracing::debug!(
+            project_id,
+            "Project data deleted; its row waits for repeated evidence that it stays deleted"
+        );
     }
     Ok(())
 }
 
-/// Finish project deletions that a crash or a failed step left claimed.
+/// Advance every tombstoned project and organization: delete what has appeared, remove what is finished.
 ///
-/// The claim is durable so the project stays fenced across a restart - which is what makes a stuck
-/// deletion possible in the first place, and worse than one that never started: the project is hidden
-/// from every read path while its data is still on disk and still counted against storage. Nothing
-/// releases a claim, so this is the only thing that can finish one.
+/// Called on a timer and at startup, and it is not only a recovery path. A tombstone is *meant* to be
+/// revisited: it is removed on repeated evidence that the data stays gone, and a sweep that finds a late
+/// writer's spans deletes them and starts that evidence over. So this is the mechanism that makes
+/// deletion complete, not a fallback for when something went wrong.
 ///
-/// Every step after the claim is idempotent, so resuming is a retry rather than a special case. Called
-/// at startup, which is when a crashed process's claims are found.
-pub async fn resume_abandoned_project_deletions(
+/// `stale_after_secs` keeps a deletion that is actively in progress from being picked up in parallel by
+/// this sweep; concurrent runs would be harmless - every step is idempotent and the claims are
+/// compare-and-set - but doing the same work twice on every instance of a horizontally scaled deployment
+/// is worth avoiding.
+pub async fn advance_pending_deletions(
     database: &Arc<TransactionalService>,
     analytics: &Arc<AnalyticsService>,
     file_service: &Arc<FileService>,
     stale_after_secs: i64,
 ) -> Result<usize> {
-    let stale = database
-        .repository()
+    let repo = database.repository();
+    let mut advanced = 0;
+
+    let projects = repo
         .get_stale_claimed_projects(stale_after_secs)
         .await
-        .context("Failed to look for abandoned project deletions")?;
-    let mut finished = 0;
-    for project_id in stale {
-        match finish_project_deletion(database, analytics, file_service, &project_id).await {
-            Ok(()) => {
-                finished += 1;
-                tracing::info!(project_id, "Finished an abandoned project deletion");
-            }
-            // Still claimed, so still fenced and still findable next time.
+        .context("Failed to look for tombstoned projects")?;
+    for project_id in &projects {
+        match finish_project_deletion(database, analytics, file_service, project_id).await {
+            Ok(()) => advanced += 1,
+            // Still tombstoned, so still fenced and still found next time.
             Err(e) => {
-                tracing::warn!(project_id, error = %e, "Could not finish an abandoned project deletion")
+                tracing::warn!(project_id, error = %e, "Could not advance a project deletion")
             }
         }
     }
-    Ok(finished)
+
+    let orgs = repo
+        .get_stale_claimed_organizations(stale_after_secs)
+        .await
+        .context("Failed to look for tombstoned organizations")?;
+    for org_id in &orgs {
+        match finish_organization_deletion(database, analytics, file_service, None, org_id).await {
+            Ok(()) => advanced += 1,
+            Err(e) => {
+                tracing::warn!(org_id, error = %e, "Could not advance an organization deletion")
+            }
+        }
+    }
+
+    if advanced > 0 {
+        // "Advanced", not "finished": most passes only add to the evidence a tombstone waits for, and a
+        // log line claiming a deletion had completed when its row is still there is worse than none.
+        tracing::debug!(
+            projects = projects.len(),
+            organizations = orgs.len(),
+            advanced,
+            "Advanced pending deletions"
+        );
+    }
+    Ok(advanced)
 }
 
-/// A periodic sweep that finishes whatever a crash or a failed step left claimed.
+/// The timer that advances every pending deletion, and recovers any that was abandoned.
 ///
 /// Startup alone is not enough, and the gap is not hypothetical: a process that dies one second after
 /// claiming and restarts immediately leaves a claim the startup sweep reads as *fresh* - it is younger
@@ -343,7 +386,7 @@ pub fn start_claim_recovery_task(
                     }
                 }
                 _ = ticker.tick() => {
-                    match resume_abandoned_project_deletions(
+                    match advance_pending_deletions(
                         &database,
                         &analytics,
                         &file_service,
@@ -351,9 +394,8 @@ pub fn start_claim_recovery_task(
                     )
                     .await
                     {
-                        Ok(0) => {}
-                        Ok(n) => tracing::info!(finished = n, "Finished abandoned project deletions"),
-                        Err(e) => tracing::warn!(error = %e, "Could not sweep abandoned project deletions"),
+                        Ok(_) => {}
+                        Err(e) => tracing::warn!(error = %e, "Could not advance pending deletions"),
                     }
                     match crate::data::files::cleanup::cleanup_zero_ref_files(
                         file_service.storage(),

@@ -512,26 +512,6 @@ pub async fn project_accepts_writes(pool: &SqlitePool, id: &str) -> Result<bool,
     Ok(matches!(row, Some((None,))))
 }
 
-/// How long ago this project was claimed for deletion, in seconds, or `None` if it is not claimed.
-///
-/// Deletion reads this to decide whether the row may go yet: the write path checks the fence and then
-/// writes, and the two are in different stores, so the row has to outlive the claim by long enough that
-/// no writer can still be acting on a check taken before it.
-pub async fn project_claim_age_secs(
-    pool: &SqlitePool,
-    id: &str,
-) -> Result<Option<i64>, SqliteError> {
-    let row: Option<(Option<i64>,)> =
-        sqlx::query_as("SELECT deleting_at FROM projects WHERE id = ?")
-            .bind(id)
-            .fetch_optional(pool)
-            .await?;
-    Ok(match row {
-        Some((Some(at),)) => Some((chrono::Utc::now().timestamp() - at).max(0)),
-        _ => None,
-    })
-}
-
 /// Projects claimed for deletion longer ago than `older_than_secs`, so an abandoned cleanup can resume.
 ///
 /// A project's cleanup spans four stores and can fail or crash part way through any of them. The claim
@@ -563,6 +543,81 @@ async fn org_of_project_ignoring_fence(
             .fetch_optional(pool)
             .await?;
     Ok(row.map(|(org,)| org))
+}
+
+/// Record what a cleanup sweep observed, and answer whether the tombstone may now go.
+///
+/// This is the barrier, and it is deliberately not a clock. A writer that read the fence before the
+/// tombstone can commit arbitrarily later - a blocking insert that outlived its statement timeout, an
+/// object store retrying, a container that was paused - so no elapsed time proves it has finished. What
+/// *is* provable: while the tombstone exists no new writer passes the fence, and the sweep keeps deleting
+/// whatever appears. So the row is removed on the strength of repeated observation - `required` sweeps in
+/// a row that found nothing - and a sweep that finds data resets the count and starts it over.
+pub async fn record_project_sweep(
+    pool: &SqlitePool,
+    id: &str,
+    was_clean: bool,
+    required: i64,
+) -> Result<bool, SqliteError> {
+    let sql = if was_clean {
+        "UPDATE projects SET clean_sweeps = clean_sweeps + 1 WHERE id = ? AND deleting_at IS NOT NULL"
+    } else {
+        "UPDATE projects SET clean_sweeps = 0 WHERE id = ? AND deleting_at IS NOT NULL"
+    };
+    sqlx::query(sql).bind(id).execute(pool).await?;
+    let row: Option<(i64,)> = sqlx::query_as(
+        "SELECT clean_sweeps FROM projects WHERE id = ? AND deleting_at IS NOT NULL",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(matches!(row, Some((n,)) if n >= required))
+}
+
+/// Claim an organization for deletion, if it exists and nobody else has claimed it.
+pub async fn claim_organization_for_deletion(
+    pool: &SqlitePool,
+    id: &str,
+) -> Result<bool, SqliteError> {
+    let now = chrono::Utc::now().timestamp();
+    let result = sqlx::query(
+        "UPDATE organizations SET deleting_at = ? WHERE id = ? AND deleting_at IS NULL",
+    )
+    .bind(now)
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// Organizations claimed for deletion longer ago than `older_than_secs`, so one can be resumed.
+pub async fn get_stale_claimed_organizations(
+    pool: &SqlitePool,
+    older_than_secs: i64,
+) -> Result<Vec<String>, SqliteError> {
+    let cutoff = chrono::Utc::now().timestamp() - older_than_secs;
+    let rows: Vec<(String,)> = sqlx::query_as(
+        "SELECT id FROM organizations WHERE deleting_at IS NOT NULL AND deleting_at <= ?",
+    )
+    .bind(cutoff)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|(id,)| id).collect())
+}
+
+/// How many of an organization's projects still have rows, tombstoned or not.
+///
+/// An organization's row may only go when none are left: its cascade would take those rows with it, and
+/// a project row is what the cleanup of that project depends on to keep running.
+pub async fn count_projects_of_organization(
+    pool: &SqlitePool,
+    org_id: &str,
+) -> Result<i64, SqliteError> {
+    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM projects WHERE organization_id = ?")
+        .bind(org_id)
+        .fetch_one(pool)
+        .await?;
+    Ok(row.0)
 }
 
 /// Delete a project by ID. Returns true if a project was deleted.
@@ -888,6 +943,115 @@ mod tests {
                 .await
                 .unwrap()
                 .is_empty()
+        );
+    }
+
+    /// A tombstone is removed on repeated evidence, and a late write starts that evidence over.
+    ///
+    /// This is the barrier, expressed as the thing it has to do. A writer that read the fence before the
+    /// tombstone can commit arbitrarily later, so a sweep that finds data must not be treated as a
+    /// failure - it is the case the tombstone exists for. It deletes what appeared and the count restarts.
+    #[tokio::test]
+    async fn a_tombstone_is_removed_by_repeated_evidence_and_a_late_write_resets_it() {
+        let pool = setup_test_pool().await;
+        let project = create_project(&pool, None, "default", "Going Away")
+            .await
+            .unwrap();
+        assert!(
+            claim_project_for_deletion(&pool, None, &project.id)
+                .await
+                .unwrap()
+        );
+
+        // Four quiet sweeps are not enough when five are required.
+        for pass in 1..=4 {
+            assert!(
+                !record_project_sweep(&pool, &project.id, true, 5)
+                    .await
+                    .unwrap(),
+                "pass {pass} must not be enough on its own"
+            );
+        }
+        // A late writer's spans show up. The count starts over - that is the whole point.
+        assert!(
+            !record_project_sweep(&pool, &project.id, false, 5)
+                .await
+                .unwrap(),
+            "a sweep that found data cannot also authorise removing the row"
+        );
+        for pass in 1..=4 {
+            assert!(
+                !record_project_sweep(&pool, &project.id, true, 5)
+                    .await
+                    .unwrap(),
+                "the count restarted, so pass {pass} is not enough again"
+            );
+        }
+        assert!(
+            record_project_sweep(&pool, &project.id, true, 5)
+                .await
+                .unwrap(),
+            "five consecutive quiet sweeps is the evidence the row waits for"
+        );
+
+        // And through all of it the project accepted no writes.
+        assert!(!project_accepts_writes(&pool, &project.id).await.unwrap());
+        assert!(delete_project(&pool, None, &project.id).await.unwrap());
+        assert!(
+            !record_project_sweep(&pool, &project.id, true, 5)
+                .await
+                .unwrap(),
+            "a project with no row has no tombstone to advance"
+        );
+    }
+
+    /// An organization is tombstoned too, because its row is what its projects' tombstones hang from.
+    #[tokio::test]
+    async fn an_organization_tombstone_hides_it_and_its_row_waits_for_its_projects() {
+        let pool = setup_test_pool().await;
+        let project = create_project(&pool, None, "default", "Owned")
+            .await
+            .unwrap();
+
+        assert!(
+            claim_organization_for_deletion(&pool, "default")
+                .await
+                .unwrap()
+        );
+        assert!(
+            !claim_organization_for_deletion(&pool, "default")
+                .await
+                .unwrap(),
+            "one caller owns the deletion"
+        );
+        assert!(
+            get_stale_claimed_organizations(&pool, 0)
+                .await
+                .unwrap()
+                .contains(&"default".to_string())
+        );
+        assert!(
+            count_projects_of_organization(&pool, "default")
+                .await
+                .unwrap()
+                >= 1,
+            "its row may not go while a project row still hangs from it"
+        );
+
+        // Tombstoned projects still count: their rows are what their own cleanups depend on.
+        claim_project_for_deletion(&pool, None, &project.id)
+            .await
+            .unwrap();
+        let before = count_projects_of_organization(&pool, "default")
+            .await
+            .unwrap();
+        delete_project(&pool, None, &project.id).await.unwrap();
+        assert_eq!(
+            count_projects_of_organization(&pool, "default")
+                .await
+                .unwrap(),
+            before - 1,
+            "and it stops counting only when the row is really gone"
         );
     }
 
