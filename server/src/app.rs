@@ -5,15 +5,13 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 
 use crate::api::{ApiServer, AuthManager, OtlpGrpcServer};
-use opentelemetry_proto::tonic::collector::{
-    metrics::v1::ExportMetricsServiceRequest, trace::v1::ExportTraceServiceRequest,
-};
+use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 
 use crate::core::TopicService;
 use crate::core::banner;
 use crate::core::cli::{self, CliConfig, Commands, SystemCommands};
 use crate::core::config::AppConfig;
-use crate::core::constants::{APP_NAME_LOWER, ENV_LOG, TOPIC_METRICS, TOPIC_TRACES};
+use crate::core::constants::{APP_NAME_LOWER, ENV_LOG, TOPIC_TRACES};
 use crate::core::shutdown::ShutdownService;
 use crate::core::storage::AppStorage;
 use crate::core::update;
@@ -260,6 +258,8 @@ impl CoreApp {
                 &app.config.server.host,
                 &app.topics,
                 &app.storage,
+                Arc::clone(&app.analytics),
+                Arc::clone(&app.database),
                 app.config.debug,
             )?;
             let shutdown_rx = app.shutdown.subscribe();
@@ -355,18 +355,8 @@ impl CoreApp {
             .register(pipeline.start(traces_topic, self.shutdown.subscribe()))
             .await;
 
-        // Metrics pipeline
-        let metrics_topic = self
-            .topics
-            .topic::<ExportMetricsServiceRequest>(TOPIC_METRICS)
-            .map_err(|e| anyhow::anyhow!("Failed to create metrics topic: {}", e))?;
-
-        let metrics_pipeline =
-            crate::domain::MetricsPipeline::new(self.analytics.clone(), self.database.clone());
-
-        self.shutdown
-            .register(metrics_pipeline.start(metrics_topic, self.shutdown.subscribe()))
-            .await;
+        // No metrics pipeline: metrics are written inside their request, so a 200 means they are stored.
+        // See `domain::metrics::ingest` for why traces keep a queue and metrics do not.
 
         tracing::debug!("Background tasks started");
         Ok(())

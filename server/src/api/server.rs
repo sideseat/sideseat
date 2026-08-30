@@ -97,6 +97,7 @@ impl ApiServer {
             &app.topics,
             debug_path,
             app.database.clone(),
+            app.analytics.clone(),
             app.cache.clone(),
         )
         .layer(DefaultBodyLimit::max(OTLP_BODY_LIMIT));

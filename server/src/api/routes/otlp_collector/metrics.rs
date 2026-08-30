@@ -57,8 +57,12 @@ pub async fn export(
         write_debug(debug_path, "metrics.jsonl", &project_id, &request).await;
     }
 
-    if let Err(e) = state.metrics_publisher.publish(request) {
-        tracing::warn!(error = %e, "Failed to publish metrics to topic");
+    // Written before the answer, not queued behind it. A 200 used to mean "in an in-process buffer", so
+    // a crash or a database that stayed down through its retries lost records the exporter had counted as
+    // delivered - and nothing surfaced it. A failure is now a 503 the exporter retries.
+    if let Err(e) = crate::domain::ingest_metrics(&request, &state.analytics, &state.database).await
+    {
+        tracing::error!(error = %e, %project_id, "Failed to store metrics");
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             [(

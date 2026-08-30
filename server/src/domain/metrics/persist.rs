@@ -9,7 +9,14 @@ use crate::data::types::NormalizedMetric;
 use crate::utils::retry::{DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS, retry_with_backoff_async};
 
 /// Persist metrics batch to analytics backend with exponential backoff retry.
-pub async fn persist_batch(metrics: &[NormalizedMetric], analytics: &Arc<AnalyticsService>) {
+///
+/// Returns the failure rather than only logging it. It used to return `()`, so a batch that exhausted
+/// its retries left an error line and nothing else - and since the caller was a background task whose
+/// request had already been answered 200, the records were gone with the exporter believing otherwise.
+pub async fn persist_batch(
+    metrics: &[NormalizedMetric],
+    analytics: &Arc<AnalyticsService>,
+) -> Result<(), String> {
     let metric_count = metrics.len();
     let repo = analytics.repository();
 
@@ -37,6 +44,8 @@ pub async fn persist_batch(metrics: &[NormalizedMetric], analytics: &Arc<Analyti
                 attempts,
                 "Failed to write metrics to analytics backend after retries"
             );
+            return Err(format!("{e}"));
         }
     }
+    Ok(())
 }

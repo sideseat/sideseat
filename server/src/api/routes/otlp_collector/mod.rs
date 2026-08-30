@@ -14,11 +14,10 @@ use std::sync::Arc;
 use axum::Router;
 use axum::routing::post;
 use opentelemetry_proto::tonic::collector::{
-    logs::v1::ExportLogsServiceRequest, metrics::v1::ExportMetricsServiceRequest,
-    trace::v1::ExportTraceServiceRequest,
+    logs::v1::ExportLogsServiceRequest, trace::v1::ExportTraceServiceRequest,
 };
 
-use crate::core::constants::{TOPIC_LOGS, TOPIC_METRICS, TOPIC_TRACES};
+use crate::core::constants::{TOPIC_LOGS, TOPIC_TRACES};
 use crate::core::{Publisher, TopicService};
 use crate::data::TransactionalService;
 use crate::data::cache::CacheService;
@@ -32,11 +31,12 @@ pub struct OtlpState {
     /// Stream topic for traces (at-least-once delivery)
     pub trace_topic: Arc<StreamTopic<ExportTraceServiceRequest>>,
     /// Local publishers for metrics and logs (backward compatible)
-    pub metrics_publisher: Publisher<ExportMetricsServiceRequest>,
     pub logs_publisher: Publisher<ExportLogsServiceRequest>,
     pub debug_path: Option<PathBuf>,
-    /// For telling an exporter, now, that its project will not accept writes.
+    /// For the metrics write, which happens in the request, and for telling an exporter now that its
+    /// project will not accept writes.
     pub database: Arc<TransactionalService>,
+    pub analytics: Arc<crate::data::AnalyticsService>,
     pub cache: Arc<CacheService>,
 }
 
@@ -70,25 +70,24 @@ pub fn routes(
     topics: &Arc<TopicService>,
     debug_path: Option<PathBuf>,
     database: Arc<TransactionalService>,
+    analytics: Arc<crate::data::AnalyticsService>,
     cache: Arc<CacheService>,
 ) -> Router {
     // Use stream topic for traces (at-least-once delivery)
     let trace_topic = Arc::new(topics.stream_topic::<ExportTraceServiceRequest>(TOPIC_TRACES));
 
-    // Use local topics for metrics and logs (backward compatible)
-    let metrics_topic = topics
-        .topic::<ExportMetricsServiceRequest>(TOPIC_METRICS)
-        .expect("Failed to create metrics topic");
+    // Metrics have no topic: they are written inside their request. Logs have one only so that a
+    // subscriber could exist; nothing stores them, and the handler says so.
     let logs_topic = topics
         .topic::<ExportLogsServiceRequest>(TOPIC_LOGS)
         .expect("Failed to create logs topic");
 
     let state = OtlpState {
         trace_topic,
-        metrics_publisher: metrics_topic.publisher(),
         logs_publisher: logs_topic.publisher(),
         debug_path,
         database,
+        analytics,
         cache,
     };
 

@@ -27,7 +27,7 @@ use opentelemetry_proto::tonic::collector::{
 
 use crate::api::extractors::is_valid_project_id;
 use crate::core::config::OtelConfig;
-use crate::core::constants::{OTLP_BODY_LIMIT, TOPIC_LOGS, TOPIC_METRICS, TOPIC_TRACES};
+use crate::core::constants::{OTLP_BODY_LIMIT, TOPIC_LOGS, TOPIC_TRACES};
 use crate::core::storage::{AppStorage, DataSubdir};
 use crate::core::{Publisher, TopicService};
 use crate::data::topics::StreamTopic;
@@ -48,8 +48,10 @@ const PUBLISH_BASE_DELAY_MS: u64 = 50;
 pub struct OtlpGrpcServer {
     addr: SocketAddr,
     trace_topic: Arc<StreamTopic<ExportTraceServiceRequest>>,
-    metrics_publisher: Publisher<ExportMetricsServiceRequest>,
     logs_publisher: Publisher<ExportLogsServiceRequest>,
+    /// Metrics are written in the request rather than queued, so this service needs the stores.
+    analytics: Arc<crate::data::AnalyticsService>,
+    database: Arc<crate::data::TransactionalService>,
     debug_path: Option<PathBuf>,
 }
 
@@ -59,6 +61,8 @@ impl OtlpGrpcServer {
         host: &str,
         topics: &Arc<TopicService>,
         storage: &AppStorage,
+        analytics: Arc<crate::data::AnalyticsService>,
+        database: Arc<crate::data::TransactionalService>,
         debug: bool,
     ) -> Result<Self> {
         let addr = SocketAddr::new(host.parse()?, config.grpc_port);
@@ -69,10 +73,6 @@ impl OtlpGrpcServer {
         };
         // Use stream topic for traces (at-least-once delivery)
         let trace_topic = Arc::new(topics.stream_topic::<ExportTraceServiceRequest>(TOPIC_TRACES));
-        let metrics_publisher = topics
-            .topic::<ExportMetricsServiceRequest>(TOPIC_METRICS)
-            .map_err(|e| anyhow::anyhow!("{}", e))?
-            .publisher();
         let logs_publisher = topics
             .topic::<ExportLogsServiceRequest>(TOPIC_LOGS)
             .map_err(|e| anyhow::anyhow!("{}", e))?
@@ -80,7 +80,8 @@ impl OtlpGrpcServer {
         Ok(Self {
             addr,
             trace_topic,
-            metrics_publisher,
+            analytics,
+            database,
             logs_publisher,
             debug_path,
         })
@@ -103,7 +104,8 @@ impl OtlpGrpcServer {
             )
             .add_service(
                 MetricsServiceServer::new(OtlpMetricsService::new(
-                    self.metrics_publisher,
+                    self.analytics,
+                    self.database,
                     debug_path.clone(),
                 ))
                 .max_decoding_message_size(OTLP_BODY_LIMIT)
@@ -215,14 +217,20 @@ impl TraceService for OtlpTraceService {
 
 /// gRPC metrics service
 struct OtlpMetricsService {
-    publisher: Publisher<ExportMetricsServiceRequest>,
+    analytics: Arc<crate::data::AnalyticsService>,
+    database: Arc<crate::data::TransactionalService>,
     debug_path: Option<PathBuf>,
 }
 
 impl OtlpMetricsService {
-    fn new(publisher: Publisher<ExportMetricsServiceRequest>, debug_path: Option<PathBuf>) -> Self {
+    fn new(
+        analytics: Arc<crate::data::AnalyticsService>,
+        database: Arc<crate::data::TransactionalService>,
+        debug_path: Option<PathBuf>,
+    ) -> Self {
         Self {
-            publisher,
+            analytics,
+            database,
             debug_path,
         }
     }
@@ -246,9 +254,11 @@ impl MetricsService for OtlpMetricsService {
             write_debug(debug_path, "metrics.jsonl", &project_id, &req).await;
         }
 
-        if let Err(e) = self.publisher.publish(req) {
-            tracing::warn!(error = %e, "Failed to publish metrics to topic");
-            return Err(Status::resource_exhausted("metrics buffer full"));
+        // Written before the answer - see the HTTP twin: a queued acknowledgement was a 200 for records
+        // an in-process buffer could lose.
+        if let Err(e) = crate::domain::ingest_metrics(&req, &self.analytics, &self.database).await {
+            tracing::error!(error = %e, %project_id, "Failed to store metrics");
+            return Err(Status::unavailable("could not store metrics"));
         }
 
         Ok(Response::new(ExportMetricsServiceResponse {
