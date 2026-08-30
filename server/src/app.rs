@@ -126,9 +126,10 @@ impl CoreApp {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to initialize file service: {}", e))?,
         );
-        // A project deletion that died part way through left the project claimed - fenced, hidden from
-        // every read, and still holding its data. Startup is when those claims become findable.
-        match crate::data::cleanup::resume_abandoned_project_deletions(
+        // Pending deletions, advanced once at startup. A tombstone is removed on repeated evidence that
+        // its data stays gone, so this is a normal step of the protocol as much as it is recovery for a
+        // deletion whose owner died.
+        match crate::data::cleanup::advance_pending_deletions(
             &database,
             &analytics,
             &files,

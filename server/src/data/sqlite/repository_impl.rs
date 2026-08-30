@@ -274,17 +274,43 @@ impl TransactionalRepository for Arc<SqliteService> {
             .map_err(Into::into)
     }
 
-    async fn project_claim_age_secs(&self, id: &str) -> Result<Option<i64>, DataError> {
-        project::project_claim_age_secs(self.pool(), id)
-            .await
-            .map_err(Into::into)
-    }
-
     async fn get_stale_claimed_projects(
         &self,
         older_than_secs: i64,
     ) -> Result<Vec<String>, DataError> {
         project::get_stale_claimed_projects(self.pool(), older_than_secs)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn record_project_sweep(
+        &self,
+        id: &str,
+        was_clean: bool,
+        required: i64,
+    ) -> Result<bool, DataError> {
+        project::record_project_sweep(self.pool(), id, was_clean, required)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn claim_organization_for_deletion(&self, id: &str) -> Result<bool, DataError> {
+        project::claim_organization_for_deletion(self.pool(), id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn get_stale_claimed_organizations(
+        &self,
+        older_than_secs: i64,
+    ) -> Result<Vec<String>, DataError> {
+        project::get_stale_claimed_organizations(self.pool(), older_than_secs)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn count_projects_of_organization(&self, org_id: &str) -> Result<i64, DataError> {
+        project::count_projects_of_organization(self.pool(), org_id)
             .await
             .map_err(Into::into)
     }

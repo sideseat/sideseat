@@ -434,15 +434,35 @@ pub trait TransactionalRepository: Send + Sync {
     /// are unreachable through every read path, so accepting them stores data nothing can ever show.
     async fn project_accepts_writes(&self, id: &str) -> Result<bool, DataError>;
 
-    /// How long ago a project was claimed for deletion, or `None` if it is not claimed.
-    async fn project_claim_age_secs(&self, id: &str) -> Result<Option<i64>, DataError>;
-
     /// Projects claimed for deletion longer ago than `older_than_secs`, so a cleanup that died part
     /// way through can be resumed.
     async fn get_stale_claimed_projects(
         &self,
         older_than_secs: i64,
     ) -> Result<Vec<String>, DataError>;
+
+    /// Record what a cleanup sweep observed for a project, and answer whether its tombstone may go.
+    ///
+    /// The barrier is repeated observation, not elapsed time: no wall-clock grace period bounds how long
+    /// a writer that read the fence before the tombstone can take to commit.
+    async fn record_project_sweep(
+        &self,
+        id: &str,
+        was_clean: bool,
+        required: i64,
+    ) -> Result<bool, DataError>;
+
+    /// Claim an organization for deletion, if it exists and nobody else has claimed it.
+    async fn claim_organization_for_deletion(&self, id: &str) -> Result<bool, DataError>;
+
+    /// Organizations claimed for deletion longer ago than `older_than_secs`.
+    async fn get_stale_claimed_organizations(
+        &self,
+        older_than_secs: i64,
+    ) -> Result<Vec<String>, DataError>;
+
+    /// How many project rows an organization still has, tombstoned or not.
+    async fn count_projects_of_organization(&self, org_id: &str) -> Result<i64, DataError>;
 
     /// Delete a project's row. Only correct once its data is gone: the row is what every other path
     /// finds the data by.

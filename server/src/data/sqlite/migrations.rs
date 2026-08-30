@@ -177,6 +177,21 @@ const MIGRATION_V5: &str = "ALTER TABLE files ADD COLUMN deleting_at INTEGER";
 /// disappearance is the *last* fact, not the first.
 const MIGRATION_V6: &str = "ALTER TABLE projects ADD COLUMN deleting_at INTEGER";
 
+/// Removal driven by what has been observed, not by how long ago the deletion started.
+///
+/// The project tombstone was removed once its claim was older than a wall-clock grace period, and that
+/// is not a bound: a writer that read the fence before the claim can commit arbitrarily later - a stalled
+/// blocking insert, a retrying object store, a paused container - and the row it needs to be collected by
+/// would already be gone. `clean_sweeps` counts consecutive sweeps that found nothing, so the row goes on
+/// the strength of repeated observation instead.
+///
+/// Organizations get the same tombstone, because deleting an organization row cascades its project rows
+/// away - and those rows *are* the projects' tombstones, so removing it early stops exactly the cleanup
+/// that collects a late write.
+const MIGRATION_V8: &str = r#"ALTER TABLE projects ADD COLUMN clean_sweeps INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE organizations ADD COLUMN deleting_at INTEGER;
+"#;
+
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
     match version {
         1 => {
@@ -188,6 +203,9 @@ async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteEr
         4 => apply_versioned_migration(pool, 4, "project_scoped_trace_files", MIGRATION_V4).await,
         5 => apply_versioned_migration(pool, 5, "file_deletion_fence", MIGRATION_V5).await,
         6 => apply_versioned_migration(pool, 6, "project_deletion_fence", MIGRATION_V6).await,
+        // 7 is the PostgreSQL-only widening of the file counters; SQLite's INTEGER is already 64-bit.
+        7 => Ok(()),
+        8 => apply_versioned_migration(pool, 8, "deletion_tombstones", MIGRATION_V8).await,
         _ => Err(SqliteError::MigrationFailed {
             version,
             name: "unknown".to_string(),

@@ -509,23 +509,6 @@ pub async fn project_accepts_writes(pool: &PgPool, id: &str) -> Result<bool, Pos
     Ok(matches!(row, Some((None,))))
 }
 
-/// How long ago this project was claimed for deletion, in seconds, or `None` if it is not claimed.
-///
-/// Deletion reads this to decide whether the row may go yet: the write path checks the fence and then
-/// writes, and the two are in different stores, so the row has to outlive the claim by long enough that
-/// no writer can still be acting on a check taken before it.
-pub async fn project_claim_age_secs(pool: &PgPool, id: &str) -> Result<Option<i64>, PostgresError> {
-    let row: Option<(Option<i64>,)> =
-        sqlx::query_as("SELECT deleting_at FROM projects WHERE id = $1")
-            .bind(id)
-            .fetch_optional(pool)
-            .await?;
-    Ok(match row {
-        Some((Some(at),)) => Some((chrono::Utc::now().timestamp() - at).max(0)),
-        _ => None,
-    })
-}
-
 /// Projects claimed for deletion longer ago than `older_than_secs`, so an abandoned cleanup can resume.
 ///
 /// A project's cleanup spans four stores and can fail or crash part way through any of them. The claim
@@ -557,6 +540,81 @@ async fn org_of_project_ignoring_fence(
             .fetch_optional(pool)
             .await?;
     Ok(row.map(|(org,)| org))
+}
+
+/// Record what a cleanup sweep observed, and answer whether the tombstone may now go.
+///
+/// This is the barrier, and it is deliberately not a clock. A writer that read the fence before the
+/// tombstone can commit arbitrarily later - a blocking insert that outlived its statement timeout, an
+/// object store retrying, a container that was paused - so no elapsed time proves it has finished. What
+/// *is* provable: while the tombstone exists no new writer passes the fence, and the sweep keeps deleting
+/// whatever appears. So the row is removed on the strength of repeated observation - `required` sweeps in
+/// a row that found nothing - and a sweep that finds data resets the count and starts it over.
+pub async fn record_project_sweep(
+    pool: &PgPool,
+    id: &str,
+    was_clean: bool,
+    required: i64,
+) -> Result<bool, PostgresError> {
+    let sql = if was_clean {
+        "UPDATE projects SET clean_sweeps = clean_sweeps + 1 WHERE id = $1 AND deleting_at IS NOT NULL"
+    } else {
+        "UPDATE projects SET clean_sweeps = 0 WHERE id = $1 AND deleting_at IS NOT NULL"
+    };
+    sqlx::query(sql).bind(id).execute(pool).await?;
+    let row: Option<(i64,)> = sqlx::query_as(
+        "SELECT clean_sweeps FROM projects WHERE id = $1 AND deleting_at IS NOT NULL",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(matches!(row, Some((n,)) if n >= required))
+}
+
+/// Claim an organization for deletion, if it exists and nobody else has claimed it.
+pub async fn claim_organization_for_deletion(
+    pool: &PgPool,
+    id: &str,
+) -> Result<bool, PostgresError> {
+    let now = chrono::Utc::now().timestamp();
+    let result = sqlx::query(
+        "UPDATE organizations SET deleting_at = $1 WHERE id = $2 AND deleting_at IS NULL",
+    )
+    .bind(now)
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// Organizations claimed for deletion longer ago than `older_than_secs`, so one can be resumed.
+pub async fn get_stale_claimed_organizations(
+    pool: &PgPool,
+    older_than_secs: i64,
+) -> Result<Vec<String>, PostgresError> {
+    let cutoff = chrono::Utc::now().timestamp() - older_than_secs;
+    let rows: Vec<(String,)> = sqlx::query_as(
+        "SELECT id FROM organizations WHERE deleting_at IS NOT NULL AND deleting_at <= $1",
+    )
+    .bind(cutoff)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|(id,)| id).collect())
+}
+
+/// How many of an organization's projects still have rows, tombstoned or not.
+///
+/// An organization's row may only go when none are left: its cascade would take those rows with it, and
+/// a project row is what the cleanup of that project depends on to keep running.
+pub async fn count_projects_of_organization(
+    pool: &PgPool,
+    org_id: &str,
+) -> Result<i64, PostgresError> {
+    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM projects WHERE organization_id = $1")
+        .bind(org_id)
+        .fetch_one(pool)
+        .await?;
+    Ok(row.0)
 }
 
 /// Delete a project by ID. Returns true if a project was deleted.

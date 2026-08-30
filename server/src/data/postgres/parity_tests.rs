@@ -313,6 +313,53 @@ async fn projects_behave_identically() {
             repo.get_stale_claimed_projects(86_400).await.unwrap().len()
         ));
 
+        // The barrier: repeated evidence, and a sweep that finds data starts it over.
+        for pass in 1..=3 {
+            t.note(&format!(
+                "sweep_clean_{pass}={}",
+                repo.record_project_sweep(&beta.id, true, 3).await.unwrap()
+            ));
+        }
+        t.note(&format!(
+            "sweep_found_data={}",
+            repo.record_project_sweep(&beta.id, false, 3).await.unwrap()
+        ));
+        t.note(&format!(
+            "sweep_after_reset={}",
+            repo.record_project_sweep(&beta.id, true, 3).await.unwrap()
+        ));
+
+        // Organizations carry the same tombstone, and their rows wait for their projects.
+        t.note(&format!(
+            "projects_of_org={}",
+            repo.count_projects_of_organization("default")
+                .await
+                .unwrap()
+        ));
+        t.note(&format!(
+            "claim_org={}",
+            repo.claim_organization_for_deletion("default")
+                .await
+                .unwrap()
+        ));
+        t.note(&format!(
+            "claim_org_again={}",
+            repo.claim_organization_for_deletion("default")
+                .await
+                .unwrap()
+        ));
+        t.note(&format!(
+            "stale_orgs={}",
+            repo.get_stale_claimed_organizations(0).await.unwrap().len()
+        ));
+        t.note(&format!(
+            "org_reads_absent={}",
+            repo.get_organization(None, "default")
+                .await
+                .unwrap()
+                .is_none()
+        ));
+
         t.note(&format!(
             "deleted={}",
             repo.delete_project(None, &beta.id).await.unwrap()

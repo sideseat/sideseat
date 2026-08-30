@@ -3,7 +3,7 @@
 //! Initial schema with all tables. No migrations needed for first version.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 6;
+pub const SCHEMA_VERSION: i32 = 8;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -36,6 +36,10 @@ CREATE TABLE IF NOT EXISTS organizations (
         (length(slug) >= 2 AND length(slug) <= 50 AND slug GLOB '[a-z0-9][a-z0-9-]*[a-z0-9]')
         OR (length(slug) = 1 AND slug GLOB '[a-z0-9]')
     ),
+    -- Set while the organization is being deleted, and a tombstone for the same reason a project's is:
+    -- deleting the row cascades its project rows away, and those rows *are* the projects' tombstones, so
+    -- removing it early would stop the cleanup that collects a stalled writer's spans.
+    deleting_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );
@@ -102,10 +106,16 @@ CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
     organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    -- Set while the project is being deleted. Deletion spans four stores with no transaction over
-    -- them, so the row has to say "being deleted" for the whole of it: reads treat the project as
-    -- gone, ingestion refuses it, and the row itself is removed only once the data really is.
+    -- Set while the project is being deleted, and it is a *tombstone*: it outlives the data, not the
+    -- other way round. Deletion spans four stores with no transaction over them, so a writer can read
+    -- the fence, have the deletion land underneath it, and commit afterwards - no single observation
+    -- can rule that out. What the tombstone gives instead is that no *new* writer passes the fence and
+    -- that cleanup keeps running for as long as the row exists, so any such write is collected.
     deleting_at INTEGER,
+    -- Consecutive sweeps that found no data for this project. The row is removed on the strength of
+    -- what has been observed rather than of how long ago the deletion started: a wall-clock grace
+    -- period is not a bound on how long a stalled writer can take.
+    clean_sweeps INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );

@@ -413,9 +413,26 @@ mechanism and getting it wrong is invisible until there are two instances.
 | File extraction cache | No, per pipeline | Same shape: a memo keyed by content hash. |
 | Trace ingestion topic | Yes, when Redis is configured (`stream_topic` + consumer groups + `claim_stuck_messages`) | At-least-once across instances; ingestion is idempotent by span id, so a redelivery rewrites rather than duplicates. |
 | Metrics / logs / SSE topics | No — `topic()` builds an in-process channel whatever the backend | So an instance consumes only what it published: no cross-instance duplication. The cost is durability, not correctness: an in-memory queue loses acknowledged metrics on a crash. |
-| Project deletion fence (`projects.deleting_at`) | Yes, it is a row | One compare-and-set decides the owner across all instances, and every instance's write path consults it. |
-| Claim recovery sweeps | Run on every instance | Every step is idempotent and the claims are CAS-guarded, so concurrent sweeps duplicate work rather than corrupt state. |
+| Deletion tombstones (`projects.deleting_at`, `organizations.deleting_at`) | Yes, they are rows | One compare-and-set decides the owner across all instances, and every instance's write path consults it. |
+| Deletion sweeps | Run on every instance | Every step is idempotent and the claims are CAS-guarded, so concurrent sweeps duplicate work rather than corrupt state. |
 | Migrations | Serialised by `pg_advisory_lock` | Concurrent instances starting together cannot race the schema. |
+
+**Deleting a project or an organization is asynchronous, and the row is a tombstone.** The fence lives in
+the transactional store and spans in the analytics store, so no transaction spans them: a writer can read
+"live", have the deletion land underneath it, and commit afterwards. **No elapsed time bounds that** - a
+blocking insert can outlive its statement timeout, an object store can retry, a container can be paused -
+so there is no grace period. What the tombstone gives instead:
+
+1. No *new* writer passes the fence (`project_accepts_writes`: a row exists **and** nothing has claimed
+   it, so an absent project is refused as firmly as a claimed one).
+2. Cleanup keeps running while the row exists, so a late writer's spans are deleted by the next sweep.
+3. The row goes only after `PROJECT_TOMBSTONE_CLEAN_SWEEPS` consecutive sweeps found nothing; one that
+   finds data deletes it and starts the count over.
+
+An organization is tombstoned too, because deleting its row cascades its *project* rows away and those
+rows are what the projects' cleanups depend on; its row goes once no project rows remain. The residual is
+stated rather than hidden: a writer whose first commit lands after that many consecutive quiet sweeps
+(ten minutes at the default interval) would leave rows nothing collects.
 
 **Message-parsing goldens**: `cargo test -p sideseat-server message_goldens` verifies message count, content, ordering and absence of duplicates per framework across all three views (span / trace / session). Fixtures are captured OTLP payloads under `server/tests/fixtures/messages/<suite>/<sample>/`; capture with `misc/capture-message-fixtures.sh [suite] [sample]` (needs model credentials), then record with `UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens` and review the diff. Invariants (scope containment, per-trace dedup, tool-id correspondence, no empty thinking, determinism) hold independently of the goldens, so a blindly regenerated snapshot still fails on real defects. `UPDATE_GOLDENS=1` writes the files but still exits non-zero when an invariant was violated, so known-bad output cannot be committed as reviewed. See `server/tests/fixtures/messages/README.md`.
 

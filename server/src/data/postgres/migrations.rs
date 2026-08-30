@@ -224,6 +224,20 @@ CREATE INDEX IF NOT EXISTS idx_trace_files_project_hash ON trace_files(project_i
 ALTER TABLE files ALTER COLUMN id TYPE BIGINT;
 "#,
         ),
+        8 => (
+            "deletion_tombstones",
+            // Removal driven by observation rather than by elapsed time: a wall-clock grace period is
+            // not a bound on how long a stalled writer can take to commit, and the tombstone is what
+            // keeps the cleanup that collects such a write running. Organizations get one too, because
+            // deleting an organization row cascades its project rows - the projects' own tombstones -
+            // away. See the SQLite twin.
+            // BIGINT, not INTEGER: the counter is read into `i64`, and an INT4 column decodes into that only
+            // where a query remembers `::bigint`. `files.ref_count` was the same mistake, and the parity
+            // suite caught this one within a minute of the column existing.
+            r#"ALTER TABLE projects ADD COLUMN IF NOT EXISTS clean_sweeps BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS deleting_at BIGINT;
+"#,
+        ),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,

@@ -612,6 +612,17 @@ pub const PROJECT_DELETION_CLAIM_STALE_SECS: i64 = 60;
 /// process's lifetime; the sweep is two indexed queries when there is nothing to do.
 pub const CLAIM_RECOVERY_INTERVAL_SECS: u64 = 120;
 
+/// Consecutive cleanup sweeps that must find no data before a deleted project's row is removed.
+///
+/// The row is a tombstone: while it exists no new write is accepted for the project and every sweep
+/// deletes whatever appeared, so a writer that read the fence before the tombstone has its spans
+/// collected rather than stranded. Removal follows *observation* for that reason - elapsed time says
+/// nothing about a writer that is stalled rather than gone.
+///
+/// Five sweeps at `CLAIM_RECOVERY_INTERVAL_SECS` is ten minutes of continuously verified-empty, and a
+/// sweep that finds anything starts the count again.
+pub const PROJECT_TOMBSTONE_CLEAN_SWEEPS: i64 = 5;
+
 /// How many session reconstructions to remember, and how long an unused one stays.
 ///
 /// Entries are small - a reconstruction's *output* is the blocks a reader sees, not the megabytes of
