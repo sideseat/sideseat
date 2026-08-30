@@ -409,6 +409,7 @@ mechanism and getting it wrong is invisible until there are two instances.
 
 | Mechanism | Shared? | Why that is correct |
 | --- | --- | --- |
+| Project rows and the project→org mapping | **Not cached at all** | The project row *is* the deletion fence, and a process-local cache cannot be invalidated by another instance: A caches a live project, B tombstones it and clears only B's memory, and A keeps answering from its hit. Re-reading the fence after a fill closes the fill race but not this one, because a hit never reaches the database. The cost is a primary-key lookup. |
 | Reconstruction cache (`feed/cache.rs`) | No, process-local | A memo over a *pure function* of the rows. Any instance computes the same answer from the same digest, a cold instance recomputes it, a dying one loses only the saving. N instances change the hit rate, not the answer — `a_cached_reconstruction_equals_a_fresh_one` checks byte equality over the corpus. Sharing it would need a version key to avoid serving the previous build's answers, and a hand-maintained constant is a hole. |
 | File extraction cache | No, per pipeline | Same shape: a memo keyed by content hash. |
 | Trace ingestion topic | Yes, when Redis is configured (`stream_topic` + consumer groups + `claim_stuck_messages`) | At-least-once across instances; ingestion is idempotent by span id, so a redelivery rewrites rather than duplicates. With the **default in-memory backend the queue is skipped entirely** and the request writes before answering - see below. |
@@ -428,7 +429,17 @@ so there is no grace period. What the tombstone gives instead:
    it, so an absent project is refused as firmly as a claimed one).
 2. Cleanup keeps running while the row exists, so a late writer's spans are deleted by the next sweep.
 3. The row goes only after `PROJECT_TOMBSTONE_CLEAN_SWEEPS` consecutive sweeps found nothing; one that
-   finds data deletes it and starts the count over.
+   finds data deletes it and starts the count over. **Counting, deciding and deleting are one statement**
+   (`record_project_sweep`) - as two, instance A could decide on the strength of a count that instance B
+   reset in between and delete the row anyway, orphaning the row B had just found.
+4. The count measures **windows, not sweeps** (`last_sweep_at`, on the *database's* clock). Every instance
+   sweeps, so a bare increment let N instances reach the required number inside one interval - the barrier
+   getting weaker the more instances you run. Per-instance clocks would also mean every instance read a
+   different notion of now from the same row.
+5. Project creation is fenced **by the insert** (`INSERT ... SELECT ... WHERE deleting_at IS NULL`). As a
+   separate check it is a lost race: a project created just after its organization was tombstoned is live,
+   returns 201, and accepts writes - and a client creating projects in a loop could keep the organization's
+   deletion from ever finishing.
 
 An organization is tombstoned too, because deleting its row cascades its *project* rows away and those
 rows are what the projects' cleanups depend on; its row goes once no project rows remain. The residual is

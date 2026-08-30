@@ -238,6 +238,13 @@ ALTER TABLE files ALTER COLUMN id TYPE BIGINT;
 ALTER TABLE organizations ADD COLUMN IF NOT EXISTS deleting_at BIGINT;
 "#,
         ),
+        9 => (
+            "sweep_windows",
+            // The count has to measure elapsed observation rather than sweeps: every instance runs the
+            // sweep, so a bare increment let five instances reach five "consecutive clean sweeps" inside
+            // one interval - the barrier weakening as you scale out. See the SQLite twin.
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS last_sweep_at BIGINT",
+        ),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,

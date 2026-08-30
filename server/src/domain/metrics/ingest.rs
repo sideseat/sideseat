@@ -43,9 +43,9 @@ pub async fn ingest(
     // once the project row is gone - nothing finds them, nothing counts them, and the deletion that was
     // meant to remove them has already run.
     //
-    // Dropped rather than refused, as the trace path drops them: the project is not coming back, so a
-    // retry would be doomed. A lookup failure keeps them, because losing a live project's metrics to a
-    // database blip is worse than writing to a project whose sweep will collect them anyway.
+    // A project that will not accept writes has its metrics dropped rather than refused: it is not coming
+    // back, so a retry would be doomed. A fence that cannot be *read* is the opposite case - refused, so
+    // the exporter retries, because failing open there writes rows nothing can reach.
     let mut projects: Vec<&str> = metrics
         .iter()
         .map(|m| m.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID))
@@ -60,9 +60,12 @@ pub async fn ingest(
                 refusing.insert(project.to_string());
             }
             Ok(true) => {}
-            Err(e) => {
-                tracing::warn!(project, error = %e, "Could not check the project fence for metrics")
-            }
+            // Unknown, so refused - the trace path's rule, and for the reason it has it. Keeping the
+            // metrics would fail *open* on exactly the failure that matters: PostgreSQL down and
+            // ClickHouse up means the fence cannot be read while the write can still succeed, so a
+            // deleted project's metrics land where nothing will ever find or collect them. A 503 has the
+            // exporter retry instead.
+            Err(e) => return Err(format!("could not read the project fence: {e}")),
         }
     }
     if !refusing.is_empty() {

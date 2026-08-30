@@ -192,6 +192,15 @@ const MIGRATION_V8: &str = r#"ALTER TABLE projects ADD COLUMN clean_sweeps INTEG
 ALTER TABLE organizations ADD COLUMN deleting_at INTEGER;
 "#;
 
+/// The clean-sweep count has to measure elapsed observation, not sweeps.
+///
+/// Every instance of a horizontally scaled deployment runs the sweep, and the count was a bare increment -
+/// so five instances reached five "consecutive clean sweeps" inside a single interval, and the barrier
+/// grew weaker the more instances you ran. `last_sweep_at` makes the increment conditional on a window
+/// having passed, and since it is one atomic UPDATE, concurrent instances race for the row and only one
+/// wins per window.
+const MIGRATION_V9: &str = "ALTER TABLE projects ADD COLUMN last_sweep_at INTEGER";
+
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
     match version {
         1 => {
@@ -206,6 +215,7 @@ async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteEr
         // 7 is the PostgreSQL-only widening of the file counters; SQLite's INTEGER is already 64-bit.
         7 => Ok(()),
         8 => apply_versioned_migration(pool, 8, "deletion_tombstones", MIGRATION_V8).await,
+        9 => apply_versioned_migration(pool, 9, "sweep_windows", MIGRATION_V9).await,
         _ => Err(SqliteError::MigrationFailed {
             version,
             name: "unknown".to_string(),

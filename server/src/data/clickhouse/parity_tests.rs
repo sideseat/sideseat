@@ -51,8 +51,9 @@ use crate::data::duckdb::DuckdbService;
 use crate::data::duckdb::filters::{DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp};
 use crate::data::traits::AnalyticsRepository;
 use crate::data::types::{
-    ListSessionsParams, ListSpansParams, ListTracesParams, MessageQueryParams, MessageSpanRow,
-    NormalizedSpan, ObservationType, SessionRow, SpanCategory, SpanRow, TraceRow,
+    AggregationTemporality, ListSessionsParams, ListSpansParams, ListTracesParams,
+    MessageQueryParams, MessageSpanRow, MetricType, NormalizedMetric, NormalizedSpan,
+    ObservationType, SessionRow, SpanCategory, SpanRow, TraceRow,
 };
 
 /// Env var holding the base URL of a ClickHouse HTTP endpoint, e.g. `http://127.0.0.1:8123`.
@@ -2112,9 +2113,30 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         c.get(PROJECT),
         "count_spans_by_project differs between backends"
     );
-    // What deletion verification reads: every row a project owns, not only its spans. Kept beside the
-    // span count because the two must agree here - this fixture inserts no metrics - and the point of
-    // asking both is that they disagree the moment one backend forgets a table.
+    // What deletion verification reads: every row a project owns, not only its spans.
+    //
+    // A *metric* is inserted first, because that is the whole point of the read and a span-only fixture
+    // would pass while a backend that forgot the metrics table entirely still counted correctly. Deletion
+    // decides whether a tombstone may go on the strength of this number, so a metric it cannot see is a
+    // project row removed while its metrics remain - unreachable, because every read finds data through
+    // that row.
+    let metric = NormalizedMetric {
+        project_id: Some(PROJECT.to_string()),
+        metric_name: "parity.counter".to_string(),
+        metric_type: MetricType::Sum,
+        aggregation_temporality: AggregationTemporality::Cumulative,
+        is_monotonic: Some(true),
+        timestamp: ts(0),
+        value_int: Some(7),
+        ..Default::default()
+    };
+    duck.insert_metrics(std::slice::from_ref(&metric))
+        .await
+        .expect("duckdb metric insert");
+    ch.insert_metrics(std::slice::from_ref(&metric))
+        .await
+        .expect("clickhouse metric insert");
+
     let d_all = duck
         .count_project_rows(PROJECT)
         .await
@@ -2129,8 +2151,8 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     );
     assert_eq!(
         d_all,
-        spans.len() as u64,
-        "the project row count does not match what was inserted"
+        spans.len() as u64 + 1,
+        "the project row count must include the metric, or a deleted project's metrics outlive it"
     );
     assert_eq!(
         d.get(PROJECT),

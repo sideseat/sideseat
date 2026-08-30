@@ -266,6 +266,8 @@ impl UnionFind {
 pub(super) struct Precedence {
     /// Reverse adjacency over survivor indices.
     predecessors: Vec<Vec<u32>>,
+    /// Forward adjacency, for looking one step ahead when choosing between interchangeable candidates.
+    successors: Vec<Vec<u32>>,
 }
 
 impl Precedence {
@@ -274,12 +276,22 @@ impl Precedence {
     #[cfg(test)]
     pub(super) fn from_edges(blocks: usize, edges: &[(usize, usize)]) -> Self {
         let mut predecessors = vec![Vec::new(); blocks];
+        let mut successors = vec![Vec::new(); blocks];
         for &(before, after) in edges {
             if before < blocks && after < blocks {
                 predecessors[after].push(before as u32);
+                successors[before].push(after as u32);
             }
         }
-        Self { predecessors }
+        Self {
+            predecessors,
+            successors,
+        }
+    }
+
+    /// What this block immediately precedes. Used to look one step ahead, not to reason about order.
+    pub(super) fn successors_of(&self, block: usize) -> &[u32] {
+        self.successors.get(block).map(Vec::as_slice).unwrap_or(&[])
     }
 
     /// Everything that must precede `b`, accumulated into `seen` and skipping what it already holds.
@@ -320,10 +332,15 @@ pub(super) fn causal_precedence(
 ) -> Precedence {
     let n = survivors.len();
     let mut predecessors: Vec<Vec<u32>> = vec![Vec::new(); n];
+    let mut successors: Vec<Vec<u32>> = vec![Vec::new(); n];
     let mut edges: HashSet<(u32, u32)> = HashSet::new();
-    let mut add = |from: usize, to: usize, predecessors: &mut Vec<Vec<u32>>| {
+    let mut add = |from: usize,
+                   to: usize,
+                   predecessors: &mut Vec<Vec<u32>>,
+                   successors: &mut Vec<Vec<u32>>| {
         if from != to && from < n && to < n && edges.insert((from as u32, to as u32)) {
             predecessors[to].push(from as u32);
+            successors[from].push(to as u32);
         }
     };
     let survivor_of = |observation: usize| lineage.get(observation).copied().flatten();
@@ -360,7 +377,7 @@ pub(super) fn causal_precedence(
             }
         }
         for pair in sequence.windows(2) {
-            add(pair[0], pair[1], &mut predecessors);
+            add(pair[0], pair[1], &mut predecessors, &mut successors);
         }
     }
 
@@ -384,11 +401,14 @@ pub(super) fn causal_precedence(
         if let Some(callers) = calls.get(id)
             && callers.len() == 1
         {
-            add(callers[0], i, &mut predecessors);
+            add(callers[0], i, &mut predecessors, &mut successors);
         }
     }
 
-    Precedence { predecessors }
+    Precedence {
+        predecessors,
+        successors,
+    }
 }
 
 /// Which constraints the resolver is allowed to *change the answer* with.

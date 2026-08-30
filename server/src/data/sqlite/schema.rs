@@ -3,7 +3,7 @@
 //! Initial schema with all tables. No migrations needed for first version.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 8;
+pub const SCHEMA_VERSION: i32 = 9;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -116,6 +116,10 @@ CREATE TABLE IF NOT EXISTS projects (
     -- what has been observed rather than of how long ago the deletion started: a wall-clock grace
     -- period is not a bound on how long a stalled writer can take.
     clean_sweeps INTEGER NOT NULL DEFAULT 0,
+    -- When the sweep above was last *counted*. Without it the count measures sweeps rather than elapsed
+    -- observation, so N instances sweeping concurrently would reach the required number in one interval
+    -- instead of N - the barrier would get weaker the more instances you run.
+    last_sweep_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );

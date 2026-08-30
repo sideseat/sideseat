@@ -3,11 +3,8 @@
 //! All read operations support optional caching. Pass `Some(cache)` to enable caching,
 //! or `None` to bypass cache. Mutations automatically invalidate relevant cache keys.
 
-use std::time::Duration;
-
 use sqlx::PgPool;
 
-use crate::core::constants::{CACHE_TTL_PROJECT, CACHE_TTL_PROJECT_LIST};
 use crate::data::cache::{CacheKey, CacheService};
 use crate::data::postgres::PostgresError;
 use crate::data::types::ProjectRow;
@@ -24,16 +21,24 @@ pub async fn create_project(
     let id = cuid2::create_id();
     let now = chrono::Utc::now().timestamp();
 
-    sqlx::query(
-        "INSERT INTO projects (id, organization_id, name, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)",
+    // `INSERT ... SELECT`, so the organization's liveness is checked by the insert - see the SQLite twin
+    // for the race a separate check loses.
+    let inserted = sqlx::query(
+        "INSERT INTO projects (id, organization_id, name, created_at, updated_at) \
+         SELECT $1, id, $2, $3, $4 FROM organizations WHERE id = $5 AND deleting_at IS NULL",
     )
     .bind(&id)
-    .bind(organization_id)
     .bind(name)
     .bind(now)
     .bind(now)
+    .bind(organization_id)
     .execute(pool)
     .await?;
+    if inserted.rows_affected() == 0 {
+        return Err(PostgresError::Conflict(format!(
+            "organization {organization_id} does not exist or is being deleted"
+        )));
+    }
 
     // Invalidate list caches AFTER successful insert
     if let Some(cache) = cache {
@@ -64,70 +69,26 @@ pub async fn create_project(
     })
 }
 
-/// Whether this project has stopped being live since a caller last looked.
+/// Get a project by ID.
 ///
-/// Used to re-check after filling a cache entry: the fill is a write that follows its read, so without a
-/// second look it can reinstate a project that was claimed in between.
-async fn project_is_claimed_or_absent(pool: &PgPool, id: &str) -> bool {
-    let row: Option<(Option<i64>,)> =
-        sqlx::query_as("SELECT deleting_at FROM projects WHERE id = $1")
-            .bind(id)
-            .fetch_optional(pool)
-            .await
-            .unwrap_or(None);
-    !matches!(row, Some((None,)))
-}
-
-/// Get a project by ID (with optional caching)
+/// # Why this is not cached
+///
+/// It was, and a cache is wrong for this question in a way a shorter TTL cannot fix. The project row is
+/// the deletion fence, and with a process-local cache one instance cannot invalidate another's: instance A
+/// caches a live project, instance B tombstones it and clears only B's memory, and A keeps answering from
+/// its hit - a deleted project readable and listable for the cache's lifetime, on that instance only.
+/// Re-reading the fence after a fill closes the *fill* race but not this one, because a hit never reaches
+/// the database at all.
+///
+/// The cost of not caching is a primary-key lookup, which is microseconds on both backends, against a
+/// question every read path asks before it trusts anything else. The parameter is kept so callers need not
+/// change and so the intent is visible where they pass one.
 pub async fn get_project(
     pool: &PgPool,
-    cache: Option<&CacheService>,
+    _cache: Option<&CacheService>,
     id: &str,
 ) -> Result<Option<ProjectRow>, PostgresError> {
-    if let Some(cache) = cache {
-        let key = CacheKey::project(id);
-
-        // Try cache first
-        match cache.get::<ProjectRow>(&key).await {
-            Ok(Some(project)) => {
-                tracing::trace!(%id, "Project cache hit");
-                return Ok(Some(project));
-            }
-            Err(e) => tracing::warn!(%id, error = %e, "Cache get error"),
-            Ok(None) => {}
-        }
-
-        // Cache miss - query DB
-        let result = get_project_from_db(pool, id).await?;
-
-        // Filled only while the project is live, and *checked again* after the write.
-        //
-        // Filling a read-through cache is a write that happens after its read, so it races the deletion
-        // fence in the direction that matters: a reader misses, reads the live row, deletion claims the
-        // project and invalidates the cache, and then the reader's fill puts the project back for the
-        // cache's five minutes - readable, listable, and gone from the database's point of view.
-        //
-        // Re-reading the fence after the fill closes it. Either the claim was already visible, in which
-        // case there is nothing to fill, or it lands after this check - and then its own invalidation
-        // comes after the fill and removes it. There is no ordering left in which a stale entry survives.
-        if let Some(ref proj) = result {
-            if let Err(e) = cache
-                .set(&key, proj, Some(Duration::from_secs(CACHE_TTL_PROJECT)))
-                .await
-            {
-                tracing::warn!(%id, error = %e, "Cache set error");
-            }
-            if project_is_claimed_or_absent(pool, id).await
-                && let Err(e) = cache.delete(&key).await
-            {
-                tracing::warn!(%id, error = %e, "Cache invalidation error");
-            }
-        }
-
-        Ok(result)
-    } else {
-        get_project_from_db(pool, id).await
-    }
+    get_project_from_db(pool, id).await
 }
 
 /// Get a project by ID directly from database (no caching)
@@ -192,49 +153,20 @@ pub async fn list_projects(
 /// List projects for a user (across all their organizations) with optional caching
 ///
 /// Note: Only caches first page with default limit for simplicity.
+/// Projects a user can see.
+///
+/// Not cached. The first-page cache this used to have was already unreachable - every route passes `None` -
+/// and it could not have been kept: a list is only correct while its projects are live, and with a
+/// process-local cache one instance cannot invalidate another's, so a project another instance tombstoned
+/// would keep appearing in this instance's list. The query is a join over a handful of rows.
 pub async fn list_for_user(
     pool: &PgPool,
-    cache: Option<&CacheService>,
+    _cache: Option<&CacheService>,
     user_id: &str,
     page: u32,
     limit: u32,
 ) -> Result<(Vec<ProjectRow>, u64), PostgresError> {
-    // Only cache first page with standard limit
-    let use_cache = cache.is_some() && page == 1 && limit == 10;
-
-    if use_cache {
-        let cache = cache.unwrap();
-        let key = CacheKey::projects_for_user(user_id);
-
-        // Try cache first
-        match cache.get::<(Vec<ProjectRow>, u64)>(&key).await {
-            Ok(Some(result)) => {
-                tracing::trace!(%user_id, "Projects for user cache hit");
-                return Ok(result);
-            }
-            Err(e) => tracing::warn!(%user_id, error = %e, "Cache get error"),
-            Ok(None) => {}
-        }
-
-        // Cache miss - query DB
-        let result = list_for_user_from_db(pool, user_id, page, limit).await?;
-
-        // Store result in cache
-        if let Err(e) = cache
-            .set(
-                &key,
-                &result,
-                Some(Duration::from_secs(CACHE_TTL_PROJECT_LIST)),
-            )
-            .await
-        {
-            tracing::warn!(%user_id, error = %e, "Cache set error");
-        }
-
-        Ok(result)
-    } else {
-        list_for_user_from_db(pool, user_id, page, limit).await
-    }
+    list_for_user_from_db(pool, user_id, page, limit).await
 }
 
 /// List projects for a user directly from database (no caching)
@@ -293,49 +225,15 @@ async fn list_for_user_from_db(
 /// List projects for a specific organization with optional caching
 ///
 /// Note: Only caches first page with default limit for simplicity.
+/// Projects in an organization. Not cached, for the reason [`list_for_user`] gives.
 pub async fn list_for_org(
     pool: &PgPool,
-    cache: Option<&CacheService>,
+    _cache: Option<&CacheService>,
     org_id: &str,
     page: u32,
     limit: u32,
 ) -> Result<(Vec<ProjectRow>, u64), PostgresError> {
-    // Only cache first page with standard limit
-    let use_cache = cache.is_some() && page == 1 && limit == 10;
-
-    if use_cache {
-        let cache = cache.unwrap();
-        let key = CacheKey::projects_for_org(org_id);
-
-        // Try cache first
-        match cache.get::<(Vec<ProjectRow>, u64)>(&key).await {
-            Ok(Some(result)) => {
-                tracing::trace!(%org_id, "Projects for org cache hit");
-                return Ok(result);
-            }
-            Err(e) => tracing::warn!(%org_id, error = %e, "Cache get error"),
-            Ok(None) => {}
-        }
-
-        // Cache miss - query DB
-        let result = list_for_org_from_db(pool, org_id, page, limit).await?;
-
-        // Store result in cache
-        if let Err(e) = cache
-            .set(
-                &key,
-                &result,
-                Some(Duration::from_secs(CACHE_TTL_PROJECT_LIST)),
-            )
-            .await
-        {
-            tracing::warn!(%org_id, error = %e, "Cache set error");
-        }
-
-        Ok(result)
-    } else {
-        list_for_org_from_db(pool, org_id, page, limit).await
-    }
+    list_for_org_from_db(pool, org_id, page, limit).await
 }
 
 /// List projects for a specific organization directly from database (no caching)
@@ -542,33 +440,68 @@ async fn org_of_project_ignoring_fence(
     Ok(row.map(|(org,)| org))
 }
 
-/// Record what a cleanup sweep observed, and answer whether the tombstone may now go.
+/// Record what a cleanup sweep observed and, if the evidence is now sufficient, remove the tombstone -
+/// as one act.
 ///
-/// This is the barrier, and it is deliberately not a clock. A writer that read the fence before the
-/// tombstone can commit arbitrarily later - a blocking insert that outlived its statement timeout, an
-/// object store retrying, a container that was paused - so no elapsed time proves it has finished. What
-/// *is* provable: while the tombstone exists no new writer passes the fence, and the sweep keeps deleting
-/// whatever appears. So the row is removed on the strength of repeated observation - `required` sweeps in
-/// a row that found nothing - and a sweep that finds data resets the count and starts it over.
+/// # Why counting and deleting cannot be two statements
+///
+/// They were, and that is a lost race with another instance's sweep: A counts the last window it needs
+/// and decides to remove the row; B sweeps, a stalled writer commits, B finds the row and resets the
+/// count; A then deletes the row on the strength of a decision that is no longer true, and the writer's
+/// spans are orphaned. The decision has to be part of the delete, so it cannot be acted on after
+/// something invalidated it.
+///
+/// # Why the count measures windows rather than sweeps
+///
+/// Every instance of a horizontally scaled deployment runs the sweep. A bare increment let N instances
+/// reach the required number inside one interval - the barrier getting *weaker* the more instances you
+/// run. The increment is gated on `last_sweep_at`, and being one statement, concurrent instances race for
+/// the row and only one wins per window.
+///
+/// The times are the **database's**, not the caller's: with per-instance clocks, skew decides which
+/// windows count, and every instance reads a different notion of now from the same row.
+///
+/// Returns whether the row was removed.
 pub async fn record_project_sweep(
     pool: &PgPool,
     id: &str,
     was_clean: bool,
     required: i64,
+    min_gap_secs: i64,
 ) -> Result<bool, PostgresError> {
-    let sql = if was_clean {
-        "UPDATE projects SET clean_sweeps = clean_sweeps + 1 WHERE id = $1 AND deleting_at IS NOT NULL"
+    if was_clean {
+        sqlx::query(
+            "UPDATE projects SET clean_sweeps = clean_sweeps + 1, last_sweep_at = extract(epoch from now())::bigint \
+             WHERE id = $1 AND deleting_at IS NOT NULL \
+               AND (last_sweep_at IS NULL OR last_sweep_at <= extract(epoch from now())::bigint - $2)",
+        )
+        .bind(id)
+        .bind(min_gap_secs)
+        .execute(pool)
+        .await?;
     } else {
-        "UPDATE projects SET clean_sweeps = 0 WHERE id = $1 AND deleting_at IS NOT NULL"
-    };
-    sqlx::query(sql).bind(id).execute(pool).await?;
-    let row: Option<(i64,)> = sqlx::query_as(
-        "SELECT clean_sweeps FROM projects WHERE id = $1 AND deleting_at IS NOT NULL",
+        // A late writer's spans reset the evidence, and unconditionally: the safe direction is never
+        // gated on a window.
+        sqlx::query(
+            "UPDATE projects SET clean_sweeps = 0, last_sweep_at = extract(epoch from now())::bigint \
+             WHERE id = $1 AND deleting_at IS NOT NULL",
+        )
+        .bind(id)
+        .execute(pool)
+        .await?;
+    }
+
+    // The decision *is* the delete. Another instance that reset the count between this sweep's
+    // observation and this statement makes it match nothing, which is exactly what should happen.
+    let removed = sqlx::query(
+        "DELETE FROM projects \
+         WHERE id = $1 AND deleting_at IS NOT NULL AND clean_sweeps >= $2",
     )
     .bind(id)
-    .fetch_optional(pool)
+    .bind(required)
+    .execute(pool)
     .await?;
-    Ok(matches!(row, Some((n,)) if n >= required))
+    Ok(removed.rows_affected() > 0)
 }
 
 /// Claim an organization for deletion, if it exists and nobody else has claimed it.

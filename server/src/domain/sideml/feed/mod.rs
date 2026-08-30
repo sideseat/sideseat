@@ -272,6 +272,10 @@ struct CrossTracePrefixState {
     by_identity: HashMap<(super::types::ChatRole, String), Vec<usize>>,
     /// One relation per contributing trace, indexed by that trace's transcript position.
     relations: Vec<order_graph::Precedence>,
+    /// Each trace's transcript identities, by position - what a relation's nodes *are*, which the relation
+    /// itself does not know. Read only to look one step ahead when choosing between candidates that
+    /// nothing else distinguishes.
+    identities: Vec<Vec<(super::types::ChatRole, String)>>,
 }
 
 /// One occurrence an earlier trace established, and where to find it in that trace's relation.
@@ -300,6 +304,12 @@ impl CrossTracePrefixState {
     fn push_trace(&mut self, transcript: &[BlockEntry], relation: order_graph::Precedence) {
         let trace = self.relations.len();
         self.relations.push(relation);
+        self.identities.push(
+            transcript
+                .iter()
+                .map(|block| (block.role, block.content_hash.clone()))
+                .collect(),
+        );
         for (position, block) in transcript.iter().enumerate() {
             if block.role == super::types::ChatRole::System {
                 continue;
@@ -404,7 +414,7 @@ impl PrefixSearch<'_> {
         // common shapes are matched first-try and the search never branches. This is a heuristic on the
         // order of exploration, not on the answer: what is permitted is unchanged, so a shape the
         // heuristic guesses wrong is still found by backtracking.
-        let mut permitted: Vec<(usize, usize)> = Vec::new();
+        let mut permitted: Vec<(u8, usize, usize)> = Vec::new();
         for &entry in candidates {
             if self.consumed[entry] {
                 continue;
@@ -423,13 +433,15 @@ impl PrefixSearch<'_> {
                 continue;
             }
             permitted.push((
+                // Does taking this candidate line up with what the replay says comes next? Zero first.
+                self.lookahead_cost(replay, occurrence.trace, occurrence.position),
                 self.unmatched_ancestors(occurrence.trace, occurrence.position),
                 entry,
             ));
         }
         permitted.sort_unstable();
 
-        for (_, entry) in permitted {
+        for (_, _, entry) in permitted {
             if self.budget == 0 {
                 return;
             }
@@ -455,6 +467,38 @@ impl PrefixSearch<'_> {
                 return; // nothing beats a full match
             }
         }
+    }
+
+    /// Whether this candidate's immediate successors include what the replay asks for next: `0` if they
+    /// do, `1` if they do not.
+    ///
+    /// One step of lookahead, and it separates candidates that nothing else can. A tool call's identity
+    /// excludes the provider's call id, so nine calls of the same tool with the same input - a model
+    /// retrying - are one identity; and a call has no ancestors, so "fewest unmatched ancestors" ties
+    /// across all nine. What distinguishes them is which result follows, and the replay says which result
+    /// is next.
+    ///
+    /// A heuristic on the order of exploration only: what is permitted is unchanged, so a shape it guesses
+    /// wrong is still found by backtracking.
+    fn lookahead_cost(
+        &self,
+        replay: &[(super::types::ChatRole, &str)],
+        trace: usize,
+        position: usize,
+    ) -> u8 {
+        let Some(&(next_role, next_hash)) = replay.get(self.chosen.len() + 1) else {
+            return 0; // nothing follows, so nothing to line up with
+        };
+        let identities = &self.state.identities[trace];
+        let lines_up = self.state.relations[trace]
+            .successors_of(position)
+            .iter()
+            .any(|&successor| {
+                identities
+                    .get(successor as usize)
+                    .is_some_and(|(role, hash)| *role == next_role && hash == next_hash)
+            });
+        u8::from(!lines_up)
     }
 
     /// How many of this occurrence's ancestors the replay has not matched yet.

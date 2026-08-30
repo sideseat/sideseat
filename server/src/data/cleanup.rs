@@ -78,7 +78,7 @@ pub async fn finish_organization_deletion(
             ));
         }
         if let Err(e) =
-            finish_project_deletion(database, analytics, file_service, &project_id).await
+            finish_project_deletion(database, analytics, file_service, cache, &project_id).await
         {
             errors.push(format!("project {}: {}", project_id, e));
         }
@@ -197,7 +197,7 @@ pub async fn cleanup_project(
         return Ok(false);
     }
 
-    finish_project_deletion(database, analytics, file_service, project_id).await?;
+    finish_project_deletion(database, analytics, file_service, cache, project_id).await?;
     Ok(true)
 }
 
@@ -210,6 +210,7 @@ pub async fn finish_project_deletion(
     database: &Arc<TransactionalService>,
     analytics: &Arc<AnalyticsService>,
     file_service: &Arc<FileService>,
+    cache: Option<&CacheService>,
     project_id: &str,
 ) -> Result<()> {
     let repo = database.repository();
@@ -276,14 +277,33 @@ pub async fn finish_project_deletion(
     // that finds data resets the count and starts it over. The residual is stated rather than hidden: a
     // writer that first commits after that many quiet sweeps leaves rows nothing collects, which needs a
     // writer stalled for `CLAIM_RECOVERY_INTERVAL_SECS` times that many while its request is long gone.
-    let may_remove = repo
-        .record_project_sweep(project_id, remaining == 0, PROJECT_TOMBSTONE_CLEAN_SWEEPS)
+    // Counting, deciding and removing are one statement, so a decision cannot be acted on after another
+    // instance's sweep invalidated it - see `record_project_sweep`.
+    let removed = repo
+        .record_project_sweep(
+            project_id,
+            remaining == 0,
+            PROJECT_TOMBSTONE_CLEAN_SWEEPS,
+            // A window, not a sweep: every instance sweeps, and without this N instances would reach the
+            // required count in one interval. Half the interval, so a slightly early tick still counts.
+            (CLAIM_RECOVERY_INTERVAL_SECS / 2) as i64,
+        )
         .await
         .context("Failed to record a project cleanup sweep")?;
-    if may_remove {
-        repo.delete_project(None, project_id)
-            .await
-            .context("Failed to delete project row")?;
+    if removed {
+        // The caches the row's disappearance invalidates. `delete_project` did this; the delete is inside
+        // the sweep statement now, so it is done here.
+        if let Some(cache) = cache {
+            for key in [
+                CacheKey::project(project_id),
+                CacheKey::project_org(project_id),
+            ] {
+                if let Err(e) = cache.delete(&key).await {
+                    tracing::warn!(project_id, error = %e, "Cache invalidation error");
+                }
+            }
+        }
+        tracing::debug!(project_id, "Project tombstone removed");
     } else {
         tracing::debug!(
             project_id,
@@ -318,7 +338,7 @@ pub async fn advance_pending_deletions(
         .await
         .context("Failed to look for tombstoned projects")?;
     for project_id in &projects {
-        match finish_project_deletion(database, analytics, file_service, project_id).await {
+        match finish_project_deletion(database, analytics, file_service, None, project_id).await {
             Ok(()) => advanced += 1,
             // Still tombstoned, so still fenced and still found next time.
             Err(e) => {

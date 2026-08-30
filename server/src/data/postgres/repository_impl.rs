@@ -288,8 +288,9 @@ impl TransactionalRepository for Arc<PostgresService> {
         id: &str,
         was_clean: bool,
         required: i64,
+        min_gap_secs: i64,
     ) -> Result<bool, DataError> {
-        project::record_project_sweep(self.pool(), id, was_clean, required)
+        project::record_project_sweep(self.pool(), id, was_clean, required, min_gap_secs)
             .await
             .map_err(Into::into)
     }
