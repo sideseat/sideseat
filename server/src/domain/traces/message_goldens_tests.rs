@@ -2326,6 +2326,28 @@ fn bench_pipeline() {
     for (stage, took) in crate::domain::sideml::feed::stage_timings(rows) {
         eprintln!("  STAGE {stage}: {took:?}");
     }
+
+    // Ingestion, which the read-side numbers say nothing about: OTLP bytes through extraction,
+    // normalisation and enrichment, exactly as `process_request` runs it.
+    let pricing = PricingService::init_for_test().expect("offline pricing service");
+    let requests: Vec<_> = paths.iter().map(|p| decode_request(p)).collect();
+    let bytes: usize = paths
+        .iter()
+        .map(|p| std::fs::metadata(p).map(|m| m.len() as usize).unwrap_or(0))
+        .sum();
+    let start = std::time::Instant::now();
+    let mut produced = 0usize;
+    for _ in 0..iterations {
+        produced = requests
+            .iter()
+            .map(|r| super::normalize_for_test(r, &pricing).len())
+            .sum();
+    }
+    let per_run = start.elapsed() / iterations;
+    eprintln!(
+        "  INGEST {want}: {produced} rows from {} KiB of OTLP, {per_run:?} per run",
+        bytes / 1024
+    );
 }
 
 /// Changing only the presentation constraints must not change which messages a session returns.
