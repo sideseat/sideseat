@@ -361,15 +361,24 @@ impl BlockEntry {
     /// - Output events (gen_ai.choice, etc.)
     #[inline]
     pub fn is_output_source(&self) -> bool {
+        // The carrier declaration is asked first, because it is the single statement of what a span
+        // produced (`sideml::carrier`). The list below is the residue: carriers the declaration does
+        // not name yet, kept here rather than silently reading as input. Vercel is why the order
+        // matters - the SDK moved from `ai.result.*` to `ai.response.*` and the extractor followed
+        // while this list did not, so every Vercel response read as something the span received.
+        if crate::domain::sideml::carrier::semantics_for(
+            self.event_name.as_deref(),
+            self.source_attribute.as_deref(),
+        )
+        .carrier_holds_span_output
+        {
+            return true;
+        }
         self.source_attribute.as_ref().is_some_and(|attr| {
-            // Standard OTel / OpenInference
-            attr.starts_with("llm.output_messages")
-                || attr.starts_with("gen_ai.output.")
-                || attr.starts_with("gen_ai.completion.")
-                || attr == "output.value"
+            attr.starts_with("gen_ai.completion.")
                 // ADK / Vertex
                 || attr == "gcp.vertex.agent.llm_response"
-                // Vercel AI SDK
+                // Vercel AI SDK, before `ai.response.*`
                 || attr.starts_with("ai.result.")
                 // LiveKit
                 || attr.starts_with("lk.response.")

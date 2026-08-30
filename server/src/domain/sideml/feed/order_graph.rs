@@ -83,8 +83,6 @@ pub(super) struct OrderEvidence {
     is_output: bool,
     /// The span is a generation - a model call, so its input caused its output.
     from_generation: bool,
-    /// The observation is a re-send of an earlier turn rather than news.
-    is_history: bool,
 }
 
 /// Reduce the classified, pre-dedup blocks to what the resolver reads.
@@ -153,7 +151,6 @@ pub(super) fn collect_order_evidence(
                 carrier_ordered: semantics.position_provides_sequence_order && !block.is_history,
                 is_output: block.is_output_source(),
                 from_generation: block.is_generation_span(),
-                is_history: block.is_history,
             }
         })
         .collect()
@@ -280,71 +277,37 @@ impl Constraints {
     ///   promoted with contraction because it is what keeps two blocks of one message from being
     ///   separated once anything else can move them.
     ///
-    /// Not yet promoted, with what each does to the corpus, measured:
+    /// - **Generation dataflow**, with direction read from the carrier declaration: what a model call
+    ///   received precedes what it produced. This is the class that pins a tool result before the
+    ///   answer citing it - no other class states that, because the consuming span is the only place
+    ///   the two meet - and it is what cleared all ten `PerCarrier` reorders, so
+    ///   `REORDERS_UNDER_PER_CARRIER` is now empty.
     ///
-    /// - `time_priority`: blocked on the emission-instance key. An instance is `(span, position-path
-    ///   root)`, so it holds one payload - but Vercel spreads one response across *sibling attributes*
-    ///   (`ai.response.text` beside `ai.response.toolCalls`), which are different roots and so
-    ///   different instances. Contraction therefore cannot hold that response together, and promoting
-    ///   time alone displaces its intro text behind its own calls, which is the defect promotion 1
-    ///   fixed for Strands. It needs an instance notion that spans the sibling attributes of one
-    ///   response before it can be promoted. Measured with contraction already on: 3 fixtures change,
-    ///   `vercel-ai-js/image-gen` and `vercel-ai-js/tool-use` for the worse; `agent-framework/swarm`
-    ///   for the better, interleaving each specialist's system prompt with its own answer instead of
-    ///   listing all prompts first.
-    /// - `enforce_backward_edges`: moves `adk/tool_use`; needed before any edge class can *correct* an
-    ///   order rather than only agree with one.
-    /// - `generation_dataflow_edges`: removes every reorder that blocks `PerCarrier` extraction, which
-    ///   is what would recover the answers 20 span views are missing - the largest correctness win
-    ///   available. The session-membership objection to it is now gone (a session's dedup reads the
-    ///   causal transcript, so promoting it changes order only), but it is still **wrong** on a shape
-    ///   with known ground truth: `_synthetic/tool_use` has one span emit the call, a tool span return
-    ///   `391`, and a second span emit `17 * 23 = 391.` - so the answer must follow the result it
-    ///   cites, and under this class it precedes it. A snapshot diff could not have settled that; the
-    ///   fixture's own payload does.
+    ///   History is kept on its input side, unlike carrier-sequence edges, because the two ask
+    ///   different questions of a re-send: "these precede what this generation produced" is true of a
+    ///   replay; "these are in this relative order globally" is not, and that reading dragged ADK's
+    ///   second system prompt to the front of a session.
     ///
-    ///   The edge is identified, by tracing: a **dataflow** edge `result -> call`, drawn because an
-    ///   observation on the *same generation span that emitted the call* is classified as a non-history
-    ///   input and resolves to the tool result. Gating dataflow inputs on `!is_history` is the right
-    ///   refinement and it fixed `adk/tool_use` - a framework hands a model the whole conversation,
-    ///   including results of calls that span made, so reading a replay as input asserts
-    ///   result-before-call. But this observation is *not* marked history, so the gate misses it, and
-    ///   the fixture's payload has only `system, user, choice` on that span. So something upstream of
-    ///   the resolver attributes a tool result to the calling generation span as fresh input, and that
-    ///   is the next thing to find: the defect is in what claims to be a non-history input, not in the
-    ///   ordering class - which is why the class stays built and unpromoted rather than reshaped around
-    ///   a symptom.
+    /// Not yet promoted:
     ///
-    ///   Traced to the end: the observation is legitimate. `_synthetic/tool_use`'s calling span carries
-    ///   a `tool.result` attribute *on its own* `gen_ai.choice`, recording what came back - a real
-    ///   shape, not a fixture artefact. It is classified as something the span *received* only because
-    ///   `is_output_source` does not name that carrier, so dataflow reads an answer as a cause.
+    /// - `time_priority`: still blocked on the emission-instance key. Vercel spreads one response
+    ///   across sibling attributes (`ai.response.text` beside `ai.response.toolCalls`), which are
+    ///   different payload roots and so different instances, so contraction cannot hold that response
+    ///   together and promoting time alone displaces its intro text behind its own calls.
     ///
-    ///   Excluding tool results from the input side does fix that inversion, and it is the wrong fix:
-    ///   it reintroduces 8 of the 10 `PerCarrier` reorders and brings `adk/tool_use` back. Special-
-    ///   casing the resolver is treating a symptom, because the input side is being derived from a
-    ///   *negation* - "not output" - of a flag inferred from a prefix list.
-    ///
-    ///   Both remaining blockers reduce to one architectural change: **direction must be a declared
-    ///   carrier fact**, alongside the four already in `sideml::carrier`, so that "what the span
-    ///   received" is stated per carrier rather than inferred. That refactor was prototyped and
-    ///   reverted because it has its own measured regression - Vercel's `ai.response.*` becomes output,
-    ///   which is correct, and its intro text then sorts last because Vercel's placement rests on a
-    ///   timestamp accident rather than on evidence. The two must land together: declare direction, and
-    ///   place by constraint rather than by time.
-    ///
-    /// Also measured, and unresolved rather than wrong: promoting it turns `adk/tool_use`'s two
-    /// parallel calls from `call, call, result, result` into `call, result, call, result`. Plausible -
-    /// ADK runs its tools sequentially in-process, so interleaved may be the faithful reading, and the
-    /// grouped form the artifact - but the fixture does not settle it either way, and the documented
-    /// Vercel shape is explicitly the grouped one. Needs ground truth, not a preference.
+    /// Known residual, recorded rather than blessed: `adk/tool_use`'s middle trace now interleaves
+    /// `call, result, call, result` where its first and third traces keep `call, call, result, result`.
+    /// Same framework, same shape, different answer - because ADK re-sends everything and which copy
+    /// survives dedup decides which results are non-history inputs of which span. That is exactly the
+    /// copy-survival dependence this redesign exists to remove, so it is a symptom of unfinished work
+    /// (occurrence anchors), not a reading to defend. It is order-only and violates no invariant.
     pub(super) const PRODUCTION: Self = Self {
         contract_non_contiguous_emissions: true,
-        enforce_backward_edges: false,
+        enforce_backward_edges: true,
         time_priority: false,
         source_position_member_order: true,
         carrier_sequence_edges: true,
-        generation_dataflow_edges: false,
+        generation_dataflow_edges: true,
     };
 
     /// Every constraint enforced - the redesign's intended answer.
@@ -631,14 +594,13 @@ pub(super) fn resolve(
             if !seen.from_generation {
                 continue;
             }
-            // A *re-sent* input is not this generation's cause. Frameworks hand a model the whole
-            // conversation, including results of calls this very span made, so reading history as input
-            // asserts result-before-call: on `_synthetic/tool_use` the tool result became an input of
-            // the span that emitted the call, and the edge inverted the pair that the fixture's own
-            // payload settles - call, then result, then the answer citing it.
-            if !seen.is_output && seen.is_history {
-                continue;
-            }
+            // History is *kept* on the input side here, unlike carrier-sequence edges. The two ask
+            // different questions of a re-send. "These messages precede what this generation produced"
+            // is true of a replayed input and is exactly the evidence that pins a tool result before
+            // the answer that cites it - no other class states that, because the consuming span is the
+            // only place the two meet. "These messages are in this relative order globally" is *not*
+            // true of a replay, which is what dragged ADK's second system prompt to the front of a
+            // session, so that reading stays gated there.
             let Some(survivor) = survivor_of(observation) else {
                 continue;
             };

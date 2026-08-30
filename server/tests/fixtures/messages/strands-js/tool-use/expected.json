@@ -939,16 +939,16 @@
           "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.",
-          "content_digest": "5a18766870e94b05",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_onUC7RD3mRrANAIMeTGV13\",\"content\":{\"json\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\"…[324 chars]",
+          "content_digest": "10e1c6104d94be60",
           "observation_type": "tool"
         },
         {
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_onUC7RD3mRrANAIMeTGV13\",\"content\":{\"json\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\"…[324 chars]",
-          "content_digest": "10e1c6104d94be60",
+          "content": "The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.",
+          "content_digest": "5a18766870e94b05",
           "observation_type": "tool"
         },
         {

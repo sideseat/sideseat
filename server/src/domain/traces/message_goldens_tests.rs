@@ -1891,12 +1891,14 @@ fn reading_more_carriers_only_adds_messages() {
 ///
 /// Not an exemption for convenience: each is a defect with a diagnosis, kept in the suite so the
 /// ordering work has an acceptance test.
-const REORDERS_UNDER_PER_CARRIER: &[(&str, &str)] = &[(
-    "langgraph/",
-    "a RunnableSequence span carries the question in llm.input_messages and the answer in its own \
-     output.value. Reading both gains the answer and shifts the response batch times, so the final \
-     answer stops being last - see the ordering step in the plan",
-)];
+/// Empty, and it must stay empty: reading more carriers may only *add* messages.
+///
+/// It held `langgraph/` while a `RunnableSequence` span's question and answer could not both be read
+/// without shifting the response order. The generation-dataflow constraint removed every one of those
+/// ten reorders, so the exemption is gone - and an entry appearing here again means an extraction
+/// change is silently moving messages that were already visible, which is the failure mode this whole
+/// redesign exists to prevent.
+const REORDERS_UNDER_PER_CARRIER: &[(&str, &str)] = &[];
 
 /// Replay a fixture through the real ingestion path in a chosen extraction mode.
 fn rows_for_mode(

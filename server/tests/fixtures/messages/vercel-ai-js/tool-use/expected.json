@@ -597,9 +597,9 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_ioGoZFcc8kUFeH0GrZmub5\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
-          "content_digest": "fb18c93ef6bcc825",
-          "tool_name": "precipitation_forecast",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_JuUesmZPJTSropalcHLFRR\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "2f3da36002447553",
+          "tool_name": "temperature_forecast",
           "finish_reason": "ToolUse",
           "observation_type": "tool"
         },
@@ -607,9 +607,9 @@
           "index": 3,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_JuUesmZPJTSropalcHLFRR\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
-          "content_digest": "2f3da36002447553",
-          "tool_name": "temperature_forecast",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_ioGoZFcc8kUFeH0GrZmub5\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "fb18c93ef6bcc825",
+          "tool_name": "precipitation_forecast",
           "finish_reason": "ToolUse",
           "observation_type": "tool"
         },
@@ -761,9 +761,9 @@
           "index": 3,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4eeS6qQqnJKVxsJgZSHZAu\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
-          "content_digest": "e3d65d69e1ac9022",
-          "tool_name": "precipitation_forecast",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_cKlqLr4Ze8GffmhcxhUyQN\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
+          "content_digest": "b8c95853b4c27b09",
+          "tool_name": "temperature_forecast",
           "finish_reason": "ToolUse",
           "observation_type": "tool"
         },
@@ -771,9 +771,9 @@
           "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_cKlqLr4Ze8GffmhcxhUyQN\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
-          "content_digest": "b8c95853b4c27b09",
-          "tool_name": "temperature_forecast",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4eeS6qQqnJKVxsJgZSHZAu\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
+          "content_digest": "e3d65d69e1ac9022",
+          "tool_name": "precipitation_forecast",
           "finish_reason": "ToolUse",
           "observation_type": "tool"
         },
@@ -811,12 +811,12 @@
     "role_sequence": [
       "assistant",
       "assistant",
+      "assistant",
       "tool",
       "assistant",
       "tool",
       "system",
       "user",
-      "assistant",
       "assistant",
       "assistant",
       "tool",
@@ -847,6 +847,15 @@
       {
         "index": 1,
         "role": "assistant",
+        "entry_type": "text",
+        "content": "I appreciate your request! However, I need to let you know that the maximum forecast available is 7 days. Let me get that for you:",
+        "content_digest": "6eaa61df78dc572e",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4eeS6qQqnJKVxsJgZSHZAu\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
         "content_digest": "e3d65d69e1ac9022",
@@ -855,7 +864,7 @@
         "observation_type": "tool"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "The precipitation forecast for London for the next 7 days is: Light rain expected on day 2.",
@@ -863,7 +872,7 @@
         "observation_type": "tool"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_cKlqLr4Ze8GffmhcxhUyQN\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
@@ -873,7 +882,7 @@
         "observation_type": "tool"
       },
       {
-        "index": 4,
+        "index": 5,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_cKlqLr4Ze8GffmhcxhUyQN\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"London\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\"…[504 chars]",
@@ -881,7 +890,7 @@
         "observation_type": "tool"
       },
       {
-        "index": 5,
+        "index": 6,
         "role": "system",
         "entry_type": "text",
         "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
@@ -889,20 +898,11 @@
         "observation_type": "generation"
       },
       {
-        "index": 6,
+        "index": 7,
         "role": "user",
         "entry_type": "text",
         "content": "Provide a 14-day weather forecast for London.",
         "content_digest": "7426414dbeed41d0",
-        "observation_type": "generation"
-      },
-      {
-        "index": 7,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "I appreciate your request! However, I need to let you know that the maximum forecast available is 7 days. Let me get that for you:",
-        "content_digest": "6eaa61df78dc572e",
-        "finish_reason": "ToolUse",
         "observation_type": "generation"
       },
       {
