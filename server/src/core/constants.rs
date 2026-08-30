@@ -623,6 +623,15 @@ pub const CLAIM_RECOVERY_INTERVAL_SECS: u64 = 120;
 /// sweep that finds anything starts the count again.
 pub const PROJECT_TOMBSTONE_CLEAN_SWEEPS: i64 = 5;
 
+/// How long a deleted project's id is remembered so that a late write for it is still collected.
+///
+/// The tombstone is removed on finite evidence, and finite evidence loses to an arbitrarily delayed
+/// writer: one that read the fence before the tombstone can commit after the row is gone. Remembering the
+/// id keeps the cleanup discoverable, so the bound on "no data outlives its project" becomes this
+/// retention instead of a handful of sweeps. Seven days, because nothing keeps a request alive that long -
+/// the exporter has given up, the connection is closed, the process is gone.
+pub const DELETED_PROJECT_RETENTION_SECS: i64 = 7 * 24 * 60 * 60;
+
 /// How many session reconstructions to remember, and how long an unused one stays.
 ///
 /// Entries are small - a reconstruction's *output* is the blocks a reader sees, not the megabytes of

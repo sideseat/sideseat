@@ -460,6 +460,12 @@ pub trait TransactionalRepository: Send + Sync {
         min_gap_secs: i64,
     ) -> Result<bool, DataError>;
 
+    /// Projects whose rows are gone but whose cleanup is still owed - see `list_deleted_projects`.
+    async fn list_deleted_projects(&self) -> Result<Vec<String>, DataError>;
+
+    /// Forget projects deleted longer ago than `retention_secs`. Returns how many were forgotten.
+    async fn forget_deleted_projects(&self, retention_secs: i64) -> Result<u64, DataError>;
+
     /// Claim an organization for deletion, if it exists and nobody else has claimed it.
     async fn claim_organization_for_deletion(&self, id: &str) -> Result<bool, DataError>;
 

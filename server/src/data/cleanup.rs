@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result, anyhow};
 
 use crate::core::constants::{
-    CLAIM_RECOVERY_INTERVAL_SECS, FILE_DELETION_CLAIM_STALE_SECS,
+    CLAIM_RECOVERY_INTERVAL_SECS, DELETED_PROJECT_RETENTION_SECS, FILE_DELETION_CLAIM_STALE_SECS,
     PROJECT_DELETION_CLAIM_STALE_SECS, PROJECT_TOMBSTONE_CLEAN_SWEEPS,
 };
 use crate::data::AnalyticsService;
@@ -358,6 +358,54 @@ pub async fn advance_pending_deletions(
                 tracing::warn!(org_id, error = %e, "Could not advance an organization deletion")
             }
         }
+    }
+
+    // Projects whose rows are already gone, and this is the part that makes the guarantee hold for an
+    // *arbitrarily* delayed writer rather than for one that finishes within a few sweeps. The tombstone is
+    // removed on finite evidence; a writer that read the fence before it can still commit afterwards, and
+    // with the row gone nothing would know the project had existed. `deleted_projects` knows, so those
+    // rows are collected however late they appear - and the residual becomes the retention below rather
+    // than a handful of minutes.
+    match repo.list_deleted_projects().await {
+        Ok(deleted) => {
+            for project_id in deleted {
+                let remaining = analytics.repository().count_project_rows(&project_id).await;
+                match remaining {
+                    Ok(0) => {}
+                    Ok(rows) => {
+                        tracing::warn!(
+                            project_id,
+                            rows,
+                            "Collected rows that arrived for a project after its row was deleted"
+                        );
+                        if let Err(e) = analytics
+                            .repository()
+                            .delete_project_data(&project_id)
+                            .await
+                        {
+                            tracing::warn!(project_id, error = %e, "Could not collect them");
+                            continue;
+                        }
+                        if let Err(e) = file_service.delete_project(&project_id).await {
+                            tracing::warn!(project_id, error = %e, "Could not collect its files");
+                        }
+                        advanced += 1;
+                    }
+                    Err(e) => {
+                        tracing::warn!(project_id, error = %e, "Could not check a deleted project")
+                    }
+                }
+            }
+        }
+        Err(e) => tracing::warn!(error = %e, "Could not list deleted projects"),
+    }
+    match repo
+        .forget_deleted_projects(DELETED_PROJECT_RETENTION_SECS)
+        .await
+    {
+        Ok(0) => {}
+        Ok(n) => tracing::debug!(forgotten = n, "Forgot projects deleted past the retention"),
+        Err(e) => tracing::warn!(error = %e, "Could not prune remembered deletions"),
     }
 
     if advanced > 0 {

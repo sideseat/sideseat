@@ -295,6 +295,18 @@ impl TransactionalRepository for Arc<SqliteService> {
             .map_err(Into::into)
     }
 
+    async fn list_deleted_projects(&self) -> Result<Vec<String>, DataError> {
+        project::list_deleted_projects(self.pool())
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn forget_deleted_projects(&self, retention_secs: i64) -> Result<u64, DataError> {
+        project::forget_deleted_projects(self.pool(), retention_secs)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn claim_organization_for_deletion(&self, id: &str) -> Result<bool, DataError> {
         project::claim_organization_for_deletion(self.pool(), id)
             .await

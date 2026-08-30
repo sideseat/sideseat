@@ -441,10 +441,15 @@ so there is no grace period. What the tombstone gives instead:
    returns 201, and accepts writes - and a client creating projects in a loop could keep the organization's
    deletion from ever finishing.
 
+6. Removing a tombstone **records the id in `deleted_projects`**, in the same transaction. Finite evidence
+   still loses to an arbitrarily delayed writer - it can commit after the row is gone, and then nothing
+   knows the project existed - so the sweep keeps collecting rows that appear for a remembered id. The
+   bound on "no data outlives its project" is therefore `DELETED_PROJECT_RETENTION_SECS` (7 days), not a
+   handful of sweeps.
+
 An organization is tombstoned too, because deleting its row cascades its *project* rows away and those
-rows are what the projects' cleanups depend on; its row goes once no project rows remain. The residual is
-stated rather than hidden: a writer whose first commit lands after that many consecutive quiet sweeps
-(ten minutes at the default interval) would leave rows nothing collects.
+rows are what the projects' cleanups depend on; its row goes once no project rows remain. Creating a
+project under a tombstoned organization is refused with a **409** naming the reason.
 
 **Acknowledge only what is durable.** A 200 on an OTLP endpoint has to mean the data is stored, and which
 mechanism delivers that depends on the topic backend (`TopicBackend::is_durable`):

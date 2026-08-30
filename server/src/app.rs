@@ -136,12 +136,12 @@ impl CoreApp {
         .await
         {
             Ok(0) => {}
-            Ok(n) => tracing::info!(
-                finished = n,
-                "Finished abandoned project deletions on startup"
-            ),
+            // "Advanced", not "finished": most passes add to the evidence a tombstone waits for rather
+            // than completing anything, and a line claiming completion while the row is still there is
+            // worse than none.
+            Ok(n) => tracing::debug!(advanced = n, "Advanced pending deletions on startup"),
             Err(e) => {
-                tracing::warn!(error = %e, "Failed to resume abandoned project deletions on startup")
+                tracing::warn!(error = %e, "Failed to advance pending deletions on startup")
             }
         }
 

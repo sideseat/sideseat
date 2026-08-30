@@ -245,6 +245,16 @@ ALTER TABLE organizations ADD COLUMN IF NOT EXISTS deleting_at BIGINT;
             // one interval - the barrier weakening as you scale out. See the SQLite twin.
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS last_sweep_at BIGINT",
         ),
+        10 => (
+            "deleted_projects",
+            // Cleanup that stays discoverable after the row is gone: a tombstone removed on finite
+            // evidence still loses to an arbitrarily delayed writer. See the SQLite twin.
+            r#"CREATE TABLE IF NOT EXISTS deleted_projects (
+    project_id TEXT PRIMARY KEY,
+    deleted_at BIGINT NOT NULL
+);
+"#,
+        ),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,
