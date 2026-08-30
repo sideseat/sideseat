@@ -362,6 +362,20 @@ The telemetry config UI is served at `/organizations/default/configuration/telem
 
 **Region**: botocore reads `AWS_DEFAULT_REGION` and ignores `AWS_REGION`, while the JavaScript AWS SDK reads `AWS_REGION` — set both in `misc/.env` or the Python suites silently use the region from `~/.aws/config`. Image generation needs `stability.sd3-5-large-v1:0` in a region that offers it (`us-west-2`); `amazon.titan-image-generator-v2:0` has been retired.
 
+**Ingestion latency, measured end to end**: `cargo test --release -p sideseat-server bench_ingestion --
+--ignored --nocapture` runs the real `run_batch` - extraction, enrichment, file storage, both writes and
+the project fence - against a temp DuckDB, a temp SQLite and filesystem file storage. `BENCH=<suite>/
+<sample>` selects a fixture, `ITERATIONS=n` the run count. Measured on an M-series laptop:
+
+| Fixture | Payload | Spans | Mean |
+| --- | --- | --- | --- |
+| `langgraph/swarm` | 1.7 MB / 5 requests | 151 | 18.8 ms |
+| `openai-agents/files` | 1.0 MB / 2 requests | 6 | 21.9 ms |
+| `strands-js/image-gen` | 15.8 MB / 4 requests | 17 | 99.3 ms |
+
+`bench_pipeline`'s `INGEST(cpu only)` number is deliberately narrower - it stops before file extraction
+and every persistence step - so it is a floor, not a request's cost.
+
 **Message-parsing goldens**: `cargo test -p sideseat-server message_goldens` verifies message count, content, ordering and absence of duplicates per framework across all three views (span / trace / session). Fixtures are captured OTLP payloads under `server/tests/fixtures/messages/<suite>/<sample>/`; capture with `misc/capture-message-fixtures.sh [suite] [sample]` (needs model credentials), then record with `UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens` and review the diff. Invariants (scope containment, per-trace dedup, tool-id correspondence, no empty thinking, determinism) hold independently of the goldens, so a blindly regenerated snapshot still fails on real defects. `UPDATE_GOLDENS=1` writes the files but still exits non-zero when an invariant was violated, so known-bad output cannot be committed as reviewed. See `server/tests/fixtures/messages/README.md`.
 
 **ClickHouse parity**: `make test-clickhouse` starts a pinned container and runs

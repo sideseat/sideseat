@@ -1013,7 +1013,16 @@ fn to_normalized_span(
 ) -> NormalizedSpan {
     NormalizedSpan {
         // Identity
-        project_id: span.project_id,
+        //
+        // Defaulted here rather than left as it arrived, so the stored value is the one every other
+        // path uses. `NULL` was a third state nothing agreed on: project-scoped reads (`WHERE
+        // project_id = ?`) could not see such a row, `delete_project_data` could not delete it, and the
+        // write fence checked it as `default` - so a span with no project id was stored where nothing
+        // could read it and nothing could remove it.
+        project_id: Some(
+            span.project_id
+                .unwrap_or_else(|| DEFAULT_PROJECT_ID.to_string()),
+        ),
         trace_id: span.trace_id,
         span_id: span.span_id,
         parent_span_id: span.parent_span_id,
