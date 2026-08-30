@@ -206,6 +206,15 @@ occurrence (injectivity is what keeps a genuinely repeated question from collaps
 without it `adk/tool_use` loses one of its two identical questions), and a candidate is refused only when
 the evidence says it must precede something already matched.
 
+Matching **searches**, it does not choose greedily. Two unordered branches give `callA → resultA` and
+`callB → resultB` with both results carrying the same identity (two tools answering `"ok"`); replayed as
+`callB, resultB, callA, resultA` — a valid linear extension — taking the first permitted candidate claims
+`resultA` for `resultB`, which then requires `callA` earlier, refuses it, and duplicates the rest of the
+turn. Only the order constraints separate interchangeable candidates, so `longest_matching_prefix` does a
+bounded depth-first search. Exceeding the budget under-strips (duplicates) rather than over-strips
+(deletion). `every_linear_extension_of_the_prior_order_is_fully_stripped` enumerates all 24 orders of
+four blocks per shape and requires each linear extension to match in full.
+
 The relation is `order_graph::causal_precedence`, deliberately **not** the resolver's graph: that one is
 over contracted emission *units*, so `call_a → result_a` also asserts `call_b → result_a`, and it
 includes generation dataflow, whose input side keeps replayed history and after dedup asserts
