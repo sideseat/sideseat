@@ -1509,6 +1509,7 @@ mod tests {
             uses_span_end: false,
             is_history: false,
             tool_use_id_correlated: false,
+            promoted_to_span_output: false,
         }
     }
 
@@ -1559,6 +1560,7 @@ mod tests {
             uses_span_end: false,
             is_history: false,
             tool_use_id_correlated: false,
+            promoted_to_span_output: false,
         }
     }
 
@@ -1608,6 +1610,7 @@ mod tests {
             uses_span_end: false, // Tool results are INPUT
             is_history: false,
             tool_use_id_correlated: false,
+            promoted_to_span_output: false,
         }
     }
 
