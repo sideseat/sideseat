@@ -404,6 +404,19 @@ answers built by the previous pipeline, and a version constant someone must reme
 rather than a design. The *unfiltered* reconstruction is cached and `?role=` is applied to a copy, so one
 entry serves every role.
 
+**Horizontally scaled, ephemeral instances**: what is and is not shared, because the answer differs per
+mechanism and getting it wrong is invisible until there are two instances.
+
+| Mechanism | Shared? | Why that is correct |
+| --- | --- | --- |
+| Reconstruction cache (`feed/cache.rs`) | No, process-local | A memo over a *pure function* of the rows. Any instance computes the same answer from the same digest, a cold instance recomputes it, a dying one loses only the saving. N instances change the hit rate, not the answer — `a_cached_reconstruction_equals_a_fresh_one` checks byte equality over the corpus. Sharing it would need a version key to avoid serving the previous build's answers, and a hand-maintained constant is a hole. |
+| File extraction cache | No, per pipeline | Same shape: a memo keyed by content hash. |
+| Trace ingestion topic | Yes, when Redis is configured (`stream_topic` + consumer groups + `claim_stuck_messages`) | At-least-once across instances; ingestion is idempotent by span id, so a redelivery rewrites rather than duplicates. |
+| Metrics / logs / SSE topics | No — `topic()` builds an in-process channel whatever the backend | So an instance consumes only what it published: no cross-instance duplication. The cost is durability, not correctness: an in-memory queue loses acknowledged metrics on a crash. |
+| Project deletion fence (`projects.deleting_at`) | Yes, it is a row | One compare-and-set decides the owner across all instances, and every instance's write path consults it. |
+| Claim recovery sweeps | Run on every instance | Every step is idempotent and the claims are CAS-guarded, so concurrent sweeps duplicate work rather than corrupt state. |
+| Migrations | Serialised by `pg_advisory_lock` | Concurrent instances starting together cannot race the schema. |
+
 **Message-parsing goldens**: `cargo test -p sideseat-server message_goldens` verifies message count, content, ordering and absence of duplicates per framework across all three views (span / trace / session). Fixtures are captured OTLP payloads under `server/tests/fixtures/messages/<suite>/<sample>/`; capture with `misc/capture-message-fixtures.sh [suite] [sample]` (needs model credentials), then record with `UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens` and review the diff. Invariants (scope containment, per-trace dedup, tool-id correspondence, no empty thinking, determinism) hold independently of the goldens, so a blindly regenerated snapshot still fails on real defects. `UPDATE_GOLDENS=1` writes the files but still exits non-zero when an invariant was violated, so known-bad output cannot be committed as reviewed. See `server/tests/fixtures/messages/README.md`.
 
 **ClickHouse parity**: `make test-clickhouse` starts a pinned container and runs

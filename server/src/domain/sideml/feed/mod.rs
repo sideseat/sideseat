@@ -391,10 +391,21 @@ impl PrefixSearch<'_> {
         else {
             return; // nothing prior looks like this block, so the prefix ends here
         };
+        // Permitted candidates, most-constrained first.
+        //
+        // The order matters as much as the search does, because the budget is finite. Ten independent
+        // branches whose results are all `"ok"`, replayed in reverse, give every step ten permitted
+        // candidates that differ only in which call they answer - and taking them in stored order picks
+        // the wrong one nine times out of ten, so the search spends its whole budget backtracking and
+        // gives up part way through a replay it should have matched entirely.
+        //
+        // "Most constrained" is: how many of the candidate's own ancestors are still unmatched. The one
+        // whose call the replay has *just* matched has none, and it is exactly the right choice, so the
+        // common shapes are matched first-try and the search never branches. This is a heuristic on the
+        // order of exploration, not on the answer: what is permitted is unchanged, so a shape the
+        // heuristic guesses wrong is still found by backtracking.
+        let mut permitted: Vec<(usize, usize)> = Vec::new();
         for &entry in candidates {
-            if self.budget == 0 {
-                return;
-            }
             if self.consumed[entry] {
                 continue;
             }
@@ -411,6 +422,18 @@ impl PrefixSearch<'_> {
             {
                 continue;
             }
+            permitted.push((
+                self.unmatched_ancestors(occurrence.trace, occurrence.position),
+                entry,
+            ));
+        }
+        permitted.sort_unstable();
+
+        for (_, entry) in permitted {
+            if self.budget == 0 {
+                return;
+            }
+            let occurrence = &self.state.entries[entry];
 
             self.budget -= 1;
             self.consumed[entry] = true;
@@ -432,6 +455,25 @@ impl PrefixSearch<'_> {
                 return; // nothing beats a full match
             }
         }
+    }
+
+    /// How many of this occurrence's ancestors the replay has not matched yet.
+    ///
+    /// Zero means everything it depends on is already accounted for, which is what makes it the right
+    /// candidate among interchangeable ones - see the ordering in `extend`.
+    fn unmatched_ancestors(&self, trace: usize, position: usize) -> usize {
+        let mut ancestors: HashSet<u32> = HashSet::new();
+        self.state.relations[trace].collect_ancestors(position, &mut ancestors);
+        ancestors
+            .iter()
+            .filter(|&&node| {
+                // An ancestor counts as unmatched when no chosen entry is that occurrence.
+                !self.chosen.iter().any(|&chosen| {
+                    let occurrence = &self.state.entries[chosen];
+                    occurrence.trace == trace && occurrence.position as u32 == node
+                })
+            })
+            .count()
     }
 
     /// Record everything that must precede this occurrence, returning what was newly added so the

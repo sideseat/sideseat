@@ -64,6 +64,20 @@ pub async fn create_project(
     })
 }
 
+/// Whether this project has stopped being live since a caller last looked.
+///
+/// Used to re-check after filling a cache entry: the fill is a write that follows its read, so without a
+/// second look it can reinstate a project that was claimed in between.
+async fn project_is_claimed_or_absent(pool: &PgPool, id: &str) -> bool {
+    let row: Option<(Option<i64>,)> =
+        sqlx::query_as("SELECT deleting_at FROM projects WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await
+            .unwrap_or(None);
+    !matches!(row, Some((None,)))
+}
+
 /// Get a project by ID (with optional caching)
 pub async fn get_project(
     pool: &PgPool,
@@ -86,13 +100,28 @@ pub async fn get_project(
         // Cache miss - query DB
         let result = get_project_from_db(pool, id).await?;
 
-        // Store result in cache
-        if let Some(ref proj) = result
-            && let Err(e) = cache
+        // Filled only while the project is live, and *checked again* after the write.
+        //
+        // Filling a read-through cache is a write that happens after its read, so it races the deletion
+        // fence in the direction that matters: a reader misses, reads the live row, deletion claims the
+        // project and invalidates the cache, and then the reader's fill puts the project back for the
+        // cache's five minutes - readable, listable, and gone from the database's point of view.
+        //
+        // Re-reading the fence after the fill closes it. Either the claim was already visible, in which
+        // case there is nothing to fill, or it lands after this check - and then its own invalidation
+        // comes after the fill and removes it. There is no ordering left in which a stale entry survives.
+        if let Some(ref proj) = result {
+            if let Err(e) = cache
                 .set(&key, proj, Some(Duration::from_secs(CACHE_TTL_PROJECT)))
                 .await
-        {
-            tracing::warn!(%id, error = %e, "Cache set error");
+            {
+                tracing::warn!(%id, error = %e, "Cache set error");
+            }
+            if project_is_claimed_or_absent(pool, id).await
+                && let Err(e) = cache.delete(&key).await
+            {
+                tracing::warn!(%id, error = %e, "Cache invalidation error");
+            }
         }
 
         Ok(result)

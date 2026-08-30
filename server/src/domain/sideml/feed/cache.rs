@@ -123,6 +123,11 @@ fn digest(rows: &[MessageSpanRow]) -> [u8; 32] {
                 .unwrap_or(i64::MIN)
                 .to_le_bytes(),
         );
+        // `ingested_at` is read, not merely stored: `group_and_sort_traces` breaks a tie between two
+        // traces with the same earliest span timestamp by the earliest ingestion time, and that decides
+        // which trace's history the other one strips against. Two row sets differing only here are
+        // genuinely different inputs.
+        hasher.update(&row.ingested_at.timestamp_micros().to_le_bytes());
         hasher.update(&row.input_tokens.to_le_bytes());
         hasher.update(&row.output_tokens.to_le_bytes());
         hasher.update(&row.total_tokens.to_le_bytes());
@@ -191,6 +196,32 @@ mod tests {
         // And the order of the rows is part of the input.
         cache.get_or_reconstruct(vec![row("s2", "[]"), row("s1", "[]")], reconstruct);
         assert_eq!(runs.get(), 5, "a different order misses");
+    }
+
+    /// Ingestion time is part of the input, because the pipeline reads it.
+    ///
+    /// `group_and_sort_traces` orders trace groups by earliest span timestamp and then by earliest
+    /// ingestion time, and that order decides which trace strips its history against which. A digest
+    /// that ignored it would answer a differently-ordered session from the first one it saw.
+    #[test]
+    fn ingestion_time_is_part_of_the_key() {
+        let cache = ReconstructionCache::new();
+        let runs = std::cell::Cell::new(0);
+        let reconstruct = |_rows: Vec<MessageSpanRow>| {
+            runs.set(runs.get() + 1);
+            FeedResult::default()
+        };
+
+        let first = row("s1", "[]");
+        cache.get_or_reconstruct(vec![first.clone()], reconstruct);
+        let mut later = first.clone();
+        later.ingested_at = first.ingested_at + chrono::Duration::seconds(30);
+        cache.get_or_reconstruct(vec![later], reconstruct);
+        assert_eq!(
+            runs.get(),
+            2,
+            "a different ingestion time is a different input"
+        );
     }
 
     /// A re-delivered span changes its row, so the digest changes with it.

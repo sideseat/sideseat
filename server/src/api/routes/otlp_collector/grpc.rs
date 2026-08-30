@@ -290,13 +290,26 @@ impl LogsService for OtlpLogsService {
             write_debug(debug_path, "logs.jsonl", &project_id, &req).await;
         }
 
+        // Rejected with a reason rather than silently accepted - see the HTTP twin: SideSeat stores no
+        // logs, and answering with an unqualified success made an exporter count them as delivered.
+        let rejected: i64 = req
+            .resource_logs
+            .iter()
+            .flat_map(|resource| resource.scope_logs.iter())
+            .map(|scope| scope.log_records.len() as i64)
+            .sum();
         if let Err(e) = self.publisher.publish(req) {
-            tracing::warn!(error = %e, "Failed to publish logs to topic");
-            return Err(Status::resource_exhausted("logs buffer full"));
+            tracing::debug!(error = %e, "Failed to publish logs to topic");
         }
 
         Ok(Response::new(ExportLogsServiceResponse {
-            partial_success: None,
+            partial_success: Some(
+                opentelemetry_proto::tonic::collector::logs::v1::ExportLogsPartialSuccess {
+                    rejected_log_records: rejected,
+                    error_message: "SideSeat does not store logs; send traces to /v1/traces"
+                        .to_string(),
+                },
+            ),
         }))
     }
 }

@@ -146,7 +146,14 @@ impl AuthService {
                 )
             })?;
 
-        // Cache the mapping
+        // Cache the mapping, then look again.
+        //
+        // Filling a read-through cache is a write that follows its read, so it races the project deletion
+        // fence: this read sees a live project, deletion claims it and invalidates the caches, and then
+        // this fill reinstates the mapping for its full TTL - which is how a deleted project stayed
+        // reachable through the auth path even after the row was gone. Re-reading the fence afterwards
+        // removes the entry in that ordering, and in the other ordering the claim's own invalidation
+        // comes after the fill.
         if let Err(e) = self
             .cache
             .set(
@@ -157,6 +164,16 @@ impl AuthService {
             .await
         {
             tracing::warn!(project_id = %project_id, error = %e, "Failed to cache project->org mapping");
+        }
+        if !self
+            .database
+            .repository()
+            .project_accepts_writes(project_id)
+            .await
+            .unwrap_or(true)
+            && let Err(e) = self.cache.delete(&cache_key).await
+        {
+            tracing::warn!(project_id = %project_id, error = %e, "Cache invalidation error");
         }
 
         Ok(project.organization_id)
