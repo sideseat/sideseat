@@ -534,6 +534,18 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         .map_err(Into::into)
     }
 
+    async fn count_project_rows(&self, project_id: &str) -> Result<u64, DataError> {
+        let db = Arc::clone(self);
+        let id = project_id.to_string();
+        DuckdbService::run_query(move || {
+            let conn = db.conn();
+            query::count_project_rows(&conn, &id)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+
     async fn count_spans_by_project(
         &self,
         project_ids: &[String],

@@ -136,6 +136,13 @@ pub trait TopicBackend: Send + Sync {
 
     /// Backend name for debugging/logging
     fn backend_name(&self) -> &'static str;
+
+    /// Whether a published message survives this process dying.
+    ///
+    /// Read by the ingest path to decide whether it may acknowledge before writing. A queue that only
+    /// exists in memory cannot make that promise, so with such a backend the request writes first and
+    /// answers second: nothing is acknowledged that could be lost.
+    fn is_durable(&self) -> bool;
 }
 
 /// Stream statistics for monitoring

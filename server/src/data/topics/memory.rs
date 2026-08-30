@@ -464,6 +464,11 @@ impl TopicBackend for MemoryTopicBackend {
     fn backend_name(&self) -> &'static str {
         "memory"
     }
+
+    fn is_durable(&self) -> bool {
+        // Everything lives in an `Arc<SharedState>`: a crash takes the queue with it.
+        false
+    }
 }
 
 #[cfg(test)]

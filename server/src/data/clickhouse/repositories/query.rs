@@ -2099,6 +2099,39 @@ pub async fn delete_project_data(
 }
 
 /// Count spans grouped by project for a set of project IDs.
+/// Count every row a project still owns, spans and metrics together.
+///
+/// `FINAL` on both, because a `ReplacingMergeTree` may still hold superseded parts - and because this is
+/// read to decide whether a deleted project's data is really gone, an approximate answer is the wrong
+/// kind of answer. The metrics table is asked only if it exists, for the same reason its delete is.
+pub async fn count_project_rows(
+    client: &Client,
+    metrics_table: &str,
+    project_id: &str,
+) -> Result<u64, ClickhouseError> {
+    let spans: u64 = client
+        .query("SELECT count() FROM otel_spans FINAL WHERE project_id = ?")
+        .bind(project_id)
+        .fetch_one()
+        .await?;
+
+    let table_exists: u64 = client
+        .query("SELECT count() FROM system.tables WHERE database = currentDatabase() AND name = ?")
+        .bind(metrics_table)
+        .fetch_one()
+        .await?;
+    let metrics: u64 = if table_exists > 0 {
+        client
+            .query("SELECT count() FROM otel_metrics FINAL WHERE project_id = ?")
+            .bind(project_id)
+            .fetch_one()
+            .await?
+    } else {
+        0
+    };
+    Ok(spans + metrics)
+}
+
 pub async fn count_spans_by_project(
     client: &Client,
     project_ids: &[String],

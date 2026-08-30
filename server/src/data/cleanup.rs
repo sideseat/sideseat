@@ -243,11 +243,9 @@ pub async fn finish_project_deletion(
     // Verified, not assumed. A delete that reported success can still leave rows behind: ClickHouse
     // applies `ALTER TABLE ... DELETE` as an asynchronous mutation, and a batch that read the fence
     // before the claim can commit after it.
-    let ids = [project_id.to_string()];
     let remaining = analytics_repo
-        .count_spans_by_project(&ids)
+        .count_project_rows(project_id)
         .await
-        .map(|counts| counts.get(project_id).copied().unwrap_or(0))
         .unwrap_or_else(|e| {
             tracing::warn!(project_id, error = %e, "Could not verify a project's data is gone");
             u64::MAX
