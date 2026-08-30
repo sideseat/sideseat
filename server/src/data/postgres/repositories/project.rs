@@ -104,7 +104,8 @@ pub async fn get_project(
 /// Get a project by ID directly from database (no caching)
 async fn get_project_from_db(pool: &PgPool, id: &str) -> Result<Option<ProjectRow>, PostgresError> {
     let row = sqlx::query_as::<_, (String, String, String, i64, i64)>(
-        "SELECT id, organization_id, name, created_at, updated_at FROM projects WHERE id = $1",
+        "SELECT id, organization_id, name, created_at, updated_at FROM projects \
+         WHERE id = $1 AND deleting_at IS NULL",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -131,14 +132,15 @@ pub async fn list_projects(
     let offset = (page.saturating_sub(1)) * limit;
 
     let rows = sqlx::query_as::<_, (String, String, String, i64, i64)>(
-        "SELECT id, organization_id, name, created_at, updated_at FROM projects ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+        "SELECT id, organization_id, name, created_at, updated_at FROM projects \
+         WHERE deleting_at IS NULL ORDER BY created_at DESC LIMIT $1 OFFSET $2",
     )
     .bind(limit as i64)
     .bind(offset as i64)
     .fetch_all(pool)
     .await?;
 
-    let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM projects")
+    let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM projects WHERE deleting_at IS NULL")
         .fetch_one(pool)
         .await?;
 
@@ -220,7 +222,7 @@ async fn list_for_user_from_db(
         SELECT p.id, p.organization_id, p.name, p.created_at, p.updated_at
         FROM projects p
         JOIN organization_members om ON p.organization_id = om.organization_id
-        WHERE om.user_id = $1
+        WHERE om.user_id = $1 AND p.deleting_at IS NULL
         ORDER BY p.created_at DESC
         LIMIT $2 OFFSET $3
         "#,
@@ -236,7 +238,7 @@ async fn list_for_user_from_db(
         SELECT COUNT(*)
         FROM projects p
         JOIN organization_members om ON p.organization_id = om.organization_id
-        WHERE om.user_id = $1
+        WHERE om.user_id = $1 AND p.deleting_at IS NULL
         "#,
     )
     .bind(user_id)
@@ -320,7 +322,7 @@ async fn list_for_org_from_db(
         r#"
         SELECT id, organization_id, name, created_at, updated_at
         FROM projects
-        WHERE organization_id = $1
+        WHERE organization_id = $1 AND deleting_at IS NULL
         ORDER BY created_at DESC
         LIMIT $2 OFFSET $3
         "#,
@@ -331,10 +333,12 @@ async fn list_for_org_from_db(
     .fetch_all(pool)
     .await?;
 
-    let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM projects WHERE organization_id = $1")
-        .bind(org_id)
-        .fetch_one(pool)
-        .await?;
+    let total: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM projects WHERE organization_id = $1 AND deleting_at IS NULL",
+    )
+    .bind(org_id)
+    .fetch_one(pool)
+    .await?;
 
     let projects = rows
         .into_iter()
@@ -364,12 +368,14 @@ pub async fn update_project(
 
     let now = chrono::Utc::now().timestamp();
 
-    let result = sqlx::query("UPDATE projects SET name = $1, updated_at = $2 WHERE id = $3")
-        .bind(name)
-        .bind(now)
-        .bind(id)
-        .execute(pool)
-        .await?;
+    let result = sqlx::query(
+        "UPDATE projects SET name = $1, updated_at = $2 WHERE id = $3 AND deleting_at IS NULL",
+    )
+    .bind(name)
+    .bind(now)
+    .bind(id)
+    .execute(pool)
+    .await?;
 
     if result.rows_affected() == 0 {
         return Ok(None);
@@ -394,14 +400,80 @@ pub async fn update_project(
     get_project_from_db(pool, id).await
 }
 
+/// Claim a project for deletion, if it exists and nobody else has claimed it.
+///
+/// The compare-and-set is the whole mechanism: two admins deleting the same project concurrently, or a
+/// sweep racing a request, must not both run the cleanup - and every other path (reads, ingestion,
+/// rename) consults the claim, so setting it is what makes the project stop being live.
+///
+/// Returns false when the project does not exist or is already claimed.
+pub async fn claim_project_for_deletion(pool: &PgPool, id: &str) -> Result<bool, PostgresError> {
+    let now = chrono::Utc::now().timestamp();
+    let result =
+        sqlx::query("UPDATE projects SET deleting_at = $1 WHERE id = $2 AND deleting_at IS NULL")
+            .bind(now)
+            .bind(id)
+            .execute(pool)
+            .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// Whether this project is claimed for deletion, read without the fence hiding it.
+///
+/// The write path needs the distinction the read paths deliberately lose: `get_project` reports a
+/// claimed project as absent, which is right for a reader and useless for deciding whether a batch is
+/// being refused because the project is going away or because it never existed.
+pub async fn project_is_claimed(pool: &PgPool, id: &str) -> Result<bool, PostgresError> {
+    let row: Option<(Option<i64>,)> =
+        sqlx::query_as("SELECT deleting_at FROM projects WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
+    Ok(matches!(row, Some((Some(_),))))
+}
+
+/// Projects claimed for deletion longer ago than `older_than_secs`, so an abandoned cleanup can resume.
+///
+/// A project's cleanup spans four stores and can fail or crash part way through any of them. The claim
+/// is durable so the project stays fenced across a restart, which means nothing releases it either -
+/// and a half-deleted project nothing ever finishes is worse than one that was never deleted, because
+/// it is invisible to every read path while its data is still on disk.
+pub async fn get_stale_claimed_projects(
+    pool: &PgPool,
+    older_than_secs: i64,
+) -> Result<Vec<String>, PostgresError> {
+    let cutoff = chrono::Utc::now().timestamp() - older_than_secs;
+    let rows: Vec<(String,)> = sqlx::query_as(
+        "SELECT id FROM projects WHERE deleting_at IS NOT NULL AND deleting_at <= $1",
+    )
+    .bind(cutoff)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|(id,)| id).collect())
+}
+
+/// The organization a project belongs to, whether or not it is claimed for deletion.
+async fn org_of_project_ignoring_fence(
+    pool: &PgPool,
+    id: &str,
+) -> Result<Option<String>, PostgresError> {
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT organization_id FROM projects WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
+    Ok(row.map(|(org,)| org))
+}
+
 /// Delete a project by ID. Returns true if a project was deleted.
 pub async fn delete_project(
     pool: &PgPool,
     cache: Option<&CacheService>,
     id: &str,
 ) -> Result<bool, PostgresError> {
-    // Get old project for org_id to invalidate list cache
-    let old_project = get_project_from_db(pool, id).await?;
+    // Read through the fence: by the time deletion removes the row the project is claimed, so every
+    // ordinary read reports it absent - and the org id is still needed to invalidate that org's list.
+    let old_org = org_of_project_ignoring_fence(pool, id).await?;
 
     let result = sqlx::query("DELETE FROM projects WHERE id = $1")
         .bind(id)
@@ -417,16 +489,13 @@ pub async fn delete_project(
         }
 
         // Invalidate org's project list cache if project existed
-        if let Some(ref old) = old_project {
-            if let Err(e) = cache
-                .delete(&CacheKey::projects_for_org(&old.organization_id))
-                .await
-            {
-                tracing::warn!(org_id = %old.organization_id, error = %e, "Cache invalidation error");
+        if let Some(ref org_id) = old_org {
+            if let Err(e) = cache.delete(&CacheKey::projects_for_org(org_id)).await {
+                tracing::warn!(%org_id, error = %e, "Cache invalidation error");
             }
 
             // Invalidate projects_for_user for all org members
-            if let Ok(member_user_ids) = list_member_user_ids(pool, &old.organization_id).await {
+            if let Ok(member_user_ids) = list_member_user_ids(pool, org_id).await {
                 for user_id in &member_user_ids {
                     if let Err(e) = cache.delete(&CacheKey::projects_for_user(user_id)).await {
                         tracing::warn!(%user_id, error = %e, "Cache invalidation error");

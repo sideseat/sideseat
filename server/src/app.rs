@@ -126,6 +126,26 @@ impl CoreApp {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to initialize file service: {}", e))?,
         );
+        // A project deletion that died part way through left the project claimed - fenced, hidden from
+        // every read, and still holding its data. Startup is when those claims become findable.
+        match crate::data::cleanup::resume_abandoned_project_deletions(
+            &database,
+            &analytics,
+            &files,
+            crate::core::constants::PROJECT_DELETION_CLAIM_STALE_SECS,
+        )
+        .await
+        {
+            Ok(0) => {}
+            Ok(n) => tracing::info!(
+                finished = n,
+                "Finished abandoned project deletions on startup"
+            ),
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to resume abandoned project deletions on startup")
+            }
+        }
+
         let shutdown = ShutdownService::new(topics.clone(), database.clone(), analytics.clone());
 
         let credentials = CredentialService::new(

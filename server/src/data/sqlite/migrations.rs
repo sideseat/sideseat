@@ -163,6 +163,20 @@ CREATE INDEX IF NOT EXISTS idx_trace_files_project_hash ON trace_files(project_i
 /// is set, which refuses the batch and lets the exporter retry once deletion has finished.
 const MIGRATION_V5: &str = "ALTER TABLE files ADD COLUMN deleting_at INTEGER";
 
+/// The same fence for a project, which needs it more than a file does.
+///
+/// Deleting a project touches four stores - analytics rows, file bytes, file rows, the project row -
+/// with no transaction spanning them, and it used to delete the data first and the row last. So for
+/// the whole of it the project was live: readable, and ingestible. Spans arriving in that window were
+/// written *after* their analytics rows had been deleted and survived the whole cleanup, attached to a
+/// project id that then had no row at all - invisible to every read path, and inherited by the next
+/// project created with the same id.
+///
+/// `deleting_at` states the intent before any of it starts. Reads treat a claimed project as absent,
+/// ingestion refuses it, and the row is removed only once the data is verified gone - so the row's
+/// disappearance is the *last* fact, not the first.
+const MIGRATION_V6: &str = "ALTER TABLE projects ADD COLUMN deleting_at INTEGER";
+
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
     match version {
         1 => {
@@ -173,6 +187,7 @@ async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteEr
         3 => apply_versioned_migration(pool, 3, "add_credentials_tables", MIGRATION_V3).await,
         4 => apply_versioned_migration(pool, 4, "project_scoped_trace_files", MIGRATION_V4).await,
         5 => apply_versioned_migration(pool, 5, "file_deletion_fence", MIGRATION_V5).await,
+        6 => apply_versioned_migration(pool, 6, "project_deletion_fence", MIGRATION_V6).await,
         _ => Err(SqliteError::MigrationFailed {
             version,
             name: "unknown".to_string(),

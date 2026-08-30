@@ -28,6 +28,7 @@
 //! | 3. Enrich   | `&[SpanData]`, `&[Vec<SideMLMessage>]`       | `Vec<SpanEnrichment>`                               | `enrich.rs`    |
 //! | 4. Persist  | `&Request`, `SpanData`, `RawMessage`, ...    | `()`                                                | `persist.rs`   |
 
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -46,6 +47,7 @@ use super::persist::{
     write_to_duckdb,
 };
 use crate::core::TopicService;
+use crate::core::constants::DEFAULT_PROJECT_ID;
 use crate::data::AnalyticsService;
 use crate::data::files::FileService;
 use crate::data::topics::{StreamTopic, TopicError};
@@ -469,6 +471,34 @@ impl TracePipeline {
             return true;
         }
 
+        // Spans for a project being deleted are dropped, not written.
+        //
+        // This is the authoritative half of the project deletion fence, and admission at the HTTP edge
+        // is only the fast half: a request passes admission, goes onto a topic, and persists seconds
+        // later, so the claim can land in between. Checked here the check is adjacent to the write,
+        // which is the only place it can be sound.
+        //
+        // Dropped rather than refused. A refusal invites a retry, and the project is not coming back -
+        // the exporter would retry a doomed batch until it gave up, and a batch mixing a live project
+        // with a dying one would lose the live project's spans too.
+        let claimed = self.claimed_projects(&all_db_spans).await;
+        if !claimed.is_empty() {
+            let before = all_db_spans.len();
+            all_db_spans.retain(|s| {
+                !claimed.contains(s.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID))
+            });
+            all_pending_files.retain(|f| !claimed.contains(f.project_id.as_str()));
+            all_incoming.retain(|(project, _, _)| !claimed.contains(project.as_str()));
+            tracing::warn!(
+                dropped = before - all_db_spans.len(),
+                projects = ?claimed,
+                "Dropped spans for projects being deleted"
+            );
+            if all_db_spans.is_empty() {
+                return true;
+            }
+        }
+
         let t_prepare_done = std::time::Instant::now();
         let span_count = all_db_spans.len();
 
@@ -550,6 +580,37 @@ impl TracePipeline {
         );
 
         db_ok
+    }
+
+    /// Which of a batch's projects are claimed for deletion.
+    ///
+    /// One query per distinct project, and a batch almost always names one - the SDK sends a project's
+    /// spans to that project's endpoint. A lookup failure reports *not* claimed: dropping a live
+    /// project's spans because a query failed would be a data loss caused by the fence, while writing
+    /// to a dying project leaves rows the sweep's verification still catches.
+    async fn claimed_projects(&self, spans: &[NormalizedSpan]) -> HashSet<String> {
+        // Same default the write path applies, so the fence and the write agree on which project a
+        // span without one belongs to.
+        let mut projects: Vec<&str> = spans
+            .iter()
+            .map(|s| s.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID))
+            .collect();
+        projects.sort_unstable();
+        projects.dedup();
+        let repo = self.file_service.database().repository();
+        let mut claimed = HashSet::new();
+        for project in projects {
+            match repo.project_is_claimed(project).await {
+                Ok(true) => {
+                    claimed.insert(project.to_string());
+                }
+                Ok(false) => {}
+                Err(e) => {
+                    tracing::warn!(project, error = %e, "Could not check the project deletion fence")
+                }
+            }
+        }
+        claimed
     }
 
     /// Run the complete pipeline for a single request (used during shutdown drain

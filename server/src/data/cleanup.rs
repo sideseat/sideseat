@@ -35,7 +35,17 @@ pub async fn cleanup_organization(
     // 1. Get project_ids before transactional cascade deletes them
     let project_ids = repo.list_project_ids(org_id).await?;
 
-    // 2. Delete traces from analytics backend for each project
+    // 2. Fence every project first, for the reason `cleanup_project` documents: until a project is
+    //    claimed it is live, so a batch can arrive behind the cleanup and outlive it. Losing a claim
+    //    means someone else is already deleting that project - their cleanup is the same work, and the
+    //    org cascade removes the row either way.
+    for project_id in &project_ids {
+        if let Err(e) = repo.claim_project_for_deletion(project_id).await {
+            errors.push(format!("Claim failed for project {}: {}", project_id, e));
+        }
+    }
+
+    // 3. Delete traces from analytics backend for each project
     for project_id in &project_ids {
         if let Err(e) = analytics_repo.delete_project_data(project_id).await {
             errors.push(format!(
@@ -45,7 +55,7 @@ pub async fn cleanup_organization(
         }
     }
 
-    // 3. Delete files from filesystem for each project
+    // 4. Delete files from filesystem for each project
     for project_id in &project_ids {
         if let Err(e) = file_service.delete_project(project_id).await {
             errors.push(format!(
@@ -55,12 +65,14 @@ pub async fn cleanup_organization(
         }
     }
 
-    // 4. Invalidate API key caches for the organization
+    // 5. Invalidate API key caches for the organization
     if let Some(cache) = cache {
         invalidate_org_api_key_caches(repo.as_ref(), cache, org_id).await;
     }
 
-    // 5. Delete org from transactional backend (cascades to projects, members, api_keys, files metadata)
+    // 6. Delete org from transactional backend (cascades to projects, members, api_keys). Not to
+    //    `files`: `files.project_id` has no foreign key to `projects`, so step 4 is the only thing
+    //    that removes those rows.
     let deleted = repo
         .delete_organization(None, org_id)
         .await
@@ -79,17 +91,39 @@ pub async fn cleanup_organization(
     Ok(deleted)
 }
 
-/// Cleanup for single project deletion
+/// Delete a project: everything it owns, then the row that owns it.
 ///
-/// Performs cleanup in the correct order:
-/// 1. Delete traces from analytics backend
-/// 2. Delete files from filesystem
-/// 3. Delete project from transactional backend
+/// # Why there is a fence at all
 ///
-/// Note: API keys are org-scoped, not project-scoped, so no API key cleanup is needed here.
+/// Deletion touches four stores with no transaction over them - analytics rows, file bytes, file rows,
+/// the project row - so there is no instant at which the project simply stops existing. It used to
+/// delete the *data* first and the row last, which meant the project was fully live for the whole of
+/// it: readable, and ingestible. A batch arriving in that window was written after its analytics rows
+/// had been deleted, survived the rest of the cleanup, and ended up attached to a project id that then
+/// had no row - invisible to every read path, counted against no quota, and inherited by the next
+/// project created with the same id. If a step *failed*, the row was deleted anyway, which turned a
+/// recoverable failure into data nothing could ever find again.
 ///
-/// All cleanup steps are attempted even if some fail. Errors are collected
-/// and returned after all steps complete to ensure maximum cleanup.
+/// ```mermaid
+/// stateDiagram-v2
+///     [*] --> Live
+///     Live --> Claimed: claim (compare-and-set)
+///     Claimed --> Claimed: sweep resumes an abandoned cleanup
+///     Claimed --> [*]: data verified gone, row deleted
+///     note right of Claimed
+///         reads report absent
+///         ingestion refuses
+///         rename refuses
+///     end note
+/// ```
+///
+/// The claim is the fence and the tombstone at once: while it is set the project is not live, so no new
+/// data can appear behind the cleanup's back, and it survives a restart, so a crash leaves the project
+/// fenced rather than half-deleted and live. The row is removed only after the data is verified gone,
+/// making the row's disappearance the *last* fact rather than the first - which is what lets the sweep
+/// resume: a claimed row is a cleanup that has not finished.
+///
+/// Returns `Ok(false)` when there was no live project to delete.
 pub async fn cleanup_project(
     database: &Arc<TransactionalService>,
     analytics: &Arc<AnalyticsService>,
@@ -97,40 +131,121 @@ pub async fn cleanup_project(
     _cache: Option<&CacheService>,
     project_id: &str,
 ) -> Result<bool> {
-    let mut errors: Vec<String> = Vec::new();
+    let repo = database.repository();
 
+    // The compare-and-set decides who owns this deletion. Losing it means the project was already
+    // claimed or already gone - either way there is nothing for this caller to do.
+    if !repo
+        .claim_project_for_deletion(project_id)
+        .await
+        .context("Failed to claim project for deletion")?
+    {
+        return Ok(false);
+    }
+
+    finish_project_deletion(database, analytics, file_service, project_id).await?;
+    Ok(true)
+}
+
+/// The part of a project deletion that is safe to run again: everything after the claim.
+///
+/// Every step is idempotent, which is what makes resumption possible rather than merely hopeful -
+/// deleting rows that are already deleted and bytes that are already gone are both no-ops. Called by
+/// [`cleanup_project`] once it holds the claim, and by the sweep for a claim whose owner died.
+pub async fn finish_project_deletion(
+    database: &Arc<TransactionalService>,
+    analytics: &Arc<AnalyticsService>,
+    file_service: &Arc<FileService>,
+    project_id: &str,
+) -> Result<()> {
     let repo = database.repository();
     let analytics_repo = analytics.repository();
+    let mut errors: Vec<String> = Vec::new();
 
-    // 1. Delete traces from analytics backend
     if let Err(e) = analytics_repo.delete_project_data(project_id).await {
         errors.push(format!("Analytics delete failed: {}", e));
     }
 
-    // 2. Delete files from filesystem
+    // Files: bytes then rows, and the `files` rows are not reached by any cascade - `files.project_id`
+    // has no foreign key to `projects`, so nothing else would ever remove them.
     if let Err(e) = file_service.delete_project(project_id).await {
         errors.push(format!("File delete failed: {}", e));
     }
 
-    // Note: API keys are org-scoped, no cleanup needed here
+    // API keys are org-scoped, so there is nothing project-scoped to remove.
 
-    // 3. Delete project from transactional backend (cascades to file metadata)
-    let deleted = repo
-        .delete_project(None, project_id)
-        .await
-        .context("Failed to delete project")?;
-
-    // Return error if any cleanup step failed
     if !errors.is_empty() {
+        // The row stays, claimed. That is the whole point: the project is already fenced, so nothing
+        // new can arrive, and the sweep will find the claim and try again. Deleting the row here would
+        // strand whatever survived with no project to find it by.
         return Err(anyhow!(
-            "Project {} cleanup completed with {} errors: {}",
+            "Project {} cleanup failed with {} errors, leaving it claimed for retry: {}",
             project_id,
             errors.len(),
             errors.join("; ")
         ));
     }
 
-    Ok(deleted)
+    // Verified, not assumed. A delete that reported success can still leave rows behind - ClickHouse
+    // applies `ALTER TABLE ... DELETE` as an asynchronous mutation - and a batch that passed admission
+    // before the claim may have persisted after it. Either way the row must outlive the data.
+    let ids = [project_id.to_string()];
+    let remaining = analytics_repo
+        .count_spans_by_project(&ids)
+        .await
+        .map(|counts| counts.get(project_id).copied().unwrap_or(0))
+        .unwrap_or_else(|e| {
+            tracing::warn!(project_id, error = %e, "Could not verify a project's data is gone");
+            u64::MAX
+        });
+    if remaining > 0 {
+        return Err(anyhow!(
+            "Project {} still has {} spans after deletion; leaving it claimed so the sweep retries",
+            project_id,
+            remaining
+        ));
+    }
+
+    repo.delete_project(None, project_id)
+        .await
+        .context("Failed to delete project row")?;
+    Ok(())
+}
+
+/// Finish project deletions that a crash or a failed step left claimed.
+///
+/// The claim is durable so the project stays fenced across a restart - which is what makes a stuck
+/// deletion possible in the first place, and worse than one that never started: the project is hidden
+/// from every read path while its data is still on disk and still counted against storage. Nothing
+/// releases a claim, so this is the only thing that can finish one.
+///
+/// Every step after the claim is idempotent, so resuming is a retry rather than a special case. Called
+/// at startup, which is when a crashed process's claims are found.
+pub async fn resume_abandoned_project_deletions(
+    database: &Arc<TransactionalService>,
+    analytics: &Arc<AnalyticsService>,
+    file_service: &Arc<FileService>,
+    stale_after_secs: i64,
+) -> Result<usize> {
+    let stale = database
+        .repository()
+        .get_stale_claimed_projects(stale_after_secs)
+        .await
+        .context("Failed to look for abandoned project deletions")?;
+    let mut finished = 0;
+    for project_id in stale {
+        match finish_project_deletion(database, analytics, file_service, &project_id).await {
+            Ok(()) => {
+                finished += 1;
+                tracing::info!(project_id, "Finished an abandoned project deletion");
+            }
+            // Still claimed, so still fenced and still findable next time.
+            Err(e) => {
+                tracing::warn!(project_id, error = %e, "Could not finish an abandoned project deletion")
+            }
+        }
+    }
+    Ok(finished)
 }
 
 /// Invalidate API key caches for an organization
