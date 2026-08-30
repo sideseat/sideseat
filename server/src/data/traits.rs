@@ -583,12 +583,14 @@ pub trait TransactionalRepository: Send + Sync {
         trace_ids: &[String],
     ) -> Result<Vec<(String, i64)>, DataError>;
 
-    /// Drop `by` references at once, for a deletion that removed that many associations.
-    async fn decrement_ref_count_by(
+    /// Recompute a file's reference count from the associations that exist, and return it.
+    ///
+    /// The count is a cached `COUNT(*)`; deriving it is the only form immune to two concurrent
+    /// cleanups both subtracting the same references.
+    async fn sync_ref_count(
         &self,
         project_id: &str,
         file_hash: &str,
-        by: i64,
     ) -> Result<Option<i64>, DataError>;
 
     /// Insert a trace-file association
