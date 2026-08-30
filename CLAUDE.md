@@ -460,14 +460,31 @@ mechanism delivers that depends on the topic backend (`TopicBackend::is_durable`
 | Metrics | Written inside the request | Written inside the request |
 | Logs | Not stored; `partial_success` with every record rejected | Same |
 
-Measured on release, loopback, DuckDB + SQLite, warm: **~2.3 ms per OTLP trace request** end to end
-including the write (the batched path costs ~4 ms per request amortised, the unbatched ~8.8 ms cold - both
-from `bench_ingestion_end_to_end`), a session read of 151 spans in **16-27 ms**, and a 50-trace list in
-**23-42 ms**. So the working SLO is: an ingest request in the low tens of milliseconds, an interactive
-read under ~100 ms for an ordinary session, and reads of a long *replaying* session bounded by the
-reconstruction cache rather than by the pipeline (2.28 s cold, 47 ms warm at 1 000 turns). What remains
-unmeasured is deliberate to state: production PostgreSQL/ClickHouse/S3 latency, network transport, and
-tail latency under concurrent load.
+Measured over HTTP on a release build, loopback, DuckDB + SQLite, warm process:
+
+| Operation | Payload / shape | p50 | p95 | p99 |
+| --- | --- | --- | --- | --- |
+| OTLP trace export (incl. the write) | 2 KB | 3.6 ms | 7.6 ms | 18.6 ms |
+| OTLP trace export (incl. the write) | 772 KB | 19.1 ms | 48.5 ms | 50.5 ms |
+| Session messages, 151 spans | sequential | 17.4 ms | 22.4 ms | 23.3 ms |
+| Session messages, 151 spans | 8 concurrent | 111.7 ms | 125.6 ms | 127.5 ms |
+
+So the SLO: an ingest request in the low tens of milliseconds and an interactive read under ~100 ms at
+p99 *sequentially*. Two things the table says out loud rather than hides. Concurrent reads are serialised
+by the analytics backend, so the p50 of eight at once is roughly eight times one - read concurrency buys
+throughput (~70 req/s here), not latency. And a long *replaying* session is bounded by the reconstruction
+cache, not the pipeline: 2.28 s cold, 47 ms warm at 1 000 turns.
+
+The cache being process-local has a cluster consequence worth stating: it bounds work per instance, not
+per cluster, so with N instances a session can be reconstructed up to N times before every instance is
+warm, and instance churn resets that. Sharing it would need the reconstruction to round-trip through
+serde - `BlockEntry` and `ContentBlock` are `Serialize` but not `Deserialize` - which would put the
+byte-identical property `a_cached_reconstruction_equals_a_fresh_one` proves at the mercy of
+serialisation, plus a build fingerprint in the key so a deploy cannot serve the previous pipeline's
+answers. Not worth it for the shape of session that reaches seconds.
+
+Still unmeasured, deliberately stated: production PostgreSQL, ClickHouse and S3 latency, and network
+transport.
 
 **Message-parsing goldens**: `cargo test -p sideseat-server message_goldens` verifies message count, content, ordering and absence of duplicates per framework across all three views (span / trace / session). Fixtures are captured OTLP payloads under `server/tests/fixtures/messages/<suite>/<sample>/`; capture with `misc/capture-message-fixtures.sh [suite] [sample]` (needs model credentials), then record with `UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens` and review the diff. Invariants (scope containment, per-trace dedup, tool-id correspondence, no empty thinking, determinism) hold independently of the goldens, so a blindly regenerated snapshot still fails on real defects. `UPDATE_GOLDENS=1` writes the files but still exits non-zero when an invariant was violated, so known-bad output cannot be committed as reviewed. See `server/tests/fixtures/messages/README.md`.
 
