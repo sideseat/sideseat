@@ -11,7 +11,7 @@ pub mod providers;
 pub mod sideml;
 pub mod traces;
 
-pub use metrics::MetricsPipeline;
+pub use metrics::ingest as ingest_metrics;
 pub use traces::{MessageSource, RawMessage, SseSpanEvent, TracePipeline};
 
 use crate::core::TopicMessage;
