@@ -547,6 +547,15 @@ impl TransactionalRepository for Arc<PostgresService> {
             .map_err(Into::into)
     }
 
+    async fn get_stale_claimed_files(
+        &self,
+        older_than_secs: i64,
+    ) -> Result<Vec<(String, String)>, DataError> {
+        file::get_stale_claimed_files(self.pool(), older_than_secs)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn claim_file_for_deletion(
         &self,
         project_id: &str,

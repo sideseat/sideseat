@@ -549,10 +549,11 @@ release/
 # Downloaded TLA+ toolchain (make harden fetches it); a third-party jar, not source.
 .tools/
 
-# TLC artifacts: error-trace dumps and states written by a failing model check.
-server/spec/*_TTrace_*.tla
-server/spec/*_TTrace_*.bin
-server/spec/states/
+# TLC artifacts: error-trace dumps and states written by a model check. Unanchored, because TLC writes
+# them next to wherever it was invoked, not next to the spec - a root-level run left states/ untracked.
+*_TTrace_*.tla
+*_TTrace_*.bin
+states/
 
 # Message fixtures whose payload is mostly inlined base64 image data. The JS suites embed
 # generated images directly in the OTLP JSON (15MB and 7MB per request), which would sit in
