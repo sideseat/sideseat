@@ -258,14 +258,24 @@ impl TransactionalRepository for Arc<SqliteService> {
             .map_err(Into::into)
     }
 
-    async fn claim_project_for_deletion(&self, id: &str) -> Result<bool, DataError> {
-        project::claim_project_for_deletion(self.pool(), id)
+    async fn claim_project_for_deletion(
+        &self,
+        cache: Option<&CacheService>,
+        id: &str,
+    ) -> Result<bool, DataError> {
+        project::claim_project_for_deletion(self.pool(), cache, id)
             .await
             .map_err(Into::into)
     }
 
-    async fn project_is_claimed(&self, id: &str) -> Result<bool, DataError> {
-        project::project_is_claimed(self.pool(), id)
+    async fn project_accepts_writes(&self, id: &str) -> Result<bool, DataError> {
+        project::project_accepts_writes(self.pool(), id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn project_claim_age_secs(&self, id: &str) -> Result<Option<i64>, DataError> {
+        project::project_claim_age_secs(self.pool(), id)
             .await
             .map_err(Into::into)
     }

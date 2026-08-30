@@ -471,31 +471,50 @@ impl TracePipeline {
             return true;
         }
 
-        // Spans for a project being deleted are dropped, not written.
+        // Spans for a project that will not accept writes are dropped, not written.
         //
-        // This is the authoritative half of the project deletion fence, and admission at the HTTP edge
-        // is only the fast half: a request passes admission, goes onto a topic, and persists seconds
-        // later, so the claim can land in between. Checked here the check is adjacent to the write,
-        // which is the only place it can be sound.
+        // This is the authoritative half of the project deletion fence, and an HTTP-edge check would not
+        // be: a request passes the edge, goes onto a topic and persists seconds later, so a check there
+        // says nothing about the write. Next to the write it is sound.
         //
-        // Dropped rather than refused. A refusal invites a retry, and the project is not coming back -
-        // the exporter would retry a doomed batch until it gave up, and a batch mixing a live project
-        // with a dying one would lose the live project's spans too.
-        let claimed = self.claimed_projects(&all_db_spans).await;
-        if !claimed.is_empty() {
-            let before = all_db_spans.len();
-            all_db_spans.retain(|s| {
-                !claimed.contains(s.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID))
-            });
-            all_pending_files.retain(|f| !claimed.contains(f.project_id.as_str()));
-            all_incoming.retain(|(project, _, _)| !claimed.contains(project.as_str()));
-            tracing::warn!(
-                dropped = before - all_db_spans.len(),
-                projects = ?claimed,
-                "Dropped spans for projects being deleted"
-            );
-            if all_db_spans.is_empty() {
-                return true;
+        // "Will not accept writes" covers a project that is claimed for deletion *and* one whose row is
+        // gone. The second is what makes the fence airtight rather than merely narrow: a batch that read
+        // the fence before a claim can commit after it, and the only reason that is harmless is that the
+        // row outlives the claim by long enough for such a batch to finish, after which writes for the
+        // absent project are refused outright. Spans for a project with no row were never readable
+        // anyway - every read path finds data through the project row.
+        //
+        // Dropped rather than refused: the project is not coming back, so a refusal would have the
+        // exporter retry a doomed batch, and a batch mixing a live project with a dying one would lose
+        // the live one's spans too.
+        match self.projects_refusing_writes(&all_db_spans).await {
+            Ok(refusing) if !refusing.is_empty() => {
+                let before = all_db_spans.len();
+                all_db_spans.retain(|s| {
+                    !refusing.contains(s.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID))
+                });
+                all_pending_files.retain(|f| !refusing.contains(f.project_id.as_str()));
+                all_incoming.retain(|(project, _, _)| !refusing.contains(project.as_str()));
+                tracing::warn!(
+                    dropped = before - all_db_spans.len(),
+                    projects = ?refusing,
+                    "Dropped spans for projects that do not accept writes (deleted or being deleted)"
+                );
+                if all_db_spans.is_empty() {
+                    return true;
+                }
+            }
+            Ok(_) => {}
+            Err(e) => {
+                // Unknown, so refused rather than assumed open. The cache must go with it for the same
+                // reason every other refusal clears it: entries are written when bytes are extracted.
+                self.file_cache.invalidate_all();
+                tracing::error!(
+                    error = %e,
+                    spans = all_db_spans.len(),
+                    "Refusing the batch: could not settle whether its project accepts writes"
+                );
+                return false;
             }
         }
 
@@ -582,13 +601,19 @@ impl TracePipeline {
         db_ok
     }
 
-    /// Which of a batch's projects are claimed for deletion.
+    /// Which of a batch's projects will not accept writes, and whether the question could be answered.
     ///
-    /// One query per distinct project, and a batch almost always names one - the SDK sends a project's
-    /// spans to that project's endpoint. A lookup failure reports *not* claimed: dropping a live
-    /// project's spans because a query failed would be a data loss caused by the fence, while writing
-    /// to a dying project leaves rows the sweep's verification still catches.
-    async fn claimed_projects(&self, spans: &[NormalizedSpan]) -> HashSet<String> {
+    /// `Err` means the fence is unknown, which is not the same as open. Dropping a live project's spans
+    /// because a query failed would be data loss caused by the fence, and writing to a project that may
+    /// be going away is the corruption it exists to prevent - so the caller refuses the batch instead and
+    /// the exporter retries. Ingestion is idempotent by span id, so a retry costs a rewrite.
+    ///
+    /// One query per distinct project, and a batch almost always names one: the SDK sends a project's
+    /// spans to that project's endpoint.
+    async fn projects_refusing_writes(
+        &self,
+        spans: &[NormalizedSpan],
+    ) -> Result<HashSet<String>, String> {
         // Same default the write path applies, so the fence and the write agree on which project a
         // span without one belongs to.
         let mut projects: Vec<&str> = spans
@@ -598,19 +623,17 @@ impl TracePipeline {
         projects.sort_unstable();
         projects.dedup();
         let repo = self.file_service.database().repository();
-        let mut claimed = HashSet::new();
+        let mut refusing = HashSet::new();
         for project in projects {
-            match repo.project_is_claimed(project).await {
-                Ok(true) => {
-                    claimed.insert(project.to_string());
+            match repo.project_accepts_writes(project).await {
+                Ok(true) => {}
+                Ok(false) => {
+                    refusing.insert(project.to_string());
                 }
-                Ok(false) => {}
-                Err(e) => {
-                    tracing::warn!(project, error = %e, "Could not check the project deletion fence")
-                }
+                Err(e) => return Err(format!("project {project}: {e}")),
             }
         }
-        claimed
+        Ok(refusing)
     }
 
     /// Run the complete pipeline for a single request (used during shutdown drain
@@ -642,11 +665,46 @@ impl TracePipeline {
             if db_spans.is_empty() {
                 return true;
             }
+            let mut db_spans = db_spans;
+
+            // The project fence, exactly as the batch path applies it. This path had no check at all,
+            // which is worse than it sounds: it is the *recovery* path, so it handles messages that were
+            // queued before a restart - precisely the ones most likely to name a project that has been
+            // deleted since.
+            let mut pending_files = pending_files;
+            let mut incoming = incoming;
+            match self.projects_refusing_writes(&db_spans).await {
+                Ok(refusing) if !refusing.is_empty() => {
+                    let before = db_spans.len();
+                    db_spans.retain(|s| {
+                        !refusing.contains(s.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID))
+                    });
+                    pending_files.retain(|f| !refusing.contains(f.project_id.as_str()));
+                    incoming.retain(|(project, _, _)| !refusing.contains(project.as_str()));
+                    tracing::warn!(
+                        dropped = before - db_spans.len(),
+                        projects = ?refusing,
+                        "Dropped spans for projects that do not accept writes"
+                    );
+                    if db_spans.is_empty() {
+                        return true;
+                    }
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    self.file_cache.invalidate_all();
+                    tracing::error!(
+                        error = %e,
+                        "Refusing the request: could not settle whether its project accepts writes"
+                    );
+                    return false;
+                }
+            }
+
             let sse_events: Vec<SseSpanEvent> = db_spans.iter().map(SseSpanEvent::from).collect();
             // Ordered, exactly as the batch path is: this path ran the two concurrently, so it could
             // commit a row referencing a file whose write had failed - the same defect, in the path
             // that runs at shutdown and recovery, where it is least likely to be noticed.
-            let mut db_spans = db_spans;
             let files = persist_extracted_files(pending_files, &self.file_service).await;
             if files.failed > 0 {
                 self.file_cache.invalidate_all();

@@ -20,6 +20,8 @@ use opentelemetry_proto::tonic::collector::{
 
 use crate::core::constants::{TOPIC_LOGS, TOPIC_METRICS, TOPIC_TRACES};
 use crate::core::{Publisher, TopicService};
+use crate::data::TransactionalService;
+use crate::data::cache::CacheService;
 use crate::data::topics::StreamTopic;
 pub use crate::utils::otlp::{
     inject_project_id_logs, inject_project_id_metrics, inject_project_id_traces,
@@ -33,9 +35,43 @@ pub struct OtlpState {
     pub metrics_publisher: Publisher<ExportMetricsServiceRequest>,
     pub logs_publisher: Publisher<ExportLogsServiceRequest>,
     pub debug_path: Option<PathBuf>,
+    /// For telling an exporter, now, that its project will not accept writes.
+    pub database: Arc<TransactionalService>,
+    pub cache: Arc<CacheService>,
 }
 
-pub fn routes(topics: &Arc<TopicService>, debug_path: Option<PathBuf>) -> Router {
+/// Whether this project exists and is not being deleted, answered from the project cache.
+///
+/// The authoritative check is next to the write (`TracePipeline`), because a request that passes here
+/// goes onto a topic and persists seconds later. This one exists so the exporter is *told*: without it a
+/// project id that does not exist gets 200 OK and its spans are dropped later, which is silent data loss
+/// dressed as success. A cached answer is fine for that job - being wrong for a few minutes costs a
+/// misleading status code, not a bad write.
+async fn project_accepts_writes(state: &OtlpState, project_id: &str) -> bool {
+    // `get_project` reads the project cache and its query filters out a claimed project, and claiming
+    // now invalidates that cache - so this is fence-aware without a second lookup path.
+    match state
+        .database
+        .repository()
+        .get_project(Some(&state.cache), project_id)
+        .await
+    {
+        Ok(found) => found.is_some(),
+        // Unknown: let it through and let the write path decide. Refusing on a lookup failure would
+        // turn a database blip into rejected telemetry.
+        Err(e) => {
+            tracing::warn!(project_id, error = %e, "Could not check the project at ingest");
+            true
+        }
+    }
+}
+
+pub fn routes(
+    topics: &Arc<TopicService>,
+    debug_path: Option<PathBuf>,
+    database: Arc<TransactionalService>,
+    cache: Arc<CacheService>,
+) -> Router {
     // Use stream topic for traces (at-least-once delivery)
     let trace_topic = Arc::new(topics.stream_topic::<ExportTraceServiceRequest>(TOPIC_TRACES));
 
@@ -52,6 +88,8 @@ pub fn routes(topics: &Arc<TopicService>, debug_path: Option<PathBuf>) -> Router
         metrics_publisher: metrics_topic.publisher(),
         logs_publisher: logs_topic.publisher(),
         debug_path,
+        database,
+        cache,
     };
 
     Router::new()

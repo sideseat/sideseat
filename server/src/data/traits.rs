@@ -418,11 +418,24 @@ pub trait TransactionalRepository: Send + Sync {
     ) -> Result<(Vec<ProjectRow>, u64), DataError>;
 
     /// Claim a project for deletion, if it exists and nobody else has claimed it.
-    async fn claim_project_for_deletion(&self, id: &str) -> Result<bool, DataError>;
+    ///
+    /// Takes the cache because a successful claim must drop every cached answer about the project at
+    /// once: from that moment it is not live, and a cached "here it is" would outlive the fact by the
+    /// cache's five minutes.
+    async fn claim_project_for_deletion(
+        &self,
+        cache: Option<&CacheService>,
+        id: &str,
+    ) -> Result<bool, DataError>;
 
-    /// Whether this project is claimed for deletion. Read without the fence hiding the row, because
-    /// the write path needs to tell "going away" from "never existed" and the read paths do not.
-    async fn project_is_claimed(&self, id: &str) -> Result<bool, DataError>;
+    /// Whether this project accepts writes: a row exists and nothing has claimed it.
+    ///
+    /// A missing project is refused as firmly as a claimed one. Spans written for a project with no row
+    /// are unreachable through every read path, so accepting them stores data nothing can ever show.
+    async fn project_accepts_writes(&self, id: &str) -> Result<bool, DataError>;
+
+    /// How long ago a project was claimed for deletion, or `None` if it is not claimed.
+    async fn project_claim_age_secs(&self, id: &str) -> Result<Option<i64>, DataError>;
 
     /// Projects claimed for deletion longer ago than `older_than_secs`, so a cleanup that died part
     /// way through can be resumed.

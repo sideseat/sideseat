@@ -43,8 +43,15 @@ pub async fn cleanup_organization(
     //    means someone else is already deleting that project - their cleanup is the same work, and the
     //    org cascade removes the row either way.
     for project_id in &project_ids {
-        if let Err(e) = repo.claim_project_for_deletion(project_id).await {
-            errors.push(format!("Claim failed for project {}: {}", project_id, e));
+        if let Err(e) = repo.claim_project_for_deletion(cache, project_id).await {
+            // Fatal, not collected. An unfenced project is one that can still be written to while its
+            // data is deleted, and the org row below would then take it away with spans still arriving.
+            return Err(anyhow!(
+                "Failed to fence project {} for organization {} deletion: {}",
+                project_id,
+                org_id,
+                e
+            ));
         }
     }
 
@@ -73,23 +80,40 @@ pub async fn cleanup_organization(
         invalidate_org_api_key_caches(repo.as_ref(), cache, org_id).await;
     }
 
-    // 6. Delete org from transactional backend (cascades to projects, members, api_keys). Not to
+    // 6. Refuse to remove the organization while any of its data is unaccounted for. Deleting it
+    //    cascades its project rows away, and a project row is what every read path finds data by - so
+    //    doing that after a failed step strands the survivors where nothing can ever reach them. The
+    //    projects stay claimed, which is to say invisible and unwritable, and the sweep retries.
+    if !errors.is_empty() {
+        return Err(anyhow!(
+            "Organization {} cleanup failed with {} errors; its projects stay fenced for retry: {}",
+            org_id,
+            errors.len(),
+            errors.join("; ")
+        ));
+    }
+    if !project_ids.is_empty() {
+        let counts = analytics_repo
+            .count_spans_by_project(&project_ids)
+            .await
+            .context("Failed to verify an organization's data is gone")?;
+        let remaining: u64 = counts.values().sum();
+        if remaining > 0 {
+            return Err(anyhow!(
+                "Organization {} still has {} spans after deletion; its projects stay fenced for retry",
+                org_id,
+                remaining
+            ));
+        }
+    }
+
+    // 7. Delete org from transactional backend (cascades to projects, members, api_keys). Not to
     //    `files`: `files.project_id` has no foreign key to `projects`, so step 4 is the only thing
     //    that removes those rows.
     let deleted = repo
         .delete_organization(None, org_id)
         .await
         .context("Failed to delete organization")?;
-
-    // Return error if any cleanup step failed
-    if !errors.is_empty() {
-        return Err(anyhow!(
-            "Organization {} cleanup completed with {} errors: {}",
-            org_id,
-            errors.len(),
-            errors.join("; ")
-        ));
-    }
 
     Ok(deleted)
 }
@@ -122,24 +146,41 @@ pub async fn cleanup_organization(
 ///
 /// The claim is the fence and the tombstone at once: while it is set the project is not live, so no new
 /// data can appear behind the cleanup's back, and it survives a restart, so a crash leaves the project
-/// fenced rather than half-deleted and live. The row is removed only after the data is verified gone,
-/// making the row's disappearance the *last* fact rather than the first - which is what lets the sweep
-/// resume: a claimed row is a cleanup that has not finished.
+/// fenced rather than half-deleted and live.
+///
+/// # Why the row outlives the claim by a grace period
+///
+/// The write path checks the fence and then writes, and the two cannot be one atomic act: spans live in
+/// the analytics store and the fence in the transactional one, so no transaction spans them. A batch can
+/// therefore read "live", have the claim land underneath it, and commit afterwards. Verifying the span
+/// count once does not close that - the verification is an observation, and the batch may commit after
+/// it.
+///
+/// What does close it is refusing writes for a project whose row is *absent* as well as claimed, plus
+/// leaving the row in place until the claim is older than [`PROJECT_DELETION_CLAIM_STALE_SECS`]. A batch
+/// that passed the check did so before the claim; by the time the row is allowed to go, that batch has
+/// long since committed or been refused, and its spans were deleted by the sweep that finally removes the
+/// row. So the row's disappearance is genuinely the last fact, and until then every read reports the
+/// project absent anyway.
+///
+/// The consequence is that deletion is asynchronous: this returns once the data is gone and the project
+/// is invisible, and [`start_claim_recovery_task`] removes the row a couple of minutes later.
 ///
 /// Returns `Ok(false)` when there was no live project to delete.
 pub async fn cleanup_project(
     database: &Arc<TransactionalService>,
     analytics: &Arc<AnalyticsService>,
     file_service: &Arc<FileService>,
-    _cache: Option<&CacheService>,
+    cache: Option<&CacheService>,
     project_id: &str,
 ) -> Result<bool> {
     let repo = database.repository();
 
     // The compare-and-set decides who owns this deletion. Losing it means the project was already
-    // claimed or already gone - either way there is nothing for this caller to do.
+    // claimed or already gone - either way there is nothing for this caller to do. The cache goes with
+    // it, so the project stops being readable at the same instant it stops being live.
     if !repo
-        .claim_project_for_deletion(project_id)
+        .claim_project_for_deletion(cache, project_id)
         .await
         .context("Failed to claim project for deletion")?
     {
@@ -189,9 +230,9 @@ pub async fn finish_project_deletion(
         ));
     }
 
-    // Verified, not assumed. A delete that reported success can still leave rows behind - ClickHouse
-    // applies `ALTER TABLE ... DELETE` as an asynchronous mutation - and a batch that passed admission
-    // before the claim may have persisted after it. Either way the row must outlive the data.
+    // Verified, not assumed. A delete that reported success can still leave rows behind: ClickHouse
+    // applies `ALTER TABLE ... DELETE` as an asynchronous mutation, and a batch that read the fence
+    // before the claim can commit after it.
     let ids = [project_id.to_string()];
     let remaining = analytics_repo
         .count_spans_by_project(&ids)
@@ -209,9 +250,29 @@ pub async fn finish_project_deletion(
         ));
     }
 
-    repo.delete_project(None, project_id)
+    // The row goes only once the claim is old enough that no writer can still be holding a fence check
+    // taken before it - see this module's `cleanup_project` for why one verification cannot substitute
+    // for that wait. Until then the project is claimed, which is to say invisible and unwritable, and
+    // the sweep finishes the job.
+    let claim_age = repo
+        .project_claim_age_secs(project_id)
         .await
-        .context("Failed to delete project row")?;
+        .context("Failed to read a project's claim age")?;
+    match claim_age {
+        Some(age) if age >= PROJECT_DELETION_CLAIM_STALE_SECS => {
+            repo.delete_project(None, project_id)
+                .await
+                .context("Failed to delete project row")?;
+        }
+        Some(_) => {
+            tracing::debug!(
+                project_id,
+                "Project data deleted; the row waits for in-flight writers to finish"
+            );
+        }
+        // No claim means no row: another sweep finished it.
+        None => {}
+    }
     Ok(())
 }
 

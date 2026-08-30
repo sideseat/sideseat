@@ -400,6 +400,41 @@ pub async fn update_project(
     get_project_from_db(pool, id).await
 }
 
+/// Drop every cached fact about a project.
+///
+/// One list, because the caches expire in five minutes and a project that has just stopped being live
+/// must not stay readable for that long. `project_org` is the one that was never invalidated anywhere:
+/// it is written by the auth path and read on every request, so a deleted project's organization
+/// mapping outlived the project itself and the fence could not be seen at all through it.
+async fn invalidate_project_caches(
+    pool: &PgPool,
+    cache: Option<&CacheService>,
+    id: &str,
+    organization_id: Option<&str>,
+) {
+    let Some(cache) = cache else {
+        return;
+    };
+    for key in [CacheKey::project(id), CacheKey::project_org(id)] {
+        if let Err(e) = cache.delete(&key).await {
+            tracing::warn!(%id, error = %e, "Cache invalidation error");
+        }
+    }
+    let Some(org_id) = organization_id else {
+        return;
+    };
+    if let Err(e) = cache.delete(&CacheKey::projects_for_org(org_id)).await {
+        tracing::warn!(%org_id, error = %e, "Cache invalidation error");
+    }
+    if let Ok(member_user_ids) = list_member_user_ids(pool, org_id).await {
+        for user_id in &member_user_ids {
+            if let Err(e) = cache.delete(&CacheKey::projects_for_user(user_id)).await {
+                tracing::warn!(%user_id, error = %e, "Cache invalidation error");
+            }
+        }
+    }
+}
+
 /// Claim a project for deletion, if it exists and nobody else has claimed it.
 ///
 /// The compare-and-set is the whole mechanism: two admins deleting the same project concurrently, or a
@@ -407,7 +442,11 @@ pub async fn update_project(
 /// rename) consults the claim, so setting it is what makes the project stop being live.
 ///
 /// Returns false when the project does not exist or is already claimed.
-pub async fn claim_project_for_deletion(pool: &PgPool, id: &str) -> Result<bool, PostgresError> {
+pub async fn claim_project_for_deletion(
+    pool: &PgPool,
+    cache: Option<&CacheService>,
+    id: &str,
+) -> Result<bool, PostgresError> {
     let now = chrono::Utc::now().timestamp();
     let result =
         sqlx::query("UPDATE projects SET deleting_at = $1 WHERE id = $2 AND deleting_at IS NULL")
@@ -415,21 +454,47 @@ pub async fn claim_project_for_deletion(pool: &PgPool, id: &str) -> Result<bool,
             .bind(id)
             .execute(pool)
             .await?;
-    Ok(result.rows_affected() > 0)
+    let claimed = result.rows_affected() > 0;
+    if claimed {
+        // Immediately, not when the row goes. From here the project is not live, and every cached
+        // answer that says otherwise is wrong - `get_project` reads its cache before the fence.
+        let org = org_of_project_ignoring_fence(pool, id).await.ok().flatten();
+        invalidate_project_caches(pool, cache, id, org.as_deref()).await;
+    }
+    Ok(claimed)
 }
 
-/// Whether this project is claimed for deletion, read without the fence hiding it.
+/// Whether this project currently accepts writes: a row exists and nothing has claimed it.
 ///
-/// The write path needs the distinction the read paths deliberately lose: `get_project` reports a
-/// claimed project as absent, which is right for a reader and useless for deciding whether a batch is
-/// being refused because the project is going away or because it never existed.
-pub async fn project_is_claimed(pool: &PgPool, id: &str) -> Result<bool, PostgresError> {
+/// Both halves matter, and the second is the one that closes the orphan-span hole. A claimed project is
+/// going away; a *missing* project is already gone, or was never created, and in both cases a span
+/// written for it is unreachable - every read path finds data through the project row, so those rows
+/// are invisible, uncounted against any quota, and inherited by the next project to take the id.
+/// Refusing them is what makes "no data outlives its project" true rather than merely likely.
+pub async fn project_accepts_writes(pool: &PgPool, id: &str) -> Result<bool, PostgresError> {
     let row: Option<(Option<i64>,)> =
         sqlx::query_as("SELECT deleting_at FROM projects WHERE id = $1")
             .bind(id)
             .fetch_optional(pool)
             .await?;
-    Ok(matches!(row, Some((Some(_),))))
+    Ok(matches!(row, Some((None,))))
+}
+
+/// How long ago this project was claimed for deletion, in seconds, or `None` if it is not claimed.
+///
+/// Deletion reads this to decide whether the row may go yet: the write path checks the fence and then
+/// writes, and the two are in different stores, so the row has to outlive the claim by long enough that
+/// no writer can still be acting on a check taken before it.
+pub async fn project_claim_age_secs(pool: &PgPool, id: &str) -> Result<Option<i64>, PostgresError> {
+    let row: Option<(Option<i64>,)> =
+        sqlx::query_as("SELECT deleting_at FROM projects WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
+    Ok(match row {
+        Some((Some(at),)) => Some((chrono::Utc::now().timestamp() - at).max(0)),
+        _ => None,
+    })
 }
 
 /// Projects claimed for deletion longer ago than `older_than_secs`, so an abandoned cleanup can resume.
@@ -483,26 +548,8 @@ pub async fn delete_project(
     let deleted = result.rows_affected() > 0;
 
     // Invalidate cache entries AFTER successful delete
-    if deleted && let Some(cache) = cache {
-        if let Err(e) = cache.delete(&CacheKey::project(id)).await {
-            tracing::warn!(%id, error = %e, "Cache invalidation error");
-        }
-
-        // Invalidate org's project list cache if project existed
-        if let Some(ref org_id) = old_org {
-            if let Err(e) = cache.delete(&CacheKey::projects_for_org(org_id)).await {
-                tracing::warn!(%org_id, error = %e, "Cache invalidation error");
-            }
-
-            // Invalidate projects_for_user for all org members
-            if let Ok(member_user_ids) = list_member_user_ids(pool, org_id).await {
-                for user_id in &member_user_ids {
-                    if let Err(e) = cache.delete(&CacheKey::projects_for_user(user_id)).await {
-                        tracing::warn!(%user_id, error = %e, "Cache invalidation error");
-                    }
-                }
-            }
-        }
+    if deleted {
+        invalidate_project_caches(pool, cache, id, old_org.as_deref()).await;
     }
 
     Ok(deleted)
