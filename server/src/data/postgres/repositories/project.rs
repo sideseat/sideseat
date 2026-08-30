@@ -493,15 +493,62 @@ pub async fn record_project_sweep(
 
     // The decision *is* the delete. Another instance that reset the count between this sweep's
     // observation and this statement makes it match nothing, which is exactly what should happen.
+    //
+    // And in the same transaction, a record that this project existed. The row is removed on finite
+    // evidence, which an arbitrarily delayed writer defeats - it can commit after the row is gone, and
+    // then nothing knows the project was ever there to collect for. `deleted_projects` is what knows.
+    // Recording it separately would lose it to a crash in between, which is the one moment it matters.
+    let mut tx = pool.begin().await?;
     let removed = sqlx::query(
         "DELETE FROM projects \
          WHERE id = $1 AND deleting_at IS NOT NULL AND clean_sweeps >= $2",
     )
     .bind(id)
     .bind(required)
+    .execute(&mut *tx)
+    .await?;
+    let removed = removed.rows_affected() > 0;
+    if removed {
+        sqlx::query(
+            "INSERT INTO deleted_projects (project_id, deleted_at) VALUES ($1, extract(epoch from now())::bigint) \
+             ON CONFLICT (project_id) DO NOTHING",
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(removed)
+}
+
+/// Projects whose rows are gone but whose cleanup is still owed.
+///
+/// The sweep keeps collecting rows that appear for these ids, so a writer that read the fence before the
+/// tombstone has its spans deleted however late it commits - which is what makes the residual a retention
+/// rather than a handful of minutes.
+pub async fn list_deleted_projects(pool: &PgPool) -> Result<Vec<String>, PostgresError> {
+    let rows: Vec<(String,)> = sqlx::query_as("SELECT project_id FROM deleted_projects")
+        .fetch_all(pool)
+        .await?;
+    Ok(rows.into_iter().map(|(id,)| id).collect())
+}
+
+/// Forget projects deleted longer ago than `retention_secs`, and say how many were forgotten.
+///
+/// The bound has to be stated somewhere, and this is it: past this point a write from before the deletion
+/// is no longer collected. It is a retention rather than a guess because nothing keeps a request alive
+/// that long - the exporter has given up, the connection is closed, the process is gone.
+pub async fn forget_deleted_projects(
+    pool: &PgPool,
+    retention_secs: i64,
+) -> Result<u64, PostgresError> {
+    let result = sqlx::query(
+        "DELETE FROM deleted_projects WHERE deleted_at <= extract(epoch from now())::bigint - $1",
+    )
+    .bind(retention_secs)
     .execute(pool)
     .await?;
-    Ok(removed.rows_affected() > 0)
+    Ok(result.rows_affected())
 }
 
 /// Claim an organization for deletion, if it exists and nobody else has claimed it.

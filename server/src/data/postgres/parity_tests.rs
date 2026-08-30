@@ -375,6 +375,18 @@ async fn projects_behave_identically() {
             repo.delete_project(None, &beta.id).await.unwrap()
         ));
         t.note(&format!(
+            "remembered_after_removal={}",
+            repo.list_deleted_projects().await.unwrap().len()
+        ));
+        t.note(&format!(
+            "forget_inside_retention={}",
+            repo.forget_deleted_projects(3600).await.unwrap()
+        ));
+        t.note(&format!(
+            "forget_past_retention={}",
+            repo.forget_deleted_projects(0).await.unwrap()
+        ));
+        t.note(&format!(
             "accepts_writes_when_absent={}",
             repo.project_accepts_writes(&beta.id).await.unwrap()
         ));

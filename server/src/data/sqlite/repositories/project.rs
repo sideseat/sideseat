@@ -499,15 +499,60 @@ pub async fn record_project_sweep(
 
     // The decision *is* the delete. Another instance that reset the count between this sweep's
     // observation and this statement makes it match nothing, which is exactly what should happen.
+    //
+    // And in the same transaction, a record that this project existed. The row is removed on finite
+    // evidence, which an arbitrarily delayed writer defeats - it can commit after the row is gone, and
+    // then nothing knows the project was ever there to collect for. `deleted_projects` is what knows.
+    // Recording it separately would lose it to a crash in between, which is the one moment it matters.
+    let mut tx = pool.begin().await?;
     let removed = sqlx::query(
         "DELETE FROM projects \
          WHERE id = ? AND deleting_at IS NOT NULL AND clean_sweeps >= ?",
     )
     .bind(id)
     .bind(required)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
-    Ok(removed.rows_affected() > 0)
+    let removed = removed.rows_affected() > 0;
+    if removed {
+        sqlx::query(
+            "INSERT INTO deleted_projects (project_id, deleted_at) VALUES (?, unixepoch()) \
+             ON CONFLICT (project_id) DO NOTHING",
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(removed)
+}
+
+/// Projects whose rows are gone but whose cleanup is still owed.
+///
+/// The sweep keeps collecting rows that appear for these ids, so a writer that read the fence before the
+/// tombstone has its spans deleted however late it commits - which is what makes the residual a retention
+/// rather than a handful of minutes.
+pub async fn list_deleted_projects(pool: &SqlitePool) -> Result<Vec<String>, SqliteError> {
+    let rows: Vec<(String,)> = sqlx::query_as("SELECT project_id FROM deleted_projects")
+        .fetch_all(pool)
+        .await?;
+    Ok(rows.into_iter().map(|(id,)| id).collect())
+}
+
+/// Forget projects deleted longer ago than `retention_secs`, and say how many were forgotten.
+///
+/// The bound has to be stated somewhere, and this is it: past this point a write from before the deletion
+/// is no longer collected. It is a retention rather than a guess because nothing keeps a request alive
+/// that long - the exporter has given up, the connection is closed, the process is gone.
+pub async fn forget_deleted_projects(
+    pool: &SqlitePool,
+    retention_secs: i64,
+) -> Result<u64, SqliteError> {
+    let result = sqlx::query("DELETE FROM deleted_projects WHERE deleted_at <= unixepoch() - ?")
+        .bind(retention_secs)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected())
 }
 
 /// Claim an organization for deletion, if it exists and nobody else has claimed it.
@@ -947,6 +992,56 @@ mod tests {
                 .unwrap(),
             "a project with no row has no tombstone to advance"
         );
+    }
+
+    /// A removed tombstone leaves a record, so a write that arrives afterwards is still collected.
+    ///
+    /// This is what makes the guarantee hold for an *arbitrarily* delayed writer rather than one that
+    /// finishes within a few sweeps. The tombstone goes on finite evidence; a writer that read the fence
+    /// before it can commit after the row is gone, and without a record nothing would know the project had
+    /// existed. The record is written in the same transaction as the removal, because a crash in between is
+    /// the one moment it matters.
+    #[tokio::test]
+    async fn removing_a_tombstone_records_that_the_project_existed() {
+        let pool = setup_test_pool().await;
+        let project = create_project(&pool, None, "default", "Remembered")
+            .await
+            .unwrap();
+        claim_project_for_deletion(&pool, None, &project.id)
+            .await
+            .unwrap();
+
+        assert!(
+            list_deleted_projects(&pool).await.unwrap().is_empty(),
+            "nothing is remembered while the tombstone is still there"
+        );
+        assert!(
+            record_project_sweep(&pool, &project.id, true, 1, 0)
+                .await
+                .unwrap(),
+            "one clean sweep is enough when one is required"
+        );
+        assert_eq!(
+            list_deleted_projects(&pool).await.unwrap(),
+            vec![project.id.clone()],
+            "and the id is remembered, so the sweep keeps collecting for it"
+        );
+
+        // Still refused for writes: an absent project is refused as firmly as a claimed one.
+        assert!(!project_accepts_writes(&pool, &project.id).await.unwrap());
+
+        // Forgotten only past the retention, which is where the residual is stated.
+        assert_eq!(
+            forget_deleted_projects(&pool, 3600).await.unwrap(),
+            0,
+            "a deletion from a moment ago is inside any retention"
+        );
+        assert_eq!(
+            forget_deleted_projects(&pool, 0).await.unwrap(),
+            1,
+            "and past it the id is forgotten"
+        );
+        assert!(list_deleted_projects(&pool).await.unwrap().is_empty());
     }
 
     /// Concurrent instances cannot inflate the count: one window, one increment.

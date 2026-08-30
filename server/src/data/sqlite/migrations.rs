@@ -201,6 +201,18 @@ ALTER TABLE organizations ADD COLUMN deleting_at INTEGER;
 /// wins per window.
 const MIGRATION_V9: &str = "ALTER TABLE projects ADD COLUMN last_sweep_at INTEGER";
 
+/// Cleanup that stays discoverable after the project row is gone.
+///
+/// A tombstone removed on finite evidence still loses to an arbitrarily delayed writer: one that read the
+/// fence before the tombstone can commit after the row is removed, and with the row goes every trace of
+/// the project having existed. This table is that trace. The sweep keeps collecting rows that appear for a
+/// deleted id, so the residual stops being "ten minutes" and becomes the retention.
+const MIGRATION_V10: &str = r#"CREATE TABLE IF NOT EXISTS deleted_projects (
+    project_id TEXT PRIMARY KEY,
+    deleted_at INTEGER NOT NULL
+);
+"#;
+
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
     match version {
         1 => {
@@ -216,6 +228,7 @@ async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteEr
         7 => Ok(()),
         8 => apply_versioned_migration(pool, 8, "deletion_tombstones", MIGRATION_V8).await,
         9 => apply_versioned_migration(pool, 9, "sweep_windows", MIGRATION_V9).await,
+        10 => apply_versioned_migration(pool, 10, "deleted_projects", MIGRATION_V10).await,
         _ => Err(SqliteError::MigrationFailed {
             version,
             name: "unknown".to_string(),

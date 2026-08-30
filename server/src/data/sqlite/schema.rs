@@ -3,7 +3,7 @@
 //! Initial schema with all tables. No migrations needed for first version.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 9;
+pub const SCHEMA_VERSION: i32 = 10;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -125,6 +125,18 @@ CREATE TABLE IF NOT EXISTS projects (
 );
 
 CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(organization_id);
+
+-- Projects whose row is gone, kept so their cleanup stays discoverable.
+--
+-- A tombstone is removed on finite evidence, and finite evidence loses to an arbitrarily delayed writer:
+-- one that read the fence before the tombstone can commit after the row is gone, and then nothing knows
+-- the project ever existed. This does. The sweep keeps deleting any rows that appear for these ids, so a
+-- late write is collected however late it is, and an entry is dropped only after a retention long enough
+-- that no request could still be in flight.
+CREATE TABLE IF NOT EXISTS deleted_projects (
+    project_id TEXT PRIMARY KEY,
+    deleted_at INTEGER NOT NULL
+);
 
 -- =============================================================================
 -- 6. Files metadata (references projects)

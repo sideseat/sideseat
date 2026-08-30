@@ -149,6 +149,16 @@ impl ApiError {
     }
 
     pub fn from_data(e: crate::data::DataError) -> Self {
+        // A conflict is the caller's situation, not a server fault, and it carries a reason worth
+        // reading: creating a project under an organization that is being deleted, or referencing a file
+        // that is. Collapsing it into a 500 "Database operation failed" told the caller nothing and
+        // logged it as an error the operator should investigate.
+        if let crate::data::DataError::Conflict(message) = &e {
+            return Self::Conflict {
+                code: "CONFLICT".to_string(),
+                message: message.clone(),
+            };
+        }
         tracing::error!(error = %e, "Data error");
         Self::Internal {
             message: "Database operation failed".to_string(),
