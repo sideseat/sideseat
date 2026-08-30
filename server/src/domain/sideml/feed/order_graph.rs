@@ -315,6 +315,24 @@ impl Constraints {
     ///   ordering class - which is why the class stays built and unpromoted rather than reshaped around
     ///   a symptom.
     ///
+    ///   Traced to the end: the observation is legitimate. `_synthetic/tool_use`'s calling span carries
+    ///   a `tool.result` attribute *on its own* `gen_ai.choice`, recording what came back - a real
+    ///   shape, not a fixture artefact. It is classified as something the span *received* only because
+    ///   `is_output_source` does not name that carrier, so dataflow reads an answer as a cause.
+    ///
+    ///   Excluding tool results from the input side does fix that inversion, and it is the wrong fix:
+    ///   it reintroduces 8 of the 10 `PerCarrier` reorders and brings `adk/tool_use` back. Special-
+    ///   casing the resolver is treating a symptom, because the input side is being derived from a
+    ///   *negation* - "not output" - of a flag inferred from a prefix list.
+    ///
+    ///   Both remaining blockers reduce to one architectural change: **direction must be a declared
+    ///   carrier fact**, alongside the four already in `sideml::carrier`, so that "what the span
+    ///   received" is stated per carrier rather than inferred. That refactor was prototyped and
+    ///   reverted because it has its own measured regression - Vercel's `ai.response.*` becomes output,
+    ///   which is correct, and its intro text then sorts last because Vercel's placement rests on a
+    ///   timestamp accident rather than on evidence. The two must land together: declare direction, and
+    ///   place by constraint rather than by time.
+    ///
     /// Also measured, and unresolved rather than wrong: promoting it turns `adk/tool_use`'s two
     /// parallel calls from `call, call, result, result` into `call, result, call, result`. Plausible -
     /// ADK runs its tools sequentially in-process, so interleaved may be the faithful reading, and the
