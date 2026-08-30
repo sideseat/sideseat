@@ -135,7 +135,10 @@ CREATE TABLE IF NOT EXISTS trace_files (
     trace_id TEXT NOT NULL,
     project_id TEXT NOT NULL,
     file_hash TEXT NOT NULL,
-    PRIMARY KEY (trace_id, file_hash),
+    -- Project first, matching SQLite: a trace id comes from the client, so two projects can present
+    -- the same one, and keyed without the project one project's association satisfied the other's
+    -- conflict clause - leaving the second with no association and a reference nothing would release.
+    PRIMARY KEY (project_id, trace_id, file_hash),
     FOREIGN KEY (project_id, file_hash) REFERENCES files(project_id, file_hash) ON DELETE CASCADE
 );
 
