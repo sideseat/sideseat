@@ -313,6 +313,14 @@ async fn projects_behave_identically() {
             repo.get_stale_claimed_projects(86_400).await.unwrap().len()
         ));
 
+        fn describe<T>(outcome: &LastOwnerResult<T>) -> &'static str {
+            match outcome {
+                LastOwnerResult::Success(_) => "success",
+                LastOwnerResult::LastOwner => "last_owner",
+                LastOwnerResult::NotFound => "not_found",
+            }
+        }
+
         // The barrier: repeated evidence, and a sweep that finds data starts it over.
         for pass in 1..=3 {
             t.note(&format!(
@@ -358,6 +366,23 @@ async fn projects_behave_identically() {
             "stale_orgs={}",
             repo.get_stale_claimed_organizations(0).await.unwrap().len()
         ));
+        // Membership mutations refuse for a tombstoned organization: writing into one is writing into
+        // something no read can see and the cleanup is about to cascade away.
+        t.note(&format!(
+            "add_member_to_deleting_org_is_err={}",
+            repo.add_member(None, "default", "local", "member")
+                .await
+                .is_err()
+        ));
+        t.note(&format!(
+            "promote_in_deleting_org={}",
+            describe(
+                &repo
+                    .update_role_atomic(None, "default", "local", "admin")
+                    .await
+                    .unwrap()
+            )
+        ));
         t.note(&format!(
             "org_reads_absent={}",
             repo.get_organization(None, "default")
@@ -376,7 +401,10 @@ async fn projects_behave_identically() {
         ));
         t.note(&format!(
             "remembered_after_removal={}",
-            repo.list_deleted_projects().await.unwrap().len()
+            repo.claim_deleted_projects_for_check(0)
+                .await
+                .unwrap()
+                .len()
         ));
         t.note(&format!(
             "forget_inside_retention={}",

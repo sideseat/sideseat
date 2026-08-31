@@ -543,10 +543,25 @@ pub async fn record_project_sweep(
 /// The sweep keeps collecting rows that appear for these ids, so a writer that read the fence before the
 /// tombstone has its spans deleted however late it commits - which is what makes the residual a retention
 /// rather than a handful of minutes.
-pub async fn list_deleted_projects(pool: &PgPool) -> Result<Vec<String>, PostgresError> {
-    let rows: Vec<(String,)> = sqlx::query_as("SELECT project_id FROM deleted_projects")
-        .fetch_all(pool)
-        .await?;
+pub async fn claim_deleted_projects_for_check(
+    pool: &PgPool,
+    min_gap_secs: i64,
+) -> Result<Vec<String>, PostgresError> {
+    // Claim the check by moving `last_checked_at` forward, and return only the ids this call claimed.
+    //
+    // The records are permanent, so listing all of them every sweep on every instance is work
+    // proportional to instances times lifetime deletions. Gating on `last_checked_at` and marking it in
+    // the same statement makes it one check per id per window: concurrent instances race the UPDATE and
+    // only one wins an id per window. `RETURNING` gives back exactly what was claimed. The clock is the
+    // database's, so instances agree on the window from the row rather than from their own clocks.
+    let rows: Vec<(String,)> = sqlx::query_as(
+        "UPDATE deleted_projects SET last_checked_at = extract(epoch from now())::bigint \
+         WHERE last_checked_at IS NULL OR last_checked_at <= extract(epoch from now())::bigint - $1 \
+         RETURNING project_id",
+    )
+    .bind(min_gap_secs)
+    .fetch_all(pool)
+    .await?;
     Ok(rows.into_iter().map(|(id,)| id).collect())
 }
 

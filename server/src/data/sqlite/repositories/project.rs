@@ -532,10 +532,25 @@ pub async fn record_project_sweep(
 /// The sweep keeps collecting rows that appear for these ids, so a writer that read the fence before the
 /// tombstone has its spans deleted however late it commits - which is what makes the residual a retention
 /// rather than a handful of minutes.
-pub async fn list_deleted_projects(pool: &SqlitePool) -> Result<Vec<String>, SqliteError> {
-    let rows: Vec<(String,)> = sqlx::query_as("SELECT project_id FROM deleted_projects")
-        .fetch_all(pool)
-        .await?;
+pub async fn claim_deleted_projects_for_check(
+    pool: &SqlitePool,
+    min_gap_secs: i64,
+) -> Result<Vec<String>, SqliteError> {
+    // Claim the check by moving `last_checked_at` forward, and return only the ids this call claimed.
+    //
+    // The records are permanent, so listing all of them every sweep on every instance is work
+    // proportional to instances times lifetime deletions. Gating on `last_checked_at` and marking it in
+    // the same statement makes it one check per id per window: concurrent instances race the UPDATE and
+    // only one wins an id per window. `RETURNING` gives back exactly what was claimed. The clock is the
+    // database's, so instances agree on the window from the row rather than from their own clocks.
+    let rows: Vec<(String,)> = sqlx::query_as(
+        "UPDATE deleted_projects SET last_checked_at = unixepoch() \
+         WHERE last_checked_at IS NULL OR last_checked_at <= unixepoch() - ? \
+         RETURNING project_id",
+    )
+    .bind(min_gap_secs)
+    .fetch_all(pool)
+    .await?;
     Ok(rows.into_iter().map(|(id,)| id).collect())
 }
 
@@ -1012,7 +1027,10 @@ mod tests {
             .unwrap();
 
         assert!(
-            list_deleted_projects(&pool).await.unwrap().is_empty(),
+            claim_deleted_projects_for_check(&pool, 0)
+                .await
+                .unwrap()
+                .is_empty(),
             "nothing is remembered while the tombstone is still there"
         );
         assert!(
@@ -1022,7 +1040,7 @@ mod tests {
             "one clean sweep is enough when one is required"
         );
         assert_eq!(
-            list_deleted_projects(&pool).await.unwrap(),
+            claim_deleted_projects_for_check(&pool, 0).await.unwrap(),
             vec![project.id.clone()],
             "and the id is remembered, so the sweep keeps collecting for it"
         );
@@ -1041,7 +1059,56 @@ mod tests {
             1,
             "and past it the id is forgotten"
         );
-        assert!(list_deleted_projects(&pool).await.unwrap().is_empty());
+        assert!(
+            claim_deleted_projects_for_check(&pool, 0)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    /// A deleted id is checked once per window, however many instances are sweeping.
+    ///
+    /// The records are permanent - any retention would be a bound on how late a stalled writer may commit
+    /// and still be collected - so a bare list would have every instance re-check every deletion ever made
+    /// on every sweep: work proportional to instances times lifetime deletions. Claiming the check in the
+    /// statement that returns it makes concurrent instances race for each id.
+    #[tokio::test]
+    async fn a_deleted_project_is_claimed_for_checking_once_per_window() {
+        let pool = setup_test_pool().await;
+        let project = create_project(&pool, None, "default", "Remembered")
+            .await
+            .unwrap();
+        claim_project_for_deletion(&pool, None, &project.id)
+            .await
+            .unwrap();
+        record_project_sweep(&pool, &project.id, true, 1, 0)
+            .await
+            .unwrap();
+
+        // Five instances, one window: exactly one gets the id.
+        let mut claimed = 0;
+        for _ in 0..5 {
+            claimed += claim_deleted_projects_for_check(&pool, 600)
+                .await
+                .unwrap()
+                .len();
+        }
+        assert_eq!(
+            claimed, 1,
+            "an id claimed inside a window must not be handed out again, or the work grows with the \
+             instance count"
+        );
+
+        // And with no window it is available again - which is what makes the next window's check happen.
+        assert_eq!(
+            claim_deleted_projects_for_check(&pool, 0)
+                .await
+                .unwrap()
+                .len(),
+            1,
+            "the next window claims it again"
+        );
     }
 
     /// Concurrent instances cannot inflate the count: one window, one increment.

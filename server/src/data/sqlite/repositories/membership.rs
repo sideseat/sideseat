@@ -31,6 +31,20 @@ pub fn has_min_role_level(user_role: &str, min_role: &str) -> bool {
 }
 
 /// Add a member to an organization (upsert: updates role if exists)
+/// Whether this organization is live, i.e. exists and is not being deleted.
+///
+/// Every membership mutation asks first. A tombstoned organization is invisible to every read and its
+/// projects are being deleted, so adding a member to it, or changing a role in it, writes into something
+/// the caller cannot see and the cleanup is about to cascade away.
+async fn organization_is_live(pool: &SqlitePool, org_id: &str) -> Result<bool, SqliteError> {
+    let row: Option<(Option<i64>,)> =
+        sqlx::query_as("SELECT deleting_at FROM organizations WHERE id = ?")
+            .bind(org_id)
+            .fetch_optional(pool)
+            .await?;
+    Ok(matches!(row, Some((None,))))
+}
+
 pub async fn add_member(
     pool: &SqlitePool,
     cache: Option<&CacheService>,
@@ -38,6 +52,11 @@ pub async fn add_member(
     user_id: &str,
     role: &str,
 ) -> Result<MembershipRow, SqliteError> {
+    if !organization_is_live(pool, org_id).await? {
+        return Err(SqliteError::Conflict(format!(
+            "organization {org_id} does not exist or is being deleted"
+        )));
+    }
     let now = chrono::Utc::now().timestamp();
 
     sqlx::query(
@@ -341,6 +360,9 @@ pub async fn remove_member_atomic(
     org_id: &str,
     user_id: &str,
 ) -> Result<LastOwnerResult<()>, SqliteError> {
+    if !organization_is_live(pool, org_id).await? {
+        return Ok(LastOwnerResult::NotFound);
+    }
     let mut tx = pool.begin().await?;
 
     // Check if member exists and get their role
@@ -406,6 +428,9 @@ pub async fn update_role_atomic(
     new_role: &str,
 ) -> Result<LastOwnerResult<MembershipRow>, SqliteError> {
     let now = chrono::Utc::now().timestamp();
+    if !organization_is_live(pool, org_id).await? {
+        return Ok(LastOwnerResult::NotFound);
+    }
     let mut tx = pool.begin().await?;
 
     // Check if member exists and get their current role

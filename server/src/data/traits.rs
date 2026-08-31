@@ -460,8 +460,16 @@ pub trait TransactionalRepository: Send + Sync {
         min_gap_secs: i64,
     ) -> Result<bool, DataError>;
 
-    /// Projects whose rows are gone but whose cleanup is still owed - see `list_deleted_projects`.
-    async fn list_deleted_projects(&self) -> Result<Vec<String>, DataError>;
+    /// Claim deleted-project ids for a cleanup check, one per window.
+    ///
+    /// Returns the ids this call claimed - not every one recorded. Cleanup runs on every instance, and the
+    /// records are permanent; without a window the cost would grow with instances times lifetime
+    /// deletions. Marking the check in the same statement that returns it makes concurrent instances race
+    /// for each id and only one wins per window.
+    async fn claim_deleted_projects_for_check(
+        &self,
+        min_gap_secs: i64,
+    ) -> Result<Vec<String>, DataError>;
 
     /// Forget projects deleted longer ago than `retention_secs`. Returns how many were forgotten.
     async fn forget_deleted_projects(&self, retention_secs: i64) -> Result<u64, DataError>;
