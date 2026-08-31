@@ -252,6 +252,19 @@ An unclassified carrier takes the cautious reading (snapshot): it may under-repo
 - JSON payloads: members with no value (`null`, `""`, `[]`, `{}`) are dropped before hashing, so a
   schema-filled object and the model's raw one are one answer, not two
 
+**A repeated *plain* message with no id is one message, deliberately, and the reverse costs more.** A tool
+call carries a rank among same-shaped calls of its response (`call_repeat_ordinals`), because a provider's
+distinct ids are proof of a genuine repeat; plain text has no such evidence. So a user who twice sends
+`retry` in one trace, or a conversation snapshot that lists the same turn twice, collapses to one — and a
+snapshot's repeated entry is treated as a re-statement, not a second occurrence. Both were re-examined
+against the corpus: ranking plain messages by carrier position turned ADK's `"For context:"` separator
+(repeated verbatim within one span) into duplicates, and treating a one-message cross-trace match as a new
+turn duplicated a real LangGraph replay that re-sends a single prior prompt. The cautious reading
+under-reports a genuine repeat that no framework in the corpus actually produces; the eager reading
+over-reports one that several do, which a user sees as duplicates. This is a real limit, not an oversight:
+distinguishing a genuine identical repeat from a replay needs durable per-occurrence evidence the telemetry
+does not carry.
+
 **Correlation runs before classification.** Phase 7 keys a tool result by
 `(trace, identity-of-the-answered-call, content)`, and the orphan-result phase reads the id — both
 need the call reference. Correlating afterwards let two identical-looking results answering two
