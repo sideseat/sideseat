@@ -560,8 +560,22 @@ not reconstruction, so the reconstruction cache matters much less there than the
 waiting, and waiting on an async insert pays ClickHouse's flush timer for nothing - measured at 118.6 ms
 per export against 59.2 ms direct, same durability. The pipeline already batches before it writes.
 
-Still unmeasured, deliberately stated: S3 file storage latency, a real network hop, Redis-backed topics and
-caches, and multi-replica behaviour under a deletion backlog.
+**S3 file storage, against a real S3 API** (MinIO in a container): a file-carrying export takes 18-55 ms
+including the object writes; deleting a project removes exactly its own objects and leaves other projects'
+untouched (verified by object count before and after); and the `ListObjectsV2` that an *empty* project's
+cleanup performs - the call the deletion sweep pays per remembered id - costs ~6 ms. So a batch of
+`DELETED_PROJECT_CHECK_BATCH` costs about 0.3 s per sweep here, and even at 100 ms per listing against real
+AWS it is ~5 s inside a 120 s interval and a 600 s lease. That is the number the backoff and batch cap exist
+to bound.
+
+**Multi-replica**, two instances against one PostgreSQL and one Redis: a project created on A is visible on
+B, ingestion through B lands, and after deleting it on A, B refuses both ingestion and reads *immediately* -
+the cross-instance fence, working because the project row is not cached anywhere. Note that with the default
+DuckDB analytics backend each replica has **its own** database, so horizontal scaling requires ClickHouse: a
+replica cannot read another's spans.
+
+Still unmeasured, deliberately stated: a real network hop (everything above is loopback or a local
+container), and a multi-replica deletion backlog at scale.
 
 **What "all frameworks" means, exactly.** The claim is bounded by this corpus, and it is checked rather than
 described: `the_corpus_matches_the_support_matrix` fails if a suite is added or removed without updating it.
