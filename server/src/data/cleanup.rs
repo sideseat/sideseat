@@ -6,8 +6,9 @@ use anyhow::{Context, Result, anyhow};
 
 use crate::core::constants::{
     CLAIM_RECOVERY_INTERVAL_SECS, DELETED_PROJECT_CHECK_BASE_SECS, DELETED_PROJECT_CHECK_BATCH,
-    DELETED_PROJECT_CHECK_MAX_SECS, FILE_DELETION_CLAIM_STALE_SECS,
-    PROJECT_DELETION_CLAIM_STALE_SECS, PROJECT_TOMBSTONE_CLEAN_SWEEPS,
+    DELETED_PROJECT_CHECK_LEASE_SECS, DELETED_PROJECT_CHECK_MAX_SECS,
+    FILE_DELETION_CLAIM_STALE_SECS, PROJECT_DELETION_CLAIM_STALE_SECS,
+    PROJECT_TOMBSTONE_CLEAN_SWEEPS,
 };
 use crate::data::AnalyticsService;
 use crate::data::TransactionalService;
@@ -367,64 +368,71 @@ pub async fn advance_pending_deletions(
     // with the row gone nothing would know the project had existed. `deleted_projects` knows, so those
     // rows are collected however late they appear - and the residual becomes the retention below rather
     // than a handful of minutes.
-    // A bounded, backed-off batch. The records are permanent, so what has to be bounded is the *rate*:
-    // one claim per id per window (no instance re-does another's work), a geometric backoff per quiet
-    // check, and a cap per sweep so one pass cannot outlive its own window.
+    // A leased, bounded, backed-off batch. The records are permanent, so what has to be bounded is the
+    // *rate*: one claim per id (no replica repeats another's work), a lease so a slow batch is not
+    // re-claimed while it runs, a geometric backoff per quiet check, and a cap per sweep.
     match repo
         .claim_deleted_projects_for_check(
-            DELETED_PROJECT_CHECK_BASE_SECS,
-            DELETED_PROJECT_CHECK_MAX_SECS,
+            DELETED_PROJECT_CHECK_LEASE_SECS,
             DELETED_PROJECT_CHECK_BATCH,
         )
         .await
     {
         Ok(deleted) => {
             for project_id in deleted {
-                // Files first, and *unconditionally*. Gating this on the analytics count was wrong in the
-                // one direction that matters: a batch can pass the fence, pause, and then store file bytes
-                // and their `trace_files` associations while its spans are dropped by the check next to the
-                // write - so the analytics count is zero while bytes and rows remain, unreachable and
-                // counted against the project's quota forever. Deleting files that are already gone is a
-                // no-op, so asking every time costs nothing.
-                if let Err(e) = file_service.delete_project(&project_id).await {
+                // Files, unconditionally. Gating this on the analytics count was wrong in the one
+                // direction that matters: a batch can pass the fence, pause, and then store file bytes and
+                // their `trace_files` associations while its spans are dropped by the check next to the
+                // write - so the analytics count is zero while bytes remain, unreachable and counted
+                // against the quota of a project that no longer exists.
+                let files = file_service.delete_project(&project_id).await;
+                if let Err(ref e) = files {
                     tracing::warn!(project_id, error = %e, "Could not collect a deleted project's files");
                 }
+                let rows = analytics.repository().count_project_rows(&project_id).await;
+                if let Err(ref e) = rows {
+                    tracing::warn!(project_id, error = %e, "Could not check a deleted project");
+                }
 
-                match analytics.repository().count_project_rows(&project_id).await {
-                    Ok(0) => {
-                        // Quiet: the next check for this id moves further out.
-                        if let Err(e) = repo.record_deleted_project_check(&project_id, true).await {
-                            tracing::warn!(project_id, error = %e, "Could not record a quiet check");
-                        }
-                    }
-                    Ok(rows) => {
-                        // Something arrived, so check this id at the base interval again.
-                        if let Err(e) = repo.record_deleted_project_check(&project_id, false).await
-                        {
-                            tracing::warn!(project_id, error = %e, "Could not record a check");
-                        }
-                        tracing::warn!(
-                            project_id,
-                            rows,
-                            "Collected rows that arrived for a project after its row was deleted"
-                        );
-                        if let Err(e) = analytics
-                            .repository()
-                            .delete_project_data(&project_id)
-                            .await
-                        {
-                            tracing::warn!(project_id, error = %e, "Could not collect them");
-                            continue;
-                        }
+                if let Ok(count) = rows
+                    && count > 0
+                {
+                    tracing::warn!(
+                        project_id,
+                        rows = count,
+                        "Collected rows that arrived for a project after its row was deleted"
+                    );
+                    if let Err(e) = analytics
+                        .repository()
+                        .delete_project_data(&project_id)
+                        .await
+                    {
+                        tracing::warn!(project_id, error = %e, "Could not collect them");
+                    } else {
                         advanced += 1;
                     }
-                    Err(e) => {
-                        tracing::warn!(project_id, error = %e, "Could not check a deleted project")
-                    }
+                }
+
+                // Quiet means *nothing at all*: no files, no rows, and no error looking. Deciding it from
+                // the analytics count alone counted a sweep that had just deleted a late writer's files -
+                // or one whose storage delete failed - as evidence the project had gone quiet, and pushed
+                // the next look toward a day away. Anything found or any error keeps it at the base
+                // interval.
+                let was_quiet = matches!(files, Ok(0)) && matches!(rows, Ok(0));
+                if let Err(e) = repo
+                    .record_deleted_project_check(
+                        &project_id,
+                        was_quiet,
+                        DELETED_PROJECT_CHECK_BASE_SECS,
+                        DELETED_PROJECT_CHECK_MAX_SECS,
+                    )
+                    .await
+                {
+                    tracing::warn!(project_id, error = %e, "Could not record a deleted project check");
                 }
             }
         }
-        Err(e) => tracing::warn!(error = %e, "Could not list deleted projects"),
+        Err(e) => tracing::warn!(error = %e, "Could not claim deleted projects for checking"),
     }
 
     // Nothing prunes `deleted_projects`, and that is the design rather than an omission.

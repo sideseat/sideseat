@@ -401,31 +401,31 @@ async fn projects_behave_identically() {
         ));
         t.note(&format!(
             "remembered_after_removal={}",
-            repo.claim_deleted_projects_for_check(0, 0, 100)
+            repo.claim_deleted_projects_for_check(0, 100)
                 .await
                 .unwrap()
                 .len()
         ));
         // The backoff arithmetic, which is exactly the kind of expression that differs between dialects -
         // PostgreSQL has no two-argument `MIN` and no `integer << bigint`, both of which this suite caught.
-        for id in repo
-            .claim_deleted_projects_for_check(0, 0, 10)
-            .await
-            .unwrap()
-        {
-            repo.record_deleted_project_check(&id, true).await.unwrap();
-            repo.record_deleted_project_check(&id, true).await.unwrap();
+        for id in repo.claim_deleted_projects_for_check(0, 10).await.unwrap() {
+            repo.record_deleted_project_check(&id, true, 60, 86_400)
+                .await
+                .unwrap();
+            repo.record_deleted_project_check(&id, true, 60, 86_400)
+                .await
+                .unwrap();
         }
         t.note(&format!(
             "due_at_base_after_two_quiet_checks={}",
-            repo.claim_deleted_projects_for_check(60, 86_400, 10)
+            repo.claim_deleted_projects_for_check(0, 10)
                 .await
                 .unwrap()
                 .len()
         ));
         t.note(&format!(
             "due_with_no_gap={}",
-            repo.claim_deleted_projects_for_check(0, 0, 10)
+            repo.claim_deleted_projects_for_check(0, 10)
                 .await
                 .unwrap()
                 .len()
@@ -914,6 +914,61 @@ async fn a_member_cannot_be_added_while_the_organization_is_being_deleted() {
         addition.await.unwrap().is_err(),
         "a member was added to an organization whose deletion had committed"
     );
+}
+
+/// Two replicas sweeping at once cannot claim the same deleted project.
+///
+/// `WHERE project_id IN (SELECT ... LIMIT n)` is not enough on PostgreSQL, and the mechanism is the same
+/// stale-subquery one as the file claim's: the subquery is evaluated against the statement's snapshot, so a
+/// replica whose outer update blocks on a row another replica is updating resumes with a subquery result
+/// that still lists it - and the outer condition only compares `project_id`, which has not changed. Both
+/// replicas return the same id and both do the storage work, which for fifty S3 listings is exactly the
+/// cost this scheduler exists to bound. `FOR UPDATE SKIP LOCKED` on the inner select is what makes the
+/// claim exclusive.
+///
+/// The interleaving is pinned: a transaction holds the row locked while a second claim runs, so a claim
+/// that respects the lock returns nothing and one that reads a stale snapshot returns the id.
+#[tokio::test]
+async fn two_replicas_cannot_claim_the_same_deleted_project() {
+    let Some((_, postgres)) = pair().await else {
+        return;
+    };
+
+    let project = postgres
+        .create_project(None, "default", "Swept")
+        .await
+        .unwrap();
+    postgres
+        .claim_project_for_deletion(None, &project.id)
+        .await
+        .unwrap();
+    postgres
+        .record_project_sweep(&project.id, true, 1, 0)
+        .await
+        .unwrap();
+
+    // Replica A: claim the row and hold it, as a sweep in progress does.
+    let mut replica_a = postgres.pool().begin().await.unwrap();
+    let held: Vec<(String,)> = sqlx::query_as(
+        "UPDATE deleted_projects SET last_checked_at = extract(epoch from now())::bigint          WHERE project_id IN (              SELECT project_id FROM deleted_projects              WHERE next_check_at IS NULL OR next_check_at <= extract(epoch from now())::bigint              ORDER BY next_check_at LIMIT 10 FOR UPDATE SKIP LOCKED          ) RETURNING project_id",
+    )
+    .fetch_all(&mut *replica_a)
+    .await
+    .unwrap();
+    assert_eq!(held.len(), 1, "replica A claims the only due id");
+
+    // Replica B: the same claim, concurrently. It must find nothing rather than the same id.
+    let claimed_by_b = postgres
+        .claim_deleted_projects_for_check(600, 10)
+        .await
+        .unwrap();
+    assert!(
+        claimed_by_b.is_empty(),
+        "two replicas claimed the same deleted project, so both will do its storage cleanup: {:?}",
+        claimed_by_b
+    );
+
+    replica_a.commit().await.unwrap();
 }
 
 /// Two concurrent deletions of one project: exactly one owns it.

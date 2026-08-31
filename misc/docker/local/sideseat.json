@@ -37,7 +37,7 @@
       "database": "sideseat",
       "timeout_secs": 30,
       "compression": true,
-      "async_insert": true,
+      "async_insert": false,
       "wait_for_async_insert": true
     },
     "redis": {

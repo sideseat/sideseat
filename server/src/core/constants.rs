@@ -634,6 +634,13 @@ pub const DELETED_PROJECT_CHECK_BASE_SECS: i64 = 60;
 pub const DELETED_PROJECT_CHECK_MAX_SECS: i64 = 24 * 60 * 60;
 pub const DELETED_PROJECT_CHECK_BATCH: i64 = 50;
 
+/// How long a claimed deleted-project check is leased for before another sweep may take it.
+///
+/// A batch of fifty storage listings has no guaranteed duration, and without a lease a sweep that outran
+/// its interval would have its ids claimed again by the next one - two replicas doing the same S3 work.
+/// Comfortably longer than a batch should take, and short enough that a crashed sweep's ids come back soon.
+pub const DELETED_PROJECT_CHECK_LEASE_SECS: i64 = 600;
+
 /// How many session reconstructions to remember, and how long an unused one stays.
 ///
 /// Entries are small - a reconstruction's *output* is the blocks a reader sees, not the megabytes of

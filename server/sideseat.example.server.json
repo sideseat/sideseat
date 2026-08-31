@@ -53,7 +53,7 @@
       "password": "password",
       "timeout_secs": 30,
       "compression": true,
-      "async_insert": true,
+      "async_insert": false,
       "wait_for_async_insert": true,
       "cluster": "sideseat_cluster",
       "distributed": true
