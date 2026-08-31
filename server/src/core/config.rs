@@ -1636,6 +1636,14 @@ impl AppConfig {
             }
         }
 
+        // A store holding bytes must be at least as reachable as the rows naming them.
+        validate_store_sharing(
+            self.database.transactional,
+            self.files.storage,
+            self.secrets.backend,
+            self.auth.enabled,
+        )?;
+
         // ClickHouse URL required when using ClickHouse backend
         if self.database.analytics == AnalyticsBackend::Clickhouse {
             if let Some(ref ch) = self.database.clickhouse {
@@ -1700,6 +1708,121 @@ fn get_profile_config_path() -> Option<PathBuf> {
 /// Check if host binds to all network interfaces
 pub(crate) fn is_all_interfaces(host: &str) -> bool {
     matches!(host, "0.0.0.0" | "::" | "[::]")
+}
+
+/// Whether a store is visible to every instance of the server, or only to the one that wrote to it.
+///
+/// # Why one word for three unrelated subsystems
+///
+/// SideSeat keeps a datum's *bytes* and the *record naming them* in different stores, and three times
+/// over: a file's metadata is a row while its content is on disk or in S3; an API key's row holds
+/// `HMAC(key, pepper)` while the pepper lives in a secrets backend; a session is a row while the key that
+/// signs its token lives there too. Each pair works if - and only if - the store holding the bytes is at
+/// least as reachable as the store holding the record.
+///
+/// That single rule explains three otherwise unrelated failures, each silent:
+///
+/// * PostgreSQL with filesystem storage: replica A writes the bytes to its own disk and the row to the
+///   shared database, so B finds the row, cannot serve the content, and cannot clean it up either. A
+///   restart onto a fresh host loses it outright, with the row still promising it.
+/// * PostgreSQL with a keychain or file secrets backend: an API key created on A hashes under A's pepper.
+///   B looks the key up *by hash*, finds nothing, and answers a plain 401 - indistinguishable from a
+///   forged key - so authenticated ingestion fails on whichever replica the balancer happened to pick.
+/// * The same for the JWT key, where the symptom is a browser being signed out at random.
+///
+/// So it is checked once, as a comparison, rather than three times as special cases - and stated as a
+/// property of each backend, so a new backend has to declare which kind it is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Sharing {
+    /// Every instance sees the same contents.
+    Shared,
+    /// Only the instance that wrote it, and only until its disk goes away.
+    PerInstance,
+}
+
+impl TransactionalBackend {
+    pub fn sharing(&self) -> Sharing {
+        match self {
+            // A file on the instance's own disk.
+            Self::Sqlite => Sharing::PerInstance,
+            Self::Postgres => Sharing::Shared,
+        }
+    }
+}
+
+impl StorageBackend {
+    pub fn sharing(&self) -> Sharing {
+        match self {
+            Self::Filesystem => Sharing::PerInstance,
+            Self::S3 => Sharing::Shared,
+        }
+    }
+}
+
+impl SecretsBackend {
+    pub fn sharing(&self) -> Sharing {
+        match self {
+            // An OS credential store, or a file beside the database. Even mounted on shared storage the
+            // file backend has no compare-and-set, so two instances provisioning at once is last-writer
+            // -wins - which is the same loss by a different route.
+            Self::Keychain
+            | Self::CredentialManager
+            | Self::SecretService
+            | Self::Keyutils
+            | Self::File => Sharing::PerInstance,
+            // Read from the environment, so whatever provisions the instances decides; the point is that
+            // it *can* be the same value everywhere, which a generated keychain entry cannot.
+            Self::Env => Sharing::Shared,
+            Self::Aws | Self::Vault => Sharing::Shared,
+        }
+    }
+}
+
+/// A store holding bytes must be at least as reachable as the rows that name them.
+///
+/// The transactional store is the reference because that is where the naming rows live. When it is
+/// per-instance the whole deployment is one instance by construction and everything matches; when it is
+/// shared, anything holding bytes it points at has to be shared too.
+///
+/// Refused at startup rather than warned about, because every symptom is silent and looks like something
+/// else: a missing attachment reads as a producer that never sent one, and a rejected API key reads as a
+/// bad key. Both send the operator looking in the wrong place.
+fn validate_store_sharing(
+    transactional: TransactionalBackend,
+    storage: StorageBackend,
+    secrets: SecretsBackend,
+    auth_enabled: bool,
+) -> Result<()> {
+    if transactional.sharing() == Sharing::PerInstance {
+        return Ok(());
+    }
+
+    if storage.sharing() == Sharing::PerInstance {
+        anyhow::bail!(
+            "Configuration error: database.transactional is '{transactional}', which every instance \
+             shares, but files.storage is '{storage}', which is local to one instance. A file's metadata \
+             would be visible everywhere while its content existed on a single machine's disk - so \
+             another instance finds the row, cannot serve the content and cannot clean it up, and \
+             replacing that instance loses the content with the row still promising it. Set \
+             files.storage to 's3', or database.transactional to 'sqlite' for a single-instance \
+             deployment."
+        );
+    }
+
+    // Only when auth is on: with `--no-auth` there are no API keys and no sessions, so nothing depends
+    // on a pepper being the same everywhere.
+    if auth_enabled && secrets.sharing() == Sharing::PerInstance {
+        anyhow::bail!(
+            "Configuration error: database.transactional is '{transactional}', which every instance \
+             shares, but secrets.backend is '{secrets}', which is local to one instance. An API key row \
+             holds HMAC(key, secret) and is looked up by that hash, so a key created on one instance is \
+             not merely unknown on another - it is unverifiable there, and the answer is an ordinary 401. \
+             Authenticated ingestion would fail depending on which instance a request reached. Set \
+             secrets.backend to 'env', 'aws' or 'vault' so every instance reads the same secret."
+        );
+    }
+
+    Ok(())
 }
 
 /// Check a ClickHouse configuration for combinations that cannot work.
@@ -1808,6 +1931,57 @@ mod clickhouse_config_tests {
         ch.wait_for_async_insert = false;
         validate_clickhouse(&ch)
             .expect("a synchronous insert is durable whatever the async wait flag says");
+    }
+
+    /// A shared database with per-instance byte storage is refused, and matched pairs are accepted.
+    ///
+    /// Three silent failures share this root cause, so one comparison catches all three: PostgreSQL plus
+    /// filesystem storage means a row every instance can see naming content only one machine holds;
+    /// PostgreSQL plus a keychain means an API key that verifies on one instance and reads as forged on
+    /// the next; the same for the JWT key, where a browser is signed out at random.
+    #[test]
+    fn byte_storage_must_be_at_least_as_shared_as_the_rows_naming_it() {
+        use SecretsBackend as Sec;
+        use StorageBackend as Store;
+        use TransactionalBackend as Tx;
+
+        // The self-consistent single-instance default: everything per-instance, nothing to complain about.
+        validate_store_sharing(Tx::Sqlite, Store::Filesystem, Sec::Keychain, true)
+            .expect("SQLite with local files and a local keychain is one instance by construction");
+
+        // A shared database is the signal, because that is where the naming rows live.
+        let err = validate_store_sharing(Tx::Postgres, Store::Filesystem, Sec::Aws, true)
+            .expect_err("a shared database naming local files must be refused");
+        assert!(
+            err.to_string().contains("files.storage"),
+            "unexpected error: {err}"
+        );
+
+        let err = validate_store_sharing(Tx::Postgres, Store::S3, Sec::Keychain, true)
+            .expect_err("a shared database with a per-instance pepper must be refused");
+        assert!(
+            err.to_string().contains("secrets.backend"),
+            "unexpected error: {err}"
+        );
+        for local in [
+            Sec::File,
+            Sec::CredentialManager,
+            Sec::SecretService,
+            Sec::Keyutils,
+        ] {
+            validate_store_sharing(Tx::Postgres, Store::S3, local, true)
+                .expect_err("every per-instance secrets backend is refused, not just the keychain");
+        }
+
+        // With auth off there are no API keys and no sessions, so nothing reads the pepper.
+        validate_store_sharing(Tx::Postgres, Store::S3, Sec::Keychain, false)
+            .expect("a per-instance secret matters only when something is authenticated with it");
+
+        // And the combinations that hold up.
+        for shared in [Sec::Env, Sec::Aws, Sec::Vault] {
+            validate_store_sharing(Tx::Postgres, Store::S3, shared, true)
+                .expect("shared rows, shared bytes, shared secret");
+        }
     }
 
     #[test]

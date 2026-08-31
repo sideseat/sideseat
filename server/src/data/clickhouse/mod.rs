@@ -73,6 +73,17 @@ impl ClickhouseService {
         // setting, each monthly partition is processed in parallel.
         client = client.with_option("do_not_merge_across_partitions_select_final", "1");
 
+        // A distributed insert has to reach the shard before it is reported stored.
+        //
+        // Writing to a `Distributed` table is asynchronous by default: the initiating node spools the rows
+        // into a local directory and forwards them in the background. That is the same lie as
+        // `wait_for_async_insert = 0` by a different route - the OTLP route answers 200 and the ingestion
+        // queue acknowledges its message, both on the strength of a spool file on one node's disk, which
+        // an ephemeral instance takes with it when it goes.
+        if config.distributed {
+            client = client.with_option("insert_distributed_sync", "1");
+        }
+
         // Configure async inserts for high-throughput ingestion
         // This enables server-side batching - inserts are buffered and flushed periodically
         if config.async_insert {
@@ -411,8 +422,10 @@ impl ClickhouseService {
                             let cutoff_ts = cutoff.format("%Y-%m-%d %H:%M:%S").to_string();
 
                             // In distributed mode, must use local table with ON CLUSTER
+                            // Synchronous, like every other delete here: an unbounded pile of
+                            // scheduled mutations is how a retention sweep starts overlapping itself.
                             let sql = format!(
-                                "ALTER TABLE {}{} DELETE WHERE timestamp_start < ?",
+                                "ALTER TABLE {}{} DELETE WHERE timestamp_start < ? SETTINGS mutations_sync = 2",
                                 delete_table, on_cluster
                             );
 

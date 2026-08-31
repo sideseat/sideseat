@@ -2671,3 +2671,97 @@ async fn distinct_metric_series_survive_and_a_redelivery_does_not_duplicate() {
         "both labelled series must survive, and neither re-delivery may add a third"
     );
 }
+
+/// A deletion has happened by the time it returns.
+///
+/// ClickHouse mutations are asynchronous by default, so `ALTER ... DELETE` used to schedule the work and
+/// return - and the trace-deletion route then deleted the files those spans referenced and answered 204.
+/// For as long as the mutation took, a read returned spans whose content was already gone, and a failed
+/// mutation left them that way for good. `mutations_sync = 2` is what makes the 204 mean what it says.
+///
+/// Read immediately, with no sleep and no retry: a poll would pass either way, which is precisely the
+/// property under test.
+#[tokio::test]
+async fn a_deleted_trace_is_gone_before_the_delete_returns() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!(
+            "clickhouse parity: skipped - set {URL_ENV} to a ClickHouse HTTP endpoint \
+             (or run `make test-clickhouse`)"
+        );
+        return;
+    };
+
+    let ch = clickhouse_backend(&url, "sideseat_parity_delete").await;
+    let spans = fixture_spans();
+    ch.insert_spans(spans.clone()).await.expect("insert");
+
+    let doomed: Vec<String> = spans
+        .iter()
+        .map(|s| s.trace_id.clone())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .take(1)
+        .collect();
+    let survivors: Vec<&str> = spans
+        .iter()
+        .map(|s| s.trace_id.as_str())
+        .filter(|t| !doomed.iter().any(|d| d == t))
+        .collect();
+    assert!(
+        !survivors.is_empty(),
+        "the fixture must keep a trace, or the test cannot tell deletion from truncation"
+    );
+
+    ch.delete_traces(PROJECT, &doomed)
+        .await
+        .expect("delete the trace");
+
+    let (traces, _) = ch
+        .list_traces(&trace_params())
+        .await
+        .expect("list traces right after the delete");
+    let remaining: Vec<&str> = traces.iter().map(|t| t.trace_id.as_str()).collect();
+    assert!(
+        !remaining.contains(&doomed[0].as_str()),
+        "the deleted trace is still readable, so the 204 that follows means 'scheduled' rather than \
+         'deleted' - and its files have already been removed: {remaining:?}"
+    );
+    assert!(
+        remaining.contains(&survivors[0]),
+        "only the named trace may go: {remaining:?}"
+    );
+}
+
+/// Every `ALTER ... DELETE` in the ClickHouse backend waits for its mutation.
+///
+/// A structural check, because the failure is invisible: a new delete site written without the setting
+/// compiles, passes, and silently returns before it has deleted anything. Reading the source is the only
+/// way to catch the *absence* of a setting.
+#[test]
+fn every_clickhouse_delete_waits_for_its_mutation() {
+    let sources = [
+        include_str!("repositories/query.rs"),
+        include_str!("mod.rs"),
+    ];
+    for source in sources {
+        for (line_number, line) in source.lines().enumerate() {
+            if !line.contains("ALTER TABLE") || !line.contains("DELETE WHERE") {
+                continue;
+            }
+            // The statement is built by `format!`, so the setting is either spelled here or appended
+            // through the shared constant on the following lines of the same call.
+            let tail: String = source
+                .lines()
+                .skip(line_number)
+                .take(6)
+                .collect::<Vec<_>>()
+                .join(" ");
+            assert!(
+                tail.contains("mutations_sync") || tail.contains("AWAIT_MUTATION"),
+                "line {} builds a DELETE that does not wait for its mutation: {}",
+                line_number + 1,
+                line.trim()
+            );
+        }
+    }
+}
