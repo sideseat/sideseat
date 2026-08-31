@@ -641,13 +641,22 @@ pub fn generate_schema(config: &ClickhouseConfig) -> Vec<String> {
     statements
 }
 
-/// Get the table name to insert into (for distributed mode, insert to local)
-pub fn get_insert_table(config: &ClickhouseConfig, base_name: &str) -> String {
-    if config.distributed {
-        format!("{}_local", base_name)
-    } else {
-        base_name.to_string()
-    }
+/// The table to insert into: the `Distributed` front end, which is the only thing that shards.
+///
+/// This used to append `_local` in distributed mode, for throughput. It made sharding a fiction. The
+/// distributed tables are declared `Distributed(cluster, db, table_local, sipHash64(project_id))`, so
+/// which shard a row belongs on is a function of its project - but a write aimed at `_local` lands on
+/// whichever node the connection happened to reach, and nothing corrects it afterwards.
+///
+/// Two failures follow, and both are silent. Behind a load balancer, one span delivered twice can land on
+/// two different shards; `FINAL` deduplicates *within* a shard, so the read returns it twice and every
+/// count is wrong. Behind a fixed endpoint the whole cluster's data goes to one node, which reads as a
+/// mysteriously slow cluster rather than as a misconfiguration.
+///
+/// Reads already go through the distributed table and deletes are `_local` with `ON CLUSTER`, which is
+/// correct - a mutation has to run where the parts are. Only the insert was wrong.
+pub fn get_insert_table(_config: &ClickhouseConfig, base_name: &str) -> String {
+    base_name.to_string()
 }
 
 /// Get the table name to query from (always the main table name)
@@ -755,7 +764,9 @@ mod tests {
             distributed: true,
             ..default_config()
         };
-        assert_eq!(get_insert_table(&config, "otel_spans"), "otel_spans_local");
+        // The distributed front end, not `_local`: it is what applies the sharding key, and a write
+        // aimed past it lands on whichever node the connection reached.
+        assert_eq!(get_insert_table(&config, "otel_spans"), "otel_spans");
     }
 
     #[test]

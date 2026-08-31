@@ -412,6 +412,21 @@ answers built by the previous pipeline, and a version constant someone must reme
 rather than a design. The *unfiltered* reconstruction is cached and `?role=` is applied to a copy, so one
 entry serves every role.
 
+**A store holding bytes must be at least as reachable as the rows that name them.** One rule
+(`Sharing`, `validate_store_sharing`), checked once at startup, because the same mismatch produces three
+unrelated-looking silent failures — and SideSeat splits bytes from their naming record three times over:
+
+| Configuration | What breaks | Why it is silent |
+| --- | --- | --- |
+| PostgreSQL + `files.storage: filesystem` | Replica A writes the bytes to its own disk and the row to the shared database | B finds the row, cannot serve the content and cannot clean it up; replacing A loses the content with the row still promising it. Reads as a producer that never sent an attachment. |
+| PostgreSQL + a keychain/file secrets backend, auth on | An API key created on A hashes under A's pepper | The lookup is *by hash*, so B finds nothing and answers a plain 401 — indistinguishable from a forged key. Authenticated ingestion fails depending on which replica the balancer picked. |
+| The same, for the JWT signing key | A session token signed by A | Rejected by B, so a browser is signed out at random. |
+
+The transactional backend is the reference, because that is where the naming rows live: SQLite means the
+deployment is one instance by construction and everything matches; PostgreSQL means anything holding bytes
+it points at has to be shared too. Refused at startup with the one-line remedy in the message, rather than
+warned about — every symptom above sends an operator looking in the wrong place.
+
 **Horizontally scaled, ephemeral instances**: what is and is not shared, because the answer differs per
 mechanism and getting it wrong is invisible until there are two instances.
 
@@ -535,56 +550,72 @@ migration stays retryable); DuckDB counts distinct ids. Rows written before this
 old behaviour among themselves — a value invented in SQL would not match the one Rust computes — and
 datapoints already merged away are gone.
 
-Measured by `make bench-http`, which loads the whole `langgraph/swarm` fixture so the read workload is a
-real 136-span session, checks every request's status (a fast 404 would otherwise be recorded as excellent
-latency), discards warm-up requests, and reports `max` instead of `p99` below 100 samples because the 99th
-percentile of fifty samples *is* the maximum.
+Measured by `make bench-http`, which **enforces** these numbers rather than printing them: the run exits
+non-zero when an operation misses its ceiling. A benchmark nobody compares against a target is a report,
+and the tables below could otherwise drift arbitrarily far from the promise while every run passed.
 
-**DuckDB + SQLite**, release build, loopback, 200 samples:
+Four things the harness is careful about, each because getting it wrong produces a number that looks like
+evidence and is not:
 
-| Operation | p50 | p95 | p99 |
-| --- | --- | --- | --- |
-| trace export, 2 KB | 3.6 ms | 4.2 ms | 6.6 ms |
-| trace export, 754 KB | 19.3 ms | 43.5 ms | 125.6 ms |
-| session messages (136 spans), sequential | 18.6 ms | 22.3 ms | 30.2 ms |
-| session messages, 8 concurrent | 91.5 ms | 99.4 ms | 120.3 ms |
-| trace list, 50 | 21.4 ms | 27.0 ms | 35.2 ms |
+- **The read workload is the whole fixture.** Every request of `langgraph/swarm` is posted once, and the
+  script prints the span count the session list reports. Re-posting one request many times does not build a
+  session — ingestion is idempotent by span id, so it stays one request's worth however often it is sent.
+- **A failed request is not a sample.** Every measured call checks its status; a fast 404 would otherwise
+  be recorded as excellent latency.
+- **Samples are paced** (`BENCH_GAP_MS`, 25 ms). Back to back, a 754 KB export measures *queueing delay* —
+  each request waiting for the previous write — and the whole distribution above the median moved run to
+  run: p95 of 43, 53, 56 and 135 ms across four runs. An OTLP exporter batches on a schedule and never
+  behaves that way. With a gap the same figure sits at 51–55 ms across runs. The 8-concurrent read keeps no
+  gap, because concurrency is what it is measuring.
+- **The gate is p95, and p99 is reported ungated.** At 200 samples the p99 *is* the second-worst request,
+  so it is set by whatever else the host was doing: the large export's p99 ranged 125–667 ms across runs
+  with its p50 steady at 20 ms. Isolating that tail (same payload, `files.enabled` off) reproduced it, so
+  it is DuckDB's own write amortisation rather than file extraction — inherent to an embedded store taking
+  750 KB writes with no gap, and not a shape an exporter produces.
 
-**PostgreSQL 17 + ClickHouse 25.8**, same harness (`make bench-http-distributed`), 150 samples, both in
-local containers so there is no network hop; the ClickHouse image is amd64 under emulation on this arm64
-host, which inflates it:
+**DuckDB + SQLite**, release build, loopback, 200 samples (100 for the large export):
 
-| Operation | p50 | p95 | p99 |
-| --- | --- | --- | --- |
-| trace export, 2 KB | 49.4 ms | 55.3 ms | 56.7 ms |
-| trace export, 754 KB | 71.1 ms | 77.5 ms | max 83.2 ms |
-| session messages (136 spans), sequential | 373.3 ms | 461.2 ms | 561.2 ms |
-| session messages, 8 concurrent | 494.6 ms | 661.5 ms | 750.1 ms |
-| trace list, 50 | 409.9 ms | 492.4 ms | 645.9 ms |
+| Operation | p50 | p95 | p99 (ungated) | p95 ceiling |
+| --- | --- | --- | --- | --- |
+| trace export, 2 KB | 3.5 ms | 4.1 ms | 4.6 ms | 10 ms |
+| trace export, 754 KB | 20.5 ms | 54.5 ms | 143 ms | 100 ms |
+| session messages (136 spans), sequential | 17.8 ms | 20.1 ms | 38.3 ms | 40 ms |
+| session messages, 8 concurrent | 96.8 ms | 136.8 ms | 312 ms | 150 ms |
+| trace list, 50 | 21.6 ms | 25.5 ms | 39.5 ms | 40 ms |
+| **cold read** — first reader, empty reconstruction cache | 22.4 ms | | | |
 
-So the SLO, **per backend**, because the two differ by an order of magnitude and one number covering both
-would be false for one of them:
+**PostgreSQL 17 + ClickHouse 25.8 + MinIO**, same harness (`make bench-http-distributed`), all in local
+containers so there is no network hop; the ClickHouse image is amd64 under emulation on this arm64 host,
+which inflates it:
 
-| | DuckDB + SQLite | ClickHouse + PostgreSQL |
-| --- | --- | --- |
-| Ingest a trace export | < 25 ms p99 (2 KB) | < 100 ms p99 (2 KB) |
-| Read a session, sequential | < 50 ms p99 | < 750 ms p99 |
-| Read a session, 8 concurrent | < 150 ms p99 | < 1 s p99 |
-| List 50 traces | < 50 ms p99 | < 1 s p99 |
+| Operation | p50 | p95 | p99 (ungated) | p95 ceiling |
+| --- | --- | --- | --- | --- |
+| trace export, 2 KB | 50.8 ms | 58.5 ms | 81.3 ms | 80 ms |
+| trace export, 754 KB | 74.3 ms | 82.5 ms | 157.7 ms | 120 ms |
+| session messages (136 spans), sequential | 357.8 ms | 463.9 ms | 489.3 ms | 600 ms |
+| session messages, 8 concurrent | 526.2 ms | 665.9 ms | 804.3 ms | 1500 ms |
+| trace list, 50 | 400.3 ms | 474.2 ms | 703.9 ms | 700 ms |
+| **cold read** — first reader, empty reconstruction cache | 522.8 ms | | | |
+
+The distributed run uses **MinIO**, not local files, because the shared-store rule refuses PostgreSQL with
+filesystem storage — so the benchmark has to describe a coherent distributed deployment, which is what
+makes its file numbers the right ones.
 
 The ClickHouse column is deliberately an order of magnitude looser, and it is a *measured* target rather
 than an aspiration: there the row fetch dominates, so no amount of work on the normaliser changes it.
 Anyone who needs interactive reads at DuckDB latencies with ClickHouse durability should expect to add
 caching in front of the read path, not to find it here.
 
-Two more things the tables say out loud. DuckDB **serialises** reads, so eight at once cost about five
-times one - read concurrency there buys throughput, not latency - while ClickHouse's cost 1.3×, and its
-p95 under concurrency is *lower* than DuckDB's ratio would predict. And a long *replaying* session is
-bounded by the reconstruction cache rather than the pipeline: 2.28 s cold, 47 ms warm at 1 000 turns.
+**The cold read is now measured, because it is the ephemeral-scaling case rather than a curiosity.** Every
+new replica starts with an empty reconstruction cache and a deploy replaces them all, so the first reader
+of any session pays it on every instance. It is taken before any warm-up, and it is close to the warm
+figure for a 136-span session — the cache earns its keep on long *replaying* sessions, where the pipeline's
+input is quadratic in the turn count: 2.28 s cold against 47 ms warm at 1 000 turns. Concurrent cold
+readers are also coalesced now (`get_with`), so eight arriving at a fresh replica reconstruct once between
+them rather than eight times.
 
-The large-export p99 is the one number that moves between runs (43.5 ms p95 against 125.6 ms p99 on
-DuckDB): a 754 KB payload's file extraction and hashing occasionally lands behind a checkpoint. It is
-recorded rather than smoothed.
+Two more things the tables say out loud. DuckDB **serialises** reads, so eight at once cost about five
+times one — read concurrency there buys throughput, not latency — while ClickHouse's cost 1.3×.
 
 **S3 file storage, against a real S3 API** (MinIO in a container): a file-carrying export takes 18-55 ms
 including the object writes; deleting a project removes exactly its own objects and leaves other projects'
@@ -629,6 +660,21 @@ What the corpus verifies per fixture: message count, content, ordering and absen
 four views, plus the invariants that hold independently of the goldens. What it cannot verify is a framework
 or version nobody has captured - that is open-world, and the matrix is what makes the boundary legible
 rather than implied.
+
+**Deleting on ClickHouse waits for its mutation** (`AWAIT_MUTATION`, `mutations_sync = 2`). `ALTER ...
+DELETE` is asynchronous by default, so the trace-deletion route removed the files those spans referenced
+and answered 204 while the spans were still readable — and a failed mutation left them that way. A
+structural test (`every_clickhouse_delete_waits_for_its_mutation`) reads the source, because a new delete
+site written without the setting compiles and passes.
+
+**Distributed ClickHouse writes go through the `Distributed` table, not `_local`.** The distributed tables
+shard on `sipHash64(project_id)`, and a write aimed at `_local` lands on whichever node the connection
+reached instead. Behind a load balancer one span delivered twice could land on two shards, where `FINAL`
+deduplicates within a shard only — so the read returned it twice and every count was wrong; behind a fixed
+endpoint the whole cluster's data went to one node. `insert_distributed_sync = 1` goes with it, or the
+insert returns once the rows are spooled on the initiating node's disk, which is the same lie as
+`wait_for_async_insert = 0` by another route. Reads (distributed table) and deletes (`_local` with `ON
+CLUSTER`, where the parts are) were already right; only the insert was wrong.
 
 **Message-parsing goldens**: `cargo test -p sideseat-server message_goldens` verifies message count, content, ordering and absence of duplicates per framework across all three views (span / trace / session). Fixtures are captured OTLP payloads under `server/tests/fixtures/messages/<suite>/<sample>/`; capture with `misc/capture-message-fixtures.sh [suite] [sample]` (needs model credentials), then record with `UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens` and review the diff. Invariants (scope containment, per-trace dedup, tool-id correspondence, no empty thinking, determinism) hold independently of the goldens, so a blindly regenerated snapshot still fails on real defects. `UPDATE_GOLDENS=1` writes the files but still exits non-zero when an invariant was violated, so known-bad output cannot be committed as reviewed. See `server/tests/fixtures/messages/README.md`.
 

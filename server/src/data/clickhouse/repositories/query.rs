@@ -1948,6 +1948,19 @@ pub async fn get_span_counts_bulk(
     Ok(counts)
 }
 
+/// Appended to every `ALTER ... DELETE`, so a deletion has happened by the time it returns.
+///
+/// ClickHouse mutations are asynchronous by default: the statement schedules the work and returns. The
+/// trace-deletion route then removed the files those spans referenced and answered 204 - while the spans
+/// were still readable. For as long as the mutation took, a read returned spans whose content had already
+/// been deleted, and a mutation that failed left them that way permanently.
+///
+/// `2` waits for every replica, not just the one that accepted the statement, because a read may be served
+/// by any of them and "deleted" has to mean deleted everywhere. The cost is that a deletion blocks while a
+/// replica catches up, which is the right trade for an operation a user asked for and expects to be able
+/// to trust; the alternative is a 204 that means "scheduled".
+const AWAIT_MUTATION: &str = " SETTINGS mutations_sync = 2";
+
 /// Delete traces by IDs
 ///
 /// In distributed mode, `table` should be the local table name (e.g., `otel_spans_local`)
@@ -1969,8 +1982,8 @@ pub async fn delete_traces(
     // ClickHouse uses lightweight deletes (mutations)
     // In distributed mode, must use local table with ON CLUSTER
     let sql = format!(
-        "ALTER TABLE {}{} DELETE WHERE project_id = ? AND trace_id IN ({})",
-        table, on_cluster, in_clause
+        "ALTER TABLE {}{} DELETE WHERE project_id = ? AND trace_id IN ({}){}",
+        table, on_cluster, in_clause, AWAIT_MUTATION
     );
 
     let mut query = client.query(&sql).bind(project_id);
@@ -2003,8 +2016,8 @@ pub async fn delete_spans(
     let in_clause = pairs.join(", ");
 
     let sql = format!(
-        "ALTER TABLE {}{} DELETE WHERE project_id = ? AND (trace_id, span_id) IN ({})",
-        table, on_cluster, in_clause
+        "ALTER TABLE {}{} DELETE WHERE project_id = ? AND (trace_id, span_id) IN ({}){}",
+        table, on_cluster, in_clause, AWAIT_MUTATION
     );
 
     let mut query = client.query(&sql).bind(project_id);
@@ -2063,8 +2076,8 @@ pub async fn delete_project_data(
     // Delete all spans for the project (parameterized query for safety)
     // In distributed mode, must use local table with ON CLUSTER
     let sql = format!(
-        "ALTER TABLE {}{} DELETE WHERE project_id = ?",
-        spans_table, on_cluster
+        "ALTER TABLE {}{} DELETE WHERE project_id = ?{}",
+        spans_table, on_cluster, AWAIT_MUTATION
     );
     client.query(&sql).bind(project_id).execute().await?;
 
@@ -2085,8 +2098,8 @@ pub async fn delete_project_data(
         .await?;
     if table_exists > 0 {
         let metrics_sql = format!(
-            "ALTER TABLE {}{} DELETE WHERE project_id = ?",
-            metrics_table, on_cluster
+            "ALTER TABLE {}{} DELETE WHERE project_id = ?{}",
+            metrics_table, on_cluster, AWAIT_MUTATION
         );
         client
             .query(&metrics_sql)
