@@ -496,69 +496,56 @@ A bare `true` made "stored" and "discarded" the same answer (`IngestOutcome` now
 is the failure this whole path exists to remove. ClickHouse's `wait_for_async_insert` defaults to true, in
 the code *and* in the shipped example configs, or an acknowledgement would rest on a server-side buffer.
 
-Measured over HTTP on a release build, loopback, DuckDB + SQLite, warm process:
+Measured by `make bench-http`, which loads the whole `langgraph/swarm` fixture so the read workload is a
+real 136-span session, checks every request's status (a fast 404 would otherwise be recorded as excellent
+latency), discards warm-up requests, and reports `max` instead of `p99` below 100 samples because the 99th
+percentile of fifty samples *is* the maximum.
 
-| Operation | Payload / shape | p50 | p95 | p99 |
-| --- | --- | --- | --- | --- |
-| OTLP trace export (incl. the write) | 2 KB | 3.6 ms | 7.6 ms | 18.6 ms |
-| OTLP trace export (incl. the write) | 772 KB | 19.1 ms | 48.5 ms | 50.5 ms |
-| Session messages, 151 spans | sequential | 17.4 ms | 22.4 ms | 23.3 ms |
-| Session messages, 151 spans | 8 concurrent | 111.7 ms | 125.6 ms | 127.5 ms |
+**DuckDB + SQLite**, release build, loopback, 200 samples:
+
+| Operation | p50 | p95 | p99 |
+| --- | --- | --- | --- |
+| trace export, 2 KB | 3.6 ms | 4.2 ms | 6.6 ms |
+| trace export, 754 KB | 19.3 ms | 43.5 ms | 125.6 ms |
+| session messages (136 spans), sequential | 18.6 ms | 22.3 ms | 30.2 ms |
+| session messages, 8 concurrent | 91.5 ms | 99.4 ms | 120.3 ms |
+| trace list, 50 | 21.4 ms | 27.0 ms | 35.2 ms |
+
+**PostgreSQL 17 + ClickHouse 25.8**, same harness (`make bench-http-distributed`), 150 samples, both in
+local containers so there is no network hop; the ClickHouse image is amd64 under emulation on this arm64
+host, which inflates it:
+
+| Operation | p50 | p95 | p99 |
+| --- | --- | --- | --- |
+| trace export, 2 KB | 49.4 ms | 55.3 ms | 56.7 ms |
+| trace export, 754 KB | 71.1 ms | 77.5 ms | max 83.2 ms |
+| session messages (136 spans), sequential | 373.3 ms | 461.2 ms | 561.2 ms |
+| session messages, 8 concurrent | 494.6 ms | 661.5 ms | 750.1 ms |
+| trace list, 50 | 409.9 ms | 492.4 ms | 645.9 ms |
 
 So the SLO, **per backend**, because the two differ by an order of magnitude and one number covering both
 would be false for one of them:
 
 | | DuckDB + SQLite | ClickHouse + PostgreSQL |
 | --- | --- | --- |
-| Ingest a trace export | < 25 ms p99 | < 100 ms p99 |
-| Read a session (151 spans), sequential | < 50 ms p99 | < 750 ms p99 |
-| Read a session, 8 concurrent | < 150 ms p99 | < 1.5 s p99 |
-| List 50 traces | < 50 ms p99 | < 1.5 s p99 |
-
-Reproduce with `make bench-http` and `make bench-http-distributed` (`misc/bench/http-latency.sh`), which
-starts throwaway containers for the distributed pair, discards warm-up requests, and prints the raw
-percentiles. The targets are set from that harness rather than from a better ad-hoc sample: its distributed
-run reports 606.8 ms p99 sequential and 1054.3 ms p99 concurrent, worse than the 440.8/636.4 recorded below
-from a run with more samples, and the looser number is the one to design against.
+| Ingest a trace export | < 25 ms p99 (2 KB) | < 100 ms p99 (2 KB) |
+| Read a session, sequential | < 50 ms p99 | < 750 ms p99 |
+| Read a session, 8 concurrent | < 150 ms p99 | < 1 s p99 |
+| List 50 traces | < 50 ms p99 | < 1 s p99 |
 
 The ClickHouse column is deliberately an order of magnitude looser, and it is a *measured* target rather
-than an aspiration: on ClickHouse the row fetch dominates, and no amount of work on the normaliser changes
-that. A single embedded reader is far faster; a distributed one degrades far less under concurrency.
+than an aspiration: there the row fetch dominates, so no amount of work on the normaliser changes it.
 Anyone who needs interactive reads at DuckDB latencies with ClickHouse durability should expect to add
 caching in front of the read path, not to find it here.
 
-Two more things the tables say out loud. DuckDB **serialises** reads, so the p50 of eight at once is
-roughly eight times one - read concurrency there buys throughput (~70 req/s), not latency - while
-ClickHouse's costs 1.6×. And a long *replaying* session is bounded by the reconstruction cache rather than
-the pipeline: 2.28 s cold, 47 ms warm at 1 000 turns.
+Two more things the tables say out loud. DuckDB **serialises** reads, so eight at once cost about five
+times one - read concurrency there buys throughput, not latency - while ClickHouse's cost 1.3×, and its
+p95 under concurrency is *lower* than DuckDB's ratio would predict. And a long *replaying* session is
+bounded by the reconstruction cache rather than the pipeline: 2.28 s cold, 47 ms warm at 1 000 turns.
 
-The cache being process-local has a cluster consequence worth stating: it bounds work per instance, not
-per cluster, so with N instances a session can be reconstructed up to N times before every instance is
-warm, and instance churn resets that. Sharing it would need the reconstruction to round-trip through
-serde - `BlockEntry` and `ContentBlock` are `Serialize` but not `Deserialize` - which would put the
-byte-identical property `a_cached_reconstruction_equals_a_fresh_one` proves at the mercy of
-serialisation, plus a build fingerprint in the key so a deploy cannot serve the previous pipeline's
-answers. Not worth it for the shape of session that reaches seconds.
-
-**The same measurements against PostgreSQL 17 + ClickHouse 25.8** (both local containers, so no network
-hop; the ClickHouse image is amd64 under emulation on this arm64 host, which inflates it):
-
-| Operation | p50 | p95 | p99 |
-| --- | --- | --- | --- |
-| OTLP trace export, 2 KB | 49.7 ms | 57.0 ms | 66.4 ms |
-| OTLP trace export, 772 KB | 76.2 ms | 96.2 ms | 291.0 ms |
-| Session messages, sequential | 344.2 ms | 419.7 ms | 440.8 ms |
-| Session messages, 8 concurrent | 536.7 ms | 600.8 ms | 636.4 ms |
-| Trace list, 50 | 400.0 ms | 978.3 ms | 978.3 ms |
-
-Two things worth reading off that table. **Concurrency behaves oppositely**: DuckDB serialises reads (8×
-concurrency costs 6.5× the p50), ClickHouse does not (1.6×) - so the embedded backend is far faster at one
-read and the distributed one degrades far less under many. And on ClickHouse the **row fetch dominates**,
-not reconstruction, so the reconstruction cache matters much less there than the DuckDB numbers suggest.
-
-`async_insert` defaults to **false** for the same reason the acknowledgement rule exists: durability means
-waiting, and waiting on an async insert pays ClickHouse's flush timer for nothing - measured at 118.6 ms
-per export against 59.2 ms direct, same durability. The pipeline already batches before it writes.
+The large-export p99 is the one number that moves between runs (43.5 ms p95 against 125.6 ms p99 on
+DuckDB): a 754 KB payload's file extraction and hashing occasionally lands behind a checkpoint. It is
+recorded rather than smoothed.
 
 **S3 file storage, against a real S3 API** (MinIO in a container): a file-carrying export takes 18-55 ms
 including the object writes; deleting a project removes exactly its own objects and leaves other projects'

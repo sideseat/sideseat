@@ -2395,30 +2395,45 @@ fn no_fixture_exhausts_the_replay_matching_budget() {
     assert!(checked > 80, "only checked {checked} fixtures");
 }
 
-/// The corpus matches the support matrix in CLAUDE.md.
+/// The corpus matches the support matrix **in CLAUDE.md**, parsed from the document itself.
 ///
-/// "Correct for all frameworks" is an open-world claim unless the set is written down, so it is - and a
-/// table in a document drifts the moment someone adds a suite. This fails when the corpus and the table
-/// disagree, which turns the boundary of the claim into something maintained rather than remembered.
+/// "Correct for all frameworks" is an open-world claim unless the set is written down, so it is written
+/// down - and a table in a document drifts the moment someone adds a suite. A second hard-coded table in
+/// this file would have drifted with it, which is what this test used to be: it compared the corpus against
+/// its own copy and left the document free to be wrong. It reads the document now, so the claim "the table
+/// and the corpus agree" is the thing actually checked.
 #[test]
 fn the_corpus_matches_the_support_matrix() {
-    // (suite, samples, captured requests) - update CLAUDE.md's table with any change here.
-    const MATRIX: &[(&str, usize, usize)] = &[
-        ("_synthetic", 5, 5),
-        ("adk", 8, 18),
-        ("agent-framework", 10, 17),
-        ("anthropic", 7, 18),
-        ("bedrock", 6, 14),
-        ("claude-agent-sdk", 8, 17),
-        ("claude-agent-sdk-js", 8, 17),
-        ("crewai", 9, 33),
-        ("langgraph", 9, 23),
-        ("openai", 6, 8),
-        ("openai-agents", 10, 37),
-        ("strands", 10, 40),
-        ("strands-js", 8, 16),
-        ("vercel-ai-js", 7, 17),
-    ];
+    let doc = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("repository root")
+        .join("CLAUDE.md");
+    let text = std::fs::read_to_string(&doc).expect("CLAUDE.md");
+
+    // Rows look like: | `suite` | version | samples | requests |
+    let mut documented: Vec<(String, usize, usize, String)> = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if !line.starts_with("| `") {
+            continue;
+        }
+        let cells: Vec<&str> = line.trim_matches('|').split('|').map(str::trim).collect();
+        if cells.len() != 4 {
+            continue;
+        }
+        let suite = cells[0].trim_matches('`');
+        let (Ok(samples), Ok(requests)) = (cells[2].parse::<usize>(), cells[3].parse::<usize>())
+        else {
+            continue;
+        };
+        documented.push((suite.to_string(), samples, requests, cells[1].to_string()));
+    }
+    documented.sort();
+    assert!(
+        documented.len() > 10,
+        "the support matrix was not found in CLAUDE.md; this test is the thing that keeps it true, so a \
+         format change here must be matched there"
+    );
 
     let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/messages");
     let mut found: Vec<(String, usize, usize)> = Vec::new();
@@ -2449,15 +2464,24 @@ fn the_corpus_matches_the_support_matrix() {
     }
     found.sort();
 
-    let expected: Vec<(String, usize, usize)> = MATRIX
+    let documented_counts: Vec<(String, usize, usize)> = documented
         .iter()
-        .map(|&(s, a, b)| (s.to_string(), a, b))
+        .map(|(s, a, b, _)| (s.clone(), *a, *b))
         .collect();
     assert_eq!(
-        found, expected,
-        "the fixture corpus and the support matrix disagree; update the table in CLAUDE.md and MATRIX \
-         here, because the boundary of \"correct for all frameworks\" is exactly this list"
+        found, documented_counts,
+        "the fixture corpus and CLAUDE.md's support matrix disagree; update the table, because the \
+         boundary of \"correct for all frameworks\" is exactly that list"
     );
+
+    // Every row names the SDK it was captured against: a count without a version does not bound anything,
+    // because the same framework's next release can emit a different shape.
+    for (suite, _, _, version) in &documented {
+        assert!(
+            !version.is_empty() && version != "—",
+            "the support matrix row for `{suite}` has no version, so it does not say what was verified"
+        );
+    }
 }
 
 /// A cached reconstruction is what recomputation would have produced, byte for byte.

@@ -252,8 +252,28 @@ CREATE INDEX IF NOT EXISTS idx_deleted_projects_due ON deleted_projects(next_che
 /// And `next_check_at` was nullable, which PostgreSQL sorts *last* while SQLite sorts nulls first - so on
 /// PostgreSQL a freshly deleted project queued behind every overdue record, hours or days on a backlog, with
 /// its late files and rows hidden the whole time.
-const MIGRATION_V14: &str = r#"UPDATE deleted_projects SET next_check_at = COALESCE(next_check_at, deleted_at);
-ALTER TABLE deleted_projects ADD COLUMN claim_token INTEGER NOT NULL DEFAULT 0;
+/// SQLite cannot add a NOT NULL constraint to an existing column, so the table is rebuilt.
+///
+/// Backfilling the values and stopping there left an upgraded database with a *nullable* `next_check_at`
+/// while a fresh one declares it NOT NULL - two different schemas for the same version. Nothing in the code
+/// inserts a null today, but the eligibility test is `next_check_at <= unixepoch()`, which no null ever
+/// satisfies: one row inserted by a future path, or by hand, would go unclaimed forever and its project's
+/// late data undiscovered. A declared invariant that only the fresh schema enforces is not an invariant.
+const MIGRATION_V14: &str = r#"CREATE TABLE deleted_projects_v14 (
+    project_id TEXT PRIMARY KEY,
+    deleted_at INTEGER NOT NULL,
+    last_checked_at INTEGER,
+    quiet_checks INTEGER NOT NULL DEFAULT 0,
+    next_check_at INTEGER NOT NULL DEFAULT 0,
+    claim_token INTEGER NOT NULL DEFAULT 0
+);
+INSERT INTO deleted_projects_v14 (project_id, deleted_at, last_checked_at, quiet_checks, next_check_at)
+SELECT project_id, deleted_at, last_checked_at, quiet_checks,
+       COALESCE(next_check_at, last_checked_at, deleted_at)
+FROM deleted_projects;
+DROP TABLE deleted_projects;
+ALTER TABLE deleted_projects_v14 RENAME TO deleted_projects;
+CREATE INDEX IF NOT EXISTS idx_deleted_projects_due ON deleted_projects(next_check_at);
 "#;
 
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
@@ -344,4 +364,87 @@ async fn apply_versioned_migration(
         elapsed_ms
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An upgraded database has the same schema as a fresh one.
+    ///
+    /// This is the invariant a migration exists to preserve, and it is easy to half-keep: SQLite cannot add
+    /// a NOT NULL constraint with `ALTER TABLE`, so a migration that backfills values and stops leaves the
+    /// column nullable while the fresh schema declares it NOT NULL. Two schemas for one version, and the
+    /// difference only shows when something inserts the null that the fresh schema would have refused.
+    ///
+    /// Checked by comparing what SQLite itself reports about the columns, so it covers any future migration
+    /// that alters a table rather than only the one that prompted it.
+    #[tokio::test]
+    async fn an_upgraded_schema_matches_a_fresh_one() {
+        async fn columns(
+            pool: &SqlitePool,
+            table: &str,
+        ) -> Vec<(String, String, i64, Option<String>)> {
+            let mut rows: Vec<(String, String, i64, Option<String>)> = sqlx::query_as(&format!(
+                "SELECT name, type, \"notnull\", dflt_value FROM pragma_table_info('{table}')"
+            ))
+            .fetch_all(pool)
+            .await
+            .expect("pragma");
+            rows.sort();
+            rows
+        }
+
+        // A fresh database at the current version.
+        let fresh = SqlitePool::connect(":memory:").await.expect("fresh pool");
+        sqlx::raw_sql(SCHEMA)
+            .execute(&fresh)
+            .await
+            .expect("fresh schema");
+
+        // An old database, walked forward by the migration runner. Version 10 is where `deleted_projects`
+        // first appears, so the walk covers every change made to it since.
+        let upgraded = SqlitePool::connect(":memory:")
+            .await
+            .expect("upgraded pool");
+        sqlx::raw_sql(
+            "CREATE TABLE schema_version (id INTEGER PRIMARY KEY, version INTEGER NOT NULL, \
+             applied_at INTEGER NOT NULL, description TEXT);
+             INSERT INTO schema_version (id, version, applied_at) VALUES (1, 10, 0);
+             CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, \
+                 applied_at INTEGER NOT NULL, checksum TEXT NOT NULL, execution_time_ms INTEGER, \
+                 success INTEGER NOT NULL DEFAULT 1);
+             CREATE TABLE deleted_projects (project_id TEXT PRIMARY KEY, deleted_at INTEGER NOT NULL);
+             INSERT INTO deleted_projects (project_id, deleted_at) VALUES ('legacy', 1000);",
+        )
+        .execute(&upgraded)
+        .await
+        .expect("legacy shape");
+        for version in 11..=SCHEMA_VERSION {
+            apply_migration(&upgraded, version)
+                .await
+                .unwrap_or_else(|e| panic!("migration {version}: {e}"));
+        }
+
+        assert_eq!(
+            columns(&upgraded, "deleted_projects").await,
+            columns(&fresh, "deleted_projects").await,
+            "an upgraded database's `deleted_projects` differs from a fresh one's, so the invariant the \\
+             fresh schema declares is not enforced after an upgrade"
+        );
+
+        // And the legacy row came through with a due time rather than a null, or it would never be claimed.
+        let due: (Option<i64>,) = sqlx::query_as(
+            "SELECT next_check_at FROM deleted_projects WHERE project_id = 'legacy'",
+        )
+        .fetch_one(&upgraded)
+        .await
+        .expect("legacy row");
+        assert_eq!(
+            due.0,
+            Some(1000),
+            "a legacy row must come through the upgrade with a due time; a null is never claimed, so its \\
+             project's late data would go uncollected forever"
+        );
+    }
 }
