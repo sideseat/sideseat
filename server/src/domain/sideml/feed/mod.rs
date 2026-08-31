@@ -594,7 +594,8 @@ pub fn process_spans_cached(
     rows: Vec<MessageSpanRow>,
     options: &FeedOptions,
 ) -> FeedResult {
-    let reconstructed = cache.get_or_reconstruct(rows, process_spans_unfiltered);
+    let reconstructed =
+        cache.get_or_reconstruct(cache::Reconstruction::Spans, rows, process_spans_unfiltered);
     apply_role_filter((*reconstructed).clone(), options.role.as_deref())
 }
 
@@ -604,8 +605,9 @@ pub fn process_feed_cached(
     rows: Vec<MessageSpanRow>,
     options: &FeedOptions,
 ) -> FeedResult {
-    let reconstructed =
-        cache.get_or_reconstruct(rows, |rows| process_feed(rows, &FeedOptions::new()));
+    let reconstructed = cache.get_or_reconstruct(cache::Reconstruction::Feed, rows, |rows| {
+        process_feed(rows, &FeedOptions::new())
+    });
     apply_role_filter((*reconstructed).clone(), options.role.as_deref())
 }
 

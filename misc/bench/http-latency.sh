@@ -156,10 +156,30 @@ pace() {
   return 0
 }
 timed_get() {  # timed_get <url> <out>
+  local body
+  body="$WORK/last-read.json"
   local out
-  out="$(curl -s -o /dev/null -w '%{time_total} %{http_code}' "$1")"
+  out="$(curl -s -o "$body" -w '%{time_total} %{http_code}' "$1")"
   local code="${out##* }"
   [ "$code" = "200" ] || { echo "[bench] read returned $code, refusing to report it as a sample"; exit 1; }
+  # A 200 with an empty or truncated payload would otherwise pass the "status only" check and read as
+  # excellent latency for a wrong answer. The three read endpoints all return an object with a `data`
+  # array of at least one element under the fixture we loaded, so the check is uniform.
+  python3 - "$body" <<'PY' || { echo "[bench] read returned an unexpected body; refusing to report it as a sample"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+# The two shapes the read endpoints return: list responses under `data`, message reads under `messages`.
+# Both have to carry at least one element under the fixture the harness loads, or the 200 is not evidence
+# of a working read - which is the failure this check exists to prevent.
+if isinstance(d, dict):
+    payload = d.get("data")
+    if payload is None:
+        payload = d.get("messages")
+else:
+    payload = d
+if not isinstance(payload, list) or not payload:
+    sys.exit(1)
+PY
   echo "${out%% *}" >> "$2"
 }
 

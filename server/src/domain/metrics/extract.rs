@@ -13,8 +13,8 @@ use serde_json::{Value as JsonValue, json};
 
 use crate::data::types::{AggregationTemporality, MetricType, NormalizedMetric};
 use crate::utils::otlp::{
-    PROJECT_ID_ATTR, attrs_to_json, extract_attributes, get_environment, get_session_id,
-    get_user_id, keys,
+    PROJECT_ID_ATTR, attrs_to_json, attrs_to_typed_json, extract_attributes, get_environment,
+    get_session_id, get_user_id, keys,
 };
 use crate::utils::time::nanos_to_datetime;
 
@@ -28,8 +28,12 @@ pub fn extract_metrics_batch(request: &ExportMetricsServiceRequest) -> Vec<Norma
         let resource_attrs = resource
             .map(|r| extract_attributes(&r.attributes))
             .unwrap_or_default();
+        // Typed too, for the datapoint identity - see attrs_to_typed_json.
+        let typed_resource_attrs = resource
+            .map(|r| attrs_to_typed_json(&r.attributes))
+            .unwrap_or(JsonValue::Object(serde_json::Map::new()));
 
-        let ctx = ResourceContext::from_attrs(&resource_attrs);
+        let ctx = ResourceContext::from_attrs(&resource_attrs, typed_resource_attrs);
 
         for scope_metrics in &resource_metrics.scope_metrics {
             let scope = scope_metrics.scope.as_ref();
@@ -65,7 +69,7 @@ struct ResourceContext {
 }
 
 impl ResourceContext {
-    fn from_attrs(attrs: &HashMap<String, String>) -> Self {
+    fn from_attrs(attrs: &HashMap<String, String>, resource_attributes: JsonValue) -> Self {
         Self {
             project_id: attrs.get(PROJECT_ID_ATTR).cloned(),
             service_name: attrs.get(keys::SERVICE_NAME).cloned(),
@@ -73,7 +77,7 @@ impl ResourceContext {
             service_namespace: attrs.get(keys::SERVICE_NAMESPACE).cloned(),
             service_instance_id: attrs.get(keys::SERVICE_INSTANCE_ID).cloned(),
             environment: get_environment(attrs),
-            resource_attributes: attrs_to_json(attrs),
+            resource_attributes,
         }
     }
 }
@@ -213,7 +217,7 @@ fn extract_number_dp(
         service_instance_id: ctx.service_instance_id.clone(),
         scope_name: scope.name.clone(),
         scope_version: scope.version.clone(),
-        attributes: attrs_to_json(&attrs),
+        attributes: attrs_to_typed_json(&dp.attributes),
         resource_attributes: ctx.resource_attributes.clone(),
         exemplar_trace_id: extract_exemplar_trace_id(exemplar),
         exemplar_span_id: extract_exemplar_span_id(exemplar),
@@ -264,7 +268,7 @@ fn extract_histogram_dp(
         service_instance_id: ctx.service_instance_id.clone(),
         scope_name: scope.name.clone(),
         scope_version: scope.version.clone(),
-        attributes: attrs_to_json(&attrs),
+        attributes: attrs_to_typed_json(&dp.attributes),
         resource_attributes: ctx.resource_attributes.clone(),
         exemplar_trace_id: extract_exemplar_trace_id(exemplar),
         exemplar_span_id: extract_exemplar_span_id(exemplar),
@@ -318,7 +322,7 @@ fn extract_exp_histogram_dp(
         service_instance_id: ctx.service_instance_id.clone(),
         scope_name: scope.name.clone(),
         scope_version: scope.version.clone(),
-        attributes: attrs_to_json(&attrs),
+        attributes: attrs_to_typed_json(&dp.attributes),
         resource_attributes: ctx.resource_attributes.clone(),
         exemplar_trace_id: extract_exemplar_trace_id(exemplar),
         exemplar_span_id: extract_exemplar_span_id(exemplar),
@@ -371,7 +375,7 @@ fn extract_summary_dp(
         service_instance_id: ctx.service_instance_id.clone(),
         scope_name: scope.name.clone(),
         scope_version: scope.version.clone(),
-        attributes: attrs_to_json(&attrs),
+        attributes: attrs_to_typed_json(&dp.attributes),
         resource_attributes: ctx.resource_attributes.clone(),
         flags: dp.flags,
         raw_metric: build_raw_metric_json(metric, MetricType::Summary),

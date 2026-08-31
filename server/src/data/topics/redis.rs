@@ -138,6 +138,27 @@ impl RedisTopicBackend {
                 TopicError::Connection(format!("Redis PING failed for {sanitized_url}: {e}"))
             })?;
 
+        // A durable queue's promise rests on the server's persistence and eviction settings, not on the
+        // wire protocol - `PING` says nothing about either. The two failure modes:
+        //
+        //   * AOF off or `appendfsync no`: a host failure loses whatever was in the fsync window, which
+        //     may include entries an exporter was already told 200 for. `everysec` bounds the loss to
+        //     one second, which is the minimum a durable queue can claim.
+        //   * An LRU or LFU `maxmemory-policy` on a keyspace that includes streams: memory pressure
+        //     silently evicts stream entries, or the stream key itself, before any consumer has read it.
+        //     The queue effectively acknowledges storage it may later delete.
+        //
+        // Both refused at startup rather than warned about. The shipped defaults in the local
+        // docker-compose (which advertises Valkey as durable) hit both - correct in production requires
+        // an explicit choice, and getting it wrong means the queue lies about durability.
+        probe_redis_durability(&mut conn).await.map_err(|e| {
+            TopicError::Connection(format!(
+                "Redis persistence probe failed for {sanitized_url}: {e}. Set `appendonly yes` \
+                 with `appendfsync everysec` (or `always`) and a `maxmemory-policy` of `noeviction` \
+                 or one of the `*-with-ttl` variants."
+            ))
+        })?;
+
         tracing::debug!(url = %sanitized_url, "Redis topic backend connected");
 
         Ok(Self {
@@ -293,14 +314,44 @@ impl RedisTopicBackend {
     /// The oldest entry this group still needs, or `None` when it cannot be determined.
     ///
     /// `None` means "do not trim": an unreadable answer is not evidence that a group is finished.
+    ///
+    /// # Ordering matters: `last-delivered-id` is read *first*
+    ///
+    /// The two reads are not atomic. If pending were read first (empty) and `last-delivered-id` second, a
+    /// concurrent delivery M between them made `pending` empty while `last-delivered-id` had already
+    /// advanced to M - so the boundary became `M.next()` and `XTRIM MINID` deleted M while it was still
+    /// pending on some consumer. If that consumer died, `stream_claim` had nothing to hand over.
+    ///
+    /// Reading `last-delivered-id` first bounds the answer safely. Anything delivered after that read has
+    /// an id strictly greater than the snapshot's `L`, so `L.next()` cannot exceed it and the concurrent
+    /// entry is preserved. If a pending entry exists it is taken as the boundary instead: it was delivered
+    /// at or before `L` (otherwise it would not be visible to XPENDING here), and it is what is still owed.
     async fn oldest_needed_id(
         &self,
         conn: &mut deadpool_redis::Connection,
         key: &str,
         group: &str,
     ) -> Option<StreamId> {
-        // An entry delivered but not acknowledged is still owed, whoever holds it - including a consumer
-        // that has since died, whose messages `stream_claim` will hand to someone else.
+        // The snapshot bound: everything the group is currently past is <= L. Nothing delivered after this
+        // read can influence the boundary we return.
+        let groups: RedisValue = deadpool_redis::redis::cmd("XINFO")
+            .arg("GROUPS")
+            .arg(key)
+            .query_async(conn)
+            .await
+            .ok()?;
+        let RedisValue::Array(groups) = &groups else {
+            return None;
+        };
+        let entry = groups
+            .iter()
+            .find(|g| group_field(g, "name").as_deref() == Some(group))?;
+        let last_delivered = StreamId::parse(&group_field(entry, "last-delivered-id")?)?;
+        let snapshot_boundary = last_delivered.next();
+
+        // Now the pending list. Any oldest-pending here was delivered at or before `last_delivered`, so if
+        // it exists it is the tighter (lower) bound; concurrent deliveries after our snapshot are past
+        // `snapshot_boundary` and stay preserved.
         let pending: RedisValue = deadpool_redis::redis::cmd("XPENDING")
             .arg(key)
             .arg(group)
@@ -313,25 +364,12 @@ impl RedisTopicBackend {
         if let RedisValue::Array(entries) = &pending
             && let Some(RedisValue::Array(parts)) = entries.first()
             && let Some(id) = parts.first().and_then(redis_string)
+            && let Some(oldest) = StreamId::parse(&id)
         {
-            return StreamId::parse(&id);
+            // The min of the two: a concurrent delivery cannot make the boundary loosen, only tighten.
+            return Some(oldest.min(snapshot_boundary));
         }
-
-        // Nothing pending, so everything delivered is acknowledged and the next id is the boundary.
-        let groups: RedisValue = deadpool_redis::redis::cmd("XINFO")
-            .arg("GROUPS")
-            .arg(key)
-            .query_async(conn)
-            .await
-            .ok()?;
-        let RedisValue::Array(groups) = groups else {
-            return None;
-        };
-        let entry = groups
-            .iter()
-            .find(|g| group_field(g, "name").as_deref() == Some(group))?;
-        let last = group_field(entry, "last-delivered-id")?;
-        StreamId::parse(&last).map(StreamId::next)
+        Some(snapshot_boundary)
     }
 
     /// Run the bridge task that forwards Redis messages to local broadcast
@@ -556,10 +594,25 @@ impl TopicBackend for RedisTopicBackend {
     async fn stream_publish(&self, topic: &str, payload: &[u8]) -> Result<String, TopicError> {
         let key = self.stream_key(topic);
 
-        if let Some(observed) = self.observed_backlog.get(&key)
-            && *observed >= self.max_backlog()
-        {
-            return Err(TopicError::BufferFull);
+        // Fast path: this instance's own observation says the stream is at its limit.
+        //
+        // On its own that would strand a replica indefinitely - another instance can trim the stream and
+        // this one would never learn, so its cache stays at the limit and every publish is refused
+        // against an empty backlog. So a *reachable* limit here upgrades to a fresh `XLEN` before
+        // refusing, which is one round trip on the refusal path only. The steady state (below the
+        // limit) still pays no extra round trip: the previous publish's pipelined XLEN is what
+        // populates `observed_backlog`, and reads there decide the fast path.
+        if self.observed_backlog.get(&key).map(|o| *o).unwrap_or(0) >= self.max_backlog() {
+            let mut conn = self.pool.get().await?;
+            let fresh: u64 = deadpool_redis::redis::cmd("XLEN")
+                .arg(&key)
+                .query_async(&mut conn)
+                .await
+                .unwrap_or(u64::MAX);
+            self.observed_backlog.insert(key.clone(), fresh);
+            if fresh >= self.max_backlog() {
+                return Err(TopicError::BufferFull);
+            }
         }
 
         let mut conn = self.pool.get().await?;
@@ -1016,6 +1069,83 @@ fn sanitize_redis_url(url: &str) -> String {
         }
     }
     url.to_string()
+}
+
+/// Persistence and eviction settings that make the queue's durability promise honest.
+///
+/// Returns `Ok(())` when the server is configured for at least "one-second data loss on host failure"
+/// (AOF on with `everysec` or `always`), and refuses when memory pressure could evict a queue entry.
+///
+/// # Why these are the right knobs to check, and not others
+///
+/// `PING` says the server is *reachable*, not that it is durable. The two properties we depend on:
+///
+/// * **AOF.** RDB alone is a periodic snapshot; a crash between snapshots loses everything since. AOF
+///   `everysec` bounds that to one second, which is the minimum for a queue whose 200 has to mean
+///   "durably stored". `always` is stricter.
+/// * **Eviction.** A stream is a key, and an LRU/LFU policy over the whole keyspace can evict it under
+///   memory pressure - which is exactly when a queue is most likely to be under pressure. `noeviction`
+///   refuses new writes instead, which the OTLP path already handles as backpressure. The `-with-ttl`
+///   variants confine eviction to keys with an explicit TTL, and streams here have none.
+async fn probe_redis_durability(conn: &mut deadpool_redis::Connection) -> Result<(), TopicError> {
+    async fn read_config(
+        conn: &mut deadpool_redis::Connection,
+        field: &'static str,
+    ) -> Result<Option<String>, TopicError> {
+        let value: Vec<String> = deadpool_redis::redis::cmd("CONFIG")
+            .arg("GET")
+            .arg(field)
+            .query_async(conn)
+            .await
+            .map_err(|e| TopicError::Connection(format!("CONFIG GET {field} failed: {e}")))?;
+        // Ignore the fetched key and read only the value slot. When the server refuses `CONFIG` (some
+        // managed Redis deployments do), we get an empty reply - the caller then decides whether that
+        // is fatal, which is a per-field question.
+        Ok(value.get(1).cloned())
+    }
+
+    let appendonly = read_config(conn, "appendonly").await?;
+    let appendfsync = read_config(conn, "appendfsync").await?;
+    let policy = read_config(conn, "maxmemory-policy").await?;
+
+    if appendonly.is_none() && appendfsync.is_none() && policy.is_none() {
+        // The server refuses `CONFIG` entirely - a managed offering, typically. We cannot verify, so we
+        // decline to *claim* durability rather than pretend to have checked. The stream backend still
+        // works; `is_durable()` will read this decision.
+        tracing::warn!(
+            "Redis CONFIG is not readable; treating the backend as non-durable. Set the persistence \
+             and eviction settings out-of-band, and pin them via your managed provider's controls."
+        );
+        return Err(TopicError::Connection(
+            "cannot verify AOF / eviction settings via CONFIG GET".to_string(),
+        ));
+    }
+
+    let ao = appendonly.unwrap_or_default().to_ascii_lowercase();
+    if ao != "yes" {
+        return Err(TopicError::Connection(format!(
+            "appendonly is {ao:?}; AOF must be enabled for a durable queue"
+        )));
+    }
+    let fs = appendfsync.unwrap_or_default().to_ascii_lowercase();
+    if !(fs == "always" || fs == "everysec") {
+        return Err(TopicError::Connection(format!(
+            "appendfsync is {fs:?}; use `everysec` (bounds loss to one second) or `always`"
+        )));
+    }
+
+    let ev = policy.unwrap_or_default().to_ascii_lowercase();
+    let safe = matches!(
+        ev.as_str(),
+        "noeviction" | "volatile-lru" | "volatile-lfu" | "volatile-random" | "volatile-ttl"
+    );
+    if !safe {
+        return Err(TopicError::Connection(format!(
+            "maxmemory-policy is {ev:?}; a keyspace-wide LRU/LFU can evict a stream entry that has \
+             been answered 200. Use `noeviction` or one of the `volatile-*` variants."
+        )));
+    }
+    Ok(())
 }
 
 /// A Redis stream id, ordered as Redis orders it rather than as a string.

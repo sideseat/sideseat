@@ -607,7 +607,8 @@ test-redis:
 	@echo "[test-redis] starting $(REDIS_TEST_IMAGE) on port $(REDIS_TEST_PORT)..."
 	@docker rm -f $(REDIS_TEST_CONTAINER) >/dev/null 2>&1 || true
 	@docker run -d --name $(REDIS_TEST_CONTAINER) -p $(REDIS_TEST_PORT):6379 \
-		$(REDIS_TEST_IMAGE) >/dev/null
+		$(REDIS_TEST_IMAGE) redis-server \
+		  --appendonly yes --appendfsync everysec --maxmemory-policy noeviction >/dev/null
 	@for i in $$(seq 1 60); do \
 		docker exec $(REDIS_TEST_CONTAINER) redis-cli ping 2>/dev/null | grep -q PONG && break; \
 		sleep 1; \
