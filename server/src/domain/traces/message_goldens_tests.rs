@@ -2364,6 +2364,37 @@ fn bench_pipeline() {
         bytes / 1024
     );
 }
+/// No captured fixture exhausts the replay matcher's search budget.
+///
+/// The budget is a resource guard, and `FeedMetadata::replay_matching_complete` reports when it bites - but
+/// a corpus that reaches it would mean real telemetry getting duplicated history, which is a different
+/// matter from an adversarial shape doing so. Asserted over every fixture so that an extraction change
+/// which widens a span's replayable set is caught here rather than by a user seeing a turn twice.
+#[test]
+fn no_fixture_exhausts_the_replay_matching_budget() {
+    let mut checked = 0usize;
+    for (label, paths) in discover_fixtures() {
+        let rows: Vec<MessageSpanRow> = rows_for(&paths)
+            .into_iter()
+            .map(|(_, r)| r)
+            .filter(passes_content_filter)
+            .collect();
+        if rows.is_empty() {
+            continue;
+        }
+        let result = crate::domain::sideml::feed::process_spans(
+            sorted_by_timestamp(rows),
+            &FeedOptions::new(),
+        );
+        assert!(
+            result.metadata.replay_matching_complete,
+            "{label}: replay matching hit its budget, so this fixture's history may be shown twice"
+        );
+        checked += 1;
+    }
+    assert!(checked > 80, "only checked {checked} fixtures");
+}
+
 /// A cached reconstruction is what recomputation would have produced, byte for byte.
 ///
 /// The memo is only sound if reconstruction is a pure function of the rows, and that is a claim about
