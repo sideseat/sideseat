@@ -310,6 +310,9 @@ pub(crate) fn build_messages_response(
             total_cost,
             start_time: start_time.unwrap_or_else(Utc::now),
             end_time,
+            // Carried from the pipeline, not recomputed: this is the one place a caller can learn that
+            // the answer may repeat history.
+            replay_matching_complete: processed.metadata.replay_matching_complete,
         },
         tool_definitions: processed.tool_definitions,
         tool_names: processed.tool_names,

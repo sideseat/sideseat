@@ -3,7 +3,7 @@
 //! Initial schema with all tables. Compatible with SQLite schema structure.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 11;
+pub const SCHEMA_VERSION: i32 = 12;
 
 /// Complete schema SQL for PostgreSQL
 pub const SCHEMA: &str = r#"
@@ -136,8 +136,15 @@ CREATE TABLE IF NOT EXISTS deleted_projects (
     -- every instance would re-check every deletion ever made on every sweep: work proportional to
     -- instances times lifetime deletions. Claiming the check by moving this forward makes it one check
     -- per id per window, whatever the instance count.
-    last_checked_at BIGINT
+    last_checked_at BIGINT,
+    -- How many consecutive checks found nothing. Each one pushes the next check further out, so a project
+    -- deleted long ago is not re-checked at the same rate as one deleted a minute ago - without this, a
+    -- hundred thousand historical deletions meant a hundred thousand storage listings every window,
+    -- forever.
+    quiet_checks BIGINT NOT NULL DEFAULT 0
 );
+
+CREATE INDEX IF NOT EXISTS idx_deleted_projects_next_check ON deleted_projects(last_checked_at);
 
 -- =============================================================================
 -- 6. Files metadata (references projects)

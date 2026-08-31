@@ -12,6 +12,7 @@ use opentelemetry_proto::tonic::collector::{
     trace::v1::ExportTraceServiceRequest,
 };
 use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
+use opentelemetry_proto::tonic::resource::v1::Resource;
 use serde_json::Value as JsonValue;
 
 pub const PROJECT_ID_ATTR: &str = "sideseat.project_id";
@@ -125,13 +126,25 @@ pub fn make_project_id_attr(project_id: &str) -> KeyValue {
     }
 }
 
+/// Add the project id to a resource, creating the resource if the payload had none.
+///
+/// `resource` is optional in OTLP and a payload that omits it is valid. Skipping those groups meant the
+/// project id was never recorded for them, and persistence substitutes `default` for a span with no
+/// project - so telemetry exported to project `P` was acknowledged and then stored in `default`, where `P`
+/// shows empty and someone else's project shows content that is not theirs. A request mixing groups with
+/// and without a resource was split between the two.
+fn set_project_id(resource: &mut Option<Resource>, attr: &KeyValue) {
+    resource
+        .get_or_insert_with(Resource::default)
+        .attributes
+        .push(attr.clone());
+}
+
 /// Inject project_id into resource attributes for traces
 pub fn inject_project_id_traces(request: &mut ExportTraceServiceRequest, project_id: &str) {
     let attr = make_project_id_attr(project_id);
     for resource_spans in &mut request.resource_spans {
-        if let Some(ref mut resource) = resource_spans.resource {
-            resource.attributes.push(attr.clone());
-        }
+        set_project_id(&mut resource_spans.resource, &attr);
     }
 }
 
@@ -139,9 +152,7 @@ pub fn inject_project_id_traces(request: &mut ExportTraceServiceRequest, project
 pub fn inject_project_id_metrics(request: &mut ExportMetricsServiceRequest, project_id: &str) {
     let attr = make_project_id_attr(project_id);
     for resource_metrics in &mut request.resource_metrics {
-        if let Some(ref mut resource) = resource_metrics.resource {
-            resource.attributes.push(attr.clone());
-        }
+        set_project_id(&mut resource_metrics.resource, &attr);
     }
 }
 
@@ -205,9 +216,7 @@ pub fn build_attributes_json(attrs: &[KeyValue]) -> JsonValue {
 pub fn inject_project_id_logs(request: &mut ExportLogsServiceRequest, project_id: &str) {
     let attr = make_project_id_attr(project_id);
     for resource_logs in &mut request.resource_logs {
-        if let Some(ref mut resource) = resource_logs.resource {
-            resource.attributes.push(attr.clone());
-        }
+        set_project_id(&mut resource_logs.resource, &attr);
     }
 }
 
@@ -605,5 +614,65 @@ mod tests {
         for key in string_result.keys() {
             assert!(json_obj.contains_key(key), "JSON missing key: {}", key);
         }
+    }
+
+    /// A group with no resource still gets the project id.
+    ///
+    /// `resource` is optional in OTLP, so a payload that omits it is valid - and skipping those groups
+    /// meant no project id was recorded, which persistence turns into `default`. Telemetry exported to one
+    /// project was acknowledged and stored in another, where the sender cannot see it and someone else can.
+    #[test]
+    fn a_group_without_a_resource_is_still_attributed() {
+        use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
+        use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceRequest;
+        use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+        use opentelemetry_proto::tonic::logs::v1::ResourceLogs;
+        use opentelemetry_proto::tonic::metrics::v1::ResourceMetrics;
+        use opentelemetry_proto::tonic::trace::v1::ResourceSpans;
+
+        fn project_of(resource: &Option<Resource>) -> Option<String> {
+            resource.as_ref()?.attributes.iter().find_map(|kv| {
+                (kv.key == PROJECT_ID_ATTR).then(|| match kv.value.as_ref()?.value.as_ref()? {
+                    any_value::Value::StringValue(s) => Some(s.clone()),
+                    _ => None,
+                })?
+            })
+        }
+
+        let mut traces = ExportTraceServiceRequest {
+            resource_spans: vec![
+                ResourceSpans::default(),
+                ResourceSpans {
+                    resource: Some(Resource::default()),
+                    ..Default::default()
+                },
+            ],
+        };
+        inject_project_id_traces(&mut traces, "mine");
+        for group in &traces.resource_spans {
+            assert_eq!(
+                project_of(&group.resource).as_deref(),
+                Some("mine"),
+                "a resource-less span group was left unattributed, so it would be stored in `default`"
+            );
+        }
+
+        let mut metrics = ExportMetricsServiceRequest {
+            resource_metrics: vec![ResourceMetrics::default()],
+        };
+        inject_project_id_metrics(&mut metrics, "mine");
+        assert_eq!(
+            project_of(&metrics.resource_metrics[0].resource).as_deref(),
+            Some("mine")
+        );
+
+        let mut logs = ExportLogsServiceRequest {
+            resource_logs: vec![ResourceLogs::default()],
+        };
+        inject_project_id_logs(&mut logs, "mine");
+        assert_eq!(
+            project_of(&logs.resource_logs[0].resource).as_deref(),
+            Some("mine")
+        );
     }
 }

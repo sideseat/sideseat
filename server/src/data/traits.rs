@@ -468,8 +468,18 @@ pub trait TransactionalRepository: Send + Sync {
     /// for each id and only one wins per window.
     async fn claim_deleted_projects_for_check(
         &self,
-        min_gap_secs: i64,
+        base_gap_secs: i64,
+        max_gap_secs: i64,
+        limit: i64,
     ) -> Result<Vec<String>, DataError>;
+
+    /// Record what a deleted project's check found. Quiet pushes the next check further out; anything found
+    /// brings it back to the base interval.
+    async fn record_deleted_project_check(
+        &self,
+        project_id: &str,
+        was_quiet: bool,
+    ) -> Result<(), DataError>;
 
     /// Forget projects deleted longer ago than `retention_secs`. Returns how many were forgotten.
     async fn forget_deleted_projects(&self, retention_secs: i64) -> Result<u64, DataError>;

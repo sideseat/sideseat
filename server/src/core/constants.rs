@@ -623,6 +623,17 @@ pub const CLAIM_RECOVERY_INTERVAL_SECS: u64 = 120;
 /// sweep that finds anything starts the count again.
 pub const PROJECT_TOMBSTONE_CLEAN_SWEEPS: i64 = 5;
 
+/// Discovery policy for deleted projects, whose records are kept forever.
+///
+/// Kept forever because any retention is a bound on how late a stalled writer may commit and still be
+/// collected. That makes the *rate* the thing to bound instead: a first check soon after the deletion, then
+/// each quiet check pushing the next one out geometrically to a daily floor, and at most a fixed number of
+/// ids per sweep so one pass cannot outlive its own window. Without the backoff, a hundred thousand
+/// historical deletions meant a hundred thousand storage listings every sweep, forever.
+pub const DELETED_PROJECT_CHECK_BASE_SECS: i64 = 60;
+pub const DELETED_PROJECT_CHECK_MAX_SECS: i64 = 24 * 60 * 60;
+pub const DELETED_PROJECT_CHECK_BATCH: i64 = 50;
+
 /// How many session reconstructions to remember, and how long an unused one stays.
 ///
 /// Entries are small - a reconstruction's *output* is the blocks a reader sees, not the megabytes of

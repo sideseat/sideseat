@@ -236,6 +236,8 @@ pub async fn get_feed_messages(
                 has_more,
             },
             metadata: FeedMessagesMetadata {
+                // An empty page collapsed nothing, so it hid nothing.
+                replay_matching_complete: true,
                 message_count: 0,
                 span_count: 0,
                 total_tokens: 0,
@@ -319,6 +321,9 @@ pub async fn get_feed_messages(
     // nothing whenever all of its messages were dropped as history or by the role filter, so the
     // page's reported cost fell below what was actually spent.
     let metadata = FeedMessagesMetadata {
+        // Carried from the pipeline: a page whose replay matching was cut short may repeat history, and
+        // the caller has no other way to know.
+        replay_matching_complete: processed.metadata.replay_matching_complete,
         message_count: all_messages.len() as u32,
         span_count: page_span_count,
         total_tokens: page_tokens,

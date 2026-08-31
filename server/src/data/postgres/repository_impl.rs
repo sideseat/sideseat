@@ -297,9 +297,21 @@ impl TransactionalRepository for Arc<PostgresService> {
 
     async fn claim_deleted_projects_for_check(
         &self,
-        min_gap_secs: i64,
+        base_gap_secs: i64,
+        max_gap_secs: i64,
+        limit: i64,
     ) -> Result<Vec<String>, DataError> {
-        project::claim_deleted_projects_for_check(self.pool(), min_gap_secs)
+        project::claim_deleted_projects_for_check(self.pool(), base_gap_secs, max_gap_secs, limit)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn record_deleted_project_check(
+        &self,
+        project_id: &str,
+        was_quiet: bool,
+    ) -> Result<(), DataError> {
+        project::record_deleted_project_check(self.pool(), project_id, was_quiet)
             .await
             .map_err(Into::into)
     }

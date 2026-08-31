@@ -5,7 +5,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result, anyhow};
 
 use crate::core::constants::{
-    CLAIM_RECOVERY_INTERVAL_SECS, FILE_DELETION_CLAIM_STALE_SECS,
+    CLAIM_RECOVERY_INTERVAL_SECS, DELETED_PROJECT_CHECK_BASE_SECS, DELETED_PROJECT_CHECK_BATCH,
+    DELETED_PROJECT_CHECK_MAX_SECS, FILE_DELETION_CLAIM_STALE_SECS,
     PROJECT_DELETION_CLAIM_STALE_SECS, PROJECT_TOMBSTONE_CLEAN_SWEEPS,
 };
 use crate::data::AnalyticsService;
@@ -366,11 +367,15 @@ pub async fn advance_pending_deletions(
     // with the row gone nothing would know the project had existed. `deleted_projects` knows, so those
     // rows are collected however late they appear - and the residual becomes the retention below rather
     // than a handful of minutes.
-    // One check per deleted id per window: the records are permanent, so a bare list would have every
-    // instance re-check every deletion on every sweep. Half the sweep interval, so an early tick still
-    // claims work.
+    // A bounded, backed-off batch. The records are permanent, so what has to be bounded is the *rate*:
+    // one claim per id per window (no instance re-does another's work), a geometric backoff per quiet
+    // check, and a cap per sweep so one pass cannot outlive its own window.
     match repo
-        .claim_deleted_projects_for_check((CLAIM_RECOVERY_INTERVAL_SECS / 2) as i64)
+        .claim_deleted_projects_for_check(
+            DELETED_PROJECT_CHECK_BASE_SECS,
+            DELETED_PROJECT_CHECK_MAX_SECS,
+            DELETED_PROJECT_CHECK_BATCH,
+        )
         .await
     {
         Ok(deleted) => {
@@ -386,8 +391,18 @@ pub async fn advance_pending_deletions(
                 }
 
                 match analytics.repository().count_project_rows(&project_id).await {
-                    Ok(0) => {}
+                    Ok(0) => {
+                        // Quiet: the next check for this id moves further out.
+                        if let Err(e) = repo.record_deleted_project_check(&project_id, true).await {
+                            tracing::warn!(project_id, error = %e, "Could not record a quiet check");
+                        }
+                    }
                     Ok(rows) => {
+                        // Something arrived, so check this id at the base interval again.
+                        if let Err(e) = repo.record_deleted_project_check(&project_id, false).await
+                        {
+                            tracing::warn!(project_id, error = %e, "Could not record a check");
+                        }
                         tracing::warn!(
                             project_id,
                             rows,
@@ -453,8 +468,8 @@ pub fn start_claim_recovery_task(
     tokio::spawn(async move {
         let mut ticker =
             tokio::time::interval(std::time::Duration::from_secs(CLAIM_RECOVERY_INTERVAL_SECS));
-        // The first tick fires immediately; startup has already swept, so skip it.
-        ticker.tick().await;
+        // The first tick fires immediately, and it is kept: nothing sweeps before this task now, because
+        // doing it inline made every new instance wait for work that is not urgent.
         loop {
             tokio::select! {
                 biased;
