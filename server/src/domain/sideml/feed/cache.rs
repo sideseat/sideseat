@@ -56,19 +56,22 @@ impl ReconstructionCache {
 
     /// The reconstruction of these rows, computing it only if these exact rows have not been seen.
     ///
-    /// `reconstruct` takes the rows by value because the pipeline consumes them; it runs only on a miss.
+    /// `reconstruct` takes the rows by value because the pipeline consumes them; it runs only on a miss,
+    /// and only in **one** caller when several arrive together.
+    ///
+    /// That last part is the difference from a check-then-compute pair. A cold instance is the normal
+    /// state under ephemeral scaling - every new replica starts empty, and a deploy replaces them all -
+    /// so the concurrent-miss case is not an edge: eight readers arriving at a fresh replica each found
+    /// no entry, each reconstructed the same session, and each paid the full cost. On a thousand-turn
+    /// session that is eight simultaneous 2.3-second reconstructions of one answer. `get_with` admits
+    /// one and hands the rest its result, which turns the worst case from N× the work into 1×.
     pub fn get_or_reconstruct(
         &self,
         rows: Vec<MessageSpanRow>,
         reconstruct: impl FnOnce(Vec<MessageSpanRow>) -> FeedResult,
     ) -> Arc<FeedResult> {
         let key = digest(&rows);
-        if let Some(hit) = self.entries.get(&key) {
-            return hit;
-        }
-        let value = Arc::new(reconstruct(rows));
-        self.entries.insert(key, Arc::clone(&value));
-        value
+        self.entries.get_with(key, || Arc::new(reconstruct(rows)))
     }
 
     /// How many reconstructions are held. For tests and diagnostics.
@@ -208,6 +211,57 @@ mod tests {
         // And the order of the rows is part of the input.
         cache.get_or_reconstruct(vec![row("s2", "[]"), row("s1", "[]")], reconstruct);
         assert_eq!(runs.get(), 5, "a different order misses");
+    }
+
+    /// Concurrent readers of a cold cache reconstruct once, not once each.
+    ///
+    /// The ephemeral-scaling case, and the one a check-then-compute pair gets wrong: a replica starts
+    /// empty, so every reader of a session that nobody has asked for yet is a miss. With eight arriving
+    /// together the old form did the same expensive work eight times and inserted the same answer eight
+    /// times. The reconstruction here blocks until every thread has arrived, so the test fails by
+    /// *timing out* if the calls do not overlap - a sequential implementation would satisfy a plain
+    /// "ran once" assertion trivially.
+    #[test]
+    fn concurrent_readers_of_a_cold_cache_reconstruct_once() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::{Arc as StdArc, Barrier};
+
+        const READERS: usize = 8;
+        let cache = ReconstructionCache::new();
+        let runs = StdArc::new(AtomicUsize::new(0));
+        // One fewer than the reader count: the thread that wins the race is inside `reconstruct` and
+        // will never reach the barrier, so the others must be waiting *for it* rather than computing.
+        let arrived = StdArc::new(Barrier::new(READERS));
+        let rows = vec![row("s1", "[]")];
+
+        std::thread::scope(|scope| {
+            let mut handles = Vec::new();
+            for _ in 0..READERS {
+                let cache = cache.clone();
+                let runs = StdArc::clone(&runs);
+                let arrived = StdArc::clone(&arrived);
+                let rows = rows.clone();
+                handles.push(scope.spawn(move || {
+                    // Every thread reaches the cache at about the same moment, which is the shape of a
+                    // burst of readers hitting a replica that has just started.
+                    arrived.wait();
+                    cache.get_or_reconstruct(rows, |_rows| {
+                        runs.fetch_add(1, Ordering::SeqCst);
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                        FeedResult::default()
+                    })
+                }));
+            }
+            for handle in handles {
+                handle.join().expect("no reader panicked");
+            }
+        });
+
+        assert_eq!(
+            runs.load(Ordering::SeqCst),
+            1,
+            "{READERS} concurrent readers of the same uncached rows must reconstruct once between them"
+        );
     }
 
     /// An absent field and an empty one are different inputs.

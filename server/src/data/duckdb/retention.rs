@@ -553,8 +553,8 @@ mod tests {
 
     fn insert_test_metric(conn: &Connection, name: &str, timestamp: &str) {
         conn.execute(
-            "INSERT INTO otel_metrics (metric_name, metric_type, timestamp)
-             VALUES (?1, 'gauge', ?2)",
+            "INSERT INTO otel_metrics (datapoint_id, metric_name, metric_type, timestamp)
+             VALUES (?1, ?1, 'gauge', ?2)",
             [name, timestamp],
         )
         .expect("Failed to insert test metric");

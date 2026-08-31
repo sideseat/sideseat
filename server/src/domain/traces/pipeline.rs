@@ -231,6 +231,15 @@ impl TracePipeline {
                     _ = claim_interval.tick() => {
                         // Periodically claim stuck messages from other consumers
                         self.claim_stuck_messages(&claimer, &acker, &consumer).await;
+                        // And discard what every group is finished with. This is the only thing that
+                        // bounds the stream: publishing no longer trims by length, because a length
+                        // bound deletes the oldest entries whether or not anyone read them - and each
+                        // had already been answered 200.
+                        match claimer.trim_consumed().await {
+                            Ok(0) => {}
+                            Ok(trimmed) => tracing::debug!(trimmed, "Trimmed consumed stream entries"),
+                            Err(e) => tracing::warn!(error = %e, "Failed to trim consumed stream entries"),
+                        }
                         continue;
                     }
                 };

@@ -268,8 +268,7 @@ impl ClickhouseService {
     /// so a partial failure leaves the database at the previous version and the migration is retried
     /// on the next start rather than being silently skipped.
     async fn apply_versioned_migration(&self, version: i32) -> Result<(), ClickhouseError> {
-        let Some((_, name, statements)) = schema::MIGRATIONS.iter().find(|(v, _, _)| *v == version)
-        else {
+        let Some(migration) = schema::MIGRATIONS.iter().find(|m| m.version == version) else {
             return Err(ClickhouseError::MigrationFailed {
                 version,
                 name: "unknown".to_string(),
@@ -281,28 +280,64 @@ impl ClickhouseService {
             });
         };
 
+        let name = migration.name;
         let on_cluster = schema::get_on_cluster_clause(&self.config);
-        for statement in *statements {
-            let sql = statement.replace("{on_cluster}", &on_cluster);
-            self.client.query(&sql).execute().await.map_err(|e| {
-                ClickhouseError::MigrationFailed {
-                    version,
-                    name: (*name).to_string(),
-                    error: e.to_string(),
-                }
-            })?;
+        let local = schema::local_table_suffix(&self.config);
+        let render = |statement: &str| {
+            statement
+                .replace("{on_cluster}", &on_cluster)
+                .replace("{local}", local)
+        };
+        let failed = |e: ClickhouseError| ClickhouseError::MigrationFailed {
+            version,
+            name: name.to_string(),
+            error: e.to_string(),
+        };
+
+        // The precondition decides whether the statements still have work to do. Its absence means
+        // they are idempotent; its presence means they are not, and re-running them would fail - so a
+        // migration whose statements landed while the version record did not stays recoverable.
+        if let Some(precondition) = migration.precondition {
+            let pending: Option<u8> = self
+                .client
+                .query(&render(precondition))
+                .fetch_optional()
+                .await
+                .map_err(|e| failed(ClickhouseError::from(e)))?;
+            if pending.is_none() {
+                tracing::debug!(
+                    "ClickHouse migration v{version} ({name}) is already applied; recording the version"
+                );
+                return self.record_schema_version(version).await;
+            }
         }
 
+        let statements = migration.statements.iter().chain(
+            migration
+                .distributed_statements
+                .iter()
+                .filter(|_| self.config.distributed),
+        );
+        for statement in statements {
+            self.client
+                .query(&render(statement))
+                .execute()
+                .await
+                .map_err(|e| failed(ClickhouseError::from(e)))?;
+        }
+
+        tracing::debug!("ClickHouse migration v{} ({}) applied", version, name);
+        self.record_schema_version(version).await
+    }
+
+    async fn record_schema_version(&self, version: i32) -> Result<(), ClickhouseError> {
         self.client
             .query("ALTER TABLE schema_version UPDATE version = ?, applied_at = ? WHERE id = 1")
             .bind(version)
             .bind(chrono::Utc::now().timestamp())
             .execute()
             .await
-            .map_err(ClickhouseError::from)?;
-
-        tracing::debug!("ClickHouse migration v{} ({}) applied", version, name);
-        Ok(())
+            .map_err(ClickhouseError::from)
     }
 
     /// Start health check task

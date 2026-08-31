@@ -1855,8 +1855,15 @@ pub fn count_project_rows(conn: &Connection, project_id: &str) -> Result<u64, Du
         [project_id],
         |row| row.get(0),
     )?;
+    // Distinct *datapoints*, not rows, because ClickHouse counts through `FINAL` and the two answers
+    // decide whether a project's tombstone may go. A re-delivered metrics export appends here and
+    // replaces there, so counting rows made a redelivery look like data that deletion had missed.
+    //
+    // Rows written before the identity existed carry `''`; they fall back to their own `rowid` so a
+    // hundred untagged rows stay a hundred rather than collapsing into one.
     let metrics: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM otel_metrics WHERE project_id = ?",
+        "SELECT COUNT(DISTINCT COALESCE(NULLIF(datapoint_id, ''), CAST(rowid AS VARCHAR)))
+         FROM otel_metrics WHERE project_id = ?",
         [project_id],
         |row| row.get(0),
     )?;

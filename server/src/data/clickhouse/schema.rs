@@ -14,7 +14,7 @@
 use crate::core::config::ClickhouseConfig;
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 2;
+pub const SCHEMA_VERSION: i32 = 3;
 
 /// The oldest schema version this build can migrate *from*.
 ///
@@ -22,17 +22,74 @@ pub const SCHEMA_VERSION: i32 = 2;
 /// there is nothing to migrate from v1. A database older than this has to be recreated.
 pub const MIN_UPGRADABLE_FROM: i32 = 2;
 
-/// One entry per version above [`MIN_UPGRADABLE_FROM`]: `(version, name, statements)`.
+/// One schema migration.
 ///
-/// `{on_cluster}` in a statement is replaced with the ON CLUSTER clause, which is required for DDL in
-/// distributed mode and empty otherwise - see [`get_on_cluster_clause`].
+/// Every statement has `{on_cluster}` replaced with the ON CLUSTER clause - required for DDL in
+/// distributed mode, empty otherwise - and `{local}` with the suffix that names the table holding the
+/// data (`_local` in distributed mode, nothing in single-node mode).
 ///
-/// A fresh database is created directly at [`SCHEMA_VERSION`] by the initial schema, so entries here
-/// exist solely for databases written by older builds. `migrations_cover_every_version` fails the build
-/// if a version bump arrives without one, which is the guard that was missing: the mechanism compiled,
-/// had no entries, and would have refused to start every existing database the moment the version
-/// moved.
-pub const MIGRATIONS: &[(i32, &str, &[&str])] = &[];
+/// A fresh database is created directly at [`SCHEMA_VERSION`] by the initial schema, so entries exist
+/// solely for databases written by older builds. `migrations_cover_every_version` fails the build if a
+/// version bump arrives without one, which is the guard that was missing: the mechanism compiled, had no
+/// entries, and would have refused to start every existing database the moment the version moved.
+pub struct Migration {
+    pub version: i32,
+    pub name: &'static str,
+    /// A query returning one row when the migration still has work to do, and no rows when it is
+    /// already applied. Checked before `statements` run.
+    ///
+    /// Not every schema change can be phrased idempotently. `ALTER TABLE ... ADD COLUMN, MODIFY ORDER
+    /// BY` is the case in hand: ClickHouse permits a sorting key to be extended only by a column added
+    /// in the *same* statement, so re-running it after it has succeeded is an error rather than a
+    /// no-op - and a migration whose statements succeed while the version record fails would then leave
+    /// a database that can never start again. A precondition makes retrying safe without requiring
+    /// every statement to be individually idempotent, which is the property that is actually hard to
+    /// keep by hand.
+    pub precondition: Option<&'static str>,
+    /// Applied in order, against the table that holds the data.
+    pub statements: &'static [&'static str],
+    /// Applied only in distributed mode, after `statements`.
+    ///
+    /// A `Distributed` table is created `AS otel_x_local`, which copies the structure once; it does not
+    /// track later changes. So a column added to the local table has to be added to the distributed
+    /// front end too, and in single-node mode there is no such table and nothing to do.
+    pub distributed_statements: &'static [&'static str],
+}
+
+/// A datapoint's identity joins the metrics sorting key, so distinct series stop being deleted.
+///
+/// `otel_metrics` is a `ReplacingMergeTree` sorted by
+/// `(project_id, metric_name, toDate(timestamp), timestamp)`, and a replacing engine treats rows with an
+/// equal sorting key as versions of one row. Attributes were not in that key, so
+/// `requests{status=200}` and `requests{status=500}` from one export - the ordinary shape of a labelled
+/// metric, not an edge case - collapsed into a single row at the next merge, after the ingest had
+/// returned 200. Appending `datapoint_id` (see `domain::metrics::identity`) makes the key describe the
+/// series, so only a genuine re-delivery replaces anything.
+///
+/// Metadata-only: no part is rewritten, no row is lost, and the sorting key's original prefix stays the
+/// primary key. Rows written before this point keep the column's default `''`, which is honest - their
+/// identity was never recorded and a value invented in SQL would not match the one Rust computes - so
+/// they retain the old collapse among themselves and age out with the 90-day retention. Datapoints
+/// already merged away before the upgrade are gone; nothing can recover them.
+const METRIC_DATAPOINT_IDENTITY: Migration = Migration {
+    version: 3,
+    name: "metric_datapoint_identity",
+    // `sorting_key` is the *declared* key. When it already names the column the ALTER below has run,
+    // and re-running it would fail rather than do nothing.
+    precondition: Some(
+        "SELECT 1 FROM system.tables WHERE database = currentDatabase() \
+         AND name = 'otel_metrics{local}' AND position(sorting_key, 'datapoint_id') = 0",
+    ),
+    statements: &[
+        "ALTER TABLE otel_metrics{local}{on_cluster} ADD COLUMN datapoint_id String, \
+         MODIFY ORDER BY (project_id, metric_name, toDate(timestamp), timestamp, datapoint_id)",
+    ],
+    distributed_statements: &[
+        "ALTER TABLE otel_metrics{on_cluster} ADD COLUMN IF NOT EXISTS datapoint_id String",
+    ],
+};
+
+pub const MIGRATIONS: &[Migration] = &[METRIC_DATAPOINT_IDENTITY];
 
 /// Validate and return a cluster name safe for SQL interpolation.
 ///
@@ -378,6 +435,7 @@ fn otel_metrics_local_table(config: &ClickhouseConfig) -> String {
 CREATE TABLE IF NOT EXISTS otel_metrics_local ON CLUSTER {cluster} (
     -- IDENTITY
     project_id              LowCardinality(String),
+    datapoint_id            String,
     metric_name             LowCardinality(String),
     metric_description      Nullable(String),
     metric_unit             LowCardinality(Nullable(String)),
@@ -451,7 +509,7 @@ CREATE TABLE IF NOT EXISTS otel_metrics_local ON CLUSTER {cluster} (
     INDEX idx_session_id session_id TYPE bloom_filter GRANULARITY 1
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{db}/otel_metrics', '{{replica}}')
 PARTITION BY toYYYYMM(timestamp)
-ORDER BY (project_id, metric_name, toDate(timestamp), timestamp)
+ORDER BY (project_id, metric_name, toDate(timestamp), timestamp, datapoint_id)
 TTL timestamp + INTERVAL 90 DAY DELETE
 SETTINGS index_granularity = 8192
 "#,
@@ -480,6 +538,7 @@ fn otel_metrics_single_table() -> String {
 CREATE TABLE IF NOT EXISTS otel_metrics (
     -- IDENTITY
     project_id              LowCardinality(String),
+    datapoint_id            String,
     metric_name             LowCardinality(String),
     metric_description      Nullable(String),
     metric_unit             LowCardinality(Nullable(String)),
@@ -553,7 +612,7 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     INDEX idx_session_id session_id TYPE bloom_filter GRANULARITY 1
 ) ENGINE = ReplacingMergeTree()
 PARTITION BY toYYYYMM(timestamp)
-ORDER BY (project_id, metric_name, toDate(timestamp), timestamp)
+ORDER BY (project_id, metric_name, toDate(timestamp), timestamp, datapoint_id)
 TTL timestamp + INTERVAL 90 DAY DELETE
 SETTINGS index_granularity = 8192
 "#
@@ -611,6 +670,11 @@ pub fn get_delete_table(config: &ClickhouseConfig, base_name: &str) -> String {
 /// Get the ON CLUSTER clause for DDL/mutation operations
 ///
 /// In distributed mode, mutations need ON CLUSTER to execute on all nodes.
+/// The suffix naming the table that holds the data: `_local` in distributed mode, nothing otherwise.
+pub fn local_table_suffix(config: &ClickhouseConfig) -> &'static str {
+    if config.distributed { "_local" } else { "" }
+}
+
 pub fn get_on_cluster_clause(config: &ClickhouseConfig) -> String {
     if config.distributed {
         format!(" ON CLUSTER {}", safe_cluster_name(config))
@@ -754,14 +818,11 @@ mod tests {
     /// into a startup error. That failure belongs here, not at a user's first restart after upgrading.
     #[test]
     fn migrations_cover_every_version() {
-        // Empty today, by design: the backend was introduced at v2 and nothing has been added since,
-        // so there is nothing to migrate from. Through locals, because clippy const-folds the literal
-        // range and reports the emptiness as the bug - here it is the expected state.
         let first_upgradable = MIN_UPGRADABLE_FROM + 1;
         let current = SCHEMA_VERSION;
         for version in first_upgradable..=current {
             assert!(
-                MIGRATIONS.iter().any(|(v, _, _)| *v == version),
+                MIGRATIONS.iter().any(|m| m.version == version),
                 "schema v{version} has no entry in MIGRATIONS: a database written by an older build \
                  would fail to start. Add the migration, or raise MIN_UPGRADABLE_FROM if v{version} \
                  was never released."
@@ -772,7 +833,7 @@ mod tests {
     /// Entries must be ordered and unique, because they are applied in sequence.
     #[test]
     fn migrations_are_ordered_and_unique() {
-        let versions: Vec<i32> = MIGRATIONS.iter().map(|(v, _, _)| *v).collect();
+        let versions: Vec<i32> = MIGRATIONS.iter().map(|m| m.version).collect();
         let mut sorted = versions.clone();
         sorted.sort_unstable();
         sorted.dedup();
@@ -780,15 +841,56 @@ mod tests {
             versions, sorted,
             "MIGRATIONS must be strictly ascending with no repeats"
         );
-        for (version, name, statements) in MIGRATIONS {
+        for m in MIGRATIONS {
+            let (version, name) = (m.version, m.name);
             assert!(
-                *version > MIN_UPGRADABLE_FROM,
+                version > MIN_UPGRADABLE_FROM,
                 "migration v{version} ({name}) is at or below MIN_UPGRADABLE_FROM, so it can never run"
             );
             assert!(
-                !statements.is_empty(),
+                !m.statements.is_empty(),
                 "migration v{version} ({name}) has no statements"
             );
+            // A `Distributed` front end has no rows, so a statement aimed at it can only be DDL that
+            // the local table also received - never the sorting-key change, which would be rejected.
+            for statement in m.distributed_statements {
+                assert!(
+                    !statement.contains("{local}"),
+                    "migration v{version} ({name}) aims a {{local}} statement at the distributed table"
+                );
+            }
+        }
+    }
+
+    /// Every placeholder a migration uses is one the runner substitutes.
+    ///
+    /// A statement carrying an unknown `{...}` reaches ClickHouse verbatim and fails at a user's
+    /// upgrade, which is the least useful moment to learn about a typo.
+    #[test]
+    fn migrations_use_only_known_placeholders() {
+        const KNOWN: [&str; 2] = ["{on_cluster}", "{local}"];
+        for m in MIGRATIONS {
+            let all = m
+                .statements
+                .iter()
+                .chain(m.distributed_statements.iter())
+                .chain(m.precondition.iter());
+            for statement in all {
+                let mut rest = *statement;
+                while let Some(start) = rest.find('{') {
+                    let end = rest[start..]
+                        .find('}')
+                        .unwrap_or_else(|| panic!("migration v{} has an unclosed '{{'", m.version))
+                        + start;
+                    let placeholder = &rest[start..=end];
+                    assert!(
+                        KNOWN.contains(&placeholder),
+                        "migration v{} uses unknown placeholder {placeholder}",
+                        m.version
+                    );
+                    rest = &rest[end + 1..];
+                }
+            }
         }
     }
 

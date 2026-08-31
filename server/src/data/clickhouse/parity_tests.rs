@@ -502,6 +502,20 @@ async fn duckdb_backend() -> (tempfile::TempDir, Arc<DuckdbService>) {
 
 /// Connects to the ClickHouse named by [`URL_ENV`] in a database of its own, so a run cannot
 /// collide with a developer's real data or with a concurrent run.
+/// A bare client on one database, for the statements a repository has no reason to expose.
+fn raw_client(url: &str, database: &str) -> clickhouse::Client {
+    let mut client = clickhouse::Client::default()
+        .with_url(url)
+        .with_database(database);
+    if let Ok(user) = std::env::var(USER_ENV) {
+        client = client.with_user(user);
+    }
+    if let Ok(password) = std::env::var(PASSWORD_ENV) {
+        client = client.with_password(password);
+    }
+    client
+}
+
 async fn clickhouse_backend(url: &str, database: &str) -> Arc<ClickhouseService> {
     let user = std::env::var(USER_ENV).ok();
     let password = std::env::var(PASSWORD_ENV).ok();
@@ -2572,5 +2586,88 @@ fn the_fixture_covers_the_cases_parity_depends_on() {
     assert!(
         session_1_traces.len() >= 2,
         "session-1 must span several traces, so session totals cross trace boundaries"
+    );
+}
+
+/// Two labelled series recorded at the same instant survive on both backends, and a re-delivery of
+/// either does not become a second datapoint.
+///
+/// The ClickHouse metrics table is a `ReplacingMergeTree`, and its sorting key held only
+/// `(project_id, metric_name, toDate(timestamp), timestamp)` - no attributes. A replacing engine treats
+/// rows with an equal sorting key as versions of one row, so `requests{status=200}` and
+/// `requests{status=500}` from a single export collapsed into one row at the next merge, with the 200
+/// already returned to the exporter. DuckDB, append-only and with no identity at all, had the opposite
+/// failure: the same export delivered twice was stored twice.
+///
+/// `FINAL` is what a read applies, so the test reads through `count_project_rows` on both sides rather
+/// than inspecting parts, and `OPTIMIZE ... FINAL` forces the merge instead of waiting for one - without
+/// it the collapse is invisible for as long as the rows sit in separate parts, which is exactly why the
+/// defect survived until now.
+#[tokio::test]
+async fn distinct_metric_series_survive_and_a_redelivery_does_not_duplicate() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!(
+            "clickhouse parity: skipped - set {URL_ENV} to a ClickHouse HTTP endpoint \
+             (or run `make test-clickhouse`)"
+        );
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_metrics").await;
+
+    let series = |status: i64| {
+        let mut metric = NormalizedMetric {
+            project_id: Some(PROJECT.to_string()),
+            metric_name: "http.server.requests".to_string(),
+            metric_type: MetricType::Sum,
+            aggregation_temporality: AggregationTemporality::Cumulative,
+            is_monotonic: Some(true),
+            // One instant, which is the ordinary case: an export stamps every datapoint of a metric
+            // with the same collection time.
+            timestamp: ts(0),
+            value_int: Some(status),
+            attributes: serde_json::json!({"http.response.status_code": status}),
+            ..Default::default()
+        };
+        metric.datapoint_id = crate::domain::metrics::datapoint_id(&metric);
+        metric
+    };
+    let export = vec![series(200), series(500)];
+    assert_ne!(
+        export[0].datapoint_id, export[1].datapoint_id,
+        "two label sets must not share an identity, or the storage cannot tell them apart"
+    );
+
+    // Delivered twice, so the second pass is a re-delivery - the case DuckDB used to duplicate.
+    for _ in 0..2 {
+        duck.insert_metrics(&export).await.expect("duckdb metrics");
+        ch.insert_metrics(&export)
+            .await
+            .expect("clickhouse metrics");
+    }
+
+    // Force the merge that decides whether a replacing engine keeps both rows.
+    raw_client(&url, "sideseat_parity_metrics")
+        .query("OPTIMIZE TABLE otel_metrics FINAL")
+        .execute()
+        .await
+        .expect("clickhouse optimize");
+
+    let duck_rows = duck
+        .count_project_rows(PROJECT)
+        .await
+        .expect("duckdb project rows");
+    let ch_rows = ch
+        .count_project_rows(PROJECT)
+        .await
+        .expect("clickhouse project rows");
+    assert_eq!(
+        duck_rows, ch_rows,
+        "the backends disagree about how many datapoints exist: duckdb={duck_rows} clickhouse={ch_rows}"
+    );
+    assert_eq!(
+        ch_rows, 2,
+        "both labelled series must survive, and neither re-delivery may add a third"
     );
 }

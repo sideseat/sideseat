@@ -45,6 +45,7 @@ use async_trait::async_trait;
 use deadpool_redis::redis::{RedisResult, Value as RedisValue};
 use deadpool_redis::{Config, Pool, Runtime};
 use futures::StreamExt;
+use std::fmt;
 
 use super::backend::{
     BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend,
@@ -58,8 +59,17 @@ const STREAM_PREFIX: &str = "{sideseat}:stream:";
 /// Pub/Sub channel prefix
 const PUBSUB_PREFIX: &str = "{sideseat}:pubsub:";
 
-/// Default MAXLEN for streams (approximate trimming)
-const DEFAULT_STREAM_MAXLEN: u64 = 100_000;
+/// How large an *unprocessed* backlog a stream may hold before publishing is refused.
+///
+/// This is a backpressure threshold, not a trimming bound. The stream used to be published with
+/// `XADD ... MAXLEN ~ 100000`, which deletes the oldest entries to keep the length down - and Redis
+/// trims by length, with no idea whether an entry has been read. So a consumer outage, or any backlog
+/// past the bound, silently destroyed payloads that HTTP and gRPC had already answered 200. The
+/// promise that a 200 means "durably queued" was broken by the queue itself.
+///
+/// The bound now refuses new work instead of discarding accepted work: an exporter gets 503 with
+/// `Retry-After` and keeps the data, which is exactly what an OTLP exporter is built to handle.
+const DEFAULT_STREAM_MAX_BACKLOG: u64 = 100_000;
 
 /// XREADGROUP block timeout in milliseconds
 const XREADGROUP_BLOCK_MS: u64 = 5000;
@@ -76,8 +86,18 @@ pub struct RedisTopicBackend {
     pool: Pool,
     /// Redis URL for creating dedicated pub/sub connections
     redis_url: String,
-    /// Stream max length (approximate)
-    stream_maxlen: u64,
+    /// How many unprocessed entries a stream may hold before publishing is refused.
+    ///
+    /// Atomic so a test can lower it; production never changes it after construction.
+    stream_max_backlog: std::sync::atomic::AtomicU64,
+    /// Last observed length per stream key, so the common publish costs no extra round trip.
+    ///
+    /// The length comes back from the same pipeline as the `XADD`, so a publish that pushes the stream
+    /// over the threshold succeeds and the *next* one is refused. Overshoot is bounded by the number of
+    /// publishes in flight, which is what makes a threshold affordable: asking Redis for the length
+    /// before every append would double the round trips on the hot ingestion path to enforce a limit
+    /// that is approximate by nature.
+    observed_backlog: Arc<dashmap::DashMap<String, u64>>,
     /// Pub/Sub manager (handles bridge lifecycle)
     pubsub_manager: Arc<PubSubManager>,
 }
@@ -123,7 +143,8 @@ impl RedisTopicBackend {
         Ok(Self {
             pool,
             redis_url: redis_url.to_string(),
-            stream_maxlen: DEFAULT_STREAM_MAXLEN,
+            stream_max_backlog: std::sync::atomic::AtomicU64::new(DEFAULT_STREAM_MAX_BACKLOG),
+            observed_backlog: Arc::new(dashmap::DashMap::new()),
             pubsub_manager: Arc::new(PubSubManager::new(DEFAULT_BROADCAST_CAPACITY)),
         })
     }
@@ -136,7 +157,8 @@ impl RedisTopicBackend {
         Self {
             pool,
             redis_url: redis_url.to_string(),
-            stream_maxlen: DEFAULT_STREAM_MAXLEN,
+            stream_max_backlog: std::sync::atomic::AtomicU64::new(DEFAULT_STREAM_MAX_BACKLOG),
+            observed_backlog: Arc::new(dashmap::DashMap::new()),
             pubsub_manager: Arc::new(PubSubManager::new(DEFAULT_BROADCAST_CAPACITY)),
         }
     }
@@ -196,6 +218,120 @@ impl RedisTopicBackend {
         });
 
         bridge.set_task(handle);
+    }
+
+    /// Lower the refusal threshold, so a test can reach it in a few entries instead of a hundred
+    /// thousand. Test-only: the threshold is otherwise a constant, deliberately not a knob.
+    #[cfg(test)]
+    pub(super) fn set_max_backlog_for_test(&self, limit: u64) {
+        self.stream_max_backlog
+            .store(limit, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    fn max_backlog(&self) -> u64 {
+        self.stream_max_backlog
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// Every entry currently in the stream, oldest first. Test-only: production code reads through a
+    /// consumer group, and a test asserting nothing was *deleted* has to look past the group.
+    #[cfg(test)]
+    pub(super) async fn read_all_for_test(
+        &self,
+        topic: &str,
+    ) -> Result<Vec<(String, Vec<u8>)>, TopicError> {
+        let key = self.stream_key(topic);
+        let mut conn = self.pool.get().await?;
+        let entries: RedisValue = deadpool_redis::redis::cmd("XRANGE")
+            .arg(&key)
+            .arg("-")
+            .arg("+")
+            .query_async(&mut conn)
+            .await?;
+        let RedisValue::Array(entries) = entries else {
+            return Ok(Vec::new());
+        };
+        Ok(entries
+            .iter()
+            .filter_map(|entry| {
+                let RedisValue::Array(parts) = entry else {
+                    return None;
+                };
+                let id = redis_string(parts.first()?)?;
+                let RedisValue::Array(fields) = parts.get(1)? else {
+                    return None;
+                };
+                // `payload <bytes>`, the one field `stream_publish` writes.
+                let RedisValue::BulkString(bytes) = fields.get(1)? else {
+                    return None;
+                };
+                Some((id, bytes.clone()))
+            })
+            .collect())
+    }
+
+    /// Create a consumer group on a stream that may not exist yet. Test-only.
+    #[cfg(test)]
+    pub(super) async fn ensure_group_for_test(
+        &self,
+        topic: &str,
+        group: &str,
+    ) -> Result<(), TopicError> {
+        let key = self.stream_key(topic);
+        let mut conn = self.pool.get().await?;
+        let _: RedisResult<String> = deadpool_redis::redis::cmd("XGROUP")
+            .arg("CREATE")
+            .arg(&key)
+            .arg(group)
+            .arg("0")
+            .arg("MKSTREAM")
+            .query_async(&mut conn)
+            .await;
+        Ok(())
+    }
+
+    /// The oldest entry this group still needs, or `None` when it cannot be determined.
+    ///
+    /// `None` means "do not trim": an unreadable answer is not evidence that a group is finished.
+    async fn oldest_needed_id(
+        &self,
+        conn: &mut deadpool_redis::Connection,
+        key: &str,
+        group: &str,
+    ) -> Option<StreamId> {
+        // An entry delivered but not acknowledged is still owed, whoever holds it - including a consumer
+        // that has since died, whose messages `stream_claim` will hand to someone else.
+        let pending: RedisValue = deadpool_redis::redis::cmd("XPENDING")
+            .arg(key)
+            .arg(group)
+            .arg("-")
+            .arg("+")
+            .arg(1)
+            .query_async(conn)
+            .await
+            .ok()?;
+        if let RedisValue::Array(entries) = &pending
+            && let Some(RedisValue::Array(parts)) = entries.first()
+            && let Some(id) = parts.first().and_then(redis_string)
+        {
+            return StreamId::parse(&id);
+        }
+
+        // Nothing pending, so everything delivered is acknowledged and the next id is the boundary.
+        let groups: RedisValue = deadpool_redis::redis::cmd("XINFO")
+            .arg("GROUPS")
+            .arg(key)
+            .query_async(conn)
+            .await
+            .ok()?;
+        let RedisValue::Array(groups) = groups else {
+            return None;
+        };
+        let entry = groups
+            .iter()
+            .find(|g| group_field(g, "name").as_deref() == Some(group))?;
+        let last = group_field(entry, "last-delivered-id")?;
+        StreamId::parse(&last).map(StreamId::next)
     }
 
     /// Run the bridge task that forwards Redis messages to local broadcast
@@ -410,23 +546,112 @@ impl TopicBackend for RedisTopicBackend {
     // Stream
     // =========================================================================
 
+    /// Append to the stream, refusing rather than trimming when the backlog is too large.
+    ///
+    /// Deliberately no `MAXLEN`: trimming is by length and blind to what has been consumed, so the old
+    /// form deleted entries that a consumer had never read and an exporter had already been told were
+    /// stored. Entries are instead removed by `stream_trim_consumed` once every group is past them, and
+    /// a backlog that outgrows [`DEFAULT_STREAM_MAX_BACKLOG`] turns into `BufferFull` - which the OTLP
+    /// routes answer with 503 and `Retry-After`, leaving the data with the exporter that still has it.
     async fn stream_publish(&self, topic: &str, payload: &[u8]) -> Result<String, TopicError> {
         let key = self.stream_key(topic);
+
+        if let Some(observed) = self.observed_backlog.get(&key)
+            && *observed >= self.max_backlog()
+        {
+            return Err(TopicError::BufferFull);
+        }
+
         let mut conn = self.pool.get().await?;
 
-        // XADD with MAXLEN trimming
-        let id: String = deadpool_redis::redis::cmd("XADD")
+        // One round trip for both, so the threshold costs nothing in the steady state.
+        let mut pipe = deadpool_redis::redis::pipe();
+        pipe.cmd("XADD")
             .arg(&key)
-            .arg("MAXLEN")
-            .arg("~")
-            .arg(self.stream_maxlen)
             .arg("*")
             .arg("payload")
             .arg(payload)
+            .cmd("XLEN")
+            .arg(&key);
+        let (id, length): (String, u64) = pipe.query_async(&mut conn).await?;
+
+        let was_over = length >= self.max_backlog();
+        self.observed_backlog.insert(key.clone(), length);
+        if was_over {
+            tracing::warn!(
+                stream = %key,
+                length,
+                limit = self.max_backlog(),
+                "Stream backlog is at its limit; further publishes are refused until consumers catch up"
+            );
+        }
+
+        Ok(id)
+    }
+
+    /// Remove entries that every consumer group has finished with.
+    ///
+    /// The safe boundary is the oldest entry any group still needs: its oldest *pending* entry if it has
+    /// one, otherwise one past its last delivered id. `XTRIM MINID` then removes strictly older entries,
+    /// so nothing unread and nothing unacknowledged is ever deleted - which is the whole difference from
+    /// the `MAXLEN` this replaces.
+    ///
+    /// A stream with no consumer group is left alone: nobody has read it yet, so every entry is still
+    /// needed. Returning 0 there rather than trimming is the difference between an idle stream and an
+    /// emptied one.
+    async fn stream_trim_consumed(&self, topic: &str) -> Result<u64, TopicError> {
+        let key = self.stream_key(topic);
+        let mut conn = self.pool.get().await?;
+
+        let groups: RedisValue = deadpool_redis::redis::cmd("XINFO")
+            .arg("GROUPS")
+            .arg(&key)
+            .query_async(&mut conn)
+            .await
+            .unwrap_or(RedisValue::Nil);
+        let RedisValue::Array(groups) = groups else {
+            return Ok(0);
+        };
+        if groups.is_empty() {
+            return Ok(0);
+        }
+
+        let mut boundary: Option<StreamId> = None;
+        for group in &groups {
+            let Some(name) = group_field(group, "name") else {
+                // A group whose name cannot be read is a group whose progress is unknown, and trimming
+                // on incomplete information is how unread entries get deleted.
+                return Ok(0);
+            };
+            let needed = match self.oldest_needed_id(&mut conn, &key, &name).await {
+                Some(id) => id,
+                None => return Ok(0),
+            };
+            boundary = Some(match boundary {
+                Some(current) if current <= needed => current,
+                _ => needed,
+            });
+        }
+
+        let Some(boundary) = boundary else {
+            return Ok(0);
+        };
+        let trimmed: u64 = deadpool_redis::redis::cmd("XTRIM")
+            .arg(&key)
+            .arg("MINID")
+            .arg(boundary.to_string())
             .query_async(&mut conn)
             .await?;
 
-        Ok(id)
+        if trimmed > 0 {
+            // The refusal threshold reads this, so a trim has to update it or publishing stays refused
+            // until the next append observes the shorter stream.
+            if let Some(mut observed) = self.observed_backlog.get_mut(&key) {
+                *observed = observed.saturating_sub(trimmed);
+            }
+            tracing::debug!(stream = %key, trimmed, boundary = %boundary, "Trimmed consumed stream entries");
+        }
+        Ok(trimmed)
     }
 
     async fn stream_subscribe(
@@ -793,6 +1018,70 @@ fn sanitize_redis_url(url: &str) -> String {
     url.to_string()
 }
 
+/// A Redis stream id, ordered as Redis orders it rather than as a string.
+///
+/// Ids are `<millis>-<sequence>`, so a lexicographic comparison is wrong the moment the millisecond
+/// component changes width: `"9-0"` sorts after `"10-0"` as text and before it as a stream id. The trim
+/// boundary is a minimum over groups, so getting this backwards would delete entries a group still
+/// needs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct StreamId {
+    millis: u64,
+    sequence: u64,
+}
+
+impl StreamId {
+    fn parse(raw: &str) -> Option<Self> {
+        let (millis, sequence) = raw.split_once('-')?;
+        Some(Self {
+            millis: millis.parse().ok()?,
+            sequence: sequence.parse().ok()?,
+        })
+    }
+
+    /// The next id after this one, which is the oldest entry still needed by a group that has
+    /// acknowledged everything it was delivered.
+    fn next(self) -> Self {
+        match self.sequence.checked_add(1) {
+            Some(sequence) => Self {
+                millis: self.millis,
+                sequence,
+            },
+            None => Self {
+                millis: self.millis.saturating_add(1),
+                sequence: 0,
+            },
+        }
+    }
+}
+
+impl fmt::Display for StreamId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}-{}", self.millis, self.sequence)
+    }
+}
+
+/// Read a named field out of one `XINFO GROUPS` entry, which is a flat key/value array.
+fn group_field(group: &RedisValue, field: &str) -> Option<String> {
+    let RedisValue::Array(pairs) = group else {
+        return None;
+    };
+    let mut iter = pairs.chunks_exact(2);
+    iter.find_map(|pair| {
+        let key = redis_string(&pair[0])?;
+        (key == field).then(|| redis_string(&pair[1]))?
+    })
+}
+
+fn redis_string(value: &RedisValue) -> Option<String> {
+    match value {
+        RedisValue::BulkString(bytes) => String::from_utf8(bytes.clone()).ok(),
+        RedisValue::SimpleString(s) => Some(s.clone()),
+        RedisValue::Int(i) => Some(i.to_string()),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -806,6 +1095,72 @@ mod tests {
 
         assert_eq!(stream_key, "{sideseat}:stream:test");
         assert_eq!(pubsub_channel, "{sideseat}:pubsub:test");
+    }
+
+    /// Stream ids order numerically, not lexicographically.
+    ///
+    /// The trim boundary is a minimum over consumer groups, and `"9-0" < "10-0"` is false as text. A
+    /// string comparison would therefore pick a boundary *later* than the oldest entry a group still
+    /// needs and `XTRIM MINID` would delete unread work - the very failure the trim exists to avoid.
+    #[test]
+    fn stream_ids_order_numerically() {
+        let nine = StreamId::parse("9-0").expect("parses");
+        let ten = StreamId::parse("10-0").expect("parses");
+        assert!(
+            nine < ten,
+            "9-0 must precede 10-0, however it sorts as text"
+        );
+        assert!(
+            "9-0" > "10-0",
+            "the lexicographic order really is the wrong one"
+        );
+
+        // The sequence orders within one millisecond.
+        assert!(StreamId::parse("5-2").unwrap() < StreamId::parse("5-10").unwrap());
+
+        // Round trips, because the boundary is sent back to Redis as a string.
+        assert_eq!(
+            StreamId::parse("1700000000000-3").unwrap().to_string(),
+            "1700000000000-3"
+        );
+        assert!(StreamId::parse("not-an-id").is_none());
+        assert!(StreamId::parse("12345").is_none());
+    }
+
+    /// The entry after the last delivered one is the oldest a caught-up group still needs.
+    #[test]
+    fn the_next_id_follows_its_own_id() {
+        let id = StreamId::parse("100-4").unwrap();
+        assert!(id < id.next());
+        assert_eq!(id.next().to_string(), "100-5");
+        // A saturated sequence rolls into the next millisecond rather than wrapping backwards.
+        let saturated = StreamId {
+            millis: 100,
+            sequence: u64::MAX,
+        };
+        assert!(saturated < saturated.next());
+    }
+
+    /// `XINFO GROUPS` entries are flat key/value arrays, and the fields are read by name.
+    #[test]
+    fn group_fields_are_read_by_name() {
+        let group = RedisValue::Array(vec![
+            RedisValue::BulkString(b"name".to_vec()),
+            RedisValue::BulkString(b"traces".to_vec()),
+            RedisValue::BulkString(b"last-delivered-id".to_vec()),
+            RedisValue::BulkString(b"42-1".to_vec()),
+            RedisValue::BulkString(b"pending".to_vec()),
+            RedisValue::Int(3),
+        ]);
+        assert_eq!(group_field(&group, "name").as_deref(), Some("traces"));
+        assert_eq!(
+            group_field(&group, "last-delivered-id").as_deref(),
+            Some("42-1")
+        );
+        assert_eq!(group_field(&group, "pending").as_deref(), Some("3"));
+        // An absent field is absent, not the next value along.
+        assert_eq!(group_field(&group, "entries-read"), None);
+        assert_eq!(group_field(&RedisValue::Nil, "name"), None);
     }
 
     #[test]

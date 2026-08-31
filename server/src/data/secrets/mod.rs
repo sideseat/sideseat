@@ -225,40 +225,69 @@ impl SecretManager {
     }
 
     pub async fn get_jwt_signing_key(&self) -> Result<Vec<u8>> {
-        match self.get_value(SECRET_KEY_JWT_SIGNING).await {
-            Ok(Some(key_hex)) => {
-                if let Ok(key) = crypto::decode_hex(&key_hex)
-                    && key.len() == 32
-                {
-                    return Ok(key);
-                }
-                tracing::warn!("Stored JWT signing key has invalid format, regenerating");
-                self.create_jwt_signing_key().await
-            }
-            Ok(None) => self.create_jwt_signing_key().await,
-            Err(e) => {
-                tracing::warn!("Failed to read JWT signing key: {}, regenerating", e);
-                self.create_jwt_signing_key().await
-            }
-        }
+        self.get_or_create_root_secret(
+            SECRET_KEY_JWT_SIGNING,
+            "JWT signing key",
+            "every issued \
+             session token is rejected and users must sign in again",
+        )
+        .await
     }
 
     pub async fn get_api_key_secret(&self) -> Result<Vec<u8>> {
-        match self.get_value(SECRET_KEY_API_KEY).await {
-            Ok(Some(key_hex)) => {
-                if let Ok(key) = crypto::decode_hex(&key_hex)
-                    && key.len() == 32
+        self.get_or_create_root_secret(
+            SECRET_KEY_API_KEY,
+            "API key secret",
+            "every stored API key \
+             hash becomes unverifiable and authenticated ingestion fails with 401",
+        )
+        .await
+    }
+
+    /// Read a 32-byte root secret, creating one only when the backend says there is none.
+    ///
+    /// # Why a read failure is fatal rather than a regeneration
+    ///
+    /// These two secrets are the *only* copy of something the database's contents depend on: an API key
+    /// row stores `HMAC(key, secret)` and nothing else, and a session token is only a signature. Both
+    /// getters used to answer a read *error* by generating a fresh secret, which is the one response that
+    /// cannot be undone - the old secret was probably still there and merely unreadable (an expired Vault
+    /// token, an AWS throttle, a keychain the OS had locked), and the new one silently invalidated every
+    /// key and session in a database shared with every other instance. A backend that cannot be read is a
+    /// reason not to start; it is never evidence that a secret is absent.
+    ///
+    /// `Ok(None)` is different in kind - the backend answered, and its answer was that nothing is stored -
+    /// so first start still provisions itself with no operator step.
+    ///
+    /// A stored value that is present but malformed is regenerated, because no amount of retrying will
+    /// repair it, but at `error!` and saying what it costs: an operator who sees this has lost their keys
+    /// and needs to know now rather than from a user's 401.
+    async fn get_or_create_root_secret(
+        &self,
+        key: &str,
+        label: &str,
+        consequence: &str,
+    ) -> Result<Vec<u8>> {
+        match self.get_value(key).await {
+            Ok(Some(value_hex)) => {
+                if let Ok(secret) = crypto::decode_hex(&value_hex)
+                    && secret.len() == 32
                 {
-                    return Ok(key);
+                    return Ok(secret);
                 }
-                tracing::warn!("Stored API key secret has invalid format, regenerating");
-                self.create_api_key_secret().await
+                tracing::error!(
+                    secret = key,
+                    "Stored {label} is present but malformed; generating a new one, after which {consequence}"
+                );
+                self.create_root_secret(key).await
             }
-            Ok(None) => self.create_api_key_secret().await,
-            Err(e) => {
-                tracing::warn!("Failed to read API key secret: {}, regenerating", e);
-                self.create_api_key_secret().await
-            }
+            Ok(None) => self.create_root_secret(key).await,
+            Err(e) => Err(anyhow::anyhow!(
+                "could not read the {label} from the {} secrets backend: {e}. Refusing to start: \
+                 generating a replacement would mean {consequence}. Restore access to the backend, or \
+                 set the secret explicitly.",
+                self.provider.name(),
+            )),
         }
     }
 
@@ -293,37 +322,47 @@ impl SecretManager {
     // -- Private helpers --
 
     async fn ensure_jwt_signing_key(&self) -> Result<()> {
-        if self.exists(SECRET_KEY_JWT_SIGNING).await {
-            tracing::debug!("JWT signing key exists");
+        self.ensure_root_secret(SECRET_KEY_JWT_SIGNING, "JWT signing key")
+            .await
+    }
+
+    /// Provision a root secret if the backend reports it absent, and fail if it cannot say.
+    ///
+    /// `exists` answers `false` for both "not stored" and "could not tell" (`unwrap_or(false)`), and this
+    /// path runs at startup *before* anything reads the secret - so a backend that was merely unreachable
+    /// made the server generate a replacement and overwrite the live one, which is the loss
+    /// `get_or_create_root_secret` refuses. Asking the provider directly keeps the two answers apart.
+    async fn ensure_root_secret(&self, key: &str, label: &str) -> Result<()> {
+        let present = self
+            .provider
+            .exists(&SecretKey::global(key))
+            .await
+            .with_context(|| {
+                format!(
+                    "could not tell whether the {label} is already stored in the {} secrets backend; \
+                     refusing to overwrite a secret that may exist",
+                    self.provider.name()
+                )
+            })?;
+        if present {
+            tracing::debug!(secret = key, "{label} exists");
             return Ok(());
         }
-        self.create_jwt_signing_key().await?;
+        self.create_root_secret(key).await?;
         Ok(())
     }
 
-    async fn create_jwt_signing_key(&self) -> Result<Vec<u8>> {
-        let key = crypto::generate_signing_key();
-        let key_hex = crypto::encode_hex(&key);
-        self.set_api_key(SECRET_KEY_JWT_SIGNING, &key_hex).await?;
-        tracing::debug!("Created new JWT signing key");
-        Ok(key)
+    /// Generate and store a fresh 32-byte root secret.
+    async fn create_root_secret(&self, key: &str) -> Result<Vec<u8>> {
+        let secret = crypto::generate_signing_key();
+        self.set_api_key(key, &crypto::encode_hex(&secret)).await?;
+        tracing::debug!(secret = key, "Created a new root secret");
+        Ok(secret)
     }
 
     async fn ensure_api_key_secret(&self) -> Result<()> {
-        if self.exists(SECRET_KEY_API_KEY).await {
-            tracing::debug!("API key secret exists");
-            return Ok(());
-        }
-        self.create_api_key_secret().await?;
-        Ok(())
-    }
-
-    async fn create_api_key_secret(&self) -> Result<Vec<u8>> {
-        let key = crypto::generate_signing_key();
-        let key_hex = crypto::encode_hex(&key);
-        self.set_api_key(SECRET_KEY_API_KEY, &key_hex).await?;
-        tracing::debug!("Created new API key HMAC secret");
-        Ok(key)
+        self.ensure_root_secret(SECRET_KEY_API_KEY, "API key secret")
+            .await
     }
 }
 
@@ -331,6 +370,91 @@ impl SecretManager {
 mod tests {
     use super::*;
     use crate::core::storage::AppStorage;
+
+    use async_trait::async_trait;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    /// A provider holding one secret, whose reads can be made to fail on demand.
+    ///
+    /// The failure being modelled is the ordinary one: an expired Vault token, a throttled AWS call, a
+    /// keychain the OS has locked. The secret is still there; this instance simply cannot see it.
+    #[derive(Debug, Default)]
+    struct FlakyProvider {
+        stored: parking_lot::Mutex<Option<String>>,
+        reads_fail: AtomicBool,
+        writes: AtomicUsize,
+    }
+
+    #[async_trait]
+    impl SecretProvider for FlakyProvider {
+        async fn get(&self, _key: &SecretKey) -> Result<Option<Secret>, SecretError> {
+            if self.reads_fail.load(Ordering::SeqCst) {
+                return Err(SecretError::backend("flaky", "backend unreachable"));
+            }
+            Ok(self.stored.lock().clone().map(Secret::new))
+        }
+        async fn set(&self, _key: &SecretKey, secret: &Secret) -> Result<(), SecretError> {
+            self.writes.fetch_add(1, Ordering::SeqCst);
+            *self.stored.lock() = Some(secret.value.clone());
+            Ok(())
+        }
+        async fn delete(&self, _key: &SecretKey) -> Result<(), SecretError> {
+            *self.stored.lock() = None;
+            Ok(())
+        }
+        async fn list(&self, _scope: &SecretScope) -> Result<Vec<SecretKey>, SecretError> {
+            Ok(Vec::new())
+        }
+        fn name(&self) -> &'static str {
+            "flaky"
+        }
+        fn is_persistent(&self) -> bool {
+            true
+        }
+    }
+
+    /// An unreadable backend never causes a root secret to be replaced.
+    ///
+    /// Both getters used to answer a read *error* by generating a fresh secret and storing it. That is the
+    /// one unrecoverable response: an API key row holds `HMAC(key, secret)` and nothing else, so the
+    /// overwrite invalidates every key in a database that every other instance shares - and a momentary
+    /// outage was enough to trigger it. `ensure_*` had the same hole one layer earlier, through
+    /// `exists()`'s `unwrap_or(false)`, and it runs first at startup.
+    #[tokio::test]
+    async fn an_unreadable_backend_never_replaces_a_root_secret() {
+        let provider = Arc::new(FlakyProvider::default());
+        let mgr = SecretManager {
+            provider: Arc::clone(&provider) as Arc<dyn SecretProvider>,
+        };
+
+        // First start provisions itself: the backend answered, and said there was nothing.
+        let original = mgr.get_api_key_secret().await.unwrap();
+        assert_eq!(provider.writes.load(Ordering::SeqCst), 1);
+
+        provider.reads_fail.store(true, Ordering::SeqCst);
+        assert!(
+            mgr.get_api_key_secret().await.is_err(),
+            "an unreadable backend must be fatal, not an invitation to generate a new secret"
+        );
+        assert!(
+            mgr.ensure_secrets().await.is_err(),
+            "startup provisioning must not treat 'cannot tell' as 'absent'"
+        );
+        assert_eq!(
+            provider.writes.load(Ordering::SeqCst),
+            1,
+            "nothing was written while the backend was unreadable"
+        );
+
+        // And the secret the database's hashes depend on is still the one it was.
+        provider.reads_fail.store(false, Ordering::SeqCst);
+        assert_eq!(
+            mgr.get_api_key_secret().await.unwrap(),
+            original,
+            "the surviving secret still verifies every key hashed with it"
+        );
+        assert_eq!(provider.writes.load(Ordering::SeqCst), 1);
+    }
 
     async fn test_manager(dir: &tempfile::TempDir) -> SecretManager {
         let storage = AppStorage::init_for_test(dir.path().to_path_buf());
