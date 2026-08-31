@@ -466,17 +466,21 @@ pub trait TransactionalRepository: Send + Sync {
     /// records are permanent; without a window the cost would grow with instances times lifetime
     /// deletions. Marking the check in the same statement that returns it makes concurrent instances race
     /// for each id and only one wins per window.
+    /// Returns `(project id, claim token)`. The token is what a report must present: a worker whose lease
+    /// expired part way through its batch would otherwise overwrite the schedule and result of the worker
+    /// that has since taken the id.
     async fn claim_deleted_projects_for_check(
         &self,
         lease_secs: i64,
         limit: i64,
-    ) -> Result<Vec<String>, DataError>;
+    ) -> Result<Vec<(String, i64)>, DataError>;
 
     /// Record what a deleted project's check found. Quiet pushes the next check further out; anything found
     /// brings it back to the base interval.
     async fn record_deleted_project_check(
         &self,
         project_id: &str,
+        claim_token: i64,
         was_quiet: bool,
         base_gap_secs: i64,
         max_gap_secs: i64,

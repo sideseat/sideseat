@@ -408,13 +408,14 @@ async fn projects_behave_identically() {
         ));
         // The backoff arithmetic, which is exactly the kind of expression that differs between dialects -
         // PostgreSQL has no two-argument `MIN` and no `integer << bigint`, both of which this suite caught.
-        for id in repo.claim_deleted_projects_for_check(0, 10).await.unwrap() {
-            repo.record_deleted_project_check(&id, true, 60, 86_400)
-                .await
-                .unwrap();
-            repo.record_deleted_project_check(&id, true, 60, 86_400)
-                .await
-                .unwrap();
+        // Two quiet reports, each under the token that claimed it - the arithmetic being checked is the
+        // backoff, and it must produce the same schedule on both dialects.
+        for _ in 0..2 {
+            for (id, token) in repo.claim_deleted_projects_for_check(0, 10).await.unwrap() {
+                repo.record_deleted_project_check(&id, token, true, 0, 0)
+                    .await
+                    .unwrap();
+            }
         }
         t.note(&format!(
             "due_at_base_after_two_quiet_checks={}",

@@ -379,7 +379,7 @@ pub async fn advance_pending_deletions(
         .await
     {
         Ok(deleted) => {
-            for project_id in deleted {
+            for (project_id, claim_token) in deleted {
                 // Files, unconditionally. Gating this on the analytics count was wrong in the one
                 // direction that matters: a batch can pass the fence, pause, and then store file bytes and
                 // their `trace_files` associations while its spans are dropped by the check next to the
@@ -422,6 +422,7 @@ pub async fn advance_pending_deletions(
                 if let Err(e) = repo
                     .record_deleted_project_check(
                         &project_id,
+                        claim_token,
                         was_quiet,
                         DELETED_PROJECT_CHECK_BASE_SECS,
                         DELETED_PROJECT_CHECK_MAX_SECS,

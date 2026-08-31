@@ -2395,6 +2395,71 @@ fn no_fixture_exhausts_the_replay_matching_budget() {
     assert!(checked > 80, "only checked {checked} fixtures");
 }
 
+/// The corpus matches the support matrix in CLAUDE.md.
+///
+/// "Correct for all frameworks" is an open-world claim unless the set is written down, so it is - and a
+/// table in a document drifts the moment someone adds a suite. This fails when the corpus and the table
+/// disagree, which turns the boundary of the claim into something maintained rather than remembered.
+#[test]
+fn the_corpus_matches_the_support_matrix() {
+    // (suite, samples, captured requests) - update CLAUDE.md's table with any change here.
+    const MATRIX: &[(&str, usize, usize)] = &[
+        ("_synthetic", 5, 5),
+        ("adk", 8, 18),
+        ("agent-framework", 10, 17),
+        ("anthropic", 7, 18),
+        ("bedrock", 6, 14),
+        ("claude-agent-sdk", 8, 17),
+        ("claude-agent-sdk-js", 8, 17),
+        ("crewai", 9, 33),
+        ("langgraph", 9, 23),
+        ("openai", 6, 8),
+        ("openai-agents", 10, 37),
+        ("strands", 10, 40),
+        ("strands-js", 8, 16),
+        ("vercel-ai-js", 7, 17),
+    ];
+
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/messages");
+    let mut found: Vec<(String, usize, usize)> = Vec::new();
+    for entry in std::fs::read_dir(&root).expect("fixture root") {
+        let path = entry.expect("dir entry").path();
+        if !path.is_dir() {
+            continue;
+        }
+        let suite = path.file_name().unwrap().to_string_lossy().to_string();
+        let mut samples = 0usize;
+        let mut requests = 0usize;
+        for sample in std::fs::read_dir(&path).expect("suite dir") {
+            let sample = sample.expect("sample entry").path();
+            if !sample.is_dir() {
+                continue;
+            }
+            samples += 1;
+            requests += std::fs::read_dir(&sample)
+                .expect("sample dir")
+                .filter_map(Result::ok)
+                .filter(|f| {
+                    let name = f.file_name().to_string_lossy().to_string();
+                    name != "expected.json" && (name.ends_with(".pb") || name.ends_with(".json"))
+                })
+                .count();
+        }
+        found.push((suite, samples, requests));
+    }
+    found.sort();
+
+    let expected: Vec<(String, usize, usize)> = MATRIX
+        .iter()
+        .map(|&(s, a, b)| (s.to_string(), a, b))
+        .collect();
+    assert_eq!(
+        found, expected,
+        "the fixture corpus and the support matrix disagree; update the table in CLAUDE.md and MATRIX \
+         here, because the boundary of \"correct for all frameworks\" is exactly this list"
+    );
+}
+
 /// A cached reconstruction is what recomputation would have produced, byte for byte.
 ///
 /// The memo is only sound if reconstruction is a pure function of the rows, and that is a claim about

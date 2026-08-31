@@ -278,6 +278,16 @@ UPDATE deleted_projects SET next_check_at = COALESCE(last_checked_at, deleted_at
 CREATE INDEX IF NOT EXISTS idx_deleted_projects_due ON deleted_projects(next_check_at);
 "#,
         ),
+        14 => (
+            "deleted_project_claim_token",
+            // An owned claim, and a due time that is never null - PostgreSQL sorts nulls last, so a fresh
+            // deletion queued behind the whole backlog. See the SQLite twin.
+            r#"UPDATE deleted_projects SET next_check_at = COALESCE(next_check_at, deleted_at);
+ALTER TABLE deleted_projects ALTER COLUMN next_check_at SET DEFAULT 0;
+ALTER TABLE deleted_projects ALTER COLUMN next_check_at SET NOT NULL;
+ALTER TABLE deleted_projects ADD COLUMN IF NOT EXISTS claim_token BIGINT NOT NULL DEFAULT 0;
+"#,
+        ),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,

@@ -516,7 +516,10 @@ pub async fn record_project_sweep(
     let removed = removed.rows_affected() > 0;
     if removed {
         sqlx::query(
-            "INSERT INTO deleted_projects (project_id, deleted_at) VALUES (?, unixepoch()) \
+            // `next_check_at` set here, not left to a default: it must be *due*, and null sorted last on
+            // PostgreSQL, which queued a fresh deletion behind the entire backlog.
+            "INSERT INTO deleted_projects (project_id, deleted_at, next_check_at) \
+             VALUES (?, unixepoch(), unixepoch()) \
              ON CONFLICT (project_id) DO NOTHING",
         )
         .bind(id)
@@ -552,23 +555,24 @@ pub async fn claim_deleted_projects_for_check(
     pool: &SqlitePool,
     lease_secs: i64,
     limit: i64,
-) -> Result<Vec<String>, SqliteError> {
-    let rows: Vec<(String,)> = sqlx::query_as(
+) -> Result<Vec<(String, i64)>, SqliteError> {
+    let rows: Vec<(String, i64)> = sqlx::query_as(
         "UPDATE deleted_projects \
-         SET last_checked_at = unixepoch(), next_check_at = unixepoch() + ? \
+         SET last_checked_at = unixepoch(), next_check_at = unixepoch() + ?, \
+             claim_token = claim_token + 1 \
          WHERE project_id IN ( \
              SELECT project_id FROM deleted_projects \
-             WHERE next_check_at IS NULL OR next_check_at <= unixepoch() \
+             WHERE next_check_at <= unixepoch() \
              ORDER BY next_check_at \
              LIMIT ? \
          ) \
-         RETURNING project_id",
+         RETURNING project_id, claim_token",
     )
     .bind(lease_secs)
     .bind(limit)
     .fetch_all(pool)
     .await?;
-    Ok(rows.into_iter().map(|(id,)| id).collect())
+    Ok(rows)
 }
 
 /// Record what a deleted project's check found, and when to look again.
@@ -580,31 +584,35 @@ pub async fn claim_deleted_projects_for_check(
 pub async fn record_deleted_project_check(
     pool: &SqlitePool,
     project_id: &str,
+    claim_token: i64,
     was_quiet: bool,
     base_gap_secs: i64,
     max_gap_secs: i64,
 ) -> Result<(), SqliteError> {
-    // Bound per branch rather than with a placeholder trick, so the non-quiet branch cannot read the
-    // project id as its interval - and so the two dialects' versions read the same way.
+    // Matched on the token, so a worker whose lease expired part way through its batch updates nothing: the
+    // id has been claimed again since, the token has moved on, and overwriting the new holder's schedule -
+    // or its result - would let a third worker claim an id that is still being processed.
     if was_quiet {
         sqlx::query(
             "UPDATE deleted_projects \
              SET quiet_checks = quiet_checks + 1, \
                  next_check_at = unixepoch() + MIN(? * (1 << MIN(quiet_checks, 20)), ?) \
-             WHERE project_id = ?",
+             WHERE project_id = ? AND claim_token = ?",
         )
         .bind(base_gap_secs)
         .bind(max_gap_secs)
         .bind(project_id)
+        .bind(claim_token)
         .execute(pool)
         .await?;
     } else {
         sqlx::query(
             "UPDATE deleted_projects SET quiet_checks = 0, next_check_at = unixepoch() + ? \
-             WHERE project_id = ?",
+             WHERE project_id = ? AND claim_token = ?",
         )
         .bind(base_gap_secs)
         .bind(project_id)
+        .bind(claim_token)
         .execute(pool)
         .await?;
     }
@@ -1099,7 +1107,10 @@ mod tests {
         assert_eq!(
             claim_deleted_projects_for_check(&pool, 0, 100)
                 .await
-                .unwrap(),
+                .unwrap()
+                .into_iter()
+                .map(|(id, _token)| id)
+                .collect::<Vec<_>>(),
             vec![project.id.clone()],
             "and the id is remembered, so the sweep keeps collecting for it"
         );
@@ -1126,12 +1137,12 @@ mod tests {
         );
     }
 
-    /// A deleted id is checked once per window, however many instances are sweeping.
+    /// A deleted id is claimed once per window, however many instances are sweeping.
     ///
-    /// The records are permanent - any retention would be a bound on how late a stalled writer may commit
-    /// and still be collected - so a bare list would have every instance re-check every deletion ever made
-    /// on every sweep: work proportional to instances times lifetime deletions. Claiming the check in the
-    /// statement that returns it makes concurrent instances race for each id.
+    /// The records are permanent - any retention would bound how late a stalled writer may commit and still
+    /// be collected - so a bare list would have every instance re-check every deletion ever made on every
+    /// sweep: work proportional to instances times lifetime deletions. Claiming in the statement that
+    /// returns the ids makes concurrent instances race for each one.
     #[tokio::test]
     async fn a_deleted_project_is_claimed_for_checking_once_per_window() {
         let pool = setup_test_pool().await;
@@ -1145,32 +1156,108 @@ mod tests {
             .await
             .unwrap();
 
-        // Five instances, one window: exactly one gets the id.
-        let mut claimed = 0;
+        // Five instances, one window: exactly one gets the id, and it comes with the token that owns it.
+        let mut claims = Vec::new();
         for _ in 0..5 {
-            claimed += claim_deleted_projects_for_check(&pool, 600, 100)
-                .await
-                .unwrap()
-                .len();
+            claims.extend(
+                claim_deleted_projects_for_check(&pool, 600, 10)
+                    .await
+                    .unwrap(),
+            );
         }
         assert_eq!(
-            claimed, 1,
+            claims.len(),
+            1,
             "an id claimed inside a window must not be handed out again, or the work grows with the \
              instance count"
         );
+        let (id, token) = claims.pop().expect("the one claim");
+        assert_eq!(id, project.id);
 
-        // The claim *leased* it, so it is not due again until the lease expires or a check reports. A check
-        // reporting with no gap makes it due immediately, which is what the next sweep then sees.
-        record_deleted_project_check(&pool, &project.id, false, 0, 0)
+        // The claim *leased* it, so nothing else is due until the holder reports.
+        assert!(
+            claim_deleted_projects_for_check(&pool, 600, 10)
+                .await
+                .unwrap()
+                .is_empty(),
+            "a leased id is not re-claimable while its holder is still working"
+        );
+
+        // Reporting with no gap makes it due again, which is what the next sweep sees.
+        record_deleted_project_check(&pool, &id, token, false, 0, 0)
             .await
             .unwrap();
         assert_eq!(
-            claim_deleted_projects_for_check(&pool, 0, 100)
+            claim_deleted_projects_for_check(&pool, 0, 10)
                 .await
                 .unwrap()
                 .len(),
             1,
-            "once a check has reported, the next sweep claims it again"
+            "once the holder has reported, the next sweep claims it again"
+        );
+    }
+
+    /// A worker whose lease expired mid-batch cannot overwrite the worker that took the id after it.
+    ///
+    /// Reporting was an unconditional update by project id, so a slow sweep could come back after its lease
+    /// had gone, replace the *new* holder's lease with its own schedule, and let a third sweep claim an id
+    /// that was still being processed - duplicating the storage work this scheduler exists to bound. The
+    /// token the claim handed out is what a report must present.
+    #[tokio::test]
+    async fn a_stale_claim_cannot_overwrite_its_successor() {
+        let pool = setup_test_pool().await;
+        let project = create_project(&pool, None, "default", "Slowly Swept")
+            .await
+            .unwrap();
+        claim_project_for_deletion(&pool, None, &project.id)
+            .await
+            .unwrap();
+        record_project_sweep(&pool, &project.id, true, 1, 0)
+            .await
+            .unwrap();
+
+        // Worker A claims it with a lease that we then treat as expired.
+        let (id, stale_token) = claim_deleted_projects_for_check(&pool, 0, 1)
+            .await
+            .unwrap()
+            .pop()
+            .expect("due immediately");
+
+        // Worker B claims the same id after A's lease lapsed, and holds it.
+        let (_, fresh_token) = claim_deleted_projects_for_check(&pool, 3600, 1)
+            .await
+            .unwrap()
+            .pop()
+            .expect("A's lease has lapsed, so B can claim it");
+        assert_ne!(
+            stale_token, fresh_token,
+            "each claim owns the id under its own token"
+        );
+
+        // A finally reports. It must change nothing: B's lease stands.
+        record_deleted_project_check(&pool, &id, stale_token, true, 0, 0)
+            .await
+            .unwrap();
+        assert!(
+            claim_deleted_projects_for_check(&pool, 0, 10)
+                .await
+                .unwrap()
+                .is_empty(),
+            "a stale report reinstated the base interval, so a third sweep can claim an id that worker B \
+             is still processing"
+        );
+
+        // B's own report does apply.
+        record_deleted_project_check(&pool, &id, fresh_token, false, 0, 0)
+            .await
+            .unwrap();
+        assert_eq!(
+            claim_deleted_projects_for_check(&pool, 0, 10)
+                .await
+                .unwrap()
+                .len(),
+            1,
+            "the holder's report is the one that reschedules"
         );
     }
 
@@ -1209,11 +1296,11 @@ mod tests {
         let ids = claim_deleted_projects_for_check(&pool, 0, 10)
             .await
             .unwrap();
-        let subject = ids.first().expect("some id is due").clone();
-        record_deleted_project_check(&pool, &subject, true, 60, 86_400)
+        let (subject, token) = ids.first().expect("some id is due").clone();
+        record_deleted_project_check(&pool, &subject, token, true, 60, 86_400)
             .await
             .unwrap();
-        record_deleted_project_check(&pool, &subject, true, 60, 86_400)
+        record_deleted_project_check(&pool, &subject, token, true, 60, 86_400)
             .await
             .unwrap();
         let quiet: (i64,) =
@@ -1229,11 +1316,11 @@ mod tests {
             .await
             .unwrap();
         assert!(
-            !due.contains(&subject),
+            !due.iter().any(|(id, _)| *id == subject),
             "a project checked twice with nothing found must not be re-checked at the base rate"
         );
 
-        record_deleted_project_check(&pool, &subject, false, 60, 86_400)
+        record_deleted_project_check(&pool, &subject, token, false, 60, 86_400)
             .await
             .unwrap();
         let quiet: (i64,) =
