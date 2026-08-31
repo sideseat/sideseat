@@ -519,8 +519,28 @@ byte-identical property `a_cached_reconstruction_equals_a_fresh_one` proves at t
 serialisation, plus a build fingerprint in the key so a deploy cannot serve the previous pipeline's
 answers. Not worth it for the shape of session that reaches seconds.
 
-Still unmeasured, deliberately stated: production PostgreSQL, ClickHouse and S3 latency, and network
-transport.
+**The same measurements against PostgreSQL 17 + ClickHouse 25.8** (both local containers, so no network
+hop; the ClickHouse image is amd64 under emulation on this arm64 host, which inflates it):
+
+| Operation | p50 | p95 | p99 |
+| --- | --- | --- | --- |
+| OTLP trace export, 2 KB | 49.7 ms | 57.0 ms | 66.4 ms |
+| OTLP trace export, 772 KB | 76.2 ms | 96.2 ms | 291.0 ms |
+| Session messages, sequential | 344.2 ms | 419.7 ms | 440.8 ms |
+| Session messages, 8 concurrent | 536.7 ms | 600.8 ms | 636.4 ms |
+| Trace list, 50 | 400.0 ms | 978.3 ms | 978.3 ms |
+
+Two things worth reading off that table. **Concurrency behaves oppositely**: DuckDB serialises reads (8×
+concurrency costs 6.5× the p50), ClickHouse does not (1.6×) - so the embedded backend is far faster at one
+read and the distributed one degrades far less under many. And on ClickHouse the **row fetch dominates**,
+not reconstruction, so the reconstruction cache matters much less there than the DuckDB numbers suggest.
+
+`async_insert` defaults to **false** for the same reason the acknowledgement rule exists: durability means
+waiting, and waiting on an async insert pays ClickHouse's flush timer for nothing - measured at 118.6 ms
+per export against 59.2 ms direct, same durability. The pipeline already batches before it writes.
+
+Still unmeasured, deliberately stated: S3 file storage latency, a real network hop, Redis-backed topics and
+caches, and multi-replica behaviour under a deletion backlog.
 
 **Message-parsing goldens**: `cargo test -p sideseat-server message_goldens` verifies message count, content, ordering and absence of duplicates per framework across all three views (span / trace / session). Fixtures are captured OTLP payloads under `server/tests/fixtures/messages/<suite>/<sample>/`; capture with `misc/capture-message-fixtures.sh [suite] [sample]` (needs model credentials), then record with `UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens` and review the diff. Invariants (scope containment, per-trace dedup, tool-id correspondence, no empty thinking, determinism) hold independently of the goldens, so a blindly regenerated snapshot still fails on real defects. `UPDATE_GOLDENS=1` writes the files but still exits non-zero when an invariant was violated, so known-bad output cannot be committed as reviewed. See `server/tests/fixtures/messages/README.md`.
 
