@@ -255,6 +255,12 @@ ALTER TABLE organizations ADD COLUMN IF NOT EXISTS deleting_at BIGINT;
 );
 "#,
         ),
+        11 => (
+            "deleted_project_windows",
+            // One check per deleted id per window rather than one per instance per sweep - the records are
+            // permanent, so the unwindowed cost is instances times lifetime deletions. See the SQLite twin.
+            "ALTER TABLE deleted_projects ADD COLUMN IF NOT EXISTS last_checked_at BIGINT",
+        ),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,

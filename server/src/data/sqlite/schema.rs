@@ -3,7 +3,7 @@
 //! Initial schema with all tables. No migrations needed for first version.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 10;
+pub const SCHEMA_VERSION: i32 = 11;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -135,7 +135,12 @@ CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(organization_id);
 -- that no request could still be in flight.
 CREATE TABLE IF NOT EXISTS deleted_projects (
     project_id TEXT PRIMARY KEY,
-    deleted_at INTEGER NOT NULL
+    deleted_at INTEGER NOT NULL,
+    -- When this id was last checked for stray rows. The records are kept forever, so without a window
+    -- every instance would re-check every deletion ever made on every sweep: work proportional to
+    -- instances times lifetime deletions. Claiming the check by moving this forward makes it one check
+    -- per id per window, whatever the instance count.
+    last_checked_at INTEGER
 );
 
 -- =============================================================================

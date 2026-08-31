@@ -213,6 +213,14 @@ const MIGRATION_V10: &str = r#"CREATE TABLE IF NOT EXISTS deleted_projects (
 );
 "#;
 
+/// One check per deleted id per window, rather than one per instance per sweep.
+///
+/// The records are kept forever - any retention is a bound on how late a stalled writer may commit - so
+/// scanning all of them every sweep on every instance is work proportional to instances times lifetime
+/// deletions. Claiming the check by moving `last_checked_at` forward makes the cost independent of the
+/// instance count.
+const MIGRATION_V11: &str = "ALTER TABLE deleted_projects ADD COLUMN last_checked_at INTEGER";
+
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
     match version {
         1 => {
@@ -229,6 +237,7 @@ async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteEr
         8 => apply_versioned_migration(pool, 8, "deletion_tombstones", MIGRATION_V8).await,
         9 => apply_versioned_migration(pool, 9, "sweep_windows", MIGRATION_V9).await,
         10 => apply_versioned_migration(pool, 10, "deleted_projects", MIGRATION_V10).await,
+        11 => apply_versioned_migration(pool, 11, "deleted_project_windows", MIGRATION_V11).await,
         _ => Err(SqliteError::MigrationFailed {
             version,
             name: "unknown".to_string(),

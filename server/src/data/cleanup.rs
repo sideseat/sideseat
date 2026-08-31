@@ -366,7 +366,13 @@ pub async fn advance_pending_deletions(
     // with the row gone nothing would know the project had existed. `deleted_projects` knows, so those
     // rows are collected however late they appear - and the residual becomes the retention below rather
     // than a handful of minutes.
-    match repo.list_deleted_projects().await {
+    // One check per deleted id per window: the records are permanent, so a bare list would have every
+    // instance re-check every deletion on every sweep. Half the sweep interval, so an early tick still
+    // claims work.
+    match repo
+        .claim_deleted_projects_for_check((CLAIM_RECOVERY_INTERVAL_SECS / 2) as i64)
+        .await
+    {
         Ok(deleted) => {
             for project_id in deleted {
                 // Files first, and *unconditionally*. Gating this on the analytics count was wrong in the

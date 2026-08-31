@@ -451,9 +451,12 @@ so there is no grace period. What the tombstone gives instead:
 
 6. Removing a tombstone **records the id in `deleted_projects`**, in the same transaction. Finite evidence
    still loses to an arbitrarily delayed writer - it can commit after the row is gone, and then nothing
-   knows the project existed - so the sweep keeps collecting rows that appear for a remembered id. The
-   bound on "no data outlives its project" is therefore `DELETED_PROJECT_RETENTION_SECS` (7 days), not a
-   handful of sweeps.
+   knows the project existed - so the sweep keeps collecting rows *and files* that appear for a remembered
+   id, and the records are kept **permanently**: any retention would be a bound on how late a stalled
+   writer may commit. Each id is claimed for checking once per window
+   (`claim_deleted_projects_for_check`), so the cost does not grow with the instance count.
+7. **Membership mutations** refuse for a tombstoned organization, as renaming and project creation do -
+   writing into one is writing into something no read can see and the cascade is about to remove.
 
 An organization is tombstoned too, because deleting its row cascades its *project* rows away and those
 rows are what the projects' cleanups depend on; its row goes once no project rows remain. Creating a
