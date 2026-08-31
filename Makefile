@@ -64,6 +64,7 @@
 #     test-server        Rust tests, server package only (inner loop)
 #     test-clickhouse    ClickHouse/DuckDB parity (starts a throwaway container)
 #     test-postgres      PostgreSQL/SQLite parity (starts a throwaway container)
+#     test-redis         Durable ingestion queue against Redis (starts a throwaway container)
 #     bench-http         End-to-end HTTP latency (add -distributed for PostgreSQL + ClickHouse)
 #     test-web           Web tests (vitest)
 #     test-sdk-js        JS SDK tests
@@ -226,7 +227,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: dev dev-server dev-web
 .PHONY: fmt fmt-check lint lint-advisory check
 .PHONY: secret-scan-tree secret-scan-staged secret-scan-range
-.PHONY: test test-rust test-server test-clickhouse test-postgres bench-http bench-http-distributed test-web test-sdk-js test-sdk-python coverage
+.PHONY: test test-rust test-server test-clickhouse test-postgres test-redis bench-http bench-http-distributed test-web test-sdk-js test-sdk-python coverage
 .PHONY: build build-web build-server
 .PHONY: build-sdk build-sdk-js build-sdk-python
 .PHONY: build-cli build-cli-preflight build-cli-summary $(CLI_BUILD_TARGETS)
@@ -591,6 +592,37 @@ test-postgres:
 	cargo test -p sideseat-server parity_tests -- --test-threads=1; \
 	status=$$?; \
 	docker rm -f $(PG_TEST_CONTAINER) >/dev/null 2>&1; \
+	exit $$status
+
+# The durable ingestion queue, against a real Redis. Same reasoning as the two parity targets: the
+# consumer-group semantics that make an asynchronous 200 honest had never run against a Redis, and what
+# that missed was `XADD ... MAXLEN`, which trims by length and so deleted payloads nobody had read.
+REDIS_TEST_CONTAINER := sideseat-redis-test
+REDIS_TEST_PORT ?= 6399
+# Pinned, so an upstream release cannot turn into a failure on an unrelated PR.
+REDIS_TEST_IMAGE ?= redis:7.4-alpine
+
+test-redis:
+	@command -v docker >/dev/null 2>&1 || { echo "[test-redis] docker is required"; exit 1; }
+	@echo "[test-redis] starting $(REDIS_TEST_IMAGE) on port $(REDIS_TEST_PORT)..."
+	@docker rm -f $(REDIS_TEST_CONTAINER) >/dev/null 2>&1 || true
+	@docker run -d --name $(REDIS_TEST_CONTAINER) -p $(REDIS_TEST_PORT):6379 \
+		$(REDIS_TEST_IMAGE) >/dev/null
+	@for i in $$(seq 1 60); do \
+		docker exec $(REDIS_TEST_CONTAINER) redis-cli ping 2>/dev/null | grep -q PONG && break; \
+		sleep 1; \
+	done; \
+	docker exec $(REDIS_TEST_CONTAINER) redis-cli ping 2>/dev/null | grep -q PONG || { \
+		echo "[test-redis] server did not become ready"; \
+		docker logs --tail 20 $(REDIS_TEST_CONTAINER); \
+		docker rm -f $(REDIS_TEST_CONTAINER) >/dev/null 2>&1; \
+		exit 1; \
+	}
+	@set +e; \
+	SIDESEAT_TEST_REDIS_URL=redis://127.0.0.1:$(REDIS_TEST_PORT) \
+	cargo test -p sideseat-server redis_stream_tests -- --test-threads=1; \
+	status=$$?; \
+	docker rm -f $(REDIS_TEST_CONTAINER) >/dev/null 2>&1; \
 	exit $$status
 
 # End-to-end HTTP latency, which is what a client actually experiences. The in-process benches measure the

@@ -83,9 +83,20 @@ fn apply_initial_schema(conn: &Connection) -> Result<(), DuckdbError> {
     })
 }
 
-fn apply_migration(_conn: &Connection, version: i32) -> Result<(), DuckdbError> {
+/// A datapoint's identity, so a re-delivered metrics payload stops accumulating duplicate rows.
+///
+/// Existing rows get `''`, which is honest rather than convenient: nothing recorded before this
+/// version carries the fields' hash, and a value invented in SQL would not match the one Rust
+/// computes. Legacy rows therefore keep the old behaviour among themselves, and every row written
+/// from here on has an identity. The 90-day retention window ages the untagged ones out.
+const MIGRATION_V2: &str = r#"ALTER TABLE otel_metrics ADD COLUMN datapoint_id VARCHAR;
+UPDATE otel_metrics SET datapoint_id = '' WHERE datapoint_id IS NULL;
+"#;
+
+fn apply_migration(conn: &Connection, version: i32) -> Result<(), DuckdbError> {
     match version {
         1 => Ok(()), // Handled by apply_initial_schema
+        2 => apply_versioned_migration(conn, 2, "metric_datapoint_identity", MIGRATION_V2),
         _ => Err(DuckdbError::MigrationFailed {
             version,
             name: "unknown".to_string(),
@@ -94,7 +105,6 @@ fn apply_migration(_conn: &Connection, version: i32) -> Result<(), DuckdbError> 
     }
 }
 
-#[allow(dead_code)]
 /// Apply a versioned migration with transaction safety and audit logging.
 ///
 /// Use this function in `apply_migration` match arms for incremental schema changes.

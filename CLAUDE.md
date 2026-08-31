@@ -418,10 +418,13 @@ mechanism and getting it wrong is invisible until there are two instances.
 | Mechanism | Shared? | Why that is correct |
 | --- | --- | --- |
 | Project rows and the project→org mapping | **Not cached at all** | The project row *is* the deletion fence, and a process-local cache cannot be invalidated by another instance: A caches a live project, B tombstones it and clears only B's memory, and A keeps answering from its hit. Re-reading the fence after a fill closes the fill race but not this one, because a hit never reaches the database. The cost is a primary-key lookup. |
-| Reconstruction cache (`feed/cache.rs`) | No, process-local | A memo over a *pure function* of the rows. Any instance computes the same answer from the same digest, a cold instance recomputes it, a dying one loses only the saving. N instances change the hit rate, not the answer — `a_cached_reconstruction_equals_a_fresh_one` checks byte equality over the corpus. Sharing it would need a version key to avoid serving the previous build's answers, and a hand-maintained constant is a hole. |
+| Reconstruction cache (`feed/cache.rs`) | No, process-local | A memo over a *pure function* of the rows. Any instance computes the same answer from the same digest, a cold instance recomputes it, a dying one loses only the saving. N instances change the hit rate, not the answer — `a_cached_reconstruction_equals_a_fresh_one` checks byte equality over the corpus. Sharing it would need a version key to avoid serving the previous build's answers, and a hand-maintained constant is a hole. Filling is **coalesced** (`get_with`), because a cold cache is the normal state here — every new replica starts empty and a deploy replaces them all, so eight readers arriving together at a fresh replica is not an edge case, and as a check-then-compute pair it was eight simultaneous reconstructions of one answer. |
+| Root secrets: the API-key HMAC pepper and the JWT signing key | **Only with a shared backend** (`env`, `aws`, `vault`) | Auto-detection picks a *per-instance* store (keychain, credential manager, secret service, file), and an API key row holds `HMAC(key, pepper)` and nothing else. So with a per-instance backend, a key created on A is not merely unknown on B — it is unverifiable there, and the lookup is by hash, so B answers a plain 401 indistinguishable from a bogus key. Authenticated ingestion then fails on whichever replica the balancer picked. Both getters also used to answer a read *error* by generating a replacement, which destroyed the only copy: they now refuse to start (`an_unreadable_backend_never_replaces_a_root_secret`). |
 | File extraction cache | No, per pipeline | Same shape: a memo keyed by content hash. |
 | Trace ingestion topic | Yes, when Redis is configured (`stream_topic` + consumer groups + `claim_stuck_messages`) | At-least-once across instances; ingestion is idempotent by span id, so a redelivery rewrites rather than duplicates. With the **default in-memory backend the queue is skipped entirely** and the request writes before answering - see below. |
+| SDK registrations (`data/registrations`) | **No — and the routing around it assumes yes** | The store is process-local (`MemoryRegistrationStore` is the only implementation), while everything built on it is cross-instance: an entry carries `owning_instance_id` and the AG-UI invoke publishes to `connection_control:{instance_id}` over the Redis broadcast. So the control plane spans instances and the *directory* does not: an SDK whose WebSocket landed on A is `registration_not_found` on B, and `GET /registrations` shows each replica its own subset. Presence and AG-UI invoke are therefore single-instance features today; the TTL sweeper's own comment records that a shared store would additionally need leader election to avoid N duplicate `Expired` events. |
 | Metrics | Not queued at all — written inside the request | An in-process queue made a 200 mean "buffered", so a crash lost records the exporter had counted as delivered. A failure is a 503 the exporter retries. |
+| Metric datapoint identity (`domain/metrics/identity.rs`) | Yes — the id is a digest of the datapoint's own fields | Written little-endian and length-prefixed by hand rather than through `std::hash`, because `Hash for usize` writes native-endian bytes and two replicas on different architectures would then disagree about whether a datapoint is the same one. Disagreeing means a duplicate on one side or a deletion on the other. |
 | Logs / SSE topics | No — `topic()` builds an in-process channel whatever the backend | So an instance consumes only what it published: no cross-instance duplication. Nothing stores logs, and the endpoint says so via OTLP `partial_success`. |
 | Deletion tombstones (`projects.deleting_at`, `organizations.deleting_at`) | Yes, they are rows | One compare-and-set decides the owner across all instances, and every instance's write path consults it. |
 | Deletion sweeps | Run on every instance | Every step is idempotent and the claims are CAS-guarded, so concurrent sweeps duplicate work rather than corrupt state. |
@@ -494,7 +497,43 @@ is **dropped** rather than stored - the project stopped accepting writes between
 the write - is reported as such: 404 for traces, `partial_success` with `rejected_data_points` for metrics.
 A bare `true` made "stored" and "discarded" the same answer (`IngestOutcome` now distinguishes them), which
 is the failure this whole path exists to remove. ClickHouse's `wait_for_async_insert` defaults to true, in
-the code *and* in the shipped example configs, or an acknowledgement would rest on a server-side buffer.
+the code *and* in the shipped example configs, and `async_insert` **with** the wait off is now refused at
+startup rather than warned about: in that combination an `INSERT` returns once ClickHouse has the rows in
+memory, so a 200 - and a queue acknowledgement - rests on a buffer a restart discards. It was configurable,
+and no amount of care elsewhere survives one boolean that makes the acknowledgement a lie.
+
+**The queue is bounded by consumer progress, never by length.** Publishing used `XADD ... MAXLEN ~ 100000`.
+Redis trims by *length*, with no notion of whether an entry has been read, so any backlog past the bound
+deleted the oldest payloads - each already answered 200 by HTTP or gRPC. A queue that discards accepted
+work is worse than none, because the loss is silent and the exporter has already moved on.
+
+Now: no `MAXLEN`; entries go only through `stream_trim_consumed`, whose boundary is the oldest entry *any*
+group still needs - its oldest pending entry if it has one, else one past its last delivered id - so
+nothing unread and nothing unacknowledged is removable. Stream ids are compared numerically (`StreamId`),
+because `"9-0" > "10-0"` as text and a string minimum would pick a boundary past what a group still owes.
+A backlog that outgrows the bound turns into `BufferFull` → 503 with `Retry-After`, leaving the data with
+the exporter that still has it; the length comes back in the same pipeline as the `XADD`, so the threshold
+costs no extra round trip and overshoots by at most the publishes in flight. A stream with no consumer
+group is never trimmed: nobody has read it, so everything is still needed.
+
+`make test-redis` runs this against a pinned Redis, because none of it had ever run against one — the unit
+tests covered key prefixes and URL redaction. Restoring `MAXLEN` fails the suite.
+
+**A metric datapoint has an identity, because a `ReplacingMergeTree` needs one.** `otel_metrics` was sorted
+by `(project_id, metric_name, toDate(timestamp), timestamp)`, and a replacing engine treats rows with an
+equal sorting key as versions of one row. Attributes were not in the key, so `requests{status=200}` and
+`requests{status=500}` from a single export — the ordinary shape of a labelled metric — collapsed into one
+row at the next merge, after the ingest had returned 200. DuckDB, append-only with no key, had the mirror
+failure: the same export delivered twice was stored twice.
+
+`domain/metrics/identity.rs` defines it once for both: the resource, the scope, the metric name, the type,
+the temporality, the attribute set and both timestamps — everything OTel says names a series and an
+instant. The *measurement* is deliberately excluded, so a re-delivery carrying a corrected value replaces
+its row rather than sitting beside it, which is the rule spans already follow. ClickHouse appends the id to
+its sorting key (a metadata-only `MODIFY ORDER BY`, guarded by a `precondition` so a partly-applied
+migration stays retryable); DuckDB counts distinct ids. Rows written before this keep `''` and retain the
+old behaviour among themselves — a value invented in SQL would not match the one Rust computes — and
+datapoints already merged away are gone.
 
 Measured by `make bench-http`, which loads the whole `langgraph/swarm` fixture so the read workload is a
 real 136-span session, checks every request's status (a fast 404 would otherwise be recorded as excellent

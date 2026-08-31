@@ -44,6 +44,12 @@ pub fn extract_metrics_batch(request: &ExportMetricsServiceRequest) -> Vec<Norma
         }
     }
 
+    // Stamped here rather than in each of the five datapoint constructors, so the definition of what
+    // makes two datapoints the same cannot end up differing between a gauge and a histogram.
+    for metric in &mut result {
+        metric.datapoint_id = super::identity::datapoint_id(metric);
+    }
+
     result
 }
 

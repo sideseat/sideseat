@@ -23,6 +23,8 @@ mod error;
 mod memory;
 mod pubsub;
 mod redis;
+#[cfg(test)]
+mod redis_stream_tests;
 
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
@@ -600,6 +602,16 @@ impl StreamClaimer {
         self.backend
             .stream_claim(&self.name, &self.group, consumer, min_idle_ms, count)
             .await
+    }
+
+    /// Discard stream entries that every consumer group has finished with. Returns how many went.
+    ///
+    /// Paired with claiming because both are the same job - keeping the stream from growing without
+    /// losing work - and both are safe only from a consumer that knows the group's progress. A length
+    /// bound on the publish side cannot do this: it deletes the oldest entries whether or not they were
+    /// ever read.
+    pub async fn trim_consumed(&self) -> Result<u64, TopicError> {
+        self.backend.stream_trim_consumed(&self.name).await
     }
 }
 

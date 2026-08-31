@@ -1721,6 +1721,26 @@ fn validate_clickhouse(ch: &ClickhouseConfig) -> Result<()> {
              Specify the ClickHouse cluster name for distributed table creation."
         );
     }
+    // Fire-and-forget insertion contradicts what a 200 means here.
+    //
+    // With `async_insert` on and `wait_for_async_insert` off, `INSERT` returns as soon as ClickHouse has
+    // buffered the rows in memory. The write path treats that return as durability: an HTTP export is
+    // answered 200 and a Redis stream message is acknowledged, both on the strength of a buffer that a
+    // restart discards. The whole point of acknowledging only what is durable is lost, and nothing
+    // downstream can tell - the rows simply are not there later.
+    //
+    // Refused at startup rather than warned about, because a configuration that silently loses accepted
+    // data is not a performance trade an operator can make knowingly through one boolean. The measured
+    // cost of getting it right is in CLAUDE.md: waiting is *faster* here than the async path anyway.
+    if ch.async_insert && !ch.wait_for_async_insert {
+        anyhow::bail!(
+            "Configuration error: database.clickhouse.wait_for_async_insert must be true when \
+             async_insert is true. With both set this way an INSERT returns once ClickHouse has \
+             buffered the rows in memory, and SideSeat answers the exporter 200 - and acknowledges the \
+             ingestion queue - for data a restart would discard. Set wait_for_async_insert to true, or \
+             async_insert to false."
+        );
+    }
     Ok(())
 }
 
@@ -1759,6 +1779,35 @@ mod clickhouse_config_tests {
         validate_clickhouse(&config(true, Some("sideseat_cluster")))
             .expect("distributed with a cluster is the supported combination");
         validate_clickhouse(&config(false, None)).expect("single node needs no cluster");
+    }
+
+    /// A 200 must not be answerable from a memory buffer.
+    ///
+    /// `async_insert` with `wait_for_async_insert` off returns from an INSERT once ClickHouse has the
+    /// rows in RAM. The ingestion path reads that as durability - it answers the exporter and
+    /// acknowledges the queue message - so a restart loses data that was reported as stored.
+    #[test]
+    fn fire_and_forget_insertion_is_rejected() {
+        let mut ch = config(false, None);
+        ch.async_insert = true;
+        ch.wait_for_async_insert = false;
+        let err = validate_clickhouse(&ch).expect_err(
+            "acknowledging data held only in a server-side buffer must not be a setting",
+        );
+        assert!(
+            err.to_string()
+                .contains("wait_for_async_insert must be true"),
+            "unexpected error: {err}"
+        );
+
+        ch.wait_for_async_insert = true;
+        validate_clickhouse(&ch).expect("async batching that waits for the flush is durable");
+
+        // The default: no async batching at all, so the wait flag decides nothing.
+        ch.async_insert = false;
+        ch.wait_for_async_insert = false;
+        validate_clickhouse(&ch)
+            .expect("a synchronous insert is durable whatever the async wait flag says");
     }
 
     #[test]

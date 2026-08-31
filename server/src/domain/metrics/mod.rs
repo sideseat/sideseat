@@ -5,7 +5,9 @@
 //! Supports all 5 OTLP metric types: Gauge, Sum, Histogram, ExponentialHistogram, Summary.
 
 mod extract;
+mod identity;
 mod ingest;
 mod persist;
 
+pub use identity::datapoint_id;
 pub use ingest::{Stored, ingest};

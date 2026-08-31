@@ -14,6 +14,7 @@ use crate::utils::json::json_to_opt_string;
 #[derive(Row, Serialize)]
 struct MetricRow {
     project_id: String,
+    datapoint_id: String,
     metric_name: String,
     metric_description: Option<String>,
     metric_unit: Option<String>,
@@ -80,6 +81,7 @@ impl From<&NormalizedMetric> for MetricRow {
 
         Self {
             project_id,
+            datapoint_id: metric.datapoint_id.clone(),
             metric_name: metric.metric_name.clone(),
             metric_description: metric.metric_description.clone(),
             metric_unit: metric.metric_unit.clone(),

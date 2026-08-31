@@ -6,7 +6,7 @@
 //! use an inline DEDUP_SPANS subquery.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 1;
+pub const SCHEMA_VERSION: i32 = 2;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -195,6 +195,7 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     -- IDENTITY
     -- ═══════════════════════════════════════════════════════════════════
     project_id              VARCHAR,            -- Tenant isolation
+    datapoint_id            VARCHAR NOT NULL,   -- Series + instant identity; see domain::metrics::identity
     metric_name             VARCHAR NOT NULL,   -- Metric name (e.g., "http.server.duration")
     metric_description      VARCHAR,            -- Human-readable description
     metric_unit             VARCHAR,            -- Unit (e.g., "ms", "By", "1")

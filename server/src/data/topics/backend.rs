@@ -127,6 +127,15 @@ pub trait TopicBackend: Send + Sync {
     /// Get stream statistics for monitoring
     async fn stream_stats(&self, topic: &str, group: &str) -> Result<StreamStats, TopicError>;
 
+    /// Remove stream entries that every consumer group has finished with. Returns how many went.
+    ///
+    /// A durable stream has to be bounded by *progress*, not by length: trimming to a maximum length
+    /// deletes the oldest entries whether or not anyone has read them, and those entries were already
+    /// answered 200. Backends with no persistent stream have nothing to trim.
+    async fn stream_trim_consumed(&self, _topic: &str) -> Result<u64, TopicError> {
+        Ok(0)
+    }
+
     // =========================================================================
     // Health and metadata
     // =========================================================================

@@ -32,6 +32,7 @@ fn insert_metrics(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(),
         appender.append_row(params![
             // IDENTITY
             m.project_id.as_deref(),
+            m.datapoint_id.as_str(),
             m.metric_name.as_str(),
             m.metric_description.as_deref(),
             m.metric_unit.as_deref(),

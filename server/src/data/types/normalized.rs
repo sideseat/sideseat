@@ -27,6 +27,10 @@ pub fn json_to_pre_serialized(value: &JsonValue) -> Option<String> {
 pub struct NormalizedMetric {
     // Identity
     pub project_id: Option<String>,
+    /// What makes this datapoint *this* datapoint - see `domain::metrics::identity`. ClickHouse sorts
+    /// its replacing engine by it and DuckDB deduplicates on it; without one, two labelled series
+    /// recorded at the same instant were one row.
+    pub datapoint_id: String,
     pub metric_name: String,
     pub metric_description: Option<String>,
     pub metric_unit: Option<String>,
