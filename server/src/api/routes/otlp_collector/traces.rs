@@ -7,7 +7,7 @@ use axum::extract::{Path, State};
 use axum::http::{HeaderMap, HeaderName, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use opentelemetry_proto::tonic::collector::trace::v1::{
-    ExportTraceServiceRequest, ExportTraceServiceResponse,
+    ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
 };
 use opentelemetry_proto::tonic::common::v1::any_value;
 
@@ -87,13 +87,27 @@ pub async fn export(
             // The project stopped accepting writes between the check above and the write. Reported, not
             // swallowed: a success for records that were discarded is the failure mode this whole path is
             // about.
-            IngestOutcome::Dropped => {
+            // Nothing was stored, so the answer is the same 404 the admission check gives.
+            IngestOutcome::Dropped { .. } => {
                 return (
                     StatusCode::NOT_FOUND,
                     [(header::CONTENT_TYPE, "text/plain")],
                     "Unknown project, or it is being deleted",
                 )
                     .into_response();
+            }
+            // Something *was* stored, so this is a success that reports what it rejected - the field OTLP
+            // provides for exactly this. A batch naming a live project and a dying one must not lose the
+            // live one's spans to a refusal, nor have the dying one's counted as delivered.
+            IngestOutcome::PartlyDropped { spans } => {
+                let response = ExportTraceServiceResponse {
+                    partial_success: Some(ExportTracePartialSuccess {
+                        rejected_spans: spans as i64,
+                        error_message: "some spans' project is unknown or is being deleted"
+                            .to_string(),
+                    }),
+                };
+                return success_response(&response, content_type);
             }
             IngestOutcome::Failed => {
                 tracing::error!(%project_id, "Failed to store traces");

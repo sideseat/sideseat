@@ -240,8 +240,21 @@ impl TraceService for OtlpTraceService {
                 crate::domain::traces::IngestOutcome::Stored => {}
                 // Reported, not swallowed as success: an exporter told success for records that were
                 // discarded has no way to learn otherwise.
-                crate::domain::traces::IngestOutcome::Dropped => {
+                crate::domain::traces::IngestOutcome::Dropped { .. } => {
                     return Err(Status::not_found("unknown project, or it is being deleted"));
+                }
+                // Something was stored, so this is a success reporting what it rejected - see the HTTP
+                // twin.
+                crate::domain::traces::IngestOutcome::PartlyDropped { spans } => {
+                    return Ok(Response::new(ExportTraceServiceResponse {
+                        partial_success: Some(
+                            opentelemetry_proto::tonic::collector::trace::v1::ExportTracePartialSuccess {
+                                rejected_spans: spans as i64,
+                                error_message:
+                                    "some spans' project is unknown or is being deleted".to_string(),
+                            },
+                        ),
+                    }));
                 }
                 crate::domain::traces::IngestOutcome::Failed => {
                     tracing::error!(%project_id, "Failed to store traces");
