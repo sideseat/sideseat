@@ -32,10 +32,25 @@ use super::types::FeedResult;
 use crate::core::constants::{RECONSTRUCTION_CACHE_IDLE_SECS, RECONSTRUCTION_CACHE_MAX_ENTRIES};
 use crate::data::types::MessageSpanRow;
 
-/// A memo over `process_spans`, keyed by the content of the rows it was given.
+/// Which reconstruction the cached answer came from.
+///
+/// Two callers ask the pipeline different questions of the same rows: `process_spans` builds a
+/// chronological trace / session view, while `process_feed` builds the newest-first project feed.
+/// Keying only on the rows made the two collide - whichever closure filled the cache first served the
+/// other one's request, so a session query could receive feed ordering (one response reversed against
+/// the others) or a feed could receive session ordering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Reconstruction {
+    /// `process_spans` output: chronological, forward.
+    Spans,
+    /// `process_feed` output: responses newest-first, forward within each.
+    Feed,
+}
+
+/// A memo over the pipeline output, keyed by the content of the rows and the reconstruction mode.
 #[derive(Clone)]
 pub struct ReconstructionCache {
-    entries: Cache<[u8; 32], Arc<FeedResult>>,
+    entries: Cache<([u8; 32], Reconstruction), Arc<FeedResult>>,
 }
 
 impl Default for ReconstructionCache {
@@ -67,10 +82,11 @@ impl ReconstructionCache {
     /// one and hands the rest its result, which turns the worst case from N× the work into 1×.
     pub fn get_or_reconstruct(
         &self,
+        mode: Reconstruction,
         rows: Vec<MessageSpanRow>,
         reconstruct: impl FnOnce(Vec<MessageSpanRow>) -> FeedResult,
     ) -> Arc<FeedResult> {
-        let key = digest(&rows);
+        let key = (digest(&rows), mode);
         self.entries.get_with(key, || Arc::new(reconstruct(rows)))
     }
 
@@ -194,23 +210,74 @@ mod tests {
         };
 
         let rows = vec![row("s1", "[]")];
-        cache.get_or_reconstruct(rows.clone(), reconstruct);
-        cache.get_or_reconstruct(rows.clone(), reconstruct);
+        cache.get_or_reconstruct(Reconstruction::Spans, rows.clone(), reconstruct);
+        cache.get_or_reconstruct(Reconstruction::Spans, rows.clone(), reconstruct);
         assert_eq!(runs.get(), 1, "the second read of identical rows is a hit");
 
         // A changed payload is a different input, so it must not read the first answer.
-        cache.get_or_reconstruct(vec![row("s1", "[{}]")], reconstruct);
+        cache.get_or_reconstruct(Reconstruction::Spans, vec![row("s1", "[{}]")], reconstruct);
         assert_eq!(runs.get(), 2, "a payload change misses");
 
         // So is an added row, and so is a different span carrying the same payload.
-        cache.get_or_reconstruct(vec![row("s1", "[]"), row("s2", "[]")], reconstruct);
+        cache.get_or_reconstruct(
+            Reconstruction::Spans,
+            vec![row("s1", "[]"), row("s2", "[]")],
+            reconstruct,
+        );
         assert_eq!(runs.get(), 3, "an added row misses");
-        cache.get_or_reconstruct(vec![row("s2", "[]")], reconstruct);
+        cache.get_or_reconstruct(Reconstruction::Spans, vec![row("s2", "[]")], reconstruct);
         assert_eq!(runs.get(), 4, "a different span misses");
 
         // And the order of the rows is part of the input.
-        cache.get_or_reconstruct(vec![row("s2", "[]"), row("s1", "[]")], reconstruct);
+        cache.get_or_reconstruct(
+            Reconstruction::Spans,
+            vec![row("s2", "[]"), row("s1", "[]")],
+            reconstruct,
+        );
         assert_eq!(runs.get(), 5, "a different order misses");
+    }
+
+    /// Two reconstruction modes of the same rows are cached separately.
+    ///
+    /// The defect this pins: keying only on the rows meant a session request and a feed request of the
+    /// same telemetry shared a slot, and whichever closure filled it first served the other. A session
+    /// then received newest-first-by-response ordering; a feed received chronological. Neither read
+    /// showed anything obviously wrong - it was the ordering of what it showed that was another view's.
+    #[test]
+    fn two_reconstruction_modes_do_not_share_a_slot() {
+        let cache = ReconstructionCache::new();
+        let spans_calls = std::cell::Cell::new(0);
+        let feed_calls = std::cell::Cell::new(0);
+        let rows = vec![row("s1", "[]")];
+
+        // Distinct answers per mode, so a slot collision reads as the wrong count of blocks - which is
+        // what a session receiving feed ordering looks like from the outside.
+        let spans = cache.get_or_reconstruct(Reconstruction::Spans, rows.clone(), |_| {
+            spans_calls.set(spans_calls.get() + 1);
+            let mut r = FeedResult::default();
+            r.tool_names.push("spans".to_string());
+            r
+        });
+        let feed = cache.get_or_reconstruct(Reconstruction::Feed, rows.clone(), |_| {
+            feed_calls.set(feed_calls.get() + 1);
+            let mut r = FeedResult::default();
+            r.tool_names.push("feed-a".to_string());
+            r.tool_names.push("feed-b".to_string());
+            r
+        });
+
+        assert_eq!(spans.tool_names.len(), 1, "spans mode gets its own answer");
+        assert_eq!(feed.tool_names.len(), 2, "feed mode gets its own answer");
+        assert_eq!(spans_calls.get(), 1);
+        assert_eq!(feed_calls.get(), 1);
+
+        // The second Spans read is a hit for Spans, not for whichever mode filled first.
+        let repeat = cache.get_or_reconstruct(Reconstruction::Spans, rows, |_| {
+            spans_calls.set(spans_calls.get() + 1);
+            FeedResult::default()
+        });
+        assert_eq!(spans_calls.get(), 1, "repeat did not re-run");
+        assert_eq!(repeat.tool_names.len(), 1, "and returned the spans answer");
     }
 
     /// Concurrent readers of a cold cache reconstruct once, not once each.
@@ -245,7 +312,7 @@ mod tests {
                     // Every thread reaches the cache at about the same moment, which is the shape of a
                     // burst of readers hitting a replica that has just started.
                     arrived.wait();
-                    cache.get_or_reconstruct(rows, |_rows| {
+                    cache.get_or_reconstruct(Reconstruction::Spans, rows, |_rows| {
                         runs.fetch_add(1, Ordering::SeqCst);
                         std::thread::sleep(std::time::Duration::from_millis(50));
                         FeedResult::default()
@@ -281,11 +348,11 @@ mod tests {
 
         let absent = row("s1", "[]");
         assert!(absent.status_code.is_none());
-        cache.get_or_reconstruct(vec![absent.clone()], reconstruct);
+        cache.get_or_reconstruct(Reconstruction::Spans, vec![absent.clone()], reconstruct);
 
         let mut empty = absent.clone();
         empty.status_code = Some(String::new());
-        cache.get_or_reconstruct(vec![empty], reconstruct);
+        cache.get_or_reconstruct(Reconstruction::Spans, vec![empty], reconstruct);
         assert_eq!(runs.get(), 2, "absent and empty are not the same input");
     }
 
@@ -304,10 +371,10 @@ mod tests {
         };
 
         let first = row("s1", "[]");
-        cache.get_or_reconstruct(vec![first.clone()], reconstruct);
+        cache.get_or_reconstruct(Reconstruction::Spans, vec![first.clone()], reconstruct);
         let mut later = first.clone();
         later.ingested_at = first.ingested_at + chrono::Duration::seconds(30);
-        cache.get_or_reconstruct(vec![later], reconstruct);
+        cache.get_or_reconstruct(Reconstruction::Spans, vec![later], reconstruct);
         assert_eq!(
             runs.get(),
             2,
@@ -330,11 +397,11 @@ mod tests {
 
         let mut first = row("s1", "[]");
         first.total_tokens = 100;
-        cache.get_or_reconstruct(vec![first.clone()], reconstruct);
+        cache.get_or_reconstruct(Reconstruction::Spans, vec![first.clone()], reconstruct);
 
         let mut corrected = first.clone();
         corrected.total_tokens = 900;
-        cache.get_or_reconstruct(vec![corrected], reconstruct);
+        cache.get_or_reconstruct(Reconstruction::Spans, vec![corrected], reconstruct);
         assert_eq!(
             runs.get(),
             2,

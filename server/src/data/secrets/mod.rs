@@ -352,12 +352,30 @@ impl SecretManager {
         Ok(())
     }
 
-    /// Generate and store a fresh 32-byte root secret.
+    /// Generate a fresh 32-byte root secret and store it only if none exists.
+    ///
+    /// `create_if_absent` on the provider is a compare-and-set on backends that support it (AWS Secrets
+    /// Manager uses `CreateSecret`, which returns `ResourceExistsException` atomically), so two fresh
+    /// replicas of a horizontally-scaled deployment cannot both provision and cache different values.
+    /// The winner writes; the losers read what the winner wrote. Backends without a native CAS keep the
+    /// legacy exists-then-set behaviour, which is safe only for the single-instance secret stores that
+    /// the shared-store rule (`validate_store_sharing`) allows here anyway.
     async fn create_root_secret(&self, key: &str) -> Result<Vec<u8>> {
-        let secret = crypto::generate_signing_key();
-        self.set_api_key(key, &crypto::encode_hex(&secret)).await?;
-        tracing::debug!(secret = key, "Created a new root secret");
-        Ok(secret)
+        let proposed = crypto::generate_signing_key();
+        let stored = self
+            .provider
+            .create_if_absent(
+                &SecretKey::global(key),
+                &Secret::new(crypto::encode_hex(&proposed)),
+            )
+            .await?;
+        let decoded = crypto::decode_hex(&stored.value)
+            .with_context(|| format!("secret {key} is not valid hex"))?;
+        if decoded.len() != 32 {
+            anyhow::bail!("secret {key} is not 32 bytes ({} stored)", decoded.len());
+        }
+        tracing::debug!(secret = key, "Root secret is provisioned");
+        Ok(decoded)
     }
 
     async fn ensure_api_key_secret(&self) -> Result<()> {

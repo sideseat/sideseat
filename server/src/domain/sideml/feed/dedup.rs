@@ -204,16 +204,19 @@ fn call_key<'a>(block: &'a BlockEntry, id: Option<&'a str>) -> CallKey<'a> {
     }
 }
 
+/// Bucket key for the response-scoped position map: `(trace, span, source, event, attribute, shape)`.
+type ResponseKey<'a> = (
+    &'a str,
+    &'a str,
+    &'a str,
+    Option<&'a str>,
+    Option<&'a str>,
+    u64,
+);
+
 pub(super) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Vec<u32> {
     // (trace, span, source, call shape) -> the ids seen, in order of first appearance.
-    type ResponseKey<'a> = (
-        &'a str,
-        &'a str,
-        &'a str,
-        Option<&'a str>,
-        Option<&'a str>,
-        u64,
-    );
+
     // What tells two same-shaped calls of one response apart: the provider's id where there is one,
     // and the position otherwise.
     //
@@ -227,30 +230,32 @@ pub(super) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Vec<u32> {
     let mut rank_by_call: HashMap<(&str, &str), u32> = HashMap::new();
 
     for block in blocks {
+        // Plain messages get an ordinal too, but only inside a carrier whose structure is evidence of
+        // distinct occurrences - `gen_ai.choice`, `gen_ai.output.messages` and the other atomic emissions.
+        // The model producing the same text twice in one emission is two turns; the same text repeating
+        // inside a conversation snapshot is a re-statement, and that read is preserved by
+        // `position_proves_distinct_occurrence: false` on `SNAPSHOT` and `ACCUMULATED_STATE`.
+        //
+        // A shape distinct from tool-call shapes, so calls and text of the same "shape" never share a
+        // bucket in the response map. Text does not carry an id, so `call_key` returns `Indistinct` in
+        // any snapshot/state carrier - which keeps ADK's repeated "For context:" as one message rather
+        // than becoming N.
         if let ContentBlock::ToolUse { id, name, input } = &block.content {
             let shape = compute_tool_call_hash(name, input);
-            let key = call_key(block, id.as_deref());
-            let seen = keys_by_response
-                .entry((
-                    block.trace_id.as_str(),
-                    block.span_id.as_str(),
-                    block.source_type.as_str(),
-                    block.event_name.as_deref(),
-                    block.source_attribute.as_deref(),
-                    shape,
-                ))
-                .or_default();
-            let rank = match seen.iter().position(|seen| *seen == key) {
-                Some(position) => position as u32,
-                None => {
-                    seen.push(key);
-                    (seen.len() - 1) as u32
-                }
-            };
-            if let Some(id) = id.as_deref().filter(|s| !s.is_empty()) {
-                rank_by_call
-                    .entry((block.trace_id.as_str(), id))
-                    .or_insert(rank);
+            record_position(
+                block,
+                shape,
+                &mut keys_by_response,
+                &mut rank_by_call,
+                id.as_deref(),
+            );
+        } else if let Some(shape) = plain_message_shape(block) {
+            let semantics = crate::domain::sideml::carrier::semantics_for(
+                block.event_name.as_deref(),
+                block.source_attribute.as_deref(),
+            );
+            if semantics.position_proves_distinct_occurrence {
+                record_position(block, shape, &mut keys_by_response, &mut rank_by_call, None);
             }
         }
     }
@@ -260,19 +265,7 @@ pub(super) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Vec<u32> {
         .map(|block| match &block.content {
             ContentBlock::ToolUse { id, name, input } => {
                 let shape = compute_tool_call_hash(name, input);
-                let key = call_key(block, id.as_deref());
-                keys_by_response
-                    .get(&(
-                        block.trace_id.as_str(),
-                        block.span_id.as_str(),
-                        block.source_type.as_str(),
-                        block.event_name.as_deref(),
-                        block.source_attribute.as_deref(),
-                        shape,
-                    ))
-                    .and_then(|seen| seen.iter().position(|seen| *seen == key))
-                    .map(|rank| rank as u32)
-                    .unwrap_or(0)
+                lookup_position(block, shape, &keys_by_response, id.as_deref())
             }
             ContentBlock::ToolResult { tool_use_id, .. } => tool_use_id
                 .as_deref()
@@ -280,9 +273,92 @@ pub(super) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Vec<u32> {
                 .and_then(|id| rank_by_call.get(&(block.trace_id.as_str(), id)))
                 .copied()
                 .unwrap_or(0),
-            _ => 0,
+            _ => {
+                let Some(shape) = plain_message_shape(block) else {
+                    return 0;
+                };
+                let semantics = crate::domain::sideml::carrier::semantics_for(
+                    block.event_name.as_deref(),
+                    block.source_attribute.as_deref(),
+                );
+                if !semantics.position_proves_distinct_occurrence {
+                    return 0;
+                }
+                lookup_position(block, shape, &keys_by_response, None)
+            }
         })
         .collect()
+}
+
+/// A per-message shape that is not a tool call.
+///
+/// Used to key the plain-message ordinal within an atomic emission. Tool calls have their own shape and
+/// their own bucket; tool results take their call's ordinal; and non-emission carriers (snapshots,
+/// accumulated state) do not enter this bucket at all - see `call_repeat_ordinals`.
+fn plain_message_shape(block: &BlockEntry) -> Option<u64> {
+    match &block.content {
+        ContentBlock::ToolUse { .. } | ContentBlock::ToolResult { .. } => None,
+        _ => {
+            let mut hasher = DefaultHasher::new();
+            "plain_message".hash(&mut hasher);
+            block.role.hash(&mut hasher);
+            Some(compute_semantic_hash(&block.content) ^ hasher.finish())
+        }
+    }
+}
+
+/// Record a block's position among same-shape blocks of its response, and remember the id-to-rank map.
+fn record_position<'a>(
+    block: &'a BlockEntry,
+    shape: u64,
+    keys_by_response: &mut HashMap<ResponseKey<'a>, Vec<CallKey<'a>>>,
+    rank_by_call: &mut HashMap<(&'a str, &'a str), u32>,
+    id: Option<&'a str>,
+) {
+    let key = call_key(block, id);
+    let seen = keys_by_response
+        .entry((
+            block.trace_id.as_str(),
+            block.span_id.as_str(),
+            block.source_type.as_str(),
+            block.event_name.as_deref(),
+            block.source_attribute.as_deref(),
+            shape,
+        ))
+        .or_default();
+    let rank = match seen.iter().position(|seen| *seen == key) {
+        Some(position) => position as u32,
+        None => {
+            seen.push(key);
+            (seen.len() - 1) as u32
+        }
+    };
+    if let Some(id) = id.filter(|s| !s.is_empty()) {
+        rank_by_call
+            .entry((block.trace_id.as_str(), id))
+            .or_insert(rank);
+    }
+}
+
+fn lookup_position<'a>(
+    block: &'a BlockEntry,
+    shape: u64,
+    keys_by_response: &HashMap<ResponseKey<'a>, Vec<CallKey<'a>>>,
+    id: Option<&'a str>,
+) -> u32 {
+    let key = call_key(block, id);
+    keys_by_response
+        .get(&(
+            block.trace_id.as_str(),
+            block.span_id.as_str(),
+            block.source_type.as_str(),
+            block.event_name.as_deref(),
+            block.source_attribute.as_deref(),
+            shape,
+        ))
+        .and_then(|seen| seen.iter().position(|seen| *seen == key))
+        .map(|rank| rank as u32)
+        .unwrap_or(0)
 }
 
 /// Compute hash for tool call identity (name + input).

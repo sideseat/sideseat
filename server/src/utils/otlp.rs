@@ -47,6 +47,63 @@ pub fn attrs_to_json(attrs: &HashMap<String, String>) -> JsonValue {
     JsonValue::Object(map)
 }
 
+/// Convert OTLP KeyValue attributes to JsonValue preserving each value's original type.
+///
+/// # Why not `attrs_to_json(extract_attributes(...))`
+///
+/// The `extract_attributes` path stringifies every value on the way to a `HashMap<String, String>`. That
+/// is fine for display and for context lookups (session id, user id, environment), but it is wrong for
+/// identity: the metric datapoint id hashes the attribute JSON, and once every `IntValue(200)` and
+/// `StringValue("200")` render as the same `"200"` the two labelled series
+/// `http.requests{code=200}` and `http.requests{code="200"}` receive the same identity - which the
+/// `ReplacingMergeTree` sorting key then treats as one row and one of them disappears at merge time.
+///
+/// Everything the string form loses is preserved here: numbers stay numbers, booleans stay booleans,
+/// arrays and nested maps recurse, and an absent value is `null` rather than the empty string.
+pub fn attrs_to_typed_json(attrs: &[KeyValue]) -> JsonValue {
+    let mut map = serde_json::Map::with_capacity(attrs.len());
+    for kv in attrs {
+        let value = kv
+            .value
+            .as_ref()
+            .map(any_value_to_typed_json)
+            .unwrap_or(JsonValue::Null);
+        map.insert(kv.key.clone(), value);
+    }
+    JsonValue::Object(map)
+}
+
+/// One [`AnyValue`] to typed JSON. See [`attrs_to_typed_json`] for why this exists.
+fn any_value_to_typed_json(value: &AnyValue) -> JsonValue {
+    match &value.value {
+        None => JsonValue::Null,
+        Some(any_value::Value::StringValue(s)) => JsonValue::String(s.clone()),
+        Some(any_value::Value::BoolValue(b)) => JsonValue::Bool(*b),
+        Some(any_value::Value::IntValue(i)) => JsonValue::Number((*i).into()),
+        // NaN and infinities have no JSON representation, so they fall back to a tagged string that a
+        // reader can recognise - and, crucially, that does not compare equal to a numeric field.
+        Some(any_value::Value::DoubleValue(d)) => serde_json::Number::from_f64(*d)
+            .map(JsonValue::Number)
+            .unwrap_or_else(|| JsonValue::String(format!("__non_finite:{d}"))),
+        Some(any_value::Value::BytesValue(bytes)) => JsonValue::String(hex::encode(bytes)),
+        Some(any_value::Value::ArrayValue(arr)) => {
+            JsonValue::Array(arr.values.iter().map(any_value_to_typed_json).collect())
+        }
+        Some(any_value::Value::KvlistValue(kvlist)) => {
+            let mut nested = serde_json::Map::with_capacity(kvlist.values.len());
+            for kv in &kvlist.values {
+                let value = kv
+                    .value
+                    .as_ref()
+                    .map(any_value_to_typed_json)
+                    .unwrap_or(JsonValue::Null);
+                nested.insert(kv.key.clone(), value);
+            }
+            JsonValue::Object(nested)
+        }
+    }
+}
+
 /// Extract session_id from attributes
 pub fn get_session_id(attrs: &HashMap<String, String>) -> Option<String> {
     attrs.get(keys::SESSION_ID).cloned()
@@ -229,6 +286,42 @@ mod tests {
         let attrs = HashMap::new();
         let json = attrs_to_json(&attrs);
         assert_eq!(json, JsonValue::Object(serde_json::Map::new()));
+    }
+
+    /// OTLP integer 200 and string "200" are two different labelled series, not one.
+    ///
+    /// The old path stringified before it hashed, so a metric datapoint whose `code=200` (int) and
+    /// another whose `code="200"` (string) landed on the ClickHouse `ReplacingMergeTree` with matching
+    /// sort keys and one was deleted at merge time. Preserving the OTLP type keeps them apart.
+    #[test]
+    fn a_numeric_and_a_string_attribute_are_different_json() {
+        let kv = |k: &str, v: any_value::Value| KeyValue {
+            key: k.to_string(),
+            value: Some(AnyValue { value: Some(v) }),
+        };
+        let numeric = attrs_to_typed_json(&[kv("code", any_value::Value::IntValue(200))]);
+        let textual =
+            attrs_to_typed_json(&[kv("code", any_value::Value::StringValue("200".into()))]);
+        assert_ne!(
+            numeric, textual,
+            "an integer 200 and a string \"200\" must not hash to the same identity"
+        );
+
+        // Booleans keep their own kind too.
+        let flag_true = attrs_to_typed_json(&[kv("ok", any_value::Value::BoolValue(true))]);
+        let flag_text =
+            attrs_to_typed_json(&[kv("ok", any_value::Value::StringValue("true".into()))]);
+        assert_ne!(flag_true, flag_text);
+
+        // The string form stringifies both, so the old path answered equal - which is the failure this
+        // whole helper exists for.
+        let mut string_attrs = HashMap::new();
+        string_attrs.insert("code".to_string(), "200".to_string());
+        assert_eq!(
+            attrs_to_json(&string_attrs).get("code").unwrap().as_str(),
+            Some("200"),
+            "attrs_to_json is the path that loses the type; kept alive for display and lookups"
+        );
     }
 
     #[test]

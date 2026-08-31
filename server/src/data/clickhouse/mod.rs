@@ -305,36 +305,49 @@ impl ClickhouseService {
             error: e.to_string(),
         };
 
-        // The precondition decides whether the statements still have work to do. Its absence means
-        // they are idempotent; its presence means they are not, and re-running them would fail - so a
-        // migration whose statements landed while the version record did not stays recoverable.
-        if let Some(precondition) = migration.precondition {
-            let pending: Option<u8> = self
-                .client
-                .query(&render(precondition))
-                .fetch_optional()
-                .await
-                .map_err(|e| failed(ClickhouseError::from(e)))?;
-            if pending.is_none() {
-                tracing::debug!(
-                    "ClickHouse migration v{version} ({name}) is already applied; recording the version"
-                );
-                return self.record_schema_version(version).await;
+        // Two questions here, resolved separately: is there work left on the local table (guarded by the
+        // migration's `precondition`), and does the `Distributed` front end also need catching up. Both
+        // asked below, in the order that keeps a partly-applied state recoverable.
+        // Distributed statements first, and idempotent. A `Distributed` table is created from the
+        // local table's structure once and does not follow later changes, so its front-end schema has to
+        // be updated too - and if the local statement then fails, or the version record fails, the next
+        // start must be able to try again without every previous step colliding. The ordering also lets
+        // us run distributed_statements even when the precondition already flipped for the local table:
+        // a local ALTER that succeeded but a distributed one that failed left the version at N-1 and the
+        // local at N, and re-running has to add the column on the distributed side without repeating the
+        // local ALTER (which is not idempotent).
+        if self.config.distributed {
+            for statement in migration.distributed_statements {
+                self.client
+                    .query(&render(statement))
+                    .execute()
+                    .await
+                    .map_err(|e| failed(ClickhouseError::from(e)))?;
             }
         }
 
-        let statements = migration.statements.iter().chain(
-            migration
-                .distributed_statements
-                .iter()
-                .filter(|_| self.config.distributed),
-        );
-        for statement in statements {
-            self.client
-                .query(&render(statement))
-                .execute()
-                .await
-                .map_err(|e| failed(ClickhouseError::from(e)))?;
+        // Local statements only when the precondition still says work is due, since they are not
+        // idempotent.
+        let local_pending = match migration.precondition {
+            None => true,
+            Some(precondition) => {
+                let pending: Option<u8> = self
+                    .client
+                    .query(&render(precondition))
+                    .fetch_optional()
+                    .await
+                    .map_err(|e| failed(ClickhouseError::from(e)))?;
+                pending.is_some()
+            }
+        };
+        if local_pending {
+            for statement in migration.statements {
+                self.client
+                    .query(&render(statement))
+                    .execute()
+                    .await
+                    .map_err(|e| failed(ClickhouseError::from(e)))?;
+            }
         }
 
         tracing::debug!("ClickHouse migration v{} ({}) applied", version, name);

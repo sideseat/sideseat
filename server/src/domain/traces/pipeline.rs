@@ -205,12 +205,33 @@ impl TracePipeline {
                 }
 
                 // Phase 1: Wait for at least one message (with shutdown/claim handling)
+                //
+                // Arm order matters. `biased` polls in order and takes the first ready branch, so the
+                // *maintenance tick* must come **before** the receive branch: under sustained saturation
+                // `subscriber.recv()` is always ready, and putting it first meant claiming and trimming
+                // never fired. That is the case they matter most - a full stream is exactly when trim
+                // has work to do - so an ordering that starves them there defeats their purpose. The
+                // tick still yields to shutdown, which is what `biased` earns its keep for.
                 let first = tokio::select! {
                     biased;
                     _ = shutdown_rx.changed() => {
                         if *shutdown_rx.borrow() {
                             tracing::debug!("TracePipeline received shutdown, draining...");
                             shutdown_requested = true;
+                        }
+                        continue;
+                    }
+                    _ = claim_interval.tick() => {
+                        // Periodically claim stuck messages from other consumers
+                        self.claim_stuck_messages(&claimer, &acker, &consumer).await;
+                        // And discard what every group is finished with. This is the only thing that
+                        // bounds the stream: publishing no longer trims by length, because a length
+                        // bound deletes the oldest entries whether or not anyone read them - and each
+                        // had already been answered 200.
+                        match claimer.trim_consumed().await {
+                            Ok(0) => {}
+                            Ok(trimmed) => tracing::debug!(trimmed, "Trimmed consumed stream entries"),
+                            Err(e) => tracing::warn!(error = %e, "Failed to trim consumed stream entries"),
                         }
                         continue;
                     }
@@ -227,20 +248,6 @@ impl TracePipeline {
                                 break;
                             }
                         }
-                    }
-                    _ = claim_interval.tick() => {
-                        // Periodically claim stuck messages from other consumers
-                        self.claim_stuck_messages(&claimer, &acker, &consumer).await;
-                        // And discard what every group is finished with. This is the only thing that
-                        // bounds the stream: publishing no longer trims by length, because a length
-                        // bound deletes the oldest entries whether or not anyone read them - and each
-                        // had already been answered 200.
-                        match claimer.trim_consumed().await {
-                            Ok(0) => {}
-                            Ok(trimmed) => tracing::debug!(trimmed, "Trimmed consumed stream entries"),
-                            Err(e) => tracing::warn!(error = %e, "Failed to trim consumed stream entries"),
-                        }
-                        continue;
                     }
                 };
 

@@ -1636,12 +1636,16 @@ impl AppConfig {
             }
         }
 
-        // A store holding bytes must be at least as reachable as the rows naming them.
+        // A store holding bytes must be at least as reachable as the rows naming them. The pepper is
+        // needed whenever *any* auth path is enabled, not just the console one: `otel.auth.required`
+        // ingests through the same API-key hash, so a browser session and an ingestion key both fail on
+        // whichever replica the balancer picked.
         validate_store_sharing(
             self.database.transactional,
+            self.database.analytics,
             self.files.storage,
             self.secrets.backend,
-            self.auth.enabled,
+            self.auth.enabled || self.otel.auth_required,
         )?;
 
         // ClickHouse URL required when using ClickHouse backend
@@ -1759,6 +1763,17 @@ impl StorageBackend {
     }
 }
 
+impl AnalyticsBackend {
+    pub fn sharing(&self) -> Sharing {
+        match self {
+            // An embedded file on the instance's own disk, and DuckDB holds a process-wide lock on it
+            // while running - so two replicas cannot share one file even if they could see it.
+            Self::Duckdb => Sharing::PerInstance,
+            Self::Clickhouse => Sharing::Shared,
+        }
+    }
+}
+
 impl SecretsBackend {
     pub fn sharing(&self) -> Sharing {
         match self {
@@ -1789,12 +1804,24 @@ impl SecretsBackend {
 /// bad key. Both send the operator looking in the wrong place.
 fn validate_store_sharing(
     transactional: TransactionalBackend,
+    analytics: AnalyticsBackend,
     storage: StorageBackend,
     secrets: SecretsBackend,
     auth_enabled: bool,
 ) -> Result<()> {
     if transactional.sharing() == Sharing::PerInstance {
         return Ok(());
+    }
+
+    if analytics.sharing() == Sharing::PerInstance {
+        anyhow::bail!(
+            "Configuration error: database.transactional is '{transactional}', which every instance \
+             shares, but database.analytics is '{analytics}', which is a file each instance holds \
+             separately. Telemetry would be partitioned across replicas - a trace ingested on one is \
+             absent from the others' reads, and its files are visible everywhere via the shared \
+             transactional store. Set database.analytics to 'clickhouse', or database.transactional to \
+             'sqlite' for a single-instance deployment."
+        );
     }
 
     if storage.sharing() == Sharing::PerInstance {
@@ -1941,24 +1968,38 @@ mod clickhouse_config_tests {
     /// the next; the same for the JWT key, where a browser is signed out at random.
     #[test]
     fn byte_storage_must_be_at_least_as_shared_as_the_rows_naming_it() {
+        use AnalyticsBackend as An;
         use SecretsBackend as Sec;
         use StorageBackend as Store;
         use TransactionalBackend as Tx;
 
         // The self-consistent single-instance default: everything per-instance, nothing to complain about.
-        validate_store_sharing(Tx::Sqlite, Store::Filesystem, Sec::Keychain, true)
-            .expect("SQLite with local files and a local keychain is one instance by construction");
+        validate_store_sharing(
+            Tx::Sqlite,
+            An::Duckdb,
+            Store::Filesystem,
+            Sec::Keychain,
+            true,
+        )
+        .expect("SQLite with local files and a local keychain is one instance by construction");
 
         // A shared database is the signal, because that is where the naming rows live.
-        let err = validate_store_sharing(Tx::Postgres, Store::Filesystem, Sec::Aws, true)
-            .expect_err("a shared database naming local files must be refused");
+        let err = validate_store_sharing(
+            Tx::Postgres,
+            An::Clickhouse,
+            Store::Filesystem,
+            Sec::Aws,
+            true,
+        )
+        .expect_err("a shared database naming local files must be refused");
         assert!(
             err.to_string().contains("files.storage"),
             "unexpected error: {err}"
         );
 
-        let err = validate_store_sharing(Tx::Postgres, Store::S3, Sec::Keychain, true)
-            .expect_err("a shared database with a per-instance pepper must be refused");
+        let err =
+            validate_store_sharing(Tx::Postgres, An::Clickhouse, Store::S3, Sec::Keychain, true)
+                .expect_err("a shared database with a per-instance pepper must be refused");
         assert!(
             err.to_string().contains("secrets.backend"),
             "unexpected error: {err}"
@@ -1969,17 +2010,31 @@ mod clickhouse_config_tests {
             Sec::SecretService,
             Sec::Keyutils,
         ] {
-            validate_store_sharing(Tx::Postgres, Store::S3, local, true)
+            validate_store_sharing(Tx::Postgres, An::Clickhouse, Store::S3, local, true)
                 .expect_err("every per-instance secrets backend is refused, not just the keychain");
         }
 
         // With auth off there are no API keys and no sessions, so nothing reads the pepper.
-        validate_store_sharing(Tx::Postgres, Store::S3, Sec::Keychain, false)
-            .expect("a per-instance secret matters only when something is authenticated with it");
+        validate_store_sharing(
+            Tx::Postgres,
+            An::Clickhouse,
+            Store::S3,
+            Sec::Keychain,
+            false,
+        )
+        .expect("a per-instance secret matters only when something is authenticated with it");
+
+        // Analytics is byte storage too, and DuckDB is a per-instance file.
+        let err = validate_store_sharing(Tx::Postgres, An::Duckdb, Store::S3, Sec::Aws, true)
+            .expect_err("PostgreSQL + DuckDB partitions telemetry across replicas");
+        assert!(
+            err.to_string().contains("database.analytics"),
+            "unexpected error: {err}"
+        );
 
         // And the combinations that hold up.
         for shared in [Sec::Env, Sec::Aws, Sec::Vault] {
-            validate_store_sharing(Tx::Postgres, Store::S3, shared, true)
+            validate_store_sharing(Tx::Postgres, An::Clickhouse, Store::S3, shared, true)
                 .expect("shared rows, shared bytes, shared secret");
         }
     }

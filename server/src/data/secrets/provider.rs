@@ -11,6 +11,32 @@ pub trait SecretProvider: Send + Sync + std::fmt::Debug {
     /// Store a secret
     async fn set(&self, key: &SecretKey, secret: &Secret) -> Result<(), SecretError>;
 
+    /// Store a secret **only if none exists**, and return the currently stored value on either outcome.
+    ///
+    /// The point is a *cross-instance* race: two fresh replicas of a horizontally scaled deployment both
+    /// see no root secret in a shared backend, both auto-provision, and the last writer wins - so the two
+    /// replicas cache different peppers and every API key verifies on one and reads as forged on the
+    /// other. A backend that supports compare-and-set (AWS Secrets Manager's `CreateSecret` returns
+    /// `ResourceExistsException`, Vault KV v2's `cas=0`) resolves it atomically: whichever call succeeds
+    /// wrote the secret; the losers read what is now there and use it.
+    ///
+    /// The default is racy - it exists-then-sets - because most backends here are single-instance by
+    /// design and cannot race with anyone. AWS overrides it with a real CAS. A shared backend without a
+    /// CAS is documented as an incompatible pairing rather than silently pretending to be safe.
+    async fn create_if_absent(
+        &self,
+        key: &SecretKey,
+        secret: &Secret,
+    ) -> Result<Secret, SecretError> {
+        if let Some(existing) = self.get(key).await? {
+            return Ok(existing);
+        }
+        self.set(key, secret).await?;
+        // Read back, because on a real CAS-supporting backend the race resolved before this line and the
+        // stored value is not necessarily what we wrote. This is where the racy default is racy.
+        Ok(self.get(key).await?.unwrap_or_else(|| secret.clone()))
+    }
+
     /// Delete a secret
     async fn delete(&self, key: &SecretKey) -> Result<(), SecretError>;
 

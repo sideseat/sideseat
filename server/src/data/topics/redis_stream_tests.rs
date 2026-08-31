@@ -314,3 +314,90 @@ async fn the_slowest_group_decides_what_may_be_trimmed() {
         "and every entry is still there for it to read"
     );
 }
+
+/// A Redis without persistence is refused at startup.
+///
+/// The defect this pins: `is_durable()` returned true unconditionally, so any PINGable Redis was
+/// treated as a durable queue. In production that could be a cache-tier instance with AOF off and a
+/// keyspace-wide LRU, both of which lose data an OTLP export was answered 200 for. Refusing at
+/// startup means the operator learns the configuration is wrong before any exporter is fooled by it.
+///
+/// Skipped when Docker is unavailable; `make test-redis` sets its own AOF and eviction, so this test
+/// spins up a second container with them off.
+#[tokio::test]
+async fn a_non_durable_redis_is_refused_at_startup() {
+    if std::env::var(URL_ENV).is_err() {
+        eprintln!("redis stream tests: skipped - set {URL_ENV}");
+        return;
+    }
+    if std::process::Command::new("docker")
+        .arg("--version")
+        .output()
+        .map(|o| !o.status.success())
+        .unwrap_or(true)
+    {
+        eprintln!("a_non_durable_redis_is_refused_at_startup: skipped - docker unavailable");
+        return;
+    }
+
+    let name = format!("sideseat-redis-nondurable-{}", uuid::Uuid::new_v4());
+    let port = 63980u16;
+    struct Cleanup(String);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = std::process::Command::new("docker")
+                .args(["rm", "-f", &self.0])
+                .output();
+        }
+    }
+    let _cleanup = Cleanup(name.clone());
+    let started = std::process::Command::new("docker")
+        .args([
+            "run",
+            "-d",
+            "--name",
+            &name,
+            "-p",
+            &format!("{port}:6379"),
+            "redis:7.4-alpine",
+            "redis-server",
+            "--maxmemory",
+            "16mb",
+            "--maxmemory-policy",
+            "allkeys-lru",
+            "--appendonly",
+            "no",
+        ])
+        .output();
+    assert!(
+        started
+            .as_ref()
+            .map(|o| o.status.success())
+            .unwrap_or(false),
+        "failed to start the throwaway Redis: {started:?}"
+    );
+    // Give it a moment to accept connections.
+    for _ in 0..30 {
+        let ping = std::process::Command::new("docker")
+            .args(["exec", &name, "redis-cli", "ping"])
+            .output();
+        if ping
+            .map(|o| String::from_utf8_lossy(&o.stdout).contains("PONG"))
+            .unwrap_or(false)
+        {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+
+    let result = RedisTopicBackend::new(&format!("redis://127.0.0.1:{port}")).await;
+    let err = match result {
+        Ok(_) => panic!("a Redis with AOF off and allkeys-lru must not be accepted as durable"),
+        Err(e) => e,
+    };
+    let message = err.to_string();
+    assert!(
+        message.contains("appendonly") || message.contains("maxmemory-policy"),
+        "the refusal must name the offending setting, so an operator knows what to fix: {message}"
+    );
+}

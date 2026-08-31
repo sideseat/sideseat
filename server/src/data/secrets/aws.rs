@@ -131,6 +131,45 @@ impl SecretProvider for AwsProvider {
         Ok(())
     }
 
+    /// A real CAS via `CreateSecret`.
+    ///
+    /// The API returns `ResourceExistsException` when the name is already in use, atomically - so two
+    /// fresh replicas racing to provision a root secret cannot both win. The loser catches the error and
+    /// reads the winner's value, and the two ends up seeing the same pepper.
+    async fn create_if_absent(
+        &self,
+        key: &SecretKey,
+        secret: &Secret,
+    ) -> Result<Secret, SecretError> {
+        let name = self.secret_name(key);
+        let json =
+            serde_json::to_string(secret).map_err(|e| SecretError::Serialization(e.to_string()))?;
+
+        match self
+            .client
+            .create_secret()
+            .name(&name)
+            .secret_string(&json)
+            .send()
+            .await
+        {
+            Ok(_) => Ok(secret.clone()),
+            Err(sdk_err) => {
+                if sdk_err
+                    .as_service_error()
+                    .is_some_and(|e| e.is_resource_exists_exception())
+                {
+                    // Another instance won the race. Read what it wrote and use that.
+                    self.get(key)
+                        .await?
+                        .ok_or_else(|| SecretError::NotFound(name))
+                } else {
+                    Err(SecretError::backend("aws", sdk_err.to_string()))
+                }
+            }
+        }
+    }
+
     async fn delete(&self, key: &SecretKey) -> Result<(), SecretError> {
         let name = self.secret_name(key);
         let mut req = self.client.delete_secret().secret_id(&name);

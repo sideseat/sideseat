@@ -93,8 +93,13 @@ services:
       - "${VALKEY_PASSWORD:-dev_password}"
       - "--maxmemory"
       - "${VALKEY_MAXMEMORY:-256mb}"
+      # `noeviction` rather than `allkeys-lru`: this Valkey serves the trace-ingestion stream, and an
+      # LRU over the whole keyspace can evict a stream entry (or the stream key itself) that has already
+      # been answered 200. Under memory pressure new writes will be refused, which the OTLP path turns
+      # into 503 + Retry-After and leaves the data with the exporter. The durability probe at startup
+      # (`probe_redis_durability`) checks this and refuses `allkeys-lru`.
       - "--maxmemory-policy"
-      - "allkeys-lru"
+      - "noeviction"
       - "--appendonly"
       - "yes"
       - "--appendfsync"
