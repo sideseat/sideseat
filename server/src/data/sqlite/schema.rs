@@ -3,7 +3,7 @@
 //! Initial schema with all tables. No migrations needed for first version.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 12;
+pub const SCHEMA_VERSION: i32 = 13;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -145,10 +145,16 @@ CREATE TABLE IF NOT EXISTS deleted_projects (
     -- deleted long ago is not re-checked at the same rate as one deleted a minute ago - without this, a
     -- hundred thousand historical deletions meant a hundred thousand storage listings every window,
     -- forever.
-    quiet_checks INTEGER NOT NULL DEFAULT 0
+    quiet_checks INTEGER NOT NULL DEFAULT 0,
+    -- When this id is next due, materialised rather than computed from `last_checked_at` and
+    -- `quiet_checks` at query time. An index on an input to the eligibility expression bounds the rows
+    -- *returned*, not the rows examined: with many heavily backed-off records the planner still walks a
+    -- large part of a table that only ever grows. Indexing the due time itself makes discovery genuinely
+    -- bounded.
+    next_check_at INTEGER
 );
 
-CREATE INDEX IF NOT EXISTS idx_deleted_projects_next_check ON deleted_projects(last_checked_at);
+CREATE INDEX IF NOT EXISTS idx_deleted_projects_due ON deleted_projects(next_check_at);
 
 -- =============================================================================
 -- 6. Files metadata (references projects)

@@ -269,6 +269,15 @@ ALTER TABLE organizations ADD COLUMN IF NOT EXISTS deleting_at BIGINT;
 CREATE INDEX IF NOT EXISTS idx_deleted_projects_next_check ON deleted_projects(last_checked_at);
 "#,
         ),
+        13 => (
+            "deleted_project_due_index",
+            // The due time itself, indexed - an index on an input to the eligibility expression bounds
+            // rows returned, not rows examined. See the SQLite twin.
+            r#"ALTER TABLE deleted_projects ADD COLUMN IF NOT EXISTS next_check_at BIGINT;
+UPDATE deleted_projects SET next_check_at = COALESCE(last_checked_at, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_deleted_projects_due ON deleted_projects(next_check_at);
+"#,
+        ),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,

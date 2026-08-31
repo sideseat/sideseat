@@ -178,7 +178,7 @@ For the full list of CLI flags and env vars, see the [CLI Reference](/docs/refer
 | `clickhouse.password` | string | Password |
 | `clickhouse.timeout_secs` | number | Query timeout (seconds) |
 | `clickhouse.compression` | boolean | Enable compression |
-| `clickhouse.async_insert` | boolean | Enable async inserts |
+| `clickhouse.async_insert` | boolean | Server-side insert batching (default false; the pipeline already batches, and durability requires waiting, which then pays ClickHouse's flush timer) |
 | `clickhouse.wait_for_async_insert` | boolean | Wait for insert completion (default true; false makes an OTLP 200 rest on a server-side buffer) |
 | `clickhouse.cluster` | string | Cluster name for sharding |
 | `clickhouse.distributed` | boolean | Enable distributed tables |

@@ -545,59 +545,86 @@ pub async fn record_project_sweep(
 /// rather than a handful of minutes.
 /// Claim a bounded batch of deleted-project ids that are due for a cleanup check.
 ///
-/// Three things make this affordable for records that are kept forever.
+/// Four things make this affordable for records that are kept forever.
 ///
-/// **Claimed, not listed.** Moving `last_checked_at` forward in the statement that returns the ids means
-/// concurrent instances race per id and one wins per window, so the work does not grow with the instance
-/// count.
+/// **Leased, not merely marked.** The claim pushes `next_check_at` out by `lease_secs` before returning the
+/// ids, so a batch that takes longer than a sweep interval - fifty S3 listings have no guaranteed duration -
+/// is not picked up again while it is still running. The real next time is set when the check reports.
 ///
-/// **Backed off.** `quiet_checks` counts consecutive checks that found nothing, and the next check is due
-/// `base * 2^quiet_checks` later, capped. Without it a hundred thousand historical deletions meant a
-/// hundred thousand storage listings every window, forever - correct, and unbounded lifetime work.
+/// **Claimed exclusively.** `FOR UPDATE SKIP LOCKED` on the inner select, because `WHERE project_id IN (SELECT ...)` is \
+/// not enough: the subquery is evaluated against the statement's snapshot, so a replica whose outer update \
+/// blocks on a row another replica is updating resumes with a subquery result that still lists it, and the \
+/// outer condition only compares `project_id` - which has not changed. Both replicas then return the same \
+/// id and both do the storage work. It is the same stale-subquery mechanism as the file claim's.
 ///
-/// **Bounded per sweep.** At most `limit` ids per call, so one sweep cannot run longer than its own window
-/// and overlap the next.
+/// **Backed off.** `next_check_at` is materialised from `quiet_checks` on every report, so a project
+/// deleted long ago is not re-checked at the same rate as one deleted a minute ago. Without it, a hundred
+/// thousand historical deletions meant a hundred thousand storage listings every sweep, forever.
 ///
-/// Times are the database's: with per-instance clocks, skew would decide which ids are due.
+/// **Bounded per sweep**, so one pass cannot outlive its window - and the *search* is bounded too, because
+/// the index is on the due time rather than on an input to it.
 pub async fn claim_deleted_projects_for_check(
     pool: &PgPool,
-    base_gap_secs: i64,
-    max_gap_secs: i64,
+    lease_secs: i64,
     limit: i64,
 ) -> Result<Vec<String>, PostgresError> {
     let rows: Vec<(String,)> = sqlx::query_as(
-        "UPDATE deleted_projects SET last_checked_at = extract(epoch from now())::bigint \
+        "UPDATE deleted_projects \
+         SET last_checked_at = extract(epoch from now())::bigint, next_check_at = extract(epoch from now())::bigint + $1 \
          WHERE project_id IN ( \
              SELECT project_id FROM deleted_projects \
-             WHERE last_checked_at IS NULL \
-                OR last_checked_at <= extract(epoch from now())::bigint - LEAST($1 * (2::bigint ^ LEAST(quiet_checks, 20))::bigint, $2) \
-             ORDER BY last_checked_at NULLS FIRST \
-             LIMIT $3 \
+             WHERE next_check_at IS NULL OR next_check_at <= extract(epoch from now())::bigint \
+             ORDER BY next_check_at \
+             LIMIT $2 FOR UPDATE SKIP LOCKED \
          ) \
          RETURNING project_id",
     )
-    .bind(base_gap_secs)
-    .bind(max_gap_secs)
+    .bind(lease_secs)
     .bind(limit)
     .fetch_all(pool)
     .await?;
     Ok(rows.into_iter().map(|(id,)| id).collect())
 }
 
-/// Record what a deleted project's check found: quiet moves the next check further out, anything found
-/// brings it back to the base interval.
+/// Record what a deleted project's check found, and when to look again.
+///
+/// Quiet means *nothing at all* was found - no analytics rows, no files, and no error looking. Anything
+/// else brings the next check back to the base interval: files arriving while spans are dropped, or a
+/// storage delete that failed, are both reasons to look again soon rather than to conclude the project has
+/// gone quiet.
 pub async fn record_deleted_project_check(
     pool: &PgPool,
     project_id: &str,
     was_quiet: bool,
+    base_gap_secs: i64,
+    max_gap_secs: i64,
 ) -> Result<(), PostgresError> {
-    let sql = if was_quiet {
-        "UPDATE deleted_projects SET quiet_checks = quiet_checks + 1 WHERE project_id = $1"
+    // Bound per branch, not with a placeholder trick: PostgreSQL rejects a bind the statement does not use,
+    // and positional binds would have let the non-quiet branch read the project id as its interval.
+    if was_quiet {
+        sqlx::query(
+            "UPDATE deleted_projects \
+             SET quiet_checks = quiet_checks + 1, \
+                 next_check_at = extract(epoch from now())::bigint \
+                     + LEAST($1 * (2::bigint ^ LEAST(quiet_checks, 20))::bigint, $2) \
+             WHERE project_id = $3",
+        )
+        .bind(base_gap_secs)
+        .bind(max_gap_secs)
+        .bind(project_id)
+        .execute(pool)
+        .await?;
     } else {
-        // Something arrived for a project that no longer exists, so check it often again.
-        "UPDATE deleted_projects SET quiet_checks = 0 WHERE project_id = $1"
-    };
-    sqlx::query(sql).bind(project_id).execute(pool).await?;
+        sqlx::query(
+            "UPDATE deleted_projects \
+             SET quiet_checks = 0, next_check_at = extract(epoch from now())::bigint + $1 \
+             WHERE project_id = $2",
+        )
+        .bind(base_gap_secs)
+        .bind(project_id)
+        .execute(pool)
+        .await?;
+    }
     Ok(())
 }
 

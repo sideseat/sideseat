@@ -454,12 +454,17 @@ so there is no grace period. What the tombstone gives instead:
    knows the project existed - so the sweep keeps collecting rows *and files* that appear for a remembered
    id, and the records are kept **permanently**: any retention would be a bound on how late a stalled
    writer may commit. Discovery is bounded three ways, because permanent records re-checked at a fixed
-   rate are unbounded lifetime work: **claimed** (one instance per id per window, so cost is independent
-   of replica count), **backed off** (`quiet_checks` pushes each next check out geometrically to a daily
-   floor - otherwise 100k historical deletions meant 100k storage listings per sweep, forever) and
-   **batched** (`DELETED_PROJECT_CHECK_BATCH` per sweep, so one pass cannot outlive its own window),
-   indexed on `last_checked_at`. Nothing sweeps at startup: inline it made every new instance wait for
-   work that is not urgent.
+   rate are unbounded lifetime work: **leased** (the claim pushes `next_check_at` out before returning, so
+   a batch of storage listings that outruns a sweep interval is not re-claimed while it runs), **claimed
+   exclusively** (`FOR UPDATE SKIP LOCKED` on the inner select - `WHERE id IN (SELECT … LIMIT n)` alone
+   lets a blocked replica resume with a stale subquery snapshot and return the same id, the same mechanism
+   as the file claim's), **backed off** (`next_check_at` materialised from `quiet_checks`, geometric to a
+   daily floor - otherwise 100k historical deletions meant 100k storage listings per sweep, forever) and
+   **batched**. Indexed on `next_check_at`, the due time *itself*: an index on an input to the eligibility
+   expression bounds rows returned, not rows examined. "Quiet" requires no files **and** no rows **and** no
+   error - deciding it from the analytics count alone counted a sweep that had just deleted a late writer's
+   files, or one whose storage delete failed, as evidence the project had gone quiet. Nothing sweeps at
+   startup: inline it made every new instance wait for work that is not urgent.
 7. **Membership mutations** refuse for a tombstoned organization, as renaming and project creation do -
    writing into one is writing into something no read can see and the cascade is about to remove. The
    check is *inside* the mutation's transaction (`FOR UPDATE` on PostgreSQL): on its own connection it was

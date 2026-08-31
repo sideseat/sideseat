@@ -231,6 +231,17 @@ const MIGRATION_V12: &str = r#"ALTER TABLE deleted_projects ADD COLUMN quiet_che
 CREATE INDEX IF NOT EXISTS idx_deleted_projects_next_check ON deleted_projects(last_checked_at);
 "#;
 
+/// Index the due time itself, not an input to it.
+///
+/// Eligibility was `last_checked_at <= now - base * 2^quiet_checks`, and an index on `last_checked_at`
+/// alone bounds the rows *returned* rather than the rows examined - so with many heavily backed-off records
+/// the planner still walks a large part of a table that only grows. `next_check_at` is materialised on every
+/// check and indexed, which makes the search bounded.
+const MIGRATION_V13: &str = r#"ALTER TABLE deleted_projects ADD COLUMN next_check_at INTEGER;
+UPDATE deleted_projects SET next_check_at = COALESCE(last_checked_at, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_deleted_projects_due ON deleted_projects(next_check_at);
+"#;
+
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
     match version {
         1 => {
@@ -249,6 +260,7 @@ async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteEr
         10 => apply_versioned_migration(pool, 10, "deleted_projects", MIGRATION_V10).await,
         11 => apply_versioned_migration(pool, 11, "deleted_project_windows", MIGRATION_V11).await,
         12 => apply_versioned_migration(pool, 12, "deleted_project_backoff", MIGRATION_V12).await,
+        13 => apply_versioned_migration(pool, 13, "deleted_project_due_index", MIGRATION_V13).await,
         _ => Err(SqliteError::MigrationFailed {
             version,
             name: "unknown".to_string(),
