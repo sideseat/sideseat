@@ -511,8 +511,15 @@ would be false for one of them:
 | | DuckDB + SQLite | ClickHouse + PostgreSQL |
 | --- | --- | --- |
 | Ingest a trace export | < 25 ms p99 | < 100 ms p99 |
-| Read a session (151 spans) | < 50 ms p99 | < 500 ms p99 |
-| List 50 traces | < 100 ms p99 | < 1 s p99 |
+| Read a session (151 spans), sequential | < 50 ms p99 | < 750 ms p99 |
+| Read a session, 8 concurrent | < 150 ms p99 | < 1.5 s p99 |
+| List 50 traces | < 50 ms p99 | < 1.5 s p99 |
+
+Reproduce with `make bench-http` and `make bench-http-distributed` (`misc/bench/http-latency.sh`), which
+starts throwaway containers for the distributed pair, discards warm-up requests, and prints the raw
+percentiles. The targets are set from that harness rather than from a better ad-hoc sample: its distributed
+run reports 606.8 ms p99 sequential and 1054.3 ms p99 concurrent, worse than the 440.8/636.4 recorded below
+from a run with more samples, and the looser number is the one to design against.
 
 The ClickHouse column is deliberately an order of magnitude looser, and it is a *measured* target rather
 than an aspiration: on ClickHouse the row fetch dominates, and no amount of work on the normaliser changes

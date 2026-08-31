@@ -64,6 +64,7 @@
 #     test-server        Rust tests, server package only (inner loop)
 #     test-clickhouse    ClickHouse/DuckDB parity (starts a throwaway container)
 #     test-postgres      PostgreSQL/SQLite parity (starts a throwaway container)
+#     bench-http         End-to-end HTTP latency (add -distributed for PostgreSQL + ClickHouse)
 #     test-web           Web tests (vitest)
 #     test-sdk-js        JS SDK tests
 #     test-sdk-python    Python SDK tests (pytest)
@@ -225,7 +226,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: dev dev-server dev-web
 .PHONY: fmt fmt-check lint lint-advisory check
 .PHONY: secret-scan-tree secret-scan-staged secret-scan-range
-.PHONY: test test-rust test-server test-clickhouse test-postgres test-web test-sdk-js test-sdk-python coverage
+.PHONY: test test-rust test-server test-clickhouse test-postgres bench-http bench-http-distributed test-web test-sdk-js test-sdk-python coverage
 .PHONY: build build-web build-server
 .PHONY: build-sdk build-sdk-js build-sdk-python
 .PHONY: build-cli build-cli-preflight build-cli-summary $(CLI_BUILD_TARGETS)
@@ -591,6 +592,14 @@ test-postgres:
 	status=$$?; \
 	docker rm -f $(PG_TEST_CONTAINER) >/dev/null 2>&1; \
 	exit $$status
+
+# End-to-end HTTP latency, which is what a client actually experiences. The in-process benches measure the
+# stages inside a request; these measure the request. The numbers in CLAUDE.md come from here.
+bench-http:
+	@misc/bench/http-latency.sh embedded
+
+bench-http-distributed:
+	@misc/bench/http-latency.sh distributed
 
 test-web:
 	@echo "[test-web] Running web tests..."
