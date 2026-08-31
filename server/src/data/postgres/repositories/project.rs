@@ -527,7 +527,10 @@ pub async fn record_project_sweep(
     let removed = removed.rows_affected() > 0;
     if removed {
         sqlx::query(
-            "INSERT INTO deleted_projects (project_id, deleted_at) VALUES ($1, extract(epoch from now())::bigint) \
+            // `next_check_at` set here, not left to a default: it must be *due*, and null sorted last on
+            // PostgreSQL, which queued a fresh deletion behind the entire backlog.
+            "INSERT INTO deleted_projects (project_id, deleted_at, next_check_at) \
+             VALUES ($1, extract(epoch from now())::bigint, extract(epoch from now())::bigint) \
              ON CONFLICT (project_id) DO NOTHING",
         )
         .bind(id)
@@ -567,23 +570,24 @@ pub async fn claim_deleted_projects_for_check(
     pool: &PgPool,
     lease_secs: i64,
     limit: i64,
-) -> Result<Vec<String>, PostgresError> {
-    let rows: Vec<(String,)> = sqlx::query_as(
+) -> Result<Vec<(String, i64)>, PostgresError> {
+    let rows: Vec<(String, i64)> = sqlx::query_as(
         "UPDATE deleted_projects \
-         SET last_checked_at = extract(epoch from now())::bigint, next_check_at = extract(epoch from now())::bigint + $1 \
+         SET last_checked_at = extract(epoch from now())::bigint, next_check_at = extract(epoch from now())::bigint + $1, \
+             claim_token = claim_token + 1 \
          WHERE project_id IN ( \
              SELECT project_id FROM deleted_projects \
-             WHERE next_check_at IS NULL OR next_check_at <= extract(epoch from now())::bigint \
+             WHERE next_check_at <= extract(epoch from now())::bigint \
              ORDER BY next_check_at \
              LIMIT $2 FOR UPDATE SKIP LOCKED \
          ) \
-         RETURNING project_id",
+         RETURNING project_id, claim_token",
     )
     .bind(lease_secs)
     .bind(limit)
     .fetch_all(pool)
     .await?;
-    Ok(rows.into_iter().map(|(id,)| id).collect())
+    Ok(rows)
 }
 
 /// Record what a deleted project's check found, and when to look again.
@@ -595,33 +599,35 @@ pub async fn claim_deleted_projects_for_check(
 pub async fn record_deleted_project_check(
     pool: &PgPool,
     project_id: &str,
+    claim_token: i64,
     was_quiet: bool,
     base_gap_secs: i64,
     max_gap_secs: i64,
 ) -> Result<(), PostgresError> {
-    // Bound per branch, not with a placeholder trick: PostgreSQL rejects a bind the statement does not use,
-    // and positional binds would have let the non-quiet branch read the project id as its interval.
+    // Matched on the token, so a worker whose lease expired part way through its batch updates nothing: the
+    // id has been claimed again since, the token has moved on, and overwriting the new holder's schedule -
+    // or its result - would let a third worker claim an id that is still being processed.
     if was_quiet {
         sqlx::query(
             "UPDATE deleted_projects \
              SET quiet_checks = quiet_checks + 1, \
-                 next_check_at = extract(epoch from now())::bigint \
-                     + LEAST($1 * (2::bigint ^ LEAST(quiet_checks, 20))::bigint, $2) \
-             WHERE project_id = $3",
+                 next_check_at = extract(epoch from now())::bigint + LEAST($1 * (2::bigint ^ LEAST(quiet_checks, 20))::bigint, $2) \
+             WHERE project_id = $3 AND claim_token = $4",
         )
         .bind(base_gap_secs)
         .bind(max_gap_secs)
         .bind(project_id)
+        .bind(claim_token)
         .execute(pool)
         .await?;
     } else {
         sqlx::query(
-            "UPDATE deleted_projects \
-             SET quiet_checks = 0, next_check_at = extract(epoch from now())::bigint + $1 \
-             WHERE project_id = $2",
+            "UPDATE deleted_projects SET quiet_checks = 0, next_check_at = extract(epoch from now())::bigint + $1 \
+             WHERE project_id = $2 AND claim_token = $3",
         )
         .bind(base_gap_secs)
         .bind(project_id)
+        .bind(claim_token)
         .execute(pool)
         .await?;
     }

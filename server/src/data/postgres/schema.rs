@@ -3,7 +3,7 @@
 //! Initial schema with all tables. Compatible with SQLite schema structure.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 13;
+pub const SCHEMA_VERSION: i32 = 14;
 
 /// Complete schema SQL for PostgreSQL
 pub const SCHEMA: &str = r#"
@@ -147,7 +147,14 @@ CREATE TABLE IF NOT EXISTS deleted_projects (
     -- *returned*, not the rows examined: with many heavily backed-off records the planner still walks a
     -- large part of a table that only ever grows. Indexing the due time itself makes discovery genuinely
     -- bounded.
-    next_check_at BIGINT
+    -- NOT NULL, and set when the record is created. Left null, PostgreSQL sorts it *last* (SQLite sorts
+    -- nulls first), so a freshly deleted project queued behind every overdue record - hours or days on a
+    -- backlog, with its late files and rows hidden throughout.
+    next_check_at BIGINT NOT NULL DEFAULT 0,
+    -- Which claim owns the current check. A report carries the token it was claimed with and updates
+    -- nothing if it no longer matches, so a worker whose lease expired mid-batch cannot overwrite the
+    -- schedule or the result of the worker that took the id after it.
+    claim_token BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_deleted_projects_due ON deleted_projects(next_check_at);

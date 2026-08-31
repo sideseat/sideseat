@@ -505,11 +505,25 @@ Measured over HTTP on a release build, loopback, DuckDB + SQLite, warm process:
 | Session messages, 151 spans | sequential | 17.4 ms | 22.4 ms | 23.3 ms |
 | Session messages, 151 spans | 8 concurrent | 111.7 ms | 125.6 ms | 127.5 ms |
 
-So the SLO: an ingest request in the low tens of milliseconds and an interactive read under ~100 ms at
-p99 *sequentially*. Two things the table says out loud rather than hides. Concurrent reads are serialised
-by the analytics backend, so the p50 of eight at once is roughly eight times one - read concurrency buys
-throughput (~70 req/s here), not latency. And a long *replaying* session is bounded by the reconstruction
-cache, not the pipeline: 2.28 s cold, 47 ms warm at 1 000 turns.
+So the SLO, **per backend**, because the two differ by an order of magnitude and one number covering both
+would be false for one of them:
+
+| | DuckDB + SQLite | ClickHouse + PostgreSQL |
+| --- | --- | --- |
+| Ingest a trace export | < 25 ms p99 | < 100 ms p99 |
+| Read a session (151 spans) | < 50 ms p99 | < 500 ms p99 |
+| List 50 traces | < 100 ms p99 | < 1 s p99 |
+
+The ClickHouse column is deliberately an order of magnitude looser, and it is a *measured* target rather
+than an aspiration: on ClickHouse the row fetch dominates, and no amount of work on the normaliser changes
+that. A single embedded reader is far faster; a distributed one degrades far less under concurrency.
+Anyone who needs interactive reads at DuckDB latencies with ClickHouse durability should expect to add
+caching in front of the read path, not to find it here.
+
+Two more things the tables say out loud. DuckDB **serialises** reads, so the p50 of eight at once is
+roughly eight times one - read concurrency there buys throughput (~70 req/s), not latency - while
+ClickHouse's costs 1.6×. And a long *replaying* session is bounded by the reconstruction cache rather than
+the pipeline: 2.28 s cold, 47 ms warm at 1 000 turns.
 
 The cache being process-local has a cluster consequence worth stating: it bounds work per instance, not
 per cluster, so with N instances a session can be reconstructed up to N times before every instance is
@@ -541,6 +555,33 @@ per export against 59.2 ms direct, same durability. The pipeline already batches
 
 Still unmeasured, deliberately stated: S3 file storage latency, a real network hop, Redis-backed topics and
 caches, and multi-replica behaviour under a deletion backlog.
+
+**What "all frameworks" means, exactly.** The claim is bounded by this corpus, and it is checked rather than
+described: `the_corpus_matches_the_support_matrix` fails if a suite is added or removed without updating it.
+
+| Suite | Version captured against | Samples | Captured requests |
+| --- | --- | --- | --- |
+| `_synthetic` | hand-written shapes, no SDK | 5 | 5 |
+| `adk` | google-adk >=1.27.0 | 8 | 18 |
+| `agent-framework` | agent-framework-core >=1.0.0b0 | 10 | 17 |
+| `anthropic` | anthropic >=0.84.0 | 7 | 18 |
+| `bedrock` | boto3 (bedrock runtime) | 6 | 14 |
+| `claude-agent-sdk` | claude-agent-sdk >=0.2.0 | 8 | 17 |
+| `claude-agent-sdk-js` | @anthropic-ai/claude-agent-sdk ^0.3.246 | 8 | 17 |
+| `crewai` | crewai >=1.10.1 | 9 | 33 |
+| `langgraph` | langgraph >=1.1.2 | 9 | 23 |
+| `openai` | openai >=1.80.0 | 6 | 8 |
+| `openai-agents` | openai-agents >=0.12.1 | 10 | 37 |
+| `strands` | strands-agents >=1.30.0 | 10 | 40 |
+| `strands-js` | @strands-agents/sdk ^1.14.0 | 8 | 16 |
+| `vercel-ai-js` | ai ^7.0.79 | 7 | 17 |
+| **14 suites** | | **111** | **280** |
+
+Each captured request is real OTLP from a real run of that SDK, replayed through the real ingestion path.
+What the corpus verifies per fixture: message count, content, ordering and absence of duplicates across all
+four views, plus the invariants that hold independently of the goldens. What it cannot verify is a framework
+or version nobody has captured - that is open-world, and the matrix is what makes the boundary legible
+rather than implied.
 
 **Message-parsing goldens**: `cargo test -p sideseat-server message_goldens` verifies message count, content, ordering and absence of duplicates per framework across all three views (span / trace / session). Fixtures are captured OTLP payloads under `server/tests/fixtures/messages/<suite>/<sample>/`; capture with `misc/capture-message-fixtures.sh [suite] [sample]` (needs model credentials), then record with `UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens` and review the diff. Invariants (scope containment, per-trace dedup, tool-id correspondence, no empty thinking, determinism) hold independently of the goldens, so a blindly regenerated snapshot still fails on real defects. `UPDATE_GOLDENS=1` writes the files but still exits non-zero when an invariant was violated, so known-bad output cannot be committed as reviewed. See `server/tests/fixtures/messages/README.md`.
 

@@ -242,6 +242,20 @@ UPDATE deleted_projects SET next_check_at = COALESCE(last_checked_at, deleted_at
 CREATE INDEX IF NOT EXISTS idx_deleted_projects_due ON deleted_projects(next_check_at);
 "#;
 
+/// An owned claim, and a due time that is never null.
+///
+/// Two defects. Reporting a check was an unconditional update by project id, so a worker whose lease expired
+/// part way through its batch could overwrite the schedule *and the result* of the worker that had since
+/// taken the id - and then a third could claim it while the second was still working. A claim now carries a
+/// token and a report matches on it.
+///
+/// And `next_check_at` was nullable, which PostgreSQL sorts *last* while SQLite sorts nulls first - so on
+/// PostgreSQL a freshly deleted project queued behind every overdue record, hours or days on a backlog, with
+/// its late files and rows hidden the whole time.
+const MIGRATION_V14: &str = r#"UPDATE deleted_projects SET next_check_at = COALESCE(next_check_at, deleted_at);
+ALTER TABLE deleted_projects ADD COLUMN claim_token INTEGER NOT NULL DEFAULT 0;
+"#;
+
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
     match version {
         1 => {
@@ -261,6 +275,9 @@ async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteEr
         11 => apply_versioned_migration(pool, 11, "deleted_project_windows", MIGRATION_V11).await,
         12 => apply_versioned_migration(pool, 12, "deleted_project_backoff", MIGRATION_V12).await,
         13 => apply_versioned_migration(pool, 13, "deleted_project_due_index", MIGRATION_V13).await,
+        14 => {
+            apply_versioned_migration(pool, 14, "deleted_project_claim_token", MIGRATION_V14).await
+        }
         _ => Err(SqliteError::MigrationFailed {
             version,
             name: "unknown".to_string(),

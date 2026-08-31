@@ -299,7 +299,7 @@ impl TransactionalRepository for Arc<SqliteService> {
         &self,
         lease_secs: i64,
         limit: i64,
-    ) -> Result<Vec<String>, DataError> {
+    ) -> Result<Vec<(String, i64)>, DataError> {
         project::claim_deleted_projects_for_check(self.pool(), lease_secs, limit)
             .await
             .map_err(Into::into)
@@ -308,6 +308,7 @@ impl TransactionalRepository for Arc<SqliteService> {
     async fn record_deleted_project_check(
         &self,
         project_id: &str,
+        claim_token: i64,
         was_quiet: bool,
         base_gap_secs: i64,
         max_gap_secs: i64,
@@ -315,6 +316,7 @@ impl TransactionalRepository for Arc<SqliteService> {
         project::record_deleted_project_check(
             self.pool(),
             project_id,
+            claim_token,
             was_quiet,
             base_gap_secs,
             max_gap_secs,
