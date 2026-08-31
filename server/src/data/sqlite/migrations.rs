@@ -221,6 +221,16 @@ const MIGRATION_V10: &str = r#"CREATE TABLE IF NOT EXISTS deleted_projects (
 /// instance count.
 const MIGRATION_V11: &str = "ALTER TABLE deleted_projects ADD COLUMN last_checked_at INTEGER";
 
+/// Bounded, indexed, backed-off discovery for permanent deletion records.
+///
+/// Keeping the records forever is the right correctness choice, but re-checking every one of them at the
+/// same rate is unbounded lifetime work: a hundred thousand historical deletions meant a hundred thousand
+/// storage listings per window, forever, plus an unindexed scan to find them. `quiet_checks` pushes each
+/// successive check further out, and the index makes finding the due ones cheap.
+const MIGRATION_V12: &str = r#"ALTER TABLE deleted_projects ADD COLUMN quiet_checks INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_deleted_projects_next_check ON deleted_projects(last_checked_at);
+"#;
+
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
     match version {
         1 => {
@@ -238,6 +248,7 @@ async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteEr
         9 => apply_versioned_migration(pool, 9, "sweep_windows", MIGRATION_V9).await,
         10 => apply_versioned_migration(pool, 10, "deleted_projects", MIGRATION_V10).await,
         11 => apply_versioned_migration(pool, 11, "deleted_project_windows", MIGRATION_V11).await,
+        12 => apply_versioned_migration(pool, 12, "deleted_project_backoff", MIGRATION_V12).await,
         _ => Err(SqliteError::MigrationFailed {
             version,
             name: "unknown".to_string(),

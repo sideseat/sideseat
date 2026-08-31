@@ -401,7 +401,31 @@ async fn projects_behave_identically() {
         ));
         t.note(&format!(
             "remembered_after_removal={}",
-            repo.claim_deleted_projects_for_check(0)
+            repo.claim_deleted_projects_for_check(0, 0, 100)
+                .await
+                .unwrap()
+                .len()
+        ));
+        // The backoff arithmetic, which is exactly the kind of expression that differs between dialects -
+        // PostgreSQL has no two-argument `MIN` and no `integer << bigint`, both of which this suite caught.
+        for id in repo
+            .claim_deleted_projects_for_check(0, 0, 10)
+            .await
+            .unwrap()
+        {
+            repo.record_deleted_project_check(&id, true).await.unwrap();
+            repo.record_deleted_project_check(&id, true).await.unwrap();
+        }
+        t.note(&format!(
+            "due_at_base_after_two_quiet_checks={}",
+            repo.claim_deleted_projects_for_check(60, 86_400, 10)
+                .await
+                .unwrap()
+                .len()
+        ));
+        t.note(&format!(
+            "due_with_no_gap={}",
+            repo.claim_deleted_projects_for_check(0, 0, 10)
                 .await
                 .unwrap()
                 .len()
@@ -836,6 +860,59 @@ async fn a_project_cannot_be_created_under_a_deleting_organization() {
         outcome.is_err(),
         "a project was created under an organization whose deletion had committed; it would be live, \
          accept writes, and be cascaded away without leaving a deletion record"
+    );
+}
+
+/// A member cannot be added while the organization's deletion commits underneath.
+///
+/// The sequential case - mutating an already-tombstoned organization - was fixed first, and it is the
+/// easier half. This is the race: the mutation reads a live organization, the deletion commits, and the
+/// mutation writes anyway, because the parent row still exists and the foreign key is satisfied. The caller
+/// is told success for a membership in an organization no read can see and the cascade is about to remove.
+///
+/// The interleaving is pinned rather than hoped for, as the project-creation test does it: the mutation is
+/// started while a transaction holds the organization's row locked, so it must block, and the tombstone
+/// commits before the lock is released.
+#[tokio::test]
+async fn a_member_cannot_be_added_while_the_organization_is_being_deleted() {
+    let Some((_, postgres)) = pair().await else {
+        return;
+    };
+
+    let mut claim = postgres.pool().begin().await.unwrap();
+    let _: Option<(Option<i64>,)> =
+        sqlx::query_as("SELECT deleting_at FROM organizations WHERE id = $1 FOR UPDATE")
+            .bind("default")
+            .fetch_optional(&mut *claim)
+            .await
+            .unwrap();
+    sqlx::query("UPDATE organizations SET deleting_at = $1 WHERE id = $2")
+        .bind(chrono::Utc::now().timestamp())
+        .bind("default")
+        .execute(&mut *claim)
+        .await
+        .unwrap();
+
+    let user = postgres
+        .create_user(None, "joiner@example.com", Some("Joiner"))
+        .await
+        .expect("create user");
+    let addition = {
+        let repo = Arc::clone(&postgres);
+        let user_id = user.id.clone();
+        tokio::spawn(async move { repo.add_member(None, "default", &user_id, "member").await })
+    };
+    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    assert!(
+        !addition.is_finished(),
+        "the mutation answered without waiting for the organization's row, so its liveness check is \
+         outside its transaction and this test is not exercising the interleaving it exists for"
+    );
+
+    claim.commit().await.unwrap();
+    assert!(
+        addition.await.unwrap().is_err(),
+        "a member was added to an organization whose deletion had committed"
     );
 }
 

@@ -31,16 +31,21 @@ pub fn has_min_role_level(user_role: &str, min_role: &str) -> bool {
 }
 
 /// Add a member to an organization (upsert: updates role if exists)
-/// Whether this organization is live, i.e. exists and is not being deleted.
+/// Whether this organization is live - exists and is not being deleted - asked *inside* the caller's
+/// transaction.
 ///
-/// Every membership mutation asks first. A tombstoned organization is invisible to every read and its
-/// projects are being deleted, so adding a member to it, or changing a role in it, writes into something
-/// the caller cannot see and the cleanup is about to cascade away.
-async fn organization_is_live(pool: &PgPool, org_id: &str) -> Result<bool, PostgresError> {
+/// Taking it on a pooled connection of its own was a read-then-write: the mutation saw a live
+/// organization, the deletion tombstoned it and committed, and the mutation then wrote into something no
+/// read can see and the cascade is about to remove - reporting success. Asked on the transaction's own
+/// connection, with `FOR UPDATE` so it conflicts with the claim, the check and the write cannot be separated.
+async fn organization_is_live(
+    conn: &mut sqlx::PgConnection,
+    org_id: &str,
+) -> Result<bool, PostgresError> {
     let row: Option<(Option<i64>,)> =
-        sqlx::query_as("SELECT deleting_at FROM organizations WHERE id = $1")
+        sqlx::query_as("SELECT deleting_at FROM organizations WHERE id = $1 FOR UPDATE")
             .bind(org_id)
-            .fetch_optional(pool)
+            .fetch_optional(&mut *conn)
             .await?;
     Ok(matches!(row, Some((None,))))
 }
@@ -52,12 +57,16 @@ pub async fn add_member(
     user_id: &str,
     role: &str,
 ) -> Result<MembershipRow, PostgresError> {
-    if !organization_is_live(pool, org_id).await? {
+    let now = chrono::Utc::now().timestamp();
+
+    // The liveness check and the write are one transaction: separately they are a read-then-write that a
+    // deletion committing in between defeats.
+    let mut tx = pool.begin().await?;
+    if !organization_is_live(&mut tx, org_id).await? {
         return Err(PostgresError::Conflict(format!(
             "organization {org_id} does not exist or is being deleted"
         )));
     }
-    let now = chrono::Utc::now().timestamp();
 
     sqlx::query(
         r#"
@@ -73,8 +82,9 @@ pub async fn add_member(
     .bind(role)
     .bind(now)
     .bind(now)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    tx.commit().await?;
 
     // Invalidate membership caches AFTER successful write
     if let Some(cache) = cache {
@@ -360,10 +370,12 @@ pub async fn remove_member_atomic(
     org_id: &str,
     user_id: &str,
 ) -> Result<LastOwnerResult<()>, PostgresError> {
-    if !organization_is_live(pool, org_id).await? {
+    let mut tx = pool.begin().await?;
+    // Inside the transaction that writes, not before it: a deletion committing in between would otherwise
+    // let this succeed against an organization no read can see.
+    if !organization_is_live(&mut tx, org_id).await? {
         return Ok(LastOwnerResult::NotFound);
     }
-    let mut tx = pool.begin().await?;
 
     // Check if member exists and get their role
     let membership = sqlx::query_as::<_, (String,)>(
@@ -428,10 +440,12 @@ pub async fn update_role_atomic(
     new_role: &str,
 ) -> Result<LastOwnerResult<MembershipRow>, PostgresError> {
     let now = chrono::Utc::now().timestamp();
-    if !organization_is_live(pool, org_id).await? {
+    let mut tx = pool.begin().await?;
+    // Inside the transaction that writes, not before it: a deletion committing in between would otherwise
+    // let this succeed against an organization no read can see.
+    if !organization_is_live(&mut tx, org_id).await? {
         return Ok(LastOwnerResult::NotFound);
     }
-    let mut tx = pool.begin().await?;
 
     // Check if member exists and get their current role
     let membership = sqlx::query_as::<_, (String,)>(

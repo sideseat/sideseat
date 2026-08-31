@@ -261,6 +261,14 @@ ALTER TABLE organizations ADD COLUMN IF NOT EXISTS deleting_at BIGINT;
             // permanent, so the unwindowed cost is instances times lifetime deletions. See the SQLite twin.
             "ALTER TABLE deleted_projects ADD COLUMN IF NOT EXISTS last_checked_at BIGINT",
         ),
+        12 => (
+            "deleted_project_backoff",
+            // Permanent records re-checked at a fixed rate are unbounded lifetime work, and finding the due
+            // ones was an unindexed scan. See the SQLite twin.
+            r#"ALTER TABLE deleted_projects ADD COLUMN IF NOT EXISTS quiet_checks BIGINT NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_deleted_projects_next_check ON deleted_projects(last_checked_at);
+"#,
+        ),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,

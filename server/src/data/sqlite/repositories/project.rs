@@ -532,26 +532,62 @@ pub async fn record_project_sweep(
 /// The sweep keeps collecting rows that appear for these ids, so a writer that read the fence before the
 /// tombstone has its spans deleted however late it commits - which is what makes the residual a retention
 /// rather than a handful of minutes.
+/// Claim a bounded batch of deleted-project ids that are due for a cleanup check.
+///
+/// Three things make this affordable for records that are kept forever.
+///
+/// **Claimed, not listed.** Moving `last_checked_at` forward in the statement that returns the ids means
+/// concurrent instances race per id and one wins per window, so the work does not grow with the instance
+/// count.
+///
+/// **Backed off.** `quiet_checks` counts consecutive checks that found nothing, and the next check is due
+/// `base * 2^quiet_checks` later, capped. Without it a hundred thousand historical deletions meant a
+/// hundred thousand storage listings every window, forever - correct, and unbounded lifetime work.
+///
+/// **Bounded per sweep.** At most `limit` ids per call, so one sweep cannot run longer than its own window
+/// and overlap the next.
+///
+/// Times are the database's: with per-instance clocks, skew would decide which ids are due.
 pub async fn claim_deleted_projects_for_check(
     pool: &SqlitePool,
-    min_gap_secs: i64,
+    base_gap_secs: i64,
+    max_gap_secs: i64,
+    limit: i64,
 ) -> Result<Vec<String>, SqliteError> {
-    // Claim the check by moving `last_checked_at` forward, and return only the ids this call claimed.
-    //
-    // The records are permanent, so listing all of them every sweep on every instance is work
-    // proportional to instances times lifetime deletions. Gating on `last_checked_at` and marking it in
-    // the same statement makes it one check per id per window: concurrent instances race the UPDATE and
-    // only one wins an id per window. `RETURNING` gives back exactly what was claimed. The clock is the
-    // database's, so instances agree on the window from the row rather than from their own clocks.
     let rows: Vec<(String,)> = sqlx::query_as(
         "UPDATE deleted_projects SET last_checked_at = unixepoch() \
-         WHERE last_checked_at IS NULL OR last_checked_at <= unixepoch() - ? \
+         WHERE project_id IN ( \
+             SELECT project_id FROM deleted_projects \
+             WHERE last_checked_at IS NULL \
+                OR last_checked_at <= unixepoch() - MIN(? * (1 << MIN(quiet_checks, 20)), ?) \
+             ORDER BY last_checked_at NULLS FIRST \
+             LIMIT ? \
+         ) \
          RETURNING project_id",
     )
-    .bind(min_gap_secs)
+    .bind(base_gap_secs)
+    .bind(max_gap_secs)
+    .bind(limit)
     .fetch_all(pool)
     .await?;
     Ok(rows.into_iter().map(|(id,)| id).collect())
+}
+
+/// Record what a deleted project's check found: quiet moves the next check further out, anything found
+/// brings it back to the base interval.
+pub async fn record_deleted_project_check(
+    pool: &SqlitePool,
+    project_id: &str,
+    was_quiet: bool,
+) -> Result<(), SqliteError> {
+    let sql = if was_quiet {
+        "UPDATE deleted_projects SET quiet_checks = quiet_checks + 1 WHERE project_id = ?"
+    } else {
+        // Something arrived for a project that no longer exists, so check it often again.
+        "UPDATE deleted_projects SET quiet_checks = 0 WHERE project_id = ?"
+    };
+    sqlx::query(sql).bind(project_id).execute(pool).await?;
+    Ok(())
 }
 
 /// Forget projects deleted longer ago than `retention_secs`, and say how many were forgotten.
@@ -1027,7 +1063,7 @@ mod tests {
             .unwrap();
 
         assert!(
-            claim_deleted_projects_for_check(&pool, 0)
+            claim_deleted_projects_for_check(&pool, 0, 0, 100)
                 .await
                 .unwrap()
                 .is_empty(),
@@ -1040,7 +1076,9 @@ mod tests {
             "one clean sweep is enough when one is required"
         );
         assert_eq!(
-            claim_deleted_projects_for_check(&pool, 0).await.unwrap(),
+            claim_deleted_projects_for_check(&pool, 0, 0, 100)
+                .await
+                .unwrap(),
             vec![project.id.clone()],
             "and the id is remembered, so the sweep keeps collecting for it"
         );
@@ -1060,7 +1098,7 @@ mod tests {
             "and past it the id is forgotten"
         );
         assert!(
-            claim_deleted_projects_for_check(&pool, 0)
+            claim_deleted_projects_for_check(&pool, 0, 0, 100)
                 .await
                 .unwrap()
                 .is_empty()
@@ -1089,7 +1127,7 @@ mod tests {
         // Five instances, one window: exactly one gets the id.
         let mut claimed = 0;
         for _ in 0..5 {
-            claimed += claim_deleted_projects_for_check(&pool, 600)
+            claimed += claim_deleted_projects_for_check(&pool, 600, 600, 100)
                 .await
                 .unwrap()
                 .len();
@@ -1102,12 +1140,86 @@ mod tests {
 
         // And with no window it is available again - which is what makes the next window's check happen.
         assert_eq!(
-            claim_deleted_projects_for_check(&pool, 0)
+            claim_deleted_projects_for_check(&pool, 0, 0, 100)
                 .await
                 .unwrap()
                 .len(),
             1,
             "the next window claims it again"
+        );
+    }
+
+    /// Discovery is bounded per sweep and backs off per quiet check.
+    ///
+    /// The records are permanent - any retention would bound how late a stalled writer may commit and still
+    /// be collected - so what has to be bounded is the *rate*. Without the backoff a hundred thousand
+    /// historical deletions meant a hundred thousand storage listings every sweep, forever; without the
+    /// batch cap one sweep could outlive its own window and overlap the next.
+    #[tokio::test]
+    async fn deleted_project_checks_are_batched_and_back_off() {
+        let pool = setup_test_pool().await;
+        for n in 0..5 {
+            let project = create_project(&pool, None, "default", &format!("Gone {n}"))
+                .await
+                .unwrap();
+            claim_project_for_deletion(&pool, None, &project.id)
+                .await
+                .unwrap();
+            record_project_sweep(&pool, &project.id, true, 1, 0)
+                .await
+                .unwrap();
+        }
+
+        // The batch caps the work regardless of how many are due.
+        assert_eq!(
+            claim_deleted_projects_for_check(&pool, 0, 0, 2)
+                .await
+                .unwrap()
+                .len(),
+            2,
+            "a sweep must not take on more than its batch, or it can outlive its own window"
+        );
+
+        // A quiet check pushes the next one out; a check that found something brings it back.
+        let ids = claim_deleted_projects_for_check(&pool, 0, 0, 10)
+            .await
+            .unwrap();
+        let subject = ids.first().expect("some id is due").clone();
+        record_deleted_project_check(&pool, &subject, true)
+            .await
+            .unwrap();
+        record_deleted_project_check(&pool, &subject, true)
+            .await
+            .unwrap();
+        let quiet: (i64,) =
+            sqlx::query_as("SELECT quiet_checks FROM deleted_projects WHERE project_id = ?")
+                .bind(&subject)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(quiet.0, 2, "consecutive quiet checks accumulate");
+
+        // With a base interval of 60s and two quiet checks, this id is not due for 240s.
+        let due = claim_deleted_projects_for_check(&pool, 60, 86_400, 10)
+            .await
+            .unwrap();
+        assert!(
+            !due.contains(&subject),
+            "a project checked twice with nothing found must not be re-checked at the base rate"
+        );
+
+        record_deleted_project_check(&pool, &subject, false)
+            .await
+            .unwrap();
+        let quiet: (i64,) =
+            sqlx::query_as("SELECT quiet_checks FROM deleted_projects WHERE project_id = ?")
+                .bind(&subject)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            quiet.0, 0,
+            "finding something brings it back to the base interval"
         );
     }
 

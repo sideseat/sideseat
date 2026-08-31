@@ -328,6 +328,19 @@ pub struct MessagesMetadataDto {
     pub total_cost: f64,
     pub start_time: DateTime<Utc>,
     pub end_time: Option<DateTime<Utc>>,
+    /// False when cross-trace replay matching hit its search budget, so this answer may repeat history it
+    /// would otherwise have collapsed.
+    ///
+    /// Absent when true, which is the ordinary case. It reaches the client because an incomplete result
+    /// that looks complete is the one outcome a caller cannot reason about - the pipeline knowing it was
+    /// cut short is no use if the answer does not say so.
+    #[serde(skip_serializing_if = "is_true")]
+    pub replay_matching_complete: bool,
+}
+
+/// Serde helper: omit a flag that is in its ordinary state.
+fn is_true(value: &bool) -> bool {
+    *value
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -432,6 +445,10 @@ pub struct FeedPagination {
 /// Metadata for feed messages response
 #[derive(Debug, Serialize, ToSchema)]
 pub struct FeedMessagesMetadata {
+    /// False when cross-trace replay matching hit its search budget, so this page may repeat history.
+    /// Absent when true - see [`MessagesMetadataDto`].
+    #[serde(skip_serializing_if = "is_true")]
+    pub replay_matching_complete: bool,
     /// Number of messages in this response
     pub message_count: u32,
     /// Number of unique spans contributing messages
@@ -464,4 +481,56 @@ pub struct FeedSpansResponse {
     pub data: Vec<SpanSummaryDto>,
     /// Pagination information
     pub pagination: FeedPagination,
+}
+
+#[cfg(test)]
+mod serialisation_tests {
+    use super::*;
+
+    /// The incompleteness flag crosses the serialisation boundary, and is absent when ordinary.
+    ///
+    /// The pipeline knowing its search was cut short is no use if the DTO drops it - which is exactly what
+    /// happened: the flag existed internally and neither response type carried it, so a budget-exhausted
+    /// reconstruction returned duplicated history indistinguishable from a complete answer. Tested here
+    /// rather than only on the internal type, because the boundary is where it was lost.
+    #[test]
+    fn incompleteness_reaches_the_response_and_silence_means_complete() {
+        let incomplete = MessagesMetadataDto {
+            total_messages: 1,
+            total_tokens: 0,
+            total_cost: 0.0,
+            start_time: DateTime::from_timestamp(0, 0).unwrap(),
+            end_time: None,
+            replay_matching_complete: false,
+        };
+        let json = serde_json::to_string(&incomplete).expect("serialise");
+        assert!(
+            json.contains("\"replay_matching_complete\":false"),
+            "a caller cannot act on what the response does not say: {json}"
+        );
+
+        let complete = MessagesMetadataDto {
+            replay_matching_complete: true,
+            ..incomplete
+        };
+        let json = serde_json::to_string(&complete).expect("serialise");
+        assert!(
+            !json.contains("replay_matching_complete"),
+            "the ordinary case stays absent, so the field means something when it appears: {json}"
+        );
+
+        let feed = FeedMessagesMetadata {
+            replay_matching_complete: false,
+            message_count: 1,
+            span_count: 1,
+            total_tokens: 0,
+            total_cost: 0.0,
+        };
+        assert!(
+            serde_json::to_string(&feed)
+                .expect("serialise")
+                .contains("\"replay_matching_complete\":false"),
+            "the feed page must report it too"
+        );
+    }
 }

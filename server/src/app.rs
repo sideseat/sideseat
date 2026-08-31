@@ -124,26 +124,13 @@ impl CoreApp {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to initialize file service: {}", e))?,
         );
-        // Pending deletions, advanced once at startup. A tombstone is removed on repeated evidence that
-        // its data stays gone, so this is a normal step of the protocol as much as it is recovery for a
-        // deletion whose owner died.
-        match crate::data::cleanup::advance_pending_deletions(
-            &database,
-            &analytics,
-            &files,
-            crate::core::constants::PROJECT_DELETION_CLAIM_STALE_SECS,
-        )
-        .await
-        {
-            Ok(0) => {}
-            // "Advanced", not "finished": most passes add to the evidence a tombstone waits for rather
-            // than completing anything, and a line claiming completion while the row is still there is
-            // worse than none.
-            Ok(n) => tracing::debug!(advanced = n, "Advanced pending deletions on startup"),
-            Err(e) => {
-                tracing::warn!(error = %e, "Failed to advance pending deletions on startup")
-            }
-        }
+        // No startup sweep here on purpose.
+        //
+        // Advancing pending deletions used to run inline before the server was listening, which makes every
+        // new instance wait for work that is not urgent - and on a horizontally scaled deployment, one
+        // instance's slow sweep delays its own readiness while other instances are already sweeping. The
+        // periodic task in `start_background_tasks` picks it up, and its first tick comes soon enough that
+        // nothing is deferred meaningfully.
 
         let shutdown = ShutdownService::new(topics.clone(), database.clone(), analytics.clone());
 
