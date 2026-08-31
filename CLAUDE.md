@@ -453,10 +453,23 @@ so there is no grace period. What the tombstone gives instead:
    still loses to an arbitrarily delayed writer - it can commit after the row is gone, and then nothing
    knows the project existed - so the sweep keeps collecting rows *and files* that appear for a remembered
    id, and the records are kept **permanently**: any retention would be a bound on how late a stalled
-   writer may commit. Each id is claimed for checking once per window
-   (`claim_deleted_projects_for_check`), so the cost does not grow with the instance count.
+   writer may commit. Discovery is bounded three ways, because permanent records re-checked at a fixed
+   rate are unbounded lifetime work: **claimed** (one instance per id per window, so cost is independent
+   of replica count), **backed off** (`quiet_checks` pushes each next check out geometrically to a daily
+   floor - otherwise 100k historical deletions meant 100k storage listings per sweep, forever) and
+   **batched** (`DELETED_PROJECT_CHECK_BATCH` per sweep, so one pass cannot outlive its own window),
+   indexed on `last_checked_at`. Nothing sweeps at startup: inline it made every new instance wait for
+   work that is not urgent.
 7. **Membership mutations** refuse for a tombstoned organization, as renaming and project creation do -
-   writing into one is writing into something no read can see and the cascade is about to remove.
+   writing into one is writing into something no read can see and the cascade is about to remove. The
+   check is *inside* the mutation's transaction (`FOR UPDATE` on PostgreSQL): on its own connection it was
+   a read-then-write a committing deletion defeats.
+8. An **incomplete replay match reaches the client** (`replay_matching_complete` on both message and feed
+   metadata, absent when true). The flag existed internally first and the DTOs dropped it, which made it
+   worthless - the point is that the caller can act on it.
+9. **`resource` is optional in OTLP**, so the project-id injector *creates* one. Skipping resource-less
+   groups meant they were never attributed, and persistence substitutes `default` - telemetry
+   acknowledged for project P and stored where P cannot see it.
 
 An organization is tombstoned too, because deleting its row cascades its *project* rows away and those
 rows are what the projects' cleanups depend on; its row goes once no project rows remain. Creating a
