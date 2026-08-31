@@ -93,7 +93,16 @@ const PIPELINE_BATCH_DRAIN_TIMEOUT_US: u64 = 5_000;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IngestOutcome {
     Stored,
-    Dropped,
+    /// Every span belonged to a project that will not accept writes, so nothing was stored.
+    Dropped {
+        spans: usize,
+    },
+    /// Some spans were stored and some dropped - a request naming a live project and a dying one. Distinct
+    /// from `Dropped` because the answers differ: nothing stored is a 404, something stored is a success
+    /// that reports what it rejected.
+    PartlyDropped {
+        spans: usize,
+    },
     Failed,
 }
 
@@ -526,9 +535,8 @@ impl TracePipeline {
             )
             .await
         {
-            Ok(true) => {}
-            // Nothing left to write.
-            Ok(false) => return true,
+            Ok(_) if all_db_spans.is_empty() => return true, // nothing left to write
+            Ok(_) => {}
             Err(()) => return false,
         }
 
@@ -602,8 +610,8 @@ impl TracePipeline {
             .drop_spans_for_dead_projects(&mut all_db_spans, &mut no_files, &mut no_incoming)
             .await
         {
-            Ok(true) => {}
-            Ok(false) => return true,
+            Ok(_) if all_db_spans.is_empty() => return true,
+            Ok(_) => {}
             Err(()) => return false,
         }
 
@@ -630,16 +638,16 @@ impl TracePipeline {
 
     /// Remove everything belonging to a project that will not accept writes.
     ///
-    /// `Ok(true)` means work remains, `Ok(false)` that the batch is now empty and may be acknowledged,
-    /// and `Err(())` that the fence could not be read - which refuses the batch rather than assuming the
-    /// fence is open, and clears the extraction cache as every refusal must, because its entries are
-    /// written when bytes are extracted rather than when they are stored.
+    /// Returns how many spans were dropped, so a caller can *report* a partial drop rather than answer an
+    /// unqualified success for records it discarded. `Err(())` means the fence could not be read - which
+    /// refuses the batch rather than assuming the fence is open, and clears the extraction cache as every
+    /// refusal must, because its entries are written when bytes are extracted rather than stored.
     async fn drop_spans_for_dead_projects(
         &self,
         spans: &mut Vec<NormalizedSpan>,
         files: &mut Vec<PendingFileWrite>,
         incoming: &mut Vec<IncomingReference>,
-    ) -> Result<bool, ()> {
+    ) -> Result<usize, ()> {
         let refusing = match self.projects_refusing_writes(spans).await {
             Ok(refusing) => refusing,
             Err(e) => {
@@ -653,7 +661,7 @@ impl TracePipeline {
             }
         };
         if refusing.is_empty() {
-            return Ok(true);
+            return Ok(0);
         }
         let before = spans.len();
         spans.retain(|s| !refusing.contains(s.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID)));
@@ -664,7 +672,7 @@ impl TracePipeline {
             projects = ?refusing,
             "Dropped spans for projects that do not accept writes (deleted or being deleted)"
         );
-        Ok(!spans.is_empty())
+        Ok(before - spans.len())
     }
 
     /// Which of a batch's projects will not accept writes, and whether the question could be answered.
@@ -746,15 +754,19 @@ impl TracePipeline {
             // before a restart - precisely the ones most likely to name a project deleted since.
             let mut pending_files = pending_files;
             let mut incoming = incoming;
+            let mut partly_dropped = 0usize;
             match self
                 .drop_spans_for_dead_projects(&mut db_spans, &mut pending_files, &mut incoming)
                 .await
             {
-                Ok(true) => {}
-                // Every span belonged to a project that will not accept writes. Reported as *dropped*
-                // rather than stored, because a caller told success for records that were discarded has no
-                // way to learn otherwise.
-                Ok(false) => return IngestOutcome::Dropped,
+                // Reported as dropped, whether *all* of the request's spans went or only some: a batch can
+                // name a live project and a dying one, and answering an unqualified success for the half
+                // that was discarded is the failure this path exists to remove.
+                Ok(dropped) if db_spans.is_empty() => {
+                    return IngestOutcome::Dropped { spans: dropped };
+                }
+                Ok(0) => {}
+                Ok(dropped) => partly_dropped = dropped,
                 Err(()) => return IngestOutcome::Failed,
             }
 
@@ -794,7 +806,13 @@ impl TracePipeline {
             let db_ok = write_to_duckdb(db_spans, &self.analytics).await;
             if db_ok {
                 publish_sse_events(&sse_events, &self.topics).await;
-                IngestOutcome::Stored
+                if partly_dropped > 0 {
+                    IngestOutcome::PartlyDropped {
+                        spans: partly_dropped,
+                    }
+                } else {
+                    IngestOutcome::Stored
+                }
             } else {
                 IngestOutcome::Failed
             }
