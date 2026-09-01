@@ -100,6 +100,11 @@ online with:
 curl http://127.0.0.1:5388/api/v1/project/default/registrations
 ```
 
+The runtime channel is authenticated whenever the server has auth enabled, which
+is the default. Against a default server, register with a key
+(`SIDESEAT_API_KEY` in `misc/.env`, and `-H "Authorization: Bearer $SIDESEAT_API_KEY"`
+on the curl above); against `make dev-server ARGS="--no-auth"` neither is needed.
+
 ```bash
 uv run strands strands_ws --sideseat
 ```

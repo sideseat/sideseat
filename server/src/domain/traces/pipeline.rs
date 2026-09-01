@@ -1594,9 +1594,16 @@ impl TracePipeline {
                 if db_spans.is_empty() {
                     return IngestOutcome::Dropped {
                         spans: partly_dropped + unstorable,
-                        // The project is fine; the payload is not. Blaming the project sends the exporter to
-                        // retry a doomed span forever and its operator hunting a project that is healthy.
-                        reason: DropReason::Unstorable,
+                        // `Gone` still wins a mixed cause. If an earlier drop already took spans for a dead
+                        // project, the count reported here includes them, so blaming only the timestamps
+                        // would describe the batch wrongly - and `Gone` is the more actionable half, because
+                        // it names a target the exporter should stop sending to. Where nothing was Gone, the
+                        // project is fine and the payload is not, which is what `Unstorable` says.
+                        reason: if partly_dropped > 0 {
+                            partly_reason
+                        } else {
+                            DropReason::Unstorable
+                        },
                     };
                 }
                 partly_dropped += unstorable;
