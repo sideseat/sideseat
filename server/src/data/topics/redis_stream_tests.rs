@@ -483,15 +483,18 @@ async fn an_abandoned_entry_behind_fresh_ones_is_still_reclaimed() {
     );
 }
 
-/// An entry that fails every delivery stops blocking recovery of the entries behind it.
+/// An entry that fails every delivery is retried behind fresher work, and is never discarded.
 ///
 /// Claiming resets an entry's idle time, so an entry that fails each time becomes eligible again after the
 /// idle threshold and - being the oldest - refills the recovery window. With a window of N and N such
-/// entries, nothing behind them is ever examined: an abandoned entry at position N+1 would never be
-/// recovered. The delivery count is the evidence that a retry will not help, and acknowledging the entry is
-/// what unblocks the rest.
+/// entries, nothing behind them is ever examined.
+///
+/// The fix must not be to acknowledge it. A delivery counter is evidence about the *system* that keeps
+/// failing to store the payload, not about the payload: ten failures is what a minute of analytics downtime
+/// looks like, and the payload was already answered 200. So this asserts both halves - the chronic entry
+/// survives every attempt, *and* the entry behind it is reached anyway.
 #[tokio::test]
-async fn an_entry_that_always_fails_stops_blocking_the_ones_behind_it() {
+async fn a_chronically_failing_entry_never_starves_the_others_and_is_never_discarded() {
     let Some((backend, topic)) = backend("poison").await else {
         return;
     };
@@ -527,10 +530,11 @@ async fn an_entry_that_always_fails_stops_blocking_the_ones_behind_it() {
     }
     drop(subscription);
 
-    // Claim the first entry repeatedly without acknowledging it, as a consumer that keeps failing does.
-    // A window of one is what makes the starvation visible: while the poison entry is eligible it is the
-    // only thing the window ever holds.
+    // Claim repeatedly without acknowledging, as a consumer that keeps failing does. A window of one is what
+    // makes the starvation visible: only one entry can be handed out per pass, so if the chronic entry always
+    // won, the one behind it would never appear.
     let mut saw_poison = 0;
+    let mut saw_behind = 0;
     for _ in 0..15 {
         let claimed = backend
             .stream_claim(&topic, group, "retrier", 0, 1)
@@ -539,32 +543,188 @@ async fn an_entry_that_always_fails_stops_blocking_the_ones_behind_it() {
         if claimed.iter().any(|m| m.id == poison) {
             saw_poison += 1;
         }
+        if claimed.iter().any(|m| m.id == behind) {
+            saw_behind += 1;
+        }
     }
     assert!(
         saw_poison > 0,
         "the failing entry must have been retried at all, or the test proves nothing"
     );
-
-    // Past the attempt limit it is acknowledged and gone, so the window reaches the entry behind it.
-    let claimed = backend
-        .stream_claim(&topic, group, "retrier", 0, 1)
-        .await
-        .expect("claim after the limit");
-    let ids: Vec<&str> = claimed.iter().map(|m| m.id.as_str()).collect();
     assert!(
-        !ids.contains(&poison.as_str()),
-        "an entry past the delivery limit must stop being handed out: {ids:?}"
+        saw_behind > 0,
+        "the entry behind a chronically-failing one must still be reached through a window of one"
     );
 
-    // And it is no longer pending, so it no longer holds the trim boundary.
+    // Both are still pending: nothing was discarded on the strength of a retry counter, and each payload was
+    // answered 200 by the ingest that queued it.
     let stats = backend
         .stream_stats(&topic, group)
         .await
         .expect("stream stats");
-    assert!(
-        stats.pending < 2,
-        "the exhausted entry must be acknowledged, or it holds the trim boundary forever: pending={}",
+    assert_eq!(
+        stats.pending, 2,
+        "an entry that keeps failing must be kept, not acknowledged: pending={}",
         stats.pending
     );
-    let _ = behind;
+
+    // And it is still claimable, so retrying it continues rather than stopping at a limit.
+    let mut still_offered = false;
+    for _ in 0..12 {
+        let claimed = backend
+            .stream_claim(&topic, group, "retrier", 0, 2)
+            .await
+            .expect("claim a wider window");
+        if claimed.iter().any(|m| m.id == poison) {
+            still_offered = true;
+            break;
+        }
+    }
+    assert!(
+        still_offered,
+        "a chronically-failing entry must keep being retried, not be dropped after a fixed count"
+    );
+}
+
+/// An entry beyond one scan window is still reached, however many failing entries sit in front of it.
+///
+/// This is the half that sorting cannot do. Preferring the fewest deliveries only orders what was *scanned*,
+/// and a scan is bounded - so with a full window of equally-failing entries at the front of the pending list,
+/// the entry behind them is not merely deprioritised, it is invisible. A rotating start is what makes the
+/// whole pending list reachable in a bounded number of passes, which is what lets a chronic failure be kept
+/// rather than acknowledged.
+#[tokio::test]
+async fn an_entry_beyond_one_scan_window_is_still_reached() {
+    let Some((backend, topic)) = backend("rotation").await else {
+        return;
+    };
+    let group = "traces";
+    backend
+        .ensure_group_for_test(&topic, group)
+        .await
+        .expect("group");
+
+    // More entries than one window holds. The window is `count * PENDING_SCAN_FACTOR`, so with a claim of
+    // one the last of these lies past it and can only be found by rotating.
+    let mut ids = Vec::new();
+    for i in 0..12u32 {
+        ids.push(
+            backend
+                .stream_publish(&topic, format!("entry-{i}").as_bytes())
+                .await
+                .expect("publish"),
+        );
+    }
+    let last = ids.last().expect("published").clone();
+
+    // Deliver all of them and abandon them, so the whole list is pending and equally eligible - equal
+    // delivery counts, which is what removes sorting as a way through.
+    let mut subscription = backend
+        .stream_subscribe(&topic, group, "doomed")
+        .await
+        .expect("subscribe");
+    for _ in 0..ids.len() {
+        tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            futures::StreamExt::next(&mut subscription.receiver),
+        )
+        .await
+        .expect("delivered")
+        .expect("open")
+        .expect("ok");
+    }
+    drop(subscription);
+
+    // Claim one at a time and never acknowledge, as a consumer failing on every entry does.
+    let mut saw_last = false;
+    for _ in 0..24 {
+        let claimed = backend
+            .stream_claim(&topic, group, "retrier", 0, 1)
+            .await
+            .expect("claim");
+        if claimed.iter().any(|m| m.id == last) {
+            saw_last = true;
+            break;
+        }
+    }
+    assert!(
+        saw_last,
+        "the entry past one scan window must be reached by rotation, not hidden behind the front of the \
+         pending list"
+    );
+
+    // And nothing was discarded to achieve it.
+    let stats = backend
+        .stream_stats(&topic, group)
+        .await
+        .expect("stream stats");
+    assert_eq!(
+        stats.pending as usize,
+        ids.len(),
+        "reaching a later entry must not cost an earlier one"
+    );
+}
+
+/// An entry whose payload cannot be read is preserved on the dead-letter stream before it is acknowledged.
+///
+/// This one *is* evidence about the entry itself: nothing can ever process a payload that cannot be read, and
+/// leaving it pending holds the trim boundary forever, so it has to leave the main stream. It was also
+/// answered 200, so its bytes must survive somewhere an operator can find them - which is the difference
+/// between dead-lettering and the deletion this replaced.
+#[tokio::test]
+async fn an_unreadable_entry_is_preserved_before_it_is_acknowledged() {
+    let Some((backend, topic)) = backend("deadletter").await else {
+        return;
+    };
+    let group = "traces";
+    backend
+        .ensure_group_for_test(&topic, group)
+        .await
+        .expect("group");
+
+    // An entry with no `payload` field: the shape nothing downstream can act on.
+    let id = backend
+        .publish_raw_field_for_test(&topic, "not_payload", b"unreadable")
+        .await
+        .expect("publish a fieldless entry");
+
+    // Deliver it so it becomes pending, then abandon it.
+    let mut subscription = backend
+        .stream_subscribe(&topic, group, "doomed")
+        .await
+        .expect("subscribe");
+    let _ = tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        futures::StreamExt::next(&mut subscription.receiver),
+    )
+    .await;
+    drop(subscription);
+
+    // Claiming it finds the payload unreadable, so it is dead-lettered and acknowledged.
+    let claimed = backend
+        .stream_claim(&topic, group, "rescuer", 0, 4)
+        .await
+        .expect("claim");
+    assert!(
+        !claimed.iter().any(|m| m.id == id),
+        "an unreadable entry must not be handed to a consumer"
+    );
+
+    let dead = backend
+        .dead_letter_entries_for_test(&topic)
+        .await
+        .expect("read the dead-letter stream");
+    assert!(
+        dead.iter().any(|entry| entry.contains(&id)),
+        "the unreadable entry's bytes must be preserved on the dead-letter stream, not deleted: {dead:?}"
+    );
+
+    let stats = backend
+        .stream_stats(&topic, group)
+        .await
+        .expect("stream stats");
+    assert_eq!(
+        stats.pending, 0,
+        "once preserved, the entry must be acknowledged so it stops holding the trim boundary"
+    );
 }

@@ -80,13 +80,20 @@ const PUBSUB_RECONNECT_DELAY: Duration = Duration::from_secs(1);
 /// Default broadcast channel capacity
 const DEFAULT_BROADCAST_CAPACITY: usize = 10_000;
 
-/// How many times a queued entry may be delivered before it is treated as poison.
+/// After how many deliveries a pending entry is *reported* as chronically failing.
 ///
-/// Ingestion is idempotent, so a redelivery normally succeeds where the first attempt failed transiently.
-/// An entry that has failed this many times is failing for a reason a retry will not change - and because
-/// claiming resets its idle time, it re-enters the recovery window ahead of everything older, so leaving it
-/// there starves every entry behind it.
-const MAX_DELIVERY_ATTEMPTS: i64 = 10;
+/// A threshold on a retry counter is not evidence about the payload - it is evidence about the system
+/// around it. Ten failed deliveries is what a minute of analytics downtime looks like, and the entry has
+/// already been answered 200. So this number decides what gets *logged*, and never what gets discarded;
+/// starvation is solved by how the pending list is scanned (see [`Self::scan_pending`]), which is the
+/// mechanism that actually addresses it.
+const CHRONIC_DELIVERY_REPORT: i64 = 10;
+
+/// How many pending entries one recovery pass examines per requested claim.
+///
+/// The window has to be wider than what is claimed, or preferring fresher entries cannot see past the
+/// stale ones - and narrow enough that a pass over a large pending list stays bounded.
+const PENDING_SCAN_FACTOR: usize = 8;
 
 /// How long a publish waits for replica acknowledgement before reporting a shortfall.
 ///
@@ -117,6 +124,15 @@ pub struct RedisTopicBackend {
     /// Zero means a single-instance Redis, where there is nothing to fail over to. Above zero, each publish
     /// costs a `WAIT` round trip - which is the price of an acknowledgement that survives a promotion.
     min_replica_acks: u32,
+    /// Where the next recovery pass starts scanning each group's pending list.
+    ///
+    /// Keyed by `<stream key>|<group>`, and it rotates: a pass resumes past the last entry it examined
+    /// and wraps when it reaches the end. Without it, a bounded scan always starting at the oldest
+    /// pending entry can never *see* an entry behind a run of chronically-failing ones - and since
+    /// claiming resets idle time, those stay eligible forever. The previous answer to that was to
+    /// acknowledge them, which discarded payloads already answered 200; rotation is the answer that
+    /// keeps them.
+    pending_scan_cursor: Arc<dashmap::DashMap<String, StreamId>>,
     /// Pub/Sub manager (handles bridge lifecycle)
     pubsub_manager: Arc<PubSubManager>,
 }
@@ -207,6 +223,7 @@ impl RedisTopicBackend {
             redis_url: redis_url.to_string(),
             stream_max_backlog: std::sync::atomic::AtomicU64::new(DEFAULT_STREAM_MAX_BACKLOG),
             observed_backlog: Arc::new(dashmap::DashMap::new()),
+            pending_scan_cursor: Arc::new(dashmap::DashMap::new()),
             min_replica_acks,
             pubsub_manager: Arc::new(PubSubManager::new(DEFAULT_BROADCAST_CAPACITY)),
         })
@@ -222,6 +239,7 @@ impl RedisTopicBackend {
             redis_url: redis_url.to_string(),
             stream_max_backlog: std::sync::atomic::AtomicU64::new(DEFAULT_STREAM_MAX_BACKLOG),
             observed_backlog: Arc::new(dashmap::DashMap::new()),
+            pending_scan_cursor: Arc::new(dashmap::DashMap::new()),
             min_replica_acks: 0,
             pubsub_manager: Arc::new(PubSubManager::new(DEFAULT_BROADCAST_CAPACITY)),
         }
@@ -354,6 +372,46 @@ impl RedisTopicBackend {
         Ok(())
     }
 
+    /// Append an entry with an arbitrary field name, so a test can produce one whose payload is unreadable.
+    #[cfg(test)]
+    pub(super) async fn publish_raw_field_for_test(
+        &self,
+        topic: &str,
+        field: &str,
+        value: &[u8],
+    ) -> Result<String, TopicError> {
+        let key = self.stream_key(topic);
+        let mut conn = self.pool.get().await?;
+        let id: String = deadpool_redis::redis::cmd("XADD")
+            .arg(&key)
+            .arg("*")
+            .arg(field)
+            .arg(value)
+            .query_async(&mut conn)
+            .await?;
+        Ok(id)
+    }
+
+    /// Everything currently on a topic's dead-letter stream, one debug rendering per entry.
+    #[cfg(test)]
+    pub(super) async fn dead_letter_entries_for_test(
+        &self,
+        topic: &str,
+    ) -> Result<Vec<String>, TopicError> {
+        let dead_key = format!("{}:dead", self.stream_key(topic));
+        let mut conn = self.pool.get().await?;
+        let entries: RedisValue = deadpool_redis::redis::cmd("XRANGE")
+            .arg(&dead_key)
+            .arg("-")
+            .arg("+")
+            .query_async(&mut conn)
+            .await?;
+        let RedisValue::Array(entries) = entries else {
+            return Ok(vec![]);
+        };
+        Ok(entries.iter().map(|e| format!("{e:?}")).collect())
+    }
+
     /// The oldest entry this group still needs, or `None` when it cannot be determined.
     ///
     /// `None` means "do not trim": an unreadable answer is not evidence that a group is finished.
@@ -369,6 +427,140 @@ impl RedisTopicBackend {
     /// an id strictly greater than the snapshot's `L`, so `L.next()` cannot exceed it and the concurrent
     /// entry is preserved. If a pending entry exists it is taken as the boundary instead: it was delivered
     /// at or before `L` (otherwise it would not be visible to XPENDING here), and it is what is still owed.
+    /// Choose which pending entries a recovery pass should claim.
+    ///
+    /// # What this replaced, and why a retry counter was the wrong instrument
+    ///
+    /// Claiming an entry resets its idle time, so an entry whose processing keeps failing becomes eligible
+    /// again after `min_idle_ms` and - being among the oldest - refills a window that starts at the oldest
+    /// pending entry. With a window of `count` and `count` such entries, nothing behind them is ever
+    /// examined, so an abandoned entry at position `count + 1` was never recovered at all.
+    ///
+    /// The previous answer was to acknowledge an entry after ten deliveries. That is data loss: ten failures
+    /// is what a minute of analytics downtime looks like, the payload was already answered 200, and a
+    /// delivery counter says nothing about the payload - only about the system that kept failing to store it.
+    ///
+    /// Two mechanisms replace it, each doing a job the other cannot:
+    ///
+    ///   * **A rotating start.** The scan resumes past the last entry it examined and wraps at the end, so
+    ///     every pending entry is reached within a bounded number of passes however many chronic failures
+    ///     precede it. Sorting alone cannot do this: entries beyond the scanned window are invisible.
+    ///   * **Fewest deliveries first.** Within what was scanned, fresh work is claimed before work that has
+    ///     already failed repeatedly, so a chronic failure does not consume the window while ordinary
+    ///     entries wait. Rotation alone cannot do this: it would hand the window back to the chronic entry
+    ///     every time its turn came round.
+    ///
+    /// A chronically-failing entry is therefore retried more slowly and reported loudly, and never dropped.
+    async fn scan_pending(
+        &self,
+        conn: &mut deadpool_redis::Connection,
+        key: &str,
+        group: &str,
+        min_idle_ms: u64,
+        count: usize,
+    ) -> Result<Vec<String>, TopicError> {
+        let cursor_key = format!("{key}|{group}");
+        let start = self
+            .pending_scan_cursor
+            .get(&cursor_key)
+            .map(|c| c.to_string())
+            .unwrap_or_else(|| "-".to_string());
+        let window = count.saturating_mul(PENDING_SCAN_FACTOR).max(count);
+
+        let mut scanned = parse_pending(
+            scan_pending_page(conn, key, group, min_idle_ms, &start, window).await?,
+            min_idle_ms,
+        );
+        // Wrap. A rotated start that lands past the end of the list would otherwise return nothing and
+        // rotate again, so a pass could do no work while entries were waiting at the front.
+        if scanned.is_empty() && start != "-" {
+            self.pending_scan_cursor.remove(&cursor_key);
+            scanned = parse_pending(
+                scan_pending_page(conn, key, group, min_idle_ms, "-", window).await?,
+                min_idle_ms,
+            );
+        }
+        if scanned.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Advance the cursor past what was examined, so the next pass sees what lies beyond it. A short
+        // page means the list ended here, so the next pass starts over.
+        match scanned.last().filter(|_| scanned.len() >= window) {
+            Some((last, _)) => match StreamId::parse(last) {
+                Some(id) => {
+                    self.pending_scan_cursor.insert(cursor_key, id.next());
+                }
+                None => {
+                    self.pending_scan_cursor.remove(&cursor_key);
+                }
+            },
+            None => {
+                self.pending_scan_cursor.remove(&cursor_key);
+            }
+        }
+
+        for (id, deliveries) in &scanned {
+            if *deliveries >= CHRONIC_DELIVERY_REPORT {
+                tracing::error!(
+                    stream = %key,
+                    group,
+                    message_id = %id,
+                    deliveries,
+                    "A queued payload has failed every delivery so far and is being retried behind fresher \
+                     work; it is kept, not discarded - investigate why processing fails for it"
+                );
+            }
+        }
+
+        // Fewest deliveries first, oldest first within a tie: a deterministic order, and one that spends
+        // the window on work that has not already been shown to fail.
+        scanned.sort_by(|(a_id, a_n), (b_id, b_n)| a_n.cmp(b_n).then_with(|| a_id.cmp(b_id)));
+        scanned.truncate(count);
+        Ok(scanned.into_iter().map(|(id, _)| id).collect())
+    }
+
+    /// Preserve an entry that cannot be processed at all on a side stream, then let the caller acknowledge it.
+    ///
+    /// Only for an entry whose *payload cannot be read*, which is evidence about the entry itself - unlike a
+    /// delivery count, which is evidence about the system. Nothing can ever process it, and leaving it
+    /// pending holds the trim boundary forever, so it has to leave the main stream. But it was answered 200,
+    /// so deleting it is not an option either: the bytes move to `<stream>:dead`, where an operator can
+    /// inspect or replay them.
+    ///
+    /// The `XADD` happens before the caller's `XACK`, so an interruption between them leaves a copy on both
+    /// streams rather than none. Ingestion is idempotent by span id, so a replayed duplicate rewrites.
+    ///
+    /// The dead-letter stream is deliberately **not** length-capped. A cap here would delete the very
+    /// evidence the stream exists to keep, which is the failure this whole path was built to remove; it
+    /// stays empty unless something is genuinely broken.
+    async fn dead_letter(
+        &self,
+        conn: &mut deadpool_redis::Connection,
+        key: &str,
+        group: &str,
+        id: &str,
+        raw: Option<&RedisValue>,
+    ) -> Result<(), TopicError> {
+        let dead_key = format!("{key}:dead");
+        let mut cmd = deadpool_redis::redis::cmd("XADD");
+        cmd.arg(&dead_key)
+            .arg("*")
+            .arg("original_id")
+            .arg(id)
+            .arg("group")
+            .arg(group)
+            .arg("reason")
+            .arg("unreadable_payload")
+            .arg("raw")
+            .arg(match raw {
+                Some(value) => format!("{value:?}"),
+                None => String::from("<absent>"),
+            });
+        cmd.query_async::<RedisValue>(conn).await?;
+        Ok(())
+    }
+
     async fn oldest_needed_id(
         &self,
         conn: &mut deadpool_redis::Connection,
@@ -911,84 +1103,12 @@ impl TopicBackend for RedisTopicBackend {
         let key = self.stream_key(topic);
         let mut conn = self.pool.get().await?;
 
-        // Pending entries that are *already* idle enough, filtered by Redis rather than by us.
-        //
-        // This used to ask for the first `count` pending entries from `-` and then discard the ones that
-        // were too fresh - so a group with more than `count` recently-delivered entries at the front of
-        // its pending list hid every abandoned entry behind them, and an entry at position `count + 1`
-        // was never examined however long its consumer had been dead. `IDLE` makes the window contain
-        // only eligible entries, so the oldest abandoned ones are always the ones returned.
-        let pending: RedisValue = deadpool_redis::redis::cmd("XPENDING")
-            .arg(&key)
-            .arg(group)
-            .arg("IDLE")
-            .arg(min_idle_ms)
-            .arg("-")
-            .arg("+")
-            .arg(count)
-            .query_async(&mut conn)
+        // Which pending entries this pass will claim, chosen by `scan_pending`: a rotating, bounded scan
+        // that prefers the entries with the fewest deliveries. Nothing is discarded on the strength of a
+        // retry counter - see [`CHRONIC_DELIVERY_REPORT`].
+        let ids_to_claim = self
+            .scan_pending(&mut conn, &key, group, min_idle_ms, count)
             .await?;
-
-        // Parse pending to get IDs that are idle enough, and set aside the ones that have failed too often.
-        //
-        // Claiming resets an entry's idle time, so an entry that fails every time it is claimed becomes
-        // eligible again after `min_idle_ms` and - being the oldest - fills the window again. With a window
-        // of `count` and `count` such entries, nothing behind them is ever examined. That is not a fairness
-        // nicety: an abandoned entry at position `count + 1` would never be recovered.
-        //
-        // The delivery count is the evidence. Ingestion is idempotent, so an entry delivered
-        // `MAX_DELIVERY_ATTEMPTS` times has been tried that many times and will keep failing; acknowledging
-        // it loudly is what unblocks everything behind it. The same reasoning as the undecodable payload:
-        // discarding one entry with an error in the log beats blocking every entry silently.
-        let mut ids_to_claim: Vec<String> = Vec::new();
-        let mut exhausted: Vec<String> = Vec::new();
-        if let RedisValue::Array(entries) = pending {
-            for entry in entries {
-                // [id, consumer, idle_time, delivery_count]
-                let RedisValue::Array(parts) = entry else {
-                    continue;
-                };
-                if parts.len() < 3 {
-                    continue;
-                }
-                let Some(id) = redis_string(&parts[0]) else {
-                    continue;
-                };
-                let RedisValue::Int(idle) = &parts[2] else {
-                    continue;
-                };
-                if (*idle as u64) < min_idle_ms {
-                    continue;
-                }
-                let deliveries = parts
-                    .get(3)
-                    .and_then(|v| match v {
-                        RedisValue::Int(n) => Some(*n),
-                        _ => None,
-                    })
-                    .unwrap_or(1);
-                if deliveries >= MAX_DELIVERY_ATTEMPTS {
-                    exhausted.push(id);
-                } else {
-                    ids_to_claim.push(id);
-                }
-            }
-        }
-
-        for id in &exhausted {
-            tracing::error!(
-                stream = %key,
-                group,
-                message_id = %id,
-                attempts = MAX_DELIVERY_ATTEMPTS,
-                "Discarding a queued payload that has failed every delivery; it was blocking recovery of \
-                 everything behind it"
-            );
-            if let Err(e) = self.stream_ack(topic, group, id).await {
-                tracing::warn!(message_id = %id, error = %e, "Could not acknowledge an exhausted payload");
-            }
-        }
-
         if ids_to_claim.is_empty() {
             return Ok(vec![]);
         }
@@ -1003,12 +1123,14 @@ impl TopicBackend for RedisTopicBackend {
 
         let claimed: RedisValue = cmd.query_async(&mut conn).await?;
 
-        // Parse claimed messages. An entry whose structure cannot be read is *acknowledged*, not skipped.
+        // Parse claimed messages. An entry whose payload cannot be read is *moved to the dead-letter
+        // stream* and then acknowledged - never simply deleted.
         //
-        // Skipping it silently left it pending forever, and a pending entry is what holds the trim boundary
-        // - so one malformed entry stopped the stream from ever being trimmed and was re-examined by every
-        // sweep. Nothing can process an entry with no readable payload, so the honest response is the same
-        // as for an undecodable one: discard it with an error in the log.
+        // Skipping it silently left it pending forever, and a pending entry is what holds the trim boundary,
+        // so one malformed entry stopped the stream from ever being trimmed and was re-examined by every
+        // sweep. It has to leave the main stream; it was also answered 200, so its bytes have to survive.
+        // `<stream>:dead` is where they go. Failing to preserve it means *not* acknowledging it: an entry
+        // that could be neither processed nor kept stays pending, which is the conservative end.
         let mut messages = Vec::new();
         if let RedisValue::Array(entries) = claimed {
             for entry in entries {
@@ -1023,15 +1145,30 @@ impl TopicBackend for RedisTopicBackend {
                 match (id, payload) {
                     (Some(id), Some(payload)) => messages.push(StreamMessage { id, payload }),
                     (Some(id), None) => {
-                        tracing::error!(
-                            stream = %key,
-                            group,
-                            message_id = %id,
-                            "Discarding a queued entry with no readable payload; leaving it pending would \
-                             hold the stream's trim boundary forever"
-                        );
-                        if let Err(e) = self.stream_ack(topic, group, &id).await {
-                            tracing::warn!(message_id = %id, error = %e, "Could not acknowledge a malformed entry");
+                        match self
+                            .dead_letter(&mut conn, &key, group, &id, parts.get(1))
+                            .await
+                        {
+                            Ok(()) => {
+                                tracing::error!(
+                                    stream = %key,
+                                    group,
+                                    message_id = %id,
+                                    "Moved a queued entry with no readable payload to the dead-letter stream; \
+                                     leaving it pending would hold the stream's trim boundary forever"
+                                );
+                                if let Err(e) = self.stream_ack(topic, group, &id).await {
+                                    tracing::warn!(message_id = %id, error = %e, "Could not acknowledge a dead-lettered entry");
+                                }
+                            }
+                            Err(e) => tracing::error!(
+                                stream = %key,
+                                group,
+                                message_id = %id,
+                                error = %e,
+                                "Could not preserve an unreadable entry on the dead-letter stream; leaving it \
+                                 pending rather than discarding it"
+                            ),
                         }
                     }
                     // No id at all: nothing to acknowledge, and nothing that can be acted on.
@@ -1371,6 +1508,67 @@ impl fmt::Display for StreamId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}-{}", self.millis, self.sequence)
     }
+}
+
+/// One page of a group's pending list, from `from` onwards, holding only entries already idle enough.
+///
+/// `IDLE` filters on the server rather than here: asking for the first N pending entries and then dropping
+/// the too-fresh ones let recently-delivered entries at the front of the list hide every abandoned entry
+/// behind them, however long their consumer had been gone.
+async fn scan_pending_page(
+    conn: &mut deadpool_redis::Connection,
+    key: &str,
+    group: &str,
+    min_idle_ms: u64,
+    from: &str,
+    limit: usize,
+) -> RedisResult<RedisValue> {
+    deadpool_redis::redis::cmd("XPENDING")
+        .arg(key)
+        .arg(group)
+        .arg("IDLE")
+        .arg(min_idle_ms)
+        .arg(from)
+        .arg("+")
+        .arg(limit)
+        .query_async(conn)
+        .await
+}
+
+/// Read `XPENDING ... IDLE` output into `(id, delivery count)` pairs, in the order Redis returned them.
+///
+/// The idle check is repeated here even though `IDLE` already filtered: the filter is what makes the window
+/// contain only eligible entries, and this is what makes a caller's `min_idle_ms` contract true regardless
+/// of what the server did.
+fn parse_pending(pending: RedisValue, min_idle_ms: u64) -> Vec<(String, i64)> {
+    let RedisValue::Array(entries) = pending else {
+        return vec![];
+    };
+    let mut out = Vec::with_capacity(entries.len());
+    for entry in entries {
+        // [id, consumer, idle_time, delivery_count]
+        let RedisValue::Array(parts) = entry else {
+            continue;
+        };
+        if parts.len() < 3 {
+            continue;
+        }
+        let Some(id) = redis_string(&parts[0]) else {
+            continue;
+        };
+        let RedisValue::Int(idle) = &parts[2] else {
+            continue;
+        };
+        if (*idle as u64) < min_idle_ms {
+            continue;
+        }
+        let deliveries = match parts.get(3) {
+            Some(RedisValue::Int(n)) => *n,
+            _ => 1,
+        };
+        out.push((id, deliveries));
+    }
+    out
 }
 
 /// Read a named field out of one `XINFO GROUPS` entry, which is a flat key/value array.
