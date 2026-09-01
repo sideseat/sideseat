@@ -765,9 +765,7 @@ impl TracePipeline {
         {
             Ok(0) => {}
             Ok(_) if all_db_spans.is_empty() => {
-                // Whole batch is a deleted session's traces: discard their provisional associations
-                // outright (they will never be confirmed), reclaiming a crashed writer's increment too.
-                self.discard_dropped_associations(&created_associations)
+                self.release_created_associations(&created_associations)
                     .await;
                 return true;
             }
@@ -788,8 +786,7 @@ impl TracePipeline {
         match self.drop_spans_for_deleted_traces(&mut all_db_spans).await {
             Ok(0) => {}
             Ok(_) if all_db_spans.is_empty() => {
-                // Whole batch is deleted traces: discard their provisional associations outright.
-                self.discard_dropped_associations(&created_associations)
+                self.release_created_associations(&created_associations)
                     .await;
                 return true;
             }
@@ -1132,9 +1129,7 @@ impl TracePipeline {
             // Remove them from the set as well, so the caller's confirm does not then mark a
             // just-released association durable. This runs *before* confirm for that reason.
             created_associations.retain(|(p, t, _)| !(p == project && tombstoned.contains(t)));
-            // Discard: the trace is tombstoned, so like the pre-write drop paths its provisional
-            // associations will never be confirmed and are deleted outright rather than decremented.
-            self.discard_dropped_associations(&orphaned).await;
+            self.release_created_associations(&orphaned).await;
         }
         removed
     }
@@ -1173,60 +1168,28 @@ impl TracePipeline {
             .collect();
         created
             .retain(|(project, trace, _)| surviving.contains(&(project.as_str(), trace.as_str())));
-        // Discard, not release-with-decrement. These traces are being *dropped* - tombstoned, or under a
-        // deleted project/session - so the fence refuses every future writer and no one will ever confirm
-        // them. A decrement-to-zero would leak: a writer that crashed after incrementing `pending_writers`
-        // (files written, then gone) never decrements, so the count sticks above zero and the file's quota
-        // is held forever. Deleting the non-durable row outright reclaims it. This is the only path that
-        // recovers a crashed writer's increment; the failure paths keep the decrement, because a failed
-        // batch may retry and succeed, so its peers must be protected.
-        self.discard_dropped_associations(&orphaned).await;
+        self.release_created_associations(&orphaned).await;
     }
 
-    /// Delete the *provisional* associations of dropped traces, reclaiming even a crashed writer's increment.
+    /// Release associations this batch referenced, decrementing its own writer.
     ///
-    /// For a trace that will never be written - tombstoned, or under a deleted project/session. Because the
-    /// fence refuses all future writers, a non-durable association is definitively dead however high its
-    /// `pending_writers` count, so it is deleted rather than decremented. A durable association is left
-    /// alone: a writer committed spans for it, and those spans are removed by the compensation or the
-    /// deletion sweep, which is what releases it. `sync_ref_count` follows each delete.
-    async fn discard_dropped_associations(&self, dropped: &[(String, String, String)]) {
-        if dropped.is_empty() {
-            return;
-        }
-        let repo = self.file_service.database().repository();
-        let mut discarded = 0usize;
-        for (project_id, trace_id, hash) in dropped {
-            match repo
-                .discard_provisional_trace_file_association(project_id, trace_id, hash)
-                .await
-            {
-                Ok(true) => {
-                    discarded += 1;
-                    if let Err(e) = repo.sync_ref_count(project_id, hash).await {
-                        tracing::warn!(
-                            error = %e,
-                            project_id, hash,
-                            "Discarded a dropped trace's association but could not recompute the file's \
-                             reference count"
-                        );
-                    }
-                }
-                Ok(false) => {}
-                Err(e) => tracing::warn!(
-                    error = %e,
-                    project_id, trace_id, hash,
-                    "Could not discard a dropped trace's file association; the file it references will hold \
-                     quota until it is removed"
-                ),
-            }
-        }
-        if discarded > 0 {
-            tracing::debug!(discarded, "Discarded file associations of dropped traces");
-        }
-    }
-
-    /// Release associations this batch created after its analytics write failed.
+    /// # Why a dropped trace's association is not deleted outright here
+    ///
+    /// A crashed writer's increment is never decremented, so a decrement-to-zero release cannot reclaim it
+    /// and the file's quota is held. Deleting the non-durable row outright *from this path* was tried and
+    /// reverted: it is unsafe. `durable = false` does not prove no analytics row committed - confirmation runs
+    /// after the write and its failure is only logged - and a concurrent batch that passed the fence before
+    /// the tombstone can be committing spans for the same trace right now. Deleting the shared row then
+    /// leaves that batch's readable spans pointing at a file with no association, which the orphan sweeper
+    /// may reclaim: a dangling reference, the one outcome the write-files-before-rows ordering exists to
+    /// prevent.
+    ///
+    /// The reclamation belongs where the information is. `advance_pending_deletions` deletes the trace's
+    /// rows, confirms by direct read that nothing is still readable, and *only then* calls
+    /// `FileService::cleanup_traces`, which removes every association for the trace regardless of
+    /// `pending_writers` and recomputes the reference counts. So a stuck increment on a tombstoned trace is
+    /// reclaimed by that sweep - leased, backed off, and retried until the rows are provably gone - and this
+    /// path only ever undoes its own reference.
     ///
     /// Best effort and logged rather than fatal: the batch has already failed and will be redelivered,
     /// so the useful thing is to leave as little behind as possible. A release that itself fails leaves
@@ -1248,11 +1211,10 @@ impl TracePipeline {
             // An earlier version asked the analytics store whether the trace had rows and skipped the
             // release if it did - which is a read-then-act pair, and therefore not a decision at all: a
             // second batch can commit between the read and the delete, and its file loses its protection.
-            // `release_trace_file_association` decrements `pending_writers` and deletes only when it reaches
-            // zero on a non-durable row - so a peer batch that committed (durable) or is still in flight
-            // (pending) keeps its protection, all in one statement. This is the retryable-failure path; a
-            // *dropped* trace uses `discard_dropped_associations` instead, which deletes outright because no
-            // writer will ever confirm it.
+            // The `provisional` marker replaces that with a single statement. The delete matches only rows
+            // still marked provisional, and a batch that committed has already cleared the marker, so
+            // "another batch owns this now" is a *stored fact* rather than something observed and hoped to
+            // still hold.
             match repo
                 .release_trace_file_association(project_id, trace_id, hash)
                 .await
@@ -1590,9 +1552,7 @@ impl TracePipeline {
             // which is the exact failure the tombstone exists to remove.
             match self.drop_spans_for_deleted_sessions(&mut db_spans).await {
                 Ok(dropped) if db_spans.is_empty() => {
-                    // Definitive drop: discard the provisional associations, reclaiming a crashed
-                    // writer's increment too - see `discard_dropped_associations`.
-                    self.discard_dropped_associations(&created_associations)
+                    self.release_created_associations(&created_associations)
                         .await;
                     return IngestOutcome::Dropped {
                         spans: partly_dropped + dropped,
@@ -1613,8 +1573,9 @@ impl TracePipeline {
 
             match self.drop_spans_for_deleted_traces(&mut db_spans).await {
                 Ok(dropped) if db_spans.is_empty() => {
-                    // Definitive drop: discard the provisional associations rather than decrement.
-                    self.discard_dropped_associations(&created_associations)
+                    // The associations this batch created are released, or they would hold quota for a
+                    // trace that will never have a row.
+                    self.release_created_associations(&created_associations)
                         .await;
                     return IngestOutcome::Dropped {
                         spans: partly_dropped + dropped,
@@ -2056,7 +2017,6 @@ mod association_leak_tests {
                 let discharged = lines[from..n].iter().any(|l| {
                     l.contains("release_created_associations(")
                         || l.contains("release_associations_of_dropped(")
-                        || l.contains("discard_dropped_associations(")
                 });
                 assert!(
                     discharged,

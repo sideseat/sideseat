@@ -648,25 +648,6 @@ pub async fn get_orphan_files(pool: &PgPool) -> Result<Vec<(String, String)>, Po
 ///
 /// See `TransactionalRepository::release_trace_file_association`. The caller follows this with
 /// `sync_ref_count`, which recomputes the count from the associations that remain.
-/// Delete a provisional association of a dropped trace, regardless of `pending_writers`. See the SQLite twin.
-pub async fn discard_provisional_trace_file_association(
-    pool: &PgPool,
-    project_id: &str,
-    trace_id: &str,
-    file_hash: &str,
-) -> Result<bool, PostgresError> {
-    let result = sqlx::query(
-        "DELETE FROM trace_files \
-         WHERE project_id = $1 AND trace_id = $2 AND file_hash = $3 AND durable = FALSE",
-    )
-    .bind(project_id)
-    .bind(trace_id)
-    .bind(file_hash)
-    .execute(pool)
-    .await?;
-    Ok(result.rows_affected() > 0)
-}
-
 pub async fn release_trace_file_association(
     pool: &PgPool,
     project_id: &str,

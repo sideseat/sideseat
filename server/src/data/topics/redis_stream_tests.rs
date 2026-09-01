@@ -803,3 +803,78 @@ async fn a_decodable_but_invalid_payload_can_be_dead_lettered() {
     );
     let _ = id;
 }
+
+/// Rotation survives a process restart, because the cursor is in Redis rather than in the process.
+///
+/// The ephemeral-instance case: as a process-local map the cursor reset to the front on every restart, so an
+/// instance replaced faster than a full rotation always re-scanned the same prefix and entries behind a
+/// chronically-failing run starved indefinitely. Replicas also each kept their own position, so there was no
+/// global rotation at all. A *fresh backend on the same Redis* stands in for a restarted instance here.
+#[tokio::test]
+async fn the_scan_cursor_survives_a_restart() {
+    let Some((backend, topic)) = backend("cursor-restart").await else {
+        return;
+    };
+    let group = "traces";
+    backend
+        .ensure_group_for_test(&topic, group)
+        .await
+        .expect("group");
+
+    // A pending list longer than one claim window, all abandoned and equally eligible.
+    let mut ids = Vec::new();
+    for i in 0..6u32 {
+        ids.push(
+            backend
+                .stream_publish(&topic, format!("entry-{i}").as_bytes())
+                .await
+                .expect("publish"),
+        );
+    }
+    let mut subscription = backend
+        .stream_subscribe(&topic, group, "doomed")
+        .await
+        .expect("subscribe");
+    for _ in 0..ids.len() {
+        tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            futures::StreamExt::next(&mut subscription.receiver),
+        )
+        .await
+        .expect("delivered")
+        .expect("open")
+        .expect("ok");
+    }
+    drop(subscription);
+
+    // One pass on the first instance, claiming two - the cursor should now sit past them.
+    let first = backend
+        .stream_claim(&topic, group, "before-restart", 0, 2)
+        .await
+        .expect("claim");
+    assert_eq!(
+        first.len(),
+        2,
+        "the first pass should claim its whole window"
+    );
+
+    // A brand-new backend against the same Redis: a restarted instance, with an empty process.
+    let url = std::env::var(URL_ENV).expect("checked above");
+    let restarted = std::sync::Arc::new(
+        RedisTopicBackend::new(&url)
+            .await
+            .expect("reconnect after restart"),
+    );
+    let after = restarted
+        .stream_claim(&topic, group, "after-restart", 0, 2)
+        .await
+        .expect("claim after restart");
+
+    let first_ids: Vec<&str> = first.iter().map(|m| m.id.as_str()).collect();
+    let after_ids: Vec<&str> = after.iter().map(|m| m.id.as_str()).collect();
+    assert!(
+        !after_ids.iter().any(|id| first_ids.contains(id)),
+        "a restarted instance must resume past what the previous pass took, not re-scan from the front: \
+         first={first_ids:?} after={after_ids:?}"
+    );
+}

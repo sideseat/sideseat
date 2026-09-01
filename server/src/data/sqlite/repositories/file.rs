@@ -677,30 +677,6 @@ pub async fn get_orphan_files(pool: &SqlitePool) -> Result<Vec<(String, String)>
 /// See `TransactionalRepository::release_trace_file_association`. The caller follows this with
 /// `sync_ref_count`, which recomputes the count from the associations that remain - so the count cannot
 /// drift from the truth however the two interleave with a concurrent batch.
-/// Delete a provisional association of a dropped trace, regardless of `pending_writers`.
-///
-/// See `TransactionalRepository::discard_provisional_trace_file_association`. A dropped trace is fenced
-/// against every future writer, so a non-durable row will never be confirmed and its pending count is only
-/// crashed or about-to-be-dropped writers - deleting it outright reclaims the file rather than waiting for a
-/// decrement that may never come. A durable row is kept (its committed spans are deleted separately).
-pub async fn discard_provisional_trace_file_association(
-    pool: &SqlitePool,
-    project_id: &str,
-    trace_id: &str,
-    file_hash: &str,
-) -> Result<bool, SqliteError> {
-    let result = sqlx::query(
-        "DELETE FROM trace_files \
-         WHERE project_id = ? AND trace_id = ? AND file_hash = ? AND durable = 0",
-    )
-    .bind(project_id)
-    .bind(trace_id)
-    .bind(file_hash)
-    .execute(pool)
-    .await?;
-    Ok(result.rows_affected() > 0)
-}
-
 pub async fn release_trace_file_association(
     pool: &SqlitePool,
     project_id: &str,
@@ -868,92 +844,6 @@ mod tests {
             ref_count, 1,
             "the file must still be referenced, not orphaned"
         );
-    }
-
-    /// A dropped trace's provisional association is discarded even with a crashed writer's stuck increment.
-    ///
-    /// The counter model's regression: a writer increments `pending_writers`, crashes before resolving, and
-    /// a redelivery then drops the trace (deleted session) and releases once - leaving the count stuck above
-    /// zero, so a decrement-to-zero release never deletes the row and the file is held forever. `discard`
-    /// deletes the non-durable row outright, which is safe because a dropped trace is fenced and no writer
-    /// will ever confirm it.
-    #[tokio::test]
-    async fn discard_removes_a_dropped_provisional_association_despite_a_stuck_increment() {
-        let pool = setup_test_pool().await;
-        let (project, trace, hash) = ("default", "trace-1", test_hash());
-
-        // Two increments (a crashed writer plus a redelivery), no confirm: pending = 2, durable = 0.
-        for _ in 0..2 {
-            associate_file(
-                &pool,
-                trace,
-                project,
-                hash,
-                Some("image/png"),
-                1024,
-                "sha256",
-            )
-            .await
-            .unwrap();
-        }
-
-        // A plain release only decrements - the row survives with the crashed writer's increment stuck.
-        assert!(
-            !release_trace_file_association(&pool, project, trace, hash)
-                .await
-                .unwrap(),
-            "a decrement release must not delete while the stuck increment keeps pending above zero"
-        );
-
-        // Discard deletes it outright, reclaiming the leak.
-        assert!(
-            discard_provisional_trace_file_association(&pool, project, trace, hash)
-                .await
-                .unwrap(),
-            "discard must delete a dropped trace's provisional association regardless of pending_writers"
-        );
-        let rows: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM trace_files WHERE project_id = ? AND trace_id = ? AND file_hash = ?",
-        )
-        .bind(project).bind(trace).bind(hash)
-        .fetch_one(&pool).await.unwrap();
-        assert_eq!(rows, 0, "the leaked provisional association must be gone");
-    }
-
-    /// Discard never removes a *durable* association - a committed writer's file must survive.
-    #[tokio::test]
-    async fn discard_keeps_a_durable_association() {
-        let pool = setup_test_pool().await;
-        let (project, trace, hash) = ("default", "trace-1", test_hash());
-        associate_file(
-            &pool,
-            trace,
-            project,
-            hash,
-            Some("image/png"),
-            1024,
-            "sha256",
-        )
-        .await
-        .unwrap();
-        confirm_trace_file_associations(
-            &pool,
-            &[(project.to_string(), trace.to_string(), hash.to_string())],
-        )
-        .await
-        .unwrap();
-        assert!(
-            !discard_provisional_trace_file_association(&pool, project, trace, hash)
-                .await
-                .unwrap(),
-            "discard must not touch a durable association"
-        );
-        let rows: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM trace_files WHERE project_id = ? AND trace_id = ? AND file_hash = ?",
-        )
-        .bind(project).bind(trace).bind(hash)
-        .fetch_one(&pool).await.unwrap();
-        assert_eq!(rows, 1, "a committed association must survive discard");
     }
 
     /// When every referencing batch fails, the association is removed and the file reclaimed.

@@ -37,6 +37,7 @@
 //! - Streams: `{sideseat}:stream:{topic}` (hash tag for cluster compatibility)
 //! - Pub/Sub: `{sideseat}:pubsub:{topic}`
 
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -118,15 +119,6 @@ pub struct RedisTopicBackend {
     /// Zero means a single-instance Redis, where there is nothing to fail over to. Above zero, each publish
     /// costs a `WAIT` round trip - which is the price of an acknowledgement that survives a promotion.
     min_replica_acks: u32,
-    /// Where the next recovery pass starts scanning each group's pending list.
-    ///
-    /// Keyed by `<stream key>|<group>`, and it rotates: a pass resumes past the last entry it examined
-    /// and wraps when it reaches the end. Without it, a bounded scan always starting at the oldest
-    /// pending entry can never *see* an entry behind a run of chronically-failing ones - and since
-    /// claiming resets idle time, those stay eligible forever. The previous answer to that was to
-    /// acknowledge them, which discarded payloads already answered 200; rotation is the answer that
-    /// keeps them.
-    pending_scan_cursor: Arc<dashmap::DashMap<String, StreamId>>,
     /// Pub/Sub manager (handles bridge lifecycle)
     pubsub_manager: Arc<PubSubManager>,
 }
@@ -217,7 +209,6 @@ impl RedisTopicBackend {
             redis_url: redis_url.to_string(),
             stream_max_backlog: std::sync::atomic::AtomicU64::new(DEFAULT_STREAM_MAX_BACKLOG),
             observed_backlog: Arc::new(dashmap::DashMap::new()),
-            pending_scan_cursor: Arc::new(dashmap::DashMap::new()),
             min_replica_acks,
             pubsub_manager: Arc::new(PubSubManager::new(DEFAULT_BROADCAST_CAPACITY)),
         })
@@ -233,10 +224,24 @@ impl RedisTopicBackend {
             redis_url: redis_url.to_string(),
             stream_max_backlog: std::sync::atomic::AtomicU64::new(DEFAULT_STREAM_MAX_BACKLOG),
             observed_backlog: Arc::new(dashmap::DashMap::new()),
-            pending_scan_cursor: Arc::new(dashmap::DashMap::new()),
             min_replica_acks: 0,
             pubsub_manager: Arc::new(PubSubManager::new(DEFAULT_BROADCAST_CAPACITY)),
         }
+    }
+
+    /// The Redis key holding a group's rotating scan cursor.
+    ///
+    /// **In Redis, not in this process.** As a process-local map the rotation was lost on every restart, so
+    /// an ephemeral instance always resumed from the oldest pending entry: with a chronically-failing prefix
+    /// and instances replaced faster than `pending / count` passes, entries behind that prefix starved
+    /// indefinitely. Replicas also each kept their own cursor, so there was no global rotation guarantee at
+    /// all - the property the whole mechanism exists to provide.
+    ///
+    /// Stored under the stream's hash tag so it lives on the same Redis Cluster slot as the stream itself. No
+    /// compare-and-set: a lost update between two replicas only means one pass re-scans a page it already
+    /// scanned, which is idempotent - claiming is, and so is processing.
+    fn scan_cursor_key(&self, topic: &str, group: &str) -> String {
+        format!("{}{}:scan_cursor:{}", STREAM_PREFIX, topic, group)
     }
 
     /// Get stream key with prefix
@@ -446,16 +451,21 @@ impl RedisTopicBackend {
     async fn scan_pending(
         &self,
         conn: &mut deadpool_redis::Connection,
+        topic: &str,
         key: &str,
         group: &str,
         min_idle_ms: u64,
         count: usize,
     ) -> Result<(Vec<String>, CursorAction), TopicError> {
-        let cursor_key = format!("{key}|{group}");
-        let start = self
-            .pending_scan_cursor
-            .get(&cursor_key)
-            .map(|c| c.to_string())
+        // The cursor lives in Redis, so rotation survives a restart and replicas share one position - see
+        // `scan_cursor_key`. An unreadable cursor is treated as absent: starting from the front is always
+        // safe, it just costs this pass its rotation progress.
+        let cursor_key = self.scan_cursor_key(topic, group);
+        let start: String = deadpool_redis::redis::cmd("GET")
+            .arg(&cursor_key)
+            .query_async::<Option<String>>(conn)
+            .await
+            .unwrap_or(None)
             .unwrap_or_else(|| "-".to_string());
         // Scan exactly what will be claimed, never more.
         //
@@ -474,7 +484,6 @@ impl RedisTopicBackend {
         // Wrap. A rotated start that lands past the end of the list would otherwise return nothing and
         // rotate again, so a pass could do no work while entries were waiting at the front.
         if scanned.is_empty() && start != "-" {
-            self.pending_scan_cursor.remove(&cursor_key);
             scanned = parse_pending(
                 scan_pending_page(conn, key, group, min_idle_ms, "-", count).await?,
                 min_idle_ms,
@@ -516,14 +525,32 @@ impl RedisTopicBackend {
     }
 
     /// Move the rotating scan cursor as [`Self::scan_pending`] computed, once the claim it enabled succeeded.
-    fn apply_cursor(&self, action: CursorAction) {
-        match action {
+    ///
+    /// A write failure is logged, not propagated: the entries were claimed and are being processed, and the
+    /// only cost is that the next pass re-scans this page. Losing rotation progress is recoverable; failing
+    /// the claim over it would not be.
+    async fn apply_cursor(&self, conn: &mut deadpool_redis::Connection, action: CursorAction) {
+        let result: RedisResult<RedisValue> = match &action {
             CursorAction::Advance(key, id) => {
-                self.pending_scan_cursor.insert(key, id);
+                deadpool_redis::redis::cmd("SET")
+                    .arg(key)
+                    .arg(id.to_string())
+                    .query_async(conn)
+                    .await
             }
             CursorAction::Reset(key) => {
-                self.pending_scan_cursor.remove(&key);
+                deadpool_redis::redis::cmd("DEL")
+                    .arg(key)
+                    .query_async(conn)
+                    .await
             }
+        };
+        if let Err(e) = result {
+            tracing::warn!(
+                error = %e,
+                cursor = %action.key(),
+                "Could not persist the pending-scan cursor; the next recovery pass will re-scan this page"
+            );
         }
     }
 
@@ -1144,11 +1171,11 @@ impl TopicBackend for RedisTopicBackend {
         // that prefers the entries with the fewest deliveries. Nothing is discarded on the strength of a
         // retry counter - see [`CHRONIC_DELIVERY_REPORT`].
         let (ids_to_claim, cursor_action) = self
-            .scan_pending(&mut conn, &key, group, min_idle_ms, count)
+            .scan_pending(&mut conn, topic, &key, group, min_idle_ms, count)
             .await?;
         if ids_to_claim.is_empty() {
             // No claim to enable, so the rotation has done its reading; commit the (Reset) cursor.
-            self.apply_cursor(cursor_action);
+            self.apply_cursor(&mut conn, cursor_action).await;
             return Ok(vec![]);
         }
 
@@ -1162,11 +1189,6 @@ impl TopicBackend for RedisTopicBackend {
 
         let claimed: RedisValue = cmd.query_async(&mut conn).await?;
 
-        // Only now, past a successful `XCLAIM`, does the cursor advance. A claim that errored propagated
-        // above and left the cursor where it was, so the next pass re-scans these entries rather than
-        // stepping over unclaimed ones.
-        self.apply_cursor(cursor_action);
-
         // Parse claimed messages. An entry whose payload cannot be read is *moved to the dead-letter
         // stream* and then acknowledged - never simply deleted.
         //
@@ -1176,6 +1198,13 @@ impl TopicBackend for RedisTopicBackend {
         // `<stream>:dead` is where they go. Failing to preserve it means *not* acknowledging it: an entry
         // that could be neither processed nor kept stays pending, which is the conservative end.
         let mut messages = Vec::new();
+        // Which requested ids this pass actually took, so the cursor cannot step over one it did not.
+        //
+        // `XCLAIM` succeeding does not mean it claimed everything asked for: it silently omits an entry
+        // whose idle time no longer meets `min_idle_ms`, which a peer consumer resets simply by claiming it
+        // first. That peer may then crash, leaving the entry abandoned - and if this pass had advanced past
+        // it, a continuously-full pending list ahead of the cursor means it is never revisited.
+        let mut handled: HashSet<String> = HashSet::new();
         if let RedisValue::Array(entries) = claimed {
             for entry in entries {
                 let RedisValue::Array(parts) = entry else {
@@ -1187,7 +1216,10 @@ impl TopicBackend for RedisTopicBackend {
                     _ => None,
                 };
                 match (id, payload) {
-                    (Some(id), Some(payload)) => messages.push(StreamMessage { id, payload }),
+                    (Some(id), Some(payload)) => {
+                        handled.insert(id.clone());
+                        messages.push(StreamMessage { id, payload });
+                    }
                     (Some(id), None) => {
                         let raw = format!("{:?}", parts.get(1));
                         match self
@@ -1212,6 +1244,8 @@ impl TopicBackend for RedisTopicBackend {
                                 if let Err(e) = self.stream_ack(topic, group, &id).await {
                                     tracing::warn!(message_id = %id, error = %e, "Could not acknowledge a dead-lettered entry");
                                 }
+                                // Resolved: it has left the main stream, so the cursor may pass it.
+                                handled.insert(id.clone());
                             }
                             Err(e) => tracing::error!(
                                 stream = %key,
@@ -1232,6 +1266,23 @@ impl TopicBackend for RedisTopicBackend {
                 }
             }
         }
+
+        // The cursor stops at the first requested id this pass did not take, so that entry is re-examined
+        // next pass instead of being stepped over. `ids_to_claim` is in ascending stream order, so holding at
+        // the first unhandled id keeps every earlier one behind the cursor and still makes progress whenever
+        // the front of the scan was claimed. Only when everything asked for was taken does the scan's own
+        // advance apply.
+        let action = match ids_to_claim
+            .iter()
+            .find(|id| !handled.contains(id.as_str()))
+        {
+            Some(unhandled) => match StreamId::parse(unhandled) {
+                Some(parsed) => CursorAction::Advance(cursor_action.key().to_string(), parsed),
+                None => CursorAction::Reset(cursor_action.key().to_string()),
+            },
+            None => cursor_action,
+        };
+        self.apply_cursor(&mut conn, action).await;
 
         Ok(messages)
     }
@@ -1535,6 +1586,15 @@ enum CursorAction {
     Advance(String, StreamId),
     /// Start the next pass from the front (the list ended, or nothing eligible was found).
     Reset(String),
+}
+
+impl CursorAction {
+    /// The `<stream>|<group>` cursor this action belongs to.
+    fn key(&self) -> &str {
+        match self {
+            Self::Advance(key, _) | Self::Reset(key) => key,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

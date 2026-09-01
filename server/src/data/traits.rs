@@ -894,23 +894,6 @@ pub trait TransactionalRepository: Send + Sync {
         file_hash: &str,
     ) -> Result<bool, DataError>;
 
-    /// Discard a *provisional* association whose trace is being dropped, regardless of `pending_writers`.
-    ///
-    /// Distinct from [`Self::release_trace_file_association`], which decrements and deletes only at zero to
-    /// protect a peer batch that may still commit. This is for a trace that is being dropped - tombstoned,
-    /// or belonging to a deleted project/session - so the write fence refuses **every** future writer for
-    /// it. No writer will ever confirm the association, which means the `pending_writers` count is made up
-    /// entirely of crashed or about-to-be-dropped writers; decrementing to zero could take forever (a
-    /// crashed writer never decrements), leaking the file's quota. So a non-durable row is deleted outright.
-    /// A durable row is kept (a writer committed spans for it; those spans are deleted separately). Returns
-    /// whether a row was deleted.
-    async fn discard_provisional_trace_file_association(
-        &self,
-        project_id: &str,
-        trace_id: &str,
-        file_hash: &str,
-    ) -> Result<bool, DataError>;
-
     /// Delete trace-file associations for traces, returning the file hashes affected.
     ///
     /// The hashes come from the delete itself rather than from a prior read: an association added between a
