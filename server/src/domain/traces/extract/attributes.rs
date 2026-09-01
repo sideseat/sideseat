@@ -56,8 +56,18 @@ pub(super) fn merge_tags(attrs: &HashMap<String, String>, tag_keys: &[&str]) -> 
 }
 
 /// Get first matching value from attribute keys.
+///
+/// An **empty** value is not a value, so the chain keeps looking. This is what a fallback chain is for: a
+/// framework that sets `session.id=""` alongside `gen_ai.conversation.id="conv-1"` would otherwise have the
+/// empty string win, and retrieval treats a stored empty session id as *no session* - so the conversation got
+/// no session view, a trace read could not load its siblings, and the project feed could not widen its context,
+/// which lets replayed history through as duplicates. Present-but-empty is exactly the shape a chain exists to
+/// step over, and no caller wants an empty string in preference to a real one.
 pub(super) fn get_first(attrs: &HashMap<String, String>, keys: &[&str]) -> Option<String> {
-    keys.iter().find_map(|k| attrs.get(*k).cloned())
+    keys.iter()
+        .filter_map(|k| attrs.get(*k))
+        .find(|v| !v.is_empty())
+        .cloned()
 }
 
 /// Parse a value from attributes.
@@ -1159,7 +1169,12 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     span.gen_ai_temperature = parse_opt(attrs, keys::GEN_AI_TEMPERATURE);
     span.gen_ai_top_p = parse_opt(attrs, keys::GEN_AI_TOP_P);
     span.gen_ai_top_k = parse_opt(attrs, keys::GEN_AI_TOP_K);
-    span.gen_ai_max_tokens = parse_opt(attrs, keys::GEN_AI_MAX_TOKENS);
+    // Only when the flat attribute is actually present. Assigning unconditionally overwrote the
+    // `request_data` fallback above with `None` whenever the flat attribute was absent - which is every
+    // Logfire span, so `request_data.max_tokens` / `max_completion_tokens` never survived extraction.
+    if let Some(max_tokens) = parse_opt(attrs, keys::GEN_AI_MAX_TOKENS) {
+        span.gen_ai_max_tokens = Some(max_tokens);
+    }
     span.gen_ai_frequency_penalty = parse_opt(attrs, keys::GEN_AI_FREQUENCY_PENALTY);
     span.gen_ai_presence_penalty = parse_opt(attrs, keys::GEN_AI_PRESENCE_PENALTY);
 
@@ -1254,8 +1269,12 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
         }
     }
 
-    // Google ADK: tokens from llm_response JSON
-    if span.gen_ai_usage_input_tokens == 0 && span.gen_ai_usage_output_tokens == 0 {
+    // Google ADK: tokens from llm_response JSON.
+    //
+    // Entered when *either* counter is missing, and each field is then filled independently. Requiring both
+    // to be zero meant a span that reported only one flat counter - input 100, output absent - kept the other
+    // at 0 even though `usage_metadata.candidates_token_count` had it, understating the total and the cost.
+    if span.gen_ai_usage_input_tokens == 0 || span.gen_ai_usage_output_tokens == 0 {
         if let Some(resp) = extract_json::<JsonValue>(attrs, keys::GCP_VERTEX_LLM_RESPONSE) {
             if let Some(usage) = resp.get("usage_metadata") {
                 if span.gen_ai_usage_input_tokens == 0 {
@@ -1277,19 +1296,25 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     // Logfire: tokens from response_data.usage JSON
     // Anthropic: {input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens}
     // OpenAI: {prompt_tokens, completion_tokens}
-    if span.gen_ai_usage_input_tokens == 0 && span.gen_ai_usage_output_tokens == 0 {
+    // Same rule as the ADK block: either counter missing enters, and each is filled on its own, so a span
+    // reporting only one flat counter still gets the other from the JSON.
+    if span.gen_ai_usage_input_tokens == 0 || span.gen_ai_usage_output_tokens == 0 {
         if let Some(resp) = extract_json::<JsonValue>(attrs, keys::RESPONSE_DATA) {
             if let Some(usage) = resp.get("usage") {
-                span.gen_ai_usage_input_tokens = usage
-                    .get("input_tokens")
-                    .or_else(|| usage.get("prompt_tokens"))
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0);
-                span.gen_ai_usage_output_tokens = usage
-                    .get("output_tokens")
-                    .or_else(|| usage.get("completion_tokens"))
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0);
+                if span.gen_ai_usage_input_tokens == 0 {
+                    span.gen_ai_usage_input_tokens = usage
+                        .get("input_tokens")
+                        .or_else(|| usage.get("prompt_tokens"))
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
+                }
+                if span.gen_ai_usage_output_tokens == 0 {
+                    span.gen_ai_usage_output_tokens = usage
+                        .get("output_tokens")
+                        .or_else(|| usage.get("completion_tokens"))
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
+                }
             }
         }
     }

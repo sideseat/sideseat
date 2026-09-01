@@ -1450,3 +1450,104 @@ fn test_browser_use_rule_does_not_capture_other_providers() {
         );
     }
 }
+
+// ============================================================================
+// FALLBACK-CHAIN REGRESSIONS
+// ============================================================================
+
+/// An empty value does not win a fallback chain.
+///
+/// `session.id=""` alongside a real `gen_ai.conversation.id` used to store the empty string, and retrieval
+/// treats a stored empty session id as *no session* - so the conversation got no session view, a trace read
+/// could not load its sibling traces, and the project feed could not widen its context, which lets replayed
+/// history through as duplicates. Present-but-empty is what a chain exists to step over.
+#[test]
+fn an_empty_value_does_not_win_a_fallback_chain() {
+    let attrs = make_attrs(&[(keys::SESSION_ID, ""), ("gen_ai.conversation.id", "conv-1")]);
+    assert_eq!(
+        get_first(&attrs, &[keys::SESSION_ID, "gen_ai.conversation.id"]),
+        Some("conv-1".to_string()),
+        "an empty primary must not shadow a real fallback"
+    );
+
+    // And a real primary still wins.
+    let attrs = make_attrs(&[
+        (keys::SESSION_ID, "sess-1"),
+        ("gen_ai.conversation.id", "conv-1"),
+    ]);
+    assert_eq!(
+        get_first(&attrs, &[keys::SESSION_ID, "gen_ai.conversation.id"]),
+        Some("sess-1".to_string())
+    );
+}
+
+/// A span reporting only one flat token counter still gets the other from the framework's JSON.
+///
+/// The ADK and Logfire fallbacks were gated on *both* counters being zero, so input=100 with output absent
+/// kept output at 0 even though `usage_metadata.candidates_token_count` had it - understating the total and
+/// therefore the cost, which is the number a user is billed against.
+#[test]
+fn a_partial_usage_counter_still_reaches_the_adk_fallback() {
+    let mut span = SpanData::default();
+    let attrs = make_attrs(&[
+        ("gen_ai.usage.input_tokens", "100"),
+        (
+            keys::GCP_VERTEX_LLM_RESPONSE,
+            r#"{"usage_metadata":{"prompt_token_count":100,"candidates_token_count":20}}"#,
+        ),
+    ]);
+    extract_genai(&mut span, &attrs, "chat");
+    assert_eq!(span.gen_ai_usage_input_tokens, 100);
+    assert_eq!(
+        span.gen_ai_usage_output_tokens, 20,
+        "the absent output counter must be filled from the ADK JSON"
+    );
+    assert_eq!(span.gen_ai_usage_total_tokens, 120);
+}
+
+/// The same, for Logfire's `response_data.usage`.
+#[test]
+fn a_partial_usage_counter_still_reaches_the_logfire_fallback() {
+    let mut span = SpanData::default();
+    let attrs = make_attrs(&[
+        ("gen_ai.usage.input_tokens", "100"),
+        (
+            keys::RESPONSE_DATA,
+            r#"{"usage":{"input_tokens":100,"output_tokens":42}}"#,
+        ),
+    ]);
+    extract_genai(&mut span, &attrs, "chat");
+    assert_eq!(span.gen_ai_usage_input_tokens, 100);
+    assert_eq!(
+        span.gen_ai_usage_output_tokens, 42,
+        "the absent output counter must be filled from the Logfire JSON"
+    );
+}
+
+/// A JSON-sourced `max_tokens` is not overwritten by an absent flat attribute.
+///
+/// The flat assignment ran unconditionally, so it replaced the `request_data` fallback with `None` on every
+/// span that lacked the flat attribute - which is every Logfire span, meaning the value never survived.
+#[test]
+fn a_json_max_tokens_survives_an_absent_flat_attribute() {
+    let mut span = SpanData::default();
+    let attrs = make_attrs(&[(
+        keys::REQUEST_DATA,
+        r#"{"max_completion_tokens":1024,"messages":[]}"#,
+    )]);
+    extract_genai(&mut span, &attrs, "chat");
+    assert_eq!(
+        span.gen_ai_max_tokens,
+        Some(1024),
+        "the JSON fallback must not be overwritten by the absent flat attribute"
+    );
+
+    // A present flat attribute still wins.
+    let mut span = SpanData::default();
+    let attrs = make_attrs(&[
+        (keys::GEN_AI_MAX_TOKENS, "512"),
+        (keys::REQUEST_DATA, r#"{"max_completion_tokens":1024}"#),
+    ]);
+    extract_genai(&mut span, &attrs, "chat");
+    assert_eq!(span.gen_ai_max_tokens, Some(512));
+}

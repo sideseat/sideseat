@@ -355,6 +355,7 @@ impl CrossTracePrefixState {
         let mut search = PrefixSearch {
             state: self,
             consumed: vec![false; self.entries.len()],
+            consumed_bits: vec![0u64; self.entries.len().div_ceil(64)],
             must_precede: HashMap::new(),
             chosen: Vec::with_capacity(replay.len()),
             best: Vec::new(),
@@ -384,6 +385,15 @@ struct PrefixSearch<'a> {
     /// Which prior occurrences the current partial assignment has claimed. Injectivity, and what keeps a
     /// genuinely repeated question from collapsing onto the first ask.
     consumed: Vec<bool>,
+    /// `consumed` as a bitset, maintained **incrementally** rather than rebuilt.
+    ///
+    /// The signature is taken once per recursion, and rebuilding it walked all `N` prior occurrences each
+    /// time - so a trace replaying `N` messages did `N` scans of `N` entries, and a replaying session (where
+    /// every generation span re-sends the whole conversation) trended cubic in turn count. The assignment
+    /// budget does not bound this, because it counts *assignments*, not the work spent describing a state.
+    /// Flipping two words on claim and release keeps the signature exact - no hashing, so no collision can
+    /// make a dead end look already-explored - at 1/64th of the reads.
+    consumed_bits: Vec<u64>,
     /// Per trace, everything that must precede something already matched.
     must_precede: HashMap<usize, HashSet<u32>>,
     chosen: Vec<usize>,
@@ -468,6 +478,7 @@ impl PrefixSearch<'_> {
 
             self.budget -= 1;
             self.consumed[entry] = true;
+            self.consumed_bits[entry / 64] |= 1u64 << (entry % 64);
             self.chosen.push(entry);
             let added = self.add_ancestors(occurrence.trace, occurrence.position);
 
@@ -481,6 +492,7 @@ impl PrefixSearch<'_> {
             }
             self.chosen.pop();
             self.consumed[entry] = false;
+            self.consumed_bits[entry / 64] &= !(1u64 << (entry % 64));
 
             if self.best.len() == replay.len() {
                 return; // nothing beats a full match
@@ -495,14 +507,11 @@ impl PrefixSearch<'_> {
 
     /// The set of claimed occurrences, as a bitset - the part of the state that decides whether a dead
     /// end is the same dead end.
+    ///
+    /// A copy of the incrementally-maintained `consumed_bits`, not a fresh walk of `consumed`: see that
+    /// field for why rebuilding it made the search quadratic in the replay length.
     fn consumed_signature(&self) -> Vec<u64> {
-        let mut bits = vec![0u64; self.consumed.len().div_ceil(64)];
-        for (entry, &taken) in self.consumed.iter().enumerate() {
-            if taken {
-                bits[entry / 64] |= 1 << (entry % 64);
-            }
-        }
-        bits
+        self.consumed_bits.clone()
     }
 
     /// Whether this candidate's immediate successors include what the replay asks for next: `0` if they
