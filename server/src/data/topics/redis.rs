@@ -1391,19 +1391,21 @@ impl TopicBackend for RedisTopicBackend {
         // The cursor stops at the first requested id this pass did not take, so that entry is re-examined
         // next pass instead of being stepped over. `ids_to_claim` is in ascending stream order, so holding at
         // the first unhandled id keeps every earlier one behind the cursor and still makes progress whenever
-        // the front of the scan was claimed. Only when everything asked for was taken does the scan's own
-        // advance apply.
-        let action = match ids_to_claim
+        // the front of the scan was claimed.
+        //
+        // **Merged with the scan's own hold, never replacing it.** Overwriting was a skip in its own right:
+        // the scan may already be holding an earlier id `U` (pending but too fresh for the idle filter, so
+        // absent from the page) while a *later* page entry `V` goes unclaimed because a peer took it first.
+        // Moving the cursor from `U` to `V` steps over `U`, and with full pages beyond `V` it is never
+        // revisited even once it becomes idle enough - the very failure the scan-level hold was added to fix.
+        // Taking the earliest of the two keeps both outstanding.
+        let first_unresolved = ids_to_claim
             .iter()
             .find(|id| !handled.contains(id.as_str()))
-        {
-            // Hold at the first unresolved id, keeping the value the scan read so the write stays a CAS.
-            Some(unhandled) => CursorAction {
-                key: cursor_action.key.clone(),
-                expected: cursor_action.expected.clone(),
-                next: StreamId::parse(unhandled),
-            },
-            None => cursor_action,
+            .and_then(|id| StreamId::parse(id));
+        let action = CursorAction {
+            next: earliest_hold(cursor_action.next, first_unresolved),
+            ..cursor_action
         };
         self.apply_cursor(&mut conn, action).await;
 
@@ -1760,6 +1762,24 @@ impl fmt::Display for StreamId {
     }
 }
 
+/// The earlier of two outstanding cursor holds, if either exists.
+///
+/// Both the scan and the post-claim check can want the cursor held: the scan at an id the idle filter hid,
+/// the claim at the first id `XCLAIM` did not return. Whichever is **earlier** has to win, because the cursor
+/// is a single position and moving it past an outstanding id is exactly how that id gets skipped forever.
+///
+/// `None` from the scan means "advance/reset" and must not discard a hold the claim found; `None` from the
+/// claim means "everything asked for was taken" and must not discard the scan's hold. Only when neither wants
+/// a hold does the cursor reset.
+fn earliest_hold(scan: Option<StreamId>, claim: Option<StreamId>) -> Option<StreamId> {
+    match (scan, claim) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    }
+}
+
 /// One page of a group's pending list, from `from` onwards, holding only entries already idle enough.
 ///
 /// `IDLE` filters on the server rather than here: asking for the first N pending entries and then dropping
@@ -1932,6 +1952,61 @@ mod tests {
         assert_eq!(
             sanitize_redis_url("redis://user:pass@localhost:6379"),
             "redis://user:***@localhost:6379"
+        );
+    }
+}
+
+#[cfg(test)]
+mod cursor_hold_tests {
+    use super::{StreamId, earliest_hold};
+
+    fn id(millis: u64, sequence: u64) -> StreamId {
+        StreamId { millis, sequence }
+    }
+
+    /// The earlier of two outstanding holds wins, whichever side found it.
+    ///
+    /// This is the invariant a cursor *position* makes easy to break: it can hold one id, so moving it to a
+    /// later outstanding id steps over the earlier one, and with continuously full pages beyond that point the
+    /// earlier entry is never revisited. Both directions are checked because the two callers are asymmetric -
+    /// the scan holds an id the idle filter hid, the claim holds the first id `XCLAIM` did not return - and it
+    /// was the claim unconditionally overwriting the scan's hold that reintroduced the skip.
+    #[test]
+    fn the_earlier_hold_wins_from_either_side() {
+        let early = id(50, 0);
+        let late = id(900, 0);
+        assert_eq!(earliest_hold(Some(early), Some(late)), Some(early));
+        assert_eq!(earliest_hold(Some(late), Some(early)), Some(early));
+        // Same id from both sides is still that id, not a step past it.
+        assert_eq!(earliest_hold(Some(early), Some(early)), Some(early));
+    }
+
+    /// A hold from one side is never discarded by the other side having none.
+    ///
+    /// `None` means different things per side - "advance or reset" from the scan, "everything asked for was
+    /// taken" from the claim - and neither is permission to release the other's outstanding entry.
+    #[test]
+    fn a_hold_survives_the_other_side_wanting_none() {
+        let held = id(50, 0);
+        assert_eq!(earliest_hold(Some(held), None), Some(held));
+        assert_eq!(earliest_hold(None, Some(held)), Some(held));
+    }
+
+    /// Only when neither side holds anything does the cursor reset.
+    #[test]
+    fn no_hold_on_either_side_resets() {
+        assert_eq!(earliest_hold(None, None), None);
+    }
+
+    /// Sequence ordering is respected within one millisecond, not just across milliseconds.
+    ///
+    /// `StreamId` compares numerically on both components; a lexicographic comparison of the raw
+    /// `<millis>-<seq>` text would order `"5-9"` after `"5-10"` and pick the wrong hold.
+    #[test]
+    fn the_sequence_component_decides_within_a_millisecond() {
+        assert_eq!(
+            earliest_hold(Some(id(5, 10)), Some(id(5, 9))),
+            Some(id(5, 9))
         );
     }
 }
