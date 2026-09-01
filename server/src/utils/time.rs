@@ -25,6 +25,33 @@ pub fn micros_to_datetime(micros: i64) -> DateTime<Utc> {
     })
 }
 
+/// The window of instants every analytics backend can store, as a half-open range of years.
+///
+/// ClickHouse's `DateTime64(6)` - the type both span and metric timestamps use - covers 1900-01-01 to
+/// 2299-12-31. DuckDB's `TIMESTAMP` covers far more, and `chrono` more still, which is exactly the problem:
+/// a timestamp only one of them can hold makes the two backends disagree about the same export, and the
+/// disagreement is silent.
+///
+/// It is not merely a rounding difference either. The ClickHouse row conversion reached the column through
+/// `timestamp_nanos_opt`, whose range is the *nanosecond* one (1677-2262) and whose `None` fell back to the
+/// **epoch** - so a datapoint dated past 2262 was stored at 1970, where the schema's 90-day TTL deleted it,
+/// after the export had been answered 200. Storing at the epoch is the single worst available answer,
+/// because it is the one value the retention policy destroys.
+///
+/// So an instant outside this window is refused at ingestion and reported as rejected, rather than being
+/// quietly moved somewhere it can be represented. An exporter with a broken clock learns; a
+/// silently-relocated record does not.
+pub const STORABLE_YEAR_RANGE: std::ops::RangeInclusive<i32> = 1900..=2299;
+
+/// Whether an instant can be stored, and read back unchanged, by every analytics backend.
+///
+/// See [`STORABLE_YEAR_RANGE`] for why the bound exists and why the answer is a refusal rather than a
+/// substitution.
+pub fn is_storable(dt: DateTime<Utc>) -> bool {
+    use chrono::Datelike;
+    STORABLE_YEAR_RANGE.contains(&dt.year())
+}
+
 /// Parse ISO 8601 / RFC 3339 timestamp string to DateTime<Utc>
 pub fn parse_iso_timestamp(ts: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(ts)

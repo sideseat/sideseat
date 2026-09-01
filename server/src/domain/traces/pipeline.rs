@@ -54,6 +54,7 @@ use crate::data::topics::{StreamTopic, TopicError};
 use crate::data::types::NormalizedSpan;
 use crate::domain::pricing::PricingService;
 use crate::domain::sideml::to_sideml_batch;
+use crate::utils::time::is_storable;
 
 /// Consumer group name for trace pipeline
 const CONSUMER_GROUP: &str = "trace_pipeline";
@@ -605,6 +606,11 @@ impl TracePipeline {
             Err(()) => return false,
         }
 
+        // Before the files are written, so a rejected span's attachments are never stored either.
+        if drop_unstorable_spans(&mut all_db_spans) > 0 && all_db_spans.is_empty() {
+            return true; // nothing storable, and nothing was queued for a retry that cannot help
+        }
+
         let t_prepare_done = std::time::Instant::now();
         let span_count = all_db_spans.len();
 
@@ -632,6 +638,12 @@ impl TracePipeline {
             // in storage". Left in place, the retry this refusal invites would commit exactly the
             // dangling reference the refusal is meant to prevent.
             self.file_cache.invalidate_all();
+            // The files that *did* store already have associations, and this batch is not going to write the
+            // rows that justify them. Released, or they hold `ref_count` above zero forever: the orphan
+            // sweeper selects on `ref_count = 0`, so nothing would reclaim the bytes and the project's quota
+            // would shrink permanently. A redelivery re-creates them, so this costs nothing when it succeeds.
+            self.release_created_associations(&files.created_associations)
+                .await;
             tracing::error!(
                 failed = files.failed,
                 spans = span_count,
@@ -656,6 +668,10 @@ impl TracePipeline {
         created_associations.extend(incoming_associations);
         if reconcile_failed > 0 {
             self.file_cache.invalidate_all();
+            // Same reason as above, and here the set is the merged one: this batch's own file writes plus the
+            // references that arrived already formed. Both kinds hold quota until released.
+            self.release_created_associations(&created_associations)
+                .await;
             tracing::error!(
                 failed = reconcile_failed,
                 "Refusing the batch: could not settle whether some file references are backed"
@@ -1372,6 +1388,18 @@ impl TracePipeline {
                 Err(()) => return IngestOutcome::Failed,
             }
 
+            // The same rule as the batch path, and reported the same way: a retry cannot fix a clock, so
+            // these are dropped rather than refused, and the caller is told how many.
+            let unstorable = drop_unstorable_spans(&mut db_spans);
+            if unstorable > 0 {
+                if db_spans.is_empty() {
+                    return IngestOutcome::Dropped {
+                        spans: partly_dropped + unstorable,
+                    };
+                }
+                partly_dropped += unstorable;
+            }
+
             let sse_events: Vec<SseSpanEvent> = db_spans.iter().map(SseSpanEvent::from).collect();
             // Ordered, exactly as the batch path is: this path ran the two concurrently, so it could
             // commit a row referencing a file whose write had failed - the same defect, in the path
@@ -1379,6 +1407,11 @@ impl TracePipeline {
             let files = persist_extracted_files(pending_files, &self.file_service).await;
             if files.failed > 0 {
                 self.file_cache.invalidate_all();
+                // Released for the same reason as on the batch path: the stored files' associations hold
+                // quota that nothing would ever reclaim, since the rows justifying them are not being
+                // written and the orphan sweeper only sees `ref_count = 0`.
+                self.release_created_associations(&files.created_associations)
+                    .await;
                 tracing::error!(
                     failed = files.failed,
                     "Refusing to commit spans whose extracted files could not be stored"
@@ -1392,6 +1425,8 @@ impl TracePipeline {
             created_associations.extend(incoming_associations);
             if reconcile_failed > 0 {
                 self.file_cache.invalidate_all();
+                self.release_created_associations(&created_associations)
+                    .await;
                 tracing::error!(
                     failed = reconcile_failed,
                     "Refusing the batch: could not settle whether some file references are backed"
@@ -1726,5 +1761,156 @@ mod session_fence_tests {
             HashSet::from([("p".to_string(), "t1".to_string())]),
             "a deletion in one project must not reach another project's session of the same name"
         );
+    }
+}
+
+/// Drop spans whose timestamps no analytics backend can store, returning how many went.
+///
+/// The same rule the metrics path applies, for the same reason and with the same consequence if it is left
+/// out: ClickHouse's row conversion reached its `DateTime64(6)` column through `timestamp_nanos_opt`, whose
+/// range is narrower than the column's and whose `None` fell back to the **epoch** - where the schema's
+/// 90-day TTL deletes the row, after the export was answered 200. DuckDB stored the same span at its stated
+/// time, so the two backends disagreed about one export as well.
+///
+/// Dropped rather than relocated, and counted so the caller reports it: an exporter with a broken clock can
+/// act on a rejection, and cannot act on a record silently moved to 1970.
+fn drop_unstorable_spans(spans: &mut Vec<NormalizedSpan>) -> usize {
+    let before = spans.len();
+    spans.retain(|s| {
+        let ok = is_storable(s.timestamp_start) && s.timestamp_end.is_none_or(is_storable);
+        if !ok {
+            tracing::warn!(
+                trace_id = %s.trace_id,
+                span_id = %s.span_id,
+                timestamp_start = %s.timestamp_start,
+                timestamp_end = ?s.timestamp_end,
+                "Rejecting a span whose timestamp is outside the range every analytics backend can store"
+            );
+        }
+        ok
+    });
+    before - spans.len()
+}
+
+#[cfg(test)]
+mod storable_timestamp_tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    fn span_at(secs: i64) -> NormalizedSpan {
+        NormalizedSpan {
+            trace_id: "t".to_string(),
+            span_id: "s".to_string(),
+            timestamp_start: chrono::Utc.timestamp_opt(secs, 0).single().expect("valid"),
+            ..Default::default()
+        }
+    }
+
+    /// A span dated past what the storage column can hold is dropped, not stored at the epoch.
+    ///
+    /// The epoch is the single worst destination: it is inside the retention window's *past*, so the row is
+    /// deleted by the 90-day TTL shortly after the export was answered 200. The old conversion sent every
+    /// timestamp beyond 2262 there.
+    #[test]
+    fn a_span_dated_beyond_the_storable_range_is_rejected() {
+        // Year 10000, comfortably past `DateTime64(6)`'s 2299 ceiling and past the nanosecond range that
+        // produced the epoch fallback.
+        let mut spans = vec![span_at(253_402_300_800), span_at(1_704_067_200)];
+        let dropped = drop_unstorable_spans(&mut spans);
+        assert_eq!(dropped, 1, "the far-future span must be rejected");
+        assert_eq!(spans.len(), 1, "the ordinary span must be kept");
+        assert_eq!(
+            spans[0].timestamp_start.timestamp(),
+            1_704_067_200,
+            "the surviving span must be untouched"
+        );
+    }
+
+    /// An unstorable *end* time is rejected too: it is stored in its own column, with the same TTL.
+    #[test]
+    fn an_unstorable_end_time_rejects_the_span() {
+        let mut span = span_at(1_704_067_200);
+        span.timestamp_end = chrono::Utc.timestamp_opt(253_402_300_800, 0).single();
+        let mut spans = vec![span];
+        assert_eq!(drop_unstorable_spans(&mut spans), 1);
+        assert!(spans.is_empty());
+    }
+
+    /// The ordinary case costs nothing, and the bounds themselves are inclusive.
+    #[test]
+    fn timestamps_inside_the_range_are_kept() {
+        // 1900-01-01 and 2299-01-01, the two ends of the documented window.
+        let mut spans = vec![span_at(-2_208_988_800), span_at(10_382_659_200)];
+        assert_eq!(drop_unstorable_spans(&mut spans), 0);
+        assert_eq!(spans.len(), 2);
+    }
+}
+
+#[cfg(test)]
+mod association_leak_tests {
+    /// Every early return between creating a file association and committing the rows must release them.
+    ///
+    /// The invariant: **from the moment a file association exists until it is confirmed or released, no path
+    /// may return.** A forgotten release is a *permanent* quota leak rather than a transient one - the orphan
+    /// sweeper selects on `ref_count = 0`, so an association left above zero means the bytes are never
+    /// reclaimed and the project's usable quota shrinks for good. Nothing user-visible happens, which is
+    /// exactly why four such returns were written on two separate occasions without anyone noticing.
+    ///
+    /// Checked structurally, by reading this file, because that is the only form that catches the *next* one:
+    /// a new early return added between these two calls compiles, passes every behavioural test, and leaks.
+    /// An RAII guard was tried first and rejected - releasing is asynchronous, so `Drop` cannot do it, and
+    /// the association set is read several times after the risky region, so a consuming guard does not fit
+    /// the flow without restructuring the write path to add a safety net to it.
+    ///
+    /// The rule is deliberately coarse: *count* returns against releases inside the region. It cannot tell
+    /// which release belongs to which return, and a maintainer can defeat it. What it cannot do is stay
+    /// silent when someone adds a bare `return` to this region.
+    #[test]
+    fn every_early_return_between_files_and_the_write_releases_its_associations() {
+        let source = include_str!("pipeline.rs");
+
+        // The region is per path: each of the two write paths creates associations with
+        // `persist_extracted_files` and ends the risky window at its own `write_to_duckdb`.
+        let mut regions = Vec::new();
+        let mut cursor = 0usize;
+        while let Some(start) = source[cursor..].find("persist_extracted_files(") {
+            let start = cursor + start;
+            let Some(end) = source[start..].find("write_to_duckdb(") else {
+                break;
+            };
+            let end = start + end;
+            regions.push(&source[start..end]);
+            cursor = end + "write_to_duckdb(".len();
+        }
+        assert!(
+            regions.len() >= 2,
+            "both write paths should have been found; the anchors have moved"
+        );
+
+        // Adjacency, not a count. Counting was tried first and is too weak: the region holds two *kinds* of
+        // release call, so a total that includes them all leaves slack, and removing one real release still
+        // satisfied the sum. Verified by reverting a release and watching the count-based form pass.
+        const LOOKBACK: usize = 8;
+        for (i, region) in regions.iter().enumerate() {
+            let lines: Vec<&str> = region.lines().collect();
+            for (n, line) in lines.iter().enumerate() {
+                if !line.contains("return ") {
+                    continue;
+                }
+                let from = n.saturating_sub(LOOKBACK);
+                let discharged = lines[from..n].iter().any(|l| {
+                    l.contains("release_created_associations(")
+                        || l.contains("release_associations_of_dropped(")
+                });
+                assert!(
+                    discharged,
+                    "path {i}: `{}` returns between creating file associations and the write without \
+                     releasing them within the preceding {LOOKBACK} lines. An unreleased association holds \
+                     its project's quota forever, because the orphan sweeper only reclaims at zero \
+                     references.",
+                    line.trim()
+                );
+            }
+        }
     }
 }

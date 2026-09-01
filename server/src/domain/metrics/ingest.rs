@@ -26,6 +26,7 @@ use super::extract::extract_metrics_batch;
 use super::persist::persist_batch;
 use crate::core::constants::DEFAULT_PROJECT_ID;
 use crate::data::{AnalyticsService, TransactionalService};
+use crate::utils::time::is_storable;
 
 /// How many of a request's data points were stored, out of how many it had.
 ///
@@ -91,6 +92,36 @@ pub async fn ingest(
         if metrics.is_empty() {
             return Ok(Stored { stored: 0, total });
         }
+    }
+
+    // An instant no backend can store is refused here rather than written somewhere it fits.
+    //
+    // The row conversion used to reach ClickHouse's column through `timestamp_nanos_opt`, whose `None` past
+    // 2262 fell back to the epoch - so a datapoint with a broken clock was stored at 1970, where the 90-day
+    // TTL removed it, after the export was answered 200. DuckDB kept the same datapoint at its stated time,
+    // so the two backends also disagreed about one export. Reported through `Stored`, which the OTLP
+    // response turns into `rejected_data_points`: an exporter with a bad clock can then see it.
+    let before = metrics.len();
+    metrics.retain(|m| {
+        let ok = is_storable(m.timestamp) && m.start_timestamp.map(is_storable).unwrap_or(true);
+        if !ok {
+            tracing::warn!(
+                metric_name = %m.metric_name,
+                timestamp = %m.timestamp,
+                start_timestamp = ?m.start_timestamp,
+                "Rejecting a data point whose timestamp is outside the storable range"
+            );
+        }
+        ok
+    });
+    if metrics.len() < before {
+        tracing::warn!(
+            rejected = before - metrics.len(),
+            "Rejected data points with timestamps no analytics backend can store"
+        );
+    }
+    if metrics.is_empty() {
+        return Ok(Stored { stored: 0, total });
     }
 
     persist_batch(&metrics, analytics).await?;
