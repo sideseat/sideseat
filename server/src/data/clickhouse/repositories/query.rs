@@ -1484,6 +1484,20 @@ pub async fn get_feed_spans(
 /// are applied afterwards. Mirroring the reference backend is deliberate: a cheaper shape that dedups over a
 /// filtered set would have to prove no filter can change which copy of a span wins, and a re-delivery may
 /// carry a corrected `timestamp_start`, so it can.
+///
+/// # The one residual, which is a property of the storage engine, not a bug to fix here
+///
+/// `ReplacingMergeTree(ingested_at)` keeps only the newest version of a span after a background merge. So
+/// this is faithfully "as of the watermark" only while the pre-watermark version physically survives as an
+/// unmerged part. If a span had v1 (below the watermark) and is re-delivered as v2 (above it), and a merge
+/// then discards v1, this query - like *any* query, `FINAL` included - can no longer see v1, and the span
+/// moves to v2's position (past the watermark, so a later page rather than this traversal's). It is the
+/// best any query can do on this engine: DuckDB's append-only table retains every version and so is exact,
+/// but ClickHouse cannot be made to answer an as-of query for a version it has merged away without a
+/// different engine (a versioned/collapsing tree, or a separate append-only ingestion log). The failure is
+/// bounded - a *reorder within a paging session that straddles a merge*, never a duplicate (the `LIMIT 1 BY`
+/// still yields one row) and never a permanent loss (the span is still queryable at v2). Stated so a reader
+/// does not mistake the DuckDB-exact behaviour for a cross-backend guarantee.
 pub(crate) fn ch_dedup_spans_as_of_watermark() -> &'static str {
     "(SELECT * FROM otel_spans WHERE toInt64(toUnixTimestamp64Micro(ingested_at)) < ? \
       ORDER BY ingested_at DESC LIMIT 1 BY project_id, trace_id, span_id)"

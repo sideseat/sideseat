@@ -3150,3 +3150,75 @@ async fn a_span_redelivered_during_a_traversal_stays_visible_in_both_backends() 
         "the context load disagrees between backends as of the watermark"
     );
 }
+
+/// Two deliveries of one span in the same stored microsecond yield exactly one row on both backends.
+///
+/// The `MAX(ingested_at)` join DuckDB's dedup used returned *every* row tied at the maximum, so a span
+/// re-delivered within the same microsecond appeared twice - a duplicate, the one thing the feed must never
+/// emit - while ClickHouse's `FINAL`/`LIMIT 1 BY` returned one. `QUALIFY ROW_NUMBER() … = 1` makes DuckDB
+/// pick exactly one too, so the backends agree on a tie.
+#[tokio::test]
+async fn a_same_microsecond_redelivery_is_one_row_on_both_backends() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_tie").await;
+
+    // Same identity and the *same* ingested_at, different token counts: the tie.
+    let ingested = ts(10);
+    let base = NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: "trace-tie".to_string(),
+        span_id: "span-tie".to_string(),
+        span_name: "generation".to_string(),
+        observation_type: Some(ObservationType::Generation),
+        timestamp_start: ts(0),
+        timestamp_end: Some(ts(1)),
+        duration_ms: 1000,
+        ingested_at: Some(ingested),
+        ..Default::default()
+    };
+    let v1 = NormalizedSpan {
+        gen_ai_usage_input_tokens: 100,
+        ..base.clone()
+    };
+    let v2 = NormalizedSpan {
+        gen_ai_usage_input_tokens: 900,
+        ..base
+    };
+    for backend_spans in [vec![v1], vec![v2]] {
+        duck.insert_spans(backend_spans.clone())
+            .await
+            .expect("duckdb insert");
+        ch.insert_spans(backend_spans)
+            .await
+            .expect("clickhouse insert");
+    }
+
+    let params = FeedSpansParams {
+        project_id: PROJECT.to_string(),
+        limit: 50,
+        ..Default::default()
+    };
+    let d = duck
+        .get_feed_spans(&params)
+        .await
+        .expect("duckdb feed spans");
+    let c = ch
+        .get_feed_spans(&params)
+        .await
+        .expect("clickhouse feed spans");
+    assert_eq!(
+        d.len(),
+        1,
+        "a same-microsecond re-delivery must not duplicate the span on DuckDB"
+    );
+    assert_eq!(
+        d.len(),
+        c.len(),
+        "the two backends disagree on how many rows a same-microsecond tie yields"
+    );
+}

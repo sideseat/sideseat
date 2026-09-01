@@ -104,7 +104,7 @@ pub fn get_messages(
     let (dedup, watermark_binds) = match params.ingested_before_us {
         Some(watermark_us) => (
             crate::data::duckdb::repositories::query::dedup_spans_as_of_watermark(),
-            vec![watermark_us.to_string(), watermark_us.to_string()],
+            vec![watermark_us.to_string()],
         ),
         None => (DEDUP_SPANS, Vec::new()),
     };
@@ -195,12 +195,12 @@ pub fn get_project_messages(
         bind_values.push(end.format("%Y-%m-%d %H:%M:%S%.6f").to_string());
     }
 
-    // The bounded dedup takes two binds of its own, and they come *first* - the subquery is at the head of
+    // The bounded dedup takes one bind of its own, and it comes *first* - the subquery is at the head of
     // the FROM, so its placeholders precede every condition's.
     let (dedup, watermark_binds) = match params.ingested_before_us {
         Some(watermark_us) => (
             crate::data::duckdb::repositories::query::dedup_spans_as_of_watermark(),
-            vec![watermark_us.to_string(), watermark_us.to_string()],
+            vec![watermark_us.to_string()],
         ),
         None => (DEDUP_SPANS, Vec::new()),
     };
