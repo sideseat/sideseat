@@ -189,6 +189,16 @@ impl AnalyticsRepository for DedupAnalyticsRepository {
             .await
     }
 
+    async fn get_session_ids_for_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        self.inner
+            .get_session_ids_for_traces(project_id, trace_ids)
+            .await
+    }
+
     async fn get_trace_ids_for_sessions(
         &self,
         project_id: &str,
