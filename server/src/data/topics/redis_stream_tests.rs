@@ -346,7 +346,10 @@ async fn a_non_durable_redis_is_refused_at_startup() {
     impl Drop for Cleanup {
         fn drop(&mut self) {
             let _ = std::process::Command::new("docker")
-                .args(["rm", "-f", &self.0])
+                // : the redis image declares a volume, so removing the container without it leaves an
+                // anonymous volume behind - which is how 246 of them accumulated before the make targets
+                // were fixed the same way.
+                .args(["rm", "-fv", &self.0])
                 .output();
         }
     }

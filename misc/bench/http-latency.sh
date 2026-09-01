@@ -59,7 +59,7 @@ cleanup() {
     wait "$SERVER_PID" 2>/dev/null || true
   fi
   if [ "$MODE" = "distributed" ]; then
-    docker rm -f "$PG_NAME" "$CH_NAME" "$MINIO_NAME" >/dev/null 2>&1 || true
+    docker rm -fv "$PG_NAME" "$CH_NAME" "$MINIO_NAME" >/dev/null 2>&1 || true
   fi
   rm -rf "$WORK"
 }
@@ -70,7 +70,7 @@ echo "[bench] building release"
 
 if [ "$MODE" = "distributed" ]; then
   command -v docker >/dev/null || { echo "[bench] docker is required for distributed mode"; exit 1; }
-  docker rm -f "$PG_NAME" "$CH_NAME" "$MINIO_NAME" >/dev/null 2>&1 || true
+  docker rm -fv "$PG_NAME" "$CH_NAME" "$MINIO_NAME" >/dev/null 2>&1 || true
   docker run -d --name "$PG_NAME" -p 5442:5432 \
     -e POSTGRES_USER=sideseat -e POSTGRES_PASSWORD=sideseat -e POSTGRES_DB=sideseat \
     postgres:17-alpine >/dev/null
