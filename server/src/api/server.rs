@@ -486,8 +486,43 @@ impl ApiServer {
                 credentials_routes,
             )
             .nest("/api/v1/project/{project_id}/files", api_files_routes)
-            .nest("/api/v1", ws_routes)
-            .nest("/api/v1", agui_routes);
+            // Authenticated, like the MCP endpoint and every other route that touches project data.
+            //
+            // Mounted with no auth "in v1", these are the SDK runtime channel: `GET /registrations` lists
+            // agent manifests (system prompts included), the WebSocket *registers* an agent under a project -
+            // so a caller could take over a name its owner holds - and the AG-UI route invokes one. All three
+            // derive the project from the request, so an unauthenticated mount let any reachable caller
+            // enumerate, replace and invoke another organisation's agents.
+            //
+            // `require_auth` passes through when auth is disabled, so `--no-auth` development and the SDK
+            // samples are unaffected; with auth on, a credential is required and the handlers' own project
+            // checks scope it to the caller's organisation.
+            .nest(
+                "/api/v1",
+                ws_routes.layer(axum::middleware::from_fn_with_state(
+                    AuthState {
+                        auth_manager: auth_manager.clone(),
+                        allowed_origins: allowed_origins.clone(),
+                        database: app.database.clone(),
+                        cache: app.cache.clone(),
+                        api_key_secret: api_key_secret.clone(),
+                    },
+                    require_auth,
+                )),
+            )
+            .nest(
+                "/api/v1",
+                agui_routes.layer(axum::middleware::from_fn_with_state(
+                    AuthState {
+                        auth_manager: auth_manager.clone(),
+                        allowed_origins: allowed_origins.clone(),
+                        database: app.database.clone(),
+                        cache: app.cache.clone(),
+                        api_key_secret: api_key_secret.clone(),
+                    },
+                    require_auth,
+                )),
+            );
 
         let router = if let Some(mcp) = mcp_routes {
             router.nest("/api/v1/projects/{project_id}/mcp", mcp)

@@ -115,11 +115,33 @@ impl Drop for InvokeCancelGuard {
 async fn run_agent(
     State(state): State<WsState>,
     Path(RunPath { project_id, name }): Path<RunPath>,
+    auth: Option<axum::Extension<crate::api::auth::AuthContext>>,
+    auth_service: Option<axum::Extension<std::sync::Arc<crate::api::auth::AuthService>>>,
     Json(run_input): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, ErrorResponse> {
     tracing::Span::current().record("project_id", tracing::field::display(&project_id));
     if !is_valid_project_id(&project_id) {
         return Err(ErrorResponse::bad_request("invalid_project_id"));
+    }
+
+    // The credential has to be valid **for this project**, not merely valid. `require_auth` establishes who
+    // is asking; a key from another organisation is otherwise a perfectly good key, and this route *invokes*
+    // an agent - so without the check one organisation could run another's agents. With `--no-auth` the
+    // context is `LocalDefault`, which this admits, so development is unchanged.
+    if let (Some(axum::Extension(auth)), Some(axum::Extension(service))) = (auth, auth_service) {
+        if service
+            .verify_project_access(&auth, &project_id, crate::data::types::ApiKeyScope::Read)
+            .await
+            .is_err()
+        {
+            return Err(ErrorResponse::forbidden("project_access_denied"));
+        }
+    } else {
+        tracing::error!(
+            project_id,
+            "An AG-UI invoke arrived with no authentication context; refusing it."
+        );
+        return Err(ErrorResponse::forbidden("auth_context_missing"));
     }
     if !run_input.is_object() {
         return Err(ErrorResponse::bad_request(
@@ -347,6 +369,16 @@ impl ErrorResponse {
             message: message.into(),
         }
     }
+    /// The caller is authenticated but not for this project - distinct from `not_found`, which would tell an
+    /// outsider whether the agent exists.
+    fn forbidden(code: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::FORBIDDEN,
+            code: code.into(),
+            message: "not authorised for this project".into(),
+        }
+    }
+
     fn not_found(code: impl Into<String>) -> Self {
         Self {
             status: StatusCode::NOT_FOUND,

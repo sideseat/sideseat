@@ -27,6 +27,8 @@ pub struct ListingResponse {
 pub async fn list_registrations(
     State(state): State<WsState>,
     Path(ProjectPath { project_id }): Path<ProjectPath>,
+    auth: Option<axum::Extension<crate::api::auth::AuthContext>>,
+    auth_service: Option<axum::Extension<std::sync::Arc<crate::api::auth::AuthService>>>,
 ) -> Result<Json<ListingResponse>, ApiError> {
     if !is_valid_project_id(&project_id) {
         return Err(ApiError::bad_request(
@@ -34,6 +36,30 @@ pub async fn list_registrations(
             "project_id has invalid characters or length",
         ));
     }
+    // Valid **for this project**, not merely valid - see the AG-UI route. A key from another organisation is
+    // otherwise a perfectly good key, and this endpoint lists agent manifests, system prompts included. `--no-auth` yields `LocalDefault`, admitted.
+    if let (Some(axum::Extension(auth)), Some(axum::Extension(service))) = (auth, auth_service) {
+        if service
+            .verify_project_access(&auth, &project_id, crate::data::types::ApiKeyScope::Read)
+            .await
+            .is_err()
+        {
+            return Err(ApiError::forbidden(
+                "PROJECT_ACCESS_DENIED",
+                "not authorised for this project",
+            ));
+        }
+    } else {
+        tracing::error!(
+            project_id,
+            "A registrations listing request arrived with no authentication context; refusing it."
+        );
+        return Err(ApiError::forbidden(
+            "PROJECT_ACCESS_DENIED",
+            "not authorised for this project",
+        ));
+    }
+
     let entries = state
         .registrations
         .list(&project_id)

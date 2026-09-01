@@ -57,11 +57,31 @@ const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub async fn ws_upgrade(
     State(state): State<WsState>,
     Path(ProjectPath { project_id }): Path<ProjectPath>,
+    auth: Option<axum::Extension<crate::api::auth::AuthContext>>,
+    auth_service: Option<axum::Extension<std::sync::Arc<crate::api::auth::AuthService>>>,
     ws: WebSocketUpgrade,
 ) -> Result<Response, (StatusCode, String)> {
     if !is_valid_project_id(&project_id) {
         return Err((StatusCode::BAD_REQUEST, "invalid_project_id".into()));
     }
+    // Valid **for this project**, not merely valid - see the AG-UI route. A key from another organisation is
+    // otherwise a perfectly good key, and this endpoint *registers* an agent under the project, so an outsider could take over a name its owner holds. `--no-auth` yields `LocalDefault`, admitted.
+    if let (Some(axum::Extension(auth)), Some(axum::Extension(service))) = (auth, auth_service) {
+        if service
+            .verify_project_access(&auth, &project_id, crate::data::types::ApiKeyScope::Read)
+            .await
+            .is_err()
+        {
+            return Err((StatusCode::FORBIDDEN, "project_access_denied".to_string()));
+        }
+    } else {
+        tracing::error!(
+            project_id,
+            "A WebSocket upgrade request arrived with no authentication context; refusing it."
+        );
+        return Err((StatusCode::FORBIDDEN, "project_access_denied".to_string()));
+    }
+
     let configured = ws.max_message_size(WS_MAX_MESSAGE_BYTES);
     Ok(configured.on_upgrade(move |socket| run_connection(socket, state, project_id)))
 }
