@@ -18,6 +18,11 @@ pub struct RateLimitState {
     pub bucket: RateLimitBucket,
     pub key_extractor: KeyExtractor,
     pub bypass_header: Option<String>,
+    /// Whose forwarded-for header may be believed - see `utils::client_ip`.
+    ///
+    /// This limiter had the same defect the auth-failure one did, and it matters as much: trusting the header
+    /// unconditionally lets a direct caller rotate it and never exhaust an API, auth or MCP bucket at all.
+    pub trusted_proxies: Arc<crate::utils::client_ip::TrustedProxies>,
 }
 
 /// How to extract rate limit key from request
@@ -70,17 +75,27 @@ fn add_rate_limit_headers(response: &mut Response, result: &RateLimitResult) {
 }
 
 /// Extract rate limit key based on configuration
-fn extract_key(request: &Request, key_extractor: KeyExtractor, addr: SocketAddr) -> String {
+fn extract_key(
+    request: &Request,
+    key_extractor: KeyExtractor,
+    addr: SocketAddr,
+    trusted: &crate::utils::client_ip::TrustedProxies,
+) -> String {
     match key_extractor {
         KeyExtractor::IpAddress => {
-            // Prefer X-Forwarded-For for proxied requests (first IP only)
-            request
-                .headers()
-                .get("X-Forwarded-For")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|s| s.split(',').next())
-                .map(|s| s.trim().to_string())
-                .unwrap_or_else(|| addr.ip().to_string())
+            // The same attribution the auth-failure limiter uses, through the same helper: a forwarded
+            // address counts only from a configured trusted proxy, and the client is the rightmost hop none
+            // vouched for. Believing the header unconditionally let a caller rotate it for a fresh bucket
+            // every request, which is no limit at all.
+            crate::utils::client_ip::attributable_ip(
+                Some(addr.ip()),
+                request
+                    .headers()
+                    .get("X-Forwarded-For")
+                    .and_then(|v| v.to_str().ok()),
+                trusted,
+            )
+            .unwrap_or_else(|| addr.ip().to_string())
         }
         KeyExtractor::ProjectId => {
             // Extract from path: /otel/{project_id}/... or /api/v1/project/{project_id}/...
@@ -111,7 +126,7 @@ pub async fn rate_limit_middleware(
     }
 
     // Extract key based on configuration
-    let key = extract_key(&request, state.key_extractor, addr);
+    let key = extract_key(&request, state.key_extractor, addr, &state.trusted_proxies);
 
     // Check rate limit
     let result = state.limiter.check(&state.bucket, &key).await;

@@ -240,6 +240,14 @@ impl CoreApp {
 
         // Start OTLP gRPC server if enabled
         if app.config.otel.grpc_enabled {
+            // Parsed before the server is built, so a bad entry refuses startup here as it does for HTTP -
+            // see `utils::client_ip` for why skipping one is harmful rather than merely lax.
+            let grpc_trusted_proxies = Arc::new(
+                crate::utils::client_ip::TrustedProxies::parse(
+                    &app.config.rate_limit.trusted_proxies,
+                )
+                .map_err(|e| anyhow::anyhow!(e))?,
+            );
             let grpc_server = OtlpGrpcServer::new(
                 &app.config.otel,
                 &app.config.server.host,
@@ -274,9 +282,7 @@ impl CoreApp {
                         rate_limiter: (app.config.rate_limit.enabled
                             && app.config.rate_limit.per_ip)
                             .then(|| Arc::clone(&app.rate_limiter)),
-                        trusted_proxies: Arc::new(crate::utils::client_ip::TrustedProxies::parse(
-                            &app.config.rate_limit.trusted_proxies,
-                        )),
+                        trusted_proxies: Arc::clone(&grpc_trusted_proxies),
                     })
                 } else {
                     None
