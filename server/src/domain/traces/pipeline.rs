@@ -698,9 +698,9 @@ impl TracePipeline {
         {
             Ok(0) => {}
             Ok(_) => {
-                // Whole or partial, the dropped traces' associations go: their spans will not be written,
-                // and the count they hold is what the orphan sweeper cannot see past.
-                self.release_associations_of_dropped(&created_associations, &all_db_spans)
+                // Whole or partial, the dropped traces' associations go and leave `created_associations`,
+                // so the write path confirms only survivors and never resolves a dropped one twice.
+                self.release_associations_of_dropped(&mut created_associations, &all_db_spans)
                     .await;
                 if all_db_spans.is_empty() {
                     return true;
@@ -731,7 +731,13 @@ impl TracePipeline {
                     .await;
                 return true;
             }
-            Ok(_) => {}
+            // A *partial* deleted-session drop must release the dropped traces' associations too - and this
+            // path did not, so a batch mixing a deleted session with a live trace confirmed the dropped
+            // session's association as durable, permanently holding its file's quota with no row behind it.
+            Ok(_) => {
+                self.release_associations_of_dropped(&mut created_associations, &all_db_spans)
+                    .await;
+            }
             Err(()) => {
                 self.release_created_associations(&created_associations)
                     .await;
@@ -747,7 +753,7 @@ impl TracePipeline {
                 return true;
             }
             Ok(_) => {
-                self.release_associations_of_dropped(&created_associations, &all_db_spans)
+                self.release_associations_of_dropped(&mut created_associations, &all_db_spans)
                     .await;
             }
             Err(()) => {
@@ -795,8 +801,20 @@ impl TracePipeline {
         let t_persist_done = std::time::Instant::now();
 
         if db_ok {
-            // Confirm the associations first: the rows that justify them are committed, so they are no
-            // longer provisional and no failure path may take them.
+            // Compensate *before* confirming, and the order is load-bearing under the counter model. A
+            // deletion that landed between the pre-write check and the write left the trace resurrected;
+            // the compensation deletes those spans and releases their associations. Were confirm to run
+            // first it would mark those associations durable, and a durable row's release cannot delete it -
+            // so the file would be held forever by a row that was just removed. Releasing before confirm
+            // means the association is at zero pending and non-durable, so it goes; confirm then sees only
+            // the survivors, which `collect_spans_written_for_deleted_traces` has pruned from the set.
+            // Sessions first: tombstoning their traces is what makes the trace compensation see them.
+            self.tombstone_traces_of_deleted_sessions(&written, &session_of)
+                .await;
+            let compensated = self
+                .collect_spans_written_for_deleted_traces(&written, &mut created_associations)
+                .await;
+            // Now the survivors are durable, and no failure path may take them.
             if let Err(e) = self
                 .file_service
                 .database()
@@ -810,15 +828,6 @@ impl TracePipeline {
                      writer and a later failure path could release them"
                 );
             }
-            // Then the compensating re-check, before anything is published: a deletion that landed between
-            // the pre-write check and the write leaves the trace resurrected, and an SSE event for it would
-            // announce it to every connected reader.
-            // Sessions first: tombstoning their traces is what makes the trace compensation below see them.
-            self.tombstone_traces_of_deleted_sessions(&written, &session_of)
-                .await;
-            let compensated = self
-                .collect_spans_written_for_deleted_traces(&written, &created_associations)
-                .await;
             // Published *after* every drop and compensation, and only for spans that survived both. Built
             // before the filtering, `sse_events` announced spans this batch went on to discard - so a
             // reader saw a span appear and then never find it.
@@ -999,7 +1008,7 @@ impl TracePipeline {
     async fn collect_spans_written_for_deleted_traces(
         &self,
         written: &[(String, String, String)],
-        created_associations: &[(String, String, String)],
+        created_associations: &mut Vec<(String, String, String)>,
     ) -> HashSet<(String, String, String)> {
         // Keyed by (project, trace, span), not (trace, span): a span id is unique only within a trace and a
         // trace id only within a project, so a survivor set that drops the project can let a compensated
@@ -1079,20 +1088,27 @@ impl TracePipeline {
                 .filter(|(p, t, _)| p == project && tombstoned.contains(t))
                 .cloned()
                 .collect();
+            // Remove them from the set as well, so the caller's confirm does not then mark a
+            // just-released association durable. This runs *before* confirm for that reason.
+            created_associations.retain(|(p, t, _)| !(p == project && tombstoned.contains(t)));
             self.release_created_associations(&orphaned).await;
         }
         removed
     }
 
-    /// Release the associations of traces that are no longer in the batch.
+    /// Release the associations of traces that are no longer in the batch, and **remove them from
+    /// `created`**, so each association is resolved exactly once.
     ///
-    /// Every drop - a dead project, a deleted session, a deleted trace - leaves behind associations for
-    /// spans that will not be written, and an association holds a file's reference count above zero, which
-    /// is what the orphan sweeper selects on. Factored out because there are five such sites and each one
-    /// that forgot was a permanent leak.
+    /// The pruning is not incidental - it is what makes the counter model correct. `created` is later
+    /// confirmed (on a successful write) or released (on a failed one), and with the counter an association
+    /// that was already released here must not be touched again: a second release over-decrements
+    /// `pending_writers` and can delete a peer batch's row, and a confirm marks a dropped association durable
+    /// so its file is never reclaimed. Under the old boolean flag a double-resolve was a harmless no-op,
+    /// which is why this was missing. Every drop - a dead project, a deleted session, a deleted trace -
+    /// funnels through here, so the set that reaches the write holds only associations whose trace survived.
     async fn release_associations_of_dropped(
         &self,
-        created: &[(String, String, String)],
+        created: &mut Vec<(String, String, String)>,
         surviving_spans: &[NormalizedSpan],
     ) {
         if created.is_empty() {
@@ -1112,6 +1128,8 @@ impl TracePipeline {
             .filter(|(project, trace, _)| !surviving.contains(&(project.as_str(), trace.as_str())))
             .cloned()
             .collect();
+        created
+            .retain(|(project, trace, _)| surviving.contains(&(project.as_str(), trace.as_str())));
         self.release_created_associations(&orphaned).await;
     }
 
@@ -1479,7 +1497,7 @@ impl TracePipeline {
                 Ok(0) => {}
                 Ok(dropped) => {
                     partly_dropped += dropped;
-                    self.release_associations_of_dropped(&created_associations, &db_spans)
+                    self.release_associations_of_dropped(&mut created_associations, &db_spans)
                         .await;
                 }
                 Err(()) => {
@@ -1502,7 +1520,7 @@ impl TracePipeline {
                 Ok(0) => {}
                 Ok(dropped) => {
                     partly_dropped += dropped;
-                    self.release_associations_of_dropped(&created_associations, &db_spans)
+                    self.release_associations_of_dropped(&mut created_associations, &db_spans)
                         .await;
                 }
                 Err(()) => {
@@ -1548,6 +1566,13 @@ impl TracePipeline {
                     .await;
             }
             if db_ok {
+                // Compensate before confirming - see the batch path for why the order is load-bearing under
+                // the counter model.
+                self.tombstone_traces_of_deleted_sessions(&written, &session_of)
+                    .await;
+                let compensated = self
+                    .collect_spans_written_for_deleted_traces(&written, &mut created_associations)
+                    .await;
                 if let Err(e) = self
                     .file_service
                     .database()
@@ -1561,11 +1586,6 @@ impl TracePipeline {
                          pending writer"
                     );
                 }
-                self.tombstone_traces_of_deleted_sessions(&written, &session_of)
-                    .await;
-                let compensated = self
-                    .collect_spans_written_for_deleted_traces(&written, &created_associations)
-                    .await;
                 // Only spans that survived every drop and the compensation - see the batch path, including
                 // why the survivor identity carries the project id.
                 let surviving: HashSet<(&str, &str, &str)> = written
