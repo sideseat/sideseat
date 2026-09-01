@@ -503,6 +503,24 @@ pub trait TransactionalRepository: Send + Sync {
         limit: i64,
     ) -> Result<Vec<(String, i64)>, DataError>;
 
+    /// Record that these sessions were deleted, so a trace arriving later cannot recreate them.
+    ///
+    /// The trace tombstone is not enough on its own: a session is deleted by resolving it to trace ids and
+    /// deleting those, and a trace of the same session that arrives *after* that resolution was never in
+    /// the snapshot. The session id is the durable fact - the trace ids are one instant's view of it.
+    async fn record_deleted_sessions(
+        &self,
+        project_id: &str,
+        session_ids: &[String],
+    ) -> Result<(), DataError>;
+
+    /// Which of these sessions are tombstoned, so their spans must not be written.
+    async fn deleted_sessions_among(
+        &self,
+        project_id: &str,
+        session_ids: &[String],
+    ) -> Result<std::collections::HashSet<String>, DataError>;
+
     /// Claim a batch of deleted *traces* whose check is due, leased and exclusive.
     ///
     /// Same discipline as the project claim, and needed for the same reason: the pre-write tombstone check

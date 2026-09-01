@@ -686,6 +686,26 @@ impl TracePipeline {
         //
         // A dropped span's associations are released, for the same reason a failed write's are: they hold
         // `ref_count` above zero for a row that will never exist, and the orphan sweeper selects on zero.
+        // Deleted sessions, first: a trace of a deleted session may itself have no tombstone, because the
+        // session's deletion resolved its traces at one instant and this one arrived after.
+        match self
+            .drop_spans_for_deleted_sessions(&mut all_db_spans)
+            .await
+        {
+            Ok(0) => {}
+            Ok(_) if all_db_spans.is_empty() => {
+                self.release_created_associations(&files.created_associations)
+                    .await;
+                return true;
+            }
+            Ok(_) => {}
+            Err(()) => {
+                self.release_created_associations(&files.created_associations)
+                    .await;
+                return false;
+            }
+        }
+
         match self.drop_spans_for_deleted_traces(&mut all_db_spans).await {
             Ok(0) => {}
             Ok(_) if all_db_spans.is_empty() => {
@@ -979,6 +999,77 @@ impl TracePipeline {
         }
     }
 
+    /// Remove spans belonging to sessions that have been deleted.
+    ///
+    /// Separate from the trace check, because they fence different things. A session is deleted by
+    /// resolving it to trace ids and deleting those, so a trace of the same session that arrives *after*
+    /// that resolution has no trace tombstone - it was never in the snapshot - and would recreate a session
+    /// the caller was told was gone. The session id is durable; the trace list is one instant's view.
+    ///
+    /// `Err` means the table could not be read, which is not the same as empty: the caller refuses the
+    /// batch so the exporter retries, exactly as for the project fence and the trace tombstone.
+    async fn drop_spans_for_deleted_sessions(
+        &self,
+        spans: &mut Vec<NormalizedSpan>,
+    ) -> Result<usize, ()> {
+        let mut by_project: HashMap<&str, Vec<String>> = HashMap::new();
+        for span in spans.iter() {
+            if let Some(session_id) = span.session_id.as_deref().filter(|s| !s.is_empty()) {
+                by_project
+                    .entry(span.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID))
+                    .or_default()
+                    .push(session_id.to_string());
+            }
+        }
+        if by_project.is_empty() {
+            return Ok(0);
+        }
+        let repo = self.file_service.database().repository();
+        let mut deleted: HashSet<(String, String)> = HashSet::new();
+        for (project, mut session_ids) in by_project {
+            session_ids.sort_unstable();
+            session_ids.dedup();
+            match repo.deleted_sessions_among(project, &session_ids).await {
+                Ok(found) => {
+                    for session_id in found {
+                        deleted.insert((project.to_string(), session_id));
+                    }
+                }
+                Err(e) => {
+                    self.file_cache.invalidate_all();
+                    tracing::error!(
+                        error = %e,
+                        project = project,
+                        "Refusing the batch: could not settle whether its sessions have been deleted"
+                    );
+                    return Err(());
+                }
+            }
+        }
+        if deleted.is_empty() {
+            return Ok(0);
+        }
+        let before = spans.len();
+        spans.retain(|s| {
+            let Some(session_id) = s.session_id.as_deref().filter(|v| !v.is_empty()) else {
+                return true;
+            };
+            !deleted.contains(&(
+                s.project_id
+                    .as_deref()
+                    .unwrap_or(DEFAULT_PROJECT_ID)
+                    .to_string(),
+                session_id.to_string(),
+            ))
+        });
+        tracing::warn!(
+            dropped = before - spans.len(),
+            sessions = deleted.len(),
+            "Dropped spans for sessions that have been deleted"
+        );
+        Ok(before - spans.len())
+    }
+
     /// Remove spans belonging to traces that have been deleted.
     ///
     /// The project fence does not cover this: a live project can have an individual trace deleted, and
@@ -1180,6 +1271,23 @@ impl TracePipeline {
             // writes inline, and it is also the shutdown drain and the claimed-message recovery. So a
             // deleted trace could be re-posted through the ordinary configuration and answered success,
             // which is the exact failure the tombstone exists to remove.
+            match self.drop_spans_for_deleted_sessions(&mut db_spans).await {
+                Ok(dropped) if db_spans.is_empty() => {
+                    self.release_created_associations(&files.created_associations)
+                        .await;
+                    return IngestOutcome::Dropped {
+                        spans: partly_dropped + dropped,
+                    };
+                }
+                Ok(0) => {}
+                Ok(dropped) => partly_dropped += dropped,
+                Err(()) => {
+                    self.release_created_associations(&files.created_associations)
+                        .await;
+                    return IngestOutcome::Failed;
+                }
+            }
+
             match self.drop_spans_for_deleted_traces(&mut db_spans).await {
                 Ok(dropped) if db_spans.is_empty() => {
                     // The associations this batch created are released, or they would hold quota for a

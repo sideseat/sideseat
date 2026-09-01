@@ -2900,3 +2900,84 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
     check("duckdb", &duck, watermark_us).await;
     check("clickhouse", &ch, watermark_us).await;
 }
+
+/// A span redelivered *during* a traversal still appears in it, on DuckDB.
+///
+/// The subtle half of the watermark. Deduplication picks the newest row of each span, so a bound applied
+/// *outside* it is worse than no bound for a re-delivered span: the newest row is rejected by the bound and
+/// the older row was never selected, so the span is missing from every page of the traversal. Bounding the
+/// *choice* - the newest row that existed when the traversal began - is what a watermark means.
+///
+/// DuckDB only, and deliberately so. ClickHouse deduplicates with `FINAL`, which cannot be asked for "the
+/// version as of an instant", and a merge may have physically removed the earlier version - so there is
+/// nothing to select. The limit is per backend, like the latency ceilings, and stating it is the honest
+/// alternative to implying a guarantee the storage cannot give.
+#[tokio::test]
+async fn a_span_redelivered_during_a_traversal_still_appears_in_it() {
+    let (_temp, duck) = duckdb_backend().await;
+
+    let original = NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: "trace-redeliver".to_string(),
+        span_id: "span0001".to_string(),
+        span_name: "gen".to_string(),
+        timestamp_start: ts(0),
+        timestamp_end: Some(ts(1)),
+        duration_ms: 1000,
+        observation_type: Some(ObservationType::Generation),
+        span_category: Some(SpanCategory::LLM),
+        // Ingested before the traversal begins.
+        ingested_at: Some(ts(0)),
+        messages: Some(
+            serde_json::json!([{
+                "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+                "content": {"role": "user", "content": "first"}
+            }])
+            .to_string(),
+        ),
+        ..Default::default()
+    };
+    duck.insert_spans(vec![original.clone()])
+        .await
+        .expect("original");
+
+    let watermark_us = ts(300).timestamp_micros();
+
+    // Re-delivered *after* the watermark, with corrected content - the shape a retrying exporter produces.
+    let redelivered = NormalizedSpan {
+        ingested_at: Some(ts(600)),
+        messages: Some(
+            serde_json::json!([{
+                "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+                "content": {"role": "user", "content": "corrected"}
+            }])
+            .to_string(),
+        ),
+        ..original.clone()
+    };
+    duck.insert_spans(vec![redelivered])
+        .await
+        .expect("redelivery");
+
+    let page = duck
+        .get_project_messages(&crate::data::types::FeedMessagesParams {
+            project_id: PROJECT.to_string(),
+            limit: 50,
+            ingested_before_us: Some(watermark_us),
+            ..Default::default()
+        })
+        .await
+        .expect("bounded feed messages");
+    let ids: Vec<&str> = page.rows.iter().map(|r| r.span_id.as_str()).collect();
+    assert_eq!(
+        ids,
+        vec!["span0001"],
+        "a span that existed when the traversal began must appear in it, even after a re-delivery: \
+         bounding outside the dedup rejected the new row and never selected the old one, so it vanished"
+    );
+    assert!(
+        page.rows[0].messages_json.contains("first"),
+        "and the version served is the one that existed at the watermark, not the later correction: {}",
+        page.rows[0].messages_json
+    );
+}

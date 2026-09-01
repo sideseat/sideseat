@@ -157,18 +157,15 @@ pub fn get_project_messages(
         bind_values.push(cursor_trace_id.clone());
     }
 
-    // The traversal watermark, in the ingestion dimension the pages are ordered by.
+    // The traversal watermark is applied *inside* the deduplication, below - not as a condition here.
     //
     // A page is chosen by ingestion time, so without an upper bound on it a span ingested *during* the
-    // traversal appears on a later page - and may already have been read into an earlier page's
-    // reconstruction context, where it can win deduplication against a span still to be paged. That span
-    // is then suppressed as a duplicate and the winner is scoped off the page it was not selected for, so
-    // neither is ever returned. Bounding both by the same watermark makes a traversal a view of one
-    // instant.
-    if let Some(watermark_us) = params.ingested_before_us {
-        conditions.push("EPOCH_US(ingested_at) < ?::BIGINT".to_string());
-        bind_values.push(watermark_us.to_string());
-    }
+    // traversal appears on a later page, and may already have been read into an earlier page's
+    // reconstruction context where it can win deduplication against a span still to be paged. But a bound
+    // applied outside the dedup is worse than none for a *re-delivered* span: the dedup picks the newest
+    // row over the whole table, the bound then rejects it, and the older row was never selected - so the
+    // span is missing from every page. `dedup_spans_as_of_watermark` chooses the newest row that existed
+    // when the traversal began instead, which is what a watermark is for.
 
     // Event time filters.
     //
@@ -187,11 +184,25 @@ pub fn get_project_messages(
         bind_values.push(end.format("%Y-%m-%d %H:%M:%S%.6f").to_string());
     }
 
+    // The bounded dedup takes two binds of its own, and they come *first* - the subquery is at the head of
+    // the FROM, so its placeholders precede every condition's.
+    let (dedup, watermark_binds) = match params.ingested_before_us {
+        Some(watermark_us) => (
+            crate::data::duckdb::repositories::query::dedup_spans_as_of_watermark(),
+            vec![watermark_us.to_string(), watermark_us.to_string()],
+        ),
+        None => (DEDUP_SPANS, Vec::new()),
+    };
+    let bind_values = {
+        let mut all = watermark_binds;
+        all.extend(bind_values);
+        all
+    };
+
     let sql = format!(
-        "SELECT {MESSAGE_SELECT_COLUMNS} FROM {DEDUP_SPANS} WHERE {} ORDER BY ingested_at DESC, span_id DESC, trace_id DESC LIMIT {}",
+        "SELECT {MESSAGE_SELECT_COLUMNS} FROM {dedup} WHERE {} ORDER BY ingested_at DESC, span_id DESC, trace_id DESC LIMIT {}",
         conditions.join(" AND "),
         params.limit,
-        DEDUP_SPANS = DEDUP_SPANS
     );
 
     let mut stmt = conn.prepare(&sql)?;

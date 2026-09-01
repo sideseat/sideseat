@@ -854,3 +854,46 @@ pub async fn record_deleted_trace_check(
     }
     Ok(())
 }
+/// Record that these sessions were deleted. See the trait method for why the trace tombstone alone is
+/// insufficient.
+pub async fn record_deleted_sessions(
+    pool: &PgPool,
+    project_id: &str,
+    session_ids: &[String],
+) -> Result<(), PostgresError> {
+    if session_ids.is_empty() {
+        return Ok(());
+    }
+    let now = chrono::Utc::now().timestamp();
+    sqlx::query(
+        "INSERT INTO deleted_sessions (project_id, session_id, deleted_at)
+         SELECT $1, s, $3 FROM UNNEST($2::text[]) AS s
+         ON CONFLICT (project_id, session_id) DO NOTHING",
+    )
+    .bind(project_id)
+    .bind(session_ids)
+    .bind(now)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Which of these sessions are tombstoned.
+pub async fn deleted_sessions_among(
+    pool: &PgPool,
+    project_id: &str,
+    session_ids: &[String],
+) -> Result<std::collections::HashSet<String>, PostgresError> {
+    if session_ids.is_empty() {
+        return Ok(std::collections::HashSet::new());
+    }
+    let rows: Vec<String> = sqlx::query_scalar(
+        "SELECT session_id FROM deleted_sessions \
+         WHERE project_id = $1 AND session_id = ANY($2::text[])",
+    )
+    .bind(project_id)
+    .bind(session_ids)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().collect())
+}
