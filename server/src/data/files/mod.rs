@@ -280,8 +280,18 @@ impl FileService {
             .get_file_reference_counts_for_traces(project_id, trace_ids)
             .await?;
 
-        // Delete trace-file associations
-        repo.delete_trace_files(project_id, trace_ids).await?;
+        // Delete the associations, and take the set to reconcile from *the delete*.
+        //
+        // The read above is kept for the counts it reports, but it cannot decide which files to reconcile:
+        // an association added between the read and the delete is removed here and absent from the read, so
+        // its file's stored count would never be recomputed - and the orphan sweeper selects on that count,
+        // so nothing would ever reclaim it. Unioning both sets covers the association that arrived late and
+        // the one whose row was already gone.
+        let removed = repo.delete_trace_files(project_id, trace_ids).await?;
+        let mut hashes: Vec<String> = references.into_iter().map(|(hash, _)| hash).collect();
+        hashes.extend(removed);
+        hashes.sort_unstable();
+        hashes.dedup();
 
         // Recompute each count from the associations that remain, and delete when none do.
         //
@@ -289,7 +299,7 @@ impl FileService {
         // three, both subtract three, and a file four traces referenced would reach zero and be deleted
         // under the fourth. Recomputing cannot do that - whatever else happened, the count becomes the
         // truth.
-        for (hash, _) in references {
+        for hash in hashes {
             // The count is kept accurate for display, but it is not what authorises the deletion.
             repo.sync_ref_count(project_id, &hash).await?;
 
@@ -496,6 +506,7 @@ mod tests {
             max_entries: 1000,
             eviction_policy: crate::core::config::EvictionPolicy::TinyLfu,
             redis_url: None,
+            redis_min_replica_acks: 0,
         };
         let cache = Arc::new(CacheService::new(&cache_config).await.unwrap());
 

@@ -867,12 +867,16 @@ pub trait TransactionalRepository: Send + Sync {
         file_hash: &str,
     ) -> Result<bool, DataError>;
 
-    /// Delete trace-file associations for traces
+    /// Delete trace-file associations for traces, returning the file hashes affected.
+    ///
+    /// The hashes come from the delete itself rather than from a prior read: an association added between a
+    /// read and the delete is removed here but absent from the read, so its file's stored reference count is
+    /// never recomputed - and the orphan sweeper selects on that count, so nothing would ever reclaim it.
     async fn delete_trace_files(
         &self,
         project_id: &str,
         trace_ids: &[String],
-    ) -> Result<u64, DataError>;
+    ) -> Result<Vec<String>, DataError>;
 
     /// Get total storage used by a project
     async fn get_project_storage_bytes(&self, project_id: &str) -> Result<i64, DataError>;

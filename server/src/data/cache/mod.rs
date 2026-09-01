@@ -301,6 +301,7 @@ mod tests {
             max_entries: 1000,
             eviction_policy: EvictionPolicy::TinyLfu,
             redis_url: None,
+            redis_min_replica_acks: 0,
         }
     }
 

@@ -512,10 +512,16 @@ async fn files_and_references_behave_identically() {
 
         // Deleting one trace releases only its own references.
         t.note(&format!(
-            "released={}",
-            repo.delete_trace_files("default", &["trace-1".to_string()])
-                .await
-                .unwrap()
+            // Sorted: the set is what matters, and the two dialects return rows in their own order.
+            "released={:?}",
+            {
+                let mut released = repo
+                    .delete_trace_files("default", &["trace-1".to_string()])
+                    .await
+                    .unwrap();
+                released.sort();
+                released
+            }
         ));
         t.note(&format!(
             "a_after_release={:?}",

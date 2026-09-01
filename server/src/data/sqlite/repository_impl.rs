@@ -859,7 +859,7 @@ impl TransactionalRepository for Arc<SqliteService> {
         &self,
         project_id: &str,
         trace_ids: &[String],
-    ) -> Result<u64, DataError> {
+    ) -> Result<Vec<String>, DataError> {
         file::delete_trace_files(self.pool(), project_id, trace_ids)
             .await
             .map_err(Into::into)

@@ -2932,6 +2932,7 @@ async fn bench_ingestion_end_to_end() {
                         max_entries: 1000,
                         eviction_policy: crate::core::config::EvictionPolicy::TinyLfu,
                         redis_url: None,
+                        redis_min_replica_acks: 0,
                     })
                     .await
                     .expect("memory cache"),

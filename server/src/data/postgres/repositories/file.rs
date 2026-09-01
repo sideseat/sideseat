@@ -194,7 +194,9 @@ pub async fn associate_existing_file(
     }
 
     sqlx::query(
-        "INSERT INTO trace_files (trace_id, project_id, file_hash) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+        // Provisional - see the SQLite twin.
+        "INSERT INTO trace_files (trace_id, project_id, file_hash, provisional) \
+         VALUES ($1, $2, $3, TRUE) ON CONFLICT DO NOTHING",
     )
     .bind(trace_id)
     .bind(project_id)
@@ -556,32 +558,21 @@ pub async fn delete_trace_files(
     pool: &PgPool,
     project_id: &str,
     trace_ids: &[String],
-) -> Result<u64, PostgresError> {
+) -> Result<Vec<String>, PostgresError> {
     if trace_ids.is_empty() {
-        return Ok(0);
+        return Ok(Vec::new());
     }
-
-    let placeholders = trace_ids
-        .iter()
-        .enumerate()
-        .map(|(i, _)| format!("${}", i + 2))
-        .collect::<Vec<_>>()
-        .join(",");
-
-    let query = format!(
-        "DELETE FROM trace_files WHERE project_id = $1 AND trace_id IN ({})",
-        placeholders
-    );
-
-    let mut query_builder = sqlx::query(&query).bind(project_id);
-
-    for trace_id in trace_ids {
-        query_builder = query_builder.bind(trace_id);
-    }
-
-    let result = query_builder.execute(pool).await?;
-
-    Ok(result.rows_affected())
+    // `RETURNING`, so the caller reconciles exactly the hashes this statement removed - see the SQLite twin
+    // for the association that a read-then-delete pair misses.
+    let rows: Vec<String> = sqlx::query_scalar(
+        "DELETE FROM trace_files WHERE project_id = $1 AND trace_id = ANY($2::text[]) \
+         RETURNING file_hash",
+    )
+    .bind(project_id)
+    .bind(trace_ids)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
 }
 
 /// Get total storage used by a project
