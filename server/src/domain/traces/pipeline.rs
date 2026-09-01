@@ -105,11 +105,15 @@ pub enum IngestOutcome {
         spans: usize,
         reason: DropReason,
     },
-    /// Some spans were stored and some dropped - a request naming a live project and a dying one. Distinct
-    /// from `Dropped` because the answers differ: nothing stored is a 404, something stored is a success
-    /// that reports what it rejected.
+    /// Some spans were stored and some dropped - a request naming a live project and a dying one, or one
+    /// mixing storable and unstorable spans. Distinct from `Dropped` because the answers differ: nothing
+    /// stored is a 404, something stored is a success that reports what it rejected.
+    ///
+    /// `reason` describes the drops, because the message shown to the exporter has to be true: a batch of one
+    /// valid span and one year-2300 span stored the valid one and then blamed project deletion.
     PartlyDropped {
         spans: usize,
+        reason: DropReason,
     },
     Failed,
 }
@@ -1555,6 +1559,10 @@ impl TracePipeline {
             let mut pending_files = pending_files;
             let mut incoming = incoming;
             let mut partly_dropped = 0usize;
+            // The cause of the *most recent* partial drop. Where a batch mixes causes, `Gone` wins: it is the
+            // one that names a target the exporter should stop sending to, which is the more actionable of
+            // the two.
+            let mut partly_reason = DropReason::Unstorable;
             match self
                 .drop_spans_for_dead_projects(&mut db_spans, &mut pending_files, &mut incoming)
                 .await
@@ -1572,7 +1580,10 @@ impl TracePipeline {
                     };
                 }
                 Ok(0) => {}
-                Ok(dropped) => partly_dropped = dropped,
+                Ok(dropped) => {
+                    partly_dropped = dropped;
+                    partly_reason = DropReason::Gone;
+                }
                 Err(()) => return IngestOutcome::Failed,
             }
 
@@ -1659,6 +1670,7 @@ impl TracePipeline {
                 Ok(0) => {}
                 Ok(dropped) => {
                     partly_dropped += dropped;
+                    partly_reason = DropReason::Gone;
                     self.release_associations_of_dropped(&mut created_associations, &db_spans)
                         .await;
                 }
@@ -1683,6 +1695,7 @@ impl TracePipeline {
                 Ok(0) => {}
                 Ok(dropped) => {
                     partly_dropped += dropped;
+                    partly_reason = DropReason::Gone;
                     self.release_associations_of_dropped(&mut created_associations, &db_spans)
                         .await;
                 }
@@ -1765,6 +1778,7 @@ impl TracePipeline {
                 if partly_dropped > 0 {
                     IngestOutcome::PartlyDropped {
                         spans: partly_dropped,
+                        reason: partly_reason,
                     }
                 } else {
                     IngestOutcome::Stored

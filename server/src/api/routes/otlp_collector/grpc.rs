@@ -71,6 +71,12 @@ pub struct GrpcIngestAuth {
     pub cache: Arc<crate::data::cache::CacheService>,
     pub database: Arc<crate::data::TransactionalService>,
     pub api_key_secret: Arc<Vec<u8>>,
+    /// Present when per-IP limiting is on, so a brute force here costs what it costs over HTTP.
+    ///
+    /// Without it the two transports were asymmetric in the attacker's favour: invalid HTTP attempts are
+    /// counted and eventually answered 429, while unlimited gRPC attempts kept reaching key validation. The
+    /// bound on guessing has to be the same on both, or the weaker one is the only one that matters.
+    pub rate_limiter: Option<Arc<crate::data::cache::RateLimiter>>,
 }
 
 impl GrpcIngestAuth {
@@ -80,6 +86,21 @@ impl GrpcIngestAuth {
     /// drift apart on what a key is allowed to do. The project id comes from the metadata the call also uses
     /// to route its data, so a key valid for another organisation's project cannot write here.
     async fn authorize<T>(&self, request: &Request<T>, project_id: &str) -> Result<(), Status> {
+        // The peer address is what a limiter can key on here; gRPC metadata has no forwarded-for convention
+        // this server trusts.
+        let client_ip = request.remote_addr().map(|a| a.ip().to_string());
+        if let (Some(limiter), Some(ip)) = (&self.rate_limiter, &client_ip) {
+            let bucket = crate::data::cache::RateLimitBucket::auth_failures(
+                crate::core::constants::DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
+            );
+            if limiter.is_blocked(&bucket, ip).await {
+                tracing::warn!(ip = %ip, "gRPC OTLP auth blocked due to too many failures");
+                return Err(Status::resource_exhausted(
+                    "too many authentication failures",
+                ));
+            }
+        }
+
         let header = request
             .metadata()
             .get("authorization")
@@ -89,7 +110,7 @@ impl GrpcIngestAuth {
                     "OTLP ingestion requires an API key in the authorization metadata",
                 )
             })?;
-        crate::api::auth::validate_api_key_for_project(
+        let result = crate::api::auth::validate_api_key_for_project(
             &self.cache,
             Arc::clone(&self.database),
             &self.api_key_secret,
@@ -97,9 +118,24 @@ impl GrpcIngestAuth {
             project_id,
             crate::data::types::ApiKeyScope::Ingest,
         )
-        .await
-        .map(|_| ())
-        .map_err(|e| {
+        .await;
+
+        // Counted on failure only, exactly as the HTTP middleware does.
+        if let Err(ref e) = result
+            && matches!(
+                e,
+                crate::api::auth::ApiKeyAuthError::InvalidKey
+                    | crate::api::auth::ApiKeyAuthError::Expired
+            )
+            && let (Some(limiter), Some(ip)) = (&self.rate_limiter, &client_ip)
+        {
+            let bucket = crate::data::cache::RateLimitBucket::auth_failures(
+                crate::core::constants::DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
+            );
+            let _ = limiter.check(&bucket, ip).await;
+        }
+
+        result.map(|_| ()).map_err(|e| {
             tracing::debug!(project_id, error = %e, "Refused a gRPC OTLP export");
             Status::unauthenticated("invalid or unauthorized API key")
         })
@@ -329,13 +365,22 @@ impl TraceService for OtlpTraceService {
                 },
                 // Something was stored, so this is a success reporting what it rejected - see the HTTP
                 // twin.
-                crate::domain::traces::IngestOutcome::PartlyDropped { spans } => {
+                crate::domain::traces::IngestOutcome::PartlyDropped { spans, reason } => {
                     return Ok(Response::new(ExportTraceServiceResponse {
                         partial_success: Some(
                             opentelemetry_proto::tonic::collector::trace::v1::ExportTracePartialSuccess {
                                 rejected_spans: spans as i64,
-                                error_message:
-                                    "some spans' project is unknown or is being deleted".to_string(),
+                                // True to the cause - see the HTTP twin.
+                                error_message: match reason {
+                                    crate::domain::traces::DropReason::Gone => {
+                                        "some spans' project, trace or session is unknown or is being deleted"
+                                    }
+                                    crate::domain::traces::DropReason::Unstorable => {
+                                        "some spans were rejected as unstorable; check their timestamps are \
+                                         within 1900-2299"
+                                    }
+                                }
+                                .to_string(),
                             },
                         ),
                     }));
@@ -347,6 +392,31 @@ impl TraceService for OtlpTraceService {
             }
             return Ok(Response::new(ExportTraceServiceResponse {
                 partial_success: None,
+            }));
+        }
+
+        // Unstorable spans are rejected before the queue answers 200 for them, exactly as on the HTTP
+        // transport - the durable acknowledgement is honest only about what can actually be stored, and
+        // nothing downstream can report back to a call that has already returned. Having this on one of two
+        // equivalent transports was the same class of gap as `otel.auth.required` gating HTTP only.
+        let unstorable = crate::domain::traces::strip_unstorable_spans(&mut req);
+        let remaining: usize = req
+            .resource_spans
+            .iter()
+            .flat_map(|r| r.scope_spans.iter())
+            .map(|s| s.spans.len())
+            .sum();
+        if unstorable > 0 && remaining == 0 {
+            return Ok(Response::new(ExportTraceServiceResponse {
+                partial_success: Some(
+                    opentelemetry_proto::tonic::collector::trace::v1::ExportTracePartialSuccess {
+                        rejected_spans: unstorable as i64,
+                        error_message:
+                            "spans were rejected as unstorable; check their timestamps are \
+                                        within 1900-2299"
+                                .to_string(),
+                    },
+                ),
             }));
         }
 
@@ -383,8 +453,16 @@ impl TraceService for OtlpTraceService {
             return Err(Status::resource_exhausted("trace buffer full"));
         }
 
+        // Reporting what was stripped, if any - see the HTTP twin.
         Ok(Response::new(ExportTraceServiceResponse {
-            partial_success: None,
+            partial_success: (unstorable > 0).then(|| {
+                opentelemetry_proto::tonic::collector::trace::v1::ExportTracePartialSuccess {
+                    rejected_spans: unstorable as i64,
+                    error_message:
+                        "some spans were rejected as unstorable; check their timestamps are within 1900-2299"
+                            .to_string(),
+                }
+            }),
         }))
     }
 }

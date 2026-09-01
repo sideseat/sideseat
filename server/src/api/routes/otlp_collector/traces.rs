@@ -120,12 +120,22 @@ pub async fn export(
             // Something *was* stored, so this is a success that reports what it rejected - the field OTLP
             // provides for exactly this. A batch naming a live project and a dying one must not lose the
             // live one's spans to a refusal, nor have the dying one's counted as delivered.
-            IngestOutcome::PartlyDropped { spans } => {
+            IngestOutcome::PartlyDropped { spans, reason } => {
                 let response = ExportTraceServiceResponse {
                     partial_success: Some(ExportTracePartialSuccess {
                         rejected_spans: spans as i64,
-                        error_message: "some spans' project is unknown or is being deleted"
-                            .to_string(),
+                        // True to the cause: a batch of one valid span and one year-2300 span used to store
+                        // the valid one and then blame project deletion.
+                        error_message: match reason {
+                            DropReason::Gone => {
+                                "some spans' project, trace or session is unknown or is being deleted"
+                            }
+                            DropReason::Unstorable => {
+                                "some spans were rejected as unstorable; check their timestamps are within \
+                                 1900-2299"
+                            }
+                        }
+                        .to_string(),
                     }),
                 };
                 return success_response(&response, content_type);

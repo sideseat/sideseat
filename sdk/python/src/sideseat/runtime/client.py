@@ -141,9 +141,17 @@ class _Invocation:
 class RuntimeClient:
     """Persistent WS client. Sync API; daemon thread does the I/O."""
 
-    def __init__(self, *, endpoint: str, project_id: str) -> None:
+    def __init__(self, *, endpoint: str, project_id: str, api_key: str | None = None) -> None:
         self._endpoint = endpoint
         self._project_id = project_id
+        # Sent as `Authorization: Bearer` on the upgrade request.
+        #
+        # The runtime channel is authenticated when the server has auth
+        # enabled - it registers and invokes agents, so a query-only credential
+        # is not enough for it. Without the key here the handshake is answered
+        # 401 and the client reconnect-loops forever against a server that is
+        # working correctly.
+        self._api_key = api_key
 
         # Use RLock so the I/O thread can call disconnect()→send_envelope()
         # which re-acquires the same lock (e.g. on a `replaced` notice).
@@ -511,6 +519,10 @@ class RuntimeClient:
         path = f"/api/v1/project/{self._project_id}/ws"
         return urlunparse((scheme, parsed.netloc, path, "", "", ""))
 
+    def _auth_headers(self) -> dict[str, str]:
+        """Upgrade-request headers; empty when no key is set (`--no-auth`)."""
+        return {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
+
     def _run_loop(self) -> None:
         from websockets.sync.client import connect as ws_connect  # type: ignore[import-not-found]
 
@@ -521,6 +533,7 @@ class RuntimeClient:
             try:
                 with ws_connect(
                     self._ws_url(),
+                    additional_headers=self._auth_headers(),
                     max_size=_DEFAULT_MAX_MESSAGE_BYTES,
                     open_timeout=10,
                     close_timeout=5,

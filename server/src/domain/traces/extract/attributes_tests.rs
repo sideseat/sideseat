@@ -1595,3 +1595,49 @@ fn a_json_max_tokens_is_reachable_when_model_and_system_are_known() {
         "the request_data fallback must not be gated on fields it does not fill"
     );
 }
+
+/// A reported zero survives the MLflow fallback too, and an earlier JSON source is not overwritten.
+///
+/// The fallbacks run in sequence, so testing the *stored value* had two failure modes: a genuine 0 was treated
+/// as missing, and a later JSON source overwrote a count an earlier one had legitimately supplied. Both are
+/// fixed by tracking whether each counter has been supplied at all.
+#[test]
+fn a_reported_zero_survives_the_mlflow_fallback() {
+    let mut span = SpanData::default();
+    let attrs = make_attrs(&[
+        ("gen_ai.usage.input_tokens", "100"),
+        ("gen_ai.usage.output_tokens", "0"),
+        (
+            keys::MLFLOW_CHAT_TOKEN_USAGE,
+            r#"{"prompt_tokens":100,"completion_tokens":42}"#,
+        ),
+    ]);
+    extract_genai(&mut span, &attrs, "chat");
+    assert_eq!(
+        span.gen_ai_usage_output_tokens, 0,
+        "a reported zero must survive the MLflow fallback"
+    );
+}
+
+/// The first JSON source to supply a counter keeps it; a later one does not overwrite it.
+#[test]
+fn a_later_json_fallback_does_not_overwrite_an_earlier_one() {
+    let mut span = SpanData::default();
+    // No flat counters. MLflow supplies both; Logfire's `response_data` would supply different numbers.
+    let attrs = make_attrs(&[
+        (
+            keys::MLFLOW_CHAT_TOKEN_USAGE,
+            r#"{"prompt_tokens":11,"completion_tokens":22}"#,
+        ),
+        (
+            keys::RESPONSE_DATA,
+            r#"{"usage":{"input_tokens":99,"output_tokens":88}}"#,
+        ),
+    ]);
+    extract_genai(&mut span, &attrs, "chat");
+    assert_eq!(span.gen_ai_usage_input_tokens, 11);
+    assert_eq!(
+        span.gen_ai_usage_output_tokens, 22,
+        "the first source to supply a counter must keep it"
+    );
+}
