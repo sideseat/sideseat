@@ -80,6 +80,20 @@ const PUBSUB_RECONNECT_DELAY: Duration = Duration::from_secs(1);
 /// Default broadcast channel capacity
 const DEFAULT_BROADCAST_CAPACITY: usize = 10_000;
 
+/// How many times a queued entry may be delivered before it is treated as poison.
+///
+/// Ingestion is idempotent, so a redelivery normally succeeds where the first attempt failed transiently.
+/// An entry that has failed this many times is failing for a reason a retry will not change - and because
+/// claiming resets its idle time, it re-enters the recovery window ahead of everything older, so leaving it
+/// there starves every entry behind it.
+const MAX_DELIVERY_ATTEMPTS: i64 = 10;
+
+/// How long a publish waits for replica acknowledgement before reporting a shortfall.
+///
+/// Bounded, because an unbounded wait turns a lagging replica into a stalled ingestion path - and the
+/// honest answer to "cannot confirm" is a 503 the exporter retries, not a request that never returns.
+const REPLICA_ACK_TIMEOUT_MS: u64 = 5_000;
+
 /// Redis topic backend
 pub struct RedisTopicBackend {
     /// Connection pool for commands
@@ -98,13 +112,28 @@ pub struct RedisTopicBackend {
     /// before every append would double the round trips on the hot ingestion path to enforce a limit
     /// that is approximate by nature.
     observed_backlog: Arc<dashmap::DashMap<String, u64>>,
+    /// How many replicas must confirm a queued entry before the publish returns.
+    ///
+    /// Zero means a single-instance Redis, where there is nothing to fail over to. Above zero, each publish
+    /// costs a `WAIT` round trip - which is the price of an acknowledgement that survives a promotion.
+    min_replica_acks: u32,
     /// Pub/Sub manager (handles bridge lifecycle)
     pubsub_manager: Arc<PubSubManager>,
 }
 
 impl RedisTopicBackend {
     /// Create a new Redis topic backend
+    /// A backend on a standalone Redis, requiring no replica acknowledgement.
+    #[cfg(test)]
     pub async fn new(redis_url: &str) -> Result<Self, TopicError> {
+        Self::with_replica_acks(redis_url, 0).await
+    }
+
+    /// Create a backend that requires `min_replica_acks` replicas to confirm each queued entry.
+    pub async fn with_replica_acks(
+        redis_url: &str,
+        min_replica_acks: u32,
+    ) -> Result<Self, TopicError> {
         let sanitized_url = sanitize_redis_url(redis_url);
 
         let mut config = Config::from_url(redis_url);
@@ -159,6 +188,18 @@ impl RedisTopicBackend {
             ))
         })?;
 
+        if min_replica_acks == 0
+            && let Ok(replicas) = connected_replicas(&mut conn).await
+            && replicas > 0
+        {
+            tracing::warn!(
+                replicas,
+                "Redis has replicas but no acknowledgement is required, so a failover can promote one \
+                 that never received an acknowledged export. Set database.redis.min_replica_acks to close \
+                 that window, at the cost of a WAIT round trip per publish."
+            );
+        }
+
         tracing::debug!(url = %sanitized_url, "Redis topic backend connected");
 
         Ok(Self {
@@ -166,6 +207,7 @@ impl RedisTopicBackend {
             redis_url: redis_url.to_string(),
             stream_max_backlog: std::sync::atomic::AtomicU64::new(DEFAULT_STREAM_MAX_BACKLOG),
             observed_backlog: Arc::new(dashmap::DashMap::new()),
+            min_replica_acks,
             pubsub_manager: Arc::new(PubSubManager::new(DEFAULT_BROADCAST_CAPACITY)),
         })
     }
@@ -180,6 +222,7 @@ impl RedisTopicBackend {
             redis_url: redis_url.to_string(),
             stream_max_backlog: std::sync::atomic::AtomicU64::new(DEFAULT_STREAM_MAX_BACKLOG),
             observed_backlog: Arc::new(dashmap::DashMap::new()),
+            min_replica_acks: 0,
             pubsub_manager: Arc::new(PubSubManager::new(DEFAULT_BROADCAST_CAPACITY)),
         }
     }
@@ -628,6 +671,30 @@ impl TopicBackend for RedisTopicBackend {
             .arg(&key);
         let (id, length): (String, u64) = pipe.query_async(&mut conn).await?;
 
+        // Replication acknowledgement, when the deployment has replicas to lose.
+        //
+        // `appendfsync always` makes this entry survive the loss of *this host*. It says nothing about a
+        // failover: a replica promoted before it received the entry serves a keyspace without it, and the
+        // exporter was told 200 long ago. `WAIT` blocks until enough replicas confirm, and a shortfall is
+        // reported as a failure so the OTLP route answers 503 and the data stays with the exporter.
+        if self.min_replica_acks > 0 {
+            let acked: i64 = deadpool_redis::redis::cmd("WAIT")
+                .arg(self.min_replica_acks)
+                .arg(REPLICA_ACK_TIMEOUT_MS)
+                .query_async(&mut conn)
+                .await
+                .map_err(|e| {
+                    TopicError::Stream(format!("WAIT for replica acknowledgement failed: {e}"))
+                })?;
+            if (acked as u32) < self.min_replica_acks {
+                return Err(TopicError::Stream(format!(
+                    "only {acked} of {} replicas acknowledged a queued trace within {}ms; refusing to \
+                     report it as stored",
+                    self.min_replica_acks, REPLICA_ACK_TIMEOUT_MS
+                )));
+            }
+        }
+
         let was_over = length >= self.max_backlog();
         self.observed_backlog.insert(key.clone(), length);
         if was_over {
@@ -862,20 +929,63 @@ impl TopicBackend for RedisTopicBackend {
             .query_async(&mut conn)
             .await?;
 
-        // Parse pending to get IDs that are idle enough
+        // Parse pending to get IDs that are idle enough, and set aside the ones that have failed too often.
+        //
+        // Claiming resets an entry's idle time, so an entry that fails every time it is claimed becomes
+        // eligible again after `min_idle_ms` and - being the oldest - fills the window again. With a window
+        // of `count` and `count` such entries, nothing behind them is ever examined. That is not a fairness
+        // nicety: an abandoned entry at position `count + 1` would never be recovered.
+        //
+        // The delivery count is the evidence. Ingestion is idempotent, so an entry delivered
+        // `MAX_DELIVERY_ATTEMPTS` times has been tried that many times and will keep failing; acknowledging
+        // it loudly is what unblocks everything behind it. The same reasoning as the undecodable payload:
+        // discarding one entry with an error in the log beats blocking every entry silently.
         let mut ids_to_claim: Vec<String> = Vec::new();
+        let mut exhausted: Vec<String> = Vec::new();
         if let RedisValue::Array(entries) = pending {
             for entry in entries {
                 // [id, consumer, idle_time, delivery_count]
-                if let RedisValue::Array(parts) = entry
-                    && parts.len() >= 3
-                    && let (RedisValue::BulkString(id_bytes), _, RedisValue::Int(idle)) =
-                        (&parts[0], &parts[1], &parts[2])
-                    && *idle as u64 >= min_idle_ms
-                    && let Ok(id) = String::from_utf8(id_bytes.clone())
-                {
+                let RedisValue::Array(parts) = entry else {
+                    continue;
+                };
+                if parts.len() < 3 {
+                    continue;
+                }
+                let Some(id) = redis_string(&parts[0]) else {
+                    continue;
+                };
+                let RedisValue::Int(idle) = &parts[2] else {
+                    continue;
+                };
+                if (*idle as u64) < min_idle_ms {
+                    continue;
+                }
+                let deliveries = parts
+                    .get(3)
+                    .and_then(|v| match v {
+                        RedisValue::Int(n) => Some(*n),
+                        _ => None,
+                    })
+                    .unwrap_or(1);
+                if deliveries >= MAX_DELIVERY_ATTEMPTS {
+                    exhausted.push(id);
+                } else {
                     ids_to_claim.push(id);
                 }
+            }
+        }
+
+        for id in &exhausted {
+            tracing::error!(
+                stream = %key,
+                group,
+                message_id = %id,
+                attempts = MAX_DELIVERY_ATTEMPTS,
+                "Discarding a queued payload that has failed every delivery; it was blocking recovery of \
+                 everything behind it"
+            );
+            if let Err(e) = self.stream_ack(topic, group, id).await {
+                tracing::warn!(message_id = %id, error = %e, "Could not acknowledge an exhausted payload");
             }
         }
 
@@ -893,18 +1003,43 @@ impl TopicBackend for RedisTopicBackend {
 
         let claimed: RedisValue = cmd.query_async(&mut conn).await?;
 
-        // Parse claimed messages
+        // Parse claimed messages. An entry whose structure cannot be read is *acknowledged*, not skipped.
+        //
+        // Skipping it silently left it pending forever, and a pending entry is what holds the trim boundary
+        // - so one malformed entry stopped the stream from ever being trimmed and was re-examined by every
+        // sweep. Nothing can process an entry with no readable payload, so the honest response is the same
+        // as for an undecodable one: discard it with an error in the log.
         let mut messages = Vec::new();
         if let RedisValue::Array(entries) = claimed {
             for entry in entries {
-                if let RedisValue::Array(parts) = entry
-                    && parts.len() >= 2
-                    && let (RedisValue::BulkString(id_bytes), RedisValue::Array(fields)) =
-                        (&parts[0], &parts[1])
-                    && let Ok(id) = String::from_utf8(id_bytes.clone())
-                    && let Some(payload) = extract_payload_from_fields(fields)
-                {
-                    messages.push(StreamMessage { id, payload });
+                let RedisValue::Array(parts) = entry else {
+                    continue;
+                };
+                let id = parts.first().and_then(redis_string);
+                let payload = match parts.get(1) {
+                    Some(RedisValue::Array(fields)) => extract_payload_from_fields(fields),
+                    _ => None,
+                };
+                match (id, payload) {
+                    (Some(id), Some(payload)) => messages.push(StreamMessage { id, payload }),
+                    (Some(id), None) => {
+                        tracing::error!(
+                            stream = %key,
+                            group,
+                            message_id = %id,
+                            "Discarding a queued entry with no readable payload; leaving it pending would \
+                             hold the stream's trim boundary forever"
+                        );
+                        if let Err(e) = self.stream_ack(topic, group, &id).await {
+                            tracing::warn!(message_id = %id, error = %e, "Could not acknowledge a malformed entry");
+                        }
+                    }
+                    // No id at all: nothing to acknowledge, and nothing that can be acted on.
+                    (None, _) => tracing::warn!(
+                        stream = %key,
+                        group,
+                        "A claimed entry had no readable id"
+                    ),
                 }
             }
         }
@@ -1088,6 +1223,24 @@ fn sanitize_redis_url(url: &str) -> String {
         }
     }
     url.to_string()
+}
+
+/// How many replicas the server currently has, from `INFO replication`.
+///
+/// Read only to *warn*: an operator whose Redis has replicas and requires no acknowledgement has a gap that
+/// is invisible until a failover, and a startup line is the last moment anyone is looking.
+async fn connected_replicas(conn: &mut deadpool_redis::Connection) -> Result<u32, TopicError> {
+    let info: String = deadpool_redis::redis::cmd("INFO")
+        .arg("replication")
+        .query_async(conn)
+        .await
+        .map_err(|e| TopicError::Connection(format!("INFO replication failed: {e}")))?;
+    for line in info.lines() {
+        if let Some(value) = line.trim().strip_prefix("connected_slaves:") {
+            return Ok(value.trim().parse().unwrap_or(0));
+        }
+    }
+    Ok(0)
 }
 
 /// Persistence and eviction settings that make the queue's durability promise honest.

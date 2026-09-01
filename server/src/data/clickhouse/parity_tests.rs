@@ -551,6 +551,7 @@ async fn clickhouse_backend(url: &str, database: &str) -> Arc<ClickhouseService>
         wait_for_async_insert: true,
         cluster: None,
         distributed: false,
+        insert_quorum: 0,
     };
     Arc::new(
         ClickhouseService::init(&config)

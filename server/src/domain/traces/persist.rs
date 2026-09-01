@@ -458,11 +458,15 @@ pub(super) type IncomingReference = (String, String, String);
 pub(super) async fn reconcile_incoming_references(
     incoming: &[IncomingReference],
     file_service: &Arc<FileService>,
-) -> (Vec<(String, String)>, usize) {
+) -> (Vec<(String, String)>, usize, Vec<(String, String, String)>) {
     let mut unbacked = Vec::new();
     let mut failed = 0usize;
+    // Associations this call created, so the batch's compensation covers a reference that arrived already
+    // formed as well as one whose bytes this batch wrote. Both hold a file's reference count above zero, and
+    // both belong to a span that may never commit.
+    let mut created: Vec<(String, String, String)> = Vec::new();
     if incoming.is_empty() {
-        return (unbacked, failed);
+        return (unbacked, failed, created);
     }
     let storage = file_service.storage();
     let repo = file_service.database().repository();
@@ -517,7 +521,11 @@ pub(super) async fn reconcile_incoming_references(
             .associate_existing_file(trace_id, project_id, parsed.hash)
             .await
         {
-            Ok(true) => {}
+            Ok(true) => created.push((
+                project_id.clone(),
+                trace_id.clone(),
+                parsed.hash.to_string(),
+            )),
             // Bytes without metadata, or a file mid-deletion. Not something to resolve either way here:
             // rewriting would be wrong if it is only being deleted, and committing would be wrong if the
             // bytes are about to go.
@@ -546,7 +554,7 @@ pub(super) async fn reconcile_incoming_references(
 
     unbacked.sort_unstable();
     unbacked.dedup();
-    (unbacked, failed)
+    (unbacked, failed, created)
 }
 
 /// Persist extracted files to storage (I/O phase).

@@ -196,7 +196,10 @@ pub async fn associate_existing_file(
     }
 
     sqlx::query(
-        "INSERT OR IGNORE INTO trace_files (trace_id, project_id, file_hash) VALUES (?, ?, ?)",
+        // Provisional, like every association a batch creates: a reference that arrived already formed is
+        // still only justified once the span carrying it commits.
+        "INSERT OR IGNORE INTO trace_files (trace_id, project_id, file_hash, provisional) \
+         VALUES (?, ?, ?, 1)",
     )
     .bind(trace_id)
     .bind(project_id)
@@ -569,27 +572,31 @@ pub async fn delete_trace_files(
     pool: &SqlitePool,
     project_id: &str,
     trace_ids: &[String],
-) -> Result<u64, SqliteError> {
+) -> Result<Vec<String>, SqliteError> {
     if trace_ids.is_empty() {
-        return Ok(0);
+        return Ok(Vec::new());
     }
 
     let placeholders = trace_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
 
+    // `RETURNING`, so the caller reconciles exactly the hashes this statement removed.
+    //
+    // Reading the hashes first and deleting afterwards is a different set: an association added in between
+    // is deleted here but absent from the read, so its file's stored count is never recomputed - and the
+    // orphan sweeper selects on that count, so nothing ever reclaims it. Taking the set *from the delete*
+    // cannot miss one.
     let query = format!(
-        "DELETE FROM trace_files WHERE project_id = ? AND trace_id IN ({})",
+        "DELETE FROM trace_files WHERE project_id = ? AND trace_id IN ({}) RETURNING file_hash",
         placeholders
     );
 
-    let mut query_builder = sqlx::query(&query).bind(project_id);
+    let mut query_builder = sqlx::query_scalar::<_, String>(&query).bind(project_id);
 
     for trace_id in trace_ids {
         query_builder = query_builder.bind(trace_id);
     }
 
-    let result = query_builder.execute(pool).await?;
-
-    Ok(result.rows_affected())
+    Ok(query_builder.fetch_all(pool).await?)
 }
 
 /// Get total storage used by a project
@@ -924,7 +931,11 @@ mod tests {
         let deleted = delete_trace_files(&pool, "default", &["trace1".to_string()])
             .await
             .unwrap();
-        assert_eq!(deleted, 1);
+        assert_eq!(
+            deleted.len(),
+            1,
+            "the delete reports the hashes it removed, which is the set the caller must reconcile"
+        );
 
         let hashes = get_file_hashes_for_traces(&pool, "default", &["trace1".to_string()])
             .await

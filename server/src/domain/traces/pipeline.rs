@@ -647,8 +647,13 @@ impl TracePipeline {
         // here, with the ones that hold getting an association and the rest joining the quota-rejected
         // set - both are "a reference a reader cannot resolve", and both are replaced with a note.
         let mut unresolvable = files.quota_skipped;
-        let (unbacked, reconcile_failed) =
+        let (unbacked, reconcile_failed, incoming_associations) =
             reconcile_incoming_references(&all_incoming, &self.file_service).await;
+        // Folded into the batch's own set, so every compensation path - a failed write, a tombstoned trace,
+        // the post-write re-check - covers a reference that arrived already formed as well as one whose
+        // bytes this batch wrote.
+        let mut created_associations = files.created_associations;
+        created_associations.extend(incoming_associations);
         if reconcile_failed > 0 {
             self.file_cache.invalidate_all();
             tracing::error!(
@@ -675,9 +680,21 @@ impl TracePipeline {
             .drop_spans_for_dead_projects(&mut all_db_spans, &mut no_files, &mut no_incoming)
             .await
         {
-            Ok(_) if all_db_spans.is_empty() => return true,
-            Ok(_) => {}
-            Err(()) => return false,
+            Ok(0) => {}
+            Ok(_) => {
+                // Whole or partial, the dropped traces' associations go: their spans will not be written,
+                // and the count they hold is what the orphan sweeper cannot see past.
+                self.release_associations_of_dropped(&created_associations, &all_db_spans)
+                    .await;
+                if all_db_spans.is_empty() {
+                    return true;
+                }
+            }
+            Err(()) => {
+                self.release_created_associations(&created_associations)
+                    .await;
+                return false;
+            }
         }
 
         // And traces deleted individually, which the project fence says nothing about. Checked here, in
@@ -694,13 +711,13 @@ impl TracePipeline {
         {
             Ok(0) => {}
             Ok(_) if all_db_spans.is_empty() => {
-                self.release_created_associations(&files.created_associations)
+                self.release_created_associations(&created_associations)
                     .await;
                 return true;
             }
             Ok(_) => {}
             Err(()) => {
-                self.release_created_associations(&files.created_associations)
+                self.release_created_associations(&created_associations)
                     .await;
                 return false;
             }
@@ -709,33 +726,16 @@ impl TracePipeline {
         match self.drop_spans_for_deleted_traces(&mut all_db_spans).await {
             Ok(0) => {}
             Ok(_) if all_db_spans.is_empty() => {
-                self.release_created_associations(&files.created_associations)
+                self.release_created_associations(&created_associations)
                     .await;
                 return true;
             }
             Ok(_) => {
-                // Partly dropped: release only the associations belonging to traces that are gone.
-                let surviving: HashSet<(&str, &str)> = all_db_spans
-                    .iter()
-                    .map(|s| {
-                        (
-                            s.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID),
-                            s.trace_id.as_str(),
-                        )
-                    })
-                    .collect();
-                let orphaned: Vec<(String, String, String)> = files
-                    .created_associations
-                    .iter()
-                    .filter(|(project, trace, _)| {
-                        !surviving.contains(&(project.as_str(), trace.as_str()))
-                    })
-                    .cloned()
-                    .collect();
-                self.release_created_associations(&orphaned).await;
+                self.release_associations_of_dropped(&created_associations, &all_db_spans)
+                    .await;
             }
             Err(()) => {
-                self.release_created_associations(&files.created_associations)
+                self.release_created_associations(&created_associations)
                     .await;
                 return false;
             }
@@ -785,7 +785,7 @@ impl TracePipeline {
                 .file_service
                 .database()
                 .repository()
-                .confirm_trace_file_associations(&files.created_associations)
+                .confirm_trace_file_associations(&created_associations)
                 .await
             {
                 tracing::warn!(
@@ -801,7 +801,7 @@ impl TracePipeline {
             self.tombstone_traces_of_deleted_sessions(&written, &session_of)
                 .await;
             let compensated = self
-                .collect_spans_written_for_deleted_traces(&written, &files.created_associations)
+                .collect_spans_written_for_deleted_traces(&written, &created_associations)
                 .await;
             // Published *after* every drop and compensation, and only for spans that survived both. Built
             // before the filtering, `sse_events` announced spans this batch went on to discard - so a
@@ -825,7 +825,7 @@ impl TracePipeline {
             // `ref_count = 0`, so nothing would ever reclaim those bytes and the project's quota would
             // shrink permanently. A redelivery re-creates them, so this costs nothing when the retry
             // succeeds.
-            self.release_created_associations(&files.created_associations)
+            self.release_created_associations(&created_associations)
                 .await;
         }
 
@@ -1046,6 +1046,37 @@ impl TracePipeline {
             self.release_created_associations(&orphaned).await;
         }
         removed
+    }
+
+    /// Release the associations of traces that are no longer in the batch.
+    ///
+    /// Every drop - a dead project, a deleted session, a deleted trace - leaves behind associations for
+    /// spans that will not be written, and an association holds a file's reference count above zero, which
+    /// is what the orphan sweeper selects on. Factored out because there are five such sites and each one
+    /// that forgot was a permanent leak.
+    async fn release_associations_of_dropped(
+        &self,
+        created: &[(String, String, String)],
+        surviving_spans: &[NormalizedSpan],
+    ) {
+        if created.is_empty() {
+            return;
+        }
+        let surviving: HashSet<(&str, &str)> = surviving_spans
+            .iter()
+            .map(|s| {
+                (
+                    s.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID),
+                    s.trace_id.as_str(),
+                )
+            })
+            .collect();
+        let orphaned: Vec<(String, String, String)> = created
+            .iter()
+            .filter(|(project, trace, _)| !surviving.contains(&(project.as_str(), trace.as_str())))
+            .cloned()
+            .collect();
+        self.release_created_associations(&orphaned).await;
     }
 
     /// Release associations this batch created after its analytics write failed.
@@ -1330,6 +1361,9 @@ impl TracePipeline {
                 // Reported as dropped, whether *all* of the request's spans went or only some: a batch can
                 // name a live project and a dying one, and answering an unqualified success for the half
                 // that was discarded is the failure this path exists to remove.
+                // No associations to release here: on this path the project fence runs *before* the files
+                // are written, so nothing has been associated yet - which is also why it takes the pending
+                // file list and prunes it directly.
                 Ok(dropped) if db_spans.is_empty() => {
                     return IngestOutcome::Dropped { spans: dropped };
                 }
@@ -1352,8 +1386,10 @@ impl TracePipeline {
                 return IngestOutcome::Failed;
             }
             let mut unresolvable = files.quota_skipped;
-            let (unbacked, reconcile_failed) =
+            let (unbacked, reconcile_failed, incoming_associations) =
                 reconcile_incoming_references(&incoming, &self.file_service).await;
+            let mut created_associations = files.created_associations;
+            created_associations.extend(incoming_associations);
             if reconcile_failed > 0 {
                 self.file_cache.invalidate_all();
                 tracing::error!(
@@ -1379,16 +1415,20 @@ impl TracePipeline {
             // which is the exact failure the tombstone exists to remove.
             match self.drop_spans_for_deleted_sessions(&mut db_spans).await {
                 Ok(dropped) if db_spans.is_empty() => {
-                    self.release_created_associations(&files.created_associations)
+                    self.release_created_associations(&created_associations)
                         .await;
                     return IngestOutcome::Dropped {
                         spans: partly_dropped + dropped,
                     };
                 }
                 Ok(0) => {}
-                Ok(dropped) => partly_dropped += dropped,
+                Ok(dropped) => {
+                    partly_dropped += dropped;
+                    self.release_associations_of_dropped(&created_associations, &db_spans)
+                        .await;
+                }
                 Err(()) => {
-                    self.release_created_associations(&files.created_associations)
+                    self.release_created_associations(&created_associations)
                         .await;
                     return IngestOutcome::Failed;
                 }
@@ -1398,16 +1438,20 @@ impl TracePipeline {
                 Ok(dropped) if db_spans.is_empty() => {
                     // The associations this batch created are released, or they would hold quota for a
                     // trace that will never have a row.
-                    self.release_created_associations(&files.created_associations)
+                    self.release_created_associations(&created_associations)
                         .await;
                     return IngestOutcome::Dropped {
                         spans: partly_dropped + dropped,
                     };
                 }
                 Ok(0) => {}
-                Ok(dropped) => partly_dropped += dropped,
+                Ok(dropped) => {
+                    partly_dropped += dropped;
+                    self.release_associations_of_dropped(&created_associations, &db_spans)
+                        .await;
+                }
                 Err(()) => {
-                    self.release_created_associations(&files.created_associations)
+                    self.release_created_associations(&created_associations)
                         .await;
                     return IngestOutcome::Failed;
                 }
@@ -1445,7 +1489,7 @@ impl TracePipeline {
                 .collect();
             let db_ok = write_to_duckdb(db_spans, &self.analytics).await;
             if !db_ok {
-                self.release_created_associations(&files.created_associations)
+                self.release_created_associations(&created_associations)
                     .await;
             }
             if db_ok {
@@ -1453,7 +1497,7 @@ impl TracePipeline {
                     .file_service
                     .database()
                     .repository()
-                    .confirm_trace_file_associations(&files.created_associations)
+                    .confirm_trace_file_associations(&created_associations)
                     .await
                 {
                     tracing::warn!(
@@ -1464,7 +1508,7 @@ impl TracePipeline {
                 self.tombstone_traces_of_deleted_sessions(&written, &session_of)
                     .await;
                 let compensated = self
-                    .collect_spans_written_for_deleted_traces(&written, &files.created_associations)
+                    .collect_spans_written_for_deleted_traces(&written, &created_associations)
                     .await;
                 // Only spans that survived every drop and the compensation - see the batch path.
                 let surviving: HashSet<(&str, &str)> = written

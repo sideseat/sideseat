@@ -84,6 +84,19 @@ impl ClickhouseService {
             client = client.with_option("insert_distributed_sync", "1");
         }
 
+        // Replica quorum, when the table is replicated.
+        //
+        // `insert_distributed_sync` makes the insert reach a shard rather than a spool file on the
+        // initiating node - but the node holding those rows can fail before replication carries them, and
+        // they go with it, after the exporter was told 200. `insert_quorum` blocks until enough replicas
+        // confirm. `insert_quorum_parallel = 0` goes with it: in parallel mode ClickHouse does not
+        // guarantee a *linearizable* sequence, and a quorum that can be satisfied by different replicas for
+        // adjacent inserts is not the guarantee the setting is being used for here.
+        if config.insert_quorum > 0 {
+            client = client.with_option("insert_quorum", config.insert_quorum.to_string());
+            client = client.with_option("insert_quorum_parallel", "0");
+        }
+
         // Configure async inserts for high-throughput ingestion
         // This enables server-side batching - inserts are buffered and flushed periodically
         if config.async_insert {

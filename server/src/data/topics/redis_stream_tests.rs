@@ -479,3 +479,89 @@ async fn an_abandoned_entry_behind_fresh_ones_is_still_reclaimed() {
          got {ids:?}"
     );
 }
+
+/// An entry that fails every delivery stops blocking recovery of the entries behind it.
+///
+/// Claiming resets an entry's idle time, so an entry that fails each time becomes eligible again after the
+/// idle threshold and - being the oldest - refills the recovery window. With a window of N and N such
+/// entries, nothing behind them is ever examined: an abandoned entry at position N+1 would never be
+/// recovered. The delivery count is the evidence that a retry will not help, and acknowledging the entry is
+/// what unblocks the rest.
+#[tokio::test]
+async fn an_entry_that_always_fails_stops_blocking_the_ones_behind_it() {
+    let Some((backend, topic)) = backend("poison").await else {
+        return;
+    };
+    let group = "traces";
+    backend
+        .ensure_group_for_test(&topic, group)
+        .await
+        .expect("group");
+
+    let poison = backend
+        .stream_publish(&topic, b"poison")
+        .await
+        .expect("publish");
+    let behind = backend
+        .stream_publish(&topic, b"behind")
+        .await
+        .expect("publish");
+
+    // Deliver both and abandon them, so both are pending and eligible.
+    let mut subscription = backend
+        .stream_subscribe(&topic, group, "doomed")
+        .await
+        .expect("subscribe");
+    for _ in 0..2 {
+        tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            futures::StreamExt::next(&mut subscription.receiver),
+        )
+        .await
+        .expect("delivered")
+        .expect("open")
+        .expect("ok");
+    }
+    drop(subscription);
+
+    // Claim the first entry repeatedly without acknowledging it, as a consumer that keeps failing does.
+    // A window of one is what makes the starvation visible: while the poison entry is eligible it is the
+    // only thing the window ever holds.
+    let mut saw_poison = 0;
+    for _ in 0..15 {
+        let claimed = backend
+            .stream_claim(&topic, group, "retrier", 0, 1)
+            .await
+            .expect("claim");
+        if claimed.iter().any(|m| m.id == poison) {
+            saw_poison += 1;
+        }
+    }
+    assert!(
+        saw_poison > 0,
+        "the failing entry must have been retried at all, or the test proves nothing"
+    );
+
+    // Past the attempt limit it is acknowledged and gone, so the window reaches the entry behind it.
+    let claimed = backend
+        .stream_claim(&topic, group, "retrier", 0, 1)
+        .await
+        .expect("claim after the limit");
+    let ids: Vec<&str> = claimed.iter().map(|m| m.id.as_str()).collect();
+    assert!(
+        !ids.contains(&poison.as_str()),
+        "an entry past the delivery limit must stop being handed out: {ids:?}"
+    );
+
+    // And it is no longer pending, so it no longer holds the trim boundary.
+    let stats = backend
+        .stream_stats(&topic, group)
+        .await
+        .expect("stream stats");
+    assert!(
+        stats.pending < 2,
+        "the exhausted entry must be acknowledged, or it holds the trim boundary forever: pending={}",
+        stats.pending
+    );
+    let _ = behind;
+}

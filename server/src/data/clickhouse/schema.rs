@@ -693,6 +693,7 @@ mod tests {
             wait_for_async_insert: false,
             cluster: None,
             distributed: false,
+            insert_quorum: 0,
         }
     }
 

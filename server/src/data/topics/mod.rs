@@ -223,7 +223,13 @@ impl TopicService {
                 let url = cache_config.redis_url.as_ref().ok_or_else(|| {
                     TopicError::Config("redis_url required for Redis backend".into())
                 })?;
-                Arc::new(redis::RedisTopicBackend::new(url).await?)
+                Arc::new(
+                    redis::RedisTopicBackend::with_replica_acks(
+                        url,
+                        cache_config.redis_min_replica_acks,
+                    )
+                    .await?,
+                )
             }
         };
 

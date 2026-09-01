@@ -301,6 +301,8 @@ pub struct FilesFileConfig {
 pub struct RedisFileConfig {
     /// Connection URL for Redis-compatible backends
     pub url: Option<String>,
+    /// How many replicas must acknowledge a queued trace before the export is answered.
+    pub min_replica_acks: Option<u32>,
 }
 
 /// Memory cache configuration section (from JSON config file)
@@ -350,6 +352,8 @@ pub struct PostgresFileConfig {
 /// ClickHouse configuration section (from JSON config file)
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct ClickhouseFileConfig {
+    /// How many replicas of a shard must confirm an insert - see [`ClickhouseConfig::insert_quorum`].
+    pub insert_quorum: Option<u32>,
     /// ClickHouse connection URL (or use SIDESEAT_CLICKHOUSE_URL env var)
     pub url: Option<String>,
     /// Database name (default: "sideseat")
@@ -889,6 +893,17 @@ pub struct CredentialsConfig {
 pub struct RedisConfig {
     /// Connection URL for Redis-compatible backends
     pub url: String,
+    /// How many replicas must acknowledge a queued trace before the export is answered.
+    ///
+    /// `appendfsync always` makes an acknowledged entry survive the loss of *that host*. It says nothing
+    /// about a failover: a replica promoted before it received the entry serves a keyspace without it, and
+    /// the exporter has long since moved on. `WAIT` is what closes that, at the cost of a round trip to
+    /// each replica per publish.
+    ///
+    /// Zero (the default) means a single-instance Redis, where there is nothing to fail over to. Startup
+    /// logs a warning when the server *has* replicas and this is still zero, because that is the
+    /// configuration where the gap exists and is invisible.
+    pub min_replica_acks: u32,
 }
 
 /// Memory cache configuration (final/runtime)
@@ -911,6 +926,9 @@ pub struct CacheConfig {
     pub eviction_policy: EvictionPolicy,
     /// Redis URL (redis backend)
     pub redis_url: Option<String>,
+    /// How many replicas must acknowledge a queued trace before the export is answered - see
+    /// [`RedisConfig::min_replica_acks`].
+    pub redis_min_replica_acks: u32,
 }
 
 /// Rate limit configuration (final/runtime)
@@ -969,6 +987,15 @@ pub struct ClickhouseConfig {
     pub cluster: Option<String>,
     /// Enable distributed/sharded tables (requires cluster to be set)
     pub distributed: bool,
+    /// How many replicas of a shard must confirm an insert before it is reported stored.
+    ///
+    /// `insert_distributed_sync = 1` makes the insert reach *a* shard rather than a spool file on the
+    /// initiating node. It says nothing about that shard's replicas: the node holding the rows can fail
+    /// before replication, and the rows go with it - after the exporter was told 200. `insert_quorum` is
+    /// ClickHouse's answer, and `2` is the smallest value that survives losing one replica.
+    ///
+    /// Zero (the default) means an unreplicated table, where there is nothing to lose it to.
+    pub insert_quorum: u32,
 }
 
 /// Database configuration (final/runtime)
@@ -1034,6 +1061,7 @@ impl DatabaseConfig {
             max_entries: self.memory_cache.max_entries,
             eviction_policy: self.memory_cache.eviction_policy,
             redis_url: self.redis.as_ref().map(|r| r.url.clone()),
+            redis_min_replica_acks: self.redis.as_ref().map_or(0, |r| r.min_replica_acks),
         }
     }
 }
@@ -1259,7 +1287,10 @@ impl AppConfig {
                 .clone()
                 .or(file_redis.url)
                 .unwrap_or_default();
-            Some(RedisConfig { url })
+            Some(RedisConfig {
+                url,
+                min_replica_acks: file_redis.min_replica_acks.unwrap_or(0),
+            })
         } else {
             None
         };
@@ -1394,6 +1425,7 @@ impl AppConfig {
                 wait_for_async_insert,
                 cluster,
                 distributed,
+                insert_quorum: file_ch.insert_quorum.unwrap_or(0),
             })
         } else {
             None
@@ -1882,6 +1914,14 @@ fn validate_clickhouse(ch: &ClickhouseConfig) -> Result<()> {
     // Refused at startup rather than warned about, because a configuration that silently loses accepted
     // data is not a performance trade an operator can make knowingly through one boolean. The measured
     // cost of getting it right is in CLAUDE.md: waiting is *faster* here than the async path anyway.
+    // A quorum of one is not a quorum; it is the default with extra latency and a false sense of safety.
+    if ch.insert_quorum == 1 {
+        anyhow::bail!(
+            "Configuration error: database.clickhouse.insert_quorum of 1 means the initiating replica \
+             alone, which is what happens with no quorum at all. Use 0 for an unreplicated table, or at \
+             least 2 so an insert survives losing one replica."
+        );
+    }
     if ch.async_insert && !ch.wait_for_async_insert {
         anyhow::bail!(
             "Configuration error: database.clickhouse.wait_for_async_insert must be true when \
@@ -1910,6 +1950,7 @@ mod clickhouse_config_tests {
             wait_for_async_insert: true,
             cluster: cluster.map(str::to_owned),
             distributed,
+            insert_quorum: 0,
         }
     }
 
@@ -2037,6 +2078,27 @@ mod clickhouse_config_tests {
             validate_store_sharing(Tx::Postgres, An::Clickhouse, Store::S3, shared, true)
                 .expect("shared rows, shared bytes, shared secret");
         }
+    }
+
+    /// A quorum of one is refused, because it is no quorum with extra latency.
+    ///
+    /// `insert_quorum = 1` is satisfied by the initiating replica alone - exactly what happens with no
+    /// quorum - so accepting it would let an operator believe an insert survives losing a replica when it
+    /// does not. Zero says "unreplicated"; two is the smallest number that means anything.
+    #[test]
+    fn an_insert_quorum_of_one_is_rejected() {
+        let mut ch = config(false, None);
+        ch.insert_quorum = 1;
+        let err = validate_clickhouse(&ch).expect_err("a quorum of one must not be accepted");
+        assert!(
+            err.to_string().contains("insert_quorum of 1"),
+            "unexpected error: {err}"
+        );
+
+        ch.insert_quorum = 0;
+        validate_clickhouse(&ch).expect("zero means an unreplicated table");
+        ch.insert_quorum = 2;
+        validate_clickhouse(&ch).expect("two survives losing one replica");
     }
 
     #[test]
