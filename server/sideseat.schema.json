@@ -17,7 +17,11 @@
           "type": "string",
           "description": "Server bind address",
           "default": "127.0.0.1",
-          "examples": ["127.0.0.1", "0.0.0.0", "localhost"]
+          "examples": [
+            "127.0.0.1",
+            "0.0.0.0",
+            "localhost"
+          ]
         },
         "port": {
           "type": "integer",
@@ -81,17 +85,31 @@
           "description": "Data retention configuration",
           "properties": {
             "max_age_minutes": {
-              "type": ["integer", "null"],
+              "type": [
+                "integer",
+                "null"
+              ],
               "description": "Maximum age of traces in minutes. Traces older than this are deleted. Null means no time-based limit.",
               "minimum": 0,
-              "examples": [1440, 10080, 43200]
+              "examples": [
+                1440,
+                10080,
+                43200
+              ]
             },
             "max_spans": {
-              "type": ["integer", "null"],
+              "type": [
+                "integer",
+                "null"
+              ],
               "description": "Maximum number of spans to retain. Oldest spans are deleted when limit is exceeded.",
               "default": 5000000,
               "minimum": 0,
-              "examples": [1000000, 5000000, 25000000]
+              "examples": [
+                1000000,
+                5000000,
+                25000000
+              ]
             }
           },
           "additionalProperties": false
@@ -124,7 +142,10 @@
         "storage": {
           "type": "string",
           "description": "Storage backend type",
-          "enum": ["filesystem", "s3"],
+          "enum": [
+            "filesystem",
+            "s3"
+          ],
           "default": "filesystem"
         },
         "quota_bytes": {
@@ -132,16 +153,26 @@
           "description": "Per-project storage quota in bytes",
           "default": 1073741824,
           "minimum": 0,
-          "examples": [1073741824, 5368709120, 10737418240]
+          "examples": [
+            1073741824,
+            5368709120,
+            10737418240
+          ]
         },
         "filesystem": {
           "type": "object",
           "description": "Filesystem storage configuration (used when storage is 'filesystem')",
           "properties": {
             "path": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "Custom path for file storage. Null uses default (~/.sideseat/files).",
-              "examples": ["/var/lib/sideseat/files", "~/.sideseat/files"]
+              "examples": [
+                "/var/lib/sideseat/files",
+                "~/.sideseat/files"
+              ]
             }
           },
           "additionalProperties": false
@@ -151,7 +182,10 @@
           "description": "S3 storage configuration (used when storage is 's3')",
           "properties": {
             "bucket": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "S3 bucket name. Required when storage is 's3'."
             },
             "prefix": {
@@ -160,14 +194,27 @@
               "default": "sideseat/files"
             },
             "region": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "AWS region. Uses AWS SDK default resolution if not specified.",
-              "examples": ["us-east-1", "eu-west-1", "ap-southeast-1"]
+              "examples": [
+                "us-east-1",
+                "eu-west-1",
+                "ap-southeast-1"
+              ]
             },
             "endpoint": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "Custom S3 endpoint URL for S3-compatible services (MinIO, LocalStack, etc.)",
-              "examples": ["http://localhost:9000", "https://minio.example.com"]
+              "examples": [
+                "http://localhost:9000",
+                "https://minio.example.com"
+              ]
             }
           },
           "additionalProperties": false
@@ -178,17 +225,28 @@
         {
           "if": {
             "properties": {
-              "storage": { "const": "s3" }
+              "storage": {
+                "const": "s3"
+              }
             },
-            "required": ["storage"]
+            "required": [
+              "storage"
+            ]
           },
           "then": {
-            "required": ["s3"],
+            "required": [
+              "s3"
+            ],
             "properties": {
               "s3": {
-                "required": ["bucket"],
+                "required": [
+                  "bucket"
+                ],
                 "properties": {
-                  "bucket": { "type": "string", "minLength": 1 }
+                  "bucket": {
+                    "type": "string",
+                    "minLength": 1
+                  }
                 }
               }
             }
@@ -247,7 +305,10 @@
           "minimum": 0
         },
         "bypass_header": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Secret for X-RateLimit-Bypass header to bypass rate limiting"
         }
       },
@@ -260,13 +321,19 @@
         "transactional": {
           "type": "string",
           "description": "Transactional database backend for metadata storage",
-          "enum": ["sqlite", "postgres"],
+          "enum": [
+            "sqlite",
+            "postgres"
+          ],
           "default": "sqlite"
         },
         "analytics": {
           "type": "string",
           "description": "Analytics database backend for OTEL data (high-throughput writes)",
-          "enum": ["duckdb", "clickhouse"],
+          "enum": [
+            "duckdb",
+            "clickhouse"
+          ],
           "default": "duckdb"
         },
         "postgres": {
@@ -274,7 +341,10 @@
           "description": "PostgreSQL configuration (used when transactional is 'postgres')",
           "properties": {
             "url": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "PostgreSQL connection URL. Can also be set via SIDESEAT_POSTGRES_URL env var.",
               "examples": [
                 "postgres://user:pass@localhost:5432/sideseat",
@@ -293,6 +363,26 @@
               "description": "Connection acquire timeout in seconds",
               "default": 30,
               "minimum": 1
+            },
+            "min_connections": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Minimum number of connections to keep warm (default: 2)."
+            },
+            "idle_timeout_secs": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Idle connection timeout in seconds (default: 600)."
+            },
+            "max_lifetime_secs": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Maximum connection lifetime in seconds (default: 1800)."
+            },
+            "statement_timeout_secs": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Statement timeout in seconds, 0 to disable (default: 60)."
             }
           },
           "additionalProperties": false
@@ -302,7 +392,10 @@
           "description": "ClickHouse configuration (used when analytics is 'clickhouse'). Optimized for high-volume SaaS workloads.",
           "properties": {
             "url": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "ClickHouse connection URL. Can also be set via SIDESEAT_CLICKHOUSE_URL env var.",
               "examples": [
                 "http://localhost:8123",
@@ -315,11 +408,17 @@
               "default": "sideseat"
             },
             "user": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "Username for authentication"
             },
             "password": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "Password for authentication"
             },
             "timeout_secs": {
@@ -344,14 +443,25 @@
               "default": true
             },
             "cluster": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "ClickHouse cluster name for distributed deployments. Enables sharded tables across multiple nodes.",
-              "examples": ["sideseat_cluster", "default"]
+              "examples": [
+                "sideseat_cluster",
+                "default"
+              ]
             },
             "distributed": {
               "type": "boolean",
               "description": "Enable distributed/sharded tables. Requires 'cluster' to be set. Uses ReplicatedReplacingMergeTree with Distributed query routing.",
               "default": false
+            },
+            "insert_quorum": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "How many replicas of a shard must confirm an insert before it is reported stored. 0 means an unreplicated table; 1 is refused because it is satisfied by the initiating replica alone."
             }
           },
           "additionalProperties": false
@@ -359,7 +469,10 @@
         "cache": {
           "type": "string",
           "description": "Cache backend type. Use 'redis' for Redis, Redis Sentinel, Valkey, or Dragonfly.",
-          "enum": ["memory", "redis"],
+          "enum": [
+            "memory",
+            "redis"
+          ],
           "default": "memory"
         },
         "redis": {
@@ -367,7 +480,10 @@
           "description": "Redis cache configuration (used when cache is 'redis'). Supports Redis, Redis Sentinel, Valkey, and Dragonfly.",
           "properties": {
             "url": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "Connection URL for Redis-compatible backends. Supports: Redis (redis://), Redis with TLS (rediss://), Redis Sentinel (redis+sentinel://), Valkey (redis://), and Dragonfly (redis://). For Sentinel, the URL format is: redis+sentinel://[user:pass@]sentinel1:port,sentinel2:port/master_name[/db]",
               "examples": [
                 "redis://localhost:6379/0",
@@ -377,6 +493,11 @@
                 "redis://valkey.example.com:6379/0",
                 "redis://dragonfly.example.com:6379/0"
               ]
+            },
+            "min_replica_acks": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "How many replicas must acknowledge a queued trace before the export is answered. 0 means a single-instance Redis."
             }
           },
           "additionalProperties": false
@@ -394,7 +515,10 @@
             "eviction_policy": {
               "type": "string",
               "description": "Cache eviction policy",
-              "enum": ["tinylfu", "lru"],
+              "enum": [
+                "tinylfu",
+                "lru"
+              ],
               "default": "tinylfu"
             }
           },
@@ -406,17 +530,28 @@
         {
           "if": {
             "properties": {
-              "transactional": { "const": "postgres" }
+              "transactional": {
+                "const": "postgres"
+              }
             },
-            "required": ["transactional"]
+            "required": [
+              "transactional"
+            ]
           },
           "then": {
-            "required": ["postgres"],
+            "required": [
+              "postgres"
+            ],
             "properties": {
               "postgres": {
-                "required": ["url"],
+                "required": [
+                  "url"
+                ],
                 "properties": {
-                  "url": { "type": "string", "minLength": 1 }
+                  "url": {
+                    "type": "string",
+                    "minLength": 1
+                  }
                 }
               }
             }
@@ -425,17 +560,28 @@
         {
           "if": {
             "properties": {
-              "analytics": { "const": "clickhouse" }
+              "analytics": {
+                "const": "clickhouse"
+              }
             },
-            "required": ["analytics"]
+            "required": [
+              "analytics"
+            ]
           },
           "then": {
-            "required": ["clickhouse"],
+            "required": [
+              "clickhouse"
+            ],
             "properties": {
               "clickhouse": {
-                "required": ["url"],
+                "required": [
+                  "url"
+                ],
                 "properties": {
-                  "url": { "type": "string", "minLength": 1 }
+                  "url": {
+                    "type": "string",
+                    "minLength": 1
+                  }
                 }
               }
             }
@@ -444,17 +590,28 @@
         {
           "if": {
             "properties": {
-              "cache": { "const": "redis" }
+              "cache": {
+                "const": "redis"
+              }
             },
-            "required": ["cache"]
+            "required": [
+              "cache"
+            ]
           },
           "then": {
-            "required": ["redis"],
+            "required": [
+              "redis"
+            ],
             "properties": {
               "redis": {
-                "required": ["url"],
+                "required": [
+                  "url"
+                ],
                 "properties": {
-                  "url": { "type": "string", "minLength": 1 }
+                  "url": {
+                    "type": "string",
+                    "minLength": 1
+                  }
                 }
               }
             }
@@ -468,7 +625,16 @@
       "properties": {
         "backend": {
           "type": "string",
-          "enum": ["keychain", "credential-manager", "secret-service", "keyutils", "file", "env", "aws", "vault"],
+          "enum": [
+            "keychain",
+            "credential-manager",
+            "secret-service",
+            "keyutils",
+            "file",
+            "env",
+            "aws",
+            "vault"
+          ],
           "description": "Secrets backend. Defaults to platform auto-detection (keychain on macOS, credential-manager on Windows, secret-service on Linux)."
         },
         "env": {
@@ -490,7 +656,10 @@
             "region": {
               "type": "string",
               "description": "AWS region. Uses SDK default resolution if not specified.",
-              "examples": ["us-east-1", "eu-west-1"]
+              "examples": [
+                "us-east-1",
+                "eu-west-1"
+              ]
             },
             "prefix": {
               "type": "string",
@@ -513,7 +682,10 @@
             "address": {
               "type": "string",
               "description": "Vault server address (must include http:// or https://)",
-              "examples": ["https://vault.internal:8200", "http://localhost:8200"]
+              "examples": [
+                "https://vault.internal:8200",
+                "http://localhost:8200"
+              ]
             },
             "mount": {
               "type": "string",
@@ -538,17 +710,28 @@
         {
           "if": {
             "properties": {
-              "backend": { "const": "vault" }
+              "backend": {
+                "const": "vault"
+              }
             },
-            "required": ["backend"]
+            "required": [
+              "backend"
+            ]
           },
           "then": {
-            "required": ["vault"],
+            "required": [
+              "vault"
+            ],
             "properties": {
               "vault": {
-                "required": ["address"],
+                "required": [
+                  "address"
+                ],
                 "properties": {
-                  "address": { "type": "string", "minLength": 1 }
+                  "address": {
+                    "type": "string",
+                    "minLength": 1
+                  }
                 }
               }
             }
