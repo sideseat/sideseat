@@ -2670,6 +2670,18 @@ async fn distinct_metric_series_survive_and_a_redelivery_does_not_duplicate() {
         ch_rows, 2,
         "both labelled series must survive, and neither re-delivery may add a third"
     );
+
+    // And on DuckDB the duplicates are absent from the *table*, not merely from a count. A
+    // `COUNT(DISTINCT ...)` would pass while two rows held two possibly different measurements of one
+    // instant, with nothing to say which is current.
+    let physical = duck
+        .count_metric_rows_for_test(PROJECT)
+        .await
+        .expect("count physical metric rows");
+    assert_eq!(
+        physical, 2,
+        "a re-delivered datapoint must replace its row, not append another"
+    );
 }
 
 /// A deletion has happened by the time it returns.

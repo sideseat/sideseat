@@ -637,8 +637,12 @@ where
     pub async fn recv(&mut self) -> Result<(String, T), TopicError> {
         if let Some(result) = self.subscription.receiver.next().await {
             let msg = result?;
-            let decoded = T::decode(&msg.payload[..])
-                .map_err(|e| TopicError::Serialization(e.to_string()))?;
+            // The id travels with the failure, so the caller can acknowledge a payload nothing can parse
+            // rather than letting a redelivery bring it back ahead of everything else forever.
+            let decoded = T::decode(&msg.payload[..]).map_err(|e| TopicError::Undecodable {
+                id: msg.id.clone(),
+                detail: e.to_string(),
+            })?;
             Ok((msg.id, decoded))
         } else {
             Err(TopicError::ChannelClosed)

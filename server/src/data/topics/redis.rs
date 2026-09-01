@@ -844,10 +844,18 @@ impl TopicBackend for RedisTopicBackend {
         let key = self.stream_key(topic);
         let mut conn = self.pool.get().await?;
 
-        // First, get pending messages
+        // Pending entries that are *already* idle enough, filtered by Redis rather than by us.
+        //
+        // This used to ask for the first `count` pending entries from `-` and then discard the ones that
+        // were too fresh - so a group with more than `count` recently-delivered entries at the front of
+        // its pending list hid every abandoned entry behind them, and an entry at position `count + 1`
+        // was never examined however long its consumer had been dead. `IDLE` makes the window contain
+        // only eligible entries, so the oldest abandoned ones are always the ones returned.
         let pending: RedisValue = deadpool_redis::redis::cmd("XPENDING")
             .arg(&key)
             .arg(group)
+            .arg("IDLE")
+            .arg(min_idle_ms)
             .arg("-")
             .arg("+")
             .arg(count)
@@ -994,6 +1002,22 @@ impl TopicBackend for RedisTopicBackend {
     fn is_durable(&self) -> bool {
         // A Redis stream holds the message until it is acknowledged, and an unacknowledged one is
         // reclaimed by another consumer - which is what makes acknowledging before writing honest.
+        //
+        // Honest **to a stated bound**, and the bound is worth naming rather than glossing. Startup
+        // refuses AOF-off and `appendfsync no` (`probe_redis_durability`), so the accepted settings are:
+        //
+        //   * `appendfsync always` - fsync per write, so an acknowledged entry survives a host loss.
+        //   * `appendfsync everysec` - fsync once a second, so a host power loss can take up to a second
+        //     of acknowledged entries with it.
+        //
+        // `everysec` is accepted because it is what essentially every production Redis runs and the
+        // alternative costs an order of magnitude in throughput - but that makes this a one-second bound,
+        // not zero. An operator who needs zero sets `always`; the queue's guarantee then matches the word
+        // without qualification. Replication is a second window this does not close: a failover can
+        // promote a replica that had not yet received the entry, which needs a per-publish `WAIT` and the
+        // latency that implies.
+        //
+        // Recorded here rather than in a document nobody reads next to the code that depends on it.
         true
     }
 }
@@ -1132,6 +1156,13 @@ async fn probe_redis_durability(conn: &mut deadpool_redis::Connection) -> Result
         return Err(TopicError::Connection(format!(
             "appendfsync is {fs:?}; use `everysec` (bounds loss to one second) or `always`"
         )));
+    }
+
+    if fs == "everysec" {
+        tracing::info!(
+            "Redis AOF is `everysec`: an acknowledged trace export can be lost if the host fails within \
+             one second of it. Set `appendfsync always` to remove that window, at a throughput cost."
+        );
     }
 
     let ev = policy.unwrap_or_default().to_ascii_lowercase();

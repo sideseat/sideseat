@@ -243,6 +243,24 @@ impl TracePipeline {
                                 continue;
                             }
                             Err(TopicError::ChannelClosed) => break,
+                            // A payload nothing can parse is acknowledged and skipped, not fatal.
+                            //
+                            // This used to break out of the loop, so one malformed message stopped all
+                            // trace ingestion for the life of the process - and because it was never
+                            // acknowledged, a restart was met by the same message. Nothing can store a
+                            // payload it cannot decode, so the choice is between discarding one message
+                            // loudly and blocking every message behind it silently.
+                            Err(TopicError::Undecodable { id, detail }) => {
+                                tracing::error!(
+                                    message_id = %id,
+                                    error = %detail,
+                                    "Discarding a queued payload that cannot be decoded"
+                                );
+                                if let Err(e) = acker.ack(&id).await {
+                                    tracing::warn!(message_id = %id, error = %e, "Could not acknowledge an undecodable payload");
+                                }
+                                continue;
+                            }
                             Err(e) => {
                                 tracing::error!(error = %e, "TracePipeline receive error");
                                 break;

@@ -1855,15 +1855,15 @@ pub fn count_project_rows(conn: &Connection, project_id: &str) -> Result<u64, Du
         [project_id],
         |row| row.get(0),
     )?;
-    // Distinct *datapoints*, not rows, because ClickHouse counts through `FINAL` and the two answers
-    // decide whether a project's tombstone may go. A re-delivered metrics export appends here and
-    // replaces there, so counting rows made a redelivery look like data that deletion had missed.
+    // Rows, plainly. The write path replaces a datapoint's row rather than appending a second one
+    // (`replace_existing`), so a row *is* a datapoint and this agrees with ClickHouse's `FINAL` count
+    // without having to compensate for duplicates at read time.
     //
-    // Rows written before the identity existed carry `''`; they fall back to their own `rowid` so a
-    // hundred untagged rows stay a hundred rather than collapsing into one.
+    // It used to be `COUNT(DISTINCT datapoint_id)`, which hid physical duplicates instead of preventing
+    // them: two rows for one datapoint stayed, holding two possibly different measurements of the same
+    // instant with nothing to say which was current. Deduplicating a count is not storing correct data.
     let metrics: i64 = conn.query_row(
-        "SELECT COUNT(DISTINCT COALESCE(NULLIF(datapoint_id, ''), CAST(rowid AS VARCHAR)))
-         FROM otel_metrics WHERE project_id = ?",
+        "SELECT COUNT(*) FROM otel_metrics WHERE project_id = ?",
         [project_id],
         |row| row.get(0),
     )?;

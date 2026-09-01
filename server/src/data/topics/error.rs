@@ -21,6 +21,14 @@ pub enum TopicError {
     Stream(String),
     /// Consumer group error
     ConsumerGroup(String),
+    /// A queued payload that cannot be decoded, and the stream id that holds it.
+    ///
+    /// Distinct from `Serialization` because the *response* differs. A decode failure used to reach the
+    /// consumer loop as a generic error, which broke out of the loop - so one malformed payload stopped
+    /// all trace ingestion for the life of the process, and a redelivery brought it straight back. The id
+    /// is carried so the consumer can acknowledge the message and keep going: nothing can store a payload
+    /// it cannot parse, and leaving it to be redelivered forever blocks every other message behind it.
+    Undecodable { id: String, detail: String },
     /// Configuration error
     Config(String),
 }
@@ -40,6 +48,9 @@ impl fmt::Display for TopicError {
             TopicError::Serialization(msg) => write!(f, "serialization error: {}", msg),
             TopicError::Stream(msg) => write!(f, "stream error: {}", msg),
             TopicError::ConsumerGroup(msg) => write!(f, "consumer group error: {}", msg),
+            TopicError::Undecodable { id, detail } => {
+                write!(f, "undecodable payload at {}: {}", id, detail)
+            }
             TopicError::Config(msg) => write!(f, "configuration error: {}", msg),
         }
     }
