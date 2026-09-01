@@ -136,6 +136,24 @@ pub trait TopicBackend: Send + Sync {
         Ok(0)
     }
 
+    /// Preserve a payload on a side stream before the caller acknowledges it away.
+    ///
+    /// For an entry that decoded as a stream structure but not as the message it should be. It was answered
+    /// 200 when queued, so acking it away discards accepted bytes; this keeps them for inspection or replay.
+    /// The default is a no-op: a backend with no durable stream (the in-memory one) has nowhere to put it,
+    /// and there the queue was skipped entirely - the request wrote inline, so an undecodable payload never
+    /// reached a queue. Returning `Ok` there means "nothing to preserve", and the caller still acks.
+    async fn stream_dead_letter(
+        &self,
+        _topic: &str,
+        _group: &str,
+        _id: &str,
+        _reason: &str,
+        _payload: &[u8],
+    ) -> Result<(), TopicError> {
+        Ok(())
+    }
+
     // =========================================================================
     // Health and metadata
     // =========================================================================

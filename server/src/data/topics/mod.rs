@@ -583,6 +583,24 @@ impl StreamAcker {
             .stream_ack_batch(&self.name, &self.group, ids)
             .await
     }
+
+    /// Preserve a payload on the dead-letter stream before it is acknowledged away.
+    ///
+    /// For a payload that decoded as a stream entry but not as the message it should be - a corrupt or
+    /// version-incompatible protobuf. It was answered 200 when it was queued, so acking it away silently
+    /// loses accepted bytes; dead-lettering keeps them where an operator can inspect or replay them. The
+    /// caller acks only after this returns `Ok`. A backend with nowhere durable to put it (the in-memory
+    /// default) is a no-op.
+    pub async fn dead_letter(
+        &self,
+        id: &str,
+        reason: &str,
+        payload: &[u8],
+    ) -> Result<(), TopicError> {
+        self.backend
+            .stream_dead_letter(&self.name, &self.group, id, reason, payload)
+            .await
+    }
 }
 
 /// Claimer for claiming stuck messages from other consumers (Send + Sync)
@@ -648,6 +666,7 @@ where
             let decoded = T::decode(&msg.payload[..]).map_err(|e| TopicError::Undecodable {
                 id: msg.id.clone(),
                 detail: e.to_string(),
+                raw: msg.payload.clone(),
             })?;
             Ok((msg.id, decoded))
         } else {

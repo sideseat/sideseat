@@ -28,7 +28,14 @@ pub enum TopicError {
     /// all trace ingestion for the life of the process, and a redelivery brought it straight back. The id
     /// is carried so the consumer can acknowledge the message and keep going: nothing can store a payload
     /// it cannot parse, and leaving it to be redelivered forever blocks every other message behind it.
-    Undecodable { id: String, detail: String },
+    Undecodable {
+        id: String,
+        detail: String,
+        /// The raw payload bytes, carried so the consumer can preserve it on the dead-letter stream
+        /// before acknowledging - the entry decodes as a Redis structure but not as the expected protobuf,
+        /// so `stream_claim`'s structural dead-lettering never sees it.
+        raw: Vec<u8>,
+    },
     /// Configuration error
     Config(String),
 }
@@ -48,7 +55,7 @@ impl fmt::Display for TopicError {
             TopicError::Serialization(msg) => write!(f, "serialization error: {}", msg),
             TopicError::Stream(msg) => write!(f, "stream error: {}", msg),
             TopicError::ConsumerGroup(msg) => write!(f, "consumer group error: {}", msg),
-            TopicError::Undecodable { id, detail } => {
+            TopicError::Undecodable { id, detail, .. } => {
                 write!(f, "undecodable payload at {}: {}", id, detail)
             }
             TopicError::Config(msg) => write!(f, "configuration error: {}", msg),
