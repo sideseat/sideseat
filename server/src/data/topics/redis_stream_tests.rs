@@ -937,18 +937,17 @@ async fn a_stale_cursor_write_is_refused() {
     );
 }
 
-/// Rotation reaches later entries even while an earlier one is perpetually unclaimable.
+/// Rotation reaches later entries even while a peer keeps re-claiming the first one.
 ///
 /// The failure the per-entry hold produced, and the reason it was removed: holding the cursor at an entry that
 /// was scanned but not claimed lets a peer that repeatedly claims and abandons that entry keep it perpetually
 /// too fresh, and everything after it starves. Rotation over a fixed endpoint cannot be pinned that way - the
-/// sweep advances over everything it examines, so a later entry is offered within one rotation regardless of
-/// whether an earlier one could be claimed.
+/// sweep advances over everything it examines.
 ///
-/// Staged by keeping the first entry's idle time low (re-claimed each pass, as a crashing peer would) while
-/// the rest stay abandoned.
+/// The adversary is a **direct `XCLAIM` of the first id**, not another rotating claim: the rotating one would
+/// simply advance like any consumer, so the earlier version of this test staged no adversary at all.
 #[tokio::test]
-async fn rotation_reaches_later_entries_past_an_unclaimable_one() {
+async fn rotation_reaches_later_entries_past_a_repeatedly_reclaimed_one() {
     let Some((backend, topic)) = backend("rotation-past").await else {
         return;
     };
@@ -986,14 +985,14 @@ async fn rotation_reaches_later_entries_past_an_unclaimable_one() {
     let pinned = ids[0].clone();
     let last = ids[ids.len() - 1].clone();
 
-    // Each pass: a peer re-claims the first entry (resetting its idle time, as a crash-loop would), then this
-    // consumer takes a window of one. The last entry must still be reached.
+    // Each pass: the peer re-claims the first entry directly (as a crash-loop would, resetting its idle
+    // time and its ownership), then this consumer takes a window of one.
     let mut saw_last = false;
     for _ in 0..12 {
         backend
-            .stream_claim(&topic, group, "flapping-peer", 0, 1)
+            .claim_specific_for_test(&topic, group, "flapping-peer", &pinned)
             .await
-            .expect("peer claim");
+            .expect("peer re-claims the first entry");
         let claimed = backend
             .stream_claim(&topic, group, "rescuer", 0, 1)
             .await
@@ -1005,7 +1004,78 @@ async fn rotation_reaches_later_entries_past_an_unclaimable_one() {
     }
     assert!(
         saw_last,
-        "rotation must reach the last entry even while an earlier one is repeatedly re-claimed; a cursor \
-         pinned at {pinned} would starve everything after it"
+        "rotation must reach the last entry while a peer keeps re-claiming {pinned}; a cursor pinned there \
+         would starve everything after it"
     );
+}
+
+/// A malformed cursor value is replaced, not treated as an immovable obstacle.
+///
+/// The empty string was the sharp case: absence and "holds an empty value" were both encoded as the CAS
+/// absence sentinel, so a key holding `""` parsed as malformed (start a fresh rotation) but could never be
+/// written - the CAS demanded the key be absent, which it never was. Every pass then rescanned the first page
+/// and everything behind it starved. Absence is an explicit flag now.
+#[tokio::test]
+async fn a_malformed_cursor_value_is_replaced() {
+    let Some((backend, topic)) = backend("cursor-malformed").await else {
+        return;
+    };
+    let group = "traces";
+    backend
+        .ensure_group_for_test(&topic, group)
+        .await
+        .expect("group");
+
+    // More entries than one page, so a stuck cursor would visibly starve the tail.
+    let mut ids = Vec::new();
+    for i in 0..4u32 {
+        ids.push(
+            backend
+                .stream_publish(&topic, format!("entry-{i}").as_bytes())
+                .await
+                .expect("publish"),
+        );
+    }
+    let mut subscription = backend
+        .stream_subscribe(&topic, group, "doomed")
+        .await
+        .expect("subscribe");
+    for _ in 0..ids.len() {
+        tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            futures::StreamExt::next(&mut subscription.receiver),
+        )
+        .await
+        .expect("delivered")
+        .expect("open")
+        .expect("ok");
+    }
+    drop(subscription);
+
+    for malformed in ["", "not-a-rotation", "50-0", "|", "50-0|"] {
+        backend
+            .set_raw_scan_cursor_for_test(&topic, group, malformed)
+            .await
+            .expect("stage the malformed cursor");
+
+        // One pass with a window of one: it must both do work and move the cursor off the bad value.
+        let claimed = backend
+            .stream_claim(&topic, group, "rescuer", 0, 1)
+            .await
+            .expect("claim");
+        assert_eq!(
+            claimed.len(),
+            1,
+            "a pass starting from a malformed cursor ({malformed:?}) must still claim"
+        );
+        let after = backend
+            .read_scan_cursor_for_test(&topic, group)
+            .await
+            .expect("read cursor");
+        assert_ne!(
+            after.as_deref(),
+            Some(malformed),
+            "the malformed cursor {malformed:?} must be replaced, or rotation is stuck on it forever"
+        );
+    }
 }
