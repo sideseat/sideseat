@@ -1306,3 +1306,54 @@ async fn the_deleted_trace_sweep_schedule_behaves_identically() {
     })
     .await;
 }
+
+/// Discarding a dropped trace's provisional association reclaims a stuck increment identically on both.
+///
+/// The crash-leak the discard path exists to close: a writer increments `pending_writers` and crashes, a
+/// redelivery drops the trace, and a decrement-release leaves the count stuck above zero forever. Discard
+/// deletes the non-durable row outright; a durable row is kept. Both backends must agree.
+#[tokio::test]
+async fn discarding_a_dropped_provisional_association_behaves_identically() {
+    assert_parity("discard dropped provisional", |repo, mut t| async move {
+        let project = "default";
+        let hash = hash(0xe5);
+
+        // Two increments, no confirm (a crashed writer plus a redelivery): pending high, not durable.
+        for _ in 0..2 {
+            repo.associate_file("t-drop", project, &hash, Some("image/png"), 10, "sha256")
+                .await
+                .expect("associate");
+            repo.sync_ref_count(project, &hash).await.expect("sync");
+        }
+        let deleted = repo
+            .discard_provisional_trace_file_association(project, "t-drop", &hash)
+            .await
+            .expect("discard");
+        repo.sync_ref_count(project, &hash).await.expect("sync");
+        t.note(&format!("discard deleted the provisional row={deleted}"));
+        let counts = repo.get_file(project, &hash).await.expect("file row");
+        t.note(&format!(
+            "refs after discard={:?}",
+            counts.map(|f| f.ref_count)
+        ));
+
+        // A durable association must survive discard.
+        repo.associate_file("t-keep", project, &hash, Some("image/png"), 10, "sha256")
+            .await
+            .expect("associate keep");
+        repo.confirm_trace_file_associations(&[(
+            project.to_string(),
+            "t-keep".to_string(),
+            hash.clone(),
+        )])
+        .await
+        .expect("confirm");
+        let kept = repo
+            .discard_provisional_trace_file_association(project, "t-keep", &hash)
+            .await
+            .expect("discard durable");
+        t.note(&format!("discard removed the durable row={kept}"));
+        t
+    })
+    .await;
+}
