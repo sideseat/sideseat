@@ -391,6 +391,42 @@ impl RedisTopicBackend {
         Ok(id)
     }
 
+    /// Read a group's scan cursor, for a test driving the compare-and-set directly.
+    #[cfg(test)]
+    pub(super) async fn read_scan_cursor_for_test(
+        &self,
+        topic: &str,
+        group: &str,
+    ) -> Result<Option<String>, TopicError> {
+        let mut conn = self.pool.get().await?;
+        Ok(deadpool_redis::redis::cmd("GET")
+            .arg(self.scan_cursor_key(topic, group))
+            .query_async::<Option<String>>(&mut conn)
+            .await?)
+    }
+
+    /// Write a group's scan cursor through the same compare-and-set the recovery pass uses.
+    #[cfg(test)]
+    pub(super) async fn write_scan_cursor_for_test(
+        &self,
+        topic: &str,
+        group: &str,
+        expected: Option<String>,
+        next: Option<&str>,
+    ) -> Result<(), TopicError> {
+        let mut conn = self.pool.get().await?;
+        self.apply_cursor(
+            &mut conn,
+            CursorAction {
+                key: self.scan_cursor_key(topic, group),
+                expected,
+                next: next.and_then(StreamId::parse),
+            },
+        )
+        .await;
+        Ok(())
+    }
+
     /// Everything currently on a topic's dead-letter stream, one debug rendering per entry.
     #[cfg(test)]
     pub(super) async fn dead_letter_entries_for_test(
@@ -461,12 +497,12 @@ impl RedisTopicBackend {
         // `scan_cursor_key`. An unreadable cursor is treated as absent: starting from the front is always
         // safe, it just costs this pass its rotation progress.
         let cursor_key = self.scan_cursor_key(topic, group);
-        let start: String = deadpool_redis::redis::cmd("GET")
+        let observed: Option<String> = deadpool_redis::redis::cmd("GET")
             .arg(&cursor_key)
             .query_async::<Option<String>>(conn)
             .await
-            .unwrap_or(None)
-            .unwrap_or_else(|| "-".to_string());
+            .unwrap_or(None);
+        let start: String = observed.clone().unwrap_or_else(|| "-".to_string());
         // Scan exactly what will be claimed, never more.
         //
         // An earlier design scanned `count * 8`, sorted by delivery count to prefer fresh work, claimed
@@ -492,7 +528,14 @@ impl RedisTopicBackend {
         if scanned.is_empty() {
             // Nothing eligible this pass. If we had rotated to a non-`-` start and found nothing, the wrap
             // above already re-scanned from the front, so the cursor is best cleared for a clean next pass.
-            return Ok((vec![], CursorAction::Reset(cursor_key)));
+            return Ok((
+                vec![],
+                CursorAction {
+                    key: cursor_key,
+                    expected: observed,
+                    next: None,
+                },
+            ));
         }
 
         // What the cursor *should* become - returned, not applied. The caller commits it only after the
@@ -500,12 +543,14 @@ impl RedisTopicBackend {
         // `XCLAIM` never claimed, so under sustained growth (a full page arriving each rotation, so the scan
         // never reaches a short page) those entries were skipped forever. A short page means the list ended
         // here, so the next pass starts over from the front.
-        let action = match scanned.last().filter(|_| scanned.len() >= count) {
-            Some((last, _)) => match StreamId::parse(last) {
-                Some(id) => CursorAction::Advance(cursor_key, id.next()),
-                None => CursorAction::Reset(cursor_key),
-            },
-            None => CursorAction::Reset(cursor_key),
+        let next = match scanned.last().filter(|_| scanned.len() >= count) {
+            Some((last, _)) => StreamId::parse(last).map(StreamId::next),
+            None => None,
+        };
+        let action = CursorAction {
+            key: cursor_key,
+            expected: observed,
+            next,
         };
 
         for (id, deliveries) in &scanned {
@@ -526,31 +571,63 @@ impl RedisTopicBackend {
 
     /// Move the rotating scan cursor as [`Self::scan_pending`] computed, once the claim it enabled succeeded.
     ///
-    /// A write failure is logged, not propagated: the entries were claimed and are being processed, and the
-    /// only cost is that the next pass re-scans this page. Losing rotation progress is recoverable; failing
-    /// the claim over it would not be.
+    /// **Compare-and-set**, conditioned on the value the scan read - see [`CursorAction::expected`] for the
+    /// interleaving that makes a plain `SET` skip pending entries. One Lua script, so the compare and the
+    /// write are one atomic step; `WATCH`/`MULTI` would need a dedicated connection to be correct, and this
+    /// runs on a pooled one.
+    ///
+    /// A refused or failed write is logged, not propagated: the entries were claimed and are being processed,
+    /// and the only cost is that the next pass re-scans this page. Losing rotation progress is recoverable;
+    /// failing the claim over it would not be.
     async fn apply_cursor(&self, conn: &mut deadpool_redis::Connection, action: CursorAction) {
-        let result: RedisResult<RedisValue> = match &action {
-            CursorAction::Advance(key, id) => {
-                deadpool_redis::redis::cmd("SET")
-                    .arg(key)
-                    .arg(id.to_string())
-                    .query_async(conn)
-                    .await
-            }
-            CursorAction::Reset(key) => {
-                deadpool_redis::redis::cmd("DEL")
-                    .arg(key)
-                    .query_async(conn)
-                    .await
-            }
-        };
-        if let Err(e) = result {
-            tracing::warn!(
+        // `expected` absent means the scan found no cursor, so the write applies only if there is still none.
+        const CAS: &str = r#"
+            local current = redis.call('GET', KEYS[1])
+            local expected = ARGV[1]
+            local matches
+            if expected == '' then
+                matches = (current == false)
+            else
+                matches = (current == expected)
+            end
+            if not matches then
+                return 0
+            end
+            if ARGV[2] == '' then
+                redis.call('DEL', KEYS[1])
+            else
+                redis.call('SET', KEYS[1], ARGV[2])
+            end
+            return 1
+        "#;
+        let expected = action.expected.clone().unwrap_or_default();
+        let next = action.next.map(|id| id.to_string()).unwrap_or_default();
+        // Nothing to do: no cursor was there and none is wanted.
+        if expected.is_empty() && next.is_empty() {
+            return;
+        }
+        // `EVAL` rather than the crate's `Script` helper, which is behind a feature this build does not
+        // enable. Same atomicity - the server runs the script as one step.
+        let applied: RedisResult<i64> = deadpool_redis::redis::cmd("EVAL")
+            .arg(CAS)
+            .arg(1)
+            .arg(&action.key)
+            .arg(expected)
+            .arg(next)
+            .query_async(conn)
+            .await;
+        match applied {
+            Ok(1) => {}
+            Ok(_) => tracing::debug!(
+                cursor = %action.key,
+                "Another instance moved the pending-scan cursor first; this pass keeps its position and the \
+                 next one re-scans its page"
+            ),
+            Err(e) => tracing::warn!(
                 error = %e,
-                cursor = %action.key(),
+                cursor = %action.key,
                 "Could not persist the pending-scan cursor; the next recovery pass will re-scan this page"
-            );
+            ),
         }
     }
 
@@ -1241,11 +1318,22 @@ impl TopicBackend for RedisTopicBackend {
                                     "Moved a queued entry with no readable payload to the dead-letter stream; \
                                      leaving it pending would hold the stream's trim boundary forever"
                                 );
-                                if let Err(e) = self.stream_ack(topic, group, &id).await {
-                                    tracing::warn!(message_id = %id, error = %e, "Could not acknowledge a dead-lettered entry");
+                                // Handled only if the ACK *succeeded*. A dead-letter `XADD` that lands while
+                                // the `XACK` fails leaves the entry still pending - still holding the trim
+                                // boundary - so the cursor must not pass it; the next pass retries the ack.
+                                // (A duplicate on the dead-letter stream is the deliberate trade: the bytes
+                                // are preserved twice rather than lost, and ingestion is idempotent.)
+                                match self.stream_ack(topic, group, &id).await {
+                                    Ok(()) => {
+                                        handled.insert(id.clone());
+                                    }
+                                    Err(e) => tracing::warn!(
+                                        message_id = %id,
+                                        error = %e,
+                                        "Could not acknowledge a dead-lettered entry; it stays pending and the \
+                                         scan cursor holds at it"
+                                    ),
                                 }
-                                // Resolved: it has left the main stream, so the cursor may pass it.
-                                handled.insert(id.clone());
                             }
                             Err(e) => tracing::error!(
                                 stream = %key,
@@ -1276,9 +1364,11 @@ impl TopicBackend for RedisTopicBackend {
             .iter()
             .find(|id| !handled.contains(id.as_str()))
         {
-            Some(unhandled) => match StreamId::parse(unhandled) {
-                Some(parsed) => CursorAction::Advance(cursor_action.key().to_string(), parsed),
-                None => CursorAction::Reset(cursor_action.key().to_string()),
+            // Hold at the first unresolved id, keeping the value the scan read so the write stays a CAS.
+            Some(unhandled) => CursorAction {
+                key: cursor_action.key.clone(),
+                expected: cursor_action.expected.clone(),
+                next: StreamId::parse(unhandled),
             },
             None => cursor_action,
         };
@@ -1581,20 +1671,23 @@ async fn probe_redis_durability(conn: &mut deadpool_redis::Connection) -> Result
 /// Held separately from the scan so the cursor advances only past entries an `XCLAIM` actually claimed - a
 /// claim that errors leaves the cursor put, and the next pass re-scans rather than stepping over unclaimed
 /// entries and leaving them stranded under sustained backlog growth.
-enum CursorAction {
-    /// Resume the next pass from this id.
-    Advance(String, StreamId),
-    /// Start the next pass from the front (the list ended, or nothing eligible was found).
-    Reset(String),
-}
-
-impl CursorAction {
-    /// The `<stream>|<group>` cursor this action belongs to.
-    fn key(&self) -> &str {
-        match self {
-            Self::Advance(key, _) | Self::Reset(key) => key,
-        }
-    }
+struct CursorAction {
+    /// The Redis key holding this group's cursor.
+    key: String,
+    /// What the scan read there, so the write can be conditional on nothing having changed since.
+    ///
+    /// A plain `SET` is **not** safe here, and "a lost update is only a re-scan" was wrong. The sequence:
+    /// replica A claims a tail page and stalls before writing; replica B finds the list exhausted past its
+    /// own position, wraps to the front, claims there and advances the cursor to the front; A's delayed write
+    /// then jumps the cursor back out to its tail position, *past* the front entries B did not claim. With
+    /// sustained traffic beyond A's position the scan never wraps again, and those entries starve - the exact
+    /// failure the rotation exists to prevent. Conditioning the write on the value the scan read makes A's
+    /// stale update a no-op instead: A loses its own progress, which costs one re-scan, and nothing is
+    /// skipped.
+    expected: Option<String>,
+    /// Where to resume, or `None` to start the next pass from the front (the list ended, or nothing was
+    /// eligible).
+    next: Option<StreamId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

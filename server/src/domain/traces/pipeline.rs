@@ -1325,6 +1325,45 @@ impl TracePipeline {
         }
 
         let deleted_traces = traces_of_sessions(spans, &deleted);
+
+        // Tombstone them, so the trace sweep can find them later.
+        //
+        // Without this, a trace dropped *here* is invisible to both sweeps and its files leak. The sequence:
+        // a writer associates a file for trace T and crashes before writing any analytics row; the session is
+        // then deleted, but T was not in the deletion's snapshot so nothing tombstoned it; the redelivery
+        // increments the association again and is dropped here, decrementing once - leaving `pending_writers`
+        // at 1 and `ref_count` at 1 permanently. The session sweep cannot discover T (it resolves sessions to
+        // traces through the analytics store, and T has no rows there), and the trace sweep cannot either
+        // (it walks tombstones, and T has none). Recording the tombstone hands T to the trace sweep, which
+        // deletes its rows, confirms nothing is readable, and then removes every association regardless of
+        // `pending_writers`.
+        //
+        // Best effort by design: a failure here is logged, not fatal. The drop below still happens - the
+        // session *is* deleted, so these spans must not be written either way - and the untombstoned trace is
+        // exactly the state this batch found, so failing the batch would only repeat it. The consequence of
+        // the log-only path is the file-quota residual, not a correctness break.
+        if !deleted_traces.is_empty() {
+            let mut by_project: HashMap<&str, Vec<String>> = HashMap::new();
+            for (project, trace) in &deleted_traces {
+                by_project
+                    .entry(project.as_str())
+                    .or_default()
+                    .push(trace.clone());
+            }
+            let repo = self.file_service.database().repository();
+            for (project, trace_ids) in by_project {
+                if let Err(e) = repo.record_deleted_traces(project, &trace_ids).await {
+                    tracing::warn!(
+                        error = %e,
+                        project,
+                        traces = trace_ids.len(),
+                        "Could not tombstone the traces of a deleted session; their file associations may \
+                         hold quota until something else collects them"
+                    );
+                }
+            }
+        }
+
         let before = spans.len();
         spans.retain(|s| {
             !deleted_traces.contains(&(

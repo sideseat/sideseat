@@ -878,3 +878,58 @@ async fn the_scan_cursor_survives_a_restart() {
          first={first_ids:?} after={after_ids:?}"
     );
 }
+
+/// A stalled replica's cursor write is refused once another replica has moved it, so nothing is skipped.
+///
+/// The interleaving a plain `SET` allowed: replica A claims a tail page and stalls before writing; replica B
+/// finds the list exhausted past its own position, wraps, claims the front and advances the cursor there;
+/// A's delayed write then jumps the cursor back out to its tail position, past the front entries B did not
+/// claim, and with sustained traffic beyond that point they starve. Conditioning the write on the value the
+/// scan read makes A's stale update a no-op - A loses only its own progress.
+///
+/// Driven at the Redis level, because the race is in the cursor write rather than in the claim: two backends
+/// share one cursor key, so a write conditioned on a stale read must not land.
+#[tokio::test]
+async fn a_stale_cursor_write_is_refused() {
+    let Some((backend, topic)) = backend("cursor-cas").await else {
+        return;
+    };
+    let group = "traces";
+    backend
+        .ensure_group_for_test(&topic, group)
+        .await
+        .expect("group");
+
+    // Both instances read the same (absent) cursor, then one writes.
+    let observed = backend
+        .read_scan_cursor_for_test(&topic, group)
+        .await
+        .expect("read cursor");
+    assert!(observed.is_none(), "a fresh group has no cursor");
+
+    backend
+        .write_scan_cursor_for_test(&topic, group, observed.clone(), Some("50-0"))
+        .await
+        .expect("the first write applies");
+    assert_eq!(
+        backend
+            .read_scan_cursor_for_test(&topic, group)
+            .await
+            .expect("read"),
+        Some("50-0".to_string()),
+    );
+
+    // The stalled instance now writes, still expecting the value it read before (absent). It must be refused.
+    backend
+        .write_scan_cursor_for_test(&topic, group, observed, Some("900-0"))
+        .await
+        .expect("the stale write must not error, only be refused");
+    assert_eq!(
+        backend
+            .read_scan_cursor_for_test(&topic, group)
+            .await
+            .expect("read"),
+        Some("50-0".to_string()),
+        "a write conditioned on a stale read must not move the cursor - it would skip everything between"
+    );
+}
