@@ -100,9 +100,10 @@ const SUBSCRIBE_RETRY_DELAY: Duration = Duration::from_secs(5);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IngestOutcome {
     Stored,
-    /// Every span belonged to a project that will not accept writes, so nothing was stored.
+    /// Nothing was stored, and `reason` says why - which decides the *answer*, not just the log line.
     Dropped {
         spans: usize,
+        reason: DropReason,
     },
     /// Some spans were stored and some dropped - a request naming a live project and a dying one. Distinct
     /// from `Dropped` because the answers differ: nothing stored is a 404, something stored is a success
@@ -111,6 +112,23 @@ pub enum IngestOutcome {
         spans: usize,
     },
     Failed,
+}
+
+/// Why a request's spans were discarded, because the honest HTTP answer differs per cause.
+///
+/// Reporting every drop as "unknown project" was wrong in a way that costs the exporter: a live project
+/// exporting a span with an unstorable timestamp got a 404, which says *retry against a different project* -
+/// so it retried the same doomed payload indefinitely while its operator hunted a project that was in fact
+/// fine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DropReason {
+    /// The target is gone: the project does not exist or is being deleted, or the trace or session was
+    /// deleted. A retry against the same target cannot help, and 404 is the truth.
+    Gone,
+    /// The payload itself cannot be stored - an out-of-range timestamp, say. A retry cannot help either, but
+    /// the project is fine, so the answer is a success that *reports the rejection* through the field OTLP
+    /// provides for it rather than blaming the project.
+    Unstorable,
 }
 
 impl IngestOutcome {
@@ -1548,7 +1566,10 @@ impl TracePipeline {
                 // are written, so nothing has been associated yet - which is also why it takes the pending
                 // file list and prunes it directly.
                 Ok(dropped) if db_spans.is_empty() => {
-                    return IngestOutcome::Dropped { spans: dropped };
+                    return IngestOutcome::Dropped {
+                        spans: dropped,
+                        reason: DropReason::Gone,
+                    };
                 }
                 Ok(0) => {}
                 Ok(dropped) => partly_dropped = dropped,
@@ -1562,6 +1583,9 @@ impl TracePipeline {
                 if db_spans.is_empty() {
                     return IngestOutcome::Dropped {
                         spans: partly_dropped + unstorable,
+                        // The project is fine; the payload is not. Blaming the project sends the exporter to
+                        // retry a doomed span forever and its operator hunting a project that is healthy.
+                        reason: DropReason::Unstorable,
                     };
                 }
                 partly_dropped += unstorable;
@@ -1629,6 +1653,7 @@ impl TracePipeline {
                         .await;
                     return IngestOutcome::Dropped {
                         spans: partly_dropped + dropped,
+                        reason: DropReason::Gone,
                     };
                 }
                 Ok(0) => {}
@@ -1652,6 +1677,7 @@ impl TracePipeline {
                         .await;
                     return IngestOutcome::Dropped {
                         spans: partly_dropped + dropped,
+                        reason: DropReason::Gone,
                     };
                 }
                 Ok(0) => {}
@@ -1843,6 +1869,44 @@ fn process_request(
     Some((db_spans, pending_files, incoming_references))
 }
 
+/// Strip spans whose timestamps no analytics backend can store, **before** the request is queued.
+///
+/// Returns how many were removed, so the route can report them.
+///
+/// Deterministic checks belong at the edge. A durable queue answers 200 the moment the payload is safely
+/// published, which is the right promise - but the consumer later discards an unstorable span, so a live
+/// project exporting a year-2300 timestamp got an unqualified success and then found nothing stored, with no
+/// `partial_success` to explain it. Nothing downstream can report back to a request that has already
+/// returned. Storability is a property of the payload alone - not of the project's state, the queue's, or
+/// anything that can change between here and the write - so it can be settled now and reported now, and only
+/// what can actually be stored is queued.
+///
+/// The consumer keeps its own check: this path is skipped when the queue is not durable, the pipeline also
+/// runs on redelivery and at shutdown, and a check that exists in one place only is one refactor from being
+/// absent.
+pub fn strip_unstorable_spans(request: &mut ExportTraceServiceRequest) -> usize {
+    let mut removed = 0usize;
+    for resource in &mut request.resource_spans {
+        for scope in &mut resource.scope_spans {
+            let before = scope.spans.len();
+            scope.spans.retain(|span| {
+                let start = crate::utils::time::nanos_to_datetime(span.start_time_unix_nano);
+                let end = (span.end_time_unix_nano > 0)
+                    .then(|| crate::utils::time::nanos_to_datetime(span.end_time_unix_nano));
+                is_storable(start) && end.is_none_or(is_storable)
+            });
+            removed += before - scope.spans.len();
+        }
+    }
+    if removed > 0 {
+        tracing::warn!(
+            removed,
+            "Rejected spans with timestamps outside the storable range before queueing them"
+        );
+    }
+    removed
+}
+
 /// Which `(project, trace)` pairs in this batch belong to one of `sessions`.
 ///
 /// Session membership is a property of the **trace**, not of each span, and this is the whole reason the
@@ -1968,6 +2032,72 @@ fn drop_unstorable_spans(spans: &mut Vec<NormalizedSpan>) -> usize {
         ok
     });
     before - spans.len()
+}
+
+#[cfg(test)]
+mod strip_unstorable_tests {
+    use super::*;
+    use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span};
+
+    fn request(nanos: &[u64]) -> ExportTraceServiceRequest {
+        ExportTraceServiceRequest {
+            resource_spans: vec![ResourceSpans {
+                resource: None,
+                scope_spans: vec![ScopeSpans {
+                    scope: None,
+                    spans: nanos
+                        .iter()
+                        .map(|n| Span {
+                            start_time_unix_nano: *n,
+                            ..Default::default()
+                        })
+                        .collect(),
+                    schema_url: String::new(),
+                }],
+                schema_url: String::new(),
+            }],
+        }
+    }
+
+    /// An unstorable span is removed before the request is queued, and counted so the route can report it.
+    ///
+    /// A durable queue answers 200 as soon as the payload is published; the consumer discards the unstorable
+    /// span later, and nothing can report back to a request that has already returned. So the span was
+    /// acknowledged and then simply absent. Settling it here is possible because storability depends on the
+    /// payload alone.
+    #[test]
+    fn an_unstorable_span_is_stripped_before_queueing() {
+        // 2024, and a year-2300 timestamp (past the DateTime64(6) ceiling).
+        let year_2024 = 1_704_067_200u64 * 1_000_000_000;
+        let year_2300 = 10_413_792_000u64 * 1_000_000_000;
+        let mut req = request(&[year_2024, year_2300]);
+        assert_eq!(strip_unstorable_spans(&mut req), 1);
+        let left: usize = req
+            .resource_spans
+            .iter()
+            .flat_map(|r| r.scope_spans.iter())
+            .map(|s| s.spans.len())
+            .sum();
+        assert_eq!(left, 1, "the storable span must be kept");
+    }
+
+    /// An ordinary request is untouched, so the check costs nothing in the common case.
+    #[test]
+    fn a_storable_request_is_untouched() {
+        let year_2024 = 1_704_067_200u64 * 1_000_000_000;
+        let mut req = request(&[year_2024, year_2024]);
+        assert_eq!(strip_unstorable_spans(&mut req), 0);
+    }
+
+    /// An unstorable *end* time is caught too - it is stored in its own column, under the same TTL.
+    #[test]
+    fn an_unstorable_end_time_is_stripped() {
+        let year_2024 = 1_704_067_200u64 * 1_000_000_000;
+        let year_2300 = 10_413_792_000u64 * 1_000_000_000;
+        let mut req = request(&[year_2024]);
+        req.resource_spans[0].scope_spans[0].spans[0].end_time_unix_nano = year_2300;
+        assert_eq!(strip_unstorable_spans(&mut req), 1);
+    }
 }
 
 #[cfg(test)]
