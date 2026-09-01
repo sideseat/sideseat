@@ -312,6 +312,20 @@ impl TokenConfig {
     }
 
     pub(super) fn extract_for_span(&self, attrs: &HashMap<String, String>, span_name: &str) -> i64 {
+        self.extract_opt_for_span(attrs, span_name).unwrap_or(0)
+    }
+
+    /// The counter if any key in the chain carried one, distinguishing **absent** from a genuine `0`.
+    ///
+    /// The stored column is never NULL - `extract_for_span` still defaults to 0 - but the framework fallbacks
+    /// need the difference: they treated `0` as "missing", so a completion that genuinely produced no output
+    /// tokens had its 0 replaced by whatever the framework's JSON happened to report. Presence is a fact about
+    /// the payload and cannot be recovered from the value.
+    pub(super) fn extract_opt_for_span(
+        &self,
+        attrs: &HashMap<String, String>,
+        span_name: &str,
+    ) -> Option<i64> {
         let scoped = if is_claude_code_span(span_name) {
             self.scoped_fallbacks
         } else {
@@ -322,7 +336,6 @@ impl TokenConfig {
             .or_else(|| self.fallbacks.iter().find_map(|k| attrs.get(*k)))
             .or_else(|| scoped.iter().find_map(|k| attrs.get(*k)))
             .and_then(|v| v.parse().ok())
-            .unwrap_or(0)
     }
 }
 
@@ -1135,8 +1148,18 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
         }
     }
 
-    // Logfire: model and system from request_data JSON
-    if span.gen_ai_request_model.is_none() || span.gen_ai_system.is_none() {
+    // Logfire: model, system, operation name and max tokens from request_data JSON.
+    //
+    // The gate covers *everything this block can fill*, not just the model and system. Gated on those two
+    // alone, a span that already carried a flat model and provider skipped the parse entirely - so
+    // `request_data.max_tokens` / `max_completion_tokens` and the operation-name fallback were unreachable
+    // exactly when the rest of the span was well populated, which is the common Logfire shape rather than an
+    // edge one. Each field inside is still filled only when it is the one missing.
+    if span.gen_ai_request_model.is_none()
+        || span.gen_ai_system.is_none()
+        || span.gen_ai_operation_name.is_none()
+        || span.gen_ai_max_tokens.is_none()
+    {
         if let Some(req) = extract_json::<JsonValue>(attrs, keys::REQUEST_DATA) {
             if span.gen_ai_request_model.is_none() {
                 if let Some(model) = req.get("model").and_then(|v| v.as_str()) {
@@ -1246,8 +1269,12 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     span.gen_ai_server_request_duration_ms = parse_opt(attrs, keys::GEN_AI_REQUEST_DURATION);
 
     // Token usage
-    span.gen_ai_usage_input_tokens = INPUT_TOKENS.extract_for_span(attrs, span_name);
-    span.gen_ai_usage_output_tokens = OUTPUT_TOKENS.extract_for_span(attrs, span_name);
+    // Presence, not value, is what the framework fallbacks below must test - a genuine `0` is a reported
+    // count and must not be replaced.
+    let flat_input = INPUT_TOKENS.extract_opt_for_span(attrs, span_name);
+    let flat_output = OUTPUT_TOKENS.extract_opt_for_span(attrs, span_name);
+    span.gen_ai_usage_input_tokens = flat_input.unwrap_or(0);
+    span.gen_ai_usage_output_tokens = flat_output.unwrap_or(0);
 
     // MLflow token usage from JSON blob (if not already extracted)
     if span.gen_ai_usage_input_tokens == 0 || span.gen_ai_usage_output_tokens == 0 {
@@ -1274,16 +1301,16 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     // Entered when *either* counter is missing, and each field is then filled independently. Requiring both
     // to be zero meant a span that reported only one flat counter - input 100, output absent - kept the other
     // at 0 even though `usage_metadata.candidates_token_count` had it, understating the total and the cost.
-    if span.gen_ai_usage_input_tokens == 0 || span.gen_ai_usage_output_tokens == 0 {
+    if flat_input.is_none() || flat_output.is_none() {
         if let Some(resp) = extract_json::<JsonValue>(attrs, keys::GCP_VERTEX_LLM_RESPONSE) {
             if let Some(usage) = resp.get("usage_metadata") {
-                if span.gen_ai_usage_input_tokens == 0 {
+                if flat_input.is_none() {
                     span.gen_ai_usage_input_tokens = usage
                         .get("prompt_token_count")
                         .and_then(|v| v.as_i64())
                         .unwrap_or(0);
                 }
-                if span.gen_ai_usage_output_tokens == 0 {
+                if flat_output.is_none() {
                     span.gen_ai_usage_output_tokens = usage
                         .get("candidates_token_count")
                         .and_then(|v| v.as_i64())
@@ -1298,17 +1325,17 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     // OpenAI: {prompt_tokens, completion_tokens}
     // Same rule as the ADK block: either counter missing enters, and each is filled on its own, so a span
     // reporting only one flat counter still gets the other from the JSON.
-    if span.gen_ai_usage_input_tokens == 0 || span.gen_ai_usage_output_tokens == 0 {
+    if flat_input.is_none() || flat_output.is_none() {
         if let Some(resp) = extract_json::<JsonValue>(attrs, keys::RESPONSE_DATA) {
             if let Some(usage) = resp.get("usage") {
-                if span.gen_ai_usage_input_tokens == 0 {
+                if flat_input.is_none() {
                     span.gen_ai_usage_input_tokens = usage
                         .get("input_tokens")
                         .or_else(|| usage.get("prompt_tokens"))
                         .and_then(|v| v.as_i64())
                         .unwrap_or(0);
                 }
-                if span.gen_ai_usage_output_tokens == 0 {
+                if flat_output.is_none() {
                     span.gen_ai_usage_output_tokens = usage
                         .get("output_tokens")
                         .or_else(|| usage.get("completion_tokens"))
