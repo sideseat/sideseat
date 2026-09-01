@@ -728,3 +728,34 @@ async fn an_unreadable_entry_is_preserved_before_it_is_acknowledged() {
         "once preserved, the entry must be acknowledged so it stops holding the trim boundary"
     );
 }
+
+/// A required replica acknowledgement is refused against a Redis with no replica to fsync it.
+///
+/// The point of `min_replica_acks` is that a 200 survives a failover, and `WAITAOF` is what makes that
+/// honest: it blocks on the append-only file being fsynced locally *and* on that many replicas. The test
+/// Redis is standalone, so a publish demanding one replica ack must fail rather than report success - the
+/// exact false-success `WAIT` (in-memory receipt only) could give, and the one this refusal removes. Local
+/// fsync alone is not enough, because that is what the *non*-replicated durability already promises.
+#[tokio::test]
+async fn a_required_replica_ack_is_refused_without_a_replica() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("redis stream tests: skipped - set {URL_ENV} (or run `make test-redis`)");
+        return;
+    };
+    // One replica required, against a standalone Redis: WAITAOF can fsync locally but never reach a replica.
+    let backend = RedisTopicBackend::with_replica_acks(&url, 1)
+        .await
+        .expect("connect to the test Redis");
+    let topic = format!("waitaof-{}", uuid::Uuid::new_v4());
+
+    let result = backend.stream_publish(&topic, b"needs a replica").await;
+    match result {
+        Err(TopicError::Stream(msg)) => assert!(
+            msg.contains("replica"),
+            "the refusal must name the replica shortfall, got: {msg}"
+        ),
+        other => panic!(
+            "a publish demanding a replica ack must be refused on a standalone Redis, got: {other:?}"
+        ),
+    }
+}
