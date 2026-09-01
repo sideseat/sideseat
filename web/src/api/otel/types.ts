@@ -370,6 +370,15 @@ export interface MessagesMetadata {
   total_cost: number;
   start_time: string;
   end_time: string | null;
+  /**
+   * False when cross-trace replay matching hit its search budget, so this answer may repeat history it would
+   * otherwise have collapsed.
+   *
+   * The server **omits it when true** (the ordinary case), so `undefined` means complete. It is in the
+   * contract because an incomplete answer that looks complete is the one thing a reader cannot reason about:
+   * the duplicated turns are indistinguishable from a model that actually repeated itself.
+   */
+  replay_matching_complete?: boolean;
 }
 
 export interface MessagesResponse {
@@ -456,6 +465,19 @@ export interface FeedMessagesMetadata {
   span_count: number;
   total_tokens: number;
   total_cost: number;
+  /** See {@link MessagesMetadata.replay_matching_complete}; omitted by the server when true. */
+  replay_matching_complete?: boolean;
+  /**
+   * Whether every span contributing to this page carried a session id, so the reconstruction could widen its
+   * context to whole sessions. The server states it rather than leaving it to assumption.
+   */
+  session_scoped?: boolean;
+  /**
+   * Always false, and said out loud by the server: pages are selected by *ingestion* time while each page's
+   * messages are ordered by *message* time. A page is a correct window on activity; a concatenation of pages
+   * is not a transcript - the trace and session views are where a conversation is read in order.
+   */
+  pages_are_globally_ordered?: boolean;
 }
 
 export interface FeedMessagesResponse {

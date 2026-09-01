@@ -66,6 +66,11 @@ export function SessionDetail({
 
   const spans = useMemo(() => spansData?.data ?? [], [spansData]);
   const spansWithRaw = useMemo(() => spans.filter((s) => s.raw_span), [spans]);
+  // A session larger than one page is *shown* truncated. Silently dropping the rest is the worst outcome for
+  // a debugging tool - the trace tree looks complete and is not - so the count the server reported is
+  // surfaced rather than discarded. `total_items` is in the response's own pagination metadata.
+  const totalSpans = spansData?.meta?.total_items ?? spans.length;
+  const truncatedSpans = Math.max(0, totalSpans - spans.length);
 
   // SSE params filtered by session_id
   const sseParams = useMemo(() => ({ session_id: sessionId }), [sessionId]);
@@ -164,6 +169,7 @@ export function SessionDetail({
   if (activeTab === "trace") {
     return (
       <Suspense fallback={<TabFallback />}>
+        {truncatedSpans > 0 && <TruncationNotice shown={spans.length} total={totalSpans} />}
         <SessionSpansView
           projectId={projectId}
           spans={spans}
@@ -183,6 +189,7 @@ export function SessionDetail({
   // Raw tab (default fallback)
   return (
     <Suspense fallback={<TabFallback />}>
+      {truncatedSpans > 0 && <TruncationNotice shown={spans.length} total={totalSpans} />}
       <RawSpansView
         spans={spansWithRaw}
         entityId={sessionId}
@@ -199,6 +206,26 @@ function TabFallback() {
   return (
     <div className="flex h-64 w-full items-center justify-center">
       <div className="h-6 w-36 animate-pulse rounded-md bg-muted" />
+    </div>
+  );
+}
+
+/**
+ * Says out loud that a session is larger than the page these tabs fetch.
+ *
+ * A partially-rendered trace tree is indistinguishable from a complete one, which for a debugging tool is
+ * worse than an explicit gap: someone reading it concludes the agent stopped where the page ended. The count
+ * comes from the response's own pagination metadata, so it is the server's number rather than a guess.
+ */
+function TruncationNotice({ shown, total }: { shown: number; total: number }) {
+  return (
+    <div
+      role="status"
+      className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200"
+    >
+      Showing the first {shown.toLocaleString()} of {total.toLocaleString()} spans. This session is
+      larger than one page, so the view below is incomplete — open individual traces to see the
+      rest.
     </div>
   );
 }
