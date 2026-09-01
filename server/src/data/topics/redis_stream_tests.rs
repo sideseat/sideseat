@@ -933,3 +933,77 @@ async fn a_stale_cursor_write_is_refused() {
         "a write conditioned on a stale read must not move the cursor - it would skip everything between"
     );
 }
+
+/// A cursor held at a still-pending entry is not cleared or stepped over when the idle filter hides it.
+///
+/// The skip a bare cursor position allowed: replica P claims entry `U` and crashes, resetting `U`'s idle
+/// time; replica Q had scanned `U` but its `XCLAIM` omitted it, so Q holds the cursor there. On the next pass
+/// `U` is still not idle enough, so `XPENDING ... IDLE` drops it from the page - and advancing past the page,
+/// or clearing the cursor, steps over `U`, which then holds the trim boundary forever.
+///
+/// Driven by making *nothing* eligible: with `min_idle_ms` above every entry's idle time the page is empty,
+/// which is exactly the state that used to clear the cursor. The hold is asked as a question about the entry
+/// ("is it still pending at all?"), so it survives.
+#[tokio::test]
+async fn a_held_cursor_survives_the_idle_filter() {
+    let Some((backend, topic)) = backend("cursor-hold").await else {
+        return;
+    };
+    let group = "traces";
+    backend
+        .ensure_group_for_test(&topic, group)
+        .await
+        .expect("group");
+
+    let mut ids = Vec::new();
+    for i in 0..3u32 {
+        ids.push(
+            backend
+                .stream_publish(&topic, format!("entry-{i}").as_bytes())
+                .await
+                .expect("publish"),
+        );
+    }
+    let mut subscription = backend
+        .stream_subscribe(&topic, group, "doomed")
+        .await
+        .expect("subscribe");
+    for _ in 0..ids.len() {
+        tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            futures::StreamExt::next(&mut subscription.receiver),
+        )
+        .await
+        .expect("delivered")
+        .expect("open")
+        .expect("ok");
+    }
+    drop(subscription);
+
+    // The cursor holds the middle entry, as a partial claim would have left it.
+    let held = ids[1].clone();
+    backend
+        .write_scan_cursor_for_test(&topic, group, None, Some(&held))
+        .await
+        .expect("set the hold");
+
+    // A pass where nothing is idle enough to be claimed: the page comes back empty.
+    let claimed = backend
+        .stream_claim(&topic, group, "rescuer", 600_000, 2)
+        .await
+        .expect("claim");
+    assert!(
+        claimed.is_empty(),
+        "nothing should be claimable at this idle threshold"
+    );
+
+    assert_eq!(
+        backend
+            .read_scan_cursor_for_test(&topic, group)
+            .await
+            .expect("read cursor"),
+        Some(held.clone()),
+        "the cursor must keep holding a still-pending entry the idle filter hid, or that entry is skipped \
+         and holds the trim boundary forever"
+    );
+}

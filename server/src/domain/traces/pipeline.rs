@@ -1338,10 +1338,14 @@ impl TracePipeline {
         // deletes its rows, confirms nothing is readable, and then removes every association regardless of
         // `pending_writers`.
         //
-        // Best effort by design: a failure here is logged, not fatal. The drop below still happens - the
-        // session *is* deleted, so these spans must not be written either way - and the untombstoned trace is
-        // exactly the state this batch found, so failing the batch would only repeat it. The consequence of
-        // the log-only path is the file-quota residual, not a correctness break.
+        // A tombstone that cannot be written **refuses the batch**, exactly as an unreadable fence does.
+        //
+        // Logging and continuing was tried and is wrong: the drop then proceeds, this batch's own increment
+        // is released, and the message is acknowledged - so the *earlier* crashed writer's increment is left
+        // with no analytics row and no tombstone, which is precisely the state neither sweep can discover.
+        // The leak becomes permanent on a transient database error. Refusing keeps the message pending, and
+        // the redelivery writes the tombstone once the store recovers; the spans are dropped on that pass
+        // instead, which is the same outcome one retry later.
         if !deleted_traces.is_empty() {
             let mut by_project: HashMap<&str, Vec<String>> = HashMap::new();
             for (project, trace) in &deleted_traces {
@@ -1353,13 +1357,16 @@ impl TracePipeline {
             let repo = self.file_service.database().repository();
             for (project, trace_ids) in by_project {
                 if let Err(e) = repo.record_deleted_traces(project, &trace_ids).await {
-                    tracing::warn!(
+                    self.file_cache.invalidate_all();
+                    tracing::error!(
                         error = %e,
                         project,
                         traces = trace_ids.len(),
-                        "Could not tombstone the traces of a deleted session; their file associations may \
-                         hold quota until something else collects them"
+                        "Refusing the batch: could not tombstone the traces of a deleted session, and \
+                         dropping them untombstoned would leave any earlier writer's file associations \
+                         permanently unreclaimable"
                     );
+                    return Err(());
                 }
             }
         }

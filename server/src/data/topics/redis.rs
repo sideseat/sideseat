@@ -525,15 +525,44 @@ impl RedisTopicBackend {
                 min_idle_ms,
             );
         }
+        // Is the cursor holding a specific entry that is still owed?
+        //
+        // A cursor position alone cannot express a hold, because `XPENDING ... IDLE` *filters*. The sequence:
+        // replica P claims entry `U` and crashes, resetting `U`'s idle time; replica Q had scanned `U` but its
+        // `XCLAIM` omitted it, so Q holds the cursor at `U`. On the next pass `U` is still not idle enough, so
+        // the IDLE filter drops it from the page and the page holds only *later* eligible entries - and
+        // advancing past those steps over `U`. With continuously full pages ahead, `U` is never revisited and
+        // holds the trim boundary forever.
+        //
+        // So the hold is asked as a question about the entry rather than inferred from a position: is the id
+        // the cursor names still pending (at any idle time)? While it is, the cursor does not move, and this
+        // pass still claims whatever else the page offered. The hold clears as soon as `U` becomes claimable
+        // (idle enough to appear in the page and be resolved) or stops being pending because someone else
+        // acknowledged it - so it is bounded by `min_idle_ms`, not indefinite.
+        let held = match observed.as_deref() {
+            Some(cursor) if !scanned.iter().any(|(id, _)| id == cursor) => {
+                let still_pending = parse_pending(
+                    // IDLE 0 and a single-entry range: this asks only whether the id is still owed.
+                    scan_pending_page(conn, key, group, 0, cursor, 1).await?,
+                    0,
+                );
+                still_pending
+                    .first()
+                    .filter(|(id, _)| id == cursor)
+                    .and_then(|(id, _)| StreamId::parse(id))
+            }
+            _ => None,
+        };
+
         if scanned.is_empty() {
-            // Nothing eligible this pass. If we had rotated to a non-`-` start and found nothing, the wrap
-            // above already re-scanned from the front, so the cursor is best cleared for a clean next pass.
+            // Nothing eligible this pass. A held entry keeps the cursor where it is; otherwise the wrap above
+            // already re-scanned from the front, so the cursor is cleared for a clean next pass.
             return Ok((
                 vec![],
                 CursorAction {
                     key: cursor_key,
                     expected: observed,
-                    next: None,
+                    next: held,
                 },
             ));
         }
@@ -543,9 +572,13 @@ impl RedisTopicBackend {
         // `XCLAIM` never claimed, so under sustained growth (a full page arriving each rotation, so the scan
         // never reaches a short page) those entries were skipped forever. A short page means the list ended
         // here, so the next pass starts over from the front.
-        let next = match scanned.last().filter(|_| scanned.len() >= count) {
-            Some((last, _)) => StreamId::parse(last).map(StreamId::next),
-            None => None,
+        let next = match held {
+            // A held entry outranks the page's own advance: moving past the page would step over it.
+            Some(hold) => Some(hold),
+            None => match scanned.last().filter(|_| scanned.len() >= count) {
+                Some((last, _)) => StreamId::parse(last).map(StreamId::next),
+                None => None,
+            },
         };
         let action = CursorAction {
             key: cursor_key,
