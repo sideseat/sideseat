@@ -169,9 +169,8 @@ CREATE TABLE trace_files_v2 (
     project_id TEXT NOT NULL,
     file_hash TEXT NOT NULL,
     -- See the schema comment: two facts, not a boolean. `pending_writers` counts in-flight referencing
-    -- batches; `durable` is set once any commits. Legacy rows copied below default to (0, 0), which a
-    -- release leaves untouched - so they are kept until their trace is deleted, never swept from under a
-    -- committed span.
+    -- batches; `durable` is set once any commits. Legacy rows are copied below with `durable = 1` - they
+    -- are committed associations, and a fresh 0 would leave them one release away from deletion.
     pending_writers INTEGER NOT NULL DEFAULT 0,
     durable INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (project_id, trace_id, file_hash),

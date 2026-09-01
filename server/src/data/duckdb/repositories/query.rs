@@ -33,11 +33,15 @@ use crate::utils::time::{micros_to_datetime, parse_iso_timestamp};
 /// which backend served it, whenever an exporter re-sent a span with corrected usage - invisible to
 /// every test, because a retry normally carries an identical payload. A later delivery is also the
 /// better record: it is the one the exporter meant to leave behind.
-pub(crate) const DEDUP_SPANS: &str = "(SELECT s.* FROM otel_spans s \
-     INNER JOIN (SELECT project_id, trace_id, span_id, MAX(ingested_at) AS _mi \
-                 FROM otel_spans GROUP BY project_id, trace_id, span_id \
-     ) _d ON s.project_id = _d.project_id AND s.trace_id = _d.trace_id \
-     AND s.span_id = _d.span_id AND s.ingested_at = _d._mi)";
+///
+/// `QUALIFY ROW_NUMBER()`, not a join on `MAX(ingested_at)`: the join returned **every** row tied at the
+/// maximum, so two deliveries of one span landing in the same stored microsecond both survived and the span
+/// appeared twice - a duplicate, which is the one thing the feed must never produce. `ROW_NUMBER() … = 1`
+/// keeps exactly one row per span, which also matches ClickHouse's `LIMIT 1 BY`, so the two backends agree
+/// on a tie instead of one duplicating where the other does not.
+pub(crate) const DEDUP_SPANS: &str = "(SELECT * FROM otel_spans \
+     QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
+     ORDER BY ingested_at DESC) = 1)";
 
 /// [`DEDUP_SPANS`], with the latest delivery chosen *as of* a watermark.
 ///
@@ -47,15 +51,13 @@ pub(crate) const DEDUP_SPANS: &str = "(SELECT s.* FROM otel_spans s \
 /// rejected by the bound, the old one never selected. Bounding the *choice* instead means the traversal
 /// sees the version that existed when it started, which is the point of a watermark.
 ///
-/// The bound appears twice, so two binds are needed - see the call site, which prepends them.
+/// The bound appears **once** now (a single `?`), because `QUALIFY ROW_NUMBER()` chooses within the
+/// watermarked set in one pass - see [`DEDUP_SPANS`] for why the window function replaced the `MAX` join.
+/// The call site binds the watermark once.
 pub(crate) fn dedup_spans_as_of_watermark() -> &'static str {
-    "(SELECT s.* FROM otel_spans s \
-     INNER JOIN (SELECT project_id, trace_id, span_id, MAX(ingested_at) AS _mi \
-                 FROM otel_spans WHERE EPOCH_US(ingested_at) < ?::BIGINT \
-                 GROUP BY project_id, trace_id, span_id \
-     ) _d ON s.project_id = _d.project_id AND s.trace_id = _d.trace_id \
-     AND s.span_id = _d.span_id AND s.ingested_at = _d._mi \
-     WHERE EPOCH_US(s.ingested_at) < ?::BIGINT)"
+    "(SELECT * FROM otel_spans WHERE EPOCH_US(ingested_at) < ?::BIGINT \
+     QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
+     ORDER BY ingested_at DESC) = 1)"
 }
 
 /// Build span conditions with optional table alias.
@@ -813,7 +815,7 @@ pub fn get_feed_spans(
     let (dedup, watermark_binds) = match params.ingested_before_us {
         Some(watermark_us) => (
             dedup_spans_as_of_watermark(),
-            vec![watermark_us.to_string(), watermark_us.to_string()],
+            vec![watermark_us.to_string()],
         ),
         None => (DEDUP_SPANS, Vec::new()),
     };
@@ -1799,9 +1801,14 @@ pub fn get_session_ids_for_traces(
 
     let placeholders: Vec<&str> = trace_ids.iter().map(|_| "?").collect();
     let sql = format!(
-        "SELECT DISTINCT session_id FROM otel_spans WHERE project_id = ? AND trace_id IN ({}) \
+        // `DEDUP_SPANS`, not raw `otel_spans`: a re-delivery that changed a span's session leaves both
+        // versions in the append-only table, so reading raw returned the old session *and* the new one -
+        // while ClickHouse `FINAL` returns only the current one. Deduplicating first makes the two backends
+        // resolve the same current membership. See the ClickHouse twin.
+        "SELECT DISTINCT session_id FROM {DEDUP} WHERE project_id = ? AND trace_id IN ({}) \
          AND session_id IS NOT NULL AND session_id != ''",
-        placeholders.join(", ")
+        placeholders.join(", "),
+        DEDUP = DEDUP_SPANS
     );
     let mut stmt = conn.prepare(&sql)?;
 
@@ -1834,8 +1841,11 @@ pub fn get_trace_ids_for_sessions(
     let in_clause = placeholders.join(", ");
 
     let sql = format!(
-        "SELECT DISTINCT trace_id FROM otel_spans WHERE project_id = ? AND session_id IN ({})",
-        in_clause
+        // `DEDUP_SPANS`, matching the ClickHouse `FINAL` twin: resolve against each span's current version
+        // so a re-delivery that changed a span's session does not return a trace under its old session.
+        "SELECT DISTINCT trace_id FROM {DEDUP} WHERE project_id = ? AND session_id IN ({})",
+        in_clause,
+        DEDUP = DEDUP_SPANS
     );
     let mut stmt = conn.prepare(&sql)?;
 
