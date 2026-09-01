@@ -236,6 +236,21 @@ pub trait AnalyticsRepository: Send + Sync {
     /// mutations, and a project whose metrics outlived it is as unreachable as one whose spans did.
     async fn count_project_rows(&self, project_id: &str) -> Result<u64, DataError>;
 
+    /// The newest ingestion time the store has actually committed for a project, in microseconds.
+    ///
+    /// The feed's traversal watermark. It used to be `Utc::now()`, which is a statement about *this
+    /// process's clock* rather than about the store: a clock ahead of the store's excluded rows that were
+    /// already committed, and one behind it admitted rows the next page would read again. Asking the store
+    /// removes that entirely - the value is one it has, by definition.
+    ///
+    /// The residual, stated because it is not zero: a write whose `ingested_at` was stamped before this read
+    /// but which commits after it is below the watermark and appears on a later page. That window is the
+    /// duration of one write rather than an arbitrary clock difference, and closing it fully needs a
+    /// commit-ordered sequence that neither analytics backend provides.
+    ///
+    /// `None` when the project has no rows, in which case a traversal has nothing to bound.
+    async fn max_ingested_at_us(&self, project_id: &str) -> Result<Option<i64>, DataError>;
+
     /// Count spans grouped by project for a set of project IDs.
     /// Used for org/user-level span count aggregation.
     async fn count_spans_by_project(

@@ -327,6 +327,23 @@ impl AnalyticsRepository for Arc<ClickhouseService> {
             .map_err(Into::into)
     }
 
+    async fn max_ingested_at_us(&self, project_id: &str) -> Result<Option<i64>, DataError> {
+        // `FINAL` is unnecessary here: the question is the newest committed ingestion time, and a merge
+        // never removes the newest version of a row.
+        let value: Option<i64> = self
+            .client()
+            .query(
+                "SELECT max(toInt64(toUnixTimestamp64Micro(ingested_at))) FROM otel_spans \
+                 WHERE project_id = ?",
+            )
+            .bind(project_id)
+            .fetch_optional()
+            .await
+            .map_err(crate::data::clickhouse::ClickhouseError::from)?;
+        // ClickHouse answers `max()` over an empty set with 0 rather than null, which is a real instant.
+        Ok(value.filter(|v| *v > 0))
+    }
+
     async fn count_spans_by_project(
         &self,
         project_ids: &[String],

@@ -218,10 +218,22 @@ pub async fn get_feed_messages(
     // One watermark, applied to both the page query and the context load, makes a traversal a view of one
     // instant. A cursor from before the watermark existed carries none, and keeps the old behaviour rather
     // than failing mid-traversal across an upgrade.
-    let watermark_us = decoded
-        .as_ref()
-        .and_then(|c| c.watermark_us)
-        .unwrap_or_else(|| Utc::now().timestamp_micros());
+    //
+    // Taken from the **store**, not from this process's clock. `Utc::now()` is a statement about the
+    // reader's clock: ahead of the store's it excluded rows already committed, behind it admitted rows the
+    // next page would read again. `max_ingested_at_us` is a value the store has by definition. The residual
+    // is stated on that method - a write stamped before the read but committing after it is below the
+    // watermark - and it is the duration of one write rather than an arbitrary clock difference.
+    let repo = state.analytics.repository();
+    let watermark_us = match decoded.as_ref().and_then(|c| c.watermark_us) {
+        Some(carried) => carried,
+        None => repo
+            .max_ingested_at_us(&project_id)
+            .await
+            .map_err(ApiError::from_data)?
+            // An empty project has nothing to bound, and a watermark of zero would match nothing at all.
+            .map_or(i64::MAX, |newest| newest + 1),
+    };
     let cursor = decoded.map(|c| c.position);
 
     // Query limit + 1 to detect has_more
@@ -237,7 +249,6 @@ pub async fn get_feed_messages(
     };
 
     // Fetch raw span rows
-    let repo = state.analytics.repository();
     let result = repo
         .get_project_messages(&params)
         .await
@@ -266,11 +277,15 @@ pub async fn get_feed_messages(
     // longer depends on where the page boundary fell. Blocks are then kept only for the spans the
     // page actually holds, the way the trace view scopes a session-loaded feed back to one trace.
     //
-    // What remains page-local, and cannot be otherwise on a cursor-paginated endpoint: a replay that
-    // crosses *traces* within a session is only recognised when both traces are on the page, and
-    // pages are selected by ingestion time while each is ordered by message time, so concatenating
-    // them is not guaranteed to be globally ordered. The trace and session views, which are where a
-    // conversation is actually read, load their whole session for that reason.
+    // The context is widened to whole *sessions* below, not just whole traces, so a replay crossing traces
+    // within a session is recognised wherever the page boundary falls.
+    //
+    // What remains, and cannot be otherwise on a cursor-paginated endpoint: pages are selected by
+    // *ingestion* time while each page's messages are ordered by *message* time, because the ordering key
+    // is computed by the pipeline and does not exist in SQL to page by. So each page is a correct window
+    // and concatenating pages is not a globally ordered transcript - which is what `session_scoped` in the
+    // response metadata says out loud, rather than leaving a client to assume otherwise. The trace and
+    // session views are where a conversation is read in order.
     // An empty page loads nothing. `trace_ids` empty means "selector unused" to the message
     // queries, so passing it on would ask for the whole project with no content filter - a future
     // time window or an exhausted cursor turning into an unbounded read.
@@ -288,6 +303,9 @@ pub async fn get_feed_messages(
                 span_count: 0,
                 total_tokens: 0,
                 total_cost: 0.0,
+                // An empty page touched no session, so it saw all of every session it touched.
+                session_scoped: true,
+                pages_are_globally_ordered: false,
             },
             tool_definitions: Vec::new(),
             tool_names: Vec::new(),
@@ -317,7 +335,32 @@ pub async fn get_feed_messages(
     // scopes them the same way when it loads a whole session.
     let page_tools = extract_tools_from_rows(spans.iter());
 
+    // Whole *sessions*, not merely whole traces.
+    //
+    // Loading each page trace in full stopped a trace split across two pages from being reconstructed
+    // twice. It did not stop a replay that crosses traces *within* a session: a later trace re-sending an
+    // earlier one's turn is recognised only when both are in the pipeline's input, so with the two on
+    // different pages both returned the turn. Resolving the page's traces to their sessions and loading
+    // every trace of those sessions is what the trace view already does, and for the same reason.
+    //
+    // A page whose spans have no session id contributes only its own traces - there is nothing wider to
+    // load, and a session-less trace cannot be part of a cross-trace replay.
+    let mut session_ids: Vec<String> = spans
+        .iter()
+        .filter_map(|s| s.session_id.clone())
+        .filter(|id| !id.is_empty())
+        .collect();
+    session_ids.sort();
+    session_ids.dedup();
+
     let mut trace_ids: Vec<String> = spans.iter().map(|s| s.trace_id.clone()).collect();
+    if !session_ids.is_empty() {
+        let session_traces = repo
+            .get_trace_ids_for_sessions(&project_id, &session_ids)
+            .await
+            .map_err(ApiError::from_data)?;
+        trace_ids.extend(session_traces);
+    }
     trace_ids.sort();
     trace_ids.dedup();
 
@@ -376,6 +419,14 @@ pub async fn get_feed_messages(
         span_count: page_span_count,
         total_tokens: page_tokens,
         total_cost: page_cost,
+        // True unless a contributing span carried no session id, in which case there was nothing wider to
+        // load for it. A caller reasoning about completeness should be told which case it got.
+        session_scoped: spans
+            .iter()
+            .all(|s| s.session_id.as_deref().is_some_and(|id| !id.is_empty())),
+        // Always false, and said out loud: pages are selected by ingestion time while their messages are
+        // ordered by message time.
+        pages_are_globally_ordered: false,
     };
 
     // Build response
@@ -436,14 +487,19 @@ pub async fn get_feed_spans(
     let is_observation = query.is_observation;
     let include_raw_span = query.include_raw_span.unwrap_or(false);
 
-    // The same traversal watermark the message feed uses. This endpoint returns raw spans rather than a
-    // reconstruction, so there is no context load to keep consistent - but a span ingested mid-traversal
-    // still shifts every subsequent page's boundary, and a client concatenating pages would see one twice
-    // or not at all.
-    let watermark_us = decoded
-        .as_ref()
-        .and_then(|c| c.watermark_us)
-        .unwrap_or_else(|| Utc::now().timestamp_micros());
+    // The same traversal watermark the message feed uses, and taken from the store for the same reason.
+    // This endpoint returns raw spans rather than a reconstruction, so there is no context load to keep
+    // consistent - but a span ingested mid-traversal still shifts every subsequent page's boundary, and a
+    // client concatenating pages would see one twice or not at all.
+    let repo = state.analytics.repository();
+    let watermark_us = match decoded.as_ref().and_then(|c| c.watermark_us) {
+        Some(carried) => carried,
+        None => repo
+            .max_ingested_at_us(&project_id)
+            .await
+            .map_err(ApiError::from_data)?
+            .map_or(i64::MAX, |newest| newest + 1),
+    };
     let cursor = decoded.map(|c| c.position);
 
     // Query limit + 1 to detect has_more
@@ -461,7 +517,6 @@ pub async fn get_feed_spans(
     };
 
     // Fetch spans with cursor applied in SQL
-    let repo = state.analytics.repository();
     let mut spans = repo
         .get_feed_spans(&params)
         .await

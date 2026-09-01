@@ -96,12 +96,24 @@ pub fn get_messages(
         conditions.push("timestamp_start < ?".to_string());
         bind_values.push(to.format("%Y-%m-%d %H:%M:%S%.6f").to_string());
     }
-    // The feed's traversal watermark - see `MessageQueryParams::ingested_before_us`. Only the feed's
-    // context load sets it; the span, trace and session views are not paginated and read what is there.
-    if let Some(watermark_us) = params.ingested_before_us {
-        conditions.push("EPOCH_US(ingested_at) < ?::BIGINT".to_string());
-        bind_values.push(watermark_us.to_string());
-    }
+    // The feed's traversal watermark is applied *inside* the deduplication, below - not as a condition
+    // here. Bounding the dedup's *result* rather than its *choice* makes a span re-delivered during the
+    // traversal vanish entirely: the newest row is rejected and the older one was never selected. The page
+    // query learned that first; this is the context load beside it, and the two have to agree about what
+    // exists or a page can select a span whose context holds no version of it.
+    let (dedup, watermark_binds) = match params.ingested_before_us {
+        Some(watermark_us) => (
+            crate::data::duckdb::repositories::query::dedup_spans_as_of_watermark(),
+            vec![watermark_us.to_string(), watermark_us.to_string()],
+        ),
+        None => (DEDUP_SPANS, Vec::new()),
+    };
+    // The dedup's binds come first: its subquery is at the head of the FROM.
+    let bind_values = {
+        let mut all = watermark_binds;
+        all.extend(bind_values);
+        all
+    };
 
     let sql = format!(
         // Deduplicated, like every other read: this query fed the pipeline *both* copies of a
@@ -116,9 +128,8 @@ pub fn get_messages(
         // the order of tied rows is whatever the engine returns. Reconstruction reads first-seen order
         // to decide which trace strips its history against which, so an undefined tie there is an
         // undefined answer.
-        "SELECT {MESSAGE_SELECT_COLUMNS} FROM {DEDUP_SPANS} WHERE {} ORDER BY timestamp_start ASC, trace_id ASC, span_id ASC",
+        "SELECT {MESSAGE_SELECT_COLUMNS} FROM {dedup} WHERE {} ORDER BY timestamp_start ASC, trace_id ASC, span_id ASC",
         conditions.join(" AND "),
-        DEDUP_SPANS = DEDUP_SPANS
     );
 
     let mut stmt = conn.prepare(&sql)?;

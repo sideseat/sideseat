@@ -3000,4 +3000,28 @@ async fn a_span_redelivered_during_a_traversal_still_appears_in_it() {
         "and the version served is the one that existed at the watermark, not the later correction: {}",
         page.rows[0].messages_json
     );
+
+    // And the *reconstruction context* the endpoint loads next must agree with the page. Bounded outside
+    // its own dedup, this query returned nothing for a span the page had selected - so the page held a span
+    // whose context contained no version of it, and reconstruction saw a fragment of a trace it was told to
+    // treat as whole.
+    let context = duck
+        .get_messages(&MessageQueryParams {
+            project_id: PROJECT.to_string(),
+            trace_ids: Some(vec!["trace-redeliver".to_string()]),
+            ingested_before_us: Some(watermark_us),
+            ..Default::default()
+        })
+        .await
+        .expect("bounded context load");
+    let context_ids: Vec<&str> = context.rows.iter().map(|r| r.span_id.as_str()).collect();
+    assert_eq!(
+        context_ids, ids,
+        "the context load and the page query must see the same spans at one watermark"
+    );
+    assert!(
+        context.rows[0].messages_json.contains("first"),
+        "and the same version of each: {}",
+        context.rows[0].messages_json
+    );
 }
