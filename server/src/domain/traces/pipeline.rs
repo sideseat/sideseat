@@ -282,14 +282,28 @@ impl TracePipeline {
                             // acknowledged, a restart was met by the same message. Nothing can store a
                             // payload it cannot decode, so the choice is between discarding one message
                             // loudly and blocking every message behind it silently.
-                            Err(TopicError::Undecodable { id, detail }) => {
-                                tracing::error!(
-                                    message_id = %id,
-                                    error = %detail,
-                                    "Discarding a queued payload that cannot be decoded"
-                                );
-                                if let Err(e) = acker.ack(&id).await {
-                                    tracing::warn!(message_id = %id, error = %e, "Could not acknowledge an undecodable payload");
+                            Err(TopicError::Undecodable { id, detail, raw }) => {
+                                // Preserve the accepted bytes on the dead-letter stream before acking. The
+                                // entry decoded as a stream structure but not as a trace export - a corrupt
+                                // or version-incompatible protobuf - so `stream_claim`'s structural
+                                // dead-lettering never saw it, and a bare ack would silently lose bytes
+                                // answered 200. Ack only if the payload is safely preserved.
+                                match acker.dead_letter(&id, "invalid_protobuf", &raw).await {
+                                    Ok(()) => {
+                                        tracing::error!(
+                                            message_id = %id,
+                                            error = %detail,
+                                            "Dead-lettered a queued payload that cannot be decoded"
+                                        );
+                                        if let Err(e) = acker.ack(&id).await {
+                                            tracing::warn!(message_id = %id, error = %e, "Could not acknowledge a dead-lettered payload");
+                                        }
+                                    }
+                                    Err(e) => tracing::error!(
+                                        message_id = %id,
+                                        error = %e,
+                                        "Could not preserve an undecodable payload on the dead-letter stream; leaving it pending rather than discarding it"
+                                    ),
                                 }
                                 continue;
                             }
@@ -378,10 +392,24 @@ impl TracePipeline {
                             }
                         }
                         Err(e) => {
-                            tracing::error!(error = %e, msg_id = %msg.id, "Failed to decode claimed message, acking to discard");
-                            // Ack anyway to prevent infinite retry loop
-                            if let Err(ack_err) = acker.ack(&msg.id).await {
-                                tracing::warn!(error = %ack_err, msg_id = %msg.id, "Failed to ack invalid message");
+                            // Preserve the bytes on the dead-letter stream, then ack. A claimed entry that
+                            // cannot be decoded was answered 200 when queued, so discarding it silently loses
+                            // accepted data; ack only once it is safely dead-lettered, or leave it pending.
+                            match acker
+                                .dead_letter(&msg.id, "invalid_protobuf", &msg.payload)
+                                .await
+                            {
+                                Ok(()) => {
+                                    tracing::error!(error = %e, msg_id = %msg.id, "Dead-lettered an undecodable claimed message");
+                                    if let Err(ack_err) = acker.ack(&msg.id).await {
+                                        tracing::warn!(error = %ack_err, msg_id = %msg.id, "Failed to ack a dead-lettered message");
+                                    }
+                                }
+                                Err(dl_err) => tracing::error!(
+                                    error = %dl_err,
+                                    msg_id = %msg.id,
+                                    "Could not preserve an undecodable claimed message on the dead-letter stream; leaving it pending"
+                                ),
                             }
                         }
                     }

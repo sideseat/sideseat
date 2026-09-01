@@ -89,12 +89,6 @@ const DEFAULT_BROADCAST_CAPACITY: usize = 10_000;
 /// mechanism that actually addresses it.
 const CHRONIC_DELIVERY_REPORT: i64 = 10;
 
-/// How many pending entries one recovery pass examines per requested claim.
-///
-/// The window has to be wider than what is claimed, or preferring fresher entries cannot see past the
-/// stale ones - and narrow enough that a pass over a large pending list stays bounded.
-const PENDING_SCAN_FACTOR: usize = 8;
-
 /// How long a publish waits for replica acknowledgement before reporting a shortfall.
 ///
 /// Bounded, because an unbounded wait turns a lagging replica into a stalled ingestion path - and the
@@ -465,10 +459,18 @@ impl RedisTopicBackend {
             .get(&cursor_key)
             .map(|c| c.to_string())
             .unwrap_or_else(|| "-".to_string());
-        let window = count.saturating_mul(PENDING_SCAN_FACTOR).max(count);
-
+        // Scan exactly what will be claimed, never more.
+        //
+        // An earlier design scanned `count * 8`, sorted by delivery count to prefer fresh work, claimed
+        // `count`, then advanced the cursor past the *whole* scanned window - so `count * 7` eligible
+        // entries were examined and skipped. Under sustained backlog growth a full window kept arriving past
+        // the cursor, so it never wrapped and those skipped entries were never reconsidered: starvation by
+        // another route. Scanning exactly `count` and advancing past exactly what was scanned means no
+        // eligible entry is ever passed over within a pass, and rotation guarantees every entry is reached
+        // within `pending / count` passes. That makes the delivery-count sort unnecessary - rotation alone
+        // bounds how long any entry, chronic or fresh, waits - so it is gone, and with it the skip it caused.
         let mut scanned = parse_pending(
-            scan_pending_page(conn, key, group, min_idle_ms, &start, window).await?,
+            scan_pending_page(conn, key, group, min_idle_ms, &start, count).await?,
             min_idle_ms,
         );
         // Wrap. A rotated start that lands past the end of the list would otherwise return nothing and
@@ -476,7 +478,7 @@ impl RedisTopicBackend {
         if scanned.is_empty() && start != "-" {
             self.pending_scan_cursor.remove(&cursor_key);
             scanned = parse_pending(
-                scan_pending_page(conn, key, group, min_idle_ms, "-", window).await?,
+                scan_pending_page(conn, key, group, min_idle_ms, "-", count).await?,
                 min_idle_ms,
             );
         }
@@ -484,9 +486,9 @@ impl RedisTopicBackend {
             return Ok(vec![]);
         }
 
-        // Advance the cursor past what was examined, so the next pass sees what lies beyond it. A short
-        // page means the list ended here, so the next pass starts over.
-        match scanned.last().filter(|_| scanned.len() >= window) {
+        // Advance the cursor past the last entry scanned, so the next pass sees what lies beyond it. A short
+        // page means the list ended here, so the next pass starts over from the front.
+        match scanned.last().filter(|_| scanned.len() >= count) {
             Some((last, _)) => match StreamId::parse(last) {
                 Some(id) => {
                     self.pending_scan_cursor.insert(cursor_key, id.next());
@@ -507,16 +509,12 @@ impl RedisTopicBackend {
                     group,
                     message_id = %id,
                     deliveries,
-                    "A queued payload has failed every delivery so far and is being retried behind fresher \
-                     work; it is kept, not discarded - investigate why processing fails for it"
+                    "A queued payload has failed every delivery so far and keeps being retried once per \
+                     rotation; it is kept, not discarded - investigate why processing fails for it"
                 );
             }
         }
 
-        // Fewest deliveries first, oldest first within a tie: a deterministic order, and one that spends
-        // the window on work that has not already been shown to fail.
-        scanned.sort_by(|(a_id, a_n), (b_id, b_n)| a_n.cmp(b_n).then_with(|| a_id.cmp(b_id)));
-        scanned.truncate(count);
         Ok(scanned.into_iter().map(|(id, _)| id).collect())
     }
 
@@ -540,7 +538,8 @@ impl RedisTopicBackend {
         key: &str,
         group: &str,
         id: &str,
-        raw: Option<&RedisValue>,
+        reason: &str,
+        raw: &[u8],
     ) -> Result<(), TopicError> {
         let dead_key = format!("{key}:dead");
         let mut cmd = deadpool_redis::redis::cmd("XADD");
@@ -551,12 +550,9 @@ impl RedisTopicBackend {
             .arg("group")
             .arg(group)
             .arg("reason")
-            .arg("unreadable_payload")
+            .arg(reason)
             .arg("raw")
-            .arg(match raw {
-                Some(value) => format!("{value:?}"),
-                None => String::from("<absent>"),
-            });
+            .arg(raw);
         cmd.query_async::<RedisValue>(conn).await?;
         Ok(())
     }
@@ -1088,6 +1084,20 @@ impl TopicBackend for RedisTopicBackend {
         Ok(())
     }
 
+    async fn stream_dead_letter(
+        &self,
+        topic: &str,
+        group: &str,
+        id: &str,
+        reason: &str,
+        payload: &[u8],
+    ) -> Result<(), TopicError> {
+        let key = self.stream_key(topic);
+        let mut conn = self.pool.get().await?;
+        self.dead_letter(&mut conn, &key, group, id, reason, payload)
+            .await
+    }
+
     async fn stream_ack_batch(
         &self,
         topic: &str,
@@ -1163,8 +1173,16 @@ impl TopicBackend for RedisTopicBackend {
                 match (id, payload) {
                     (Some(id), Some(payload)) => messages.push(StreamMessage { id, payload }),
                     (Some(id), None) => {
+                        let raw = format!("{:?}", parts.get(1));
                         match self
-                            .dead_letter(&mut conn, &key, group, &id, parts.get(1))
+                            .dead_letter(
+                                &mut conn,
+                                &key,
+                                group,
+                                &id,
+                                "unreadable_payload",
+                                raw.as_bytes(),
+                            )
                             .await
                         {
                             Ok(()) => {

@@ -759,3 +759,47 @@ async fn a_required_replica_ack_is_refused_without_a_replica() {
         ),
     }
 }
+
+/// `stream_dead_letter` preserves a payload on `<stream>:dead` for the caller to ack afterward.
+///
+/// This is the path the pipeline uses for a payload that decoded as a stream entry but not as the trace
+/// export it should be - a corrupt or version-incompatible protobuf. `stream_claim`'s structural
+/// dead-lettering never sees it (the entry's fields are readable), so without this the accepted bytes would
+/// be acked away silently.
+#[tokio::test]
+async fn a_decodable_but_invalid_payload_can_be_dead_lettered() {
+    let Some((backend, topic)) = backend("dead-invalid").await else {
+        return;
+    };
+    let group = "traces";
+    backend
+        .ensure_group_for_test(&topic, group)
+        .await
+        .expect("group");
+
+    let id = backend
+        .stream_publish(&topic, b"not-a-valid-protobuf")
+        .await
+        .expect("publish");
+
+    backend
+        .stream_dead_letter(
+            &topic,
+            group,
+            &id,
+            "invalid_protobuf",
+            b"not-a-valid-protobuf",
+        )
+        .await
+        .expect("dead-letter the payload");
+
+    let dead = backend
+        .dead_letter_entries_for_test(&topic)
+        .await
+        .expect("read dead-letter stream");
+    assert!(
+        dead.iter().any(|e| e.contains("invalid_protobuf")),
+        "the payload must be preserved with its reason on the dead-letter stream: {dead:?}"
+    );
+    let _ = id;
+}

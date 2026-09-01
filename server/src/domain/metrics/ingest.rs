@@ -101,6 +101,30 @@ pub async fn ingest(
     // TTL removed it, after the export was answered 200. DuckDB kept the same datapoint at its stated time,
     // so the two backends also disagreed about one export. Reported through `Stored`, which the OTLP
     // response turns into `rejected_data_points`: an exporter with a bad clock can then see it.
+    // An out-of-range *exemplar* timestamp drops the exemplar, not the datapoint. The exemplar is an
+    // auxiliary debugging sample; refusing a real measurement because its exemplar has a bad clock would be
+    // wrong, and storing the exemplar's timestamp unvalidated diverged the backends - DuckDB kept year 3000
+    // while ClickHouse clamped it (and, before the clamp, mis-stored it). Cleared here, backend-agnostically,
+    // so neither store ever sees an unstorable exemplar instant. The measurement survives.
+    let mut exemplars_dropped = 0usize;
+    for m in metrics.iter_mut() {
+        if m.exemplar_timestamp.is_some_and(|ts| !is_storable(ts)) {
+            m.exemplar_trace_id = None;
+            m.exemplar_span_id = None;
+            m.exemplar_value_int = None;
+            m.exemplar_value_double = None;
+            m.exemplar_timestamp = None;
+            m.exemplar_attributes = serde_json::Value::Null;
+            exemplars_dropped += 1;
+        }
+    }
+    if exemplars_dropped > 0 {
+        tracing::warn!(
+            exemplars_dropped,
+            "Dropped exemplars whose timestamp is outside the storable range; the measurements were kept"
+        );
+    }
+
     let before = metrics.len();
     metrics.retain(|m| {
         let ok = is_storable(m.timestamp) && m.start_timestamp.map(is_storable).unwrap_or(true);
