@@ -96,6 +96,12 @@ pub fn get_messages(
         conditions.push("timestamp_start < ?".to_string());
         bind_values.push(to.format("%Y-%m-%d %H:%M:%S%.6f").to_string());
     }
+    // The feed's traversal watermark - see `MessageQueryParams::ingested_before_us`. Only the feed's
+    // context load sets it; the span, trace and session views are not paginated and read what is there.
+    if let Some(watermark_us) = params.ingested_before_us {
+        conditions.push("EPOCH_US(ingested_at) < ?::BIGINT".to_string());
+        bind_values.push(watermark_us.to_string());
+    }
 
     let sql = format!(
         // Deduplicated, like every other read: this query fed the pipeline *both* copies of a
@@ -149,6 +155,19 @@ pub fn get_project_messages(
         bind_values.push(cursor_time_us.to_string());
         bind_values.push(cursor_span_id.clone());
         bind_values.push(cursor_trace_id.clone());
+    }
+
+    // The traversal watermark, in the ingestion dimension the pages are ordered by.
+    //
+    // A page is chosen by ingestion time, so without an upper bound on it a span ingested *during* the
+    // traversal appears on a later page - and may already have been read into an earlier page's
+    // reconstruction context, where it can win deduplication against a span still to be paged. That span
+    // is then suppressed as a duplicate and the winner is scoped off the page it was not selected for, so
+    // neither is ever returned. Bounding both by the same watermark makes a traversal a view of one
+    // instant.
+    if let Some(watermark_us) = params.ingested_before_us {
+        conditions.push("EPOCH_US(ingested_at) < ?::BIGINT".to_string());
+        bind_values.push(watermark_us.to_string());
     }
 
     // Event time filters.

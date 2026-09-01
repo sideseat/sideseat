@@ -241,6 +241,12 @@ pub struct FeedMessagesParams {
     pub start_time: Option<DateTime<Utc>>,
     /// Filter by event time < end_time
     pub end_time: Option<DateTime<Utc>>,
+    /// Ignore spans ingested at or after this instant, in microseconds since the epoch.
+    ///
+    /// The traversal watermark, established on the first page and carried by the cursor, so a page and the
+    /// reconstruction context loaded around it describe the same instant. See
+    /// [`MessageQueryParams::ingested_before_us`] for the sequence that made a span vanish from every page.
+    pub ingested_before_us: Option<i64>,
 }
 
 /// Unified parameters for message queries (trace, span, or session).
@@ -263,6 +269,18 @@ pub struct MessageQueryParams {
     pub trace_ids: Option<Vec<String>>,
     pub from_timestamp: Option<DateTime<Utc>>,
     pub to_timestamp: Option<DateTime<Utc>>,
+    /// Ignore rows ingested at or after this instant, in microseconds since the epoch.
+    ///
+    /// The project feed's traversal watermark. A page is chosen by ingestion time, but the
+    /// *reconstruction context* loaded around it was unbounded in that dimension - so a span ingested
+    /// after the traversal began could enter the context, win deduplication against a span still to be
+    /// paged, and then be scoped off the page it was not selected for. Neither copy was ever returned:
+    /// the older one suppressed, the newer one filtered out.
+    ///
+    /// Bounding the context by the same watermark that bounds page selection makes a traversal a view of
+    /// one instant. Only the feed sets it; the span, trace and session views are not paginated and read
+    /// whatever is there.
+    pub ingested_before_us: Option<i64>,
 }
 
 #[cfg(test)]

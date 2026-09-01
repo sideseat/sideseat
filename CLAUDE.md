@@ -773,6 +773,15 @@ persists in DuckDB.
 
 **Message views all use `process_spans`**: the span, trace and session endpoints differ only in their row set, not their pipeline. `process_feed` (DESC, newest-first) belongs to the **project feed** endpoint (`routes/otel/feed.rs`) — using it for a session view produces ordering no session request can return.
 
+**A feed traversal is a view of one instant** (`ingested_before_us`). Pages are chosen by ingestion time,
+and the reconstruction context loaded around each page used to be unbounded in that dimension - so a span
+ingested *during* a traversal could enter an earlier page's context, win deduplication against a span still
+to be paged, and then be scoped off the page it was not selected for. The older copy was suppressed as a
+duplicate and the newer one never returned: a message absent from every page of that traversal. The cursor
+now carries a **watermark**, established on the first page, and it bounds both the page query and the
+context load. A cursor issued before the watermark existed carries none and keeps the old behaviour, so a
+traversal in flight across an upgrade completes rather than failing on its next page.
+
 The project feed pages by cursor but does **not** reconstruct page-locally: it takes the page's spans, loads every trace they name in full (`MessageQueryParams::trace_ids`), reconstructs, then keeps the blocks whose span is on the page (`scope_feed_to_page`). Otherwise a trace split across two pages was reconstructed twice from half its spans each time, and the turn each generation span re-sends had nothing to collapse against, so both pages returned it. Page totals come from the page's own rows, because the pipeline now sees more than the page shows. Still page-local by nature: a replay crossing *traces* within a session is recognised only when both traces are on the page, and pages are chosen by ingestion time while each is ordered by message time, so concatenating pages is not globally ordered.
 
 A `start_time`/`end_time` window on the feed selects spans that **overlap** it — lower bound on the span's end, upper bound on its start — and then `apply_time_window` filters the reconstructed messages. Both halves are needed: a completed response carries its span's *end* time, so bounding rows by the start alone dropped a span that finished inside the window, and skipping the message-level filter returned a span that started inside it and finished after. A page whose messages are all filtered out still reports `has_more` and a cursor, because both describe the row page rather than the answer.
