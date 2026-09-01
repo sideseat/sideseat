@@ -863,32 +863,50 @@ impl TopicBackend for RedisTopicBackend {
             .arg(&key);
         let (id, length): (String, u64) = pipe.query_async(&mut conn).await?;
 
-        // Replication acknowledgement, when the deployment has replicas to lose.
+        // Record the backlog now, from the length the XADD already returned - before the durability wait,
+        // which can fail. The entry is in the stream whether or not replicas confirm it (a failed wait is a
+        // 503 the exporter retries, and the retry appends again; idempotency is at the span level, on the
+        // analytics write). Recording it only after a successful wait meant a wait failure left the fast
+        // path reading a stale, lower backlog, so the refusal threshold undercounted exactly when the
+        // system was already struggling.
+        let was_over = length >= self.max_backlog();
+        self.observed_backlog.insert(key.clone(), length);
+
+        // Durability across a failover, when the deployment has replicas to lose.
         //
-        // `appendfsync always` makes this entry survive the loss of *this host*. It says nothing about a
-        // failover: a replica promoted before it received the entry serves a keyspace without it, and the
-        // exporter was told 200 long ago. `WAIT` blocks until enough replicas confirm, and a shortfall is
-        // reported as a failure so the OTLP route answers 503 and the data stays with the exporter.
+        // `WAITAOF`, not `WAIT`. `WAIT` blocks until N replicas have the entry *in memory*, which is not the
+        // guarantee being bought here: a replica that received the write but had not yet fsynced it, then
+        // promoted after a crash, serves a keyspace without the entry - and the exporter was told 200 long
+        // ago. `WAITAOF numlocal numreplicas` blocks until the append-only file has been fsynced locally and
+        // on that many replicas, which is the actual "survives a failover" property. It requires
+        // `appendonly yes`, which the startup durability probe already enforces.
+        //
+        // `numlocal = 1` is confirmed too, not assumed: `appendfsync always` makes it true, but confirming
+        // it costs nothing on top of the round trip already being paid and turns a silent misconfiguration
+        // into a refusal. A shortfall on either count is reported so the OTLP route answers 503 and the data
+        // stays with the exporter.
         if self.min_replica_acks > 0 {
-            let acked: i64 = deadpool_redis::redis::cmd("WAIT")
+            let acked: Vec<i64> = deadpool_redis::redis::cmd("WAITAOF")
+                .arg(1)
                 .arg(self.min_replica_acks)
                 .arg(REPLICA_ACK_TIMEOUT_MS)
                 .query_async(&mut conn)
                 .await
                 .map_err(|e| {
-                    TopicError::Stream(format!("WAIT for replica acknowledgement failed: {e}"))
+                    TopicError::Stream(format!("WAITAOF for durable acknowledgement failed: {e}"))
                 })?;
-            if (acked as u32) < self.min_replica_acks {
+            // `[numlocal, numreplicas]`.
+            let local = acked.first().copied().unwrap_or(0);
+            let replicas = acked.get(1).copied().unwrap_or(0);
+            if local < 1 || (replicas as u32) < self.min_replica_acks {
                 return Err(TopicError::Stream(format!(
-                    "only {acked} of {} replicas acknowledged a queued trace within {}ms; refusing to \
-                     report it as stored",
+                    "a queued trace was fsynced locally={local} and on {replicas} of {} replicas within \
+                     {}ms; refusing to report it as durably stored",
                     self.min_replica_acks, REPLICA_ACK_TIMEOUT_MS
                 )));
             }
         }
 
-        let was_over = length >= self.max_backlog();
-        self.observed_backlog.insert(key.clone(), length);
         if was_over {
             tracing::warn!(
                 stream = %key,
