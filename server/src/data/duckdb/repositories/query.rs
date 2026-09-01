@@ -1770,6 +1770,40 @@ pub fn delete_traces(
 }
 
 /// Get trace_ids for given session_ids
+/// The distinct sessions the given traces belong to.
+pub fn get_session_ids_for_traces(
+    conn: &Connection,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<Vec<String>, DuckdbError> {
+    if trace_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let placeholders: Vec<&str> = trace_ids.iter().map(|_| "?").collect();
+    let sql = format!(
+        "SELECT DISTINCT session_id FROM otel_spans WHERE project_id = ? AND trace_id IN ({}) \
+         AND session_id IS NOT NULL AND session_id != ''",
+        placeholders.join(", ")
+    );
+    let mut stmt = conn.prepare(&sql)?;
+
+    let mut all_params: Vec<String> = Vec::with_capacity(1 + trace_ids.len());
+    all_params.push(project_id.to_string());
+    all_params.extend(trace_ids.iter().cloned());
+    let params: Vec<&dyn duckdb::ToSql> =
+        all_params.iter().map(|v| v as &dyn duckdb::ToSql).collect();
+    let mut rows = stmt.query(params.as_slice())?;
+
+    let mut session_ids: Vec<String> = vec![];
+    while let Some(row) = rows.next()? {
+        session_ids.push(row.get(0)?);
+    }
+    session_ids.sort();
+    session_ids.dedup();
+    Ok(session_ids)
+}
+
 pub fn get_trace_ids_for_sessions(
     conn: &Connection,
     project_id: &str,

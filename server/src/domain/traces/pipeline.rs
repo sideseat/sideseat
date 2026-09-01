@@ -1186,22 +1186,22 @@ impl TracePipeline {
         if deleted.is_empty() {
             return Ok(0);
         }
+
+        let deleted_traces = traces_of_sessions(spans, &deleted);
         let before = spans.len();
         spans.retain(|s| {
-            let Some(session_id) = s.session_id.as_deref().filter(|v| !v.is_empty()) else {
-                return true;
-            };
-            !deleted.contains(&(
+            !deleted_traces.contains(&(
                 s.project_id
                     .as_deref()
                     .unwrap_or(DEFAULT_PROJECT_ID)
                     .to_string(),
-                session_id.to_string(),
+                s.trace_id.clone(),
             ))
         });
         tracing::warn!(
             dropped = before - spans.len(),
             sessions = deleted.len(),
+            traces = deleted_traces.len(),
             "Dropped spans for sessions that have been deleted"
         );
         Ok(before - spans.len())
@@ -1628,4 +1628,103 @@ fn process_request(
     );
 
     Some((db_spans, pending_files, incoming_references))
+}
+
+/// Which `(project, trace)` pairs in this batch belong to one of `sessions`.
+///
+/// Session membership is a property of the **trace**, not of each span, and this is the whole reason the
+/// function exists separately: a framework records the session id on the span that knows it - usually the
+/// root alone - so filtering spans by their own session id kept every child of a deleted session's trace.
+/// What reached the store was a headless trace, readable through the trace and span views, for a session the
+/// caller had been told was gone.
+///
+/// A batch carrying only children of an unseen root names no session at all, so nothing here can attribute
+/// it. That case is covered by the trace tombstones (for traces the deletion resolved) and by the deletion
+/// sweep (for anything that arrives later) - the two other steps of the four-step protocol.
+fn traces_of_sessions(
+    spans: &[NormalizedSpan],
+    sessions: &HashSet<(String, String)>,
+) -> HashSet<(String, String)> {
+    let mut traces = HashSet::new();
+    for span in spans {
+        let Some(session_id) = span.session_id.as_deref().filter(|v| !v.is_empty()) else {
+            continue;
+        };
+        let project = span.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID);
+        if sessions.contains(&(project.to_string(), session_id.to_string())) {
+            traces.insert((project.to_string(), span.trace_id.clone()));
+        }
+    }
+    traces
+}
+
+#[cfg(test)]
+mod session_fence_tests {
+    use super::*;
+
+    fn span(project: &str, trace: &str, id: &str, session: Option<&str>) -> NormalizedSpan {
+        NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: trace.to_string(),
+            span_id: id.to_string(),
+            session_id: session.map(str::to_string),
+            ..Default::default()
+        }
+    }
+
+    /// A deleted session takes its trace's *whole* set of spans, not only the ones naming it.
+    ///
+    /// The shape that matters, and the one every framework produces: the session id sits on the root and on
+    /// nothing else. Matching per span therefore dropped the root and kept the children, which recreated a
+    /// deleted session's trace minus its head.
+    #[test]
+    fn a_deleted_session_takes_the_children_that_do_not_name_it() {
+        let spans = vec![
+            span("p", "t1", "root", Some("s1")),
+            span("p", "t1", "child", None),
+            span("p", "t1", "grandchild", None),
+            span("p", "t2", "other-root", Some("s2")),
+            span("p", "t2", "other-child", None),
+        ];
+        let deleted = HashSet::from([("p".to_string(), "s1".to_string())]);
+
+        let traces = traces_of_sessions(&spans, &deleted);
+        assert_eq!(
+            traces,
+            HashSet::from([("p".to_string(), "t1".to_string())]),
+            "the deleted session must resolve to its whole trace"
+        );
+
+        let mut kept = spans.clone();
+        kept.retain(|s| {
+            !traces.contains(&(
+                s.project_id
+                    .as_deref()
+                    .unwrap_or(DEFAULT_PROJECT_ID)
+                    .to_string(),
+                s.trace_id.clone(),
+            ))
+        });
+        let ids: Vec<&str> = kept.iter().map(|s| s.span_id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["other-root", "other-child"],
+            "no span of a deleted session's trace may survive, and no other trace may be touched"
+        );
+    }
+
+    /// A session id is scoped to its project, so the same id elsewhere is a different session.
+    #[test]
+    fn a_session_id_in_another_project_is_a_different_session() {
+        let spans = vec![
+            span("p", "t1", "root", Some("shared")),
+            span("q", "t2", "root", Some("shared")),
+        ];
+        let deleted = HashSet::from([("p".to_string(), "shared".to_string())]);
+        assert_eq!(
+            traces_of_sessions(&spans, &deleted),
+            HashSet::from([("p".to_string(), "t1".to_string())]),
+            "a deletion in one project must not reach another project's session of the same name"
+        );
+    }
 }

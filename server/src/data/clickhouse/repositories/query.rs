@@ -1862,6 +1862,44 @@ pub async fn get_traces_for_session(
 }
 
 /// Get trace IDs for given session IDs
+/// The distinct sessions the given traces belong to.
+pub async fn get_session_ids_for_traces(
+    client: &Client,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<Vec<String>, ClickhouseError> {
+    if trace_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let placeholders: Vec<&str> = trace_ids.iter().map(|_| "?").collect();
+    let sql = format!(
+        // `assumeNotNull`, because `session_id` is Nullable here and an expression on a Nullable column
+        // stays Nullable - the crate then refuses to deserialise `Nullable(String)` into `String`. Safe
+        // because the predicate has already excluded null; without it this method failed outright on
+        // ClickHouse while working on DuckDB, which is the exact class the parity suite exists to catch.
+        "SELECT DISTINCT assumeNotNull(session_id) AS session_id FROM otel_spans FINAL \
+         WHERE project_id = ? AND trace_id IN ({}) AND session_id IS NOT NULL AND session_id != ''",
+        placeholders.join(", ")
+    );
+
+    #[derive(Row, Deserialize)]
+    struct SessionIdRow {
+        session_id: String,
+    }
+
+    let mut query = client.query(&sql).bind(project_id);
+    for tid in trace_ids {
+        query = query.bind(tid);
+    }
+    let rows: Vec<SessionIdRow> = query.fetch_all().await?;
+
+    let mut session_ids: Vec<String> = rows.into_iter().map(|r| r.session_id).collect();
+    session_ids.sort();
+    session_ids.dedup();
+    Ok(session_ids)
+}
+
 pub async fn get_trace_ids_for_sessions(
     client: &Client,
     project_id: &str,

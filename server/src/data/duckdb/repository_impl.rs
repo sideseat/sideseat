@@ -378,6 +378,23 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         .map_err(Into::into)
     }
 
+    async fn get_session_ids_for_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        let db = Arc::clone(self);
+        let pid = project_id.to_string();
+        let tids = trace_ids.to_vec();
+        DuckdbService::run_query(move || {
+            let conn = db.conn();
+            query::get_session_ids_for_traces(&conn, &pid, &tids)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+
     async fn get_trace_ids_for_sessions(
         &self,
         project_id: &str,

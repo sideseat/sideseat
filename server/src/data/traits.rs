@@ -174,6 +174,18 @@ pub trait AnalyticsRepository: Send + Sync {
         session_ids: &[String],
     ) -> Result<Vec<String>, DataError>;
 
+    /// The sessions the given traces belong to.
+    ///
+    /// The mirror of [`Self::get_trace_ids_for_sessions`], and needed for the same reason the feed needs to
+    /// widen its context: a framework records the session id on the span that knows it, usually the root
+    /// alone, so a *set of spans* is not evidence of which sessions they belong to. Asking by trace is,
+    /// because every span of a trace shares the trace's session.
+    async fn get_session_ids_for_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError>;
+
     /// Get distinct values with counts for session filter options
     async fn get_session_filter_options(
         &self,

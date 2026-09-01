@@ -824,6 +824,26 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             d, c,
             "get_trace_ids_for_sessions({session_id}) differs between backends"
         );
+
+        // The mirror direction, which the feed's context expansion depends on: given the session's traces,
+        // both backends must name the same sessions. The two dialects build this one separately, and
+        // ClickHouse's `session_id` is Nullable, so the empty-and-null exclusion is a real difference to
+        // check rather than a formality.
+        let trace_ids: Vec<String> = d.clone();
+        let mut d = duck
+            .get_session_ids_for_traces(PROJECT, &trace_ids)
+            .await
+            .expect("duckdb session ids");
+        let mut c = ch
+            .get_session_ids_for_traces(PROJECT, &trace_ids)
+            .await
+            .expect("clickhouse session ids");
+        d.sort();
+        c.sort();
+        assert_eq!(
+            d, c,
+            "get_session_ids_for_traces({session_id}) differs between backends"
+        );
     }
 
     // --- message rows ------------------------------------------------------

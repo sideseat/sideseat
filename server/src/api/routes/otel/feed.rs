@@ -343,26 +343,32 @@ pub async fn get_feed_messages(
     // different pages both returned the turn. Resolving the page's traces to their sessions and loading
     // every trace of those sessions is what the trace view already does, and for the same reason.
     //
-    // A page whose spans have no session id contributes only its own traces - there is nothing wider to
-    // load, and a session-less trace cannot be part of a cross-trace replay.
-    let mut session_ids: Vec<String> = spans
-        .iter()
-        .filter_map(|s| s.session_id.clone())
-        .filter(|id| !id.is_empty())
-        .collect();
-    session_ids.sort();
-    session_ids.dedup();
-
+    // The sessions are resolved from the page's **traces**, not from the session ids its spans happen to
+    // carry.
+    //
+    // A framework records the session on the span that knows it - usually the root alone - so a page made of
+    // child spans named no session, the context was never widened, and the cross-trace replay stripping this
+    // whole expansion exists for did not run. Which spans a cursor page holds is decided by ingestion time,
+    // so that is not an edge case: any page can begin or end mid-trace. Asking by trace is what makes the
+    // answer independent of which spans the page drew.
     let mut trace_ids: Vec<String> = spans.iter().map(|s| s.trace_id.clone()).collect();
+    trace_ids.sort();
+    trace_ids.dedup();
+
+    let session_ids = repo
+        .get_session_ids_for_traces(&project_id, &trace_ids)
+        .await
+        .map_err(ApiError::from_data)?;
+
     if !session_ids.is_empty() {
         let session_traces = repo
             .get_trace_ids_for_sessions(&project_id, &session_ids)
             .await
             .map_err(ApiError::from_data)?;
         trace_ids.extend(session_traces);
+        trace_ids.sort();
+        trace_ids.dedup();
     }
-    trace_ids.sort();
-    trace_ids.dedup();
 
     let context = repo
         .get_messages(&MessageQueryParams {
@@ -419,11 +425,14 @@ pub async fn get_feed_messages(
         span_count: page_span_count,
         total_tokens: page_tokens,
         total_cost: page_cost,
-        // True unless a contributing span carried no session id, in which case there was nothing wider to
-        // load for it. A caller reasoning about completeness should be told which case it got.
-        session_scoped: spans
-            .iter()
-            .all(|s| s.session_id.as_deref().is_some_and(|id| !id.is_empty())),
+        // Now unconditionally true, because the expansion above is resolved from the page's traces.
+        //
+        // It used to be false whenever a contributing span carried no session id - but that was a property
+        // of *where the framework wrote the id*, not of what the reconstruction managed to see, so it
+        // reported incompleteness on pages that were complete and stayed silent about the real gap. Every
+        // page trace now contributes its session, and a trace belonging to no session has nothing wider to
+        // load, so both cases are covered.
+        session_scoped: true,
         // Always false, and said out loud: pages are selected by ingestion time while their messages are
         // ordered by message time.
         pages_are_globally_ordered: false,
