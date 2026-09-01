@@ -981,13 +981,25 @@ impl PricingService {
         // said - and the *charge* is normalised here, where the provider is known. Unknown providers take the
         // inclusive reading, because OpenAI-compatible endpoints are the common case by a wide margin and
         // over-charging is the worse error to hand someone.
+        // Normalised through the *same* mapper the price lookup uses, rather than matching raw values here.
+        // A hand-written variant list missed `aws_bedrock` and `amazon_bedrock` - both of which real
+        // instrumentation emits - so Anthropic-on-Bedrock would have taken the inclusive reading and been
+        // under-charged. One mapping, one place to keep current.
+        let cost_provider = input
+            .system
+            .as_deref()
+            .map(map_system_to_litellm_provider)
+            .filter(|p| !p.is_empty());
         let subsets_are_included = !matches!(
-            input
-                .system
-                .as_deref()
-                .map(str::to_ascii_lowercase)
-                .as_deref(),
-            Some("anthropic") | Some("aws.bedrock") | Some("bedrock") | Some("vertex_ai_anthropic")
+            cost_provider,
+            // Anthropic reports `cache_read_input_tokens` / `cache_creation_input_tokens` beside an
+            // `input_tokens` that excludes them, and Bedrock's Converse API does the same for every model it
+            // hosts (`usage.cacheReadInputTokens`). Vertex's Anthropic passthrough keeps Anthropic's shape.
+            //
+            // Everything else reports subsets *within* the totals - OpenAI's
+            // `prompt_tokens_details.cached_tokens` and Gemini's `cached_content_token_count` both sit inside
+            // their prompt totals - which is also why an unrecognised provider takes that reading.
+            Some("anthropic") | Some("bedrock") | Some("vertex_ai_anthropic")
         );
 
         // The portion charged at the plain input rate: everything not already billed as cache.
@@ -1413,6 +1425,63 @@ mod tests {
         assert!(
             with_cache.total_cost > without.total_cost,
             "the cache read is additional work and costs something"
+        );
+    }
+
+    /// Every Bedrock spelling takes the separate-counter reading, not just the two I first listed.
+    ///
+    /// Instrumentation emits `aws_bedrock`, `amazon_bedrock`, `aws.bedrock` and `bedrock` for the same
+    /// service. A hand-written variant list missed two of them, which would have made Anthropic-on-Bedrock
+    /// take the *inclusive* reading and be under-charged - so the decision goes through the same mapper the
+    /// price lookup uses.
+    #[test]
+    fn every_bedrock_spelling_treats_cache_counters_as_separate() {
+        let service = PricingService::init_for_test().unwrap();
+        let baseline = service
+            .calculate_cost(&SpanCostInput {
+                system: Some("anthropic".to_string()),
+                model: Some("claude-sonnet-4-5".to_string()),
+                input_tokens: 100,
+                cache_read_tokens: 80,
+                ..Default::default()
+            })
+            .input_cost;
+        for spelling in ["bedrock", "aws_bedrock", "amazon_bedrock", "aws.bedrock"] {
+            let cost = service
+                .calculate_cost(&SpanCostInput {
+                    system: Some(spelling.to_string()),
+                    model: Some("claude-sonnet-4-5".to_string()),
+                    input_tokens: 100,
+                    cache_read_tokens: 80,
+                    ..Default::default()
+                })
+                .input_cost;
+            assert!(
+                cost > 0.0,
+                "{spelling}: input tokens must still be charged in full - Bedrock's count already excludes \
+                 cache reads"
+            );
+            assert!(
+                (cost - baseline).abs() < 1e-12,
+                "{spelling}: should bill like anthropic ({cost} vs {baseline})"
+            );
+        }
+    }
+
+    /// An OpenAI-compatible provider keeps the inclusive reading, which is the default.
+    #[test]
+    fn gemini_keeps_the_inclusive_reading() {
+        let service = PricingService::init_for_test().unwrap();
+        let out = service.calculate_cost(&SpanCostInput {
+            system: Some("gemini".to_string()),
+            model: Some("gemini-2.0-flash".to_string()),
+            input_tokens: 100,
+            cache_read_tokens: 100,
+            ..Default::default()
+        });
+        assert_eq!(
+            out.input_cost, 0.0,
+            "Gemini counts cached content inside its prompt total, so nothing is left at the input rate"
         );
     }
 
