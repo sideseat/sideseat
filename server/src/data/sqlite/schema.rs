@@ -220,6 +220,25 @@ CREATE TABLE IF NOT EXISTS deleted_traces (
     PRIMARY KEY (project_id, trace_id)
 );
 CREATE INDEX IF NOT EXISTS idx_deleted_traces_due ON deleted_traces(next_check_at);
+-- Sessions whose deletion has to outlive the traces it knew about.
+--
+-- A session is deleted *by* deleting its traces, so the route resolves session ids to trace ids and
+-- tombstones those. That closes nothing for a trace of the same session that arrives *after* the
+-- resolution: it was never in the snapshot, so it is never tombstoned, and it recreates the session the
+-- caller was told was gone. The session id is the durable fact - the trace ids are a snapshot of one
+-- instant - so it is what the write path checks.
+CREATE TABLE IF NOT EXISTS deleted_sessions (
+    project_id  TEXT    NOT NULL,
+    session_id  TEXT    NOT NULL,
+    deleted_at  INTEGER NOT NULL,
+    -- The same leased, backed-off schedule the other deletion records use, and for the same reason.
+    quiet_checks  INTEGER NOT NULL DEFAULT 0,
+    next_check_at INTEGER NOT NULL DEFAULT 0,
+    claim_token   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (project_id, session_id)
+);
+CREATE INDEX IF NOT EXISTS idx_deleted_sessions_due ON deleted_sessions(next_check_at);
+
 
 -- =============================================================================
 -- 8. Trace Files junction table

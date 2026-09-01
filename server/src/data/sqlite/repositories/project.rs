@@ -824,6 +824,54 @@ pub async fn record_deleted_trace_check(
     Ok(())
 }
 
+/// Record that these sessions were deleted. See the trait method for why the trace tombstone alone is
+/// insufficient.
+pub async fn record_deleted_sessions(
+    pool: &SqlitePool,
+    project_id: &str,
+    session_ids: &[String],
+) -> Result<(), SqliteError> {
+    if session_ids.is_empty() {
+        return Ok(());
+    }
+    let now = chrono::Utc::now().timestamp();
+    let mut tx = pool.begin().await?;
+    for session_id in session_ids {
+        sqlx::query(
+            "INSERT INTO deleted_sessions (project_id, session_id, deleted_at) VALUES (?, ?, ?)
+             ON CONFLICT(project_id, session_id) DO NOTHING",
+        )
+        .bind(project_id)
+        .bind(session_id)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+/// Which of these sessions are tombstoned.
+pub async fn deleted_sessions_among(
+    pool: &SqlitePool,
+    project_id: &str,
+    session_ids: &[String],
+) -> Result<std::collections::HashSet<String>, SqliteError> {
+    if session_ids.is_empty() {
+        return Ok(std::collections::HashSet::new());
+    }
+    let placeholders = vec!["?"; session_ids.len()].join(", ");
+    let sql = format!(
+        "SELECT session_id FROM deleted_sessions \
+         WHERE project_id = ? AND session_id IN ({placeholders})"
+    );
+    let mut query = sqlx::query_scalar::<_, String>(&sql).bind(project_id);
+    for session_id in session_ids {
+        query = query.bind(session_id);
+    }
+    Ok(query.fetch_all(pool).await?.into_iter().collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

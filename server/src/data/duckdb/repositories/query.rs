@@ -39,6 +39,25 @@ pub(crate) const DEDUP_SPANS: &str = "(SELECT s.* FROM otel_spans s \
      ) _d ON s.project_id = _d.project_id AND s.trace_id = _d.trace_id \
      AND s.span_id = _d.span_id AND s.ingested_at = _d._mi)";
 
+/// [`DEDUP_SPANS`], with the latest delivery chosen *as of* a watermark.
+///
+/// The distinction matters and is easy to miss. `DEDUP_SPANS` picks the newest row of each span over the
+/// whole table; a watermark applied *outside* it then filters that choice out, so a span first ingested
+/// before the traversal began and re-delivered during it disappears from every page - the new version
+/// rejected by the bound, the old one never selected. Bounding the *choice* instead means the traversal
+/// sees the version that existed when it started, which is the point of a watermark.
+///
+/// The bound appears twice, so two binds are needed - see the call site, which prepends them.
+pub(crate) fn dedup_spans_as_of_watermark() -> &'static str {
+    "(SELECT s.* FROM otel_spans s \
+     INNER JOIN (SELECT project_id, trace_id, span_id, MAX(ingested_at) AS _mi \
+                 FROM otel_spans WHERE EPOCH_US(ingested_at) < ?::BIGINT \
+                 GROUP BY project_id, trace_id, span_id \
+     ) _d ON s.project_id = _d.project_id AND s.trace_id = _d.trace_id \
+     AND s.span_id = _d.span_id AND s.ingested_at = _d._mi \
+     WHERE EPOCH_US(s.ingested_at) < ?::BIGINT)"
+}
+
 /// Build span conditions with optional table alias.
 /// Returns (WHERE clause, bind values).
 /// The alias to qualify a column with, or a table name when the query does not alias.

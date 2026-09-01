@@ -325,6 +325,26 @@ impl TransactionalRepository for Arc<SqliteService> {
             .map_err(Into::into)
     }
 
+    async fn record_deleted_sessions(
+        &self,
+        project_id: &str,
+        session_ids: &[String],
+    ) -> Result<(), DataError> {
+        project::record_deleted_sessions(self.pool(), project_id, session_ids)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn deleted_sessions_among(
+        &self,
+        project_id: &str,
+        session_ids: &[String],
+    ) -> Result<std::collections::HashSet<String>, DataError> {
+        project::deleted_sessions_among(self.pool(), project_id, session_ids)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn claim_deleted_traces_for_check(
         &self,
         lease_secs: i64,

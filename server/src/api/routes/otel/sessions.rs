@@ -311,10 +311,20 @@ pub async fn delete_sessions(
         .await
         .map_err(ApiError::from_data)?;
 
-    // Tombstone before deleting, exactly as `delete_traces` does. A session is deleted *by* deleting its
-    // traces, so the trace tombstone is the right fence: ingest consults it immediately before its
-    // analytics write, so a late batch drops those spans instead of resurrecting the session. Fatal
-    // rather than logged - without the tombstone the deletion is not safe to perform.
+    // Tombstone the *sessions* and the traces, before deleting either. Both, because they fence different
+    // things:
+    //
+    // - The trace tombstone catches a batch already in flight for a trace this deletion is about to
+    //   remove, whose files were written before its analytics row.
+    // - The session tombstone catches a trace of the same session that arrives *after* the resolution
+    //   above. It was never in `trace_ids`, so no trace tombstone covers it - and it would recreate the
+    //   session the caller was just told was deleted. The session id is the durable fact; the trace ids
+    //   are one instant's view of it.
+    //
+    // Fatal rather than logged: without the tombstones the deletion is not safe to perform.
+    repo.record_deleted_sessions(&auth.project_id, &body.session_ids)
+        .await
+        .map_err(ApiError::from_data)?;
     repo.record_deleted_traces(&auth.project_id, &trace_ids)
         .await
         .map_err(ApiError::from_data)?;

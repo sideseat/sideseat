@@ -488,6 +488,12 @@ caller was told 204 for. No elapsed time bounds that: a queued batch can be rede
 Keyed by `(project, trace)`, because a trace id comes from the client and two projects can present the
 same one.
 
+**A session gets its own tombstone** (`deleted_sessions`), because the trace tombstone cannot cover it. A
+session is deleted *by* resolving it to trace ids and deleting those — and a trace of the same session that
+arrives after that resolution was never in the snapshot, so nothing tombstones it and it recreates the
+session the caller was told was gone. The session id is the durable fact; the trace list is one instant's
+view of it. Checked on both write paths, before the trace check.
+
 **An association created by a batch that does not commit is released** (`created_associations`,
 `release_created_associations`). An association holds `ref_count` above zero and the orphan sweeper selects
 on *zero*, so a file whose batch failed - or whose trace was tombstoned mid-flight - would occupy the
@@ -807,6 +813,14 @@ duplicate and the newer one never returned: a message absent from every page of 
 now carries a **watermark**, established on the first page, and it bounds both the page query and the
 context load. A cursor issued before the watermark existed carries none and keeps the old behaviour, so a
 traversal in flight across an upgrade completes rather than failing on its next page.
+
+The bound goes **inside the deduplication**, not around it (`dedup_spans_as_of_watermark`). Applied outside,
+it is worse than no bound for a *re-delivered* span: dedup picks the newest row over the whole table, the
+bound rejects it, and the older row was never selected — so the span disappears from every page. Choosing
+the newest row that existed *at* the watermark is what a watermark means, and it is what DuckDB now does.
+ClickHouse cannot: `FINAL` has no "as of" form and a merge may already have removed the earlier version, so
+there is nothing to select. That limit is per backend, like the latency ceilings, and stated rather than
+implied.
 
 The project feed pages by cursor but does **not** reconstruct page-locally: it takes the page's spans, loads every trace they name in full (`MessageQueryParams::trace_ids`), reconstructs, then keeps the blocks whose span is on the page (`scope_feed_to_page`). Otherwise a trace split across two pages was reconstructed twice from half its spans each time, and the turn each generation span re-sends had nothing to collapse against, so both pages returned it. Page totals come from the page's own rows, because the pipeline now sees more than the page shows. Still page-local by nature: a replay crossing *traces* within a session is recognised only when both traces are on the page, and pages are chosen by ingestion time while each is ordered by message time, so concatenating pages is not globally ordered.
 
