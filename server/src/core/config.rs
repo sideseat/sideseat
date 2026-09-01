@@ -669,6 +669,22 @@ impl FileConfig {
                     tracing::trace!(acquire_timeout_secs = ?postgres.acquire_timeout_secs, "Merging database.postgres.acquire_timeout_secs");
                     current_pg.acquire_timeout_secs = postgres.acquire_timeout_secs;
                 }
+                if postgres.min_connections.is_some() {
+                    tracing::trace!(min_connections = ?postgres.min_connections, "Merging database.postgres.min_connections");
+                    current_pg.min_connections = postgres.min_connections;
+                }
+                if postgres.idle_timeout_secs.is_some() {
+                    tracing::trace!(idle_timeout_secs = ?postgres.idle_timeout_secs, "Merging database.postgres.idle_timeout_secs");
+                    current_pg.idle_timeout_secs = postgres.idle_timeout_secs;
+                }
+                if postgres.max_lifetime_secs.is_some() {
+                    tracing::trace!(max_lifetime_secs = ?postgres.max_lifetime_secs, "Merging database.postgres.max_lifetime_secs");
+                    current_pg.max_lifetime_secs = postgres.max_lifetime_secs;
+                }
+                if postgres.statement_timeout_secs.is_some() {
+                    tracing::trace!(statement_timeout_secs = ?postgres.statement_timeout_secs, "Merging database.postgres.statement_timeout_secs");
+                    current_pg.statement_timeout_secs = postgres.statement_timeout_secs;
+                }
             }
             if let Some(clickhouse) = database.clickhouse {
                 let current_ch = current
@@ -710,6 +726,10 @@ impl FileConfig {
                     tracing::trace!(cluster = ?clickhouse.cluster, "Merging database.clickhouse.cluster");
                     current_ch.cluster = clickhouse.cluster;
                 }
+                if clickhouse.insert_quorum.is_some() {
+                    tracing::trace!(insert_quorum = ?clickhouse.insert_quorum, "Merging database.clickhouse.insert_quorum");
+                    current_ch.insert_quorum = clickhouse.insert_quorum;
+                }
                 if clickhouse.distributed.is_some() {
                     tracing::trace!(distributed = ?clickhouse.distributed, "Merging database.clickhouse.distributed");
                     current_ch.distributed = clickhouse.distributed;
@@ -724,6 +744,10 @@ impl FileConfig {
                 if redis.url.is_some() {
                     tracing::trace!(url = "***", "Merging database.redis.url");
                     current_redis.url = redis.url;
+                }
+                if redis.min_replica_acks.is_some() {
+                    tracing::trace!(min_replica_acks = ?redis.min_replica_acks, "Merging database.redis.min_replica_acks");
+                    current_redis.min_replica_acks = redis.min_replica_acks;
                 }
             }
             if let Some(memory_cache) = database.memory_cache {
@@ -1932,6 +1956,76 @@ fn validate_clickhouse(ch: &ClickhouseConfig) -> Result<()> {
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod config_surface_tests {
+    /// Every field of a file-config section is carried by `merge` and described by the JSON schema.
+    ///
+    /// Two silent failures, one test. A field added to a `*FileConfig` struct but forgotten in `merge` is
+    /// *dead*: the operator sets it, the file parses, and the value never reaches the runtime config - which
+    /// is what happened to `insert_quorum` and `min_replica_acks`, so an entire replication-acknowledgement
+    /// feature was inert. A field missing from the schema is worse than dead: `additionalProperties: false`
+    /// makes the whole config file *invalid*, so setting it correctly is what breaks startup.
+    ///
+    /// Checked by reading this file's own source and the schema rather than by reflection, because neither
+    /// `merge` nor serde exposes the field list at runtime. Structural, and it fails on the next addition
+    /// rather than at a user's first attempt to use it.
+    #[test]
+    fn every_file_config_field_is_merged_and_in_the_schema() {
+        const SOURCE: &str = include_str!("config.rs");
+        const SCHEMA: &str = include_str!("../../sideseat.schema.json");
+
+        /// The field names a `pub struct <name> {` block declares.
+        fn fields_of(source: &str, struct_name: &str) -> Vec<String> {
+            let start = source
+                .find(&format!("pub struct {struct_name} {{"))
+                .unwrap_or_else(|| panic!("{struct_name} not found"));
+            let body_start = source[start..].find('{').expect("brace") + start + 1;
+            let body_end = source[body_start..].find("\n}").expect("close") + body_start;
+            source[body_start..body_end]
+                .lines()
+                .map(str::trim)
+                .filter(|line| {
+                    !line.is_empty() && !line.starts_with("//") && !line.starts_with("#[")
+                })
+                .filter_map(|line| line.strip_prefix("pub "))
+                .filter_map(|line| line.split(':').next())
+                .map(str::to_string)
+                .collect()
+        }
+
+        // Each section: its file-config struct, the `merge` marker that proves it is carried, and the JSON
+        // path the schema describes it under.
+        for (struct_name, merge_prefix, schema_parent) in [
+            ("ClickhouseFileConfig", "database.clickhouse", "clickhouse"),
+            ("RedisFileConfig", "database.redis", "redis"),
+            ("PostgresFileConfig", "database.postgres", "postgres"),
+        ] {
+            for field in fields_of(SOURCE, struct_name) {
+                // `merge` logs each field it carries with a `Merging <section>.<field>` trace, which makes
+                // the carrying observable without reflection - and a field carried without that line is one
+                // an operator cannot see being applied either.
+                let marker = format!("\"Merging {merge_prefix}.{field}\"");
+                assert!(
+                    SOURCE.contains(&marker),
+                    "{struct_name}.{field} is not carried by `merge`: an operator could set it and it would \
+                     never reach the runtime config. Add the branch, with its {marker} trace."
+                );
+                // And the schema has to describe it, or `additionalProperties: false` rejects the file.
+                let quoted = format!("\"{field}\"");
+                let section = SCHEMA
+                    .find(&format!("\"{schema_parent}\""))
+                    .map(|i| &SCHEMA[i..])
+                    .unwrap_or(SCHEMA);
+                assert!(
+                    section.contains(&quoted),
+                    "{struct_name}.{field} is missing from sideseat.schema.json under `{schema_parent}`, so \
+                     a config file that sets it is rejected outright"
+                );
+            }
+        }
+    }
 }
 
 #[cfg(test)]

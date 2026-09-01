@@ -142,7 +142,13 @@ fi
 # `PATH` and the AWS credentials are the only other things carried: the first so the binary can exec, the
 # second because the distributed mode's object storage needs them and the SDK reads them from the
 # environment.
-(cd "$WORK" && env -i \
+# `exec`, so the backgrounded subshell *becomes* the server and `$!` is the server's own pid.
+#
+# Without it the subshell forks `env`, which execs the binary, and `$!` names a shell that exits immediately -
+# so `cleanup` killed nothing and every aborted run left a server holding these ports. The next run then
+# failed to bind, exited, and its ingest returned 503, which reads exactly like an ingestion defect. It cost
+# two debugging detours before the cause was the harness.
+(cd "$WORK" && exec env -i \
   PATH="$PATH" HOME="$WORK" \
   ${AWS_ACCESS_KEY_ID:+AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"} \
   ${AWS_SECRET_ACCESS_KEY:+AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"} \
