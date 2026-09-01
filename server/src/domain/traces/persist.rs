@@ -471,6 +471,15 @@ pub(super) async fn reconcile_incoming_references(
     let storage = file_service.storage();
     let repo = file_service.database().repository();
     let mut checked: HashMap<(String, String), bool> = HashMap::new();
+    // One association per `(project, trace, hash)` per batch, even when two references name the same content
+    // through different URIs (e.g. differing MIME prefixes). Each `associate_existing_file` increments
+    // `pending_writers`, and the batch resolves each association once - so a second increment for the same
+    // tuple would never be decremented on one backend: SQLite's confirm loops per element (decrementing
+    // twice), while PostgreSQL's `UNNEST` `IN` touches the row once (decrementing once), drifting the
+    // counter apart. Associating once per tuple keeps increment and resolution matched, and is the correct
+    // model regardless: one batch is one referencing writer.
+    let mut associated: std::collections::HashSet<(String, String, String)> =
+        std::collections::HashSet::new();
 
     for (project_id, trace_id, uri) in incoming {
         let Some(parsed) = crate::utils::file_uri::parse_file_uri(uri) else {
@@ -507,6 +516,16 @@ pub(super) async fn reconcile_incoming_references(
                 "Incoming file reference names content this project does not store"
             );
             unbacked.push((project_id.clone(), uri.clone()));
+            continue;
+        }
+
+        // Already associated this batch through another URI: the reference is backed (checked above), so
+        // nothing more is owed for it - associating again would double-count the writer.
+        if !associated.insert((
+            project_id.clone(),
+            trace_id.clone(),
+            parsed.hash.to_string(),
+        )) {
             continue;
         }
 

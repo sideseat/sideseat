@@ -694,6 +694,13 @@ impl TracePipeline {
         // bytes this batch wrote.
         let mut created_associations = files.created_associations;
         created_associations.extend(incoming_associations);
+        // One entry per association, so each is resolved once. Both sources already dedupe within
+        // themselves (the extractor by `(trace, hash)`, the incoming path by `(project, trace, hash)`); this
+        // guards the rare cross-source overlap - the same content arriving inline *and* as a URI in one
+        // batch - which would otherwise be confirmed twice on SQLite (per element) and once on PostgreSQL
+        // (`UNNEST` `IN`), drifting the writer count between backends.
+        created_associations.sort_unstable();
+        created_associations.dedup();
         if reconcile_failed > 0 {
             self.file_cache.invalidate_all();
             // Same reason as above, and here the set is the merged one: this batch's own file writes plus the
@@ -1489,6 +1496,13 @@ impl TracePipeline {
                 reconcile_incoming_references(&incoming, &self.file_service).await;
             let mut created_associations = files.created_associations;
             created_associations.extend(incoming_associations);
+            // One entry per association, so each is resolved once. Both sources already dedupe within
+            // themselves (the extractor by `(trace, hash)`, the incoming path by `(project, trace, hash)`); this
+            // guards the rare cross-source overlap - the same content arriving inline *and* as a URI in one
+            // batch - which would otherwise be confirmed twice on SQLite (per element) and once on PostgreSQL
+            // (`UNNEST` `IN`), drifting the writer count between backends.
+            created_associations.sort_unstable();
+            created_associations.dedup();
             if reconcile_failed > 0 {
                 self.file_cache.invalidate_all();
                 self.release_created_associations(&created_associations)

@@ -3221,4 +3221,10 @@ async fn a_same_microsecond_redelivery_is_one_row_on_both_backends() {
         c.len(),
         "the two backends disagree on how many rows a same-microsecond tie yields"
     );
+    // Latest delivery wins on DuckDB: v2 (900 tokens) was inserted after v1 (100), so its higher rowid
+    // breaks the tie. Without the rowid tiebreak the engine could keep v1, silently ignoring the correction.
+    assert_eq!(
+        d[0].gen_ai_usage_input_tokens, 900,
+        "the later same-microsecond delivery must win on DuckDB, not the earlier one"
+    );
 }

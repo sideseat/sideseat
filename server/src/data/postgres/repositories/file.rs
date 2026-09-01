@@ -690,10 +690,18 @@ pub async fn confirm_trace_file_associations(
     if associations.is_empty() {
         return Ok(0);
     }
+    // Deduped first, so a tuple that appears twice decrements `pending_writers` once - the same as the
+    // SQLite twin's per-element loop over a deduped set. Without this, `IN (UNNEST(...))` touches each row
+    // once however many times the tuple is listed, while the loop would touch it per listing: the two
+    // backends would drift on a caller that passed a duplicate. Each referencing batch increments once, so
+    // one decrement per distinct tuple is the correct resolution on both.
+    let mut unique: Vec<&(String, String, String)> = associations.iter().collect();
+    unique.sort_unstable();
+    unique.dedup();
     // One statement for the batch, via three parallel arrays.
-    let projects: Vec<&str> = associations.iter().map(|(p, _, _)| p.as_str()).collect();
-    let traces: Vec<&str> = associations.iter().map(|(_, t, _)| t.as_str()).collect();
-    let hashes: Vec<&str> = associations.iter().map(|(_, _, h)| h.as_str()).collect();
+    let projects: Vec<&str> = unique.iter().map(|(p, _, _)| p.as_str()).collect();
+    let traces: Vec<&str> = unique.iter().map(|(_, t, _)| t.as_str()).collect();
+    let hashes: Vec<&str> = unique.iter().map(|(_, _, h)| h.as_str()).collect();
     let result = sqlx::query(
         "UPDATE trace_files SET durable = TRUE, pending_writers = GREATEST(pending_writers - 1, 0) \
          WHERE (project_id, trace_id, file_hash) IN ( \

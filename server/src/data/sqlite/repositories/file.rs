@@ -724,9 +724,15 @@ pub async fn confirm_trace_file_associations(
     if associations.is_empty() {
         return Ok(0);
     }
+    // Deduped, so a tuple listed twice decrements `pending_writers` once - matching the PostgreSQL twin's
+    // `IN (UNNEST(...))`, which touches each row once regardless of repetition. Each batch increments an
+    // association once, so one decrement per distinct tuple is the correct resolution.
+    let mut unique: Vec<&(String, String, String)> = associations.iter().collect();
+    unique.sort_unstable();
+    unique.dedup();
     let mut tx = pool.begin().await?;
     let mut confirmed = 0u64;
-    for (project_id, trace_id, file_hash) in associations {
+    for (project_id, trace_id, file_hash) in unique {
         let result = sqlx::query(
             "UPDATE trace_files SET durable = 1, pending_writers = MAX(pending_writers - 1, 0) \
              WHERE project_id = ? AND trace_id = ? AND file_hash = ?",
@@ -1568,6 +1574,62 @@ mod tests {
             after_second,
             Some(0),
             "with no trace referencing it the file is collectable"
+        );
+    }
+}
+
+#[cfg(test)]
+mod confirm_dedup_tests {
+    use super::*;
+
+    async fn setup() -> SqlitePool {
+        let pool = SqlitePool::connect(":memory:").await.unwrap();
+        for statement in crate::data::sqlite::schema::SCHEMA
+            .split(';')
+            .filter(|s| !s.trim().is_empty())
+        {
+            sqlx::query(statement.trim()).execute(&pool).await.unwrap();
+        }
+        pool
+    }
+
+    /// Confirming a duplicated tuple decrements `pending_writers` once, matching the PostgreSQL `UNNEST`.
+    ///
+    /// A batch that referenced the same association through two URIs incremented `pending_writers` twice at
+    /// the pipeline, but that path now dedupes to one increment; the repo confirm must decrement to match.
+    /// The loop used to run per vector element, so a duplicated tuple decremented twice - dropping the count
+    /// below what PostgreSQL's set-based `IN (UNNEST(...))` produced. This pins the per-tuple-once behaviour.
+    #[tokio::test]
+    async fn confirm_with_a_duplicated_tuple_decrements_once() {
+        let pool = setup().await;
+        let (project, trace, hash) = ("default", "t1", "aa");
+
+        // Two in-flight writers.
+        for _ in 0..2 {
+            associate_file(&pool, trace, project, hash, Some("image/png"), 1, "sha256")
+                .await
+                .unwrap();
+        }
+
+        // Confirm with the tuple listed twice (the shape the un-deduped pipeline could pass).
+        let assoc = (project.to_string(), trace.to_string(), hash.to_string());
+        confirm_trace_file_associations(&pool, &[assoc.clone(), assoc])
+            .await
+            .unwrap();
+
+        let (pending, durable): (i64, i64) = sqlx::query_as(
+            "SELECT pending_writers, durable FROM trace_files WHERE project_id = ? AND trace_id = ? AND file_hash = ?",
+        )
+        .bind(project)
+        .bind(trace)
+        .bind(hash)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(durable, 1, "confirm must mark the association durable");
+        assert_eq!(
+            pending, 1,
+            "a duplicated tuple must decrement pending_writers once, not twice"
         );
     }
 }
