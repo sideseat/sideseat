@@ -1380,12 +1380,15 @@ pub async fn get_feed_spans(
         cb.params.push(QueryParam::String(cursor_trace_id.clone()));
     }
 
-    // The traversal watermark - see the DuckDB copy for what an unbounded ingestion dimension does to a
-    // client concatenating pages.
-    if let Some(watermark_us) = params.ingested_before_us {
-        cb.add_raw("toInt64(toUnixTimestamp64Micro(ingested_at)) < ?");
-        cb.params.push(QueryParam::Int64(watermark_us));
-    }
+    // The traversal watermark, applied *inside* the deduplication - see
+    // `ch_dedup_spans_as_of_watermark` for what bounding `FINAL`'s result instead of its choice did.
+    let (source, watermark_bind) = match params.ingested_before_us {
+        Some(watermark_us) => (
+            ch_dedup_spans_as_of_watermark().to_string(),
+            Some(watermark_us),
+        ),
+        None => ("otel_spans FINAL".to_string(), None),
+    };
 
     // Time filters
     if let Some(ref start) = params.start_time {
@@ -1445,7 +1448,7 @@ pub async fn get_feed_spans(
             output_preview,
             raw_span,
             toInt64(toUnixTimestamp64Micro(ingested_at)) as ingested_at_us
-        FROM otel_spans FINAL
+        FROM {source}
         WHERE {}
         ORDER BY ingested_at DESC, span_id DESC, trace_id DESC
         LIMIT {}
@@ -1453,9 +1456,37 @@ pub async fn get_feed_spans(
         where_clause, params.limit
     );
 
-    let rows: Vec<ChSpanRow> = cb.bind_to(client.query(&sql)).fetch_all().await?;
+    // The dedup subquery is at the head of the FROM, so its placeholder precedes every condition's.
+    let mut query = client.query(&sql);
+    if let Some(watermark_us) = watermark_bind {
+        query = query.bind(watermark_us);
+    }
+    let rows: Vec<ChSpanRow> = cb.bind_to(query).fetch_all().await?;
 
     Ok(rows.into_iter().map(SpanRow::from).collect())
+}
+
+/// `otel_spans`, deduplicated **as of** a watermark: one row per span, the newest that existed when the
+/// traversal began.
+///
+/// The ClickHouse counterpart of `duckdb::repositories::query::dedup_spans_as_of_watermark`, and needed for
+/// the same reason. `FROM otel_spans FINAL` collapses to the newest row over the *whole* table, so a
+/// watermark applied as an outer condition rejects that choice without promoting the older row - and a span
+/// first ingested before the traversal began and re-delivered during it vanished from every page. All three
+/// watermarked queries here did that, so after the DuckDB side was fixed the two backends would have
+/// disagreed about the same table.
+///
+/// `LIMIT 1 BY` after `ORDER BY ingested_at DESC` is the idiom: it keeps the first row per key in the ordered
+/// stream, which is exactly "the newest below the bound". No `FINAL` is needed on top - this *is* the
+/// deduplication, done explicitly and with the bound inside it.
+///
+/// It costs a scan of everything below the watermark, as the DuckDB form does; the outer query's own filters
+/// are applied afterwards. Mirroring the reference backend is deliberate: a cheaper shape that dedups over a
+/// filtered set would have to prove no filter can change which copy of a span wins, and a re-delivery may
+/// carry a corrected `timestamp_start`, so it can.
+pub(crate) fn ch_dedup_spans_as_of_watermark() -> &'static str {
+    "(SELECT * FROM otel_spans WHERE toInt64(toUnixTimestamp64Micro(ingested_at)) < ? \
+      ORDER BY ingested_at DESC LIMIT 1 BY project_id, trace_id, span_id)"
 }
 
 /// List sessions with pagination and filtering

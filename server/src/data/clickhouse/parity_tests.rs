@@ -51,7 +51,7 @@ use crate::data::duckdb::DuckdbService;
 use crate::data::duckdb::filters::{DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp};
 use crate::data::traits::AnalyticsRepository;
 use crate::data::types::{
-    AggregationTemporality, ListSessionsParams, ListSpansParams, ListTracesParams,
+    AggregationTemporality, FeedSpansParams, ListSessionsParams, ListSpansParams, ListTracesParams,
     MessageQueryParams, MessageSpanRow, MetricType, NormalizedMetric, NormalizedSpan,
     ObservationType, SessionRow, SpanCategory, SpanRow, TraceRow,
 };
@@ -3043,5 +3043,110 @@ async fn a_span_redelivered_during_a_traversal_still_appears_in_it() {
         context.rows[0].messages_json.contains("first"),
         "and the same version of each: {}",
         context.rows[0].messages_json
+    );
+}
+
+/// A span re-delivered *during* a traversal is still visible, in both backends, at its earlier version.
+///
+/// This is the case a watermark exists for, and the one both backends got wrong in opposite ways. The
+/// deduplication picks the newest row of a span; a watermark applied *outside* it then rejects that choice
+/// without promoting the row the traversal should have seen, so the span disappeared from every page - the
+/// new version filtered out, the old one never selected. DuckDB's message queries had been fixed;
+/// `get_feed_spans` there and *all three* watermarked queries on ClickHouse had not, which after the DuckDB
+/// fix would have made the two backends answer differently about the same table.
+///
+/// Written as its own test because it needs control of `ingested_at`, which the shared fixture does not vary.
+#[tokio::test]
+async fn a_span_redelivered_during_a_traversal_stays_visible_in_both_backends() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_watermark").await;
+
+    // Ingested *before* the traversal begins.
+    let original = NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: "trace-w".to_string(),
+        span_id: "span-w".to_string(),
+        span_name: "generation".to_string(),
+        observation_type: Some(ObservationType::Generation),
+        timestamp_start: ts(0),
+        timestamp_end: Some(ts(1)),
+        duration_ms: 1000,
+        ingested_at: Some(ts(10)),
+        gen_ai_usage_input_tokens: 100,
+        ..Default::default()
+    };
+    // The traversal's watermark sits between the two deliveries.
+    let watermark_us = ts(20).timestamp_micros();
+    // The same span, re-delivered after the traversal started.
+    let redelivered = NormalizedSpan {
+        ingested_at: Some(ts(30)),
+        gen_ai_usage_input_tokens: 900,
+        ..original.clone()
+    };
+
+    for backend_spans in [vec![original.clone()], vec![redelivered.clone()]] {
+        duck.insert_spans(backend_spans.clone())
+            .await
+            .expect("duckdb insert");
+        ch.insert_spans(backend_spans)
+            .await
+            .expect("clickhouse insert");
+    }
+
+    let params = FeedSpansParams {
+        project_id: PROJECT.to_string(),
+        limit: 50,
+        ingested_before_us: Some(watermark_us),
+        ..Default::default()
+    };
+    let d = duck
+        .get_feed_spans(&params)
+        .await
+        .expect("duckdb feed spans");
+    let c = ch
+        .get_feed_spans(&params)
+        .await
+        .expect("clickhouse feed spans");
+
+    assert_eq!(
+        d.len(),
+        1,
+        "the span must be visible at its pre-traversal version, not filtered out of existence"
+    );
+    assert_eq!(
+        d.len(),
+        c.len(),
+        "the two backends disagree about whether a re-delivered span exists as of the watermark"
+    );
+    assert_eq!(
+        d[0].gen_ai_usage_input_tokens, 100,
+        "the traversal must see the version that existed when it began"
+    );
+    assert_eq!(
+        d[0].gen_ai_usage_input_tokens, c[0].gen_ai_usage_input_tokens,
+        "the two backends chose different versions of the same span"
+    );
+
+    // The same question through the message path, which the reconstruction reads.
+    let msg_params = MessageQueryParams {
+        project_id: PROJECT.to_string(),
+        trace_ids: Some(vec!["trace-w".to_string()]),
+        ingested_before_us: Some(watermark_us),
+        ..Default::default()
+    };
+    let dm = duck
+        .get_messages(&msg_params)
+        .await
+        .expect("duckdb messages");
+    let cm = ch.get_messages(&msg_params).await.expect("ch messages");
+    assert_eq!(
+        dm.rows.len(),
+        cm.rows.len(),
+        "the context load disagrees between backends as of the watermark"
     );
 }
