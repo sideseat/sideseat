@@ -277,6 +277,23 @@ export function ThreadView({
         onMarkdownToggle={handleMarkdownToggle}
       />
 
+      {/*
+        An incomplete answer must not look complete. `replay_matching_complete` is false when cross-trace
+        replay matching hit its search budget, so this thread may repeat history it would otherwise have
+        collapsed. The server omits the flag when true, so only an explicit `false` warns. Without this the
+        duplicated turns are indistinguishable from a model that actually repeated itself - exactly the wrong
+        conclusion to hand someone debugging one.
+      */}
+      {metadata?.replay_matching_complete === false && (
+        <div
+          role="status"
+          className="mx-4 mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200"
+        >
+          Repeated history may appear twice below: this conversation was large enough that
+          duplicate-detection stopped short of a complete answer.
+        </div>
+      )}
+
       {activeTab === "messages" ? (
         <ImageGalleryProvider blocks={blocks} projectId={projectId}>
           <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto">
