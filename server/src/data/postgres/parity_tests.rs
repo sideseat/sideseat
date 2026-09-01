@@ -1162,6 +1162,75 @@ async fn releasing_a_created_association_behaves_identically() {
     .await;
 }
 
+/// Two batches sharing one association: a commit by either survives the other's release - on both backends.
+///
+/// The concurrency case the pending-writer count exists for, and the orphan a boolean flag produced: two
+/// batches reference the same `(project, trace, hash)`, one commits and one fails. The failing batch's
+/// release must not delete the row the committed batch depends on. Recorded as a transcript so PostgreSQL
+/// and SQLite are held to the identical sequence.
+#[tokio::test]
+async fn a_shared_association_survives_a_peer_release_identically() {
+    assert_parity(
+        "shared association survives peer release",
+        |repo, mut t| async move {
+            let project = "default";
+            let file_hash = hash(0xd4);
+
+            // Two batches reference the same association on the same trace: two in-flight writers, one row.
+            for _ in 0..2 {
+                repo.associate_file(
+                    "t-shared",
+                    project,
+                    &file_hash,
+                    Some("image/png"),
+                    10,
+                    "sha256",
+                )
+                .await
+                .expect("associate");
+                repo.sync_ref_count(project, &file_hash)
+                    .await
+                    .expect("sync");
+            }
+            let counts = repo.get_file(project, &file_hash).await.expect("file row");
+            t.note(&format!(
+                "refs after two batches={:?}",
+                counts.map(|f| f.ref_count)
+            ));
+
+            // One batch commits (confirm), the other fails (release) - the interleaving that used to orphan it.
+            repo.confirm_trace_file_associations(&[(
+                project.to_string(),
+                "t-shared".to_string(),
+                file_hash.clone(),
+            )])
+            .await
+            .expect("confirm");
+            let released = repo
+                .release_trace_file_association(project, "t-shared", &file_hash)
+                .await
+                .expect("release");
+            repo.sync_ref_count(project, &file_hash)
+                .await
+                .expect("sync");
+            t.note(&format!("peer release deleted the row={released}"));
+
+            let counts = repo.get_file(project, &file_hash).await.expect("file row");
+            t.note(&format!(
+                "refs after the peer released={:?}",
+                counts.map(|f| f.ref_count)
+            ));
+            let orphans = repo.get_orphan_files().await.expect("orphans");
+            t.note(&format!(
+                "orphaned despite a committed batch={}",
+                orphans.iter().any(|(p, h)| p == project && h == &file_hash)
+            ));
+            t
+        },
+    )
+    .await;
+}
+
 /// The deleted-trace sweep claims exclusively, leases, and backs off - identically on both backends.
 ///
 /// This is the sweep that covers the one window a pre-write tombstone check cannot: the tombstone is a

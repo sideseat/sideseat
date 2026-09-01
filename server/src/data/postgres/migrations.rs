@@ -206,7 +206,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cred_perms_unique_org_default
 -- trace_files keyed with the project first. A trace id comes from the client, so two projects can
 -- present the same one, and keyed without the project one project's association satisfied the other's
 -- conflict clause. Postgres can swap a primary key in place.
-ALTER TABLE trace_files ADD COLUMN IF NOT EXISTS provisional BOOLEAN NOT NULL DEFAULT FALSE;
+-- Two facts, not a boolean: see the schema comment. `pending_writers` counts in-flight referencing
+-- batches; `durable` is set once any of them commits. A release deletes only a non-durable row at zero
+-- pending, so concurrent batches sharing one association cannot orphan each other's file. Existing rows
+-- default to durable=false, pending_writers=0 - a state a release leaves untouched, so a legacy row is
+-- kept until its trace is deleted rather than swept out from under a committed span.
+ALTER TABLE trace_files ADD COLUMN IF NOT EXISTS pending_writers INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE trace_files ADD COLUMN IF NOT EXISTS durable BOOLEAN NOT NULL DEFAULT FALSE;
+-- Existing rows are committed associations, so they are durable: a fresh column default of FALSE would put
+-- them one release away from deletion, which is data loss. New rows still default to FALSE (provisional).
+UPDATE trace_files SET durable = TRUE;
 ALTER TABLE trace_files DROP CONSTRAINT IF EXISTS trace_files_pkey;
 ALTER TABLE trace_files ADD PRIMARY KEY (project_id, trace_id, file_hash);
 CREATE INDEX IF NOT EXISTS idx_trace_files_project_hash ON trace_files(project_id, file_hash);

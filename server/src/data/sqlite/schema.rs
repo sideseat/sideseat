@@ -247,20 +247,23 @@ CREATE TABLE IF NOT EXISTS trace_files (
     trace_id TEXT NOT NULL,
     project_id TEXT NOT NULL,
     file_hash TEXT NOT NULL,
-    -- Whether this association is still *provisional*: created by a batch whose analytics row has not
-    -- committed yet.
+    -- An association is created while the batch that references it is still in flight - files are written
+    -- before the rows that name them, so a failed batch has created associations for spans that will never
+    -- exist, and an association holds `ref_count` above zero (the orphan sweeper selects on zero). A boolean
+    -- "provisional" flag could not express the one case that matters under concurrency: *several* batches
+    -- carrying the same `(project, trace, hash)` at once. With a flag, whichever failed first deleted the row
+    -- another still-in-flight or just-committed batch depended on, orphaning its file - and no number of
+    -- reads fixes it, because a read and a release are not atomic.
     --
-    -- Files are written before the rows that name them, so a batch that fails has already created
-    -- associations for spans that will never exist - and an association holds `ref_count` above zero, which
-    -- the orphan sweeper cannot select. Releasing them on the failure path is not enough on its own: two
-    -- batches can carry the same `(project, trace, hash)`, the second sees it already present and commits
-    -- its span, and a release by the first then orphans the second's file. No number of reads fixes that -
-    -- the read and the release are not atomic.
-    --
-    -- The flag makes the state durable instead. It is set when the association is created, cleared when the
-    -- creating batch's write succeeds, and the failure path deletes *only* rows that are still provisional -
-    -- one statement, so a batch that committed in between simply is not matched.
-    provisional INTEGER NOT NULL DEFAULT 0,
+    -- Two facts instead of one:
+    --   `pending_writers` - how many referencing batches have not yet resolved. Incremented per reference
+    --     (create or share), decremented by that batch's confirm or release.
+    --   `durable` - set the moment *any* referencing batch commits its analytics rows, and never unset. A
+    --     durable association is backed by a committed row, so it is kept regardless of `pending_writers`.
+    -- A release deletes the row only when it is not durable *and* no writer is still pending, so a failing
+    -- batch can never orphan a file another batch committed or is about to.
+    pending_writers INTEGER NOT NULL DEFAULT 0,
+    durable INTEGER NOT NULL DEFAULT 0,
     -- Project first: a trace id comes from the client, so two projects can present the same one.
     -- Keyed without the project, one project's association satisfied `INSERT OR IGNORE` for the
     -- other, leaving the second with no association and a reference nothing would release.

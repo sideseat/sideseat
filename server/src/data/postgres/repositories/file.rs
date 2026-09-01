@@ -194,9 +194,11 @@ pub async fn associate_existing_file(
     }
 
     sqlx::query(
-        // Provisional - see the SQLite twin.
-        "INSERT INTO trace_files (trace_id, project_id, file_hash, provisional) \
-         VALUES ($1, $2, $3, TRUE) ON CONFLICT DO NOTHING",
+        // One in-flight writer added, new row or shared - see the SQLite twin.
+        "INSERT INTO trace_files (trace_id, project_id, file_hash, pending_writers, durable) \
+         VALUES ($1, $2, $3, 1, FALSE) \
+         ON CONFLICT (project_id, trace_id, file_hash) \
+         DO UPDATE SET pending_writers = trace_files.pending_writers + 1",
     )
     .bind(trace_id)
     .bind(project_id)
@@ -442,41 +444,42 @@ pub async fn associate_file(
     .execute(&mut *tx)
     .await?;
 
-    // Created *provisional* - see the schema comment and the SQLite twin.
-    let inserted = sqlx::query(
-        "INSERT INTO trace_files (trace_id, project_id, file_hash, provisional) \
-         VALUES ($1, $2, $3, TRUE) ON CONFLICT DO NOTHING",
+    // One in-flight writer added, new row or shared - see the schema comment and the SQLite twin. Returns
+    // true whenever a reference was recorded, which is always: each reference is resolved by one confirm or
+    // release.
+    sqlx::query(
+        "INSERT INTO trace_files (trace_id, project_id, file_hash, pending_writers, durable) \
+         VALUES ($1, $2, $3, 1, FALSE) \
+         ON CONFLICT (project_id, trace_id, file_hash) \
+         DO UPDATE SET pending_writers = trace_files.pending_writers + 1",
     )
     .bind(trace_id)
     .bind(project_id)
     .bind(file_hash)
     .execute(&mut *tx)
-    .await?
-    .rows_affected()
-        > 0;
+    .await?;
 
-    // Recomputed from the associations, not incremented - see `sync_ref_count`.
-    if inserted {
-        sqlx::query(
-            r#"
-            UPDATE files
-            SET ref_count = (
-                    SELECT COUNT(*) FROM trace_files
-                    WHERE project_id = files.project_id AND file_hash = files.file_hash
-                ),
-                updated_at = $1
-            WHERE project_id = $2 AND file_hash = $3
-            "#,
-        )
-        .bind(now)
-        .bind(project_id)
-        .bind(file_hash)
-        .execute(&mut *tx)
-        .await?;
-    }
+    // Recomputed from the associations, not incremented - see `sync_ref_count`. A share leaves the row
+    // count unchanged, so this is a no-op then; on a fresh row it is the +1.
+    sqlx::query(
+        r#"
+        UPDATE files
+        SET ref_count = (
+                SELECT COUNT(*) FROM trace_files
+                WHERE project_id = files.project_id AND file_hash = files.file_hash
+            ),
+            updated_at = $1
+        WHERE project_id = $2 AND file_hash = $3
+        "#,
+    )
+    .bind(now)
+    .bind(project_id)
+    .bind(file_hash)
+    .execute(&mut *tx)
+    .await?;
 
     tx.commit().await?;
-    Ok(inserted)
+    Ok(true)
 }
 
 /// How many of these traces reference each file, so deletion can decrement by that many.
@@ -651,20 +654,35 @@ pub async fn release_trace_file_association(
     trace_id: &str,
     file_hash: &str,
 ) -> Result<bool, PostgresError> {
-    let result = sqlx::query(
-        // `provisional` in the predicate is what makes this safe rather than merely precise - see the
-        // SQLite twin.
-        "DELETE FROM trace_files \
-         WHERE project_id = $1 AND trace_id = $2 AND file_hash = $3 AND provisional",
+    // Decrement this writer, then delete only a non-durable row with none left - the two-fact test. Two
+    // statements in a transaction, not one CTE: a data-modifying CTE that updates a row and then deletes
+    // the same row in the outer statement modifies one tuple twice in a single command, which Postgres
+    // leaves the delete a silent no-op for. See the SQLite twin for why a boolean could not distinguish the
+    // last provisional writer from a still-in-flight peer.
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "UPDATE trace_files SET pending_writers = GREATEST(pending_writers - 1, 0) \
+         WHERE project_id = $1 AND trace_id = $2 AND file_hash = $3",
     )
     .bind(project_id)
     .bind(trace_id)
     .bind(file_hash)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    let result = sqlx::query(
+        "DELETE FROM trace_files \
+         WHERE project_id = $1 AND trace_id = $2 AND file_hash = $3 \
+           AND durable = FALSE AND pending_writers = 0",
+    )
+    .bind(project_id)
+    .bind(trace_id)
+    .bind(file_hash)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
     Ok(result.rows_affected() > 0)
 }
-/// Mark a batch's associations as no longer provisional. See the SQLite twin.
+/// Mark a batch's associations durable. See the SQLite twin.
 pub async fn confirm_trace_file_associations(
     pool: &PgPool,
     associations: &[(String, String, String)],
@@ -677,7 +695,7 @@ pub async fn confirm_trace_file_associations(
     let traces: Vec<&str> = associations.iter().map(|(_, t, _)| t.as_str()).collect();
     let hashes: Vec<&str> = associations.iter().map(|(_, _, h)| h.as_str()).collect();
     let result = sqlx::query(
-        "UPDATE trace_files SET provisional = FALSE \
+        "UPDATE trace_files SET durable = TRUE, pending_writers = GREATEST(pending_writers - 1, 0) \
          WHERE (project_id, trace_id, file_hash) IN ( \
              SELECT * FROM UNNEST($1::text[], $2::text[], $3::text[]) \
          )",

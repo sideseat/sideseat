@@ -801,9 +801,11 @@ async fn write_and_record_files(
                 )
                 .await
             {
-                // Remembered only when it was *new*. An association that already existed belongs to an
-                // earlier batch whose spans are committed, and releasing it would orphan that batch's
-                // file - so the compensating release has to know which ones this batch owns.
+                // Every reference is remembered, not only a newly-created row. Each one incremented the
+                // association's in-flight writer count, so each must be resolved by exactly one confirm (on
+                // success) or release (on failure) - a batch that merely *shares* an existing association is
+                // now one of its owners, and the release only deletes a non-durable row once the last owner
+                // is gone, so tracking a shared one can no longer orphan the batch that created it.
                 Ok(true) => created.push(trace_key),
                 Ok(false) => {}
                 Err(e) => {

@@ -806,8 +806,8 @@ impl TracePipeline {
             {
                 tracing::warn!(
                     error = %e,
-                    "Could not confirm this batch's file associations; they stay provisional and a later \
-                     failure path could release them"
+                    "Could not confirm this batch's file associations as durable; they keep a pending \
+                     writer and a later failure path could release them"
                 );
             }
             // Then the compensating re-check, before anything is published: a deletion that landed between
@@ -822,16 +822,26 @@ impl TracePipeline {
             // Published *after* every drop and compensation, and only for spans that survived both. Built
             // before the filtering, `sse_events` announced spans this batch went on to discard - so a
             // reader saw a span appear and then never find it.
-            let surviving: HashSet<(&str, &str)> = written
+            let surviving: HashSet<(&str, &str, &str)> = written
                 .iter()
-                .map(|(_, trace, span)| (trace.as_str(), span.as_str()))
-                .filter(|(trace, span)| {
-                    !compensated.contains(&((*trace).to_string(), (*span).to_string()))
+                .map(|(project, trace, span)| (project.as_str(), trace.as_str(), span.as_str()))
+                .filter(|(project, trace, span)| {
+                    !compensated.contains(&(
+                        (*project).to_string(),
+                        (*trace).to_string(),
+                        (*span).to_string(),
+                    ))
                 })
                 .collect();
             let sse_events: Vec<SseSpanEvent> = sse_events
                 .into_iter()
-                .filter(|e| surviving.contains(&(e.trace_id.as_str(), e.span_id.as_str())))
+                .filter(|e| {
+                    surviving.contains(&(
+                        e.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID),
+                        e.trace_id.as_str(),
+                        e.span_id.as_str(),
+                    ))
+                })
                 .collect();
             publish_sse_events(&sse_events, &self.topics).await;
         } else {
@@ -990,8 +1000,12 @@ impl TracePipeline {
         &self,
         written: &[(String, String, String)],
         created_associations: &[(String, String, String)],
-    ) -> HashSet<(String, String)> {
-        let mut removed: HashSet<(String, String)> = HashSet::new();
+    ) -> HashSet<(String, String, String)> {
+        // Keyed by (project, trace, span), not (trace, span): a span id is unique only within a trace and a
+        // trace id only within a project, so a survivor set that drops the project can let a compensated
+        // span in one project suppress the SSE for a same-id survivor in another (gotcha #22). The deletion
+        // itself was already per-project; only the returned identity was blind.
+        let mut removed: HashSet<(String, String, String)> = HashSet::new();
         if written.is_empty() {
             return removed;
         }
@@ -1025,6 +1039,8 @@ impl TracePipeline {
                 .filter(|(p, t, _)| p == project && tombstoned.contains(t))
                 .map(|(_, t, span)| (t.clone(), span.clone()))
                 .collect();
+            // The analytics delete is keyed (trace, span) within the project it is scoped to; the returned
+            // set carries the project so the SSE filter can tell projects apart.
             // The rows go first, and the associations *only if* they went.
             //
             // Released unconditionally, a failed `delete_spans` leaves readable rows whose files are now
@@ -1053,7 +1069,11 @@ impl TracePipeline {
                 traces = tombstoned.len(),
                 "Removed spans written for traces deleted during the write"
             );
-            removed.extend(doomed.iter().cloned());
+            removed.extend(
+                doomed
+                    .iter()
+                    .map(|(t, span)| (project.to_string(), t.clone(), span.clone())),
+            );
             let orphaned: Vec<(String, String, String)> = created_associations
                 .iter()
                 .filter(|(p, t, _)| p == project && tombstoned.contains(t))
@@ -1537,7 +1557,8 @@ impl TracePipeline {
                 {
                     tracing::warn!(
                         error = %e,
-                        "Could not confirm this request's file associations; they stay provisional"
+                        "Could not confirm this request's file associations as durable; they keep a \
+                         pending writer"
                     );
                 }
                 self.tombstone_traces_of_deleted_sessions(&written, &session_of)
@@ -1545,17 +1566,28 @@ impl TracePipeline {
                 let compensated = self
                     .collect_spans_written_for_deleted_traces(&written, &created_associations)
                     .await;
-                // Only spans that survived every drop and the compensation - see the batch path.
-                let surviving: HashSet<(&str, &str)> = written
+                // Only spans that survived every drop and the compensation - see the batch path, including
+                // why the survivor identity carries the project id.
+                let surviving: HashSet<(&str, &str, &str)> = written
                     .iter()
-                    .map(|(_, trace, span)| (trace.as_str(), span.as_str()))
-                    .filter(|(trace, span)| {
-                        !compensated.contains(&((*trace).to_string(), (*span).to_string()))
+                    .map(|(project, trace, span)| (project.as_str(), trace.as_str(), span.as_str()))
+                    .filter(|(project, trace, span)| {
+                        !compensated.contains(&(
+                            (*project).to_string(),
+                            (*trace).to_string(),
+                            (*span).to_string(),
+                        ))
                     })
                     .collect();
                 let sse_events: Vec<SseSpanEvent> = sse_events
                     .into_iter()
-                    .filter(|e| surviving.contains(&(e.trace_id.as_str(), e.span_id.as_str())))
+                    .filter(|e| {
+                        surviving.contains(&(
+                            e.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID),
+                            e.trace_id.as_str(),
+                            e.span_id.as_str(),
+                        ))
+                    })
                     .collect();
                 publish_sse_events(&sse_events, &self.topics).await;
                 if partly_dropped > 0 {
