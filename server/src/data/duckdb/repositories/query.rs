@@ -37,11 +37,19 @@ use crate::utils::time::{micros_to_datetime, parse_iso_timestamp};
 /// `QUALIFY ROW_NUMBER()`, not a join on `MAX(ingested_at)`: the join returned **every** row tied at the
 /// maximum, so two deliveries of one span landing in the same stored microsecond both survived and the span
 /// appeared twice - a duplicate, which is the one thing the feed must never produce. `ROW_NUMBER() … = 1`
-/// keeps exactly one row per span, which also matches ClickHouse's `LIMIT 1 BY`, so the two backends agree
-/// on a tie instead of one duplicating where the other does not.
+/// keeps exactly one row per span.
+///
+/// The tiebreak is `rowid DESC`, so on an equal `ingested_at` the **later insert wins** - which is
+/// "latest delivery wins" for a same-microsecond re-delivery. `ingested_at` alone left the choice to the
+/// engine, and it could keep the older row, so a re-delivery correcting a span's tokens or messages was
+/// silently ignored. `rowid` is DuckDB's physical insert order on an append-only table, so a later delivery
+/// always has the higher one. (`ingested_at` is assigned per backend at write time, so a cross-backend tie
+/// does not arise in practice; ClickHouse breaks a same-microsecond tie by `ReplacingMergeTree` insert order,
+/// which is the same "later insert wins" intent - neither distinguishes sub-microsecond recency, an inherent
+/// limit of using a microsecond timestamp as the version.)
 pub(crate) const DEDUP_SPANS: &str = "(SELECT * FROM otel_spans \
      QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-     ORDER BY ingested_at DESC) = 1)";
+     ORDER BY ingested_at DESC, rowid DESC) = 1)";
 
 /// [`DEDUP_SPANS`], with the latest delivery chosen *as of* a watermark.
 ///
@@ -57,7 +65,7 @@ pub(crate) const DEDUP_SPANS: &str = "(SELECT * FROM otel_spans \
 pub(crate) fn dedup_spans_as_of_watermark() -> &'static str {
     "(SELECT * FROM otel_spans WHERE EPOCH_US(ingested_at) < ?::BIGINT \
      QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-     ORDER BY ingested_at DESC) = 1)"
+     ORDER BY ingested_at DESC, rowid DESC) = 1)"
 }
 
 /// Build span conditions with optional table alias.

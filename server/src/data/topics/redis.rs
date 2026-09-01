@@ -434,17 +434,15 @@ impl RedisTopicBackend {
     /// is what a minute of analytics downtime looks like, the payload was already answered 200, and a
     /// delivery counter says nothing about the payload - only about the system that kept failing to store it.
     ///
-    /// Two mechanisms replace it, each doing a job the other cannot:
+    /// A **rotating start** replaces it: the scan resumes past the last entry it examined and wraps at the
+    /// end, so every pending entry is reached within `pending / count` passes however many chronic failures
+    /// precede it. It scans exactly `count` and advances past exactly that, so no eligible entry is skipped
+    /// within a pass. A chronically-failing entry is therefore retried once per rotation and reported loudly,
+    /// and never dropped.
     ///
-    ///   * **A rotating start.** The scan resumes past the last entry it examined and wraps at the end, so
-    ///     every pending entry is reached within a bounded number of passes however many chronic failures
-    ///     precede it. Sorting alone cannot do this: entries beyond the scanned window are invisible.
-    ///   * **Fewest deliveries first.** Within what was scanned, fresh work is claimed before work that has
-    ///     already failed repeatedly, so a chronic failure does not consume the window while ordinary
-    ///     entries wait. Rotation alone cannot do this: it would hand the window back to the chronic entry
-    ///     every time its turn came round.
-    ///
-    /// A chronically-failing entry is therefore retried more slowly and reported loudly, and never dropped.
+    /// Returns the ids to claim and the cursor move the caller should commit **after** the claim succeeds -
+    /// see [`CursorAction`]. The cursor is not moved here, because advancing past an entry a later-failing
+    /// `XCLAIM` never claimed would skip it.
     async fn scan_pending(
         &self,
         conn: &mut deadpool_redis::Connection,
@@ -452,7 +450,7 @@ impl RedisTopicBackend {
         group: &str,
         min_idle_ms: u64,
         count: usize,
-    ) -> Result<Vec<String>, TopicError> {
+    ) -> Result<(Vec<String>, CursorAction), TopicError> {
         let cursor_key = format!("{key}|{group}");
         let start = self
             .pending_scan_cursor
@@ -483,24 +481,23 @@ impl RedisTopicBackend {
             );
         }
         if scanned.is_empty() {
-            return Ok(vec![]);
+            // Nothing eligible this pass. If we had rotated to a non-`-` start and found nothing, the wrap
+            // above already re-scanned from the front, so the cursor is best cleared for a clean next pass.
+            return Ok((vec![], CursorAction::Reset(cursor_key)));
         }
 
-        // Advance the cursor past the last entry scanned, so the next pass sees what lies beyond it. A short
-        // page means the list ended here, so the next pass starts over from the front.
-        match scanned.last().filter(|_| scanned.len() >= count) {
+        // What the cursor *should* become - returned, not applied. The caller commits it only after the
+        // claim it enables has succeeded. Applying it here advanced past entries that a subsequently-failing
+        // `XCLAIM` never claimed, so under sustained growth (a full page arriving each rotation, so the scan
+        // never reaches a short page) those entries were skipped forever. A short page means the list ended
+        // here, so the next pass starts over from the front.
+        let action = match scanned.last().filter(|_| scanned.len() >= count) {
             Some((last, _)) => match StreamId::parse(last) {
-                Some(id) => {
-                    self.pending_scan_cursor.insert(cursor_key, id.next());
-                }
-                None => {
-                    self.pending_scan_cursor.remove(&cursor_key);
-                }
+                Some(id) => CursorAction::Advance(cursor_key, id.next()),
+                None => CursorAction::Reset(cursor_key),
             },
-            None => {
-                self.pending_scan_cursor.remove(&cursor_key);
-            }
-        }
+            None => CursorAction::Reset(cursor_key),
+        };
 
         for (id, deliveries) in &scanned {
             if *deliveries >= CHRONIC_DELIVERY_REPORT {
@@ -515,7 +512,19 @@ impl RedisTopicBackend {
             }
         }
 
-        Ok(scanned.into_iter().map(|(id, _)| id).collect())
+        Ok((scanned.into_iter().map(|(id, _)| id).collect(), action))
+    }
+
+    /// Move the rotating scan cursor as [`Self::scan_pending`] computed, once the claim it enabled succeeded.
+    fn apply_cursor(&self, action: CursorAction) {
+        match action {
+            CursorAction::Advance(key, id) => {
+                self.pending_scan_cursor.insert(key, id);
+            }
+            CursorAction::Reset(key) => {
+                self.pending_scan_cursor.remove(&key);
+            }
+        }
     }
 
     /// Preserve an entry that cannot be processed at all on a side stream, then let the caller acknowledge it.
@@ -1134,10 +1143,12 @@ impl TopicBackend for RedisTopicBackend {
         // Which pending entries this pass will claim, chosen by `scan_pending`: a rotating, bounded scan
         // that prefers the entries with the fewest deliveries. Nothing is discarded on the strength of a
         // retry counter - see [`CHRONIC_DELIVERY_REPORT`].
-        let ids_to_claim = self
+        let (ids_to_claim, cursor_action) = self
             .scan_pending(&mut conn, &key, group, min_idle_ms, count)
             .await?;
         if ids_to_claim.is_empty() {
+            // No claim to enable, so the rotation has done its reading; commit the (Reset) cursor.
+            self.apply_cursor(cursor_action);
             return Ok(vec![]);
         }
 
@@ -1150,6 +1161,11 @@ impl TopicBackend for RedisTopicBackend {
         }
 
         let claimed: RedisValue = cmd.query_async(&mut conn).await?;
+
+        // Only now, past a successful `XCLAIM`, does the cursor advance. A claim that errored propagated
+        // above and left the cursor where it was, so the next pass re-scans these entries rather than
+        // stepping over unclaimed ones.
+        self.apply_cursor(cursor_action);
 
         // Parse claimed messages. An entry whose payload cannot be read is *moved to the dead-letter
         // stream* and then acknowledged - never simply deleted.
@@ -1509,6 +1525,18 @@ async fn probe_redis_durability(conn: &mut deadpool_redis::Connection) -> Result
 /// component changes width: `"9-0"` sorts after `"10-0"` as text and before it as a stream id. The trim
 /// boundary is a minimum over groups, so getting this backwards would delete entries a group still
 /// needs.
+/// What a recovery pass wants done to its rotating scan cursor, deferred until the claim it enables commits.
+///
+/// Held separately from the scan so the cursor advances only past entries an `XCLAIM` actually claimed - a
+/// claim that errors leaves the cursor put, and the next pass re-scans rather than stepping over unclaimed
+/// entries and leaving them stranded under sustained backlog growth.
+enum CursorAction {
+    /// Resume the next pass from this id.
+    Advance(String, StreamId),
+    /// Start the next pass from the front (the list ended, or nothing eligible was found).
+    Reset(String),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct StreamId {
     millis: u64,
