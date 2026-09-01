@@ -299,16 +299,25 @@ pub async fn delete_sessions(
     ValidatedJson(body): ValidatedJson<DeleteSessionsBody>,
 ) -> Result<StatusCode, ApiError> {
     let analytics_repo = state.analytics.repository();
+    let repo = state.database.repository();
 
-    // Get trace_ids for these sessions BEFORE deletion (for file cleanup)
-    let trace_ids_for_cleanup = if state.file_service.is_enabled() {
-        analytics_repo
-            .get_trace_ids_for_sessions(&auth.project_id, &body.session_ids)
-            .await
-            .map_err(ApiError::from_data)?
-    } else {
-        vec![]
-    };
+    // The session's traces, read before the delete - needed for both the file cleanup and the tombstones.
+    //
+    // Unconditionally now, not only when file storage is on: the tombstones are what stop a queued or
+    // in-flight batch from recreating the session after this route has answered 204, and that is true
+    // whether or not any of its spans carried a file.
+    let trace_ids = analytics_repo
+        .get_trace_ids_for_sessions(&auth.project_id, &body.session_ids)
+        .await
+        .map_err(ApiError::from_data)?;
+
+    // Tombstone before deleting, exactly as `delete_traces` does. A session is deleted *by* deleting its
+    // traces, so the trace tombstone is the right fence: ingest consults it immediately before its
+    // analytics write, so a late batch drops those spans instead of resurrecting the session. Fatal
+    // rather than logged - without the tombstone the deletion is not safe to perform.
+    repo.record_deleted_traces(&auth.project_id, &trace_ids)
+        .await
+        .map_err(ApiError::from_data)?;
 
     // Delete from analytics backend
     analytics_repo
@@ -317,22 +326,22 @@ pub async fn delete_sessions(
         .map_err(ApiError::from_data)?;
 
     // Cleanup files associated with deleted traces
-    if !trace_ids_for_cleanup.is_empty()
+    if state.file_service.is_enabled()
+        && !trace_ids.is_empty()
         && let Err(e) = state
             .file_service
-            .cleanup_traces(&auth.project_id, &trace_ids_for_cleanup)
+            .cleanup_traces(&auth.project_id, &trace_ids)
             .await
     {
         tracing::warn!(
             error = %e,
             project_id = %auth.project_id,
-            traces = trace_ids_for_cleanup.len(),
+            traces = trace_ids.len(),
             "Failed to cleanup files after session deletion"
         );
     }
 
     // Cleanup favorites for deleted sessions
-    let repo = state.database.repository();
     if let Err(e) = repo
         .delete_favorites_by_entity("session", &body.session_ids, &auth.project_id)
         .await
@@ -346,15 +355,15 @@ pub async fn delete_sessions(
     }
 
     // Also cleanup favorites for deleted traces within these sessions
-    if !trace_ids_for_cleanup.is_empty()
+    if !trace_ids.is_empty()
         && let Err(e) = repo
-            .delete_favorites_by_entity("trace", &trace_ids_for_cleanup, &auth.project_id)
+            .delete_favorites_by_entity("trace", &trace_ids, &auth.project_id)
             .await
     {
         tracing::warn!(
             error = %e,
             project_id = %auth.project_id,
-            traces = trace_ids_for_cleanup.len(),
+            traces = trace_ids.len(),
             "Failed to cleanup trace favorites after session deletion"
         );
     }

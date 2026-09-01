@@ -782,3 +782,75 @@ pub async fn deleted_traces_among(
     .await?;
     Ok(rows.into_iter().collect())
 }
+/// Claim a batch of deleted traces whose check is due, leased and exclusive.
+///
+/// The same shape as the project claim, for the reason stated on the trait method: the pre-write tombstone
+/// check and the analytics write are in different stores, so a crash between them leaves spans for a
+/// deleted trace and only a sweep collects them. One statement, so a claim is atomic with its lease.
+pub async fn claim_deleted_traces_for_check(
+    pool: &PgPool,
+    lease_secs: i64,
+    limit: i64,
+) -> Result<Vec<(String, String, i64)>, PostgresError> {
+    let rows: Vec<(String, String, i64)> = sqlx::query_as(
+        // `FOR UPDATE SKIP LOCKED` on the inner select: `WHERE (a,b) IN (SELECT ... LIMIT n)` alone lets a
+        // blocked replica resume with a stale subquery snapshot and return the same rows, which is the
+        // hazard the project claim documents.
+        "UPDATE deleted_traces \
+         SET next_check_at = EXTRACT(EPOCH FROM now())::bigint + $1, claim_token = claim_token + 1 \
+         WHERE (project_id, trace_id) IN ( \
+             SELECT project_id, trace_id FROM deleted_traces \
+             WHERE next_check_at <= EXTRACT(EPOCH FROM now())::bigint \
+             ORDER BY next_check_at \
+             LIMIT $2 \
+             FOR UPDATE SKIP LOCKED \
+         ) \
+         RETURNING project_id, trace_id, claim_token",
+    )
+    .bind(lease_secs)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
+/// Record what a deleted trace's check found, matched on the claim token.
+pub async fn record_deleted_trace_check(
+    pool: &PgPool,
+    project_id: &str,
+    trace_id: &str,
+    claim_token: i64,
+    was_quiet: bool,
+    base_gap_secs: i64,
+    max_gap_secs: i64,
+) -> Result<(), PostgresError> {
+    if was_quiet {
+        sqlx::query(
+            "UPDATE deleted_traces \
+             SET quiet_checks = quiet_checks + 1, \
+                 next_check_at = EXTRACT(EPOCH FROM now())::bigint \
+                     + LEAST($1 * (2::bigint ^ LEAST(quiet_checks, 20))::bigint, $2) \
+             WHERE project_id = $3 AND trace_id = $4 AND claim_token = $5",
+        )
+        .bind(base_gap_secs)
+        .bind(max_gap_secs)
+        .bind(project_id)
+        .bind(trace_id)
+        .bind(claim_token)
+        .execute(pool)
+        .await?;
+    } else {
+        sqlx::query(
+            "UPDATE deleted_traces SET quiet_checks = 0, \
+             next_check_at = EXTRACT(EPOCH FROM now())::bigint + $1 \
+             WHERE project_id = $2 AND trace_id = $3 AND claim_token = $4",
+        )
+        .bind(base_gap_secs)
+        .bind(project_id)
+        .bind(trace_id)
+        .bind(claim_token)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
+}

@@ -53,6 +53,27 @@ impl SecretProvider for CachedProvider {
         Ok(())
     }
 
+    /// Forwarded, and the cache is filled with whatever *won*.
+    ///
+    /// Not forwarding this was worse than it looks: the two providers wrapped here (AWS, Vault) are
+    /// exactly the shared backends where the race matters, so the default get/set/get was reached
+    /// through the wrapper and the AWS compare-and-set was dead code. The wrapper also negative-caches
+    /// absence, so two replicas could each read "no secret", each write their own, and each keep serving
+    /// its own from cache - the failure being that an API key created on one is unverifiable on the other.
+    async fn create_if_absent(
+        &self,
+        key: &SecretKey,
+        secret: &Secret,
+    ) -> Result<Secret, SecretError> {
+        let winner = self.inner.create_if_absent(key, secret).await?;
+        // The winner, not what we proposed: on a CAS backend the two differ exactly when another
+        // instance got there first, and caching our proposal then would defeat the whole mechanism.
+        self.cache
+            .insert(key.to_string(), Some(winner.clone()))
+            .await;
+        Ok(winner)
+    }
+
     async fn list(&self, scope: &SecretScope) -> Result<Vec<SecretKey>, SecretError> {
         self.inner.list(scope).await
     }

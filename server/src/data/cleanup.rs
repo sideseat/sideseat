@@ -7,8 +7,9 @@ use anyhow::{Context, Result, anyhow};
 use crate::core::constants::{
     CLAIM_RECOVERY_INTERVAL_SECS, DELETED_PROJECT_CHECK_BASE_SECS, DELETED_PROJECT_CHECK_BATCH,
     DELETED_PROJECT_CHECK_LEASE_SECS, DELETED_PROJECT_CHECK_MAX_SECS,
-    FILE_DELETION_CLAIM_STALE_SECS, PROJECT_DELETION_CLAIM_STALE_SECS,
-    PROJECT_TOMBSTONE_CLEAN_SWEEPS,
+    DELETED_TRACE_CHECK_BASE_SECS, DELETED_TRACE_CHECK_BATCH, DELETED_TRACE_CHECK_LEASE_SECS,
+    DELETED_TRACE_CHECK_MAX_SECS, FILE_DELETION_CLAIM_STALE_SECS,
+    PROJECT_DELETION_CLAIM_STALE_SECS, PROJECT_TOMBSTONE_CLEAN_SWEEPS,
 };
 use crate::data::AnalyticsService;
 use crate::data::TransactionalService;
@@ -347,6 +348,62 @@ pub async fn advance_pending_deletions(
                 tracing::warn!(project_id, error = %e, "Could not advance a project deletion")
             }
         }
+    }
+
+    // Spans written for a trace that had already been deleted.
+    //
+    // The write path checks the tombstone immediately before writing and re-checks immediately after, so
+    // this collects only what a *crash* between those two left behind - and that window is exactly why a
+    // pre-write check alone is not a guarantee: the tombstone is a row in this store and the spans go to
+    // the analytics store, so nothing makes the pair atomic. Leased, backed-off and batched for the same
+    // reason the deleted-project records are: the records are long-lived, so the *rate* is what must be
+    // bounded rather than the count.
+    match repo
+        .claim_deleted_traces_for_check(DELETED_TRACE_CHECK_LEASE_SECS, DELETED_TRACE_CHECK_BATCH)
+        .await
+    {
+        Ok(claimed) => {
+            for (project_id, trace_id, claim_token) in claimed {
+                let removed = analytics
+                    .repository()
+                    .delete_traces(&project_id, std::slice::from_ref(&trace_id))
+                    .await;
+                // "Quiet" requires no error as well as nothing found: a failed delete is a reason to look
+                // again soon, not evidence the trace has gone quiet. DuckDB reports rows removed while
+                // ClickHouse can only report how many ids it was asked about, so a *count* cannot decide
+                // this - what decides it is whether anything is still readable, asked directly.
+                let still_there = analytics
+                    .repository()
+                    .get_spans_for_trace(&project_id, &trace_id)
+                    .await;
+                let was_quiet = removed.is_ok()
+                    && matches!(still_there.as_ref().map(|spans| spans.is_empty()), Ok(true));
+                if let Err(ref e) = removed {
+                    tracing::warn!(project_id, trace_id, error = %e, "Could not sweep a deleted trace");
+                } else if !was_quiet {
+                    tracing::warn!(
+                        project_id,
+                        trace_id,
+                        "Collected spans written for a trace that had already been deleted"
+                    );
+                }
+                if let Err(e) = repo
+                    .record_deleted_trace_check(
+                        &project_id,
+                        &trace_id,
+                        claim_token,
+                        was_quiet,
+                        DELETED_TRACE_CHECK_BASE_SECS,
+                        DELETED_TRACE_CHECK_MAX_SECS,
+                    )
+                    .await
+                {
+                    tracing::warn!(project_id, trace_id, error = %e, "Could not record a trace check");
+                }
+                advanced += 1;
+            }
+        }
+        Err(e) => tracing::warn!(error = %e, "Could not claim deleted traces for checking"),
     }
 
     let orgs = repo

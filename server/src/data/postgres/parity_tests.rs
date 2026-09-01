@@ -1074,3 +1074,160 @@ async fn trace_deletion_tombstones_behave_identically() {
     })
     .await;
 }
+
+/// Releasing an association drops its file's reference count, so the orphan sweeper can reclaim it.
+///
+/// The leak this closes: a file's bytes and association are written *before* the analytics row that
+/// references them - deliberately, so the surviving failure is a reclaimable orphan rather than a
+/// dangling reference. But an association keeps `ref_count` above zero, and the orphan sweeper selects
+/// on `ref_count = 0`, so a batch whose analytics write failed left the file holding the project's quota
+/// with nothing able to reclaim it.
+///
+/// Two properties, both compared across the dialects: releasing the association this batch created drops
+/// the count to zero and makes the file an orphan, and releasing does **not** touch another trace's
+/// association for the same file - which is what stops the compensation from orphaning a committed
+/// batch's content.
+#[tokio::test]
+async fn releasing_a_created_association_behaves_identically() {
+    assert_parity("release association", |repo, mut t| async move {
+        let project = "default";
+        let file_hash = hash(0xc3);
+
+        // Two traces share one file, which is the case that makes precision matter.
+        for trace in ["t-keep", "t-drop"] {
+            let created = repo
+                .associate_file(trace, project, &file_hash, Some("image/png"), 10, "sha256")
+                .await
+                .expect("associate");
+            t.note(&format!("associate {trace} new={created}"));
+            repo.sync_ref_count(project, &file_hash)
+                .await
+                .expect("sync");
+        }
+        let counts = repo.get_file(project, &file_hash).await.expect("file row");
+        t.note(&format!(
+            "refs after two associations={:?}",
+            counts.map(|f| f.ref_count)
+        ));
+
+        // Release only the one the failed batch created.
+        let released = repo
+            .release_trace_file_association(project, "t-drop", &file_hash)
+            .await
+            .expect("release");
+        repo.sync_ref_count(project, &file_hash)
+            .await
+            .expect("sync");
+        t.note(&format!("released={released}"));
+        let counts = repo.get_file(project, &file_hash).await.expect("file row");
+        t.note(&format!(
+            "refs after release={:?}",
+            counts.map(|f| f.ref_count)
+        ));
+
+        // The other trace still holds it, so it is not an orphan yet.
+        let orphans = repo.get_orphan_files().await.expect("orphans");
+        t.note(&format!(
+            "orphan while still referenced={}",
+            orphans.iter().any(|(p, h)| p == project && h == &file_hash)
+        ));
+
+        // Release the survivor too, and now it is reclaimable.
+        repo.release_trace_file_association(project, "t-keep", &file_hash)
+            .await
+            .expect("release the other");
+        repo.sync_ref_count(project, &file_hash)
+            .await
+            .expect("sync");
+        let orphans = repo.get_orphan_files().await.expect("orphans");
+        t.note(&format!(
+            "orphan once unreferenced={}",
+            orphans.iter().any(|(p, h)| p == project && h == &file_hash)
+        ));
+
+        // Releasing something that is not there is not an error - the failure path may run twice.
+        let again = repo
+            .release_trace_file_association(project, "t-drop", &file_hash)
+            .await
+            .expect("releasing twice must not error");
+        t.note(&format!("release again={again}"));
+        t
+    })
+    .await;
+}
+
+/// The deleted-trace sweep claims exclusively, leases, and backs off - identically on both backends.
+///
+/// This is the sweep that covers the one window a pre-write tombstone check cannot: the tombstone is a
+/// row in this store and the spans go to the analytics store, so a crash between the check and the
+/// post-write re-check leaves spans for a deleted trace. The properties that make the sweep bounded and
+/// safe are all in SQL, written twice in two dialects (`unixepoch()` against `EXTRACT(EPOCH FROM now())`,
+/// `1 << n` against `2::bigint ^ n`, and PostgreSQL's `FOR UPDATE SKIP LOCKED`), so a divergence here is
+/// either a record swept twice at once or one that stops being swept at all.
+#[tokio::test]
+async fn the_deleted_trace_sweep_schedule_behaves_identically() {
+    assert_parity("deleted trace sweep", |repo, mut t| async move {
+        // A fresh tombstone is due immediately: `next_check_at` defaults to 0, and a record that queued
+        // behind the backlog would hide its late spans for as long as it waited.
+        repo.record_deleted_traces("p1", &["t1".to_string(), "t2".to_string()])
+            .await
+            .expect("record");
+        let claimed = repo
+            .claim_deleted_traces_for_check(300, 10)
+            .await
+            .expect("claim");
+        let mut ids: Vec<String> = claimed.iter().map(|(_, t, _)| t.clone()).collect();
+        ids.sort();
+        t.note(&format!("first claim={ids:?}"));
+        t.note(&format!(
+            "tokens={:?}",
+            claimed.iter().map(|(_, _, tok)| *tok).collect::<Vec<_>>()
+        ));
+
+        // Leased: the claim pushed the due time out, so an immediate second claim finds nothing. Without
+        // this a batch of storage work outrunning one sweep interval would be re-claimed while it ran.
+        let again = repo
+            .claim_deleted_traces_for_check(300, 10)
+            .await
+            .expect("claim again");
+        t.note(&format!("claim while leased={}", again.len()));
+
+        // A quiet check backs off; anything found brings it back to the base interval. Reported against
+        // the claim token, so a worker whose lease expired cannot overwrite the new holder's schedule.
+        for (project_id, trace_id, token) in &claimed {
+            repo.record_deleted_trace_check(project_id, trace_id, *token, true, 60, 3600)
+                .await
+                .expect("record quiet");
+        }
+        let after_quiet = repo
+            .claim_deleted_traces_for_check(300, 10)
+            .await
+            .expect("claim after quiet");
+        t.note(&format!("claim after backoff={}", after_quiet.len()));
+
+        // A stale token changes nothing.
+        let (project_id, trace_id, token) = &claimed[0];
+        repo.record_deleted_trace_check(project_id, trace_id, token - 1, false, 0, 3600)
+            .await
+            .expect("stale report must not error");
+        let after_stale = repo
+            .claim_deleted_traces_for_check(300, 10)
+            .await
+            .expect("claim after a stale report");
+        t.note(&format!("claim after stale report={}", after_stale.len()));
+
+        // A report with the right token and nothing-was-quiet brings it due again at the base interval.
+        repo.record_deleted_trace_check(project_id, trace_id, *token, false, 0, 3600)
+            .await
+            .expect("record found");
+        let after_found = repo
+            .claim_deleted_traces_for_check(300, 10)
+            .await
+            .expect("claim after finding something");
+        let mut due: Vec<String> = after_found.iter().map(|(_, tr, _)| tr.clone()).collect();
+        due.sort();
+        t.note(&format!("due after finding something={due:?}"));
+        t
+    })
+    .await;
+}

@@ -363,6 +363,19 @@ pub(super) struct FilePersistOutcome {
     /// The project is part of the key because a batch spans projects and a hash is content-addressed:
     /// the same URI can be rejected in one project and stored in another.
     pub quota_skipped: Vec<(String, String)>,
+    /// `(project_id, trace_id, file_hash)` associations this batch created, and no earlier one.
+    ///
+    /// A file's bytes are written before the analytics row that references them, which is the ordering
+    /// that keeps a dangling reference impossible. The cost is that a batch whose analytics write fails
+    /// has already created associations for spans that will never land - and those hold `ref_count`
+    /// above zero, so the orphan sweeper (which selects on `ref_count = 0`) can never reclaim them. The
+    /// file then occupies the project's quota for good.
+    ///
+    /// Recorded so the failure path can release precisely what it created. Only the *new* ones: an
+    /// association that already existed belongs to an earlier committed batch, and releasing it would
+    /// orphan that batch's file. A redelivery re-creates these, so the compensation costs nothing when
+    /// the retry succeeds.
+    pub created_associations: Vec<(String, String, String)>,
 }
 
 /// Replace references to files that were not stored with a placeholder a reader can understand.
@@ -558,8 +571,9 @@ pub(super) async fn persist_extracted_files(
     }
 
     // Phase 2: Decode, write, and record files
-    let (pending_finalizations, write_failures) =
+    let (pending_finalizations, write_failures, created_associations) =
         write_and_record_files(&files, file_service).await;
+    outcome.created_associations = created_associations;
 
     // Phase 3: Finalize temp files to permanent storage
     let finalize_failures =
@@ -652,7 +666,11 @@ async fn filter_over_quota(
 async fn write_and_record_files(
     files: &[PendingFileWrite],
     file_service: &Arc<FileService>,
-) -> (Vec<PendingFinalization>, usize) {
+) -> (
+    Vec<PendingFinalization>,
+    usize,
+    Vec<(String, String, String)>,
+) {
     let temp_dir = file_service.temp_dir();
     let repo = file_service.database().repository();
     let mut pending_finalizations: Vec<PendingFinalization> = Vec::new();
@@ -667,6 +685,8 @@ async fn write_and_record_files(
     let mut trace_hashes: HashSet<(String, String, String)> = HashSet::new();
     // Anything that did not reach storage: the row that references it must not be committed.
     let mut failures = 0usize;
+    // Associations this batch created, so a failed analytics write can release exactly its own.
+    let mut created: Vec<(String, String, String)> = Vec::new();
 
     let mut cache_hits = 0usize;
     let mut fresh_ok = 0usize;
@@ -761,8 +781,8 @@ async fn write_and_record_files(
             file.trace_id.clone(),
             file.hash.clone(),
         );
-        if trace_hashes.insert(trace_key)
-            && let Err(e) = repo
+        if trace_hashes.insert(trace_key.clone()) {
+            match repo
                 .associate_file(
                     &file.trace_id,
                     &file.project_id,
@@ -772,14 +792,22 @@ async fn write_and_record_files(
                     &file.hash_algo,
                 )
                 .await
-        {
-            failures += 1;
-            tracing::warn!(
-                error = %e,
-                hash = %file.hash,
-                trace_id = %file.trace_id,
-                "Failed to associate file with trace"
-            );
+            {
+                // Remembered only when it was *new*. An association that already existed belongs to an
+                // earlier batch whose spans are committed, and releasing it would orphan that batch's
+                // file - so the compensating release has to know which ones this batch owns.
+                Ok(true) => created.push(trace_key),
+                Ok(false) => {}
+                Err(e) => {
+                    failures += 1;
+                    tracing::warn!(
+                        error = %e,
+                        hash = %file.hash,
+                        trace_id = %file.trace_id,
+                        "Failed to associate file with trace"
+                    );
+                }
+            }
         }
     }
 
@@ -792,7 +820,7 @@ async fn write_and_record_files(
         "File write summary"
     );
 
-    (pending_finalizations, failures)
+    (pending_finalizations, failures, created)
 }
 
 // ============================================================================

@@ -147,7 +147,12 @@ pub async fn get_messages(
 
     let sql = format!(
         // span_id breaks ties, matching the DuckDB backend: timestamp alone is not a stable order.
-        "SELECT {CH_MESSAGE_SELECT_COLUMNS} FROM otel_spans FINAL WHERE {} ORDER BY timestamp_start ASC, span_id ASC",
+        // `trace_id` is in the order key, not just `span_id`. A span id is 8 bytes and unique only
+        // *within* a trace, so two traces reuse ids freely - and with only `(timestamp_start, span_id)`
+        // the order of tied rows is whatever the engine returns. Reconstruction reads first-seen order
+        // to decide which trace strips its history against which, so an undefined tie there is an
+        // undefined answer.
+        "SELECT {CH_MESSAGE_SELECT_COLUMNS} FROM otel_spans FINAL WHERE {} ORDER BY timestamp_start ASC, trace_id ASC, span_id ASC",
         conditions.join(" AND ")
     );
 

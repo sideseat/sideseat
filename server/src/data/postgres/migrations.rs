@@ -151,8 +151,12 @@ async fn apply_versioned_migration(
 ALTER TABLE files ADD COLUMN IF NOT EXISTS hash_algo TEXT NOT NULL DEFAULT 'sha256';
 ALTER TABLE files ADD COLUMN IF NOT EXISTS deleting_at BIGINT;
 -- 64-bit counters: an INTEGER ref_count is a decode failure waiting to happen against an i64 in Rust,
--- which SQLite never hit because its INTEGER is already 64-bit.
+-- which SQLite never hit because its INTEGER is already 64-bit. The surrogate key too - a v1 database
+-- declared it SERIAL while a fresh v2 declares BIGSERIAL, and two schemas for one version is exactly what
+-- the upgrade test exists to refuse. `ALTER TYPE` on the column is enough: BIGSERIAL is BIGINT plus a
+-- sequence default, and the sequence itself is already 64-bit in PostgreSQL.
 ALTER TABLE files ALTER COLUMN ref_count TYPE BIGINT;
+ALTER TABLE files ALTER COLUMN id TYPE BIGINT;
 
 -- projects / organizations: the deletion tombstone plus the repeated-observation counters that decide
 -- when it may go. Driven by what has been observed, never by elapsed time.
@@ -218,12 +222,20 @@ CREATE INDEX IF NOT EXISTS idx_deleted_projects_due ON deleted_projects(next_che
 
 -- The trace deletion tombstone; see the SQLite twin.
 CREATE TABLE IF NOT EXISTS deleted_traces (
-    project_id  TEXT   NOT NULL,
-    trace_id    TEXT   NOT NULL,
+    project_id  TEXT    NOT NULL,
+    trace_id    TEXT    NOT NULL,
     deleted_at  BIGINT NOT NULL,
+    -- The same leased, backed-off schedule the deleted-project records use, and for the same reason: the
+    -- pre-write check and the analytics write are in different stores, so a crash between them leaves
+    -- spans for a deleted trace and only a sweep can collect them. Re-checking every record forever at a
+    -- fixed rate would be unbounded lifetime work, so a quiet check pushes the next one further out and
+    -- the due time itself is indexed.
+    quiet_checks  BIGINT NOT NULL DEFAULT 0,
+    next_check_at BIGINT NOT NULL DEFAULT 0,
+    claim_token   BIGINT NOT NULL DEFAULT 0,
     PRIMARY KEY (project_id, trace_id)
 );
-CREATE INDEX IF NOT EXISTS idx_deleted_traces_at ON deleted_traces(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_deleted_traces_due ON deleted_traces(next_check_at);
 "#,
         ),
         _ => {
