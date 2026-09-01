@@ -210,6 +210,13 @@ pub struct FeedSpansParams {
     pub end_time: Option<DateTime<Utc>>,
     /// Filter to observations only (spans with observation_type OR gen_ai_request_model)
     pub is_observation: Option<bool>,
+    /// Ignore spans ingested at or after this instant, in microseconds since the epoch.
+    ///
+    /// The traversal watermark, established on the first page and carried by the cursor. Without it a
+    /// span ingested mid-traversal could appear on a later page after already having been counted in an
+    /// earlier page's reconstruction context - and the same watermark has to bound the context load, or
+    /// the two disagree about what exists.
+    pub ingested_before_us: Option<i64>,
 }
 
 /// Parameters for list_sessions query

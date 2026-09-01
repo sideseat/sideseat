@@ -144,6 +144,11 @@ pub async fn get_messages(
         conditions.push("timestamp_start < fromUnixTimestamp64Micro(?)".to_string());
         time_params.push(to.timestamp_micros());
     }
+    // The feed's traversal watermark - see `MessageQueryParams::ingested_before_us`.
+    if let Some(watermark_us) = params.ingested_before_us {
+        conditions.push("toInt64(toUnixTimestamp64Micro(ingested_at)) < ?".to_string());
+        time_params.push(watermark_us);
+    }
 
     let sql = format!(
         // span_id breaks ties, matching the DuckDB backend: timestamp alone is not a stable order.
@@ -199,6 +204,13 @@ pub async fn get_project_messages(
         bind_params.push(BindParam::Int64(*cursor_time_us));
         bind_params.push(BindParam::String(cursor_span_id.clone()));
         bind_params.push(BindParam::String(cursor_trace_id.clone()));
+    }
+
+    // The traversal watermark, in the ingestion dimension the pages are ordered by - see the DuckDB
+    // backend for the sequence that made a span vanish from every page.
+    if let Some(watermark_us) = params.ingested_before_us {
+        conditions.push("toInt64(toUnixTimestamp64Micro(ingested_at)) < ?".to_string());
+        bind_params.push(BindParam::Int64(watermark_us));
     }
 
     // Event time filters - use parameterized timestamps.

@@ -1380,6 +1380,13 @@ pub async fn get_feed_spans(
         cb.params.push(QueryParam::String(cursor_trace_id.clone()));
     }
 
+    // The traversal watermark - see the DuckDB copy for what an unbounded ingestion dimension does to a
+    // client concatenating pages.
+    if let Some(watermark_us) = params.ingested_before_us {
+        cb.add_raw("toInt64(toUnixTimestamp64Micro(ingested_at)) < ?");
+        cb.params.push(QueryParam::Int64(watermark_us));
+    }
+
     // Time filters
     if let Some(ref start) = params.start_time {
         cb.add_timestamp_gte("timestamp_start", start);

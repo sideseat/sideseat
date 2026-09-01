@@ -781,6 +781,14 @@ pub fn get_feed_spans(
         bind_values.push(cursor_trace_id.clone());
     }
 
+    // The traversal watermark, in the ingestion dimension this page is ordered by. A span ingested
+    // mid-traversal would otherwise shift every subsequent page boundary, so a client concatenating pages
+    // sees one span twice or not at all.
+    if let Some(watermark_us) = params.ingested_before_us {
+        conditions.push("EPOCH_US(ingested_at) < ?::BIGINT".to_string());
+        bind_values.push(watermark_us.to_string());
+    }
+
     // Event time filters
     if let Some(start) = &params.start_time {
         conditions.push("timestamp_start >= ?".to_string());

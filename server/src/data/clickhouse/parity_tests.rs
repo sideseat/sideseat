@@ -1742,6 +1742,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // --- project feed ------------------------------------------------------
     // The feed endpoints page with a (ingested_at, span_id) cursor, whose SQL is written twice.
     let feed_params = crate::data::types::FeedSpansParams {
+        ingested_before_us: None,
         project_id: PROJECT.to_string(),
         limit: 50,
         cursor: None,
@@ -1765,6 +1766,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     );
 
     let feed_messages = crate::data::types::FeedMessagesParams {
+        ingested_before_us: None,
         project_id: PROJECT.to_string(),
         limit: 50,
         cursor: None,
@@ -1794,6 +1796,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // it finished - and a completed response carries its span's end time, so its message belongs in
     // that window. Selecting rows by the span's start dropped it before reconstruction could see it.
     let straddling = crate::data::types::FeedMessagesParams {
+        ingested_before_us: None,
         project_id: PROJECT.to_string(),
         limit: 50,
         cursor: None,
@@ -1834,6 +1837,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // Cursor paging, which is a different mechanism from LIMIT/OFFSET and was only ever called
     // with `cursor: None`.
     let feed_page = |cursor: Option<(i64, String, String)>| crate::data::types::FeedSpansParams {
+        ingested_before_us: None,
         project_id: PROJECT.to_string(),
         limit: 3,
         cursor,
@@ -1894,6 +1898,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
 
     let messages_page =
         |cursor: Option<(i64, String, String)>| crate::data::types::FeedMessagesParams {
+            ingested_before_us: None,
             project_id: PROJECT.to_string(),
             limit: 2,
             cursor,
@@ -2776,4 +2781,122 @@ fn every_clickhouse_delete_waits_for_its_mutation() {
             );
         }
     }
+}
+
+/// The traversal watermark hides rows ingested after the traversal began, on both backends.
+///
+/// The defect: a feed page is chosen by ingestion time, but the reconstruction context loaded around it
+/// was unbounded in that dimension. A span ingested *during* the traversal could enter an earlier page's
+/// context, win deduplication against a span still to be paged, and then be scoped off the page it was
+/// not selected for - so the older copy was suppressed and the newer one never returned. Bounding both by
+/// one watermark makes a traversal a view of a single instant.
+///
+/// Checked on both the span feed and the message feed, because both take the bound and the two dialects
+/// spell it differently (`EPOCH_US(ingested_at)` against `toInt64(toUnixTimestamp64Micro(ingested_at))`).
+#[tokio::test]
+async fn the_feed_watermark_hides_later_rows_on_both_backends() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!(
+            "clickhouse parity: skipped - set {URL_ENV} to a ClickHouse HTTP endpoint \
+             (or run `make test-clickhouse`)"
+        );
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_watermark").await;
+
+    // Two spans with distinct ingestion times: one "before" the traversal and one "after".
+    let early_ingest = ts(0);
+    let late_ingest = ts(600);
+    let span = |span_id: &str, ingested: chrono::DateTime<Utc>| {
+        NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: format!("trace-{span_id}"),
+        span_id: span_id.to_string(),
+        span_name: "gen".to_string(),
+        timestamp_start: ts(0),
+        timestamp_end: Some(ts(1)),
+        duration_ms: 1000,
+        observation_type: Some(ObservationType::Generation),
+        span_category: Some(SpanCategory::LLM),
+        ingested_at: Some(ingested),
+        messages: Some(
+            serde_json::json!([{
+                "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+                "content": {"role": "user", "content": "hello"}
+            }])
+            .to_string(),
+        ),
+        ..Default::default()
+    }
+    };
+    let spans = vec![
+        span("early001", early_ingest),
+        span("late00001", late_ingest),
+    ];
+    duck.insert_spans(spans.clone()).await.expect("duckdb");
+    ch.insert_spans(spans.clone()).await.expect("clickhouse");
+
+    // A watermark between the two: only the early span is visible for the traversal.
+    let watermark_us = ts(300).timestamp_micros();
+
+    async fn check(
+        label: &str,
+        backend: &(impl crate::data::traits::AnalyticsRepository + ?Sized),
+        watermark_us: i64,
+    ) {
+        let bounded = backend
+            .get_feed_spans(&crate::data::types::FeedSpansParams {
+                project_id: PROJECT.to_string(),
+                limit: 50,
+                ingested_before_us: Some(watermark_us),
+                ..Default::default()
+            })
+            .await
+            .unwrap_or_else(|e| panic!("{label}: bounded feed spans: {e}"));
+        let ids: Vec<&str> = bounded.iter().map(|s| s.span_id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["early001"],
+            "{label}: a span ingested after the traversal began must not appear in it"
+        );
+
+        // Without the bound both are there, which is what makes the assertion above about the bound
+        // rather than about the fixture.
+        let unbounded = backend
+            .get_feed_spans(&crate::data::types::FeedSpansParams {
+                project_id: PROJECT.to_string(),
+                limit: 50,
+                ingested_before_us: None,
+                ..Default::default()
+            })
+            .await
+            .unwrap_or_else(|e| panic!("{label}: unbounded feed spans: {e}"));
+        assert_eq!(
+            unbounded.len(),
+            2,
+            "{label}: both spans exist; the bound is what hides one"
+        );
+
+        // The message feed takes the same bound, and its context load is the half that mattered.
+        let messages = backend
+            .get_project_messages(&crate::data::types::FeedMessagesParams {
+                project_id: PROJECT.to_string(),
+                limit: 50,
+                ingested_before_us: Some(watermark_us),
+                ..Default::default()
+            })
+            .await
+            .unwrap_or_else(|e| panic!("{label}: bounded feed messages: {e}"));
+        let ids: Vec<&str> = messages.rows.iter().map(|r| r.span_id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["early001"],
+            "{label}: the message feed must apply the watermark too"
+        );
+    }
+
+    check("duckdb", &duck, watermark_us).await;
+    check("clickhouse", &ch, watermark_us).await;
 }

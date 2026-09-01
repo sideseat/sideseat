@@ -75,11 +75,21 @@ pub struct FeedSpansQuery {
 /// carry the same span id in the same ingestion microsecond, and a page boundary falling between
 /// them made the `< cursor` predicate skip the one that had not been returned - a message missing
 /// from the feed for good.
-fn encode_cursor(ingested_at: DateTime<Utc>, span_id: &str, trace_id: &str) -> String {
+fn encode_cursor(
+    watermark_us: i64,
+    ingested_at: DateTime<Utc>,
+    span_id: &str,
+    trace_id: &str,
+) -> String {
+    // The watermark leads, because it is the traversal's identity rather than the page's position: a
+    // traversal is a view of one instant, and the same watermark bounds page selection *and* the
+    // reconstruction context loaded around each page.
+    //
     // Trace id before span id, because the span id goes last and is the only field allowed to
     // contain a colon - `test_decode_cursor_with_colon_in_span_id` pins that. A trace id is hex.
     let cursor_str = format!(
-        "{}:{}:{}",
+        "{}:{}:{}:{}",
+        watermark_us,
         ingested_at.timestamp_micros(),
         trace_id,
         span_id
@@ -87,12 +97,22 @@ fn encode_cursor(ingested_at: DateTime<Utc>, span_id: &str, trace_id: &str) -> S
     URL_SAFE_NO_PAD.encode(cursor_str)
 }
 
-/// Decode cursor to (ingested_at_us, span_id, trace_id)
+/// A decoded feed cursor: the traversal's watermark and the page's position within it.
+struct FeedCursor {
+    /// The traversal watermark: rows ingested at or after this are invisible for the whole traversal.
+    ///
+    /// `None` for a cursor issued before the watermark existed. Such a traversal keeps the old behaviour
+    /// rather than failing, which is what lets a page request in flight across an upgrade complete.
+    watermark_us: Option<i64>,
+    position: (i64, String, String),
+}
+
+/// Decode a feed cursor, accepting every form this server has issued.
 ///
-/// A two-part cursor is one this server issued before the trace id was included; it is accepted so
-/// a page request in flight across an upgrade does not fail, and resolves to an empty trace id,
-/// which orders before every real one.
-fn decode_cursor(cursor: &str) -> Result<(i64, String, String), ApiError> {
+/// Four parts is current. Three is a cursor from before the watermark, two from before the trace id was
+/// in the key - both accepted so a page request in flight across an upgrade does not fail. A missing
+/// trace id resolves to empty, which orders before every real one.
+fn decode_cursor(cursor: &str) -> Result<FeedCursor, ApiError> {
     let decoded = URL_SAFE_NO_PAD
         .decode(cursor)
         .map_err(|_| ApiError::bad_request("INVALID_CURSOR", "Invalid cursor format"))?;
@@ -100,26 +120,36 @@ fn decode_cursor(cursor: &str) -> Result<(i64, String, String), ApiError> {
     let cursor_str = String::from_utf8(decoded)
         .map_err(|_| ApiError::bad_request("INVALID_CURSOR", "Invalid cursor encoding"))?;
 
-    let parts: Vec<&str> = cursor_str.splitn(3, ':').collect();
+    let parts: Vec<&str> = cursor_str.splitn(4, ':').collect();
     if parts.len() < 2 {
         return Err(ApiError::bad_request(
             "INVALID_CURSOR",
-            "Invalid cursor format: expected timestamp:span_id:trace_id",
+            "Invalid cursor format: expected watermark:timestamp:trace_id:span_id",
         ));
     }
 
-    let timestamp_us = parts[0]
-        .parse::<i64>()
-        .map_err(|_| ApiError::bad_request("INVALID_CURSOR", "Invalid cursor timestamp"))?;
+    let invalid = || ApiError::bad_request("INVALID_CURSOR", "Invalid cursor timestamp");
 
-    // Two parts is a cursor this server issued before the trace id was in the key: the second
-    // field is the span id, and the trace id resolves to empty, which orders before every real one.
+    // Four fields is the current form. Fewer is an older one, and which older one is decided by count -
+    // every field is numeric or hex, so there is nothing to disambiguate by shape.
+    if parts.len() == 4 {
+        let watermark_us = parts[0].parse::<i64>().map_err(|_| invalid())?;
+        let timestamp_us = parts[1].parse::<i64>().map_err(|_| invalid())?;
+        return Ok(FeedCursor {
+            watermark_us: Some(watermark_us),
+            position: (timestamp_us, parts[3].to_string(), parts[2].to_string()),
+        });
+    }
+
+    let timestamp_us = parts[0].parse::<i64>().map_err(|_| invalid())?;
     let (trace_id, span_id) = match parts.len() {
         2 => ("", parts[1]),
         _ => (parts[1], parts[2]),
     };
-
-    Ok((timestamp_us, span_id.to_string(), trace_id.to_string()))
+    Ok(FeedCursor {
+        watermark_us: None,
+        position: (timestamp_us, span_id.to_string(), trace_id.to_string()),
+    })
 }
 
 /// Validate and clamp limit parameter
@@ -171,13 +201,28 @@ pub async fn get_feed_messages(
     let project_id = auth.project_id.clone();
 
     let limit = validate_limit(query.limit);
-    let cursor = query
+    let decoded = query
         .cursor
         .as_ref()
         .map(|c| decode_cursor(c))
         .transpose()?;
     let start_time = parse_timestamp_param(&query.start_time)?;
     let end_time = parse_timestamp_param(&query.end_time)?;
+
+    // The traversal watermark: established on the first page and carried by every cursor after it.
+    //
+    // A page is chosen by ingestion time, so without it a span ingested *during* the traversal appears on
+    // a later page - and may already have been read into an earlier page's reconstruction context, where
+    // it can win deduplication against a span still to be paged. That span is then suppressed as a
+    // duplicate and the winner scoped off the page it was not selected for, so neither is ever returned.
+    // One watermark, applied to both the page query and the context load, makes a traversal a view of one
+    // instant. A cursor from before the watermark existed carries none, and keeps the old behaviour rather
+    // than failing mid-traversal across an upgrade.
+    let watermark_us = decoded
+        .as_ref()
+        .and_then(|c| c.watermark_us)
+        .unwrap_or_else(|| Utc::now().timestamp_micros());
+    let cursor = decoded.map(|c| c.position);
 
     // Query limit + 1 to detect has_more
     let query_limit = limit + 1;
@@ -188,6 +233,7 @@ pub async fn get_feed_messages(
         cursor,
         start_time,
         end_time,
+        ingested_before_us: Some(watermark_us),
     };
 
     // Fetch raw span rows
@@ -206,7 +252,7 @@ pub async fn get_feed_messages(
     // Compute cursor from raw query results BEFORE processing
     let next_cursor = spans
         .last()
-        .map(|s| encode_cursor(s.ingested_at, &s.span_id, &s.trace_id));
+        .map(|s| encode_cursor(watermark_us, s.ingested_at, &s.span_id, &s.trace_id));
 
     // Reconstruct over whole traces, then narrow to the page.
     //
@@ -279,6 +325,8 @@ pub async fn get_feed_messages(
         .get_messages(&MessageQueryParams {
             project_id: project_id.clone(),
             trace_ids: Some(trace_ids),
+            // The traversal watermark, so the context and the page describe the same instant.
+            ingested_before_us: Some(watermark_us),
             // Bounded above by the window the request asked for, and deliberately not below it.
             //
             // Context is what came *before*, so the lower bound must not be applied here - that is
@@ -378,7 +426,7 @@ pub async fn get_feed_spans(
     let project_id = auth.project_id.clone();
 
     let limit = validate_limit(query.limit);
-    let cursor = query
+    let decoded = query
         .cursor
         .as_ref()
         .map(|c| decode_cursor(c))
@@ -387,6 +435,16 @@ pub async fn get_feed_spans(
     let end_time = parse_timestamp_param(&query.end_time)?;
     let is_observation = query.is_observation;
     let include_raw_span = query.include_raw_span.unwrap_or(false);
+
+    // The same traversal watermark the message feed uses. This endpoint returns raw spans rather than a
+    // reconstruction, so there is no context load to keep consistent - but a span ingested mid-traversal
+    // still shifts every subsequent page's boundary, and a client concatenating pages would see one twice
+    // or not at all.
+    let watermark_us = decoded
+        .as_ref()
+        .and_then(|c| c.watermark_us)
+        .unwrap_or_else(|| Utc::now().timestamp_micros());
+    let cursor = decoded.map(|c| c.position);
 
     // Query limit + 1 to detect has_more
     let query_limit = limit + 1;
@@ -399,6 +457,7 @@ pub async fn get_feed_spans(
         start_time,
         end_time,
         is_observation,
+        ingested_before_us: Some(watermark_us),
     };
 
     // Fetch spans with cursor applied in SQL
@@ -415,7 +474,7 @@ pub async fn get_feed_spans(
     // Compute cursor from last span
     let next_cursor = spans
         .last()
-        .map(|s| encode_cursor(s.ingested_at, &s.span_id, &s.trace_id));
+        .map(|s| encode_cursor(watermark_us, s.ingested_at, &s.span_id, &s.trace_id));
 
     // Convert to DTOs
     let data: Vec<SpanSummaryDto> = spans
@@ -450,12 +509,14 @@ mod tests {
 
         let trace_id = "0123456789abcdef";
 
-        let encoded = encode_cursor(timestamp, span_id, trace_id);
-        let (decoded_us, decoded_span_id, decoded_trace_id) = decode_cursor(&encoded).unwrap();
+        let watermark = 1_700_000_000_000_000i64;
+        let encoded = encode_cursor(watermark, timestamp, span_id, trace_id);
+        let decoded = decode_cursor(&encoded).unwrap();
 
-        assert_eq!(decoded_us, timestamp.timestamp_micros());
-        assert_eq!(decoded_span_id, span_id);
-        assert_eq!(decoded_trace_id, trace_id);
+        assert_eq!(decoded.watermark_us, Some(watermark));
+        assert_eq!(decoded.position.0, timestamp.timestamp_micros());
+        assert_eq!(decoded.position.1, span_id);
+        assert_eq!(decoded.position.2, trace_id);
     }
 
     #[test]
@@ -463,7 +524,7 @@ mod tests {
         let timestamp = Utc.with_ymd_and_hms(2025, 1, 15, 10, 30, 0).unwrap();
         let span_id = "span123";
 
-        let encoded = encode_cursor(timestamp, span_id, "trace123");
+        let encoded = encode_cursor(1, timestamp, span_id, "trace123");
 
         // Should be base64 URL-safe without padding
         assert!(!encoded.contains('='));
@@ -477,24 +538,39 @@ mod tests {
         let timestamp = Utc.with_ymd_and_hms(2025, 1, 15, 10, 30, 0).unwrap();
         let span_id = "span:with:colons";
 
-        let encoded = encode_cursor(timestamp, span_id, "tracewithoutcolons");
-        let (_, decoded_span_id, decoded_trace_id) = decode_cursor(&encoded).unwrap();
+        let encoded = encode_cursor(1, timestamp, span_id, "tracewithoutcolons");
+        let decoded = decode_cursor(&encoded).unwrap();
 
-        assert_eq!(decoded_span_id, span_id);
-        assert_eq!(decoded_trace_id, "tracewithoutcolons");
+        assert_eq!(decoded.position.1, span_id);
+        assert_eq!(decoded.position.2, "tracewithoutcolons");
     }
 
-    /// A cursor issued before the trace id was part of the key must still parse.
+    /// Cursors from before the trace id and from before the watermark must still parse.
+    ///
+    /// A traversal in flight across an upgrade must complete rather than fail on its next page. A legacy
+    /// cursor carries no watermark, so the traversal keeps the old unbounded behaviour - which is the
+    /// behaviour it started with, and therefore the consistent choice.
     #[test]
-    fn test_decode_legacy_two_part_cursor() {
-        let legacy = URL_SAFE_NO_PAD.encode("1736937000000000:abc123");
-        let (us, span_id, trace_id) = decode_cursor(&legacy).expect("legacy cursor");
-        assert_eq!(us, 1_736_937_000_000_000);
-        assert_eq!(span_id, "abc123");
+    fn test_decode_legacy_cursors() {
+        let two_part = URL_SAFE_NO_PAD.encode("1736937000000000:abc123");
+        let decoded = decode_cursor(&two_part).expect("legacy two-part cursor");
+        assert_eq!(decoded.watermark_us, None);
+        assert_eq!(decoded.position.0, 1_736_937_000_000_000);
+        assert_eq!(decoded.position.1, "abc123");
         assert_eq!(
-            trace_id, "",
+            decoded.position.2, "",
             "an absent trace id must order before every real one, not become the span id"
         );
+
+        let three_part = URL_SAFE_NO_PAD.encode("1736937000000000:tracehex:abc123");
+        let decoded = decode_cursor(&three_part).expect("legacy three-part cursor");
+        assert_eq!(
+            decoded.watermark_us, None,
+            "a pre-watermark cursor must not have its trace id read as a watermark"
+        );
+        assert_eq!(decoded.position.0, 1_736_937_000_000_000);
+        assert_eq!(decoded.position.1, "abc123");
+        assert_eq!(decoded.position.2, "tracehex");
     }
 
     #[test]
