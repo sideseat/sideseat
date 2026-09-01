@@ -120,10 +120,14 @@
 #     preview-docs       Preview built docs
 #
 #   Utilities:
-#     clean              Remove build artifacts (target, dist, sdk artifacts). This is what
-#                        reclaims disk: a full test run leaves ~7GB in target/, and it grows with
-#                        every stale test binary. `docker image rm clickhouse/clickhouse-server:25.8`
-#                        frees another 1GB if you are done with `test-clickhouse`.
+#     disk               Show free space and what is using it (target, node_modules, Docker)
+#     clean-stale        Reclaim stale artifacts *without* a cold rebuild - run this habitually.
+#                        Most of target/ is not the current build: it is test binaries from earlier
+#                        runs, which cargo never collects. Measured at 64GB across one long session.
+#     clean-docker       Remove this repo's throwaway containers, dangling images and build cache.
+#                        Not a machine-wide volume prune - that would take other projects' data.
+#     clean              Remove *all* build artifacts (target, dist, sdk artifacts). Costs a cold
+#                        compile afterwards, so prefer clean-stale unless you want the whole lot.
 #     download-prices    Update LLM pricing data from litellm
 #     deps-check         Check for outdated dependencies (all components)
 #
@@ -238,7 +242,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: build-docker publish-docker
 .PHONY: sign-release sign-verify sign-notarize
 .PHONY: build-release publish-release publish-brew
-.PHONY: clean download-prices deps-check run start
+.PHONY: clean clean-stale clean-docker disk download-prices deps-check run start
 
 .SILENT: help version
 
@@ -540,7 +544,7 @@ CH_TEST_IMAGE ?= clickhouse/clickhouse-server:25.8
 test-clickhouse:
 	@command -v docker >/dev/null 2>&1 || { echo "[test-clickhouse] docker is required"; exit 1; }
 	@echo "[test-clickhouse] starting $(CH_TEST_IMAGE) on port $(CH_TEST_PORT)..."
-	@docker rm -f $(CH_TEST_CONTAINER) >/dev/null 2>&1 || true
+	@docker rm -fv $(CH_TEST_CONTAINER) >/dev/null 2>&1 || true
 	@docker run -d --name $(CH_TEST_CONTAINER) -p $(CH_TEST_PORT):8123 \
 		-e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
 		-e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 $(CH_TEST_IMAGE) >/dev/null
@@ -551,7 +555,7 @@ test-clickhouse:
 	curl -sf http://127.0.0.1:$(CH_TEST_PORT)/ping >/dev/null || { \
 		echo "[test-clickhouse] server did not become ready"; \
 		docker logs --tail 20 $(CH_TEST_CONTAINER); \
-		docker rm -f $(CH_TEST_CONTAINER) >/dev/null 2>&1; \
+		docker rm -fv $(CH_TEST_CONTAINER) >/dev/null 2>&1; \
 		exit 1; \
 	}
 	@set +e; \
@@ -560,7 +564,7 @@ test-clickhouse:
 	SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
 	cargo test -p sideseat-server clickhouse -- --test-threads=1; \
 	status=$$?; \
-	docker rm -f $(CH_TEST_CONTAINER) >/dev/null 2>&1; \
+	docker rm -fv $(CH_TEST_CONTAINER) >/dev/null 2>&1; \
 	exit $$status
 
 # PostgreSQL/SQLite transactional parity. Same reasoning as test-clickhouse: the PostgreSQL SQL is
@@ -573,7 +577,7 @@ PG_TEST_IMAGE ?= postgres:17-alpine
 test-postgres:
 	@command -v docker >/dev/null 2>&1 || { echo "[test-postgres] docker is required"; exit 1; }
 	@echo "[test-postgres] starting $(PG_TEST_IMAGE) on port $(PG_TEST_PORT)..."
-	@docker rm -f $(PG_TEST_CONTAINER) >/dev/null 2>&1 || true
+	@docker rm -fv $(PG_TEST_CONTAINER) >/dev/null 2>&1 || true
 	@docker run -d --name $(PG_TEST_CONTAINER) -p $(PG_TEST_PORT):5432 \
 		-e POSTGRES_USER=sideseat -e POSTGRES_PASSWORD=sideseat -e POSTGRES_DB=sideseat \
 		$(PG_TEST_IMAGE) >/dev/null
@@ -584,14 +588,14 @@ test-postgres:
 	docker exec $(PG_TEST_CONTAINER) pg_isready -U sideseat -d sideseat >/dev/null 2>&1 || { \
 		echo "[test-postgres] server did not become ready"; \
 		docker logs --tail 20 $(PG_TEST_CONTAINER); \
-		docker rm -f $(PG_TEST_CONTAINER) >/dev/null 2>&1; \
+		docker rm -fv $(PG_TEST_CONTAINER) >/dev/null 2>&1; \
 		exit 1; \
 	}
 	@set +e; \
 	SIDESEAT_TEST_POSTGRES_URL=postgres://sideseat:sideseat@127.0.0.1:$(PG_TEST_PORT)/sideseat \
 	cargo test -p sideseat-server parity_tests -- --test-threads=1; \
 	status=$$?; \
-	docker rm -f $(PG_TEST_CONTAINER) >/dev/null 2>&1; \
+	docker rm -fv $(PG_TEST_CONTAINER) >/dev/null 2>&1; \
 	exit $$status
 
 # The durable ingestion queue, against a real Redis. Same reasoning as the two parity targets: the
@@ -605,7 +609,7 @@ REDIS_TEST_IMAGE ?= redis:7.4-alpine
 test-redis:
 	@command -v docker >/dev/null 2>&1 || { echo "[test-redis] docker is required"; exit 1; }
 	@echo "[test-redis] starting $(REDIS_TEST_IMAGE) on port $(REDIS_TEST_PORT)..."
-	@docker rm -f $(REDIS_TEST_CONTAINER) >/dev/null 2>&1 || true
+	@docker rm -fv $(REDIS_TEST_CONTAINER) >/dev/null 2>&1 || true
 	@docker run -d --name $(REDIS_TEST_CONTAINER) -p $(REDIS_TEST_PORT):6379 \
 		$(REDIS_TEST_IMAGE) redis-server \
 		  --appendonly yes --appendfsync always --maxmemory-policy noeviction >/dev/null
@@ -616,14 +620,14 @@ test-redis:
 	docker exec $(REDIS_TEST_CONTAINER) redis-cli ping 2>/dev/null | grep -q PONG || { \
 		echo "[test-redis] server did not become ready"; \
 		docker logs --tail 20 $(REDIS_TEST_CONTAINER); \
-		docker rm -f $(REDIS_TEST_CONTAINER) >/dev/null 2>&1; \
+		docker rm -fv $(REDIS_TEST_CONTAINER) >/dev/null 2>&1; \
 		exit 1; \
 	}
 	@set +e; \
 	SIDESEAT_TEST_REDIS_URL=redis://127.0.0.1:$(REDIS_TEST_PORT) \
 	cargo test -p sideseat-server redis_stream_tests -- --test-threads=1; \
 	status=$$?; \
-	docker rm -f $(REDIS_TEST_CONTAINER) >/dev/null 2>&1; \
+	docker rm -fv $(REDIS_TEST_CONTAINER) >/dev/null 2>&1; \
 	exit $$status
 
 # End-to-end HTTP latency, which is what a client actually experiences. The in-process benches measure the
@@ -1135,17 +1139,74 @@ download-prices:
 	fi
 	@echo "[download-prices] Saved to $(PRICES_FILE)"
 
+# Reclaim without a full rebuild.
+#
+# `clean` removes `target` entirely, which costs a cold compile of everything. Most of the growth is not the
+# *current* build: it is stale test binaries from earlier runs, which cargo never collects, and incremental
+# caches. This target takes those and leaves the artifacts a rebuild would reuse - which is what makes it
+# something you can run habitually rather than only when the disk is full.
+#
+# Measured on this repo: `target` reached 64 GB across a long session, of which the current build was a few
+# GB. `cargo sweep` is used when installed because it knows which artifacts belong to the current toolchain;
+# without it the fallback is deliberately conservative - only whole directories cargo rebuilds cheaply.
+clean-stale:
+	@echo "[clean-stale] Reclaiming stale build artifacts (keeping the current build)..."
+	@before=$$(du -sk target 2>/dev/null | cut -f1 || echo 0); 	if command -v cargo-sweep >/dev/null 2>&1; then 		cargo sweep --installed >/dev/null 2>&1 || true; 		cargo sweep --time 3 >/dev/null 2>&1 || true; 	else 		echo "[clean-stale] cargo-sweep not installed; removing incremental caches only."; 		echo "[clean-stale] For a deeper reclaim: cargo install cargo-sweep"; 	fi; 	rm -rf target/debug/incremental target/release/incremental; 	after=$$(du -sk target 2>/dev/null | cut -f1 || echo 0); 	echo "[clean-stale] target: $$((before / 1024)) MB -> $$((after / 1024)) MB"
+
+# Docker reclamation, scoped to what this repo creates.
+#
+# Deliberately *not* `docker volume prune`: that is machine-wide and would take volumes belonging to other
+# projects. The test targets now remove their containers with `-v`, so their anonymous volumes go with them
+# and nothing accumulates going forward. What is left to reclaim is the build cache and images nothing tags,
+# both of which are unambiguously this machine's own byproducts.
+clean-docker:
+	@command -v docker >/dev/null 2>&1 || { echo "[clean-docker] docker not installed; nothing to do"; exit 0; }
+	@echo "[clean-docker] Removing this repo's throwaway containers..."
+	@docker rm -fv $(CH_TEST_CONTAINER) $(PG_TEST_CONTAINER) $(REDIS_TEST_CONTAINER) 		sideseat-bench-pg sideseat-bench-ch sideseat-bench-minio >/dev/null 2>&1 || true
+	@echo "[clean-docker] Pruning dangling images and the build cache..."
+	@docker image prune -f >/dev/null 2>&1 || true
+	@docker builder prune -f >/dev/null 2>&1 || true
+	@echo "[clean-docker] Pruning unused *anonymous* volumes..."
+	@#  Docker's own default for `volume prune` is anonymous-only; `-a` would add named ones and this
+	@#  deliberately does not pass it. A named volume is something someone chose to keep - possibly another
+	@#  project's database - while an anonymous one exists only because a container was removed without
+	@#  `-v`, which is the leak the test targets used to have: 246 of them, 5.2GB, from pinned postgres,
+	@#  clickhouse and minio images. Only volumes no container is using are eligible either way.
+	@docker volume prune -f >/dev/null 2>&1 || true
+	@echo "[clean-docker] Pinned test images are kept (re-pulling them is slower than the space they use)."
+	@echo "[clean-docker] Named volumes are never touched: 'docker volume prune -a' if you want those too."
+	@docker system df 2>/dev/null || true
+
+# What is using space, so it is visible before it is urgent.
+disk:
+	@echo "[disk] Free space:"
+	@df -h . | tail -1
+	@echo "[disk] Largest local directories:"
+	@du -sh target $(WEB_DIR)/node_modules docs/node_modules .sideseat 2>/dev/null | sort -rh || true
+	@command -v docker >/dev/null 2>&1 && { echo "[disk] Docker:"; docker system df; } || true
+
 clean:
 	@echo "[clean] Removing build artifacts..."
 	@rm -rf target
 	@rm -rf $(WEB_DIR)/dist
+	@#  A placeholder `dist`, because the server *embeds* it: `#[derive(RustEmbed)] #[folder =
+	@#  "../web/dist"]` fails to compile when the directory is absent. Removing it outright left a clean
+	@#  tree that could not build or test at all - and `cargo test` after `make clean` is the obvious next
+	@#  thing anyone does. The placeholder says what it is, so a binary built without the UI is
+	@#  self-explanatory rather than mysteriously blank.
+	@mkdir -p $(WEB_DIR)/dist
+	@printf '%s\n' \
+		'<!doctype html><meta charset="utf-8"><title>SideSeat</title>' \
+		'<p>The web UI was not built. Run <code>make build-web</code>, or <code>make dev</code> for the' \
+		'dev server.</p>' > $(WEB_DIR)/dist/index.html
 	@rm -rf $(WEB_DIR)/node_modules/.vite
 	@rm -f $(CLI_DIR)/bin/sideseat-*
 	@rm -f $(CLI_DIR)/platforms/*/sideseat $(CLI_DIR)/platforms/*/sideseat.exe
 	@rm -rf sdk/js/dist
 	@rm -rf sdk/python/dist
 	@rm -rf $(RELEASE_DIR)
-	@echo "[clean] Done"
+	@echo "[clean] Done. target/ and web/dist are gone; the next Rust build is cold."
+	@echo "[clean] web/dist holds a placeholder so the workspace still compiles - run make build-web for the UI."
 
 # Aliases
 run: dev
