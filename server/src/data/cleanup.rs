@@ -376,7 +376,26 @@ pub async fn advance_pending_deletions(
                     .repository()
                     .get_spans_for_trace(&project_id, &trace_id)
                     .await;
+                // The trace's files, too. Repairing only the analytics store left a *permanent* leak:
+                // a crash after the analytics delete but before the association release, a release that
+                // failed, or a route cleanup that failed, all leave associations holding `ref_count` above
+                // zero - and the orphan sweeper selects on zero, so nothing reclaimed them while this sweep
+                // read the analytics store as quiet and backed off to the daily floor.
+                //
+                // `cleanup_traces` is the same call the deletion route makes: it removes the associations,
+                // recomputes each file's count from what remains, and collects the files nothing references.
+                let files = file_service
+                    .cleanup_traces(&project_id, std::slice::from_ref(&trace_id))
+                    .await;
+                if let Err(ref e) = files {
+                    tracing::warn!(project_id, trace_id, error = %e, "Could not collect a deleted trace's files");
+                }
+
+                // "Quiet" requires *everything* to have come back clean: no error deleting, nothing still
+                // readable, and no error collecting files. Deciding it from the analytics store alone is
+                // what let a file leak sit behind a backed-off schedule.
                 let was_quiet = removed.is_ok()
+                    && files.is_ok()
                     && matches!(still_there.as_ref().map(|spans| spans.is_empty()), Ok(true));
                 if let Err(ref e) = removed {
                     tracing::warn!(project_id, trace_id, error = %e, "Could not sweep a deleted trace");
@@ -384,7 +403,7 @@ pub async fn advance_pending_deletions(
                     tracing::warn!(
                         project_id,
                         trace_id,
-                        "Collected spans written for a trace that had already been deleted"
+                        "Collected data written for a trace that had already been deleted"
                     );
                 }
                 if let Err(e) = repo

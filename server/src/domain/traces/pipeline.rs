@@ -73,6 +73,12 @@ const PIPELINE_BATCH_MAX_SIZE: usize = 1024;
 /// Timeout for collecting additional messages into a batch (microseconds)
 const PIPELINE_BATCH_DRAIN_TIMEOUT_US: u64 = 5_000;
 
+/// How long to wait before retrying a failed subscription.
+///
+/// The queue keeps accepting publishes while nothing consumes it, so the cost of a slow retry is a growing
+/// backlog rather than a lost export - and the backlog is bounded by `stream_publish`'s refusal threshold.
+const SUBSCRIBE_RETRY_DELAY: Duration = Duration::from_secs(5);
+
 // ============================================================================
 // PIPELINE PROCESSOR
 // ============================================================================
@@ -154,12 +160,37 @@ impl TracePipeline {
         let consumer = format!("{}:{}", Uuid::new_v4(), std::process::id());
 
         tokio::spawn(async move {
-            // Subscribe with consumer group
-            let mut subscriber = match topic.subscribe(CONSUMER_GROUP, &consumer).await {
-                Ok(s) => s,
-                Err(e) => {
-                    tracing::error!(error = %e, "Failed to subscribe to trace topic");
-                    return;
+            // Subscribe, retrying until it succeeds or the server is shutting down.
+            //
+            // A single failure used to end the task while the instance stayed healthy and kept accepting
+            // writes - so every export was queued and *nothing* consumed it, for the life of the process,
+            // with no error after the first line. Redis being briefly unreachable at startup is the
+            // ordinary way to reach that, and it is exactly when a retry is obviously right.
+            let mut subscriber = loop {
+                match topic.subscribe(CONSUMER_GROUP, &consumer).await {
+                    Ok(s) => break s,
+                    Err(e) => {
+                        if *shutdown_rx.borrow() {
+                            tracing::debug!(
+                                "TracePipeline abandoning subscription during shutdown"
+                            );
+                            return;
+                        }
+                        tracing::error!(
+                            error = %e,
+                            "Failed to subscribe to the trace topic; retrying. Until this succeeds \
+                             nothing is consuming the queue."
+                        );
+                        tokio::select! {
+                            biased;
+                            _ = shutdown_rx.changed() => {
+                                if *shutdown_rx.borrow() {
+                                    return;
+                                }
+                            }
+                            _ = tokio::time::sleep(SUBSCRIBE_RETRY_DELAY) => {}
+                        }
+                    }
                 }
             };
 
@@ -830,25 +861,34 @@ impl TracePipeline {
                 .filter(|(p, t, _)| p == project && tombstoned.contains(t))
                 .map(|(_, t, span)| (t.clone(), span.clone()))
                 .collect();
-            match self
+            // The rows go first, and the associations *only if* they went.
+            //
+            // Released unconditionally, a failed `delete_spans` leaves readable rows whose files are now
+            // eligible for collection - a dangling reference, which is the one outcome the whole
+            // write-files-before-rows ordering exists to make impossible. Leaving the association instead
+            // leaves a file held by a row that is about to be swept, which the sweep then reconciles.
+            if let Err(e) = self
                 .analytics
                 .repository()
                 .delete_spans(project, &doomed)
                 .await
             {
-                Ok(_) => tracing::warn!(
-                    project,
-                    spans = doomed.len(),
-                    traces = tombstoned.len(),
-                    "Removed spans written for traces deleted during the write"
-                ),
-                Err(e) => tracing::error!(
+                tracing::error!(
                     error = %e,
                     project,
                     spans = doomed.len(),
-                    "Could not remove spans written for a deleted trace; the deletion sweep will retry"
-                ),
+                    "Could not remove spans written for a deleted trace, so their file associations are \
+                     left in place; releasing them would leave a readable row pointing at collectable \
+                     bytes. The deletion sweep retries both."
+                );
+                continue;
             }
+            tracing::warn!(
+                project,
+                spans = doomed.len(),
+                traces = tombstoned.len(),
+                "Removed spans written for traces deleted during the write"
+            );
             let orphaned: Vec<(String, String, String)> = created_associations
                 .iter()
                 .filter(|(p, t, _)| p == project && tombstoned.contains(t))
@@ -873,8 +913,41 @@ impl TracePipeline {
             return;
         }
         let repo = self.file_service.database().repository();
+        let analytics = self.analytics.repository();
         let mut released = 0usize;
         for (project_id, trace_id, hash) in created {
+            // Winning the association insert is not ownership of the association.
+            //
+            // Two batches can carry the same `(project, trace, hash)` - a re-delivery, or a trace whose
+            // spans arrive in two exports. The first creates the association; the second sees it already
+            // there, records nothing, and commits its span. If the *first* then fails and releases, the
+            // second's committed row references bytes the sweeper may now collect.
+            //
+            // So the release asks the authority: does the trace have rows? A trace with spans still needs
+            // its files, whoever wrote them. This is a read per released association, on a path that only
+            // runs when a batch has already failed - the ordinary case creates nothing to release.
+            match analytics.get_spans_for_trace(project_id, trace_id).await {
+                Ok(spans) if !spans.is_empty() => {
+                    tracing::debug!(
+                        project_id,
+                        trace_id,
+                        hash,
+                        "Keeping an association: another batch committed spans for this trace"
+                    );
+                    continue;
+                }
+                Ok(_) => {}
+                // Unknown is treated as "still referenced". Releasing on a failed read is the direction
+                // that loses data; keeping is the direction the sweep can still fix.
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        project_id, trace_id,
+                        "Could not tell whether a trace still has rows; keeping its file association"
+                    );
+                    continue;
+                }
+            }
             match repo
                 .release_trace_file_association(project_id, trace_id, hash)
                 .await

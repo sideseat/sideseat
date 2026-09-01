@@ -18,7 +18,14 @@
 #     Re-posting one request many times does not build a session: ingestion is idempotent by span id, so it
 #     stays as small as one request's worth however many times it is sent.
 #   * **A failed request is not a sample.** Every measured call checks its status; a fast 404 or 503 would
-#     otherwise be recorded as excellent latency.
+#     otherwise be recorded as excellent latency, and a 200 carrying an empty body would too - so the read
+#     calls parse the body and require a non-empty payload.
+#   * **The large export's file writes are counted once, deliberately.** Files are content-addressed, so
+#     re-posting the same payload finds the bytes already stored and skips the object write. That makes the
+#     measured figure *steady-state* ingestion of a payload whose attachments are known - which is the
+#     common case for a retrying or overlapping exporter - and **not** first-write object latency. The
+#     latter is measured separately by the S3 numbers in CLAUDE.md, taken against MinIO with fresh content.
+#     Stated because the difference is invisible in the table.
 #   * **p99 needs samples.** Below `BENCH_MIN_P99_SAMPLES` the p99 column is reported as `max` instead,
 #     because the 99th percentile of fifty samples *is* the maximum and calling it p99 overstates it.
 set -euo pipefail
@@ -125,16 +132,36 @@ echo "[bench] starting server on :$PORT ($MODE)"
 if [ "$MODE" = "distributed" ]; then
   export AWS_ACCESS_KEY_ID=sideseat AWS_SECRET_ACCESS_KEY=sideseat12345 AWS_REGION=us-east-1
 fi
-(cd "$WORK" && SIDESEAT_DATA_DIR="$WORK" SIDESEAT_SECRETS_BACKEND=file \
+# `env -i` with an explicit environment, plus `HOME` pointed at the scratch directory.
+#
+# The measured configuration has to *be* the documented one. Inherited `SIDESEAT_*` variables would silently
+# change the backend, the storage, the retention or the rate limits, and an inherited `HOME` lets
+# `~/.sideseat/sideseat.json` do the same - so a number could come from a configuration nobody recorded
+# while the table claimed otherwise. Named explicitly, the run is reproducible from this script alone.
+#
+# `PATH` and the AWS credentials are the only other things carried: the first so the binary can exec, the
+# second because the distributed mode's object storage needs them and the SDK reads them from the
+# environment.
+(cd "$WORK" && env -i \
+  PATH="$PATH" HOME="$WORK" \
+  ${AWS_ACCESS_KEY_ID:+AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"} \
+  ${AWS_SECRET_ACCESS_KEY:+AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"} \
+  ${AWS_REGION:+AWS_REGION="$AWS_REGION"} \
+  SIDESEAT_DATA_DIR="$WORK" SIDESEAT_SECRETS_BACKEND=file \
   SIDESEAT_PORT="$PORT" SIDESEAT_UI_PORT="$((PORT + 1))" \
-  exec "$ROOT/target/release/sideseat" --no-auth > "$WORK/server.log" 2>&1) &
+  SIDESEAT_OTEL_GRPC_PORT="$((PORT + 2))" \
+  "$ROOT/target/release/sideseat" --no-auth > "$WORK/server.log" 2>&1) &
 SERVER_PID=$!
 for _ in $(seq 1 60); do
   curl -sf "http://127.0.0.1:$PORT/api/v1/health" >/dev/null && break
   sleep 1
 done
 curl -sf "http://127.0.0.1:$PORT/api/v1/health" >/dev/null || {
-  echo "[bench] server did not come up"; tail -20 "$WORK/server.log"; exit 1;
+  # The log, in full: the failure that cost the most time here was a *port collision* on the gRPC
+  # listener, which the benchmark's own server reported and then exited over - and a truncated tail made it
+  # look like an ingestion failure. Every port the benchmark binds is now derived from `BENCH_PORT`,
+  # including the gRPC one, so it cannot collide with a developer's running instance.
+  echo "[bench] server did not come up"; cat "$WORK/server.log"; exit 1;
 }
 
 FIXTURE="$ROOT/server/tests/fixtures/messages/langgraph/swarm"
@@ -292,6 +319,14 @@ SLO_MS = {
         "list.txt": 700,
     },
 }
+# The cold read is gated too. It is the ephemeral-scaling case rather than a curiosity - every new replica
+# starts with an empty reconstruction cache and a deploy replaces them all - so printing it without a
+# ceiling left the one number that describes a fresh instance outside the enforced set.
+COLD_CEILING_MS = {"embedded": 60, "distributed": 900}
+measured["cold-read"] = float(os.environ["COLD_MS"])
+SLO_MS["embedded"]["cold-read"] = COLD_CEILING_MS["embedded"]
+SLO_MS["distributed"]["cold-read"] = COLD_CEILING_MS["distributed"]
+
 breaches = [
     f"{name}: p95 {value:.1f} ms against a {SLO_MS[mode][name]} ms ceiling"
     for name, value in measured.items()

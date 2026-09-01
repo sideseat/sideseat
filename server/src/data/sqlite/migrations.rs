@@ -111,6 +111,9 @@ async fn apply_initial_schema(pool: &SqlitePool) -> Result<(), SqliteError> {
 const MIGRATION_V2: &str = r#"
 -- files: the content hash algorithm, and the deletion claim that lets cleanup and ingestion agree about
 -- a file that is mid-deletion (`claim_file_for_deletion`, `associate_file`).
+-- Order matters: these land at the end of the table, so the fresh schema declares them at the end too,
+-- and in this same sequence. A positional writer would otherwise read a fresh database differently from
+-- an upgraded one.
 ALTER TABLE files ADD COLUMN hash_algo TEXT NOT NULL DEFAULT 'sha256';
 ALTER TABLE files ADD COLUMN deleting_at INTEGER;
 
@@ -289,6 +292,79 @@ async fn apply_versioned_migration(
 mod tests {
     use super::*;
 
+    /// Every column the v1 migration adds is declared *last* in the fresh schema, in the same order.
+    ///
+    /// `ALTER TABLE ADD COLUMN` can only append, so a column declared mid-table gives a fresh database and
+    /// an upgraded one different physical column orders for one schema version. Harmless while every writer
+    /// names its columns, and silently catastrophic the moment one is positional - DuckDB's metrics appender
+    /// is, and the same mistake there wrote every value one column across on exactly the databases the
+    /// migration exists to serve.
+    ///
+    /// Asserted against the schema *text* rather than a live database, because reducing one to its v1 shape
+    /// requires `DROP COLUMN`, which makes SQLite re-parse its stored DDL and fail on the comments.
+    #[test]
+    fn migration_added_columns_are_declared_last() {
+        /// The column names a `CREATE TABLE` declares, in order, ignoring comments and constraints.
+        fn declared_columns(schema: &str, table: &str) -> Vec<String> {
+            let start = schema
+                .find(&format!("CREATE TABLE IF NOT EXISTS {table} ("))
+                .unwrap_or_else(|| panic!("{table} not found in the schema"));
+            let body_start = schema[start..].find('(').expect("open paren") + start + 1;
+            let body_end = schema[body_start..].find("\n);").expect("close paren") + body_start;
+            schema[body_start..body_end]
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty() && !line.starts_with("--"))
+                .filter_map(|line| {
+                    let name = line.split_whitespace().next()?;
+                    // Table-level constraints are not columns.
+                    // Table constraints are not columns, and they are written both with and without a
+                    // space before the parenthesis - `UNIQUE(a, b)` and `PRIMARY KEY (a)`.
+                    let keyword = name.split('(').next().unwrap_or(name).to_ascii_uppercase();
+                    if ["PRIMARY", "UNIQUE", "FOREIGN", "CHECK", "CONSTRAINT"]
+                        .contains(&keyword.as_str())
+                    {
+                        return None;
+                    }
+                    Some(name.to_string())
+                })
+                .collect()
+        }
+
+        // Each table, with the columns MIGRATION_V2 appends to it in the order it appends them.
+        for (table, added) in [
+            ("files", vec!["hash_algo", "deleting_at"]),
+            (
+                "projects",
+                vec!["deleting_at", "clean_sweeps", "last_sweep_at"],
+            ),
+            ("organizations", vec!["deleting_at"]),
+        ] {
+            let declared = declared_columns(SCHEMA, table);
+            let tail: Vec<&str> = declared
+                .iter()
+                .rev()
+                .take(added.len())
+                .rev()
+                .map(String::as_str)
+                .collect();
+            assert_eq!(
+                tail, added,
+                "the fresh `{table}` must declare the migration's added columns last and in the order it \
+                 adds them, or a fresh and an upgraded database differ in physical column order"
+            );
+            // And the migration really does add exactly these, in this order.
+            let mut position = 0usize;
+            for column in &added {
+                let needle = format!("ALTER TABLE {table} ADD COLUMN {column} ");
+                let found = MIGRATION_V2[position..].find(&needle).unwrap_or_else(|| {
+                    panic!("MIGRATION_V2 does not add {table}.{column} in order")
+                });
+                position += found + needle.len();
+            }
+        }
+    }
+
     /// A v1 database walked forward has the same schema as a fresh one - every table, not one.
     ///
     /// This is the invariant a migration exists to preserve, and it is easy to half-keep: SQLite cannot add
@@ -316,6 +392,14 @@ mod tests {
             pool: &SqlitePool,
             table: &str,
         ) -> Vec<(String, String, i64, Option<String>)> {
+            // Sorted, so this compares the column *set* - names, types, nullability and defaults.
+            //
+            // Physical order is checked separately (`migration_added_columns_are_declared_last`) rather
+            // than here, because reducing a database to its v1 shape with `ALTER TABLE DROP COLUMN` makes
+            // SQLite re-parse its stored DDL, and it rejects the result once the definition carries
+            // comments. Order still matters - a positional writer shifts every value by a column when
+            // fresh and upgraded disagree, which is exactly what happened to DuckDB's metrics appender -
+            // so it is asserted against the schema text, where no DDL rewriting is involved.
             let mut rows: Vec<(String, String, i64, Option<String>)> = sqlx::query_as(&format!(
                 "SELECT name, type, \"notnull\", dflt_value FROM pragma_table_info('{table}')"
             ))
@@ -341,24 +425,50 @@ mod tests {
             .execute(&upgraded)
             .await
             .expect("base schema");
+        // The v1 shape, written out. Rebuilt rather than reduced with `ALTER TABLE DROP COLUMN`: SQLite
+        // re-parses its stored `CREATE TABLE` text on a drop and rejects the result once that text carries
+        // comments, which the real schema does throughout. Spelling the v1 tables here is also the honest
+        // form - this *is* what v1 was, and if it drifts, the comparison below is where it shows.
         sqlx::raw_sql(
             "DROP TABLE credentials;
              DROP TABLE credential_project_permissions;
              DROP TABLE deleted_projects;
              DROP TABLE deleted_traces;
              DROP TABLE trace_files;
+             DROP TABLE files;
+             DROP TABLE projects;
+             DROP TABLE organizations;
+             CREATE TABLE organizations (
+                 id TEXT PRIMARY KEY,
+                 name TEXT NOT NULL,
+                 slug TEXT NOT NULL UNIQUE,
+                 created_at INTEGER NOT NULL,
+                 updated_at INTEGER NOT NULL
+             );
+             CREATE TABLE projects (
+                 id TEXT PRIMARY KEY,
+                 organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+                 name TEXT NOT NULL,
+                 created_at INTEGER NOT NULL,
+                 updated_at INTEGER NOT NULL
+             );
+             CREATE TABLE files (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 project_id TEXT NOT NULL,
+                 file_hash TEXT NOT NULL,
+                 media_type TEXT,
+                 size_bytes INTEGER NOT NULL,
+                 ref_count INTEGER NOT NULL DEFAULT 1,
+                 created_at INTEGER NOT NULL,
+                 updated_at INTEGER NOT NULL,
+                 UNIQUE(project_id, file_hash)
+             );
              CREATE TABLE trace_files (
                  trace_id TEXT NOT NULL,
                  project_id TEXT NOT NULL,
                  file_hash TEXT NOT NULL,
                  PRIMARY KEY (trace_id, file_hash)
              );
-             ALTER TABLE files DROP COLUMN hash_algo;
-             ALTER TABLE files DROP COLUMN deleting_at;
-             ALTER TABLE projects DROP COLUMN deleting_at;
-             ALTER TABLE projects DROP COLUMN clean_sweeps;
-             ALTER TABLE projects DROP COLUMN last_sweep_at;
-             ALTER TABLE organizations DROP COLUMN deleting_at;
              INSERT INTO schema_version (id, version, applied_at) VALUES (1, 1, 0);",
         )
         .execute(&upgraded)

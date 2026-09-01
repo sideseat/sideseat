@@ -61,6 +61,9 @@ struct MetricRow {
     resource_attributes: Option<String>,
     flags: Option<i32>,
     raw_metric: Option<String>,
+    scope_attributes: Option<String>,
+    scope_schema_url: Option<String>,
+    resource_schema_url: Option<String>,
 }
 
 /// Convert chrono DateTime to time OffsetDateTime
@@ -125,6 +128,9 @@ impl From<&NormalizedMetric> for MetricRow {
             resource_attributes: json_to_opt_string(&metric.resource_attributes),
             flags: Some(metric.flags as i32),
             raw_metric: json_to_opt_string(&metric.raw_metric),
+            scope_attributes: json_to_opt_string(&metric.scope_attributes),
+            scope_schema_url: metric.scope_schema_url.clone(),
+            resource_schema_url: metric.resource_schema_url.clone(),
         }
     }
 }

@@ -36,12 +36,13 @@ CREATE TABLE IF NOT EXISTS organizations (
         (length(slug) >= 2 AND length(slug) <= 50 AND slug GLOB '[a-z0-9][a-z0-9-]*[a-z0-9]')
         OR (length(slug) = 1 AND slug GLOB '[a-z0-9]')
     ),
-    -- Set while the organization is being deleted, and a tombstone for the same reason a project's is:
-    -- deleting the row cascades its project rows away, and those rows *are* the projects' tombstones, so
-    -- removing it early would stop the cleanup that collects a stalled writer's spans.
-    deleting_at INTEGER,
     created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    -- Last, because the v1 migration appends it - see the `files` table for why physical order is part of
+    -- the schema. Set while the organization is being deleted, and a tombstone for the same reason a
+    -- project's is: deleting the row cascades its project rows away, and those rows *are* the projects'
+    -- tombstones, so removing it early would stop the cleanup that collects a stalled writer's spans.
+    deleting_at INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_organizations_slug ON organizations(slug);
@@ -106,6 +107,11 @@ CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
     organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    -- The three below are appended by the v1 migration, in this order - see `files` for why the physical
+    -- order is part of the schema rather than a presentation choice.
+    --
     -- Set while the project is being deleted, and it is a *tombstone*: it outlives the data, not the
     -- other way round. Deletion spans four stores with no transaction over them, so a writer can read
     -- the fence, have the deletion land underneath it, and commit afterwards - no single observation
@@ -119,9 +125,7 @@ CREATE TABLE IF NOT EXISTS projects (
     -- When the sweep above was last *counted*. Without it the count measures sweeps rather than elapsed
     -- observation, so N instances sweeping concurrently would reach the required number in one interval
     -- instead of N - the barrier would get weaker the more instances you run.
-    last_sweep_at INTEGER,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    last_sweep_at INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(organization_id);
@@ -172,13 +176,18 @@ CREATE TABLE IF NOT EXISTS files (
     file_hash TEXT NOT NULL,
     media_type TEXT,
     size_bytes INTEGER NOT NULL,
-    hash_algo TEXT NOT NULL DEFAULT 'sha256',
     ref_count INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    -- Last, and so is `deleting_at`, because both are added by the v1 migration and `ALTER TABLE ADD
+    -- COLUMN` can only append. Declared mid-table, a fresh database and an upgraded one differ in physical
+    -- column *order* for the same schema version - harmless while every writer names its columns, and
+    -- silently catastrophic the moment one is positional. That is not hypothetical: DuckDB's metrics
+    -- appender is positional, and the same mistake there wrote every value one column across.
+    hash_algo TEXT NOT NULL DEFAULT 'sha256',
     -- Set while cleanup is deleting this file. Association refuses through the fence, because a count
     -- cannot express "deletion in progress" and the bytes may already be gone.
     deleting_at INTEGER,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
     UNIQUE(project_id, file_hash)
 );
 
