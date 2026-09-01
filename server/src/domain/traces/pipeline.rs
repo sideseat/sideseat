@@ -687,18 +687,21 @@ impl TracePipeline {
         // here, with the ones that hold getting an association and the rest joining the quota-rejected
         // set - both are "a reference a reader cannot resolve", and both are replaced with a note.
         let mut unresolvable = files.quota_skipped;
-        let (unbacked, reconcile_failed, incoming_associations) =
-            reconcile_incoming_references(&all_incoming, &self.file_service).await;
+        let (unbacked, reconcile_failed, incoming_associations) = reconcile_incoming_references(
+            &all_incoming,
+            &self.file_service,
+            &files.created_associations,
+        )
+        .await;
         // Folded into the batch's own set, so every compensation path - a failed write, a tombstoned trace,
         // the post-write re-check - covers a reference that arrived already formed as well as one whose
         // bytes this batch wrote.
         let mut created_associations = files.created_associations;
         created_associations.extend(incoming_associations);
-        // One entry per association, so each is resolved once. Both sources already dedupe within
-        // themselves (the extractor by `(trace, hash)`, the incoming path by `(project, trace, hash)`); this
-        // guards the rare cross-source overlap - the same content arriving inline *and* as a URI in one
-        // batch - which would otherwise be confirmed twice on SQLite (per element) and once on PostgreSQL
-        // (`UNNEST` `IN`), drifting the writer count between backends.
+        // One entry per association, matching the one increment each now gets. The increment side is where
+        // this is actually enforced - the file-write path dedupes by `(trace, hash)` and the incoming path is
+        // seeded with what the file-write path already associated - so this is a belt-and-braces no-op that
+        // keeps resolution count equal to increment count if a third source is ever added.
         created_associations.sort_unstable();
         created_associations.dedup();
         if reconcile_failed > 0 {
@@ -1549,14 +1552,15 @@ impl TracePipeline {
             }
             let mut unresolvable = files.quota_skipped;
             let (unbacked, reconcile_failed, incoming_associations) =
-                reconcile_incoming_references(&incoming, &self.file_service).await;
+                reconcile_incoming_references(
+                    &incoming,
+                    &self.file_service,
+                    &files.created_associations,
+                )
+                .await;
             let mut created_associations = files.created_associations;
             created_associations.extend(incoming_associations);
-            // One entry per association, so each is resolved once. Both sources already dedupe within
-            // themselves (the extractor by `(trace, hash)`, the incoming path by `(project, trace, hash)`); this
-            // guards the rare cross-source overlap - the same content arriving inline *and* as a URI in one
-            // batch - which would otherwise be confirmed twice on SQLite (per element) and once on PostgreSQL
-            // (`UNNEST` `IN`), drifting the writer count between backends.
+            // One entry per association, matching the one increment each now gets - see the batch path.
             created_associations.sort_unstable();
             created_associations.dedup();
             if reconcile_failed > 0 {
