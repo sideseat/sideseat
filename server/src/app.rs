@@ -268,10 +268,11 @@ impl CoreApp {
                         cache: Arc::clone(&app.cache),
                         database: Arc::clone(&app.database),
                         api_key_secret: Arc::new(app.secrets.get_api_key_secret().await?),
-                        rate_limiter: app
-                            .config
-                            .rate_limit
-                            .per_ip
+                        // Both switches, as the HTTP path reads them: `per_ip` alone ignored the master
+                        // `enabled`, so a deployment that had turned rate limiting off still had it enforced
+                        // on this transport only.
+                        rate_limiter: (app.config.rate_limit.enabled
+                            && app.config.rate_limit.per_ip)
                             .then(|| Arc::clone(&app.rate_limiter)),
                     })
                 } else {
