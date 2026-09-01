@@ -110,6 +110,41 @@ impl SecretProvider for HashiVaultProvider {
         Ok(())
     }
 
+    /// A real CAS via KV v2's `cas=0`, which means "write only if this key has no version yet".
+    ///
+    /// Vault answers a failed check-and-set with 400, so the loser reads the winner's value instead of
+    /// overwriting it. Without this, two fresh replicas provisioning at once each wrote their own root
+    /// secret and each kept it - and an API key created against one is not merely unknown on the other,
+    /// it is unverifiable there, because the lookup is by `HMAC(key, pepper)`.
+    async fn create_if_absent(
+        &self,
+        key: &SecretKey,
+        secret: &Secret,
+    ) -> Result<Secret, SecretError> {
+        let url = self.data_url(key);
+        let payload = serde_json::json!({
+            "options": { "cas": 0 },
+            "data": secret,
+        });
+        let resp = self.client.post(&url).json(&payload).send().await?;
+
+        if resp.status().is_success() {
+            return Ok(secret.clone());
+        }
+        // 400 is what a failed check-and-set looks like. Anything else is a real error, and guessing that
+        // a 403 meant "someone else won" would hand back a secret nobody wrote.
+        if resp.status() == reqwest::StatusCode::BAD_REQUEST {
+            return self
+                .get(key)
+                .await?
+                .ok_or_else(|| SecretError::NotFound(key.to_string()));
+        }
+        Err(SecretError::backend(
+            "vault",
+            format!("POST {} (cas=0) returned {}", url, resp.status()),
+        ))
+    }
+
     async fn delete(&self, key: &SecretKey) -> Result<(), SecretError> {
         // Delete metadata (permanent delete in KV v2)
         let url = format!(

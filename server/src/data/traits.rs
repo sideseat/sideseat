@@ -503,6 +503,29 @@ pub trait TransactionalRepository: Send + Sync {
         limit: i64,
     ) -> Result<Vec<(String, i64)>, DataError>;
 
+    /// Claim a batch of deleted *traces* whose check is due, leased and exclusive.
+    ///
+    /// Same discipline as the project claim, and needed for the same reason: the pre-write tombstone check
+    /// and the analytics write are in different stores, so a crash between them leaves spans for a deleted
+    /// trace that only a sweep can collect. Re-checking every record forever at a fixed rate would be
+    /// unbounded lifetime work, hence the lease, the backoff and the cap.
+    async fn claim_deleted_traces_for_check(
+        &self,
+        lease_secs: i64,
+        limit: i64,
+    ) -> Result<Vec<(String, String, i64)>, DataError>;
+
+    /// Record what a deleted trace's check found, matched on the claim token.
+    async fn record_deleted_trace_check(
+        &self,
+        project_id: &str,
+        trace_id: &str,
+        claim_token: i64,
+        was_quiet: bool,
+        base_gap_secs: i64,
+        max_gap_secs: i64,
+    ) -> Result<(), DataError>;
+
     /// Record what a deleted project's check found. Quiet pushes the next check further out; anything found
     /// brings it back to the base interval.
     async fn record_deleted_project_check(
@@ -774,6 +797,23 @@ pub trait TransactionalRepository: Send + Sync {
         project_id: &str,
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError>;
+
+    /// Release one association this process created, after the write that would have justified it failed.
+    ///
+    /// A compensating action, not a deletion: the bytes are written before the analytics row that
+    /// references them, so a batch whose analytics write fails has already created associations for spans
+    /// that will never land - and those keep `ref_count` above zero, which is exactly what the orphan
+    /// sweeper selects on, so nothing would ever reclaim them.
+    ///
+    /// Scoped to a single `(project, trace, hash)` because only the association this batch *created* may
+    /// go. One that already existed belongs to an earlier committed batch, and releasing it would orphan
+    /// that batch's file. Returns whether a row was removed.
+    async fn release_trace_file_association(
+        &self,
+        project_id: &str,
+        trace_id: &str,
+        file_hash: &str,
+    ) -> Result<bool, DataError>;
 
     /// Delete trace-file associations for traces
     async fn delete_trace_files(

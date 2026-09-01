@@ -89,8 +89,13 @@ fn apply_initial_schema(conn: &Connection) -> Result<(), DuckdbError> {
 /// version carries the fields' hash, and a value invented in SQL would not match the one Rust
 /// computes. Legacy rows therefore keep the old behaviour among themselves, and every row written
 /// from here on has an identity. The 90-day retention window ages the untagged ones out.
+///
+/// The `NOT NULL` at the end matters: a fresh schema declares it, so without this an upgraded database
+/// carried a nullable column and the two schemas differed for one version. Backfilling and stopping is
+/// the same half-kept invariant the SQLite upgrade test was written to catch.
 const MIGRATION_V2: &str = r#"ALTER TABLE otel_metrics ADD COLUMN datapoint_id VARCHAR;
 UPDATE otel_metrics SET datapoint_id = '' WHERE datapoint_id IS NULL;
+ALTER TABLE otel_metrics ALTER COLUMN datapoint_id SET NOT NULL;
 "#;
 
 fn apply_migration(conn: &Connection, version: i32) -> Result<(), DuckdbError> {

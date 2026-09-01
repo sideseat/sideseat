@@ -105,7 +105,12 @@ pub fn get_messages(
         //
         // span_id breaks ties: ordering by timestamp alone leaves rows written in the same
         // microsecond to storage order, which is not stable between identical requests.
-        "SELECT {MESSAGE_SELECT_COLUMNS} FROM {DEDUP_SPANS} WHERE {} ORDER BY timestamp_start ASC, span_id ASC",
+        // `trace_id` is in the order key, not just `span_id`. A span id is 8 bytes and unique only
+        // *within* a trace, so two traces reuse ids freely - and with only `(timestamp_start, span_id)`
+        // the order of tied rows is whatever the engine returns. Reconstruction reads first-seen order
+        // to decide which trace strips its history against which, so an undefined tie there is an
+        // undefined answer.
+        "SELECT {MESSAGE_SELECT_COLUMNS} FROM {DEDUP_SPANS} WHERE {} ORDER BY timestamp_start ASC, trace_id ASC, span_id ASC",
         conditions.join(" AND "),
         DEDUP_SPANS = DEDUP_SPANS
     );

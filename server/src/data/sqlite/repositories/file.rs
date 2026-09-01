@@ -658,6 +658,28 @@ pub async fn get_orphan_files(pool: &SqlitePool) -> Result<Vec<(String, String)>
     Ok(rows)
 }
 
+/// Release one association created by a batch whose analytics write then failed.
+///
+/// See `TransactionalRepository::release_trace_file_association`. The caller follows this with
+/// `sync_ref_count`, which recomputes the count from the associations that remain - so the count cannot
+/// drift from the truth however the two interleave with a concurrent batch.
+pub async fn release_trace_file_association(
+    pool: &SqlitePool,
+    project_id: &str,
+    trace_id: &str,
+    file_hash: &str,
+) -> Result<bool, SqliteError> {
+    let result = sqlx::query(
+        "DELETE FROM trace_files WHERE project_id = ? AND trace_id = ? AND file_hash = ?",
+    )
+    .bind(project_id)
+    .bind(trace_id)
+    .bind(file_hash)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

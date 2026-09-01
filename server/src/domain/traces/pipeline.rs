@@ -634,18 +634,79 @@ impl TracePipeline {
         // And traces deleted individually, which the project fence says nothing about. Checked here, in
         // the same position and for the same reason: this batch's files are already stored, so a trace
         // deleted since they were written must not gain a row pointing at bytes the deletion reclaimed.
+        //
+        // A dropped span's associations are released, for the same reason a failed write's are: they hold
+        // `ref_count` above zero for a row that will never exist, and the orphan sweeper selects on zero.
         match self.drop_spans_for_deleted_traces(&mut all_db_spans).await {
-            Ok(_) if all_db_spans.is_empty() => return true,
-            Ok(_) => {}
-            Err(()) => return false,
+            Ok(0) => {}
+            Ok(_) if all_db_spans.is_empty() => {
+                self.release_created_associations(&files.created_associations)
+                    .await;
+                return true;
+            }
+            Ok(_) => {
+                // Partly dropped: release only the associations belonging to traces that are gone.
+                let surviving: HashSet<(&str, &str)> = all_db_spans
+                    .iter()
+                    .map(|s| {
+                        (
+                            s.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID),
+                            s.trace_id.as_str(),
+                        )
+                    })
+                    .collect();
+                let orphaned: Vec<(String, String, String)> = files
+                    .created_associations
+                    .iter()
+                    .filter(|(project, trace, _)| {
+                        !surviving.contains(&(project.as_str(), trace.as_str()))
+                    })
+                    .cloned()
+                    .collect();
+                self.release_created_associations(&orphaned).await;
+            }
+            Err(()) => {
+                self.release_created_associations(&files.created_associations)
+                    .await;
+                return false;
+            }
         }
 
+        // Captured before the write consumes the spans: the compensating re-check below needs to know
+        // exactly what was written, and only those rows may be removed.
+        let written: Vec<(String, String, String)> = all_db_spans
+            .iter()
+            .map(|s| {
+                (
+                    s.project_id
+                        .as_deref()
+                        .unwrap_or(DEFAULT_PROJECT_ID)
+                        .to_string(),
+                    s.trace_id.clone(),
+                    s.span_id.clone(),
+                )
+            })
+            .collect();
         let db_ok = write_to_duckdb(all_db_spans, &self.analytics).await;
 
         let t_persist_done = std::time::Instant::now();
 
         if db_ok {
+            // Before anything is published: a deletion that landed between the pre-write check and the
+            // write leaves the trace resurrected, and an SSE event for it would announce it to every
+            // connected reader.
+            self.collect_spans_written_for_deleted_traces(&written, &files.created_associations)
+                .await;
             publish_sse_events(&sse_events, &self.topics).await;
+        } else {
+            // Release the associations this batch created, since the rows that would have justified them
+            // are not there. Files are written before the rows deliberately, so a failed write leaves
+            // associations holding `ref_count` above zero - and the orphan sweeper selects on
+            // `ref_count = 0`, so nothing would ever reclaim those bytes and the project's quota would
+            // shrink permanently. A redelivery re-creates them, so this costs nothing when the retry
+            // succeeds.
+            self.release_created_associations(&files.created_associations)
+                .await;
         }
 
         tracing::debug!(
@@ -698,6 +759,133 @@ impl TracePipeline {
             "Dropped spans for projects that do not accept writes (deleted or being deleted)"
         );
         Ok(before - spans.len())
+    }
+
+    /// After the write, check the tombstones again and remove anything that slipped through.
+    ///
+    /// The check before the write cannot be atomic with it - the tombstone is a row in the transactional
+    /// store and the spans go to the analytics store, so no transaction spans them. A deletion landing in
+    /// that window would leave the trace resurrected: its files reclaimed, its row committed, and the
+    /// caller already answered 204.
+    ///
+    /// So the window is closed by *compensation* rather than by locking: the write is followed by a second
+    /// look, and anything now tombstoned is deleted along with the associations this batch created for it.
+    /// This is not a substitute for the pre-write check - that is what keeps the common case from ever
+    /// writing - and it is not sufficient alone either, since a crash between the write and this line
+    /// leaves the spans. The deletion sweep is what covers that, exactly as it covers a project whose
+    /// tombstone outlived its claim.
+    async fn collect_spans_written_for_deleted_traces(
+        &self,
+        written: &[(String, String, String)],
+        created_associations: &[(String, String, String)],
+    ) {
+        if written.is_empty() {
+            return;
+        }
+        let mut by_project: HashMap<&str, Vec<String>> = HashMap::new();
+        for (project, trace, _span) in written {
+            by_project
+                .entry(project.as_str())
+                .or_default()
+                .push(trace.clone());
+        }
+        let repo = self.file_service.database().repository();
+        for (project, mut trace_ids) in by_project {
+            trace_ids.sort_unstable();
+            trace_ids.dedup();
+            let tombstoned = match repo.deleted_traces_among(project, &trace_ids).await {
+                Ok(found) if found.is_empty() => continue,
+                Ok(found) => found,
+                // Nothing to compensate on: the sweep will find these if they are genuinely deleted.
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        project,
+                        "Could not re-check trace tombstones after the write; the deletion sweep will \
+                         collect anything that slipped through"
+                    );
+                    continue;
+                }
+            };
+            let doomed: Vec<(String, String)> = written
+                .iter()
+                .filter(|(p, t, _)| p == project && tombstoned.contains(t))
+                .map(|(_, t, span)| (t.clone(), span.clone()))
+                .collect();
+            match self
+                .analytics
+                .repository()
+                .delete_spans(project, &doomed)
+                .await
+            {
+                Ok(_) => tracing::warn!(
+                    project,
+                    spans = doomed.len(),
+                    traces = tombstoned.len(),
+                    "Removed spans written for traces deleted during the write"
+                ),
+                Err(e) => tracing::error!(
+                    error = %e,
+                    project,
+                    spans = doomed.len(),
+                    "Could not remove spans written for a deleted trace; the deletion sweep will retry"
+                ),
+            }
+            let orphaned: Vec<(String, String, String)> = created_associations
+                .iter()
+                .filter(|(p, t, _)| p == project && tombstoned.contains(t))
+                .cloned()
+                .collect();
+            self.release_created_associations(&orphaned).await;
+        }
+    }
+
+    /// Release associations this batch created after its analytics write failed.
+    ///
+    /// Best effort and logged rather than fatal: the batch has already failed and will be redelivered,
+    /// so the useful thing is to leave as little behind as possible. A release that itself fails leaves
+    /// the association, which is the state this exists to avoid - so it is worth a warning, but not worth
+    /// turning a retryable batch into a different failure.
+    ///
+    /// `sync_ref_count` follows each release, recomputing the count from the associations that remain
+    /// rather than subtracting - so a concurrent batch holding its own association keeps the file, and
+    /// the count cannot drift however the two interleave.
+    async fn release_created_associations(&self, created: &[(String, String, String)]) {
+        if created.is_empty() {
+            return;
+        }
+        let repo = self.file_service.database().repository();
+        let mut released = 0usize;
+        for (project_id, trace_id, hash) in created {
+            match repo
+                .release_trace_file_association(project_id, trace_id, hash)
+                .await
+            {
+                Ok(true) => {
+                    released += 1;
+                    if let Err(e) = repo.sync_ref_count(project_id, hash).await {
+                        tracing::warn!(
+                            error = %e,
+                            project_id, hash,
+                            "Released an association but could not recompute the file's reference count"
+                        );
+                    }
+                }
+                Ok(false) => {}
+                Err(e) => tracing::warn!(
+                    error = %e,
+                    project_id, trace_id, hash,
+                    "Could not release an association after a failed analytics write; the file it \
+                     references will hold quota until the association is removed"
+                ),
+            }
+        }
+        if released > 0 {
+            tracing::debug!(
+                released,
+                "Released file associations created by a batch whose analytics write failed"
+            );
+        }
     }
 
     /// Remove spans belonging to traces that have been deleted.
@@ -895,8 +1083,56 @@ impl TracePipeline {
                     "File content is not stored for some references; replaced them with a note"
                 );
             }
+            // The trace tombstone, in the same position as the batch path's and for the same reason.
+            //
+            // This path had no check at all, and it is the *default*: with an in-memory topic the request
+            // writes inline, and it is also the shutdown drain and the claimed-message recovery. So a
+            // deleted trace could be re-posted through the ordinary configuration and answered success,
+            // which is the exact failure the tombstone exists to remove.
+            match self.drop_spans_for_deleted_traces(&mut db_spans).await {
+                Ok(dropped) if db_spans.is_empty() => {
+                    // The associations this batch created are released, or they would hold quota for a
+                    // trace that will never have a row.
+                    self.release_created_associations(&files.created_associations)
+                        .await;
+                    return IngestOutcome::Dropped {
+                        spans: partly_dropped + dropped,
+                    };
+                }
+                Ok(0) => {}
+                Ok(dropped) => partly_dropped += dropped,
+                Err(()) => {
+                    self.release_created_associations(&files.created_associations)
+                        .await;
+                    return IngestOutcome::Failed;
+                }
+            }
+
+            // Same capture as the batch path, for the same compensating re-check.
+            let written: Vec<(String, String, String)> = db_spans
+                .iter()
+                .map(|s| {
+                    (
+                        s.project_id
+                            .as_deref()
+                            .unwrap_or(DEFAULT_PROJECT_ID)
+                            .to_string(),
+                        s.trace_id.clone(),
+                        s.span_id.clone(),
+                    )
+                })
+                .collect();
             let db_ok = write_to_duckdb(db_spans, &self.analytics).await;
+            if !db_ok {
+                self.release_created_associations(&files.created_associations)
+                    .await;
+            }
             if db_ok {
+                self.collect_spans_written_for_deleted_traces(
+                    &written,
+                    &files.created_associations,
+                )
+                .await;
                 publish_sse_events(&sse_events, &self.topics).await;
                 if partly_dropped > 0 {
                     IngestOutcome::PartlyDropped {

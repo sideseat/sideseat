@@ -52,10 +52,24 @@ pub fn datapoint_id(metric: &NormalizedMetric) -> String {
         Some(metric.metric_name.as_str()),
         Some(metric.metric_type.as_str()),
         Some(metric.aggregation_temporality.as_str()),
+        // The unit is part of the stream's semantics, not decoration: the same name reported in `ms` and
+        // in `s` is two streams, and treating them as one datapoint would keep whichever merged last.
+        metric.metric_unit.as_deref(),
         metric.scope_name.as_deref(),
         metric.scope_version.as_deref(),
     ] {
         write_optional_str(&mut hasher, field);
+    }
+
+    // Monotonicity too, for the same reason: a monotonic sum and a non-monotonic one are different
+    // streams even under one name, and OTel treats the flag as part of the instrument's definition.
+    match metric.is_monotonic {
+        Some(monotonic) => {
+            hasher.update(&[1u8, u8::from(monotonic)]);
+        }
+        None => {
+            hasher.update(&[0u8, 0u8]);
+        }
     }
 
     hasher.update(
@@ -232,6 +246,55 @@ mod tests {
         ] {
             assert_ne!(id, datapoint_id(&other), "{label} must change the identity");
         }
+    }
+
+    /// The unit and the monotonicity flag are part of the stream, not commentary on it.
+    ///
+    /// The same metric name reported in `ms` and in `s` measures two different things, and a monotonic
+    /// sum is a different instrument from a non-monotonic one. Excluded, they shared an identity and the
+    /// replacing engine kept whichever merged last.
+    #[test]
+    fn the_unit_and_monotonicity_are_part_of_the_identity() {
+        let base = datapoint(json!({"route": "/v1/traces"}));
+        let id = datapoint_id(&base);
+
+        let millis = NormalizedMetric {
+            metric_unit: Some("ms".to_string()),
+            ..base.clone()
+        };
+        let seconds = NormalizedMetric {
+            metric_unit: Some("s".to_string()),
+            ..base.clone()
+        };
+        assert_ne!(
+            id,
+            datapoint_id(&millis),
+            "adding a unit changes the stream"
+        );
+        assert_ne!(
+            datapoint_id(&millis),
+            datapoint_id(&seconds),
+            "ms and s are different streams under one name"
+        );
+
+        let monotonic = NormalizedMetric {
+            is_monotonic: Some(true),
+            ..base.clone()
+        };
+        let not_monotonic = NormalizedMetric {
+            is_monotonic: Some(false),
+            ..base.clone()
+        };
+        assert_ne!(
+            id,
+            datapoint_id(&monotonic),
+            "declaring monotonicity matters"
+        );
+        assert_ne!(
+            datapoint_id(&monotonic),
+            datapoint_id(&not_monotonic),
+            "a monotonic sum is not the same instrument as a non-monotonic one"
+        );
     }
 
     /// A nested label value is part of the series, not flattened away.

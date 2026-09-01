@@ -641,6 +641,15 @@ pub const DELETED_PROJECT_CHECK_BATCH: i64 = 50;
 /// Comfortably longer than a batch should take, and short enough that a crashed sweep's ids come back soon.
 pub const DELETED_PROJECT_CHECK_LEASE_SECS: i64 = 600;
 
+/// The same schedule for deleted *trace* records, which are far more numerous than project ones - hence a
+/// larger batch and a shorter base interval, so a fresh deletion is re-checked promptly while an old one
+/// backs off to the daily floor. What is being collected is narrow: spans written by a batch that passed
+/// the pre-write tombstone check and then crashed before its own compensating re-check.
+pub const DELETED_TRACE_CHECK_BASE_SECS: i64 = 30;
+pub const DELETED_TRACE_CHECK_MAX_SECS: i64 = 24 * 60 * 60;
+pub const DELETED_TRACE_CHECK_BATCH: i64 = 200;
+pub const DELETED_TRACE_CHECK_LEASE_SECS: i64 = 300;
+
 /// How many session reconstructions to remember, and how long an unused one stays.
 ///
 /// Entries are small - a reconstruction's *output* is the blocks a reader sees, not the megabytes of

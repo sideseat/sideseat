@@ -458,16 +458,31 @@ mechanism and getting it wrong is invisible until there are two instances.
 | Deletion sweeps | Run on every instance | Every step is idempotent and the claims are CAS-guarded, so concurrent sweeps duplicate work rather than corrupt state. |
 | Migrations | Serialised by `pg_advisory_lock` | Concurrent instances starting together cannot race the schema. |
 
-**Deleting a *trace* leaves a tombstone too** (`deleted_traces`, `drop_spans_for_deleted_traces`). The
-file fence protects a file from cleanup while something references it; it cannot stop the reverse. Files
-and their associations are written **before** the analytics row that names them - deliberately, so the
-surviving failure is a reclaimable orphan rather than a dangling reference - which means a batch already
-in flight when `delete_traces` runs commits *after* the deletion reclaimed its bytes, producing a span
-carrying a `#!B64!#` reference to nothing for a trace the caller was told 204 for. No elapsed time bounds
-that: a queued batch can be redelivered minutes later. So the route records the tombstone **before** the
-analytics delete (no instant exists where a trace is deleted and not tombstoned), and ingest consults it
-immediately before its own write. Keyed by `(project, trace)`, because a trace id comes from the client
-and two projects can present the same one.
+**Deleting a *trace* leaves a tombstone too** (`deleted_traces`), and it takes **four** steps, because no
+one of them is a guarantee on its own. The file fence protects a file from cleanup while something
+references it; it cannot stop the reverse. Files and their associations are written **before** the
+analytics row that names them - deliberately, so the surviving failure is a reclaimable orphan rather than
+a dangling reference - which means a batch already in flight when `delete_traces` runs commits *after* the
+deletion reclaimed its bytes, producing a span carrying a `#!B64!#` reference to nothing for a trace the
+caller was told 204 for. No elapsed time bounds that: a queued batch can be redelivered minutes later.
+
+| Step | Where | What it closes |
+| --- | --- | --- |
+| Tombstone **before** the analytics delete | `delete_traces`, `delete_sessions` | No instant exists in which a trace is deleted and not yet tombstoned. A session is deleted *by* deleting its traces, so it records the same tombstones. |
+| Check immediately **before** the write | `drop_spans_for_deleted_traces` | The common case: a batch that arrives after the deletion never writes. Applied on **both** paths - the queued batch and `run`, which is the default in-memory ingest, the shutdown drain *and* claimed-message recovery. Having it on only one was a deleted trace re-postable through the ordinary configuration. |
+| Re-check immediately **after** the write | `collect_spans_written_for_deleted_traces` | The tombstone is a row in the transactional store and spans go to the analytics store, so nothing makes the pair atomic. A deletion landing inside that window is compensated: the spans are deleted and the batch's associations released, *before* any SSE event announces them. |
+| A leased, backed-off **sweep** | `advance_pending_deletions` | The crash between the write and the re-check. Same discipline as the deleted-project records - claimed exclusively (`FOR UPDATE SKIP LOCKED` on PostgreSQL), leased, geometrically backed off to a daily floor, batch-capped - because the records are long-lived and what has to be bounded is the *rate*. "Quiet" requires no error **and** nothing still readable, asked directly rather than inferred from a delete's row count, which means different things per backend. |
+
+Keyed by `(project, trace)`, because a trace id comes from the client and two projects can present the
+same one.
+
+**An association created by a batch that does not commit is released** (`created_associations`,
+`release_created_associations`). An association holds `ref_count` above zero and the orphan sweeper selects
+on *zero*, so a file whose batch failed - or whose trace was tombstoned mid-flight - would occupy the
+project's quota with nothing able to reclaim it. Only the associations that batch **created** are released:
+one that already existed belongs to an earlier committed batch, and releasing it would orphan that batch's
+content. `sync_ref_count` follows, recomputing from the associations that remain rather than subtracting,
+so a concurrent batch holding its own keeps the file.
 
 **The schema is at version 2, and there is one migration.** Nothing above v1 was ever released, so the
 fourteen historical steps that used to live in each backend described upgrades no database could need -

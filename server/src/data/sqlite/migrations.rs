@@ -199,9 +199,17 @@ CREATE TABLE IF NOT EXISTS deleted_traces (
     project_id  TEXT    NOT NULL,
     trace_id    TEXT    NOT NULL,
     deleted_at  INTEGER NOT NULL,
+    -- The same leased, backed-off schedule the deleted-project records use, and for the same reason: the
+    -- pre-write check and the analytics write are in different stores, so a crash between them leaves
+    -- spans for a deleted trace and only a sweep can collect them. Re-checking every record forever at a
+    -- fixed rate would be unbounded lifetime work, so a quiet check pushes the next one further out and
+    -- the due time itself is indexed.
+    quiet_checks  INTEGER NOT NULL DEFAULT 0,
+    next_check_at INTEGER NOT NULL DEFAULT 0,
+    claim_token   INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (project_id, trace_id)
 );
-CREATE INDEX IF NOT EXISTS idx_deleted_traces_at ON deleted_traces(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_deleted_traces_due ON deleted_traces(next_check_at);
 "#;
 
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {

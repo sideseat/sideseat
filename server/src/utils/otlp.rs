@@ -85,7 +85,12 @@ fn any_value_to_typed_json(value: &AnyValue) -> JsonValue {
         Some(any_value::Value::DoubleValue(d)) => serde_json::Number::from_f64(*d)
             .map(JsonValue::Number)
             .unwrap_or_else(|| JsonValue::String(format!("__non_finite:{d}"))),
-        Some(any_value::Value::BytesValue(bytes)) => JsonValue::String(hex::encode(bytes)),
+        // Tagged, because untagged hex collides with a string that happens to be hex: OTLP bytes
+        // `DE AD` and the string `"dead"` both rendered as `"dead"`, so two labelled metric series
+        // received the same identity and the replacing engine merged one away.
+        Some(any_value::Value::BytesValue(bytes)) => {
+            JsonValue::String(format!("__bytes:{}", hex::encode(bytes)))
+        }
         Some(any_value::Value::ArrayValue(arr)) => {
             JsonValue::Array(arr.values.iter().map(any_value_to_typed_json).collect())
         }
@@ -305,6 +310,14 @@ mod tests {
         assert_ne!(
             numeric, textual,
             "an integer 200 and a string \"200\" must not hash to the same identity"
+        );
+
+        // Bytes are tagged, or hex-looking bytes collide with a hex-looking string.
+        let raw = attrs_to_typed_json(&[kv("id", any_value::Value::BytesValue(vec![0xde, 0xad]))]);
+        let text = attrs_to_typed_json(&[kv("id", any_value::Value::StringValue("dead".into()))]);
+        assert_ne!(
+            raw, text,
+            "OTLP bytes DE AD and the string \"dead\" must not share an identity"
         );
 
         // Booleans keep their own kind too.
