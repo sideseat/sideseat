@@ -134,7 +134,17 @@ async fn run_agent(
         .find_by_name(&project_id, &name)
         .await
         .map_err(|e| ErrorResponse::internal(e.to_string()))?
-        .ok_or_else(|| ErrorResponse::not_found("registration_not_found"))?;
+        // The message names the boundary, because "not found" is ambiguous here in a way that costs an
+        // operator real time: the registration directory is per-process while this route's own control-plane
+        // publish is cross-instance, so an agent registered against *another* instance of the same
+        // deployment reads exactly like an agent that was never registered.
+        .ok_or_else(|| {
+            ErrorResponse::not_found(
+                "registration_not_found: no SDK is registered under this name on this instance. The \
+                 registration directory is per-instance, so an SDK connected to another instance of this \
+                 deployment is not visible here.",
+            )
+        })?;
 
     let request_id = Uuid::new_v4().to_string();
     tracing::Span::current().record("request_id", tracing::field::display(&request_id));

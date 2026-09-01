@@ -417,24 +417,24 @@ impl ApiServer {
 
         // Build SDK WebSocket + registrations listing (no auth in v1).
         //
-        // Horizontal scaling caveat: the memory-backed store is per-process.
-        // Presence topic + connection_control topic ARE cluster-aware (they
-        // ride the configured `TopicService` backend, including Redis), so
-        // `replaced` flow and presence broadcasts work across instances. The
-        // `GET /registrations` listing, however, only reflects entries owned
-        // by SDKs connected to this instance. Operators running multiple
-        // instances behind a load balancer should pin SDK connections to a
-        // sticky instance OR wait for the cluster-aware Redis store
-        // (follow-up). Logged at WARN if running with Redis cache backend.
-        if matches!(
-            app.config.database.cache_config().backend,
-            crate::core::config::CacheBackendType::Redis,
-        ) {
+        // The registration *directory* is per-process while everything built on it is cluster-aware: an
+        // entry carries `owning_instance_id` and the AG-UI invoke publishes to
+        // `connection_control:{instance_id}` over the configured topic backend. So the control plane spans
+        // instances and the directory does not - an SDK whose socket landed on another instance is
+        // `registration_not_found` here, and `GET /registrations` shows each instance its own subset.
+        //
+        // Warned rather than refused, and keyed on the *deployment shape* rather than the cache backend: a
+        // shared transactional store is what says "more than one instance is expected" (the same signal
+        // `validate_store_sharing` uses), and the SDK runtime channel is an optional feature many such
+        // deployments never touch - so refusing to start would block them over something they do not use.
+        // The invoke route's own error says the same thing at the point someone hits it.
+        if app.config.database.transactional.sharing() == crate::core::config::Sharing::Shared {
             tracing::warn!(
-                "ws: SDK registrations are tracked in a per-process memory store; \
-                 GET /registrations on a load-balanced instance will only return \
-                 SDKs connected to that specific instance. Use sticky LB sessions \
-                 or wait for the Redis-backed RegistrationStore."
+                "ws: the SDK registration directory is per-process while its AG-UI routing is \
+                 cross-instance, so presence and agent invocation are single-instance features. With a \
+                 shared database an SDK connected to another instance reads as `registration_not_found` \
+                 here, and GET /registrations shows only this instance's SDKs. Pin SDK connections to one \
+                 instance if you use them."
             );
         }
         let registrations_store = Arc::new(MemoryRegistrationStore::new());
