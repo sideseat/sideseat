@@ -305,9 +305,28 @@ impl TraceService for OtlpTraceService {
                 crate::domain::traces::IngestOutcome::Stored => {}
                 // Reported, not swallowed as success: an exporter told success for records that were
                 // discarded has no way to learn otherwise.
-                crate::domain::traces::IngestOutcome::Dropped { .. } => {
-                    return Err(Status::not_found("unknown project, or it is being deleted"));
-                }
+                // *Why* decides the answer - see the HTTP twin. A live project whose span cannot be stored
+                // must not be told "unknown project", which sends the exporter to retry a doomed payload
+                // forever against a project that is healthy.
+                crate::domain::traces::IngestOutcome::Dropped { spans, reason } => match reason {
+                    crate::domain::traces::DropReason::Gone => {
+                        return Err(Status::not_found(
+                            "unknown project, trace or session, or it is being deleted",
+                        ));
+                    }
+                    crate::domain::traces::DropReason::Unstorable => {
+                        return Ok(Response::new(ExportTraceServiceResponse {
+                            partial_success: Some(
+                                opentelemetry_proto::tonic::collector::trace::v1::ExportTracePartialSuccess {
+                                    rejected_spans: spans as i64,
+                                    error_message: "spans were rejected as unstorable; check their \
+                                                    timestamps are within 1900-2299"
+                                        .to_string(),
+                                },
+                            ),
+                        }));
+                    }
+                },
                 // Something was stored, so this is a success reporting what it rejected - see the HTTP
                 // twin.
                 crate::domain::traces::IngestOutcome::PartlyDropped { spans } => {

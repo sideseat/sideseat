@@ -15,7 +15,7 @@ use super::encoding::{OtlpContentType, decode_request, success_response};
 use super::{OtlpState, inject_project_id_traces};
 use crate::api::extractors::is_valid_project_id;
 use crate::core::constants::BACKPRESSURE_RETRY_AFTER_SECS;
-use crate::domain::traces::IngestOutcome;
+use crate::domain::traces::{DropReason, IngestOutcome, strip_unstorable_spans};
 use crate::utils::debug::write_debug;
 use crate::utils::otlp::PROJECT_ID_ATTR;
 
@@ -87,15 +87,36 @@ pub async fn export(
             // The project stopped accepting writes between the check above and the write. Reported, not
             // swallowed: a success for records that were discarded is the failure mode this whole path is
             // about.
-            // Nothing was stored, so the answer is the same 404 the admission check gives.
-            IngestOutcome::Dropped { .. } => {
-                return (
-                    StatusCode::NOT_FOUND,
-                    [(header::CONTENT_TYPE, "text/plain")],
-                    "Unknown project, or it is being deleted",
-                )
-                    .into_response();
-            }
+            // Nothing was stored, and *why* decides the answer.
+            //
+            // Every drop used to be a 404 saying "unknown project", which is a lie for a live project whose
+            // span simply cannot be stored - and an expensive one: 404 tells the exporter to retry elsewhere,
+            // so it retried the same doomed payload indefinitely while its operator hunted a project that was
+            // in fact healthy.
+            IngestOutcome::Dropped { spans, reason } => match reason {
+                DropReason::Gone => {
+                    return (
+                        StatusCode::NOT_FOUND,
+                        [(header::CONTENT_TYPE, "text/plain")],
+                        "Unknown project, trace or session, or it is being deleted",
+                    )
+                        .into_response();
+                }
+                // The project is fine and a retry cannot help, so this is a success that reports the
+                // rejection through the field OTLP provides for it.
+                DropReason::Unstorable => {
+                    let response = ExportTraceServiceResponse {
+                        partial_success: Some(ExportTracePartialSuccess {
+                            rejected_spans: spans as i64,
+                            error_message:
+                                "spans were rejected as unstorable; check their timestamps are \
+                                            within 1900-2299"
+                                    .to_string(),
+                        }),
+                    };
+                    return success_response(&response, content_type);
+                }
+            },
             // Something *was* stored, so this is a success that reports what it rejected - the field OTLP
             // provides for exactly this. A batch naming a live project and a dying one must not lose the
             // live one's spans to a refusal, nor have the dying one's counted as delivered.
@@ -123,6 +144,35 @@ pub async fn export(
         }
         let response = ExportTraceServiceResponse {
             partial_success: None,
+        };
+        return success_response(&response, content_type);
+    }
+
+    // Unstorable spans are rejected *here*, before the queue answers 200 for them.
+    //
+    // A durable queue's 200 means "safely published", which is the right promise - but the consumer later
+    // discards a span whose timestamp no backend can store, and nothing downstream can report back to a
+    // request that has already returned. So a live project exporting a year-2300 timestamp got an unqualified
+    // success and then found nothing stored. Storability depends only on the payload, so it is settled and
+    // reported now; only what can be stored is queued.
+    let unstorable = strip_unstorable_spans(&mut request);
+    let remaining_spans: usize = request
+        .resource_spans
+        .iter()
+        .flat_map(|r| r.scope_spans.iter())
+        .map(|s| s.spans.len())
+        .sum();
+    if unstorable > 0 && remaining_spans == 0 {
+        // Nothing left to queue. A retry cannot help, and the project is fine, so this is a success that
+        // reports the rejection rather than a 404 blaming the project.
+        let response = ExportTraceServiceResponse {
+            partial_success: Some(ExportTracePartialSuccess {
+                rejected_spans: unstorable as i64,
+                error_message:
+                    "spans were rejected as unstorable; check their timestamps are within \
+                                1900-2299"
+                        .to_string(),
+            }),
         };
         return success_response(&response, content_type);
     }
@@ -167,9 +217,17 @@ pub async fn export(
             .into_response();
     }
 
-    // Return OTLP-compliant response (matching request content type)
+    // Return OTLP-compliant response (matching request content type).
+    //
+    // Reporting the spans stripped above, if any: the rest were queued, so this is a success that says what
+    // it would not take rather than an unqualified one that loses them silently.
     let response = ExportTraceServiceResponse {
-        partial_success: None,
+        partial_success: (unstorable > 0).then(|| ExportTracePartialSuccess {
+            rejected_spans: unstorable as i64,
+            error_message:
+                "some spans were rejected as unstorable; check their timestamps are within 1900-2299"
+                    .to_string(),
+        }),
     };
     success_response(&response, content_type)
 }
