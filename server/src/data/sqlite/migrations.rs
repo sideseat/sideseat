@@ -168,6 +168,8 @@ CREATE TABLE trace_files_v2 (
     trace_id TEXT NOT NULL,
     project_id TEXT NOT NULL,
     file_hash TEXT NOT NULL,
+    -- See the schema comment: a durable marker beats a read-then-release, which is not atomic.
+    provisional INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (project_id, trace_id, file_hash),
     FOREIGN KEY (project_id, file_hash) REFERENCES files(project_id, file_hash) ON DELETE CASCADE
 );

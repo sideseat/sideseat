@@ -206,6 +206,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cred_perms_unique_org_default
 -- trace_files keyed with the project first. A trace id comes from the client, so two projects can
 -- present the same one, and keyed without the project one project's association satisfied the other's
 -- conflict clause. Postgres can swap a primary key in place.
+ALTER TABLE trace_files ADD COLUMN IF NOT EXISTS provisional BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE trace_files DROP CONSTRAINT IF EXISTS trace_files_pkey;
 ALTER TABLE trace_files ADD PRIMARY KEY (project_id, trace_id, file_hash);
 CREATE INDEX IF NOT EXISTS idx_trace_files_project_hash ON trace_files(project_id, file_hash);

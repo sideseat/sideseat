@@ -521,6 +521,28 @@ pub trait TransactionalRepository: Send + Sync {
         session_ids: &[String],
     ) -> Result<std::collections::HashSet<String>, DataError>;
 
+    /// Claim a batch of deleted *sessions* whose check is due, leased and exclusive.
+    ///
+    /// Same protocol as traces, for the same reason: the pre-write session check and the analytics write are
+    /// in different stores, so a crash between the write and its compensating re-check leaves spans for a
+    /// deleted session that only a sweep can collect.
+    async fn claim_deleted_sessions_for_check(
+        &self,
+        lease_secs: i64,
+        limit: i64,
+    ) -> Result<Vec<(String, String, i64)>, DataError>;
+
+    /// Record what a deleted session's check found, matched on the claim token.
+    async fn record_deleted_session_check(
+        &self,
+        project_id: &str,
+        session_id: &str,
+        claim_token: i64,
+        was_quiet: bool,
+        base_gap_secs: i64,
+        max_gap_secs: i64,
+    ) -> Result<(), DataError>;
+
     /// Claim a batch of deleted *traces* whose check is due, leased and exclusive.
     ///
     /// Same discipline as the project claim, and needed for the same reason: the pre-write tombstone check
@@ -826,6 +848,18 @@ pub trait TransactionalRepository: Send + Sync {
     /// Scoped to a single `(project, trace, hash)` because only the association this batch *created* may
     /// go. One that already existed belongs to an earlier committed batch, and releasing it would orphan
     /// that batch's file. Returns whether a row was removed.
+    /// Confirm a batch's associations now that its analytics rows are committed.
+    ///
+    /// An association is created *provisional*, because files are written before the rows that name them.
+    /// Confirming clears that marker, and the failure path deletes only rows still marked - which is what
+    /// makes the release safe under concurrency rather than merely precise: two batches can carry the same
+    /// association, and a read-then-release pair cannot tell "mine, unused" from "also the other batch's,
+    /// now committed".
+    async fn confirm_trace_file_associations(
+        &self,
+        associations: &[(String, String, String)],
+    ) -> Result<u64, DataError>;
+
     async fn release_trace_file_association(
         &self,
         project_id: &str,

@@ -824,6 +824,73 @@ pub async fn record_deleted_trace_check(
     Ok(())
 }
 
+/// Claim a batch of deleted sessions whose check is due, leased and exclusive.
+///
+/// The same shape as the project claim, for the reason stated on the trait method: the pre-write tombstone
+/// check and the analytics write are in different stores, so a crash between them leaves spans for a
+/// deleted trace and only a sweep collects them. One statement, so a claim is atomic with its lease.
+pub async fn claim_deleted_sessions_for_check(
+    pool: &SqlitePool,
+    lease_secs: i64,
+    limit: i64,
+) -> Result<Vec<(String, String, i64)>, SqliteError> {
+    let rows: Vec<(String, String, i64)> = sqlx::query_as(
+        "UPDATE deleted_sessions \
+         SET next_check_at = unixepoch() + ?, claim_token = claim_token + 1 \
+         WHERE (project_id, session_id) IN ( \
+             SELECT project_id, session_id FROM deleted_sessions \
+             WHERE next_check_at <= unixepoch() \
+             ORDER BY next_check_at \
+             LIMIT ? \
+         ) \
+         RETURNING project_id, session_id, claim_token",
+    )
+    .bind(lease_secs)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
+/// Record what a deleted session's check found, matched on the claim token.
+pub async fn record_deleted_session_check(
+    pool: &SqlitePool,
+    project_id: &str,
+    session_id: &str,
+    claim_token: i64,
+    was_quiet: bool,
+    base_gap_secs: i64,
+    max_gap_secs: i64,
+) -> Result<(), SqliteError> {
+    if was_quiet {
+        sqlx::query(
+            "UPDATE deleted_sessions \
+             SET quiet_checks = quiet_checks + 1, \
+                 next_check_at = unixepoch() + MIN(? * (1 << MIN(quiet_checks, 20)), ?) \
+             WHERE project_id = ? AND session_id = ? AND claim_token = ?",
+        )
+        .bind(base_gap_secs)
+        .bind(max_gap_secs)
+        .bind(project_id)
+        .bind(session_id)
+        .bind(claim_token)
+        .execute(pool)
+        .await?;
+    } else {
+        sqlx::query(
+            "UPDATE deleted_sessions SET quiet_checks = 0, next_check_at = unixepoch() + ? \
+             WHERE project_id = ? AND session_id = ? AND claim_token = ?",
+        )
+        .bind(base_gap_secs)
+        .bind(project_id)
+        .bind(session_id)
+        .bind(claim_token)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
+}
+
 /// Record that these sessions were deleted. See the trait method for why the trace tombstone alone is
 /// insufficient.
 pub async fn record_deleted_sessions(

@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 
 use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceRequest;
+use opentelemetry_proto::tonic::common::v1::KeyValue;
 use opentelemetry_proto::tonic::metrics::v1::{
     Metric, exponential_histogram_data_point::Buckets, metric::Data, number_data_point,
 };
@@ -18,10 +19,38 @@ use crate::utils::otlp::{
 };
 use crate::utils::time::nanos_to_datetime;
 
+use super::identity::IdentityInputs;
+
+/// Pair a datapoint with the OTLP material its identity needs.
+#[allow(clippy::too_many_arguments)]
+fn push_with_identity<'a>(
+    result: &mut Vec<(NormalizedMetric, IdentityInputs<'a>)>,
+    ctx: &ResourceContext<'a>,
+    scope: &ScopeContext<'a>,
+    attributes: &'a [KeyValue],
+    time_unix_nano: u64,
+    start_time_unix_nano: u64,
+    metric: NormalizedMetric,
+) {
+    result.push((
+        metric,
+        IdentityInputs {
+            attributes,
+            resource_attributes: ctx.proto_attributes,
+            scope_attributes: scope.proto_attributes,
+            time_unix_nano,
+            start_time_unix_nano,
+        },
+    ));
+}
+
 /// Extract and flatten all metrics from an OTLP request.
 /// Returns one NormalizedMetric per data point.
 pub fn extract_metrics_batch(request: &ExportMetricsServiceRequest) -> Vec<NormalizedMetric> {
-    let mut result = Vec::new();
+    // Each datapoint with the OTLP material its identity needs. Collected rather than stamped inline so
+    // that there is exactly *one* place that decides what makes two datapoints the same - it cannot end up
+    // differing between a gauge and a histogram.
+    let mut result: Vec<(NormalizedMetric, IdentityInputs<'_>)> = Vec::new();
 
     for resource_metrics in &request.resource_metrics {
         let resource = resource_metrics.resource.as_ref();
@@ -33,15 +62,20 @@ pub fn extract_metrics_batch(request: &ExportMetricsServiceRequest) -> Vec<Norma
             .map(|r| attrs_to_typed_json(&r.attributes))
             .unwrap_or(JsonValue::Object(serde_json::Map::new()));
 
+        const NO_ATTRS: &[KeyValue] = &[];
         let ctx = ResourceContext::from_attrs(
             &resource_attrs,
             typed_resource_attrs,
             (!resource_metrics.schema_url.is_empty()).then(|| resource_metrics.schema_url.clone()),
+            resource
+                .map(|r| r.attributes.as_slice())
+                .unwrap_or(NO_ATTRS),
         );
 
         for scope_metrics in &resource_metrics.scope_metrics {
             let scope = scope_metrics.scope.as_ref();
             let scope_ctx = ScopeContext {
+                proto_attributes: scope.map(|s| s.attributes.as_slice()).unwrap_or(NO_ATTRS),
                 name: scope.map(|s| s.name.clone()).filter(|s| !s.is_empty()),
                 version: scope.and_then(|s| (!s.version.is_empty()).then(|| s.version.clone())),
                 attributes: scope
@@ -57,17 +91,19 @@ pub fn extract_metrics_batch(request: &ExportMetricsServiceRequest) -> Vec<Norma
         }
     }
 
-    // Stamped here rather than in each of the five datapoint constructors, so the definition of what
-    // makes two datapoints the same cannot end up differing between a gauge and a histogram.
-    for metric in &mut result {
-        metric.datapoint_id = super::identity::datapoint_id(metric);
-    }
-
     result
+        .into_iter()
+        .map(|(mut metric, inputs)| {
+            metric.datapoint_id = super::identity::datapoint_id(&metric, &inputs);
+            metric
+        })
+        .collect()
 }
 
 /// Resource-level context extracted once per resource_metrics
-struct ResourceContext {
+struct ResourceContext<'a> {
+    /// The protobuf attributes, for the identity - see `IdentityInputs` for why a rendering will not do.
+    proto_attributes: &'a [KeyValue],
     project_id: Option<String>,
     service_name: Option<String>,
     service_version: Option<String>,
@@ -78,13 +114,15 @@ struct ResourceContext {
     schema_url: Option<String>,
 }
 
-impl ResourceContext {
+impl<'a> ResourceContext<'a> {
     fn from_attrs(
         attrs: &HashMap<String, String>,
         resource_attributes: JsonValue,
         schema_url: Option<String>,
+        proto_attributes: &'a [KeyValue],
     ) -> Self {
         Self {
+            proto_attributes,
             project_id: attrs.get(PROJECT_ID_ATTR).cloned(),
             service_name: attrs.get(keys::SERVICE_NAME).cloned(),
             service_version: attrs.get(keys::SERVICE_VERSION).cloned(),
@@ -98,7 +136,8 @@ impl ResourceContext {
 }
 
 /// Scope-level context
-struct ScopeContext {
+struct ScopeContext<'a> {
+    proto_attributes: &'a [KeyValue],
     name: Option<String>,
     version: Option<String>,
     /// Typed, for the same reason the datapoint's own attributes are - see `attrs_to_typed_json`.
@@ -114,11 +153,11 @@ struct MetricBase {
 }
 
 /// Extract data points from a single metric
-fn extract_metric_data_points(
-    result: &mut Vec<NormalizedMetric>,
-    metric: &Metric,
-    ctx: &ResourceContext,
-    scope: &ScopeContext,
+fn extract_metric_data_points<'a>(
+    result: &mut Vec<(NormalizedMetric, IdentityInputs<'a>)>,
+    metric: &'a Metric,
+    ctx: &ResourceContext<'a>,
+    scope: &ScopeContext<'a>,
 ) {
     let base = MetricBase {
         name: metric.name.clone(),
@@ -131,62 +170,88 @@ fn extract_metric_data_points(
     match data {
         Data::Gauge(g) => {
             for dp in &g.data_points {
-                result.push(extract_number_dp(
+                push_with_identity(
+                    result,
                     ctx,
                     scope,
-                    &base,
-                    dp,
-                    MetricType::Gauge,
-                    AggregationTemporality::Unspecified,
-                    None,
-                    metric,
-                ));
+                    dp.attributes.as_slice(),
+                    dp.time_unix_nano,
+                    dp.start_time_unix_nano,
+                    extract_number_dp(
+                        ctx,
+                        scope,
+                        &base,
+                        dp,
+                        MetricType::Gauge,
+                        AggregationTemporality::Unspecified,
+                        None,
+                        metric,
+                    ),
+                );
             }
         }
         Data::Sum(s) => {
             let temporality = AggregationTemporality::from_i32(s.aggregation_temporality);
             for dp in &s.data_points {
-                result.push(extract_number_dp(
+                push_with_identity(
+                    result,
                     ctx,
                     scope,
-                    &base,
-                    dp,
-                    MetricType::Sum,
-                    temporality,
-                    Some(s.is_monotonic),
-                    metric,
-                ));
+                    dp.attributes.as_slice(),
+                    dp.time_unix_nano,
+                    dp.start_time_unix_nano,
+                    extract_number_dp(
+                        ctx,
+                        scope,
+                        &base,
+                        dp,
+                        MetricType::Sum,
+                        temporality,
+                        Some(s.is_monotonic),
+                        metric,
+                    ),
+                );
             }
         }
         Data::Histogram(h) => {
             let temporality = AggregationTemporality::from_i32(h.aggregation_temporality);
             for dp in &h.data_points {
-                result.push(extract_histogram_dp(
+                push_with_identity(
+                    result,
                     ctx,
                     scope,
-                    &base,
-                    dp,
-                    temporality,
-                    metric,
-                ));
+                    dp.attributes.as_slice(),
+                    dp.time_unix_nano,
+                    dp.start_time_unix_nano,
+                    extract_histogram_dp(ctx, scope, &base, dp, temporality, metric),
+                );
             }
         }
         Data::ExponentialHistogram(eh) => {
             let temporality = AggregationTemporality::from_i32(eh.aggregation_temporality);
             for dp in &eh.data_points {
-                result.push(extract_exp_histogram_dp(
+                push_with_identity(
+                    result,
                     ctx,
                     scope,
-                    &base,
-                    dp,
-                    temporality,
-                    metric,
-                ));
+                    dp.attributes.as_slice(),
+                    dp.time_unix_nano,
+                    dp.start_time_unix_nano,
+                    extract_exp_histogram_dp(ctx, scope, &base, dp, temporality, metric),
+                );
             }
         }
         Data::Summary(s) => {
             for dp in &s.data_points {
-                result.push(extract_summary_dp(ctx, scope, &base, dp, metric));
+                push_with_identity(
+                    result,
+                    ctx,
+                    scope,
+                    dp.attributes.as_slice(),
+                    dp.time_unix_nano,
+                    dp.start_time_unix_nano,
+                    extract_summary_dp(ctx, scope, &base, dp, metric),
+                );
             }
         }
     }

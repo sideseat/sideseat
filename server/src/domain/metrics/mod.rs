@@ -9,5 +9,5 @@ mod identity;
 mod ingest;
 mod persist;
 
-pub use identity::datapoint_id;
+pub use identity::{IdentityInputs, datapoint_id};
 pub use ingest::{Stored, ingest};

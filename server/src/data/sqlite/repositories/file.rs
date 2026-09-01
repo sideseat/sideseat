@@ -449,8 +449,12 @@ pub async fn associate_file(
     .execute(&mut *tx)
     .await?;
 
+    // Created *provisional*: the analytics row that justifies it has not committed yet. The creating batch
+    // confirms it on success (`confirm_trace_file_associations`) and the failure path deletes only rows that
+    // are still provisional - so a second batch that committed in between is not affected.
     let inserted = sqlx::query(
-        "INSERT OR IGNORE INTO trace_files (trace_id, project_id, file_hash) VALUES (?, ?, ?)",
+        "INSERT OR IGNORE INTO trace_files (trace_id, project_id, file_hash, provisional) \
+         VALUES (?, ?, ?, 1)",
     )
     .bind(trace_id)
     .bind(project_id)
@@ -669,8 +673,12 @@ pub async fn release_trace_file_association(
     trace_id: &str,
     file_hash: &str,
 ) -> Result<bool, SqliteError> {
+    // `provisional = 1` in the predicate is what makes this safe rather than merely precise. Two batches
+    // can carry the same association; the second sees it present, commits its span, and clears the flag - so
+    // this delete matches nothing and its file stays. A read-then-delete pair could not promise that.
     let result = sqlx::query(
-        "DELETE FROM trace_files WHERE project_id = ? AND trace_id = ? AND file_hash = ?",
+        "DELETE FROM trace_files \
+         WHERE project_id = ? AND trace_id = ? AND file_hash = ? AND provisional = 1",
     )
     .bind(project_id)
     .bind(trace_id)
@@ -678,6 +686,35 @@ pub async fn release_trace_file_association(
     .execute(pool)
     .await?;
     Ok(result.rows_affected() > 0)
+}
+
+/// Mark a batch's associations as no longer provisional, now that its analytics rows are committed.
+///
+/// One statement per association, and idempotent: clearing an already-cleared flag is a no-op. Called after
+/// a successful write, before anything else can observe the batch as failed.
+pub async fn confirm_trace_file_associations(
+    pool: &SqlitePool,
+    associations: &[(String, String, String)],
+) -> Result<u64, SqliteError> {
+    if associations.is_empty() {
+        return Ok(0);
+    }
+    let mut tx = pool.begin().await?;
+    let mut confirmed = 0u64;
+    for (project_id, trace_id, file_hash) in associations {
+        let result = sqlx::query(
+            "UPDATE trace_files SET provisional = 0 \
+             WHERE project_id = ? AND trace_id = ? AND file_hash = ?",
+        )
+        .bind(project_id)
+        .bind(trace_id)
+        .bind(file_hash)
+        .execute(&mut *tx)
+        .await?;
+        confirmed += result.rows_affected();
+    }
+    tx.commit().await?;
+    Ok(confirmed)
 }
 
 #[cfg(test)]

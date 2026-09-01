@@ -440,8 +440,10 @@ pub async fn associate_file(
     .execute(&mut *tx)
     .await?;
 
+    // Created *provisional* - see the schema comment and the SQLite twin.
     let inserted = sqlx::query(
-        "INSERT INTO trace_files (trace_id, project_id, file_hash) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+        "INSERT INTO trace_files (trace_id, project_id, file_hash, provisional) \
+         VALUES ($1, $2, $3, TRUE) ON CONFLICT DO NOTHING",
     )
     .bind(trace_id)
     .bind(project_id)
@@ -659,7 +661,10 @@ pub async fn release_trace_file_association(
     file_hash: &str,
 ) -> Result<bool, PostgresError> {
     let result = sqlx::query(
-        "DELETE FROM trace_files WHERE project_id = $1 AND trace_id = $2 AND file_hash = $3",
+        // `provisional` in the predicate is what makes this safe rather than merely precise - see the
+        // SQLite twin.
+        "DELETE FROM trace_files \
+         WHERE project_id = $1 AND trace_id = $2 AND file_hash = $3 AND provisional",
     )
     .bind(project_id)
     .bind(trace_id)
@@ -667,4 +672,29 @@ pub async fn release_trace_file_association(
     .execute(pool)
     .await?;
     Ok(result.rows_affected() > 0)
+}
+/// Mark a batch's associations as no longer provisional. See the SQLite twin.
+pub async fn confirm_trace_file_associations(
+    pool: &PgPool,
+    associations: &[(String, String, String)],
+) -> Result<u64, PostgresError> {
+    if associations.is_empty() {
+        return Ok(0);
+    }
+    // One statement for the batch, via three parallel arrays.
+    let projects: Vec<&str> = associations.iter().map(|(p, _, _)| p.as_str()).collect();
+    let traces: Vec<&str> = associations.iter().map(|(_, t, _)| t.as_str()).collect();
+    let hashes: Vec<&str> = associations.iter().map(|(_, _, h)| h.as_str()).collect();
+    let result = sqlx::query(
+        "UPDATE trace_files SET provisional = FALSE \
+         WHERE (project_id, trace_id, file_hash) IN ( \
+             SELECT * FROM UNNEST($1::text[], $2::text[], $3::text[]) \
+         )",
+    )
+    .bind(&projects)
+    .bind(&traces)
+    .bind(&hashes)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
 }
