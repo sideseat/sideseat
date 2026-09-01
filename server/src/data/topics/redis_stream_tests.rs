@@ -985,8 +985,14 @@ async fn rotation_reaches_later_entries_past_a_repeatedly_reclaimed_one() {
     let pinned = ids[0].clone();
     let last = ids[ids.len() - 1].clone();
 
-    // Each pass: the peer re-claims the first entry directly (as a crash-loop would, resetting its idle
-    // time and its ownership), then this consumer takes a window of one.
+    // Let every entry age past the threshold the rescuer will use, so all of them start out claimable.
+    const IDLE_THRESHOLD_MS: u64 = 400;
+    tokio::time::sleep(std::time::Duration::from_millis(IDLE_THRESHOLD_MS + 200)).await;
+
+    // Each pass the peer re-claims the first entry, which resets its idle time to ~0 - below the rescuer's
+    // threshold, so it is genuinely **unclaimable** by the rescuer for the rest of that pass. That is what
+    // makes this a regression test for the removed hold: with `min_idle_ms = 0` the rescuer would simply take
+    // the entry the peer had just reset, and nothing would be unclaimed for a hold to pin.
     let mut saw_last = false;
     for _ in 0..12 {
         backend
@@ -994,9 +1000,14 @@ async fn rotation_reaches_later_entries_past_a_repeatedly_reclaimed_one() {
             .await
             .expect("peer re-claims the first entry");
         let claimed = backend
-            .stream_claim(&topic, group, "rescuer", 0, 1)
+            .stream_claim(&topic, group, "rescuer", IDLE_THRESHOLD_MS, 1)
             .await
             .expect("claim");
+        assert!(
+            !claimed.iter().any(|m| m.id == pinned),
+            "the re-claimed entry must be too fresh for the rescuer's threshold, or the test stages no \
+             unclaimable entry at all"
+        );
         if claimed.iter().any(|m| m.id == last) {
             saw_last = true;
             break;
