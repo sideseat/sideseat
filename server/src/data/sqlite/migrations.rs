@@ -168,13 +168,19 @@ CREATE TABLE trace_files_v2 (
     trace_id TEXT NOT NULL,
     project_id TEXT NOT NULL,
     file_hash TEXT NOT NULL,
-    -- See the schema comment: a durable marker beats a read-then-release, which is not atomic.
-    provisional INTEGER NOT NULL DEFAULT 0,
+    -- See the schema comment: two facts, not a boolean. `pending_writers` counts in-flight referencing
+    -- batches; `durable` is set once any commits. Legacy rows copied below default to (0, 0), which a
+    -- release leaves untouched - so they are kept until their trace is deleted, never swept from under a
+    -- committed span.
+    pending_writers INTEGER NOT NULL DEFAULT 0,
+    durable INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (project_id, trace_id, file_hash),
     FOREIGN KEY (project_id, file_hash) REFERENCES files(project_id, file_hash) ON DELETE CASCADE
 );
-INSERT OR IGNORE INTO trace_files_v2 (trace_id, project_id, file_hash)
-    SELECT trace_id, project_id, file_hash FROM trace_files;
+-- durable = 1 for the copied rows: they are committed associations, and a fresh 0 would leave them one
+-- release away from deletion. New rows inserted by the app default to 0 (provisional).
+INSERT OR IGNORE INTO trace_files_v2 (trace_id, project_id, file_hash, durable)
+    SELECT trace_id, project_id, file_hash, 1 FROM trace_files;
 DROP TABLE trace_files;
 ALTER TABLE trace_files_v2 RENAME TO trace_files;
 CREATE INDEX IF NOT EXISTS idx_trace_files_trace ON trace_files(trace_id);

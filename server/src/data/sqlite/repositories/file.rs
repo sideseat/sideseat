@@ -196,10 +196,13 @@ pub async fn associate_existing_file(
     }
 
     sqlx::query(
-        // Provisional, like every association a batch creates: a reference that arrived already formed is
-        // still only justified once the span carrying it commits.
-        "INSERT OR IGNORE INTO trace_files (trace_id, project_id, file_hash, provisional) \
-         VALUES (?, ?, ?, 1)",
+        // One in-flight writer added, whether the row is new or shared: a reference that arrived already
+        // formed is still only justified once the span carrying it commits, and a second batch referencing
+        // the same association must be counted so neither can release the row from under the other.
+        "INSERT INTO trace_files (trace_id, project_id, file_hash, pending_writers, durable) \
+         VALUES (?, ?, ?, 1, 0) \
+         ON CONFLICT(project_id, trace_id, file_hash) \
+         DO UPDATE SET pending_writers = pending_writers + 1",
     )
     .bind(trace_id)
     .bind(project_id)
@@ -452,45 +455,45 @@ pub async fn associate_file(
     .execute(&mut *tx)
     .await?;
 
-    // Created *provisional*: the analytics row that justifies it has not committed yet. The creating batch
-    // confirms it on success (`confirm_trace_file_associations`) and the failure path deletes only rows that
-    // are still provisional - so a second batch that committed in between is not affected.
-    let inserted = sqlx::query(
-        "INSERT OR IGNORE INTO trace_files (trace_id, project_id, file_hash, provisional) \
-         VALUES (?, ?, ?, 1)",
+    // One in-flight writer added, new row or shared. The analytics row that justifies it has not committed
+    // yet, so the row starts non-durable; a batch confirms it on success and decrements it on failure, and
+    // the release deletes only a non-durable row with no writer left - so a second batch sharing this
+    // association is safe from the first's failure. Returns true whenever a reference was recorded, which is
+    // always: every reference must be resolved by exactly one confirm or release.
+    sqlx::query(
+        "INSERT INTO trace_files (trace_id, project_id, file_hash, pending_writers, durable) \
+         VALUES (?, ?, ?, 1, 0) \
+         ON CONFLICT(project_id, trace_id, file_hash) \
+         DO UPDATE SET pending_writers = pending_writers + 1",
     )
     .bind(trace_id)
     .bind(project_id)
     .bind(file_hash)
     .execute(&mut *tx)
-    .await?
-    .rows_affected()
-        > 0;
+    .await?;
 
     // Recomputed from the associations, not incremented. Same reasoning as `sync_ref_count`: a
-    // maintained counter drifts, a derived one cannot. Inside the transaction, so the association it
-    // counts is the one just inserted.
-    if inserted {
-        sqlx::query(
-            r#"
-            UPDATE files
-            SET ref_count = (
-                    SELECT COUNT(*) FROM trace_files
-                    WHERE project_id = files.project_id AND file_hash = files.file_hash
-                ),
-                updated_at = ?
-            WHERE project_id = ? AND file_hash = ?
-            "#,
-        )
-        .bind(now)
-        .bind(project_id)
-        .bind(file_hash)
-        .execute(&mut *tx)
-        .await?;
-    }
+    // maintained counter drifts, a derived one cannot. A share does not change the row count, so this is a
+    // no-op then; on a fresh row it is the +1. Inside the transaction, so it counts the row just written.
+    sqlx::query(
+        r#"
+        UPDATE files
+        SET ref_count = (
+                SELECT COUNT(*) FROM trace_files
+                WHERE project_id = files.project_id AND file_hash = files.file_hash
+            ),
+            updated_at = ?
+        WHERE project_id = ? AND file_hash = ?
+        "#,
+    )
+    .bind(now)
+    .bind(project_id)
+    .bind(file_hash)
+    .execute(&mut *tx)
+    .await?;
 
     tx.commit().await?;
-    Ok(inserted)
+    Ok(true)
 }
 
 /// How many of these traces reference each file, so deletion can decrement by that many.
@@ -680,25 +683,40 @@ pub async fn release_trace_file_association(
     trace_id: &str,
     file_hash: &str,
 ) -> Result<bool, SqliteError> {
-    // `provisional = 1` in the predicate is what makes this safe rather than merely precise. Two batches
-    // can carry the same association; the second sees it present, commits its span, and clears the flag - so
-    // this delete matches nothing and its file stays. A read-then-delete pair could not promise that.
-    let result = sqlx::query(
-        "DELETE FROM trace_files \
-         WHERE project_id = ? AND trace_id = ? AND file_hash = ? AND provisional = 1",
+    // Decrement this writer, then delete only if no writer is left and the association never became
+    // durable. That two-fact test is what makes it safe under concurrency: a boolean could not tell "the
+    // last provisional writer, delete it" from "another batch is still in flight, keep it". A batch that
+    // committed set `durable`, so the delete skips it; a batch still in flight left `pending_writers`
+    // positive, so the delete skips it too. In a transaction, so the decrement and the delete see one state.
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "UPDATE trace_files SET pending_writers = MAX(pending_writers - 1, 0) \
+         WHERE project_id = ? AND trace_id = ? AND file_hash = ?",
     )
     .bind(project_id)
     .bind(trace_id)
     .bind(file_hash)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    let result = sqlx::query(
+        "DELETE FROM trace_files \
+         WHERE project_id = ? AND trace_id = ? AND file_hash = ? AND durable = 0 AND pending_writers = 0",
+    )
+    .bind(project_id)
+    .bind(trace_id)
+    .bind(file_hash)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
     Ok(result.rows_affected() > 0)
 }
 
-/// Mark a batch's associations as no longer provisional, now that its analytics rows are committed.
+/// Mark a batch's associations durable, now that its analytics rows are committed.
 ///
-/// One statement per association, and idempotent: clearing an already-cleared flag is a no-op. Called after
-/// a successful write, before anything else can observe the batch as failed.
+/// Sets `durable` and resolves this writer (`pending_writers - 1`). Durable is monotonic and permanently
+/// blocks the release-delete, so the association survives any number of *other* batches failing and
+/// releasing - which is the whole point: once one referencing batch has committed, the file is backed.
+/// Idempotent, and called after a successful write, before anything else can observe the batch as failed.
 pub async fn confirm_trace_file_associations(
     pool: &SqlitePool,
     associations: &[(String, String, String)],
@@ -710,7 +728,7 @@ pub async fn confirm_trace_file_associations(
     let mut confirmed = 0u64;
     for (project_id, trace_id, file_hash) in associations {
         let result = sqlx::query(
-            "UPDATE trace_files SET provisional = 0 \
+            "UPDATE trace_files SET durable = 1, pending_writers = MAX(pending_writers - 1, 0) \
              WHERE project_id = ? AND trace_id = ? AND file_hash = ?",
         )
         .bind(project_id)
@@ -744,6 +762,122 @@ mod tests {
 
     fn test_hash() -> &'static str {
         "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+    }
+
+    /// A file's association survives a peer batch failing, once any referencing batch has committed.
+    ///
+    /// The orphan the two-fact model exists to prevent: two batches reference the same
+    /// `(project, trace, hash)`, one commits and one fails. Under the old boolean flag the failing batch's
+    /// release matched the still-provisional row and deleted it, orphaning the committed batch's file. Now a
+    /// release decrements a writer and deletes only a non-durable row with none left, and the commit made it
+    /// durable - so the row and its reference count survive.
+    #[tokio::test]
+    async fn a_committed_association_survives_a_peer_batch_releasing_it() {
+        let pool = setup_test_pool().await;
+        let (project, trace, hash) = ("default", "trace-1", test_hash());
+
+        // Two batches reference the same association: pending_writers = 2, not yet durable.
+        for _ in 0..2 {
+            assert!(
+                associate_file(
+                    &pool,
+                    trace,
+                    project,
+                    hash,
+                    Some("image/png"),
+                    1024,
+                    "sha256"
+                )
+                .await
+                .unwrap(),
+                "every reference must be recorded and tracked"
+            );
+        }
+        let pending: i64 =
+            sqlx::query_scalar("SELECT pending_writers FROM trace_files WHERE project_id = ? AND trace_id = ? AND file_hash = ?")
+                .bind(project).bind(trace).bind(hash)
+                .fetch_one(&pool).await.unwrap();
+        assert_eq!(
+            pending, 2,
+            "two referencing batches must count as two in-flight writers"
+        );
+
+        // Batch A commits (confirm), batch B fails (release) - the interleaving that used to orphan the file.
+        confirm_trace_file_associations(
+            &pool,
+            &[(project.to_string(), trace.to_string(), hash.to_string())],
+        )
+        .await
+        .unwrap();
+        let deleted = release_trace_file_association(&pool, project, trace, hash)
+            .await
+            .unwrap();
+        assert!(
+            !deleted,
+            "a durable association must survive a peer batch's release"
+        );
+
+        // The association and its file reference are intact.
+        let rows: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM trace_files WHERE project_id = ? AND trace_id = ? AND file_hash = ?")
+                .bind(project).bind(trace).bind(hash)
+                .fetch_one(&pool).await.unwrap();
+        assert_eq!(
+            rows, 1,
+            "the committed batch's association must still exist"
+        );
+        let ref_count: i64 = sqlx::query_scalar(
+            "SELECT ref_count FROM files WHERE project_id = ? AND file_hash = ?",
+        )
+        .bind(project)
+        .bind(hash)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            ref_count, 1,
+            "the file must still be referenced, not orphaned"
+        );
+    }
+
+    /// When every referencing batch fails, the association is removed and the file reclaimed.
+    #[tokio::test]
+    async fn an_association_no_batch_commits_is_released() {
+        let pool = setup_test_pool().await;
+        let (project, trace, hash) = ("default", "trace-1", test_hash());
+
+        for _ in 0..2 {
+            associate_file(
+                &pool,
+                trace,
+                project,
+                hash,
+                Some("image/png"),
+                1024,
+                "sha256",
+            )
+            .await
+            .unwrap();
+        }
+        // Both batches fail. Only the last release, which brings the count to zero on a non-durable row,
+        // deletes it - so nothing is orphaned and nothing is deleted prematurely.
+        assert!(
+            !release_trace_file_association(&pool, project, trace, hash)
+                .await
+                .unwrap(),
+            "the first release must not delete while a peer is still in flight"
+        );
+        assert!(
+            release_trace_file_association(&pool, project, trace, hash)
+                .await
+                .unwrap(),
+            "the last release must delete the association no batch committed"
+        );
+        let rows: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM trace_files WHERE project_id = ? AND trace_id = ? AND file_hash = ?")
+                .bind(project).bind(trace).bind(hash)
+                .fetch_one(&pool).await.unwrap();
+        assert_eq!(rows, 0, "an association no batch committed must be gone");
     }
 
     #[tokio::test]
@@ -1303,8 +1437,14 @@ mod tests {
         .await
         .unwrap();
 
-        assert!(first, "the first association is new");
-        assert!(!second, "the second is a retry of the same association");
+        // Both record a reference now, because each is a distinct in-flight writer that must be resolved by
+        // its own confirm or release. What must *not* change is the reference count: the same trace naming
+        // the same file is one reference however many batches carry it.
+        assert!(first, "the first reference is recorded");
+        assert!(
+            second,
+            "the second reference is recorded too - it is a separate writer to resolve"
+        );
 
         let file = get_file(&pool, "default", test_hash())
             .await
@@ -1312,7 +1452,20 @@ mod tests {
             .unwrap();
         assert_eq!(
             file.ref_count, 1,
-            "one association means one reference, however many times the batch is delivered"
+            "one association means one reference, however many batches carry it"
+        );
+        let pending: i64 = sqlx::query_scalar(
+            "SELECT pending_writers FROM trace_files WHERE project_id = ? AND trace_id = ? AND file_hash = ?",
+        )
+        .bind("default")
+        .bind("trace-a")
+        .bind(test_hash())
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            pending, 2,
+            "each carrying batch is one in-flight writer to resolve"
         );
     }
 
