@@ -1551,3 +1551,47 @@ fn a_json_max_tokens_survives_an_absent_flat_attribute() {
     extract_genai(&mut span, &attrs, "chat");
     assert_eq!(span.gen_ai_max_tokens, Some(512));
 }
+
+/// A genuine zero token count is not replaced by a framework fallback.
+///
+/// The fallbacks used `0` as "missing", which is not recoverable from the value: a completion that genuinely
+/// produced no output tokens had its reported 0 overwritten by whatever the framework's JSON said, so the
+/// stored total and the cost described a different response than the one the provider reported.
+#[test]
+fn a_reported_zero_is_not_overwritten_by_a_fallback() {
+    let mut span = SpanData::default();
+    let attrs = make_attrs(&[
+        ("gen_ai.usage.input_tokens", "100"),
+        ("gen_ai.usage.output_tokens", "0"),
+        (
+            keys::RESPONSE_DATA,
+            r#"{"usage":{"input_tokens":100,"output_tokens":42}}"#,
+        ),
+    ]);
+    extract_genai(&mut span, &attrs, "chat");
+    assert_eq!(
+        span.gen_ai_usage_output_tokens, 0,
+        "a reported zero must survive; the fallback is for an *absent* counter"
+    );
+    assert_eq!(span.gen_ai_usage_total_tokens, 100);
+}
+
+/// A JSON `max_tokens` is reachable even when the model and provider are already known.
+///
+/// The whole `request_data` parse was gated on the model *or* system being absent, so a well-populated span -
+/// the common Logfire shape - skipped it entirely and lost `max_tokens` and the operation-name fallback.
+#[test]
+fn a_json_max_tokens_is_reachable_when_model_and_system_are_known() {
+    let mut span = SpanData::default();
+    let attrs = make_attrs(&[
+        ("gen_ai.request.model", "gpt-4o"),
+        ("gen_ai.system", "openai"),
+        (keys::REQUEST_DATA, r#"{"max_completion_tokens":1024}"#),
+    ]);
+    extract_genai(&mut span, &attrs, "chat");
+    assert_eq!(
+        span.gen_ai_max_tokens,
+        Some(1024),
+        "the request_data fallback must not be gated on fields it does not fill"
+    );
+}
