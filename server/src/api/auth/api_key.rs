@@ -391,6 +391,7 @@ mod tests {
         crate::utils::client_ip::TrustedProxies::parse(
             &entries.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
         )
+        .expect("test entries are valid")
     }
 
     fn request_with_xff(value: Option<&str>) -> HttpRequest<Body> {

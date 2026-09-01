@@ -442,7 +442,12 @@ impl PricingData {
 ///
 /// Returns empty string for framework-only values (let model lookup handle them)
 fn map_system_to_litellm_provider(system: &str) -> &'static str {
-    match system.to_lowercase().as_str() {
+    // Separators are normalised before matching: the same service is spelled `aws_bedrock`, `aws.bedrock`,
+    // `amazon_bedrock` and - from the Vercel AI SDK - `amazon-bedrock`. Listing every punctuation variant by
+    // hand is how `amazon-bedrock` came to be missing altogether, which cost it both its Bedrock prices and
+    // its cache-counter convention.
+    let normalised = system.to_lowercase().replace(['-', ' '], "_");
+    match normalised.as_str() {
         // Direct mappings
         "openai" => "openai",
         "anthropic" => "anthropic",
@@ -990,26 +995,33 @@ impl PricingService {
             .as_deref()
             .map(map_system_to_litellm_provider)
             .filter(|p| !p.is_empty());
-        let subsets_are_included = !matches!(
+        // **Two independent questions**, not one.
+        //
+        // A single flag was wrong because no provider answers them the same way across the board. Gemini
+        // counts cached content *inside* its prompt total but reports `thoughts_token_count` *beside*
+        // `candidates_token_count`; Anthropic is the mirror image, reporting cache counters beside an input
+        // total that excludes them while counting thinking inside its output total. Deciding both from one
+        // boolean therefore mis-bills one of the two for every provider that is not OpenAI-shaped.
+        let cache_is_included = !matches!(
             cost_provider,
             // Anthropic reports `cache_read_input_tokens` / `cache_creation_input_tokens` beside an
             // `input_tokens` that excludes them, and Bedrock's Converse API does the same for every model it
-            // hosts (`usage.cacheReadInputTokens`). Vertex's Anthropic passthrough keeps Anthropic's shape.
-            //
-            // Everything else reports subsets *within* the totals - OpenAI's
-            // `prompt_tokens_details.cached_tokens` and Gemini's `cached_content_token_count` both sit inside
-            // their prompt totals - which is also why an unrecognised provider takes that reading.
+            // hosts (`usage.cacheReadInputTokens`), Nova and Llama included.
             Some("anthropic") | Some("bedrock") | Some("vertex_ai_anthropic")
+        );
+        let reasoning_is_included = !matches!(
+            cost_provider,
+            // Gemini's thinking budget is reported separately from the candidate output it accompanies.
+            Some("gemini") | Some("vertex_ai")
         );
 
         // The portion charged at the plain input rate: everything not already billed as cache.
-        let billable_input = if subsets_are_included {
+        let billable_input = if cache_is_included {
             (input_tokens - cache_read_tokens - cache_write_tokens).max(0.0)
         } else {
             input_tokens
         };
-        // Likewise for reasoning, which OpenAI counts inside the completion total.
-        let billable_output = if subsets_are_included {
+        let billable_output = if reasoning_is_included {
             (output_tokens - reasoning_tokens).max(0.0)
         } else {
             output_tokens
@@ -1468,20 +1480,49 @@ mod tests {
         }
     }
 
-    /// An OpenAI-compatible provider keeps the inclusive reading, which is the default.
+    /// Gemini answers the two questions *differently*, which one flag could not express.
+    ///
+    /// It counts cached content *inside* the prompt total but reports thinking tokens *beside* the candidate
+    /// output. A single boolean therefore had to be wrong about one of them: sharing the inclusive reading
+    /// under-billed the thinking, and sharing the separate reading over-billed the cache.
     #[test]
-    fn gemini_keeps_the_inclusive_reading() {
+    fn gemini_cache_is_included_but_its_thinking_is_not() {
         let service = PricingService::init_for_test().unwrap();
         let out = service.calculate_cost(&SpanCostInput {
             system: Some("gemini".to_string()),
             model: Some("gemini-2.0-flash".to_string()),
             input_tokens: 100,
             cache_read_tokens: 100,
+            output_tokens: 100,
+            reasoning_tokens: 20,
             ..Default::default()
         });
         assert_eq!(
             out.input_cost, 0.0,
-            "Gemini counts cached content inside its prompt total, so nothing is left at the input rate"
+            "cached content sits inside the prompt total, so nothing is left at the input rate"
+        );
+        let per_output_token = out.output_cost / 100.0;
+        assert!(
+            per_output_token > 0.0,
+            "all 100 candidate tokens are charged: the 20 thinking tokens are additional, not a subset"
+        );
+        assert!(out.reasoning_cost > 0.0, "and the thinking is charged too");
+    }
+
+    /// Anthropic is the mirror image: cache separate, thinking inside the output total.
+    #[test]
+    fn anthropic_thinking_is_inside_its_output_total() {
+        let service = PricingService::init_for_test().unwrap();
+        let out = service.calculate_cost(&SpanCostInput {
+            system: Some("anthropic".to_string()),
+            model: Some("claude-sonnet-4-5".to_string()),
+            output_tokens: 100,
+            reasoning_tokens: 100,
+            ..Default::default()
+        });
+        assert_eq!(
+            out.output_cost, 0.0,
+            "every output token was thinking, so none remains at the plain output rate"
         );
     }
 

@@ -74,10 +74,12 @@ impl ApiServer {
 
         // Get API key secret early (needed for AuthState)
         let api_key_secret = app.secrets.get_api_key_secret().await?;
-        // Parsed once: an entry that does not parse is reported here rather than per request.
-        let trusted_proxies = Arc::new(crate::utils::client_ip::TrustedProxies::parse(
-            &app.config.rate_limit.trusted_proxies,
-        ));
+        // Parsed once, and a bad entry refuses startup rather than silently collapsing every client behind
+        // that proxy into one rate-limit bucket - see `utils::client_ip`.
+        let trusted_proxies = Arc::new(
+            crate::utils::client_ip::TrustedProxies::parse(&app.config.rate_limit.trusted_proxies)
+                .map_err(|e| anyhow::anyhow!(e))?,
+        );
 
         // Rate limiting configuration
         // - rate_limit_enabled: master switch for all rate limiting (per-project)
@@ -94,6 +96,7 @@ impl ApiServer {
                 bucket,
                 key_extractor,
                 bypass_header: bypass_header.clone(),
+                trusted_proxies: Arc::clone(&trusted_proxies),
             };
 
         // Build OTLP ingestion routes (rate limited by project, optionally auth required)
