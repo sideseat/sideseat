@@ -52,6 +52,37 @@ pub fn is_storable(dt: DateTime<Utc>) -> bool {
     STORABLE_YEAR_RANGE.contains(&dt.year())
 }
 
+/// Clamp an instant into [`STORABLE_YEAR_RANGE`], for a storage row conversion that must not fail.
+///
+/// Ingestion already refuses an unstorable instant, so this is the backstop for a value that reached a
+/// storage-row conversion anyway - a new write path that forgot the check, or a `time`-representable year
+/// (up to 9999) that `DateTime64(6)` cannot hold. It must never land on the **epoch**: that is inside the
+/// retention window's past, where the 90-day TTL deletes the row after the export was answered 200. So it
+/// clamps to the nearest representable bound and returns whether it had to, for the caller to shout about.
+pub fn clamp_to_storable(dt: DateTime<Utc>) -> (DateTime<Utc>, bool) {
+    use chrono::Datelike;
+    let year = dt.year();
+    if year < *STORABLE_YEAR_RANGE.start() {
+        // 1900-01-01T00:00:00Z, the earliest DateTime64(6) instant.
+        (
+            Utc.with_ymd_and_hms(*STORABLE_YEAR_RANGE.start(), 1, 1, 0, 0, 0)
+                .single()
+                .unwrap_or(DateTime::UNIX_EPOCH),
+            true,
+        )
+    } else if year > *STORABLE_YEAR_RANGE.end() {
+        // 2299-12-31T23:59:59Z, the latest whole-second DateTime64(6) instant.
+        (
+            Utc.with_ymd_and_hms(*STORABLE_YEAR_RANGE.end(), 12, 31, 23, 59, 59)
+                .single()
+                .unwrap_or(DateTime::UNIX_EPOCH),
+            true,
+        )
+    } else {
+        (dt, false)
+    }
+}
+
 /// Parse ISO 8601 / RFC 3339 timestamp string to DateTime<Utc>
 pub fn parse_iso_timestamp(ts: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(ts)
@@ -143,6 +174,44 @@ mod tests {
     fn test_parse_iso_timestamp_invalid() {
         let dt = parse_iso_timestamp("not-a-timestamp");
         assert_eq!(dt, DateTime::UNIX_EPOCH);
+    }
+
+    #[test]
+    fn clamp_to_storable_leaves_an_in_range_instant_alone() {
+        let dt = Utc.with_ymd_and_hms(2024, 6, 1, 12, 0, 0).unwrap();
+        let (out, clamped) = clamp_to_storable(dt);
+        assert_eq!(out, dt);
+        assert!(!clamped);
+    }
+
+    #[test]
+    fn clamp_to_storable_never_lands_on_the_epoch() {
+        // Year 3000: representable by `time` (so the old `from_unix_timestamp` succeeded and passed it
+        // through unclamped) but not by ClickHouse's DateTime64(6). It must clamp to 2299, never the epoch
+        // the retention TTL would delete.
+        let far_future = Utc.with_ymd_and_hms(3000, 1, 1, 0, 0, 0).unwrap();
+        let (out, clamped) = clamp_to_storable(far_future);
+        assert!(clamped);
+        assert_eq!(out.year(), 2299);
+        assert_ne!(out, DateTime::UNIX_EPOCH);
+        assert!(is_storable(out));
+
+        // Far past clamps to the low bound, also not the epoch.
+        let far_past = Utc.with_ymd_and_hms(1800, 1, 1, 0, 0, 0).unwrap();
+        let (out, clamped) = clamp_to_storable(far_past);
+        assert!(clamped);
+        assert_eq!(out.year(), 1900);
+        assert!(is_storable(out));
+    }
+
+    #[test]
+    fn clamp_to_storable_boundaries_are_inclusive() {
+        for year in [*STORABLE_YEAR_RANGE.start(), *STORABLE_YEAR_RANGE.end()] {
+            let dt = Utc.with_ymd_and_hms(year, 6, 1, 0, 0, 0).unwrap();
+            let (out, clamped) = clamp_to_storable(dt);
+            assert_eq!(out, dt, "a boundary year must be stored as itself");
+            assert!(!clamped);
+        }
     }
 
     // ================================================================
