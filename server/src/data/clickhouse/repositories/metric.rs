@@ -64,6 +64,7 @@ struct MetricRow {
     scope_attributes: Option<String>,
     scope_schema_url: Option<String>,
     resource_schema_url: Option<String>,
+    exemplars: Option<String>,
 }
 
 /// Convert chrono DateTime to time OffsetDateTime for a storage-row column.
@@ -150,6 +151,7 @@ impl From<&NormalizedMetric> for MetricRow {
             scope_attributes: json_to_opt_string(&metric.scope_attributes),
             scope_schema_url: metric.scope_schema_url.clone(),
             resource_schema_url: metric.resource_schema_url.clone(),
+            exemplars: json_to_opt_string(&metric.exemplars),
         }
     }
 }

@@ -3228,3 +3228,89 @@ async fn a_same_microsecond_redelivery_is_one_row_on_both_backends() {
         "the later same-microsecond delivery must win on DuckDB, not the earlier one"
     );
 }
+
+/// Every `MIGRATIONS` entry actually runs against a real ClickHouse, from the state it exists to upgrade.
+///
+/// A migration is the code most likely to be wrong and least likely to be exercised: a fresh database never
+/// touches it, so `make test-clickhouse` can be green while the statement is rejected by every server it
+/// exists to serve. DuckDB's equivalent guard found three defects in one migration this way - an `ALTER`
+/// ClickHouse-equivalent refusal among them - and none was visible from a fresh schema.
+///
+/// The prior state is built by *reversing* what each migration adds, so the test needs no captured old
+/// schema to drift out of date. Then the runner is invoked exactly as a startup upgrade would invoke it,
+/// and the result has to accept a row naming the new column - which is the property that matters, since a
+/// column present in the table but absent from the `Distributed` front end reads as success here and fails
+/// at the first insert.
+#[tokio::test]
+async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let database = "sideseat_parity_migrations";
+    let service = clickhouse_backend(&url, database).await;
+    let client = raw_client(&url, database);
+
+    // The reverse of each migration, so a v3 migration is applied to a v2-shaped table. Kept beside the
+    // migration list rather than as a captured schema dump: whoever adds a migration adds its inverse here
+    // and the test keeps working, and forgetting to fails loudly on the next line.
+    let undo: &[(i32, &str)] = &[(
+        3,
+        "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS exemplars",
+    )];
+
+    for migration in crate::data::clickhouse::schema::MIGRATIONS {
+        let version = migration.version;
+        let (_, revert) = undo
+            .iter()
+            .find(|(v, _)| *v == version)
+            .unwrap_or_else(|| panic!(
+                "migration v{version} ({}) has no inverse in this test, so it is never applied to the \
+                 state it upgrades - add one",
+                migration.name
+            ));
+
+        client
+            .query(revert)
+            .execute()
+            .await
+            .unwrap_or_else(|e| panic!("reverting v{version}: {e}"));
+
+        service
+            .apply_migration_for_test(version)
+            .await
+            .unwrap_or_else(|e| panic!("applying v{version}: {e}"));
+    }
+
+    // A write naming every column the current build knows about. This is what a schema that is present but
+    // not reachable - the Distributed front-end case - fails on, and nothing before this line would.
+    let metric = NormalizedMetric {
+        project_id: Some(PROJECT.to_string()),
+        metric_name: "migrated.histogram".to_string(),
+        metric_type: MetricType::Histogram,
+        aggregation_temporality: AggregationTemporality::Cumulative,
+        timestamp: ts(1),
+        datapoint_id: "migrated-1".to_string(),
+        exemplars: serde_json::json!([{"trace_id": "aa", "value_double": 1.0}]),
+        ..Default::default()
+    };
+    service
+        .insert_metrics(&[metric])
+        .await
+        .expect("an upgraded schema must accept a row naming the added column");
+
+    // `coalesce`, because a bare `Nullable(String)` has no `Row` impl to deserialise into.
+    let stored: Vec<String> = client
+        .query("SELECT coalesce(exemplars, '') FROM otel_metrics WHERE datapoint_id = ? LIMIT 1")
+        .bind("migrated-1")
+        .fetch_all()
+        .await
+        .expect("read back");
+    assert_eq!(stored.len(), 1);
+    assert!(
+        stored[0].contains("trace_id"),
+        "the migrated column must hold what was written, got {:?}",
+        stored[0]
+    );
+}

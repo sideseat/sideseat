@@ -12,6 +12,7 @@ use serde_json::{Value as JsonValue, json};
 
 use crate::core::constants;
 use crate::data::types::{Framework, ObservationType, SpanCategory};
+use crate::domain::pricing;
 use crate::utils::string::parse_string_array;
 use crate::utils::time::nanos_to_datetime;
 
@@ -1375,9 +1376,10 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
         );
     }
 
-    span.gen_ai_usage_total_tokens = TOTAL_TOKENS
-        .extract(attrs)
-        .max(span.gen_ai_usage_input_tokens + span.gen_ai_usage_output_tokens);
+    // Held rather than applied: the total is synthesised once, at the end, from every counter the
+    // fallbacks below may still fill in. Computed here it could only ever floor at input + output, which
+    // is *below* the true total for a provider that reports its cache counters beside them.
+    let mut reported_total = TOTAL_TOKENS.extract(attrs);
     span.gen_ai_usage_cache_read_tokens = CACHE_READ_TOKENS.extract_for_span(attrs, span_name);
     span.gen_ai_usage_cache_write_tokens = CACHE_WRITE_TOKENS.extract_for_span(attrs, span_name);
     span.gen_ai_usage_reasoning_tokens = REASONING_TOKENS.extract(attrs);
@@ -1426,13 +1428,11 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
                             .and_then(|v| v.as_i64())
                             .unwrap_or(0);
                     }
-                    // Recompute total: honor reported total if larger than sum
-                    let crewai_total = usage
+                    reported_total = usage
                         .get("total_tokens")
                         .and_then(|v| v.as_i64())
-                        .unwrap_or(0);
-                    span.gen_ai_usage_total_tokens = crewai_total
-                        .max(span.gen_ai_usage_input_tokens + span.gen_ai_usage_output_tokens);
+                        .unwrap_or(0)
+                        .max(reported_total);
                 }
             }
         }
@@ -1445,9 +1445,32 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
         if pt > 0 || ct > 0 {
             span.gen_ai_usage_input_tokens = pt;
             span.gen_ai_usage_output_tokens = ct;
-            span.gen_ai_usage_total_tokens = pt + ct;
         }
     }
+
+    // The synthesised floor counts what the provider reports *beside* its input and output, and counts
+    // nothing it reports inside them. The convention is `pricing`'s, not a second copy of it: a total that
+    // assumes the cache counters are already in the input while the charge assumes they are extra describes
+    // two different calls, and the one on screen would contradict the money. So an Anthropic response with
+    // `input=10, cache_write=17_649, output=205` totals 17_864 rather than 215, and an OpenAI one with
+    // `input=1_000` of which `cached=800` still totals its own input.
+    let counted_beside_input =
+        if pricing::cache_counters_are_separate(span.gen_ai_system.as_deref()) {
+            span.gen_ai_usage_cache_read_tokens + span.gen_ai_usage_cache_write_tokens
+        } else {
+            0
+        };
+    let counted_beside_output = if pricing::reasoning_is_separate(span.gen_ai_system.as_deref()) {
+        span.gen_ai_usage_reasoning_tokens
+    } else {
+        0
+    };
+    span.gen_ai_usage_total_tokens = reported_total.max(
+        span.gen_ai_usage_input_tokens
+            + span.gen_ai_usage_output_tokens
+            + counted_beside_input
+            + counted_beside_output,
+    );
 
     // Usage details (remaining gen_ai.usage.* fields)
     let mut details = serde_json::Map::new();

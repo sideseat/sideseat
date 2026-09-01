@@ -14,7 +14,7 @@
 use crate::core::config::ClickhouseConfig;
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 2;
+pub const SCHEMA_VERSION: i32 = 3;
 
 /// The oldest schema version this build can migrate *from*.
 ///
@@ -56,15 +56,27 @@ pub struct Migration {
     pub distributed_statements: &'static [&'static str],
 }
 
-/// No entries: the ClickHouse backend was introduced at v2 and nothing above it has been released, so
-/// there is no database to migrate from. The `datapoint_id` sorting-key widening that briefly lived here
-/// as a v3 migration is part of the initial schema instead - see `domain::metrics::identity` for what it
-/// is and `otel_metrics_*_table` for where it sits in the key.
-///
-/// The struct keeps its `precondition` and `distributed_statements` fields because both encode a real
-/// hazard rather than a convenience: a `MODIFY ORDER BY` is not idempotent, and a `Distributed` front end
-/// does not follow the local table's structure. Whoever adds the first entry needs both.
-pub const MIGRATIONS: &[Migration] = &[];
+/// One entry, for v3. The ClickHouse backend was introduced at v2, so there is nothing to migrate from v1;
+/// the `datapoint_id` sorting-key widening that briefly lived here as a v3 migration is part of the initial
+/// schema instead - see `domain::metrics::identity` for what it is and `otel_metrics_*_table` for where it
+/// sits in the key.
+pub const MIGRATIONS: &[Migration] = &[Migration {
+    version: 3,
+    name: "all_metric_exemplars",
+    // `ADD COLUMN IF NOT EXISTS` is idempotent on its own, so there is nothing a precondition would add.
+    precondition: None,
+    statements: &[
+        "ALTER TABLE otel_metrics{local} {on_cluster} ADD COLUMN IF NOT EXISTS \
+         exemplars Nullable(String) CODEC(ZSTD(3))",
+    ],
+    // A `Distributed` table is created `AS otel_metrics_local`, which copies the structure once and does
+    // not follow later changes - so without this the front end has no such column and every insert naming
+    // it fails.
+    distributed_statements: &[
+        "ALTER TABLE otel_metrics {on_cluster} ADD COLUMN IF NOT EXISTS \
+         exemplars Nullable(String) CODEC(ZSTD(3))",
+    ],
+}];
 
 /// Validate and return a cluster name safe for SQL interpolation.
 ///
@@ -448,7 +460,7 @@ CREATE TABLE IF NOT EXISTS otel_metrics_local ON CLUSTER {cluster} (
     summary_sum             Nullable(Float64),
     summary_quantiles       Nullable(String),
 
-    -- EXEMPLAR
+    -- EXEMPLAR (the first one; the full set is in `exemplars` below)
     exemplar_trace_id       Nullable(String),
     exemplar_span_id        Nullable(String),
     exemplar_value_int      Nullable(Int64),
@@ -483,6 +495,10 @@ CREATE TABLE IF NOT EXISTS otel_metrics_local ON CLUSTER {cluster} (
     scope_attributes        Nullable(String),
     scope_schema_url        Nullable(String),
     resource_schema_url     Nullable(String),
+
+    -- Every exemplar, not only the first. A histogram carries one per bucket, so the flat exemplar_*
+    -- columns above hold one trace link out of however many the exporter sent.
+    exemplars               Nullable(String) CODEC(ZSTD(3)),
 
     -- INDEXES
     INDEX idx_metric_name metric_name TYPE bloom_filter GRANULARITY 1,
@@ -556,7 +572,7 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     summary_sum             Nullable(Float64),
     summary_quantiles       Nullable(String),
 
-    -- EXEMPLAR
+    -- EXEMPLAR (the first one; the full set is in `exemplars` below)
     exemplar_trace_id       Nullable(String),
     exemplar_span_id        Nullable(String),
     exemplar_value_int      Nullable(Int64),
@@ -591,6 +607,10 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     scope_attributes        Nullable(String),
     scope_schema_url        Nullable(String),
     resource_schema_url     Nullable(String),
+
+    -- Every exemplar, not only the first. A histogram carries one per bucket, so the flat exemplar_*
+    -- columns above hold one trace link out of however many the exporter sent.
+    exemplars               Nullable(String) CODEC(ZSTD(3)),
 
     -- INDEXES
     INDEX idx_metric_name metric_name TYPE bloom_filter GRANULARITY 1,

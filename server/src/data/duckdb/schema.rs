@@ -6,7 +6,7 @@
 //! use an inline DEDUP_SPANS subquery.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 2;
+pub const SCHEMA_VERSION: i32 = 3;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -245,8 +245,8 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     summary_quantiles       JSON,               -- [{quantile, value}, ...]
 
     -- ═══════════════════════════════════════════════════════════════════
-    -- EXEMPLAR (first exemplar for trace correlation)
-    -- Only first exemplar extracted per data point
+    -- EXEMPLAR (the *first* exemplar, indexed for trace correlation)
+    -- The full set is in `exemplars` at the end of the table.
     -- ═══════════════════════════════════════════════════════════════════
     exemplar_trace_id       VARCHAR,            -- Linked trace ID (hex)
     exemplar_span_id        VARCHAR,            -- Linked span ID (hex)
@@ -303,7 +303,11 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     -- stream. Appended, like `datapoint_id`, for the reason above.
     scope_attributes        JSON,
     scope_schema_url        VARCHAR,
-    resource_schema_url     VARCHAR
+    resource_schema_url     VARCHAR,
+    -- Every exemplar, not just the first. A histogram carries one per bucket, so the six flat
+    -- `exemplar_*` columns above - which the trace-correlation index is built on - held one trace link
+    -- out of however many the exporter sent. Appended, for the positional-Appender reason above.
+    exemplars               JSON
 );
 
 -- Indexes for metrics

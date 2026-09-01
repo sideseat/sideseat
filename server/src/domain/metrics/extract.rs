@@ -311,6 +311,7 @@ fn extract_number_dp(
         exemplar_value_double: extract_exemplar_value_double(exemplar),
         exemplar_timestamp: extract_exemplar_timestamp(exemplar),
         exemplar_attributes: extract_exemplar_attrs(exemplar),
+        exemplars: extract_all_exemplars(&dp.exemplars),
         flags: dp.flags,
         raw_metric: build_raw_metric_json(metric, metric_type),
         ..Default::default()
@@ -365,6 +366,7 @@ fn extract_histogram_dp(
         exemplar_value_double: extract_exemplar_value_double(exemplar),
         exemplar_timestamp: extract_exemplar_timestamp(exemplar),
         exemplar_attributes: extract_exemplar_attrs(exemplar),
+        exemplars: extract_all_exemplars(&dp.exemplars),
         flags: dp.flags,
         raw_metric: build_raw_metric_json(metric, MetricType::Histogram),
         ..Default::default()
@@ -422,6 +424,7 @@ fn extract_exp_histogram_dp(
         exemplar_value_double: extract_exemplar_value_double(exemplar),
         exemplar_timestamp: extract_exemplar_timestamp(exemplar),
         exemplar_attributes: extract_exemplar_attrs(exemplar),
+        exemplars: extract_all_exemplars(&dp.exemplars),
         flags: dp.flags,
         raw_metric: build_raw_metric_json(metric, MetricType::ExponentialHistogram),
         ..Default::default()
@@ -524,6 +527,64 @@ fn extract_exemplar_timestamp(
     exemplar
         .filter(|e| e.time_unix_nano > 0)
         .map(|e| nanos_to_datetime(e.time_unix_nano))
+}
+
+/// Every exemplar of a data point, as a JSON array; `Null` when there are none.
+///
+/// The six flat `exemplar_*` columns keep the *first* one - they are what the trace-correlation index is
+/// built on and what the queries read. But a histogram carries one exemplar **per bucket**, which is the
+/// whole point of them: they are how a reader gets from a slow bucket to the trace that was slow. Keeping
+/// only the first discarded every link but one, so a latency histogram with ten populated buckets offered
+/// one trace out of ten and gave no sign the others had been received.
+fn extract_all_exemplars(
+    exemplars: &[opentelemetry_proto::tonic::metrics::v1::Exemplar],
+) -> JsonValue {
+    use opentelemetry_proto::tonic::metrics::v1::exemplar::Value;
+
+    if exemplars.is_empty() {
+        return JsonValue::Null;
+    }
+
+    let entries: Vec<JsonValue> = exemplars
+        .iter()
+        .map(|e| {
+            let mut entry = serde_json::Map::new();
+            if let Some(trace_id) = Some(hex::encode(&e.trace_id))
+                .filter(|s| !s.is_empty() && s != "00000000000000000000000000000000")
+            {
+                entry.insert("trace_id".to_string(), JsonValue::String(trace_id));
+            }
+            if let Some(span_id) =
+                Some(hex::encode(&e.span_id)).filter(|s| !s.is_empty() && s != "0000000000000000")
+            {
+                entry.insert("span_id".to_string(), JsonValue::String(span_id));
+            }
+            match &e.value {
+                Some(Value::AsInt(i)) => {
+                    entry.insert("value_int".to_string(), serde_json::json!(i));
+                }
+                Some(Value::AsDouble(d)) => {
+                    entry.insert("value_double".to_string(), serde_json::json!(d));
+                }
+                None => {}
+            }
+            if e.time_unix_nano > 0 {
+                entry.insert(
+                    "timestamp".to_string(),
+                    JsonValue::String(nanos_to_datetime(e.time_unix_nano).to_rfc3339()),
+                );
+            }
+            if !e.filtered_attributes.is_empty() {
+                entry.insert(
+                    "attributes".to_string(),
+                    attrs_to_json(&extract_attributes(&e.filtered_attributes)),
+                );
+            }
+            JsonValue::Object(entry)
+        })
+        .collect();
+
+    JsonValue::Array(entries)
 }
 
 fn extract_exemplar_attrs(
@@ -879,5 +940,111 @@ mod tests {
         assert_eq!(quantiles[0]["value"], 4.5);
         assert_eq!(quantiles[1]["quantile"], 0.99);
         assert_eq!(quantiles[1]["value"], 9.8);
+    }
+
+    /// Every exemplar reaches storage, not only the first.
+    ///
+    /// A histogram carries one exemplar per bucket, so a latency histogram with three populated buckets
+    /// offers three traces to jump to - and keeping `exemplars.first()` alone silently discarded two of
+    /// them, with nothing in the row to say they had been received.
+    #[test]
+    fn every_exemplar_of_a_data_point_is_kept() {
+        use opentelemetry_proto::tonic::metrics::v1::{Exemplar, exemplar};
+
+        fn exemplar_at(trace: u8, value: f64) -> Exemplar {
+            Exemplar {
+                trace_id: vec![trace; 16],
+                span_id: vec![trace; 8],
+                time_unix_nano: 1_704_067_200_000_000_000,
+                value: Some(exemplar::Value::AsDouble(value)),
+                filtered_attributes: vec![make_key_value("bucket", &trace.to_string())],
+            }
+        }
+
+        let request = ExportMetricsServiceRequest {
+            resource_metrics: vec![ResourceMetrics {
+                resource: Some(Resource {
+                    attributes: vec![make_key_value("sideseat.project_id", "test-project")],
+                    ..Default::default()
+                }),
+                scope_metrics: vec![ScopeMetrics {
+                    metrics: vec![Metric {
+                        name: "http.server.duration".to_string(),
+                        data: Some(Data::Histogram(Histogram {
+                            data_points: vec![HistogramDataPoint {
+                                time_unix_nano: 1_704_067_200_000_000_000,
+                                count: 3,
+                                sum: Some(6.0),
+                                exemplars: vec![
+                                    exemplar_at(1, 0.5),
+                                    exemplar_at(2, 2.0),
+                                    exemplar_at(3, 3.5),
+                                ],
+                                ..Default::default()
+                            }],
+                            ..Default::default()
+                        })),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+        };
+
+        let result = extract_metrics_batch(&request);
+        assert_eq!(result.len(), 1);
+        let metric = &result[0];
+
+        // The flat columns still carry the first, because the trace-correlation index is built on them.
+        assert_eq!(
+            metric.exemplar_trace_id.as_deref(),
+            Some(&"01".repeat(16)[..])
+        );
+
+        let all = metric
+            .exemplars
+            .as_array()
+            .expect("exemplars must be an array when the data point carried any");
+        assert_eq!(all.len(), 3, "all three bucket exemplars must be kept");
+        assert_eq!(all[1]["trace_id"], "02".repeat(16));
+        assert_eq!(all[1]["span_id"], "02".repeat(8));
+        assert_eq!(all[1]["value_double"], 2.0);
+        assert_eq!(all[2]["attributes"]["bucket"], "3");
+        assert!(
+            all[0]["timestamp"].is_string(),
+            "an exemplar's own timestamp is what links it to its trace's instant"
+        );
+    }
+
+    /// No exemplars means no array, rather than an empty one: nothing was received and the row says so.
+    #[test]
+    fn a_data_point_with_no_exemplars_stores_none() {
+        let request = ExportMetricsServiceRequest {
+            resource_metrics: vec![ResourceMetrics {
+                resource: Some(Resource {
+                    attributes: vec![make_key_value("sideseat.project_id", "test-project")],
+                    ..Default::default()
+                }),
+                scope_metrics: vec![ScopeMetrics {
+                    metrics: vec![Metric {
+                        name: "test.gauge".to_string(),
+                        data: Some(Data::Gauge(Gauge {
+                            data_points: vec![NumberDataPoint {
+                                time_unix_nano: 1_704_067_200_000_000_000,
+                                value: Some(number_data_point::Value::AsDouble(1.0)),
+                                ..Default::default()
+                            }],
+                        })),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+        };
+
+        let result = extract_metrics_batch(&request);
+        assert!(result[0].exemplars.is_null());
     }
 }

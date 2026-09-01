@@ -86,10 +86,21 @@ pub struct ModelPricing {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MatchType {
-    /// Exact key match (confidence: 100%)
+    /// The model key matched as given (confidence: 100%)
     Exact,
-    /// Matched via provider prefix, e.g., "azure/gpt-4o" (confidence: 95%)
-    ProviderPrefix,
+    /// The catalogue holds an entry for exactly this provider *and* model, and the provider was **stated** -
+    /// by the telemetry or by the model string itself, e.g. `azure/gpt-4o` (confidence: 100%)
+    ///
+    /// Strictly more evidence than [`MatchType::Exact`], not less: the generic key is one fact about the
+    /// model and this is two about the same call. It reported 0.95 while a generic exact hit reported 1.0,
+    /// which inverted the ranking - and since Azure's `gpt-4o-mini` costs ~9% more than OpenAI's, the more
+    /// specific answer was the one flagged as less certain.
+    ProviderQualified,
+    /// A provider prefix was **dropped or guessed** to reach a match, e.g. `bedrock/x` looked up as `x`, or
+    /// an unprefixed Vertex model tried as `vertex_ai/x` (confidence: 90%)
+    ///
+    /// Below [`MatchType::Exact`], because the answer rests on an assumption the telemetry did not make.
+    ProviderInferred,
     /// Matched via alias, e.g., "-latest" suffix stripped (confidence: 85%)
     Alias,
     /// Matched base model family, e.g., date stripped (confidence: 70%)
@@ -103,8 +114,8 @@ impl MatchType {
     /// Returns confidence level (0.0-1.0) based on match type
     pub fn confidence(self) -> f64 {
         match self {
-            MatchType::Exact => 1.0,
-            MatchType::ProviderPrefix => 0.95,
+            MatchType::Exact | MatchType::ProviderQualified => 1.0,
+            MatchType::ProviderInferred => 0.90,
             MatchType::Alias => 0.85,
             MatchType::Family => 0.70,
             MatchType::NotFound => 0.0,
@@ -283,7 +294,7 @@ impl PricingData {
         if let Some(provider) = provider {
             let prefixed = format!("{}/{}", provider, model_lower);
             if let Some(pricing) = self.models.get(&prefixed) {
-                return Some((pricing, MatchType::ProviderPrefix));
+                return Some((pricing, MatchType::ProviderQualified));
             }
         }
 
@@ -305,12 +316,12 @@ impl PricingData {
             && !model_part.is_empty()
         {
             if let Some(pricing) = self.models.get(model_part) {
-                return Some((pricing, MatchType::ProviderPrefix));
+                return Some((pricing, MatchType::ProviderInferred));
             }
             if let Some(stripped) = strip_bedrock_region_prefix(model_part)
                 && let Some(pricing) = self.models.get(stripped)
             {
-                return Some((pricing, MatchType::ProviderPrefix));
+                return Some((pricing, MatchType::ProviderInferred));
             }
         }
 
@@ -320,7 +331,7 @@ impl PricingData {
             // Try with extracted provider
             let prefixed = format!("{}/{}", prefix, model_after_colon);
             if let Some(pricing) = self.models.get(&prefixed) {
-                return Some((pricing, MatchType::ProviderPrefix));
+                return Some((pricing, MatchType::ProviderQualified));
             }
             // Try exact match on model part
             if let Some(pricing) = self.models.get(model_after_colon) {
@@ -338,12 +349,12 @@ impl PricingData {
             // Try with vertex_ai prefix
             let prefixed = format!("vertex_ai/{}", extracted);
             if let Some(pricing) = self.models.get(&prefixed) {
-                return Some((pricing, MatchType::ProviderPrefix));
+                return Some((pricing, MatchType::ProviderInferred));
             }
             // Try with gemini prefix (for google models)
             let gemini_prefixed = format!("gemini/{}", extracted);
             if let Some(pricing) = self.models.get(&gemini_prefixed) {
-                return Some((pricing, MatchType::ProviderPrefix));
+                return Some((pricing, MatchType::ProviderInferred));
             }
         }
 
@@ -356,7 +367,7 @@ impl PricingData {
             // Try with replicate prefix
             let prefixed = format!("replicate/{}", stripped);
             if let Some(pricing) = self.models.get(&prefixed) {
-                return Some((pricing, MatchType::ProviderPrefix));
+                return Some((pricing, MatchType::ProviderInferred));
             }
         }
 
@@ -377,20 +388,16 @@ impl PricingData {
             }
         }
 
-        // Strategy 2 & 3: Provider-aware lookup
+        // Strategy 3: Provider index lookup (uses pre-built index).
+        //
+        // The provider-prefixed key itself is Strategy 0's job now - it has to run before the generic exact
+        // match, so a second identical lookup here could never be reached.
         if let Some(provider) = provider {
-            // Strategy 2: Provider-prefixed key (e.g., "azure/gpt-4o")
-            let prefixed = format!("{}/{}", provider, model_lower);
-            if let Some(pricing) = self.models.get(&prefixed) {
-                return Some((pricing, MatchType::ProviderPrefix));
-            }
-
-            // Strategy 3: Provider index lookup (uses pre-built index)
             let key = (provider.to_string(), model_lower.clone());
             if let Some(canonical_key) = self.provider_models.get(&key)
                 && let Some(pricing) = self.models.get(canonical_key)
             {
-                return Some((pricing, MatchType::ProviderPrefix));
+                return Some((pricing, MatchType::ProviderQualified));
             }
         }
 
@@ -441,6 +448,36 @@ impl PricingData {
 /// Maps gen_ai.system attribute to LiteLLM provider name
 ///
 /// Returns empty string for framework-only values (let model lookup handle them)
+/// Whether this provider reports cache counters *beside* its input total rather than within it.
+///
+/// The single source of truth for the question, because two places need it and they must not drift: the cost
+/// calculation (what to charge at the plain input rate) and the synthesised token total (whether the cache
+/// counters are already inside `input + output`). Anthropic and Bedrock's Converse API report them
+/// separately; OpenAI's `cached_tokens` and Gemini's `cached_content_token_count` sit inside their prompt
+/// totals, and an unrecognised provider takes that reading.
+pub fn cache_counters_are_separate(system: Option<&str>) -> bool {
+    matches!(
+        system
+            .map(map_system_to_litellm_provider)
+            .filter(|p| !p.is_empty()),
+        Some("anthropic") | Some("bedrock") | Some("vertex_ai_anthropic")
+    )
+}
+
+/// Whether this provider reports reasoning tokens *beside* its output total rather than within it.
+///
+/// Independent of [`cache_counters_are_separate`]: Gemini reports `thoughts_token_count` separately while
+/// counting cached content inside its prompt total, and Anthropic is the mirror image. One flag for both
+/// mis-bills one of them for every provider that is not OpenAI-shaped.
+pub fn reasoning_is_separate(system: Option<&str>) -> bool {
+    matches!(
+        system
+            .map(map_system_to_litellm_provider)
+            .filter(|p| !p.is_empty()),
+        Some("gemini") | Some("vertex_ai")
+    )
+}
+
 fn map_system_to_litellm_provider(system: &str) -> &'static str {
     // Separators are normalised before matching: the same service is spelled `aws_bedrock`, `aws.bedrock`,
     // `amazon_bedrock` and - from the Vercel AI SDK - `amazon-bedrock`. Listing every punctuation variant by
@@ -986,34 +1023,12 @@ impl PricingService {
         // said - and the *charge* is normalised here, where the provider is known. Unknown providers take the
         // inclusive reading, because OpenAI-compatible endpoints are the common case by a wide margin and
         // over-charging is the worse error to hand someone.
-        // Normalised through the *same* mapper the price lookup uses, rather than matching raw values here.
-        // A hand-written variant list missed `aws_bedrock` and `amazon_bedrock` - both of which real
-        // instrumentation emits - so Anthropic-on-Bedrock would have taken the inclusive reading and been
-        // under-charged. One mapping, one place to keep current.
-        let cost_provider = input
-            .system
-            .as_deref()
-            .map(map_system_to_litellm_provider)
-            .filter(|p| !p.is_empty());
-        // **Two independent questions**, not one.
-        //
-        // A single flag was wrong because no provider answers them the same way across the board. Gemini
-        // counts cached content *inside* its prompt total but reports `thoughts_token_count` *beside*
-        // `candidates_token_count`; Anthropic is the mirror image, reporting cache counters beside an input
-        // total that excludes them while counting thinking inside its output total. Deciding both from one
-        // boolean therefore mis-bills one of the two for every provider that is not OpenAI-shaped.
-        let cache_is_included = !matches!(
-            cost_provider,
-            // Anthropic reports `cache_read_input_tokens` / `cache_creation_input_tokens` beside an
-            // `input_tokens` that excludes them, and Bedrock's Converse API does the same for every model it
-            // hosts (`usage.cacheReadInputTokens`), Nova and Llama included.
-            Some("anthropic") | Some("bedrock") | Some("vertex_ai_anthropic")
-        );
-        let reasoning_is_included = !matches!(
-            cost_provider,
-            // Gemini's thinking budget is reported separately from the candidate output it accompanies.
-            Some("gemini") | Some("vertex_ai")
-        );
+        // The two conventions, from the one place that defines them - see `cache_counters_are_separate` and
+        // `reasoning_is_separate`. They are asked here *and* by the extractor that synthesises a token total,
+        // and the two must not drift: a total that assumes the counters are inside `input + output` while the
+        // charge assumes they are beside it describes two different calls.
+        let cache_is_included = !cache_counters_are_separate(input.system.as_deref());
+        let reasoning_is_included = !reasoning_is_separate(input.system.as_deref());
 
         // The portion charged at the plain input rate: everything not already billed as cache.
         let billable_input = if cache_is_included {
@@ -1666,7 +1681,10 @@ mod tests {
         let (_, match_type) = result.unwrap();
         // Either Exact (gpt-4o exists directly) or ProviderPrefix (azure/gpt-4o found)
         assert!(
-            match_type == MatchType::Exact || match_type == MatchType::ProviderPrefix,
+            matches!(
+                match_type,
+                MatchType::Exact | MatchType::ProviderQualified | MatchType::ProviderInferred
+            ),
             "Should match via Exact or ProviderPrefix"
         );
     }
@@ -1737,7 +1755,10 @@ mod tests {
             assert!(
                 matches!(
                     match_type,
-                    MatchType::ProviderPrefix | MatchType::Family | MatchType::Exact
+                    MatchType::ProviderQualified
+                        | MatchType::ProviderInferred
+                        | MatchType::Family
+                        | MatchType::Exact
                 ),
                 "unexpected match type: {match_type:?}"
             );
@@ -1775,7 +1796,7 @@ mod tests {
         let (generic, _) = data
             .lookup(None, "gpt-4o-mini")
             .expect("gpt-4o-mini is in the catalogue");
-        assert_eq!(azure_match, MatchType::ProviderPrefix);
+        assert_eq!(azure_match, MatchType::ProviderQualified);
         assert!(
             azure.input_cost_per_token > generic.input_cost_per_token,
             "Azure is dearer than OpenAI for this model, so picking the generic entry under-bills: \
@@ -2517,7 +2538,10 @@ mod tests {
         let result = data.lookup(Some("mistral"), "codestral-2405");
         if let Some((_, match_type)) = result {
             assert!(
-                match_type == MatchType::Exact || match_type == MatchType::ProviderPrefix,
+                matches!(
+                    match_type,
+                    MatchType::Exact | MatchType::ProviderQualified | MatchType::ProviderInferred
+                ),
                 "Should find via Exact or ProviderPrefix"
             );
         }
@@ -2562,7 +2586,12 @@ mod tests {
             // Verify no panic; check if found
             if let Some((_, match_type)) = result {
                 assert!(
-                    match_type == MatchType::Exact || match_type == MatchType::ProviderPrefix,
+                    matches!(
+                        match_type,
+                        MatchType::Exact
+                            | MatchType::ProviderQualified
+                            | MatchType::ProviderInferred
+                    ),
                     "Groq model {} should match",
                     model
                 );
@@ -2904,7 +2933,10 @@ mod tests {
                 assert!(
                     matches!(
                         match_type,
-                        MatchType::Exact | MatchType::ProviderPrefix | MatchType::Alias
+                        MatchType::Exact
+                            | MatchType::ProviderQualified
+                            | MatchType::ProviderInferred
+                            | MatchType::Alias
                     ),
                     "Bedrock model {} should match",
                     model
@@ -3651,7 +3683,7 @@ mod tests {
             result.is_some(),
             "Should find model after stripping bedrock/ prefix and global. region"
         );
-        assert_eq!(result.unwrap().1, MatchType::ProviderPrefix);
+        assert_eq!(result.unwrap().1, MatchType::ProviderInferred);
     }
 
     #[test]
@@ -3662,7 +3694,7 @@ mod tests {
             result.is_some(),
             "Should find model after stripping anthropic/ prefix"
         );
-        assert_eq!(result.unwrap().1, MatchType::ProviderPrefix);
+        assert_eq!(result.unwrap().1, MatchType::ProviderInferred);
     }
 
     #[test]
@@ -3673,6 +3705,42 @@ mod tests {
             result.is_some(),
             "Should find model after stripping bedrock/ prefix and us. region"
         );
-        assert_eq!(result.unwrap().1, MatchType::ProviderPrefix);
+        assert_eq!(result.unwrap().1, MatchType::ProviderInferred);
+    }
+
+    /// A provider-qualified hit is never *less* confident than a generic one.
+    ///
+    /// Since the provider-qualified key is looked up first, reaching it means the catalogue held an entry
+    /// for exactly this provider and model and the caller told us the provider - two facts about the call
+    /// where a generic exact match is one. It reported 0.95 against the generic match's 1.0, so the answer
+    /// carrying more evidence was the one flagged as more doubtful. What genuinely *is* below an exact match
+    /// is a prefix that was dropped or guessed.
+    #[test]
+    fn confidence_ranks_more_specific_evidence_higher() {
+        assert_eq!(MatchType::ProviderQualified.confidence(), 1.0);
+        assert_eq!(MatchType::Exact.confidence(), 1.0);
+        assert!(MatchType::ProviderInferred.confidence() < MatchType::Exact.confidence());
+        assert!(MatchType::Alias.confidence() < MatchType::ProviderInferred.confidence());
+        assert!(MatchType::Family.confidence() < MatchType::Alias.confidence());
+        assert_eq!(MatchType::NotFound.confidence(), 0.0);
+    }
+
+    /// The two kinds are told apart by whether the provider was stated or assumed.
+    #[test]
+    fn a_stated_provider_qualifies_and_a_stripped_prefix_only_infers() {
+        let data = PricingData::from_json_str(EMBEDDED_PRICING_JSON).unwrap();
+
+        // Stated by the telemetry, and the catalogue has that provider's own entry.
+        let (_, stated) = data
+            .lookup(Some("azure"), "gpt-4o-mini")
+            .expect("azure/gpt-4o-mini is in the catalogue");
+        assert_eq!(stated, MatchType::ProviderQualified);
+
+        // The prefix was dropped to reach a match, so the provider is an assumption.
+        let (_, stripped) = data
+            .lookup(None, "anthropic/claude-haiku-4-5-20251001")
+            .expect("found after stripping the prefix");
+        assert_eq!(stripped, MatchType::ProviderInferred);
+        assert!(stripped.confidence() < stated.confidence());
     }
 }

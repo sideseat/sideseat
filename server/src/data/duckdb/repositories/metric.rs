@@ -179,6 +179,7 @@ fn insert_metrics(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(),
             json_to_opt_string(&m.scope_attributes).as_deref(),
             m.scope_schema_url.as_deref(),
             m.resource_schema_url.as_deref(),
+            json_to_opt_string(&m.exemplars).as_deref(),
         ])?;
     }
 

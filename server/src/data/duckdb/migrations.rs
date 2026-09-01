@@ -121,10 +121,30 @@ CREATE INDEX IF NOT EXISTS idx_metrics_exemplar_trace ON otel_metrics(project_id
 CREATE INDEX IF NOT EXISTS idx_metrics_session ON otel_metrics(project_id, session_id);
 "#;
 
+/// Every exemplar of a data point, not only the first.
+///
+/// Same index dance as `MIGRATION_V2`, and for the same reason: DuckDB refuses to `ALTER` a table that has
+/// dependents at all, and every real database has these five indexes. Nullable with no backfill - rows
+/// written before this version genuinely do not have the other exemplars, and inventing an array holding
+/// only the one that was kept would claim the exporter sent one.
+const MIGRATION_V3: &str = r#"DROP INDEX IF EXISTS idx_metrics_project_ts;
+DROP INDEX IF EXISTS idx_metrics_project_name;
+DROP INDEX IF EXISTS idx_metrics_project_name_ts;
+DROP INDEX IF EXISTS idx_metrics_exemplar_trace;
+DROP INDEX IF EXISTS idx_metrics_session;
+ALTER TABLE otel_metrics ADD COLUMN exemplars JSON;
+CREATE INDEX IF NOT EXISTS idx_metrics_project_ts ON otel_metrics(project_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_metrics_project_name ON otel_metrics(project_id, metric_name);
+CREATE INDEX IF NOT EXISTS idx_metrics_project_name_ts ON otel_metrics(project_id, metric_name, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_metrics_exemplar_trace ON otel_metrics(project_id, exemplar_trace_id);
+CREATE INDEX IF NOT EXISTS idx_metrics_session ON otel_metrics(project_id, session_id);
+"#;
+
 fn apply_migration(conn: &Connection, version: i32) -> Result<(), DuckdbError> {
     match version {
         1 => Ok(()), // Handled by apply_initial_schema
         2 => apply_versioned_migration(conn, 2, "metric_datapoint_identity", MIGRATION_V2),
+        3 => apply_versioned_migration(conn, 3, "all_metric_exemplars", MIGRATION_V3),
         _ => Err(DuckdbError::MigrationFailed {
             version,
             name: "unknown".to_string(),
@@ -289,6 +309,7 @@ mod tests {
                  ALTER TABLE otel_metrics DROP COLUMN scope_attributes;
                  ALTER TABLE otel_metrics DROP COLUMN scope_schema_url;
                  ALTER TABLE otel_metrics DROP COLUMN resource_schema_url;
+                 ALTER TABLE otel_metrics DROP COLUMN exemplars;
                  -- Recreated, because a real v1 database has them and DuckDB refuses to alter a table
                  -- with dependents: the migration has to handle that itself.
                  CREATE INDEX idx_metrics_project_ts ON otel_metrics(project_id, timestamp DESC);
@@ -307,7 +328,12 @@ mod tests {
             )
             .expect("legacy row");
 
-        apply_migration(&upgraded, 2).expect("migration 2");
+        // The whole chain, not one step: a future version bump then needs no edit here, and the property
+        // being checked is about the destination rather than about any single migration.
+        for version in 2..=SCHEMA_VERSION {
+            apply_migration(&upgraded, version)
+                .unwrap_or_else(|e| panic!("migration {version}: {e}"));
+        }
 
         assert_eq!(
             columns(&upgraded, "otel_metrics"),

@@ -291,6 +291,16 @@ impl ClickhouseService {
     /// otherwise - and are applied in order. The version is recorded only after all of them succeed,
     /// so a partial failure leaves the database at the previous version and the migration is retried
     /// on the next start rather than being silently skipped.
+    /// One migration, on demand, so `every_clickhouse_migration_applies_to_the_state_it_upgrades` can
+    /// invoke it exactly as a startup upgrade does.
+    #[cfg(test)]
+    pub(crate) async fn apply_migration_for_test(
+        &self,
+        version: i32,
+    ) -> Result<(), ClickhouseError> {
+        self.apply_versioned_migration(version).await
+    }
+
     async fn apply_versioned_migration(&self, version: i32) -> Result<(), ClickhouseError> {
         let Some(migration) = schema::MIGRATIONS.iter().find(|m| m.version == version) else {
             return Err(ClickhouseError::MigrationFailed {

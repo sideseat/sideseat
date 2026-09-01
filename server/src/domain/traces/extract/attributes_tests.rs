@@ -1641,3 +1641,94 @@ fn a_later_json_fallback_does_not_overwrite_an_earlier_one() {
         "the first source to supply a counter must keep it"
     );
 }
+
+/// A provider that reports its cache counters *beside* its input must have them in the total.
+///
+/// Anthropic's `input_tokens` excludes what it charged to cache creation, so `input + output` is not the
+/// total - a prompt-caching turn showed 215 tokens where 17,864 were billed. The rule has to be the
+/// pricing module's, or the number on screen contradicts the cost beside it.
+#[test]
+fn a_separately_reported_cache_counter_is_in_the_synthesised_total() {
+    let mut attrs = HashMap::new();
+    attrs.insert("gen_ai.system".to_string(), "anthropic".to_string());
+    attrs.insert("gen_ai.usage.input_tokens".to_string(), "10".to_string());
+    attrs.insert("gen_ai.usage.output_tokens".to_string(), "205".to_string());
+    attrs.insert(
+        "gen_ai.usage.cache_creation_input_tokens".to_string(),
+        "17649".to_string(),
+    );
+
+    let mut span = SpanData::default();
+    extract_genai(&mut span, &attrs, "chat anthropic");
+
+    assert_eq!(span.gen_ai_usage_cache_write_tokens, 17_649);
+    assert_eq!(
+        span.gen_ai_usage_total_tokens, 17_864,
+        "an Anthropic total must include the cache creation it was billed for"
+    );
+}
+
+/// And a provider that reports them *inside* its input must not have them counted twice.
+#[test]
+fn an_included_cache_counter_is_not_added_to_the_total() {
+    let mut attrs = HashMap::new();
+    attrs.insert("gen_ai.system".to_string(), "openai".to_string());
+    attrs.insert("gen_ai.usage.input_tokens".to_string(), "1000".to_string());
+    attrs.insert("gen_ai.usage.output_tokens".to_string(), "50".to_string());
+    attrs.insert(
+        "gen_ai.usage.cache_read_input_tokens".to_string(),
+        "800".to_string(),
+    );
+
+    let mut span = SpanData::default();
+    extract_genai(&mut span, &attrs, "chat openai");
+
+    assert_eq!(span.gen_ai_usage_cache_read_tokens, 800);
+    assert_eq!(
+        span.gen_ai_usage_total_tokens, 1_050,
+        "OpenAI's cached tokens are already inside its prompt total"
+    );
+}
+
+/// Gemini reports thoughts separately while counting cached content inside its prompt total - the mirror
+/// image of Anthropic, and the reason the two conventions are separate questions.
+#[test]
+fn gemini_counts_its_thoughts_beside_the_output_and_its_cache_inside_the_input() {
+    let mut attrs = HashMap::new();
+    attrs.insert("gen_ai.system".to_string(), "gemini".to_string());
+    attrs.insert("gen_ai.usage.input_tokens".to_string(), "500".to_string());
+    attrs.insert("gen_ai.usage.output_tokens".to_string(), "80".to_string());
+    attrs.insert(
+        "gen_ai.usage.cache_read_input_tokens".to_string(),
+        "400".to_string(),
+    );
+    attrs.insert(
+        "gen_ai.usage.reasoning_tokens".to_string(),
+        "300".to_string(),
+    );
+
+    let mut span = SpanData::default();
+    extract_genai(&mut span, &attrs, "chat gemini");
+
+    assert_eq!(
+        span.gen_ai_usage_total_tokens,
+        500 + 80 + 300,
+        "thoughts are extra, cached content is not"
+    );
+}
+
+/// A total the provider states is honoured when it exceeds what the counters account for, which is how a
+/// provider reporting counters this code does not know about still shows the right number.
+#[test]
+fn a_reported_total_larger_than_the_counters_is_honoured() {
+    let mut attrs = HashMap::new();
+    attrs.insert("gen_ai.system".to_string(), "anthropic".to_string());
+    attrs.insert("gen_ai.usage.input_tokens".to_string(), "10".to_string());
+    attrs.insert("gen_ai.usage.output_tokens".to_string(), "20".to_string());
+    attrs.insert("gen_ai.usage.total_tokens".to_string(), "9999".to_string());
+
+    let mut span = SpanData::default();
+    extract_genai(&mut span, &attrs, "chat anthropic");
+
+    assert_eq!(span.gen_ai_usage_total_tokens, 9_999);
+}

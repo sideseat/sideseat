@@ -75,6 +75,12 @@ pub struct NormalizedMetric {
     pub exemplar_value_double: Option<f64>,
     pub exemplar_timestamp: Option<DateTime<Utc>>,
     pub exemplar_attributes: JsonValue,
+    /// Every exemplar of the data point, as a JSON array; `Null` when there are none.
+    ///
+    /// The flat `exemplar_*` fields above carry the first one, for the trace-correlation index. This
+    /// carries them all, because a histogram exemplar is per bucket and dropping the rest throws away
+    /// most of the trace links the exporter sent.
+    pub exemplars: JsonValue,
 
     // Context
     pub session_id: Option<String>,
