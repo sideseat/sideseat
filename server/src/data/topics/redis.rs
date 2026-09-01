@@ -415,12 +415,21 @@ impl RedisTopicBackend {
         next: Option<&str>,
     ) -> Result<(), TopicError> {
         let mut conn = self.pool.get().await?;
+        // A test-supplied `next` is a rotation *position*; the end is set past every plausible id so the
+        // rotation covers whatever the test published.
+        let next = next.and_then(StreamId::parse).map(|position| Rotation {
+            position: Some(position),
+            end: StreamId {
+                millis: u64::MAX,
+                sequence: 0,
+            },
+        });
         self.apply_cursor(
             &mut conn,
             CursorAction {
                 key: self.scan_cursor_key(topic, group),
                 expected,
-                next: next.and_then(StreamId::parse),
+                next,
             },
         )
         .await;
@@ -464,26 +473,43 @@ impl RedisTopicBackend {
     /// at or before `L` (otherwise it would not be visible to XPENDING here), and it is what is still owed.
     /// Choose which pending entries a recovery pass should claim.
     ///
-    /// # What this replaced, and why a retry counter was the wrong instrument
+    /// # Why a retry counter was the wrong instrument
     ///
     /// Claiming an entry resets its idle time, so an entry whose processing keeps failing becomes eligible
     /// again after `min_idle_ms` and - being among the oldest - refills a window that starts at the oldest
     /// pending entry. With a window of `count` and `count` such entries, nothing behind them is ever
-    /// examined, so an abandoned entry at position `count + 1` was never recovered at all.
+    /// examined, so an abandoned entry at position `count + 1` was never recovered at all. The first answer
+    /// was to acknowledge an entry after ten deliveries, which is data loss: ten failures is what a minute of
+    /// analytics downtime looks like, the payload was already answered 200, and a delivery counter says
+    /// nothing about the payload - only about the system that kept failing to store it.
     ///
-    /// The previous answer was to acknowledge an entry after ten deliveries. That is data loss: ten failures
-    /// is what a minute of analytics downtime looks like, the payload was already answered 200, and a
-    /// delivery counter says nothing about the payload - only about the system that kept failing to store it.
+    /// # Rotation over a *generation*, which is what makes the bound real
     ///
-    /// A **rotating start** replaces it: the scan resumes past the last entry it examined and wraps at the
-    /// end, so every pending entry is reached within `pending / count` passes however many chronic failures
-    /// precede it. It scans exactly `count` and advances past exactly that, so no eligible entry is skipped
-    /// within a pass. A chronically-failing entry is therefore retried once per rotation and reported loudly,
-    /// and never dropped.
+    /// The mechanism is a cursor that sweeps the pending list and wraps. Getting the wrap condition right is
+    /// the whole difficulty, and three earlier shapes failed:
     ///
-    /// Returns the ids to claim and the cursor move the caller should commit **after** the claim succeeds -
-    /// see [`CursorAction`]. The cursor is not moved here, because advancing past an entry a later-failing
-    /// `XCLAIM` never claimed would skip it.
+    /// * Wrapping only on a **short page** never wraps at all when the list grows at the tail faster than the
+    ///   sweep advances - so entries behind the cursor were never revisited.
+    /// * **Holding** the cursor at an entry that was scanned but not claimed pins rotation: a peer that
+    ///   repeatedly claims and abandons that entry keeps it perpetually too fresh, and everything after it
+    ///   starves. Two holds merged by earliest only moves which entry does the pinning.
+    /// * Filtering the scan by `IDLE` means a too-fresh entry is *invisible* to the page, so a cursor
+    ///   position can be advanced past it - which is what made a hold seem necessary in the first place.
+    ///
+    /// So the cursor is paired with the id that ended the pending list **when this rotation began**, and the
+    /// two are stored together. A rotation examines every entry that existed at its start, exactly once,
+    /// advancing unconditionally; entries that arrive during it are picked up by the next rotation. The wrap
+    /// is therefore driven by a fixed endpoint rather than by the list's current shape, so tail growth cannot
+    /// prevent it and no entry can pin it. Nothing is held, so nothing can starve behind a hold.
+    ///
+    /// The page is **not** `IDLE`-filtered - eligibility is decided locally instead, and `XCLAIM` enforces it
+    /// anyway. That keeps examination and claiming separate: the cursor advances over everything it looked at
+    /// (which is what bounds the rotation), while only the entries idle enough are claimed. A pass that finds
+    /// nothing eligible still makes rotation progress, which is the property the earlier shapes lacked.
+    ///
+    /// A chronically-failing entry is therefore retried once per rotation and reported loudly, and never
+    /// dropped. Returns the ids to claim and the cursor move the caller commits **after** the claim - see
+    /// [`CursorAction`].
     async fn scan_pending(
         &self,
         conn: &mut deadpool_redis::Connection,
@@ -494,99 +520,60 @@ impl RedisTopicBackend {
         count: usize,
     ) -> Result<(Vec<String>, CursorAction), TopicError> {
         // The cursor lives in Redis, so rotation survives a restart and replicas share one position - see
-        // `scan_cursor_key`. An unreadable cursor is treated as absent: starting from the front is always
-        // safe, it just costs this pass its rotation progress.
+        // `scan_cursor_key`. An unreadable cursor is treated as absent: starting a fresh rotation is always
+        // safe, it just costs this pass its place.
         let cursor_key = self.scan_cursor_key(topic, group);
         let observed: Option<String> = deadpool_redis::redis::cmd("GET")
             .arg(&cursor_key)
             .query_async::<Option<String>>(conn)
             .await
             .unwrap_or(None);
-        let start: String = observed.clone().unwrap_or_else(|| "-".to_string());
-        // Scan exactly what will be claimed, never more.
-        //
-        // An earlier design scanned `count * 8`, sorted by delivery count to prefer fresh work, claimed
-        // `count`, then advanced the cursor past the *whole* scanned window - so `count * 7` eligible
-        // entries were examined and skipped. Under sustained backlog growth a full window kept arriving past
-        // the cursor, so it never wrapped and those skipped entries were never reconsidered: starvation by
-        // another route. Scanning exactly `count` and advancing past exactly what was scanned means no
-        // eligible entry is ever passed over within a pass, and rotation guarantees every entry is reached
-        // within `pending / count` passes. That makes the delivery-count sort unnecessary - rotation alone
-        // bounds how long any entry, chronic or fresh, waits - so it is gone, and with it the skip it caused.
-        let mut scanned = parse_pending(
-            scan_pending_page(conn, key, group, min_idle_ms, &start, count).await?,
-            min_idle_ms,
-        );
-        // Wrap. A rotated start that lands past the end of the list would otherwise return nothing and
-        // rotate again, so a pass could do no work while entries were waiting at the front.
-        if scanned.is_empty() && start != "-" {
-            scanned = parse_pending(
-                scan_pending_page(conn, key, group, min_idle_ms, "-", count).await?,
-                min_idle_ms,
-            );
-        }
-        // Is the cursor holding a specific entry that is still owed?
-        //
-        // A cursor position alone cannot express a hold, because `XPENDING ... IDLE` *filters*. The sequence:
-        // replica P claims entry `U` and crashes, resetting `U`'s idle time; replica Q had scanned `U` but its
-        // `XCLAIM` omitted it, so Q holds the cursor at `U`. On the next pass `U` is still not idle enough, so
-        // the IDLE filter drops it from the page and the page holds only *later* eligible entries - and
-        // advancing past those steps over `U`. With continuously full pages ahead, `U` is never revisited and
-        // holds the trim boundary forever.
-        //
-        // So the hold is asked as a question about the entry rather than inferred from a position: is the id
-        // the cursor names still pending (at any idle time)? While it is, the cursor does not move, and this
-        // pass still claims whatever else the page offered. The hold clears as soon as `U` becomes claimable
-        // (idle enough to appear in the page and be resolved) or stops being pending because someone else
-        // acknowledged it - so it is bounded by `min_idle_ms`, not indefinite.
-        let held = match observed.as_deref() {
-            Some(cursor) if !scanned.iter().any(|(id, _)| id == cursor) => {
-                let still_pending = parse_pending(
-                    // IDLE 0 and a single-entry range: this asks only whether the id is still owed.
-                    scan_pending_page(conn, key, group, 0, cursor, 1).await?,
-                    0,
-                );
-                still_pending
-                    .first()
-                    .filter(|(id, _)| id == cursor)
-                    .and_then(|(id, _)| StreamId::parse(id))
-            }
-            _ => None,
-        };
 
-        if scanned.is_empty() {
-            // Nothing eligible this pass. A held entry keeps the cursor where it is; otherwise the wrap above
-            // already re-scanned from the front, so the cursor is cleared for a clean next pass.
-            return Ok((
-                vec![],
-                CursorAction {
-                    key: cursor_key,
-                    expected: observed,
-                    next: held,
+        // A rotation is `<position>|<end>`: where to resume, and the id that ended the list when it began.
+        let rotation = observed.as_deref().and_then(Rotation::parse);
+        let rotation = match rotation {
+            Some(rotation) => rotation,
+            // Start one. The end is the newest id currently pending; if nothing is pending there is no
+            // rotation to run.
+            None => match pending_summary_max(conn, key, group).await {
+                Some(end) => Rotation {
+                    position: None,
+                    end,
                 },
-            ));
-        }
-
-        // What the cursor *should* become - returned, not applied. The caller commits it only after the
-        // claim it enables has succeeded. Applying it here advanced past entries that a subsequently-failing
-        // `XCLAIM` never claimed, so under sustained growth (a full page arriving each rotation, so the scan
-        // never reaches a short page) those entries were skipped forever. A short page means the list ended
-        // here, so the next pass starts over from the front.
-        let next = match held {
-            // A held entry outranks the page's own advance: moving past the page would step over it.
-            Some(hold) => Some(hold),
-            None => match scanned.last().filter(|_| scanned.len() >= count) {
-                Some((last, _)) => StreamId::parse(last).map(StreamId::next),
-                None => None,
+                None => {
+                    return Ok((
+                        vec![],
+                        CursorAction {
+                            key: cursor_key,
+                            expected: observed,
+                            next: None,
+                        },
+                    ));
+                }
             },
         };
-        let action = CursorAction {
-            key: cursor_key,
-            expected: observed,
-            next,
-        };
 
-        for (id, deliveries) in &scanned {
+        let start = rotation
+            .position
+            .map(|id| id.to_string())
+            .unwrap_or_else(|| "-".to_string());
+        // Bounded by the rotation's end, so a pass never looks past what this rotation promised to cover.
+        let scanned = parse_pending_range(
+            scan_pending_page(conn, key, group, &start, &rotation.end.to_string(), count).await?,
+        );
+
+        // Where the next pass resumes, and whether this rotation is finished.
+        //
+        // A short page means the rotation reached its end; a full page means resume past the last entry
+        // examined. Either way the advance is unconditional - that is what keeps the bound real.
+        let next = advance_rotation(
+            rotation,
+            scanned.len(),
+            count,
+            scanned.last().and_then(|(id, _, _)| StreamId::parse(id)),
+        );
+
+        for (id, _, deliveries) in &scanned {
             if *deliveries >= CHRONIC_DELIVERY_REPORT {
                 tracing::error!(
                     stream = %key,
@@ -599,7 +586,23 @@ impl RedisTopicBackend {
             }
         }
 
-        Ok((scanned.into_iter().map(|(id, _)| id).collect(), action))
+        // Eligibility is decided here, from the page's own idle values, so the cursor advances over
+        // everything examined while only the entries idle enough are claimed. `XCLAIM` enforces the threshold
+        // again server-side, so this is a filter for efficiency and the guarantee does not rest on it.
+        let to_claim: Vec<String> = scanned
+            .iter()
+            .filter(|(_, idle, _)| *idle >= min_idle_ms)
+            .map(|(id, _, _)| id.clone())
+            .collect();
+
+        Ok((
+            to_claim,
+            CursorAction {
+                key: cursor_key,
+                expected: observed,
+                next,
+            },
+        ))
     }
 
     /// Move the rotating scan cursor as [`Self::scan_pending`] computed, once the claim it enabled succeeded.
@@ -634,7 +637,7 @@ impl RedisTopicBackend {
             return 1
         "#;
         let expected = action.expected.clone().unwrap_or_default();
-        let next = action.next.map(|id| id.to_string()).unwrap_or_default();
+        let next = action.next.map(|r| r.to_string()).unwrap_or_default();
         // Nothing to do: no cursor was there and none is wanted.
         if expected.is_empty() && next.is_empty() {
             return;
@@ -1388,25 +1391,11 @@ impl TopicBackend for RedisTopicBackend {
             }
         }
 
-        // The cursor stops at the first requested id this pass did not take, so that entry is re-examined
-        // next pass instead of being stepped over. `ids_to_claim` is in ascending stream order, so holding at
-        // the first unhandled id keeps every earlier one behind the cursor and still makes progress whenever
-        // the front of the scan was claimed.
-        //
-        // **Merged with the scan's own hold, never replacing it.** Overwriting was a skip in its own right:
-        // the scan may already be holding an earlier id `U` (pending but too fresh for the idle filter, so
-        // absent from the page) while a *later* page entry `V` goes unclaimed because a peer took it first.
-        // Moving the cursor from `U` to `V` steps over `U`, and with full pages beyond `V` it is never
-        // revisited even once it becomes idle enough - the very failure the scan-level hold was added to fix.
-        // Taking the earliest of the two keeps both outstanding.
-        let first_unresolved = ids_to_claim
-            .iter()
-            .find(|id| !handled.contains(id.as_str()))
-            .and_then(|id| StreamId::parse(id));
-        let action = CursorAction {
-            next: earliest_hold(cursor_action.next, first_unresolved),
-            ..cursor_action
-        };
+        // No per-entry hold, and none is needed: an entry this pass did not take is examined again by the
+        // next rotation, which is bounded by a fixed endpoint. A hold was the previous design and it pinned
+        // rotation - a peer repeatedly claiming and abandoning the held entry kept it perpetually too fresh,
+        // starving everything after it. See `scan_pending`.
+        let action = cursor_action;
         self.apply_cursor(&mut conn, action).await;
 
         Ok(messages)
@@ -1720,9 +1709,8 @@ struct CursorAction {
     /// stale update a no-op instead: A loses its own progress, which costs one re-scan, and nothing is
     /// skipped.
     expected: Option<String>,
-    /// Where to resume, or `None` to start the next pass from the front (the list ended, or nothing was
-    /// eligible).
-    next: Option<StreamId>,
+    /// The rotation to store, or `None` to clear it so the next pass starts a fresh one.
+    next: Option<Rotation>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -1762,55 +1750,129 @@ impl fmt::Display for StreamId {
     }
 }
 
-/// The earlier of two outstanding cursor holds, if either exists.
+/// A rotation over the pending list: where to resume, and the id that ended the list when it began.
 ///
-/// Both the scan and the post-claim check can want the cursor held: the scan at an id the idle filter hid,
-/// the claim at the first id `XCLAIM` did not return. Whichever is **earlier** has to win, because the cursor
-/// is a single position and moving it past an outstanding id is exactly how that id gets skipped forever.
-///
-/// `None` from the scan means "advance/reset" and must not discard a hold the claim found; `None` from the
-/// claim means "everything asked for was taken" and must not discard the scan's hold. Only when neither wants
-/// a hold does the cursor reset.
-fn earliest_hold(scan: Option<StreamId>, claim: Option<StreamId>) -> Option<StreamId> {
-    match (scan, claim) {
-        (Some(a), Some(b)) => Some(a.min(b)),
-        (Some(a), None) => Some(a),
-        (None, Some(b)) => Some(b),
-        (None, None) => None,
+/// The end is what makes the sweep bounded. Wrapping on a short page alone never wraps while the list grows
+/// at the tail, and holding the cursor at an unclaimed entry lets a peer that repeatedly claims and abandons
+/// it pin rotation forever. A fixed endpoint is immune to both: every entry present at the rotation's start is
+/// examined exactly once, and entries that arrive during it belong to the next rotation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Rotation {
+    /// `None` means "from the front of the list".
+    position: Option<StreamId>,
+    end: StreamId,
+}
+
+impl Rotation {
+    /// Parse the stored `<position>|<end>` form. `-` is the front.
+    fn parse(raw: &str) -> Option<Self> {
+        let (position, end) = raw.split_once('|')?;
+        Some(Self {
+            position: if position == "-" {
+                None
+            } else {
+                Some(StreamId::parse(position)?)
+            },
+            end: StreamId::parse(end)?,
+        })
     }
 }
 
-/// One page of a group's pending list, from `from` onwards, holding only entries already idle enough.
+impl fmt::Display for Rotation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.position {
+            Some(position) => write!(f, "{}|{}", position, self.end),
+            None => write!(f, "-|{}", self.end),
+        }
+    }
+}
+
+/// Where a rotation resumes after examining a page, or `None` when it is complete.
 ///
-/// `IDLE` filters on the server rather than here: asking for the first N pending entries and then dropping
-/// the too-fresh ones let recently-delivered entries at the front of the list hide every abandoned entry
-/// behind them, however long their consumer had been gone.
+/// Complete means the next pass starts a *fresh* rotation over the list as it then is. Two conditions end one,
+/// and both are needed:
+///
+/// * A **short page** - fewer entries than asked for - means the range held nothing more.
+/// * Passing the rotation's **end** means every entry present when it began has been examined. This is the
+///   condition that makes the bound real: without it, a list growing at the tail keeps returning full pages
+///   and the sweep never wraps, so entries behind the cursor are never revisited.
+///
+/// The advance is unconditional otherwise - it does not depend on whether an entry was claimable - because a
+/// cursor that waits for an entry can be pinned there by a peer that repeatedly claims and abandons it, which
+/// starves everything after it.
+fn advance_rotation(
+    rotation: Rotation,
+    scanned: usize,
+    count: usize,
+    last_scanned: Option<StreamId>,
+) -> Option<Rotation> {
+    if scanned < count {
+        return None;
+    }
+    let position = last_scanned?.next();
+    if position > rotation.end {
+        return None;
+    }
+    Some(Rotation {
+        position: Some(position),
+        end: rotation.end,
+    })
+}
+
+/// The newest pending id for a group, which starts a rotation. `None` when nothing is pending.
+///
+/// From the `XPENDING key group` summary form, whose third element is the highest pending id.
+async fn pending_summary_max(
+    conn: &mut deadpool_redis::Connection,
+    key: &str,
+    group: &str,
+) -> Option<StreamId> {
+    let summary: RedisValue = deadpool_redis::redis::cmd("XPENDING")
+        .arg(key)
+        .arg(group)
+        .query_async(conn)
+        .await
+        .ok()?;
+    let RedisValue::Array(parts) = summary else {
+        return None;
+    };
+    // [count, min_id, max_id, consumers]; a zero count leaves the ids nil.
+    if let Some(RedisValue::Int(0)) = parts.first() {
+        return None;
+    }
+    StreamId::parse(&redis_string(parts.get(2)?)?)
+}
+
+/// One page of a group's pending list, over the inclusive id range `[from, to]`.
+///
+/// **Not** `IDLE`-filtered, deliberately. The filter makes a too-fresh entry invisible to the page, and a
+/// cursor that advances over what it saw would then step past it - which is what made a per-entry hold seem
+/// necessary, and a hold is what a peer repeatedly claiming and abandoning an entry can use to pin rotation.
+/// Examining every entry in the range and deciding eligibility locally keeps the sweep's bound independent of
+/// idle times; `XCLAIM` enforces `min_idle_ms` server-side regardless.
 async fn scan_pending_page(
     conn: &mut deadpool_redis::Connection,
     key: &str,
     group: &str,
-    min_idle_ms: u64,
     from: &str,
+    to: &str,
     limit: usize,
 ) -> RedisResult<RedisValue> {
     deadpool_redis::redis::cmd("XPENDING")
         .arg(key)
         .arg(group)
-        .arg("IDLE")
-        .arg(min_idle_ms)
         .arg(from)
-        .arg("+")
+        .arg(to)
         .arg(limit)
         .query_async(conn)
         .await
 }
 
-/// Read `XPENDING ... IDLE` output into `(id, delivery count)` pairs, in the order Redis returned them.
+/// Read `XPENDING` range output into `(id, idle_ms, delivery count)`, in the order Redis returned them.
 ///
-/// The idle check is repeated here even though `IDLE` already filtered: the filter is what makes the window
-/// contain only eligible entries, and this is what makes a caller's `min_idle_ms` contract true regardless
-/// of what the server did.
-fn parse_pending(pending: RedisValue, min_idle_ms: u64) -> Vec<(String, i64)> {
+/// The idle time is carried rather than filtered on, so the caller can advance its cursor over everything
+/// examined while claiming only what is eligible.
+fn parse_pending_range(pending: RedisValue) -> Vec<(String, u64, i64)> {
     let RedisValue::Array(entries) = pending else {
         return vec![];
     };
@@ -1829,14 +1891,11 @@ fn parse_pending(pending: RedisValue, min_idle_ms: u64) -> Vec<(String, i64)> {
         let RedisValue::Int(idle) = &parts[2] else {
             continue;
         };
-        if (*idle as u64) < min_idle_ms {
-            continue;
-        }
         let deliveries = match parts.get(3) {
             Some(RedisValue::Int(n)) => *n,
             _ => 1,
         };
-        out.push((id, deliveries));
+        out.push((id, (*idle).max(0) as u64, deliveries));
     }
     out
 }
@@ -1957,56 +2016,123 @@ mod tests {
 }
 
 #[cfg(test)]
-mod cursor_hold_tests {
-    use super::{StreamId, earliest_hold};
+mod rotation_tests {
+    use super::{Rotation, StreamId};
 
     fn id(millis: u64, sequence: u64) -> StreamId {
         StreamId { millis, sequence }
     }
 
-    /// The earlier of two outstanding holds wins, whichever side found it.
+    /// A rotation round-trips through its stored form, front position included.
     ///
-    /// This is the invariant a cursor *position* makes easy to break: it can hold one id, so moving it to a
-    /// later outstanding id steps over the earlier one, and with continuously full pages beyond that point the
-    /// earlier entry is never revisited. Both directions are checked because the two callers are asymmetric -
-    /// the scan holds an id the idle filter hid, the claim holds the first id `XCLAIM` did not return - and it
-    /// was the claim unconditionally overwriting the scan's hold that reintroduced the skip.
+    /// The stored value carries two facts - where to resume and where this rotation ends - because a cursor
+    /// alone cannot express a bounded sweep: wrapping on a short page never wraps while the list grows at the
+    /// tail. A parse that silently dropped the end would restore the unbounded behaviour, so the encoding is
+    /// pinned here.
     #[test]
-    fn the_earlier_hold_wins_from_either_side() {
-        let early = id(50, 0);
-        let late = id(900, 0);
-        assert_eq!(earliest_hold(Some(early), Some(late)), Some(early));
-        assert_eq!(earliest_hold(Some(late), Some(early)), Some(early));
-        // Same id from both sides is still that id, not a step past it.
-        assert_eq!(earliest_hold(Some(early), Some(early)), Some(early));
+    fn a_rotation_round_trips_through_its_stored_form() {
+        for rotation in [
+            Rotation {
+                position: Some(id(50, 3)),
+                end: id(900, 0),
+            },
+            Rotation {
+                position: None,
+                end: id(900, 0),
+            },
+        ] {
+            let encoded = rotation.to_string();
+            assert_eq!(
+                Rotation::parse(&encoded),
+                Some(rotation),
+                "round trip failed for {encoded}"
+            );
+        }
     }
 
-    /// A hold from one side is never discarded by the other side having none.
-    ///
-    /// `None` means different things per side - "advance or reset" from the scan, "everything asked for was
-    /// taken" from the claim - and neither is permission to release the other's outstanding entry.
+    /// The front of the list is `-`, distinct from any real id.
     #[test]
-    fn a_hold_survives_the_other_side_wanting_none() {
-        let held = id(50, 0);
-        assert_eq!(earliest_hold(Some(held), None), Some(held));
-        assert_eq!(earliest_hold(None, Some(held)), Some(held));
+    fn the_front_position_is_encoded_as_a_dash() {
+        let rotation = Rotation {
+            position: None,
+            end: id(7, 0),
+        };
+        assert_eq!(rotation.to_string(), "-|7-0");
     }
 
-    /// Only when neither side holds anything does the cursor reset.
-    #[test]
-    fn no_hold_on_either_side_resets() {
-        assert_eq!(earliest_hold(None, None), None);
-    }
-
-    /// Sequence ordering is respected within one millisecond, not just across milliseconds.
+    /// A full page whose end passes the rotation's endpoint completes the rotation.
     ///
-    /// `StreamId` compares numerically on both components; a lexicographic comparison of the raw
-    /// `<millis>-<seq>` text would order `"5-9"` after `"5-10"` and pick the wrong hold.
+    /// This is the condition that makes the sweep bounded. Without it a list growing at the tail keeps
+    /// returning full pages, the rotation never completes, and entries behind the cursor are never revisited -
+    /// the original starvation. Verified by disabling the check and watching this fail.
     #[test]
-    fn the_sequence_component_decides_within_a_millisecond() {
+    fn passing_the_endpoint_completes_the_rotation() {
+        let rotation = Rotation {
+            position: Some(id(10, 0)),
+            end: id(100, 0),
+        };
+        // Full page ending exactly at the endpoint: the next position is past it, so the rotation is done.
         assert_eq!(
-            earliest_hold(Some(id(5, 10)), Some(id(5, 9))),
-            Some(id(5, 9))
+            super::advance_rotation(rotation, 5, 5, Some(id(100, 0))),
+            None
         );
+        // Full page ending before the endpoint: resume past what was examined.
+        assert_eq!(
+            super::advance_rotation(rotation, 5, 5, Some(id(50, 0))),
+            Some(Rotation {
+                position: Some(id(50, 1)),
+                end: id(100, 0),
+            })
+        );
+    }
+
+    /// A short page completes the rotation: the range held nothing more.
+    #[test]
+    fn a_short_page_completes_the_rotation() {
+        let rotation = Rotation {
+            position: None,
+            end: id(100, 0),
+        };
+        assert_eq!(
+            super::advance_rotation(rotation, 2, 5, Some(id(30, 0))),
+            None
+        );
+    }
+
+    /// The advance does not depend on whether anything was claimable.
+    ///
+    /// A cursor that waits for an entry can be pinned there by a peer repeatedly claiming and abandoning it,
+    /// starving everything after it - which is why eligibility is not an input here at all.
+    #[test]
+    fn the_advance_ignores_eligibility() {
+        let rotation = Rotation {
+            position: None,
+            end: id(100, 0),
+        };
+        assert_eq!(
+            super::advance_rotation(rotation, 5, 5, Some(id(40, 2))),
+            Some(Rotation {
+                position: Some(id(40, 3)),
+                end: id(100, 0),
+            })
+        );
+    }
+
+    /// A value that is not a rotation is refused rather than half-read.
+    ///
+    /// An unparseable cursor makes the pass start a fresh rotation, which is safe. Accepting a partial parse
+    /// would instead resume from a position with no endpoint, which is the unbounded sweep.
+    #[test]
+    fn a_malformed_rotation_is_refused() {
+        for raw in [
+            "",
+            "50-0",
+            "50-0|",
+            "|900-0",
+            "notanid|900-0",
+            "50-0|notanid",
+        ] {
+            assert_eq!(Rotation::parse(raw), None, "{raw} should not parse");
+        }
     }
 }

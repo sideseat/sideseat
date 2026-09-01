@@ -911,12 +911,15 @@ async fn a_stale_cursor_write_is_refused() {
         .write_scan_cursor_for_test(&topic, group, observed.clone(), Some("50-0"))
         .await
         .expect("the first write applies");
-    assert_eq!(
-        backend
-            .read_scan_cursor_for_test(&topic, group)
-            .await
-            .expect("read"),
-        Some("50-0".to_string()),
+    // Stored as `<position>|<end>`, so the position is what identifies it.
+    let after_first = backend
+        .read_scan_cursor_for_test(&topic, group)
+        .await
+        .expect("read")
+        .expect("a cursor was written");
+    assert!(
+        after_first.starts_with("50-0|"),
+        "the first write should have set position 50-0, got {after_first}"
     );
 
     // The stalled instance now writes, still expecting the value it read before (absent). It must be refused.
@@ -929,24 +932,24 @@ async fn a_stale_cursor_write_is_refused() {
             .read_scan_cursor_for_test(&topic, group)
             .await
             .expect("read"),
-        Some("50-0".to_string()),
+        Some(after_first),
         "a write conditioned on a stale read must not move the cursor - it would skip everything between"
     );
 }
 
-/// A cursor held at a still-pending entry is not cleared or stepped over when the idle filter hides it.
+/// Rotation reaches later entries even while an earlier one is perpetually unclaimable.
 ///
-/// The skip a bare cursor position allowed: replica P claims entry `U` and crashes, resetting `U`'s idle
-/// time; replica Q had scanned `U` but its `XCLAIM` omitted it, so Q holds the cursor there. On the next pass
-/// `U` is still not idle enough, so `XPENDING ... IDLE` drops it from the page - and advancing past the page,
-/// or clearing the cursor, steps over `U`, which then holds the trim boundary forever.
+/// The failure the per-entry hold produced, and the reason it was removed: holding the cursor at an entry that
+/// was scanned but not claimed lets a peer that repeatedly claims and abandons that entry keep it perpetually
+/// too fresh, and everything after it starves. Rotation over a fixed endpoint cannot be pinned that way - the
+/// sweep advances over everything it examines, so a later entry is offered within one rotation regardless of
+/// whether an earlier one could be claimed.
 ///
-/// Driven by making *nothing* eligible: with `min_idle_ms` above every entry's idle time the page is empty,
-/// which is exactly the state that used to clear the cursor. The hold is asked as a question about the entry
-/// ("is it still pending at all?"), so it survives.
+/// Staged by keeping the first entry's idle time low (re-claimed each pass, as a crashing peer would) while
+/// the rest stay abandoned.
 #[tokio::test]
-async fn a_held_cursor_survives_the_idle_filter() {
-    let Some((backend, topic)) = backend("cursor-hold").await else {
+async fn rotation_reaches_later_entries_past_an_unclaimable_one() {
+    let Some((backend, topic)) = backend("rotation-past").await else {
         return;
     };
     let group = "traces";
@@ -956,7 +959,7 @@ async fn a_held_cursor_survives_the_idle_filter() {
         .expect("group");
 
     let mut ids = Vec::new();
-    for i in 0..3u32 {
+    for i in 0..4u32 {
         ids.push(
             backend
                 .stream_publish(&topic, format!("entry-{i}").as_bytes())
@@ -980,30 +983,29 @@ async fn a_held_cursor_survives_the_idle_filter() {
     }
     drop(subscription);
 
-    // The cursor holds the middle entry, as a partial claim would have left it.
-    let held = ids[1].clone();
-    backend
-        .write_scan_cursor_for_test(&topic, group, None, Some(&held))
-        .await
-        .expect("set the hold");
+    let pinned = ids[0].clone();
+    let last = ids[ids.len() - 1].clone();
 
-    // A pass where nothing is idle enough to be claimed: the page comes back empty.
-    let claimed = backend
-        .stream_claim(&topic, group, "rescuer", 600_000, 2)
-        .await
-        .expect("claim");
-    assert!(
-        claimed.is_empty(),
-        "nothing should be claimable at this idle threshold"
-    );
-
-    assert_eq!(
+    // Each pass: a peer re-claims the first entry (resetting its idle time, as a crash-loop would), then this
+    // consumer takes a window of one. The last entry must still be reached.
+    let mut saw_last = false;
+    for _ in 0..12 {
         backend
-            .read_scan_cursor_for_test(&topic, group)
+            .stream_claim(&topic, group, "flapping-peer", 0, 1)
             .await
-            .expect("read cursor"),
-        Some(held.clone()),
-        "the cursor must keep holding a still-pending entry the idle filter hid, or that entry is skipped \
-         and holds the trim boundary forever"
+            .expect("peer claim");
+        let claimed = backend
+            .stream_claim(&topic, group, "rescuer", 0, 1)
+            .await
+            .expect("claim");
+        if claimed.iter().any(|m| m.id == last) {
+            saw_last = true;
+            break;
+        }
+    }
+    assert!(
+        saw_last,
+        "rotation must reach the last entry even while an earlier one is repeatedly re-claimed; a cursor \
+         pinned at {pinned} would starve everything after it"
     );
 }
