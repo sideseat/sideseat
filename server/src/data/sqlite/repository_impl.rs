@@ -855,6 +855,22 @@ impl TransactionalRepository for Arc<SqliteService> {
             .map_err(Into::into)
     }
 
+    async fn discard_provisional_trace_file_association(
+        &self,
+        project_id: &str,
+        trace_id: &str,
+        file_hash: &str,
+    ) -> Result<bool, DataError> {
+        file::discard_provisional_trace_file_association(
+            self.pool(),
+            project_id,
+            trace_id,
+            file_hash,
+        )
+        .await
+        .map_err(Into::into)
+    }
+
     async fn delete_trace_files(
         &self,
         project_id: &str,
