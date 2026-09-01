@@ -483,7 +483,20 @@ caller was told 204 for. No elapsed time bounds that: a queued batch can be rede
 | Tombstone **before** the analytics delete | `delete_traces`, `delete_sessions` | No instant exists in which a trace is deleted and not yet tombstoned. A session is deleted *by* deleting its traces, so it records the same tombstones. |
 | Check immediately **before** the write | `drop_spans_for_deleted_traces` | The common case: a batch that arrives after the deletion never writes. Applied on **both** paths - the queued batch and `run`, which is the default in-memory ingest, the shutdown drain *and* claimed-message recovery. Having it on only one was a deleted trace re-postable through the ordinary configuration. |
 | Re-check immediately **after** the write | `collect_spans_written_for_deleted_traces` | The tombstone is a row in the transactional store and spans go to the analytics store, so nothing makes the pair atomic. A deletion landing inside that window is compensated: the spans are deleted and the batch's associations released, *before* any SSE event announces them. |
-| A leased, backed-off **sweep** | `advance_pending_deletions` | The crash between the write and the re-check. Same discipline as the deleted-project records - claimed exclusively (`FOR UPDATE SKIP LOCKED` on PostgreSQL), leased, geometrically backed off to a daily floor, batch-capped - because the records are long-lived and what has to be bounded is the *rate*. "Quiet" requires no error **and** nothing still readable, asked directly rather than inferred from a delete's row count, which means different things per backend. |
+| A leased, backed-off **sweep** | `advance_pending_deletions` | The crash between the write and the re-check. Same discipline as the deleted-project records - claimed exclusively (`FOR UPDATE SKIP LOCKED` on PostgreSQL), leased, geometrically backed off to a daily floor, batch-capped - because the records are long-lived and what has to be bounded is the *rate*. "Quiet" requires no error **and** nothing still readable, asked directly rather than inferred from a delete's row count, which means different things per backend. The **files are collected only once the rows are provably gone**: doing it regardless meant a transient delete failure left readable rows pointing at bytes the sweep had taken, and a scheduling flag cannot undo a destructive cleanup. |
+
+**A session gets all four steps too**, not just the pre-write check: its own tombstone, a post-write pass
+that tombstones the traces of any session deleted mid-write (handing them to the trace protocol, so there is
+one place that knows how a trace is taken away), and its own leased sweep that re-resolves the session's
+traces *now* rather than from the deletion's snapshot — which is precisely what a late trace escapes.
+
+**An association is created `provisional` and confirmed when its rows commit.** Releasing on a failure path
+by first reading whether the trace has rows is not a decision: a second batch can commit between the read
+and the delete, and its file loses its protection. The marker makes it a stored fact instead — the failure
+path deletes only rows still marked, in one statement, and a batch that committed has already cleared the
+marker. **SSE is published after every drop and compensation**, and only for spans that survived them; built
+beforehand, it announced spans the batch went on to discard, so a reader saw a span appear and then never
+find it.
 
 Keyed by `(project, trace)`, because a trace id comes from the client and two projects can present the
 same one.
@@ -648,12 +661,15 @@ path stringifies every value, which is right for display and wrong for identity:
 `code="200"` (string) became the same series, as did OTLP bytes `DE AD` and the string `"dead"` until the
 byte form was tagged.
 
-Attribute *types* are preserved through a tagged **array** rather than a string prefix
-(`["__otlp:bytes", "dead"]`), because a prefix only moves the collision to the prefix: OTLP bytes `DE AD`
-first collided with the string `"dead"`, then with `"__bytes:dead"`. A JSON *kind* cannot be forged, since
-the canonical hash tags each kind with its own byte. The scope's attributes and both schema URLs are in the
-identity too — and were being discarded entirely, so two scopes differing only in their attributes, or two
-resources differing only in `schema_url`, produced datapoints that a replacing engine merged into one.
+The attribute sets are hashed **from the protobuf**, tagged by OTLP variant, not from any JSON rendering.
+Three encodings were tried and two were forgeable: bare hex collided with the string `"dead"`, a `__bytes:`
+prefix collided with `"__bytes:dead"`, and a tagged array `["__otlp:bytes", "dead"]` collided with an OTLP
+array of exactly those two strings. JSON has no bytes type and no non-finite numbers, so *every* encoding of
+them is expressible as some other OTLP value — only the variant itself is unforgeable. Doubles are hashed by
+bit pattern, so a NaN is a stable distinct value. Timestamps come from the raw nanosecond counts too:
+`timestamp_nanos_opt` answers `None` past 2262 and the fallback was zero, so every datapoint of every later
+year shared an instant. The scope's attributes and both schema URLs are in the identity as well, and were
+being discarded from telemetry entirely.
 
 An **empty** `datapoint_id` means "no identity known" and never collapses: legacy rows carry it, and so
 does anything written without passing through the extractor that stamps one. Treating it as an identity

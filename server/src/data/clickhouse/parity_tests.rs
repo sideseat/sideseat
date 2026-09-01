@@ -2635,7 +2635,26 @@ async fn distinct_metric_series_survive_and_a_redelivery_does_not_duplicate() {
             attributes: serde_json::json!({"http.response.status_code": status}),
             ..Default::default()
         };
-        metric.datapoint_id = crate::domain::metrics::datapoint_id(&metric);
+        // Stamped as the extractor does, from the OTLP material rather than the JSON rendering.
+        metric.datapoint_id = crate::domain::metrics::datapoint_id(
+            &metric,
+            &crate::domain::metrics::IdentityInputs {
+                attributes: &[opentelemetry_proto::tonic::common::v1::KeyValue {
+                    key: "http.response.status_code".to_string(),
+                    value: Some(opentelemetry_proto::tonic::common::v1::AnyValue {
+                        value: Some(
+                            opentelemetry_proto::tonic::common::v1::any_value::Value::IntValue(
+                                status,
+                            ),
+                        ),
+                    }),
+                }],
+                resource_attributes: &[],
+                scope_attributes: &[],
+                time_unix_nano: ts(0).timestamp_nanos_opt().unwrap_or(0) as u64,
+                start_time_unix_nano: 0,
+            },
+        );
         metric
     };
     let export = vec![series(200), series(500)];

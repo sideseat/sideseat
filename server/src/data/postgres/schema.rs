@@ -235,6 +235,20 @@ CREATE TABLE IF NOT EXISTS trace_files (
     trace_id TEXT NOT NULL,
     project_id TEXT NOT NULL,
     file_hash TEXT NOT NULL,
+    -- Whether this association is still *provisional*: created by a batch whose analytics row has not
+    -- committed yet.
+    --
+    -- Files are written before the rows that name them, so a batch that fails has already created
+    -- associations for spans that will never exist - and an association holds `ref_count` above zero, which
+    -- the orphan sweeper cannot select. Releasing them on the failure path is not enough on its own: two
+    -- batches can carry the same `(project, trace, hash)`, the second sees it already present and commits
+    -- its span, and a release by the first then orphans the second's file. No number of reads fixes that -
+    -- the read and the release are not atomic.
+    --
+    -- The flag makes the state durable instead. It is set when the association is created, cleared when the
+    -- creating batch's write succeeds, and the failure path deletes *only* rows that are still provisional -
+    -- one statement, so a batch that committed in between simply is not matched.
+    provisional BOOLEAN NOT NULL DEFAULT FALSE,
     -- Project first, matching SQLite: a trace id comes from the client, so two projects can present
     -- the same one, and keyed without the project one project's association satisfied the other's
     -- conflict clause - leaving the second with no association and a reference nothing would release.

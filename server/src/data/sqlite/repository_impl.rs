@@ -345,6 +345,38 @@ impl TransactionalRepository for Arc<SqliteService> {
             .map_err(Into::into)
     }
 
+    async fn claim_deleted_sessions_for_check(
+        &self,
+        lease_secs: i64,
+        limit: i64,
+    ) -> Result<Vec<(String, String, i64)>, DataError> {
+        project::claim_deleted_sessions_for_check(self.pool(), lease_secs, limit)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn record_deleted_session_check(
+        &self,
+        project_id: &str,
+        session_id: &str,
+        claim_token: i64,
+        was_quiet: bool,
+        base_gap_secs: i64,
+        max_gap_secs: i64,
+    ) -> Result<(), DataError> {
+        project::record_deleted_session_check(
+            self.pool(),
+            project_id,
+            session_id,
+            claim_token,
+            was_quiet,
+            base_gap_secs,
+            max_gap_secs,
+        )
+        .await
+        .map_err(Into::into)
+    }
+
     async fn claim_deleted_traces_for_check(
         &self,
         lease_secs: i64,
@@ -799,6 +831,15 @@ impl TransactionalRepository for Arc<SqliteService> {
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError> {
         file::get_file_hashes_for_traces(self.pool(), project_id, trace_ids)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn confirm_trace_file_associations(
+        &self,
+        associations: &[(String, String, String)],
+    ) -> Result<u64, DataError> {
+        file::confirm_trace_file_associations(self.pool(), associations)
             .await
             .map_err(Into::into)
     }

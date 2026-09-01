@@ -756,16 +756,67 @@ impl TracePipeline {
                 )
             })
             .collect();
+        // Which session each written trace belongs to, for the session compensation below. A trace's spans
+        // agree about it, so the first one that names a session decides.
+        let session_of: HashMap<(String, String), String> = all_db_spans
+            .iter()
+            .filter_map(|s| {
+                let session = s.session_id.as_deref().filter(|v| !v.is_empty())?;
+                Some((
+                    (
+                        s.project_id
+                            .as_deref()
+                            .unwrap_or(DEFAULT_PROJECT_ID)
+                            .to_string(),
+                        s.trace_id.clone(),
+                    ),
+                    session.to_string(),
+                ))
+            })
+            .collect();
         let db_ok = write_to_duckdb(all_db_spans, &self.analytics).await;
 
         let t_persist_done = std::time::Instant::now();
 
         if db_ok {
-            // Before anything is published: a deletion that landed between the pre-write check and the
-            // write leaves the trace resurrected, and an SSE event for it would announce it to every
-            // connected reader.
-            self.collect_spans_written_for_deleted_traces(&written, &files.created_associations)
+            // Confirm the associations first: the rows that justify them are committed, so they are no
+            // longer provisional and no failure path may take them.
+            if let Err(e) = self
+                .file_service
+                .database()
+                .repository()
+                .confirm_trace_file_associations(&files.created_associations)
+                .await
+            {
+                tracing::warn!(
+                    error = %e,
+                    "Could not confirm this batch's file associations; they stay provisional and a later \
+                     failure path could release them"
+                );
+            }
+            // Then the compensating re-check, before anything is published: a deletion that landed between
+            // the pre-write check and the write leaves the trace resurrected, and an SSE event for it would
+            // announce it to every connected reader.
+            // Sessions first: tombstoning their traces is what makes the trace compensation below see them.
+            self.tombstone_traces_of_deleted_sessions(&written, &session_of)
                 .await;
+            let compensated = self
+                .collect_spans_written_for_deleted_traces(&written, &files.created_associations)
+                .await;
+            // Published *after* every drop and compensation, and only for spans that survived both. Built
+            // before the filtering, `sse_events` announced spans this batch went on to discard - so a
+            // reader saw a span appear and then never find it.
+            let surviving: HashSet<(&str, &str)> = written
+                .iter()
+                .map(|(_, trace, span)| (trace.as_str(), span.as_str()))
+                .filter(|(trace, span)| {
+                    !compensated.contains(&((*trace).to_string(), (*span).to_string()))
+                })
+                .collect();
+            let sse_events: Vec<SseSpanEvent> = sse_events
+                .into_iter()
+                .filter(|e| surviving.contains(&(e.trace_id.as_str(), e.span_id.as_str())))
+                .collect();
             publish_sse_events(&sse_events, &self.topics).await;
         } else {
             // Release the associations this batch created, since the rows that would have justified them
@@ -843,13 +894,90 @@ impl TracePipeline {
     /// writing - and it is not sufficient alone either, since a crash between the write and this line
     /// leaves the spans. The deletion sweep is what covers that, exactly as it covers a project whose
     /// tombstone outlived its claim.
+    /// After the write, tombstone the traces of any session deleted in the meantime.
+    ///
+    /// The session check before the write is not atomic with it, exactly as the trace check is not - and a
+    /// session deletion landing in that window leaves a trace the deletion's own snapshot never named. This
+    /// hands such traces to the *trace* protocol by tombstoning them, which then removes their rows on the
+    /// next line and reconciles their files in the sweep. Doing it this way rather than duplicating the
+    /// deletion logic means there is one place that knows how a trace is taken away.
+    ///
+    /// Returns the trace ids it tombstoned, so the caller can compensate them in the same pass.
+    async fn tombstone_traces_of_deleted_sessions(
+        &self,
+        written: &[(String, String, String)],
+        session_of: &HashMap<(String, String), String>,
+    ) -> HashSet<(String, String)> {
+        let mut affected: HashSet<(String, String)> = HashSet::new();
+        if session_of.is_empty() {
+            return affected;
+        }
+        let mut sessions_by_project: HashMap<&str, Vec<String>> = HashMap::new();
+        for ((project, _trace), session) in session_of {
+            sessions_by_project
+                .entry(project.as_str())
+                .or_default()
+                .push(session.clone());
+        }
+        let repo = self.file_service.database().repository();
+        for (project, mut session_ids) in sessions_by_project {
+            session_ids.sort_unstable();
+            session_ids.dedup();
+            let deleted = match repo.deleted_sessions_among(project, &session_ids).await {
+                Ok(found) if found.is_empty() => continue,
+                Ok(found) => found,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        project,
+                        "Could not re-check session tombstones after the write; the deletion sweep will \
+                         collect anything that slipped through"
+                    );
+                    continue;
+                }
+            };
+            let doomed: Vec<String> = written
+                .iter()
+                .filter(|(p, trace, _)| {
+                    p == project
+                        && session_of
+                            .get(&(p.clone(), trace.clone()))
+                            .is_some_and(|s| deleted.contains(s))
+                })
+                .map(|(_, trace, _)| trace.clone())
+                .collect();
+            if doomed.is_empty() {
+                continue;
+            }
+            if let Err(e) = repo.record_deleted_traces(project, &doomed).await {
+                tracing::warn!(
+                    error = %e,
+                    project,
+                    "Could not tombstone traces of a session deleted during the write; the session sweep \
+                     will collect them"
+                );
+                continue;
+            }
+            tracing::warn!(
+                project,
+                traces = doomed.len(),
+                "Tombstoned traces of sessions deleted during the write"
+            );
+            for trace in doomed {
+                affected.insert((project.to_string(), trace));
+            }
+        }
+        affected
+    }
+
     async fn collect_spans_written_for_deleted_traces(
         &self,
         written: &[(String, String, String)],
         created_associations: &[(String, String, String)],
-    ) {
+    ) -> HashSet<(String, String)> {
+        let mut removed: HashSet<(String, String)> = HashSet::new();
         if written.is_empty() {
-            return;
+            return removed;
         }
         let mut by_project: HashMap<&str, Vec<String>> = HashMap::new();
         for (project, trace, _span) in written {
@@ -909,6 +1037,7 @@ impl TracePipeline {
                 traces = tombstoned.len(),
                 "Removed spans written for traces deleted during the write"
             );
+            removed.extend(doomed.iter().cloned());
             let orphaned: Vec<(String, String, String)> = created_associations
                 .iter()
                 .filter(|(p, t, _)| p == project && tombstoned.contains(t))
@@ -916,6 +1045,7 @@ impl TracePipeline {
                 .collect();
             self.release_created_associations(&orphaned).await;
         }
+        removed
     }
 
     /// Release associations this batch created after its analytics write failed.
@@ -933,41 +1063,17 @@ impl TracePipeline {
             return;
         }
         let repo = self.file_service.database().repository();
-        let analytics = self.analytics.repository();
         let mut released = 0usize;
         for (project_id, trace_id, hash) in created {
-            // Winning the association insert is not ownership of the association.
+            // No read here, deliberately.
             //
-            // Two batches can carry the same `(project, trace, hash)` - a re-delivery, or a trace whose
-            // spans arrive in two exports. The first creates the association; the second sees it already
-            // there, records nothing, and commits its span. If the *first* then fails and releases, the
-            // second's committed row references bytes the sweeper may now collect.
-            //
-            // So the release asks the authority: does the trace have rows? A trace with spans still needs
-            // its files, whoever wrote them. This is a read per released association, on a path that only
-            // runs when a batch has already failed - the ordinary case creates nothing to release.
-            match analytics.get_spans_for_trace(project_id, trace_id).await {
-                Ok(spans) if !spans.is_empty() => {
-                    tracing::debug!(
-                        project_id,
-                        trace_id,
-                        hash,
-                        "Keeping an association: another batch committed spans for this trace"
-                    );
-                    continue;
-                }
-                Ok(_) => {}
-                // Unknown is treated as "still referenced". Releasing on a failed read is the direction
-                // that loses data; keeping is the direction the sweep can still fix.
-                Err(e) => {
-                    tracing::warn!(
-                        error = %e,
-                        project_id, trace_id,
-                        "Could not tell whether a trace still has rows; keeping its file association"
-                    );
-                    continue;
-                }
-            }
+            // An earlier version asked the analytics store whether the trace had rows and skipped the
+            // release if it did - which is a read-then-act pair, and therefore not a decision at all: a
+            // second batch can commit between the read and the delete, and its file loses its protection.
+            // The `provisional` marker replaces that with a single statement. The delete matches only rows
+            // still marked provisional, and a batch that committed has already cleared the marker, so
+            // "another batch owns this now" is a *stored fact* rather than something observed and hoped to
+            // still hold.
             match repo
                 .release_trace_file_association(project_id, trace_id, hash)
                 .await
@@ -1321,17 +1427,57 @@ impl TracePipeline {
                     )
                 })
                 .collect();
+            let session_of: HashMap<(String, String), String> = db_spans
+                .iter()
+                .filter_map(|s| {
+                    let session = s.session_id.as_deref().filter(|v| !v.is_empty())?;
+                    Some((
+                        (
+                            s.project_id
+                                .as_deref()
+                                .unwrap_or(DEFAULT_PROJECT_ID)
+                                .to_string(),
+                            s.trace_id.clone(),
+                        ),
+                        session.to_string(),
+                    ))
+                })
+                .collect();
             let db_ok = write_to_duckdb(db_spans, &self.analytics).await;
             if !db_ok {
                 self.release_created_associations(&files.created_associations)
                     .await;
             }
             if db_ok {
-                self.collect_spans_written_for_deleted_traces(
-                    &written,
-                    &files.created_associations,
-                )
-                .await;
+                if let Err(e) = self
+                    .file_service
+                    .database()
+                    .repository()
+                    .confirm_trace_file_associations(&files.created_associations)
+                    .await
+                {
+                    tracing::warn!(
+                        error = %e,
+                        "Could not confirm this request's file associations; they stay provisional"
+                    );
+                }
+                self.tombstone_traces_of_deleted_sessions(&written, &session_of)
+                    .await;
+                let compensated = self
+                    .collect_spans_written_for_deleted_traces(&written, &files.created_associations)
+                    .await;
+                // Only spans that survived every drop and the compensation - see the batch path.
+                let surviving: HashSet<(&str, &str)> = written
+                    .iter()
+                    .map(|(_, trace, span)| (trace.as_str(), span.as_str()))
+                    .filter(|(trace, span)| {
+                        !compensated.contains(&((*trace).to_string(), (*span).to_string()))
+                    })
+                    .collect();
+                let sse_events: Vec<SseSpanEvent> = sse_events
+                    .into_iter()
+                    .filter(|e| surviving.contains(&(e.trace_id.as_str(), e.span_id.as_str())))
+                    .collect();
                 publish_sse_events(&sse_events, &self.topics).await;
                 if partly_dropped > 0 {
                     IngestOutcome::PartlyDropped {

@@ -350,6 +350,73 @@ pub async fn advance_pending_deletions(
         }
     }
 
+    // Spans written for a *session* that had already been deleted, and the traces they belong to.
+    //
+    // The trace sweep cannot cover this: a session's deletion resolved its traces at one instant, and a
+    // trace that arrived after has no trace tombstone. Same discipline - leased, backed off, batched -
+    // because the records are long-lived and what has to be bounded is the rate.
+    match repo
+        .claim_deleted_sessions_for_check(DELETED_TRACE_CHECK_LEASE_SECS, DELETED_TRACE_CHECK_BATCH)
+        .await
+    {
+        Ok(claimed) => {
+            for (project_id, session_id, claim_token) in claimed {
+                // Every trace of the session, resolved *now* rather than from the deletion's snapshot -
+                // that snapshot is exactly what a late trace escapes.
+                let trace_ids = analytics
+                    .repository()
+                    .get_trace_ids_for_sessions(&project_id, std::slice::from_ref(&session_id))
+                    .await;
+                let was_quiet = match trace_ids {
+                    Ok(ids) if ids.is_empty() => true,
+                    Ok(ids) => {
+                        tracing::warn!(
+                            project_id,
+                            session_id,
+                            traces = ids.len(),
+                            "Collected traces written for a session that had already been deleted"
+                        );
+                        // Tombstone them before deleting, so the trace protocol takes over from here -
+                        // including its own post-write compensation and its file reconciliation.
+                        let tombstoned = repo.record_deleted_traces(&project_id, &ids).await;
+                        if let Err(ref e) = tombstoned {
+                            tracing::warn!(project_id, session_id, error = %e, "Could not tombstone a late session's traces");
+                        }
+                        let deleted = analytics
+                            .repository()
+                            .delete_sessions(&project_id, std::slice::from_ref(&session_id))
+                            .await;
+                        if let Err(ref e) = deleted {
+                            tracing::warn!(project_id, session_id, error = %e, "Could not sweep a deleted session");
+                        }
+                        // Not quiet: something was found, so look again at the base interval. The trace
+                        // records now carry the file reconciliation, which is why this does not do it here.
+                        false
+                    }
+                    Err(e) => {
+                        tracing::warn!(project_id, session_id, error = %e, "Could not check a deleted session");
+                        false
+                    }
+                };
+                if let Err(e) = repo
+                    .record_deleted_session_check(
+                        &project_id,
+                        &session_id,
+                        claim_token,
+                        was_quiet,
+                        DELETED_TRACE_CHECK_BASE_SECS,
+                        DELETED_TRACE_CHECK_MAX_SECS,
+                    )
+                    .await
+                {
+                    tracing::warn!(project_id, session_id, error = %e, "Could not record a session check");
+                }
+                advanced += 1;
+            }
+        }
+        Err(e) => tracing::warn!(error = %e, "Could not claim deleted sessions for checking"),
+    }
+
     // Spans written for a trace that had already been deleted.
     //
     // The write path checks the tombstone immediately before writing and re-checks immediately after, so
@@ -376,27 +443,43 @@ pub async fn advance_pending_deletions(
                     .repository()
                     .get_spans_for_trace(&project_id, &trace_id)
                     .await;
-                // The trace's files, too. Repairing only the analytics store left a *permanent* leak:
-                // a crash after the analytics delete but before the association release, a release that
-                // failed, or a route cleanup that failed, all leave associations holding `ref_count` above
-                // zero - and the orphan sweeper selects on zero, so nothing reclaimed them while this sweep
-                // read the analytics store as quiet and backed off to the daily floor.
+                // The files, but **only** once the rows are provably gone.
                 //
-                // `cleanup_traces` is the same call the deletion route makes: it removes the associations,
-                // recomputes each file's count from what remains, and collects the files nothing references.
-                let files = file_service
-                    .cleanup_traces(&project_id, std::slice::from_ref(&trace_id))
-                    .await;
-                if let Err(ref e) = files {
-                    tracing::warn!(project_id, trace_id, error = %e, "Could not collect a deleted trace's files");
-                }
-
-                // "Quiet" requires *everything* to have come back clean: no error deleting, nothing still
-                // readable, and no error collecting files. Deciding it from the analytics store alone is
-                // what let a file leak sit behind a backed-off schedule.
-                let was_quiet = removed.is_ok()
-                    && files.is_ok()
+                // Two mistakes are possible here and they pull in opposite directions. Repairing only the
+                // analytics store leaves a permanent leak: a crash after the analytics delete but before
+                // the association release leaves `ref_count` above zero, which the orphan sweeper cannot
+                // select, while this sweep reads analytics as quiet and backs off to a daily floor. But
+                // collecting the files *regardless* is worse - a transient delete failure then leaves
+                // readable rows pointing at bytes this sweep has taken, which is the dangling reference the
+                // whole write-files-before-rows ordering exists to prevent.
+                //
+                // So: rows first, files only if the delete succeeded and a direct read confirms nothing
+                // remains. A scheduling change (`was_quiet`) cannot undo a destructive cleanup, so the
+                // condition has to gate the cleanup rather than merely record its outcome.
+                let rows_gone = removed.is_ok()
                     && matches!(still_there.as_ref().map(|spans| spans.is_empty()), Ok(true));
+                let files = if rows_gone {
+                    let outcome = file_service
+                        .cleanup_traces(&project_id, std::slice::from_ref(&trace_id))
+                        .await;
+                    if let Err(ref e) = outcome {
+                        tracing::warn!(project_id, trace_id, error = %e, "Could not collect a deleted trace's files");
+                    }
+                    outcome.is_ok()
+                } else {
+                    tracing::warn!(
+                        project_id,
+                        trace_id,
+                        "Rows for a deleted trace are still readable, so its files are left alone: \
+                         collecting them would leave a readable row pointing at bytes that are gone"
+                    );
+                    false
+                };
+
+                // "Quiet" requires *everything* to have come back clean: the rows gone and the files
+                // collected. Deciding it from the analytics store alone let a file leak sit behind a
+                // backed-off schedule.
+                let was_quiet = rows_gone && files;
                 if let Err(ref e) = removed {
                     tracing::warn!(project_id, trace_id, error = %e, "Could not sweep a deleted trace");
                 } else if !was_quiet {
