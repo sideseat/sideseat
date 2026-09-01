@@ -268,6 +268,11 @@ impl CoreApp {
                         cache: Arc::clone(&app.cache),
                         database: Arc::clone(&app.database),
                         api_key_secret: Arc::new(app.secrets.get_api_key_secret().await?),
+                        rate_limiter: app
+                            .config
+                            .rate_limit
+                            .per_ip
+                            .then(|| Arc::clone(&app.rate_limiter)),
                     })
                 } else {
                     None

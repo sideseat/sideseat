@@ -28,14 +28,25 @@ type McpService = StreamableHttpService<McpServer, LocalSessionManager>;
 struct McpRouterState {
     analytics: Arc<AnalyticsService>,
     ct: CancellationToken,
-    session_manager: Arc<LocalSessionManager>,
+    /// One session manager **per project**, which is what binds a session to the project it was authorised
+    /// for.
+    ///
+    /// A single shared manager was an authorisation bypass: authorisation checks the project in the *URL*,
+    /// but `rmcp` resolves an existing `Mcp-Session-Id` to its own worker without consulting the factory - so
+    /// initialising a session against project A and then replaying that id on an authorised project-B URL
+    /// served A's data after only proving access to B. Keyed per project, A's session id does not exist under
+    /// B: the request has to initialise a new session, which runs B's factory.
+    ///
+    /// Bounded by the number of projects that have ever opened an MCP session on this instance, which is the
+    /// same order as the sessions themselves.
+    session_managers: Arc<dashmap::DashMap<String, Arc<LocalSessionManager>>>,
 }
 
 pub fn routes(analytics: Arc<AnalyticsService>, ct: CancellationToken) -> Router<()> {
     let state = McpRouterState {
         analytics,
         ct,
-        session_manager: Arc::new(LocalSessionManager::default()),
+        session_managers: Arc::new(dashmap::DashMap::new()),
     };
 
     Router::new().fallback(mcp_proxy).with_state(state)
@@ -95,9 +106,15 @@ async fn mcp_proxy(
         .into_response();
     }
     let analytics = state.analytics.clone();
+    // The manager for *this* project only - see `session_managers`.
+    let session_manager = state
+        .session_managers
+        .entry(project_id.clone())
+        .or_insert_with(|| Arc::new(LocalSessionManager::default()))
+        .clone();
     let svc = McpService::new(
         move || Ok(McpServer::new(analytics.clone(), project_id.clone())),
-        state.session_manager.clone(),
+        session_manager,
         {
             // rmcp 3 marks the config #[non_exhaustive]. Its defaults matter here: Host
             // validation is restricted to loopback, which is the DNS-rebinding

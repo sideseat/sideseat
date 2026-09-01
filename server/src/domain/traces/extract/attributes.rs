@@ -1275,23 +1275,35 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     let flat_output = OUTPUT_TOKENS.extract_opt_for_span(attrs, span_name);
     span.gen_ai_usage_input_tokens = flat_input.unwrap_or(0);
     span.gen_ai_usage_output_tokens = flat_output.unwrap_or(0);
+    // Whether each counter has been *supplied* - by the flat attributes or by a fallback that already ran.
+    // Every fallback below reads and updates these rather than testing the stored value, for two reasons: a
+    // reported `0` is a supplied count and must not be replaced, and the fallbacks run in sequence, so
+    // testing the value let a later JSON source overwrite what an earlier one had legitimately provided.
+    let mut input_supplied = flat_input.is_some();
+    let mut output_supplied = flat_output.is_some();
 
-    // MLflow token usage from JSON blob (if not already extracted)
-    if span.gen_ai_usage_input_tokens == 0 || span.gen_ai_usage_output_tokens == 0 {
+    // MLflow token usage from JSON blob (only for a counter nothing has supplied yet)
+    if !input_supplied || !output_supplied {
         if let Some(usage) = extract_json::<JsonValue>(attrs, keys::MLFLOW_CHAT_TOKEN_USAGE) {
-            if span.gen_ai_usage_input_tokens == 0 {
-                span.gen_ai_usage_input_tokens = usage
+            if !input_supplied {
+                if let Some(v) = usage
                     .get("prompt_tokens")
                     .or_else(|| usage.get("input_tokens"))
                     .and_then(|v| v.as_i64())
-                    .unwrap_or(0);
+                {
+                    span.gen_ai_usage_input_tokens = v;
+                    input_supplied = true;
+                }
             }
-            if span.gen_ai_usage_output_tokens == 0 {
-                span.gen_ai_usage_output_tokens = usage
+            if !output_supplied {
+                if let Some(v) = usage
                     .get("completion_tokens")
                     .or_else(|| usage.get("output_tokens"))
                     .and_then(|v| v.as_i64())
-                    .unwrap_or(0);
+                {
+                    span.gen_ai_usage_output_tokens = v;
+                    output_supplied = true;
+                }
             }
         }
     }
@@ -1301,20 +1313,20 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     // Entered when *either* counter is missing, and each field is then filled independently. Requiring both
     // to be zero meant a span that reported only one flat counter - input 100, output absent - kept the other
     // at 0 even though `usage_metadata.candidates_token_count` had it, understating the total and the cost.
-    if flat_input.is_none() || flat_output.is_none() {
+    if !input_supplied || !output_supplied {
         if let Some(resp) = extract_json::<JsonValue>(attrs, keys::GCP_VERTEX_LLM_RESPONSE) {
             if let Some(usage) = resp.get("usage_metadata") {
-                if flat_input.is_none() {
-                    span.gen_ai_usage_input_tokens = usage
-                        .get("prompt_token_count")
-                        .and_then(|v| v.as_i64())
-                        .unwrap_or(0);
+                if !input_supplied {
+                    if let Some(v) = usage.get("prompt_token_count").and_then(|v| v.as_i64()) {
+                        span.gen_ai_usage_input_tokens = v;
+                        input_supplied = true;
+                    }
                 }
-                if flat_output.is_none() {
-                    span.gen_ai_usage_output_tokens = usage
-                        .get("candidates_token_count")
-                        .and_then(|v| v.as_i64())
-                        .unwrap_or(0);
+                if !output_supplied {
+                    if let Some(v) = usage.get("candidates_token_count").and_then(|v| v.as_i64()) {
+                        span.gen_ai_usage_output_tokens = v;
+                        output_supplied = true;
+                    }
                 }
             }
         }
@@ -1325,25 +1337,42 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     // OpenAI: {prompt_tokens, completion_tokens}
     // Same rule as the ADK block: either counter missing enters, and each is filled on its own, so a span
     // reporting only one flat counter still gets the other from the JSON.
-    if flat_input.is_none() || flat_output.is_none() {
+    if !input_supplied || !output_supplied {
         if let Some(resp) = extract_json::<JsonValue>(attrs, keys::RESPONSE_DATA) {
             if let Some(usage) = resp.get("usage") {
-                if flat_input.is_none() {
-                    span.gen_ai_usage_input_tokens = usage
+                if !input_supplied {
+                    if let Some(v) = usage
                         .get("input_tokens")
                         .or_else(|| usage.get("prompt_tokens"))
                         .and_then(|v| v.as_i64())
-                        .unwrap_or(0);
+                    {
+                        span.gen_ai_usage_input_tokens = v;
+                        input_supplied = true;
+                    }
                 }
-                if flat_output.is_none() {
-                    span.gen_ai_usage_output_tokens = usage
+                if !output_supplied {
+                    if let Some(v) = usage
                         .get("output_tokens")
                         .or_else(|| usage.get("completion_tokens"))
                         .and_then(|v| v.as_i64())
-                        .unwrap_or(0);
+                    {
+                        span.gen_ai_usage_output_tokens = v;
+                        output_supplied = true;
+                    }
                 }
             }
         }
+    }
+
+    // Read after the last source, which is also what keeps every source maintaining the tracker: a chain
+    // whose final link need not update it is a chain the next link will not either. A generation span with no
+    // counter at all is worth seeing - it bills as free, and the usual cause is an instrumentation version
+    // that moved its attribute names.
+    if !input_supplied && !output_supplied {
+        tracing::trace!(
+            span_name,
+            "No token counters were supplied by any source; this span bills as free"
+        );
     }
 
     span.gen_ai_usage_total_tokens = TOTAL_TOKENS

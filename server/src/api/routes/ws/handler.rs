@@ -68,7 +68,9 @@ pub async fn ws_upgrade(
     // otherwise a perfectly good key, and this endpoint *registers* an agent under the project, so an outsider could take over a name its owner holds. `--no-auth` yields `LocalDefault`, admitted.
     if let (Some(axum::Extension(auth)), Some(axum::Extension(service))) = (auth, auth_service) {
         if service
-            .verify_project_access(&auth, &project_id, crate::data::types::ApiKeyScope::Read)
+            // `Write`, not `Read`: this socket *registers* an agent under the project, which replaces whatever
+            // registration held that name. A query-only key must not be able to change what another SDK owns.
+            .verify_project_access(&auth, &project_id, crate::data::types::ApiKeyScope::Write)
             .await
             .is_err()
         {

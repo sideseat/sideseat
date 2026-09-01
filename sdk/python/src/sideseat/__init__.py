@@ -198,6 +198,11 @@ class SideSeat:
             self._runtime = RuntimeClient(
                 endpoint=self._config.endpoint,
                 project_id=self._config.project_id,
+                # Passed through: the runtime channel is authenticated whenever
+                # the server has auth on, so dropping the key here made
+                # `SideSeat(api_key=...).register(...).connect()` reconnect-loop
+                # on 401 against a correctly-configured server.
+                api_key=self._config.api_key,
             )
         return self._runtime
 
