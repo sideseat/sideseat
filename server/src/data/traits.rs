@@ -441,6 +441,34 @@ pub trait TransactionalRepository: Send + Sync {
     /// are unreachable through every read path, so accepting them stores data nothing can ever show.
     async fn project_accepts_writes(&self, id: &str) -> Result<bool, DataError>;
 
+    /// Record that these traces were deleted, so a late ingest cannot resurrect them.
+    ///
+    /// The trace deletion route removes the analytics rows and then reclaims the file bytes those rows
+    /// referenced. An ingest already in flight for one of those traces commits *afterwards* - the file
+    /// association and bytes were written before the analytics row, which is deliberate - and the
+    /// result is a span row carrying a `#!B64!#` reference to content the deletion has taken, for a
+    /// trace the caller was told 204 for. No elapsed time bounds that: a queued batch can be
+    /// redelivered minutes later.
+    ///
+    /// So the deletion leaves a tombstone and the write path consults it. Written in the same request
+    /// as the deletion, before the analytics delete, so no window exists where a trace is deleted and
+    /// not yet tombstoned.
+    async fn record_deleted_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<(), DataError>;
+
+    /// Which of these traces are tombstoned, so their spans must not be written.
+    ///
+    /// Returns the subset that has been deleted. One query per batch rather than per span: a batch
+    /// commonly carries a handful of traces, and this sits directly on the ingestion hot path.
+    async fn deleted_traces_among(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<std::collections::HashSet<String>, DataError>;
+
     /// Projects claimed for deletion longer ago than `older_than_secs`, so a cleanup that died part
     /// way through can be resumed.
     async fn get_stale_claimed_projects(

@@ -67,6 +67,7 @@ const URL_ENV: &str = "SIDESEAT_TEST_POSTGRES_URL";
 /// The seeded `default` org, user and project are restored afterwards, because most of the API
 /// assumes they exist and the goldens' project id is `default`.
 const DATA_TABLES: &[&str] = &[
+    "deleted_traces",
     "credential_project_permissions",
     "credentials",
     "api_keys",
@@ -136,7 +137,9 @@ async fn pair() -> Option<(Arc<SqliteService>, Arc<PostgresService>)> {
         .connect(":memory:")
         .await
         .expect("in-memory SQLite");
-    sqlx::query(crate::data::sqlite::schema::SCHEMA)
+    // `raw_sql`, not `query`: the schema is a multi-statement script, and `query` prepares a single
+    // statement - so it stops at the first `;`, including one inside a `--` comment.
+    sqlx::raw_sql(crate::data::sqlite::schema::SCHEMA)
         .execute(&sqlite_pool)
         .await
         .expect("SQLite schema");
@@ -1004,4 +1007,70 @@ async fn only_one_concurrent_project_claim_wins() {
         winners, 1,
         "exactly one caller must own the deletion; {winners} did"
     );
+}
+
+/// A deleted trace stays deleted, even against an ingest that commits afterwards.
+///
+/// The race the tombstone closes: files and their associations are written *before* the analytics row
+/// that references them, so a batch in flight when `delete_traces` runs commits after the deletion has
+/// reclaimed the bytes - producing a span with a `#!B64!#` reference to nothing, for a trace the caller
+/// was already told 204 for. Nothing bounds how late that commit is; a queued batch can be redelivered
+/// minutes later.
+///
+/// Compared as a transcript because the two implementations are hand-written in different dialects (a
+/// per-row loop against `UNNEST`, `IN (?, ?)` against `= ANY($2)`), and a disagreement here is either a
+/// deleted trace resurrected on one backend or a live one dropped on the other.
+#[tokio::test]
+async fn trace_deletion_tombstones_behave_identically() {
+    assert_parity("deleted_traces", |repo, mut t| async move {
+        let asked = vec!["trace-a".to_string(), "trace-b".to_string()];
+        // Sorted, because the answer is a set and the two dialects return rows in their own order.
+        let show =
+            |t: &mut Transcript,
+             what: &str,
+             found: Result<std::collections::HashSet<String>, crate::data::DataError>| {
+                match found {
+                    Ok(set) => {
+                        let mut ids: Vec<String> = set.into_iter().collect();
+                        ids.sort();
+                        t.note(&format!("{what}={ids:?}"));
+                    }
+                    Err(e) => t.note(&format!("{what}=error({e})")),
+                }
+            };
+
+        // Nothing deleted yet.
+        let found = repo.deleted_traces_among("p1", &asked).await;
+        show(&mut t, "empty", found);
+
+        // One deleted, and only that one refused.
+        let recorded = repo
+            .record_deleted_traces("p1", &["trace-a".to_string()])
+            .await;
+        t.note(&format!("record a ok={}", recorded.is_ok()));
+        let found = repo.deleted_traces_among("p1", &asked).await;
+        show(&mut t, "after a", found);
+
+        // The deletion route may be retried, so re-recording must not conflict.
+        let again = repo
+            .record_deleted_traces("p1", &["trace-a".to_string()])
+            .await;
+        t.note(&format!("record a again ok={}", again.is_ok()));
+        let found = repo.deleted_traces_among("p1", &asked).await;
+        show(&mut t, "after retry", found);
+
+        // A trace id comes from the client, so the same id in another project is untouched.
+        let found = repo.deleted_traces_among("p2", &asked).await;
+        show(&mut t, "other project", found);
+
+        // A batch of several, and an empty ask.
+        let both = repo.record_deleted_traces("p1", &asked).await;
+        t.note(&format!("record both ok={}", both.is_ok()));
+        let found = repo.deleted_traces_among("p1", &asked).await;
+        show(&mut t, "after both", found);
+        let found = repo.deleted_traces_among("p1", &[]).await;
+        show(&mut t, "empty ask", found);
+        t
+    })
+    .await;
 }

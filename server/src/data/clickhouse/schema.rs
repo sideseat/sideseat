@@ -14,7 +14,7 @@
 use crate::core::config::ClickhouseConfig;
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 3;
+pub const SCHEMA_VERSION: i32 = 2;
 
 /// The oldest schema version this build can migrate *from*.
 ///
@@ -56,40 +56,15 @@ pub struct Migration {
     pub distributed_statements: &'static [&'static str],
 }
 
-/// A datapoint's identity joins the metrics sorting key, so distinct series stop being deleted.
+/// No entries: the ClickHouse backend was introduced at v2 and nothing above it has been released, so
+/// there is no database to migrate from. The `datapoint_id` sorting-key widening that briefly lived here
+/// as a v3 migration is part of the initial schema instead - see `domain::metrics::identity` for what it
+/// is and `otel_metrics_*_table` for where it sits in the key.
 ///
-/// `otel_metrics` is a `ReplacingMergeTree` sorted by
-/// `(project_id, metric_name, toDate(timestamp), timestamp)`, and a replacing engine treats rows with an
-/// equal sorting key as versions of one row. Attributes were not in that key, so
-/// `requests{status=200}` and `requests{status=500}` from one export - the ordinary shape of a labelled
-/// metric, not an edge case - collapsed into a single row at the next merge, after the ingest had
-/// returned 200. Appending `datapoint_id` (see `domain::metrics::identity`) makes the key describe the
-/// series, so only a genuine re-delivery replaces anything.
-///
-/// Metadata-only: no part is rewritten, no row is lost, and the sorting key's original prefix stays the
-/// primary key. Rows written before this point keep the column's default `''`, which is honest - their
-/// identity was never recorded and a value invented in SQL would not match the one Rust computes - so
-/// they retain the old collapse among themselves and age out with the 90-day retention. Datapoints
-/// already merged away before the upgrade are gone; nothing can recover them.
-const METRIC_DATAPOINT_IDENTITY: Migration = Migration {
-    version: 3,
-    name: "metric_datapoint_identity",
-    // `sorting_key` is the *declared* key. When it already names the column the ALTER below has run,
-    // and re-running it would fail rather than do nothing.
-    precondition: Some(
-        "SELECT 1 FROM system.tables WHERE database = currentDatabase() \
-         AND name = 'otel_metrics{local}' AND position(sorting_key, 'datapoint_id') = 0",
-    ),
-    statements: &[
-        "ALTER TABLE otel_metrics{local}{on_cluster} ADD COLUMN datapoint_id String, \
-         MODIFY ORDER BY (project_id, metric_name, toDate(timestamp), timestamp, datapoint_id)",
-    ],
-    distributed_statements: &[
-        "ALTER TABLE otel_metrics{on_cluster} ADD COLUMN IF NOT EXISTS datapoint_id String",
-    ],
-};
-
-pub const MIGRATIONS: &[Migration] = &[METRIC_DATAPOINT_IDENTITY];
+/// The struct keeps its `precondition` and `distributed_statements` fields because both encode a real
+/// hazard rather than a convenience: a `MODIFY ORDER BY` is not idempotent, and a `Distributed` front end
+/// does not follow the local table's structure. Whoever adds the first entry needs both.
+pub const MIGRATIONS: &[Migration] = &[];
 
 /// Validate and return a cluster name safe for SQL interpolation.
 ///

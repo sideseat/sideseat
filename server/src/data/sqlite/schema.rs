@@ -3,7 +3,7 @@
 //! Initial schema with all tables. No migrations needed for first version.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 14;
+pub const SCHEMA_VERSION: i32 = 2;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -187,7 +187,25 @@ CREATE INDEX IF NOT EXISTS idx_files_ref_zero ON files(project_id) WHERE ref_cou
 CREATE INDEX IF NOT EXISTS idx_files_created ON files(project_id, created_at);
 
 -- =============================================================================
--- 7. Trace Files junction table
+-- 7. Trace deletion tombstones
+-- =============================================================================
+--
+-- A trace deletion has to close a race the file fence alone cannot: an ingest of trace X can be in
+-- flight while `delete_traces` runs, and its analytics row commits *after* the delete removed the
+-- file association and reclaimed the bytes - leaving a dangling `#!B64!#` reference the delete
+-- already returned 204 for. Ingest consults the tombstone immediately before its analytics write, and
+-- drops the spans of any trace named here, so a queued redelivery collapses to a no-op rather than
+-- resurrecting the deleted trace.
+CREATE TABLE IF NOT EXISTS deleted_traces (
+    project_id  TEXT    NOT NULL,
+    trace_id    TEXT    NOT NULL,
+    deleted_at  INTEGER NOT NULL,
+    PRIMARY KEY (project_id, trace_id)
+);
+CREATE INDEX IF NOT EXISTS idx_deleted_traces_at ON deleted_traces(deleted_at);
+
+-- =============================================================================
+-- 8. Trace Files junction table
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS trace_files (
     trace_id TEXT NOT NULL,
