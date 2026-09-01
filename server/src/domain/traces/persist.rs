@@ -458,6 +458,7 @@ pub(super) type IncomingReference = (String, String, String);
 pub(super) async fn reconcile_incoming_references(
     incoming: &[IncomingReference],
     file_service: &Arc<FileService>,
+    already_associated: &[(String, String, String)],
 ) -> (Vec<(String, String)>, usize, Vec<(String, String, String)>) {
     let mut unbacked = Vec::new();
     let mut failed = 0usize;
@@ -478,8 +479,19 @@ pub(super) async fn reconcile_incoming_references(
     // twice), while PostgreSQL's `UNNEST` `IN` touches the row once (decrementing once), drifting the
     // counter apart. Associating once per tuple keeps increment and resolution matched, and is the correct
     // model regardless: one batch is one referencing writer.
+    // Seeded with the associations the *file-write* path already made this batch, so a reference naming
+    // content this batch just stored does not increment `pending_writers` a second time.
+    //
+    // `prepare_batch` exempts an incoming reference only when the whole URI matches one it generated -
+    // correct for the unbacked-rewrite it also has to do - so a URI carrying the same hash under a different
+    // media type (`image/jpeg::H` beside our `image/png::H`) still arrives here. Associating it again made
+    // two increments for one `(project, trace, hash)`, while the batch resolves each association once: the
+    // surplus increment was never decremented, so the row stayed non-durable at `pending_writers = 1` and
+    // held the file's quota permanently. Deduping the merged list afterwards did not fix that - it removed
+    // the second *resolution*, not the second increment. One batch is one referencing writer, enforced where
+    // the increment happens.
     let mut associated: std::collections::HashSet<(String, String, String)> =
-        std::collections::HashSet::new();
+        already_associated.iter().cloned().collect();
 
     for (project_id, trace_id, uri) in incoming {
         let Some(parsed) = crate::utils::file_uri::parse_file_uri(uri) else {
