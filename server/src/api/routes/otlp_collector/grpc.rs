@@ -77,6 +77,8 @@ pub struct GrpcIngestAuth {
     /// counted and eventually answered 429, while unlimited gRPC attempts kept reaching key validation. The
     /// bound on guessing has to be the same on both, or the weaker one is the only one that matters.
     pub rate_limiter: Option<Arc<crate::data::cache::RateLimiter>>,
+    /// Whose forwarded-for metadata may be believed - shared with the HTTP transport.
+    pub trusted_proxies: Arc<crate::utils::client_ip::TrustedProxies>,
 }
 
 impl GrpcIngestAuth {
@@ -86,32 +88,22 @@ impl GrpcIngestAuth {
     /// drift apart on what a key is allowed to do. The project id comes from the metadata the call also uses
     /// to route its data, so a key valid for another organisation's project cannot write here.
     async fn authorize<T>(&self, request: &Request<T>, project_id: &str) -> Result<(), Status> {
-        // Per *client*, and in a bucket of its own.
+        // The same attribution the HTTP transport uses, through the same helper - see
+        // `utils::client_ip` for why a forwarded address is believed only from a configured trusted proxy,
+        // and why both alternatives (peer-only, or unconditional trust) are wrong.
         //
-        // Keying on the TCP peer alone was worse than no limiting: behind a proxy the peer *is* the proxy, so
-        // a few dozen invalid keys from one attacker blocked every valid exporter sharing that hop - an
-        // unauthenticated denial of service, where the limiter is only defence in depth (the real protection
-        // is key entropy). A forwarded address is used when the proxy supplies one, exactly as the HTTP path
-        // does, so the bucket is per client; a direct connection keys on its own peer.
-        //
-        // The `grpc:` prefix keeps these buckets disjoint from HTTP's. Shared, an attacker could set any
-        // `X-Forwarded-For` on an HTTP request - which that path trusts by documented design - and exhaust
-        // the bucket belonging to a gRPC peer they cannot otherwise reach.
-        //
-        // Residual, stated: a proxy that forwards no client address leaves this per-hop. That is the same
-        // limitation the HTTP path has when a proxy strips `X-Forwarded-For`, and the remedy is the same -
-        // deploy behind a proxy that sets it.
-        let client_ip = request
-            .metadata()
-            .get("x-forwarded-for")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.split(',').next())
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .or_else(|| request.remote_addr().map(|a| a.ip().to_string()))
-            .map(|ip| format!("grpc:{ip}"));
+        // The bucket name differs (`grpc_auth_fail`), so the two transports cannot exhaust each other's
+        // counters: sharing one namespace let a spoofable value on either side reach a peer on the other.
+        let client_ip = crate::utils::client_ip::attributable_ip(
+            request.remote_addr().map(|a| a.ip()),
+            request
+                .metadata()
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok()),
+            &self.trusted_proxies,
+        );
         if let (Some(limiter), Some(ip)) = (&self.rate_limiter, &client_ip) {
-            let bucket = crate::data::cache::RateLimitBucket::auth_failures(
+            let bucket = crate::data::cache::RateLimitBucket::grpc_auth_failures(
                 crate::core::constants::DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
             );
             if limiter.is_blocked(&bucket, ip).await {
@@ -150,7 +142,7 @@ impl GrpcIngestAuth {
             )
             && let (Some(limiter), Some(ip)) = (&self.rate_limiter, &client_ip)
         {
-            let bucket = crate::data::cache::RateLimitBucket::auth_failures(
+            let bucket = crate::data::cache::RateLimitBucket::grpc_auth_failures(
                 crate::core::constants::DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
             );
             let _ = limiter.check(&bucket, ip).await;

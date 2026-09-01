@@ -105,6 +105,10 @@ is the default. Against a default server, register with a key
 (`SIDESEAT_API_KEY` in `misc/.env`, and `-H "Authorization: Bearer $SIDESEAT_API_KEY"`
 on the curl above); against `make dev-server ARGS="--no-auth"` neither is needed.
 
+Runs *without* `--sideseat` use the framework's own exporter, which does not read
+`SIDESEAT_API_KEY` - set `OTEL_EXPORTER_OTLP_HEADERS` for those if the server has
+`otel.auth.required` on. See `misc/.env.example`.
+
 ```bash
 uv run strands strands_ws --sideseat
 ```

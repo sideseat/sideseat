@@ -325,6 +325,8 @@ pub struct RateLimitFileConfig {
     pub auth_rpm: Option<u32>,
     pub files_rpm: Option<u32>,
     pub bypass_header: Option<String>,
+    /// See `RateLimitConfig::trusted_proxies`.
+    pub trusted_proxies: Option<Vec<String>>,
 }
 
 /// PostgreSQL configuration section (from JSON config file)
@@ -628,6 +630,13 @@ impl FileConfig {
             if rate_limit.bypass_header.is_some() {
                 tracing::trace!(bypass_header = "***", "Merging rate_limit.bypass_header");
                 current.bypass_header = rate_limit.bypass_header;
+            }
+            if rate_limit.trusted_proxies.is_some() {
+                tracing::trace!(
+                    trusted_proxies = ?rate_limit.trusted_proxies,
+                    "Merging rate_limit.trusted_proxies"
+                );
+                current.trusted_proxies = rate_limit.trusted_proxies;
             }
         }
 
@@ -967,6 +976,15 @@ pub struct RateLimitConfig {
     pub auth_rpm: u32,
     pub files_rpm: u32,
     pub bypass_header: Option<String>,
+    /// Addresses or CIDR blocks whose forwarded-for header may be believed.
+    ///
+    /// Empty by default, which means only the immediate peer is ever attributed. That is what makes an
+    /// IP-keyed limiter safe in both deployments, and neither alternative is: trusting a forwarded header
+    /// unconditionally lets a direct attacker rotate it and never exhaust a bucket, while attributing
+    /// everything to the peer lets one attacker behind a proxy exhaust the bucket every other client shares -
+    /// an unauthenticated denial of service. Whether the header can be believed is a property of the
+    /// deployment, so only the deployment can say. See `utils::client_ip`.
+    pub trusted_proxies: Vec<String>,
 }
 
 /// PostgreSQL configuration (final/runtime)
@@ -1357,6 +1375,7 @@ impl AppConfig {
             auth_rpm: rate_limit_auth_rpm,
             files_rpm: rate_limit_files_rpm,
             bypass_header: rate_limit_bypass_header,
+            trusted_proxies: file_rate_limit.trusted_proxies.clone().unwrap_or_default(),
         };
 
         // database config: file config with env var overrides for sensitive values

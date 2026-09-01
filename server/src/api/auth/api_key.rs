@@ -201,6 +201,8 @@ pub struct OtelAuthState {
     pub api_key_secret: Vec<u8>,
     pub otel_auth_required: bool,
     pub rate_limiter: Option<Arc<RateLimiter>>,
+    /// Whose forwarded-for header may be believed - see `utils::client_ip`.
+    pub trusted_proxies: Arc<crate::utils::client_ip::TrustedProxies>,
 }
 
 /// OTEL ingestion auth middleware
@@ -221,7 +223,7 @@ pub async fn otel_auth_middleware(
     }
 
     // Get client IP for rate limiting (prefer X-Forwarded-For for proxied requests)
-    let client_ip = get_client_ip(&request, addr);
+    let client_ip = get_client_ip(&request, addr, &state.trusted_proxies);
 
     // Check if IP is rate limited due to too many auth failures (without incrementing)
     if let (Some(limiter), Some(ip)) = (&state.rate_limiter, &client_ip) {
@@ -272,28 +274,25 @@ pub async fn otel_auth_middleware(
     Ok(next.run(request).await)
 }
 
-/// Extract client IP from request headers or connection info
+/// Extract the client IP to attribute an auth failure to.
 ///
-/// # Security Note
-///
-/// This function trusts the X-Forwarded-For header, which can be spoofed by
-/// malicious clients if the server is directly exposed to the internet.
-/// This is acceptable here because:
-/// 1. This IP is only used for auth failure rate limiting (defense-in-depth)
-/// 2. The primary protection is API key entropy (2^259 bits)
-/// 3. Typical deployments are behind a trusted reverse proxy that overwrites XFF
-///
-/// For stricter rate limiting, deploy behind a reverse proxy that sets
-/// X-Forwarded-For correctly and strips client-provided values.
-fn get_client_ip(request: &Request, addr: SocketAddr) -> Option<String> {
-    // Prefer X-Forwarded-For for proxied requests (first IP only)
-    request
-        .headers()
-        .get("X-Forwarded-For")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .map(|s| s.trim().to_string())
-        .or_else(|| Some(addr.ip().to_string()))
+/// Delegates to [`crate::utils::client_ip::attributable_ip`], which is shared with the gRPC transport - the
+/// two must agree, or the weaker one is the only one that matters. It believes `X-Forwarded-For` only when the
+/// immediate peer is a configured trusted proxy; with none configured (the default) the peer is used. See that
+/// module for why unconditional trust and peer-only attribution are both wrong.
+fn get_client_ip(
+    request: &Request,
+    addr: SocketAddr,
+    trusted: &crate::utils::client_ip::TrustedProxies,
+) -> Option<String> {
+    crate::utils::client_ip::attributable_ip(
+        Some(addr.ip()),
+        request
+            .headers()
+            .get("X-Forwarded-For")
+            .and_then(|v| v.to_str().ok()),
+        trusted,
+    )
 }
 
 #[cfg(test)]
@@ -388,50 +387,79 @@ mod tests {
         ));
     }
 
+    fn trusted(entries: &[&str]) -> crate::utils::client_ip::TrustedProxies {
+        crate::utils::client_ip::TrustedProxies::parse(
+            &entries.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+        )
+    }
+
+    fn request_with_xff(value: Option<&str>) -> HttpRequest<Body> {
+        let builder = HttpRequest::builder().uri("/test");
+        match value {
+            Some(v) => builder.header("X-Forwarded-For", v),
+            None => builder,
+        }
+        .body(Body::empty())
+        .unwrap()
+    }
+
     #[test]
     fn test_get_client_ip_from_socket() {
-        let request = HttpRequest::builder()
-            .uri("/test")
-            .body(Body::empty())
-            .unwrap();
+        let request = request_with_xff(None);
         let addr: SocketAddr = "192.168.1.1:8080".parse().unwrap();
-        let ip = get_client_ip(&request, addr);
+        let ip = get_client_ip(&request, addr, &trusted(&[]));
         assert_eq!(ip, Some("192.168.1.1".to_string()));
     }
 
+    /// With no trusted proxy configured, a forwarded header is **ignored**.
+    ///
+    /// It used to be believed unconditionally, which let a direct attacker set a fresh value per request and
+    /// never exhaust a bucket - so the limiter did nothing at all. Nobody vouched for this header.
     #[test]
-    fn test_get_client_ip_from_xff_header() {
-        let request = HttpRequest::builder()
-            .uri("/test")
-            .header("X-Forwarded-For", "10.0.0.1")
-            .body(Body::empty())
-            .unwrap();
+    fn an_unvouched_xff_header_is_ignored() {
+        let request = request_with_xff(Some("10.0.0.1"));
         let addr: SocketAddr = "192.168.1.1:8080".parse().unwrap();
-        let ip = get_client_ip(&request, addr);
-        assert_eq!(ip, Some("10.0.0.1".to_string()));
+        assert_eq!(
+            get_client_ip(&request, addr, &trusted(&[])),
+            Some("192.168.1.1".to_string()),
+        );
+    }
+
+    /// From a trusted proxy the header names the client, so each client gets its own bucket.
+    ///
+    /// Attributing everything to the peer instead let one attacker behind a proxy exhaust the bucket every
+    /// other client shared - an unauthenticated denial of service.
+    #[test]
+    fn a_trusted_proxy_xff_names_the_client() {
+        let request = request_with_xff(Some("10.0.0.1"));
+        let addr: SocketAddr = "192.168.1.1:8080".parse().unwrap();
+        assert_eq!(
+            get_client_ip(&request, addr, &trusted(&["192.168.1.1"])),
+            Some("10.0.0.1".to_string()),
+        );
+    }
+
+    /// The **rightmost untrusted** hop wins, not the leftmost.
+    ///
+    /// The leftmost is whatever the client itself put there, so choosing it let a client impersonate any
+    /// address - including another client's, to exhaust their bucket.
+    #[test]
+    fn the_rightmost_untrusted_hop_wins() {
+        let request = request_with_xff(Some("1.1.1.1, 10.0.0.2, 192.168.1.9"));
+        let addr: SocketAddr = "192.168.1.1:8080".parse().unwrap();
+        assert_eq!(
+            get_client_ip(&request, addr, &trusted(&["192.168.1.0/24"])),
+            Some("10.0.0.2".to_string()),
+        );
     }
 
     #[test]
-    fn test_get_client_ip_from_xff_multiple() {
-        let request = HttpRequest::builder()
-            .uri("/test")
-            .header("X-Forwarded-For", "10.0.0.1, 10.0.0.2, 10.0.0.3")
-            .body(Body::empty())
-            .unwrap();
+    fn xff_whitespace_is_tolerated() {
+        let request = request_with_xff(Some("  10.0.0.1  "));
         let addr: SocketAddr = "192.168.1.1:8080".parse().unwrap();
-        let ip = get_client_ip(&request, addr);
-        assert_eq!(ip, Some("10.0.0.1".to_string()));
-    }
-
-    #[test]
-    fn test_get_client_ip_xff_with_whitespace() {
-        let request = HttpRequest::builder()
-            .uri("/test")
-            .header("X-Forwarded-For", "  10.0.0.1  , 10.0.0.2")
-            .body(Body::empty())
-            .unwrap();
-        let addr: SocketAddr = "192.168.1.1:8080".parse().unwrap();
-        let ip = get_client_ip(&request, addr);
-        assert_eq!(ip, Some("10.0.0.1".to_string()));
+        assert_eq!(
+            get_client_ip(&request, addr, &trusted(&["192.168.1.1"])),
+            Some("10.0.0.1".to_string()),
+        );
     }
 }

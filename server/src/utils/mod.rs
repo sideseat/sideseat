@@ -2,6 +2,7 @@
 
 pub mod api_key;
 pub mod clickhouse;
+pub mod client_ip;
 pub mod crypto;
 pub mod debug;
 pub mod file;

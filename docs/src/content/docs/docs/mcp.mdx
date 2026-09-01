@@ -101,7 +101,16 @@ http://localhost:5388/api/v1/projects/{project_id}/mcp
 ```
 
 <Aside type="note">
-No authentication is required. SideSeat binds to `127.0.0.1` by default, so only local tools can connect.
+Authentication follows the server's own setting. A server started with `--no-auth` needs no credential, and
+SideSeat binds to `127.0.0.1` by default so only local tools can reach it. A server with auth enabled — which
+is the default — requires an API key on MCP as on any other read of project data, since this endpoint serves
+prompts, spans and raw attributes for the project in the URL:
+
+```
+Authorization: Bearer <api-key>
+```
+
+The key must belong to the organisation that owns that project; one from another organisation is refused.
 </Aside>
 
 ## Available Tools
