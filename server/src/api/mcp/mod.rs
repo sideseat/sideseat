@@ -55,6 +55,45 @@ async fn mcp_proxy(
     req: axum::extract::Request,
 ) -> Response {
     let project_id = extract_project_id(uri.path());
+
+    // The project comes from the URL, so it must be checked against who is asking.
+    //
+    // This endpoint was mounted with no auth at all while `auth.enabled` defaults to *true*, and it exposes
+    // spans, prompts, raw attributes, sessions and statistics for whatever project the path names - so any
+    // caller who could reach it could read another organisation's conversations. `require_auth` (layered in
+    // `server.rs`) now rejects an unauthenticated request whenever auth is on and injects the context;
+    // `verify_project_access` is what turns a *valid* credential into a valid credential **for this
+    // project**, since a key belonging to another organisation is otherwise perfectly valid.
+    //
+    // With `--no-auth` the injected context is `LocalDefault`, which `verify_project_access` admits - so the
+    // documented development flow is unchanged.
+    if let (Some(auth), Some(service)) = (
+        req.extensions()
+            .get::<crate::api::auth::AuthContext>()
+            .cloned(),
+        req.extensions()
+            .get::<Arc<crate::api::auth::AuthService>>()
+            .cloned(),
+    ) {
+        if let Err(e) = service
+            .verify_project_access(&auth, &project_id, crate::data::types::ApiKeyScope::Read)
+            .await
+        {
+            return e.into_response();
+        }
+    } else {
+        // No context means the auth layer did not run, which must never be a way in.
+        tracing::error!(
+            project_id,
+            "An MCP request arrived with no authentication context; refusing it. The auth layer is missing \
+             from the MCP routes."
+        );
+        return crate::api::types::ApiError::forbidden(
+            "AUTH_CONTEXT_MISSING",
+            "authentication context missing",
+        )
+        .into_response();
+    }
     let analytics = state.analytics.clone();
     let svc = McpService::new(
         move || Ok(McpServer::new(analytics.clone(), project_id.clone())),
