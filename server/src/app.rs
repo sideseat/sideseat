@@ -274,6 +274,9 @@ impl CoreApp {
                         rate_limiter: (app.config.rate_limit.enabled
                             && app.config.rate_limit.per_ip)
                             .then(|| Arc::clone(&app.rate_limiter)),
+                        trusted_proxies: Arc::new(crate::utils::client_ip::TrustedProxies::parse(
+                            &app.config.rate_limit.trusted_proxies,
+                        )),
                     })
                 } else {
                     None

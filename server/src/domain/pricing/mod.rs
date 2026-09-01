@@ -273,6 +273,20 @@ impl PricingData {
             .map(map_system_to_litellm_provider)
             .filter(|p| !p.is_empty());
 
+        // Strategy 0: the provider-qualified key, *before* the generic one.
+        //
+        // The generic exact match used to win, so `system=azure, model=gpt-4o-mini` was priced at OpenAI's
+        // rates rather than Azure's - understating that call by ~9%, silently, for every Azure deployment.
+        // A provider-qualified entry is the more specific fact about the same model: when the catalogue
+        // carries `azure/gpt-4o-mini` *and* `gpt-4o-mini`, the caller told us which one it used, and ignoring
+        // that in favour of the shorter key discards the only distinguishing information available.
+        if let Some(provider) = provider {
+            let prefixed = format!("{}/{}", provider, model_lower);
+            if let Some(pricing) = self.models.get(&prefixed) {
+                return Some((pricing, MatchType::ProviderPrefix));
+            }
+        }
+
         // Strategy 1: Exact match (most common case)
         if let Some(pricing) = self.models.get(&model_lower) {
             return Some((pricing, MatchType::Exact));
@@ -863,14 +877,20 @@ impl PricingService {
     }
 
     /// Count models in embedded data
+    /// The embedded catalogue's model count, measured **the same way** the local one is.
+    ///
+    /// Counting raw JSON keys and comparing that against `PricingData::model_count` - which counts only the
+    /// entries that actually carry token prices - compared two different quantities: 3,407 keys against 2,710
+    /// priced models for the very same file. So a *newer* synced catalogue was judged smaller than the
+    /// embedded one and overwritten on every restart, and the sync was effectively dead. Parsing it through
+    /// the same path is the only way the numbers mean the same thing.
     fn count_embedded_models() -> usize {
-        match serde_json::from_str::<serde_json::Value>(EMBEDDED_PRICING_JSON) {
-            Ok(serde_json::Value::Object(map)) => {
-                map.keys().filter(|k| *k != "sample_spec").count()
-            }
-            _ => {
-                tracing::warn!("Failed to count embedded models, using fallback");
-                1000
+        match PricingData::from_json_str(EMBEDDED_PRICING_JSON) {
+            Ok(data) => data.model_count,
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to count embedded models, keeping the local catalogue");
+                // Zero, so an unparseable *embedded* catalogue never displaces a local one that did parse.
+                0
             }
         }
     }
@@ -943,14 +963,54 @@ impl PricingService {
         let cache_write_tokens = input.cache_write_tokens.max(0) as f64;
         let reasoning_tokens = input.reasoning_tokens.max(0) as f64;
 
+        // Whether the provider's cache and reasoning counters are *subsets* of the input and output totals.
+        //
+        // This decides the bill, and the two conventions are irreconcilable:
+        //
+        //   * OpenAI (and every OpenAI-compatible endpoint) reports `prompt_tokens_details.cached_tokens`
+        //     *within* `prompt_tokens`, and `completion_tokens_details.reasoning_tokens` *within*
+        //     `completion_tokens`. Charging the totals and then the subsets again bills the cached portion
+        //     twice - once at the full input rate, once at the cache rate. For a GPT-5 call with 100 input
+        //     tokens of which 80 were cached that is ~4x the true cost, and the number is what a user makes
+        //     spending decisions on.
+        //   * Anthropic reports `cache_read_input_tokens` and `cache_creation_input_tokens` *beside*
+        //     `input_tokens`, which excludes them. There the subsets must be added, and subtracting would
+        //     under-report.
+        //
+        // So the counters are stored exactly as the provider reported them - the UI shows what the provider
+        // said - and the *charge* is normalised here, where the provider is known. Unknown providers take the
+        // inclusive reading, because OpenAI-compatible endpoints are the common case by a wide margin and
+        // over-charging is the worse error to hand someone.
+        let subsets_are_included = !matches!(
+            input
+                .system
+                .as_deref()
+                .map(str::to_ascii_lowercase)
+                .as_deref(),
+            Some("anthropic") | Some("aws.bedrock") | Some("bedrock") | Some("vertex_ai_anthropic")
+        );
+
+        // The portion charged at the plain input rate: everything not already billed as cache.
+        let billable_input = if subsets_are_included {
+            (input_tokens - cache_read_tokens - cache_write_tokens).max(0.0)
+        } else {
+            input_tokens
+        };
+        // Likewise for reasoning, which OpenAI counts inside the completion total.
+        let billable_output = if subsets_are_included {
+            (output_tokens - reasoning_tokens).max(0.0)
+        } else {
+            output_tokens
+        };
+
         // Calculate costs
-        let input_cost = input_tokens * pricing.input_cost_per_token;
+        let input_cost = billable_input * pricing.input_cost_per_token;
 
         // Output cost: zero for embeddings (they only have input)
         let output_cost = if is_embedding {
             0.0
         } else {
-            output_tokens * pricing.output_cost_per_token
+            billable_output * pricing.output_cost_per_token
         };
 
         let cache_read_cost = cache_read_tokens * pricing.cache_read_input_token_cost;
@@ -1284,6 +1344,111 @@ mod tests {
         );
     }
 
+    /// An OpenAI-style cached subset is charged once, at the cache rate - not twice.
+    ///
+    /// OpenAI reports `cached_tokens` *inside* `prompt_tokens`, so charging the input total and then the
+    /// cached subset again bills the cached portion at the full rate *plus* the cache rate. With 80 of 100
+    /// input tokens cached that is several times the true cost, and this number is what a user makes spending
+    /// decisions on.
+    #[test]
+    fn an_openai_cached_subset_is_not_charged_twice() {
+        let service = PricingService::init_for_test().unwrap();
+        let cached = service.calculate_cost(&SpanCostInput {
+            system: Some("openai".to_string()),
+            model: Some("gpt-4o-mini".to_string()),
+            input_tokens: 100,
+            cache_read_tokens: 80,
+            ..Default::default()
+        });
+        let uncached = service.calculate_cost(&SpanCostInput {
+            system: Some("openai".to_string()),
+            model: Some("gpt-4o-mini".to_string()),
+            input_tokens: 100,
+            ..Default::default()
+        });
+        assert!(
+            cached.total_cost < uncached.total_cost,
+            "caching must make a call cheaper, not dearer: cached={} uncached={}",
+            cached.total_cost,
+            uncached.total_cost
+        );
+        // Only the 20 uncached tokens are charged at the input rate.
+        let expected_input = 20.0 * (uncached.input_cost / 100.0);
+        assert!(
+            (cached.input_cost - expected_input).abs() < 1e-12,
+            "expected only the uncached remainder at the input rate: got {} want {}",
+            cached.input_cost,
+            expected_input
+        );
+    }
+
+    /// Anthropic reports cache counters *beside* the input total, so there they are added.
+    ///
+    /// The two conventions are irreconcilable, which is why the charge is normalised per provider: treating
+    /// Anthropic's separate counters as subsets would under-report the bill instead.
+    #[test]
+    fn anthropic_cache_counters_are_additional_not_subsets() {
+        let service = PricingService::init_for_test().unwrap();
+        let with_cache = service.calculate_cost(&SpanCostInput {
+            system: Some("anthropic".to_string()),
+            model: Some("claude-sonnet-4-5".to_string()),
+            input_tokens: 100,
+            cache_read_tokens: 80,
+            ..Default::default()
+        });
+        let without = service.calculate_cost(&SpanCostInput {
+            system: Some("anthropic".to_string()),
+            model: Some("claude-sonnet-4-5".to_string()),
+            input_tokens: 100,
+            ..Default::default()
+        });
+        assert!(
+            with_cache.input_cost > 0.0 && without.input_cost > 0.0,
+            "both should charge their input tokens"
+        );
+        assert!(
+            (with_cache.input_cost - without.input_cost).abs() < 1e-12,
+            "Anthropic's input count already excludes cache reads, so it must not be reduced"
+        );
+        assert!(
+            with_cache.total_cost > without.total_cost,
+            "the cache read is additional work and costs something"
+        );
+    }
+
+    /// A reasoning subset is charged once too, at the reasoning rate.
+    #[test]
+    fn an_openai_reasoning_subset_is_not_charged_twice() {
+        let service = PricingService::init_for_test().unwrap();
+        let out = service.calculate_cost(&SpanCostInput {
+            system: Some("openai".to_string()),
+            model: Some("gpt-4o-mini".to_string()),
+            output_tokens: 100,
+            reasoning_tokens: 100,
+            ..Default::default()
+        });
+        assert_eq!(
+            out.output_cost, 0.0,
+            "every output token was reasoning, so none is left to charge at the plain output rate"
+        );
+        assert!(out.reasoning_cost > 0.0, "the reasoning tokens are charged");
+    }
+
+    /// A provider reporting a subset larger than its total cannot produce a negative charge.
+    #[test]
+    fn an_oversized_subset_cannot_go_negative() {
+        let service = PricingService::init_for_test().unwrap();
+        let out = service.calculate_cost(&SpanCostInput {
+            system: Some("openai".to_string()),
+            model: Some("gpt-4o-mini".to_string()),
+            input_tokens: 10,
+            cache_read_tokens: 999,
+            ..Default::default()
+        });
+        assert_eq!(out.input_cost, 0.0);
+        assert!(out.total_cost >= 0.0);
+    }
+
     #[test]
     fn test_normalize_model_name() {
         // -latest / :latest suffix
@@ -1454,16 +1619,60 @@ mod tests {
     #[test]
     fn test_lookup_provider_aware_date_suffix() {
         let data = PricingData::from_json_str(EMBEDDED_PRICING_JSON).unwrap();
-        // Test that provider context is maintained through date stripping
-        // system=azure, model=gpt-4o-2024-11-20 should try azure/gpt-4o
+        // system=azure, model=gpt-4o-2024-11-20: the catalogue carries `azure/gpt-4o-2024-11-20`, which is
+        // Azure's own price for that dated model - a `ProviderPrefix` match, and the most specific answer
+        // available. `Family` or `Exact` here would mean a *less* specific entry won.
         let result = data.lookup(Some("azure"), "gpt-4o-2024-11-20");
-        // We expect Family match if azure/gpt-4o exists in data
         if let Some((_, match_type)) = result {
             assert!(
-                match_type == MatchType::Family || match_type == MatchType::Exact,
-                "Should find via Family (date stripped) or Exact"
+                matches!(
+                    match_type,
+                    MatchType::ProviderPrefix | MatchType::Family | MatchType::Exact
+                ),
+                "unexpected match type: {match_type:?}"
             );
         }
+    }
+
+    /// The embedded count is measured the same way a local catalogue's is, so a synced one is not discarded.
+    ///
+    /// Counting raw JSON keys and comparing that with `model_count` - which counts only token-priced entries -
+    /// compared 3,407 against 2,710 for the *same* file, so every restart judged the freshly-synced catalogue
+    /// smaller than the embedded one and overwrote it. The sync was dead and nothing said so.
+    #[test]
+    fn the_embedded_model_count_is_measured_like_a_local_one() {
+        let parsed = PricingData::from_json_str(EMBEDDED_PRICING_JSON).unwrap();
+        assert_eq!(
+            PricingService::count_embedded_models(),
+            parsed.model_count,
+            "the two sides of the freshness comparison must count the same thing"
+        );
+        // And a local catalogue of exactly the same content must not be replaced.
+        assert!(parsed.model_count >= PricingService::count_embedded_models());
+    }
+
+    /// A provider-qualified price beats the generic one for the same model.
+    ///
+    /// The generic exact match used to win, so every Azure deployment was billed at OpenAI's rates - about 9%
+    /// under Azure's actual price, silently, on every call. The caller told us which provider it used; the
+    /// shorter key is simply a less specific fact about the same model.
+    #[test]
+    fn a_provider_qualified_price_beats_the_generic_one() {
+        let data = PricingData::from_json_str(EMBEDDED_PRICING_JSON).unwrap();
+        let (azure, azure_match) = data
+            .lookup(Some("azure"), "gpt-4o-mini")
+            .expect("azure/gpt-4o-mini is in the catalogue");
+        let (generic, _) = data
+            .lookup(None, "gpt-4o-mini")
+            .expect("gpt-4o-mini is in the catalogue");
+        assert_eq!(azure_match, MatchType::ProviderPrefix);
+        assert!(
+            azure.input_cost_per_token > generic.input_cost_per_token,
+            "Azure is dearer than OpenAI for this model, so picking the generic entry under-bills: \
+             azure={} generic={}",
+            azure.input_cost_per_token,
+            generic.input_cost_per_token
+        );
     }
 
     #[test]

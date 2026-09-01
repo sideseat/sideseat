@@ -88,6 +88,19 @@ impl RateLimitBucket {
 
     /// Create an auth failures rate limit bucket
     /// Used to track failed API key/JWT auth attempts per IP
+    /// Auth failures on the **gRPC** transport, in a namespace of its own.
+    ///
+    /// Separate from `auth_failures` on purpose: sharing one namespace let a value attributed on either
+    /// transport exhaust a counter belonging to a peer reachable only on the other.
+    pub fn grpc_auth_failures(rpm: u32) -> Self {
+        Self {
+            name: "grpc_auth_fail",
+            requests_per_window: rpm,
+            window_secs: DEFAULT_RATE_LIMIT_WINDOW_SECS,
+            burst: rpm / 10,
+        }
+    }
+
     pub fn auth_failures(rpm: u32) -> Self {
         Self {
             name: "auth_fail",

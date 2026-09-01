@@ -310,6 +310,13 @@
             "null"
           ],
           "description": "Secret for X-RateLimit-Bypass header to bypass rate limiting"
+        },
+        "trusted_proxies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Addresses or CIDR blocks whose X-Forwarded-For may be believed for rate-limit attribution. Empty (default) attributes every request to its immediate peer."
         }
       },
       "additionalProperties": false

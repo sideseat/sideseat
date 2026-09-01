@@ -89,6 +89,7 @@ tokio-util = { workspace = true }
 
 # SideSeat SDK (for provider test-connection)
 sideseat = { path = "../sdk/rust" }
+ipnet = "2.12.1"
 
 [features]
 default = []

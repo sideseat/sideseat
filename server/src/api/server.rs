@@ -74,6 +74,10 @@ impl ApiServer {
 
         // Get API key secret early (needed for AuthState)
         let api_key_secret = app.secrets.get_api_key_secret().await?;
+        // Parsed once: an entry that does not parse is reported here rather than per request.
+        let trusted_proxies = Arc::new(crate::utils::client_ip::TrustedProxies::parse(
+            &app.config.rate_limit.trusted_proxies,
+        ));
 
         // Rate limiting configuration
         // - rate_limit_enabled: master switch for all rate limiting (per-project)
@@ -125,6 +129,7 @@ impl ApiServer {
         // Add OTEL auth middleware (validates API key when otel.auth_required=true)
         let otlp_routes = otlp_routes.layer(axum::middleware::from_fn_with_state(
             OtelAuthState {
+                trusted_proxies: Arc::clone(&trusted_proxies),
                 database: app.database.clone(),
                 cache: app.cache.clone(),
                 api_key_secret: api_key_secret.clone(),
