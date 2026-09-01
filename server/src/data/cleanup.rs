@@ -376,21 +376,39 @@ pub async fn advance_pending_deletions(
                             traces = ids.len(),
                             "Collected traces written for a session that had already been deleted"
                         );
-                        // Tombstone them before deleting, so the trace protocol takes over from here -
-                        // including its own post-write compensation and its file reconciliation.
-                        let tombstoned = repo.record_deleted_traces(&project_id, &ids).await;
-                        if let Err(ref e) = tombstoned {
-                            tracing::warn!(project_id, session_id, error = %e, "Could not tombstone a late session's traces");
+                        // Tombstone them *before* deleting, and the order is load-bearing, not tidy.
+                        //
+                        // The delete is gated on the tombstone succeeding. Deleting the analytics rows while
+                        // the tombstone write failed removes the data but leaves nothing that remembers the
+                        // trace should stay deleted - so a writer still holding these spans (the exact reason
+                        // this sweep exists) re-commits them, and this time no trace tombstone and no session
+                        // tombstone covers them: the resurrection is permanent. Skipping the delete instead
+                        // leaves the rows for the next sweep, which retries the whole step; the session
+                        // tombstone that brought us here is untouched, so nothing is lost.
+                        match repo.record_deleted_traces(&project_id, &ids).await {
+                            Ok(()) => {
+                                if let Err(ref e) = analytics
+                                    .repository()
+                                    .delete_sessions(&project_id, std::slice::from_ref(&session_id))
+                                    .await
+                                {
+                                    tracing::warn!(project_id, session_id, error = %e, "Could not sweep a deleted session");
+                                }
+                            }
+                            Err(ref e) => {
+                                tracing::warn!(
+                                    project_id,
+                                    session_id,
+                                    error = %e,
+                                    "Could not tombstone a late session's traces; leaving the rows for the \
+                                     next sweep rather than deleting data nothing would remember to keep gone"
+                                );
+                            }
                         }
-                        let deleted = analytics
-                            .repository()
-                            .delete_sessions(&project_id, std::slice::from_ref(&session_id))
-                            .await;
-                        if let Err(ref e) = deleted {
-                            tracing::warn!(project_id, session_id, error = %e, "Could not sweep a deleted session");
-                        }
-                        // Not quiet: something was found, so look again at the base interval. The trace
-                        // records now carry the file reconciliation, which is why this does not do it here.
+                        // Not quiet either way: on success something was found, on failure the work is still
+                        // pending - both mean look again at the base interval rather than backing off. The
+                        // trace records now carry the file reconciliation, which is why this does not do it
+                        // here.
                         false
                     }
                     Err(e) => {
@@ -716,6 +734,64 @@ async fn invalidate_org_api_key_caches(
             org_id = %org_id,
             error = %e,
             "Failed to invalidate API key list cache"
+        );
+    }
+}
+
+#[cfg(test)]
+mod tombstone_ordering_tests {
+    /// The late-session sweep must not delete analytics rows unless their trace tombstone was recorded.
+    ///
+    /// The invariant, and why it cannot be a behavioural test here: `advance_pending_deletions` takes the
+    /// concrete service enums, not trait objects, so there is no seam to inject a failing
+    /// `record_deleted_traces` without standing up a fault-injecting database. What the test *can* pin is
+    /// the shape the correctness rests on - `delete_sessions` reachable only through the `Ok` arm of
+    /// `record_deleted_traces`. Move it out of that arm, and a tombstone-write failure deletes the data with
+    /// nothing left to remember it should stay gone; a writer still holding those spans then resurrects them
+    /// permanently, since neither a trace nor a session tombstone now covers them.
+    ///
+    /// Structural, by reading this file, because that regression compiles and passes every other test.
+    #[test]
+    fn a_late_session_delete_is_gated_on_its_trace_tombstone() {
+        let source = include_str!("cleanup.rs");
+
+        // The window: from the tombstone write to the end of its match. `delete_sessions` must appear inside
+        // it, and only after an `Ok(())` arm - never at the block's top level where a failed tombstone would
+        // fall through to it.
+        let anchor = source
+            .find("match repo.record_deleted_traces(&project_id, &ids).await {")
+            .expect("the late-session tombstone match has moved; re-anchor this test");
+        let after = &source[anchor..];
+        let ok_arm = after
+            .find("Ok(()) => {")
+            .expect("the tombstone match should have an Ok arm that performs the delete");
+        let err_arm = after
+            .find("Err(ref e) => {")
+            .expect("the tombstone match should have an Err arm that skips the delete");
+        // The window ends where the late-session handling does, at the trace-sweep section that follows.
+        let window_end = after
+            .find("// Spans written for a trace that had already been deleted.")
+            .expect("the late-session block should be followed by the trace sweep");
+        let window = &after[..window_end];
+        let needle = "delete_sessions(&project_id, std::slice::from_ref(&session_id))";
+
+        // Exactly one delete, not merely one inside the Ok arm: an *additional* unguarded delete after the
+        // match is the precise regression, and a test that only confirms a guarded one exists would pass
+        // beside it. Verified - the weaker form did.
+        let deletes: Vec<usize> = window.match_indices(needle).map(|(i, _)| i).collect();
+        assert_eq!(
+            deletes.len(),
+            1,
+            "the late-session sweep must delete in exactly one place; {} found. A second, unguarded \
+             delete removes data that a failed tombstone write left nothing to remember.",
+            deletes.len()
+        );
+        let delete = deletes[0];
+        assert!(
+            ok_arm < delete && delete < err_arm,
+            "delete_sessions must sit inside the Ok arm of record_deleted_traces - between the Ok arm at \
+             {ok_arm} and the Err arm at {err_arm}, but it is at {delete}. Outside it, a failed tombstone \
+             write deletes data that nothing then remembers to keep deleted."
         );
     }
 }
