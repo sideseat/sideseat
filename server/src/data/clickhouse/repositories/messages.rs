@@ -144,11 +144,16 @@ pub async fn get_messages(
         conditions.push("timestamp_start < fromUnixTimestamp64Micro(?)".to_string());
         time_params.push(to.timestamp_micros());
     }
-    // The feed's traversal watermark - see `MessageQueryParams::ingested_before_us`.
-    if let Some(watermark_us) = params.ingested_before_us {
-        conditions.push("toInt64(toUnixTimestamp64Micro(ingested_at)) < ?".to_string());
-        time_params.push(watermark_us);
-    }
+    // The watermark goes *inside* the deduplication, not into `conditions` - see
+    // `ch_dedup_spans_as_of_watermark` for what bounding `FINAL`'s result instead of its choice did.
+    let (source, watermark_bind) = match params.ingested_before_us {
+        Some(watermark_us) => (
+            crate::data::clickhouse::repositories::query::ch_dedup_spans_as_of_watermark()
+                .to_string(),
+            Some(watermark_us),
+        ),
+        None => ("otel_spans FINAL".to_string(), None),
+    };
 
     let sql = format!(
         // span_id breaks ties, matching the DuckDB backend: timestamp alone is not a stable order.
@@ -157,11 +162,15 @@ pub async fn get_messages(
         // the order of tied rows is whatever the engine returns. Reconstruction reads first-seen order
         // to decide which trace strips its history against which, so an undefined tie there is an
         // undefined answer.
-        "SELECT {CH_MESSAGE_SELECT_COLUMNS} FROM otel_spans FINAL WHERE {} ORDER BY timestamp_start ASC, trace_id ASC, span_id ASC",
+        "SELECT {CH_MESSAGE_SELECT_COLUMNS} FROM {source} WHERE {} ORDER BY timestamp_start ASC, trace_id ASC, span_id ASC",
         conditions.join(" AND ")
     );
 
     let mut query = client.query(&sql);
+    // The dedup subquery sits at the head of the FROM, so its placeholder precedes every condition's.
+    if let Some(watermark_us) = watermark_bind {
+        query = query.bind(watermark_us);
+    }
     for s in &string_binds {
         query = query.bind(s);
     }
@@ -206,12 +215,16 @@ pub async fn get_project_messages(
         bind_params.push(BindParam::String(cursor_trace_id.clone()));
     }
 
-    // The traversal watermark, in the ingestion dimension the pages are ordered by - see the DuckDB
-    // backend for the sequence that made a span vanish from every page.
-    if let Some(watermark_us) = params.ingested_before_us {
-        conditions.push("toInt64(toUnixTimestamp64Micro(ingested_at)) < ?".to_string());
-        bind_params.push(BindParam::Int64(watermark_us));
-    }
+    // The traversal watermark, applied *inside* the deduplication - see
+    // `ch_dedup_spans_as_of_watermark` for the sequence that made a span vanish from every page.
+    let (source, watermark_bind) = match params.ingested_before_us {
+        Some(watermark_us) => (
+            crate::data::clickhouse::repositories::query::ch_dedup_spans_as_of_watermark()
+                .to_string(),
+            Some(watermark_us),
+        ),
+        None => ("otel_spans FINAL".to_string(), None),
+    };
 
     // Event time filters - use parameterized timestamps.
     //
@@ -229,12 +242,16 @@ pub async fn get_project_messages(
     }
 
     let sql = format!(
-        "SELECT {CH_MESSAGE_SELECT_COLUMNS} FROM otel_spans FINAL WHERE {} ORDER BY ingested_at DESC, span_id DESC, trace_id DESC LIMIT {}",
+        "SELECT {CH_MESSAGE_SELECT_COLUMNS} FROM {source} WHERE {} ORDER BY ingested_at DESC, span_id DESC, trace_id DESC LIMIT {}",
         conditions.join(" AND "),
         params.limit
     );
 
     let mut query = client.query(&sql);
+    // The dedup subquery is at the head of the FROM, so its placeholder precedes every condition's.
+    if let Some(watermark_us) = watermark_bind {
+        query = query.bind(watermark_us);
+    }
     for param in &bind_params {
         query = match param {
             BindParam::String(s) => query.bind(s),

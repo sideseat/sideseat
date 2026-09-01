@@ -803,10 +803,20 @@ pub fn get_feed_spans(
     // The traversal watermark, in the ingestion dimension this page is ordered by. A span ingested
     // mid-traversal would otherwise shift every subsequent page boundary, so a client concatenating pages
     // sees one span twice or not at all.
-    if let Some(watermark_us) = params.ingested_before_us {
-        conditions.push("EPOCH_US(ingested_at) < ?::BIGINT".to_string());
-        bind_values.push(watermark_us.to_string());
-    }
+    //
+    // Applied *inside* the deduplication, not as a condition here. As an outer condition it bounded the
+    // dedup's *result* instead of its *choice*, so a span first ingested before the traversal began and
+    // re-delivered during it vanished from every page: the newer row was rejected by the bound and the older
+    // one was never selected. This was the last caller still doing that, while the two message queries
+    // beside it had already been fixed - and a page selecting a span whose context load holds no version of
+    // it is exactly the disagreement the shared helper exists to prevent.
+    let (dedup, watermark_binds) = match params.ingested_before_us {
+        Some(watermark_us) => (
+            dedup_spans_as_of_watermark(),
+            vec![watermark_us.to_string(), watermark_us.to_string()],
+        ),
+        None => (DEDUP_SPANS, Vec::new()),
+    };
 
     // Event time filters
     if let Some(start) = &params.start_time {
@@ -829,6 +839,14 @@ pub fn get_feed_spans(
 
     let where_clause = conditions.join(" AND ");
 
+    // The dedup's own binds come first: its subquery is at the head of the FROM, so its placeholders precede
+    // every condition's.
+    let bind_values = {
+        let mut all = watermark_binds;
+        all.extend(bind_values);
+        all
+    };
+
     let data_sql = format!(
         "SELECT trace_id, span_id, parent_span_id, span_name, span_kind, span_category,
                 observation_type, framework, status_code, timestamp_start, timestamp_end,
@@ -841,9 +859,8 @@ pub fn get_feed_spans(
                 gen_ai_cost_reasoning::DOUBLE, gen_ai_cost_total::DOUBLE,
                 gen_ai_usage_details::VARCHAR, metadata::VARCHAR, (raw_span->'attributes')::VARCHAR,
                 input_preview, output_preview, raw_span::VARCHAR, ingested_at
-         FROM {DEDUP_SPANS} WHERE {} ORDER BY ingested_at DESC, span_id DESC, trace_id DESC LIMIT {}",
+         FROM {dedup} WHERE {} ORDER BY ingested_at DESC, span_id DESC, trace_id DESC LIMIT {}",
         where_clause, params.limit,
-        DEDUP_SPANS = DEDUP_SPANS
     );
 
     execute_span_query(conn, &data_sql, &bind_values)
