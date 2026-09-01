@@ -706,6 +706,57 @@ pub async fn delete_project(
     Ok(deleted)
 }
 
+/// Record that these traces were deleted, so a late ingest cannot resurrect them.
+///
+/// See `TransactionalRepository::record_deleted_traces` for the race. Written *before* the analytics
+/// delete, so there is no instant at which a trace is deleted and not yet tombstoned.
+pub async fn record_deleted_traces(
+    pool: &SqlitePool,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<(), SqliteError> {
+    if trace_ids.is_empty() {
+        return Ok(());
+    }
+    let now = chrono::Utc::now().timestamp();
+    let mut tx = pool.begin().await?;
+    for trace_id in trace_ids {
+        sqlx::query(
+            "INSERT INTO deleted_traces (project_id, trace_id, deleted_at) VALUES (?, ?, ?)
+             ON CONFLICT(project_id, trace_id) DO NOTHING",
+        )
+        .bind(project_id)
+        .bind(trace_id)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+/// Which of these traces are tombstoned.
+pub async fn deleted_traces_among(
+    pool: &SqlitePool,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<std::collections::HashSet<String>, SqliteError> {
+    if trace_ids.is_empty() {
+        return Ok(std::collections::HashSet::new());
+    }
+    // One statement for the batch: a batch carries a handful of traces and this is on the ingestion hot
+    // path, so a query per trace would multiply the round trips by the batch's trace count.
+    let placeholders = vec!["?"; trace_ids.len()].join(", ");
+    let sql = format!(
+        "SELECT trace_id FROM deleted_traces WHERE project_id = ? AND trace_id IN ({placeholders})"
+    );
+    let mut query = sqlx::query_scalar::<_, String>(&sql).bind(project_id);
+    for trace_id in trace_ids {
+        query = query.bind(trace_id);
+    }
+    Ok(query.fetch_all(pool).await?.into_iter().collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

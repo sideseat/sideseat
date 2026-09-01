@@ -28,7 +28,7 @@
 //! | 3. Enrich   | `&[SpanData]`, `&[Vec<SideMLMessage>]`       | `Vec<SpanEnrichment>`                               | `enrich.rs`    |
 //! | 4. Persist  | `&Request`, `SpanData`, `RawMessage`, ...    | `()`                                                | `persist.rs`   |
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -631,6 +631,15 @@ impl TracePipeline {
             Err(()) => return false,
         }
 
+        // And traces deleted individually, which the project fence says nothing about. Checked here, in
+        // the same position and for the same reason: this batch's files are already stored, so a trace
+        // deleted since they were written must not gain a row pointing at bytes the deletion reclaimed.
+        match self.drop_spans_for_deleted_traces(&mut all_db_spans).await {
+            Ok(_) if all_db_spans.is_empty() => return true,
+            Ok(_) => {}
+            Err(()) => return false,
+        }
+
         let db_ok = write_to_duckdb(all_db_spans, &self.analytics).await;
 
         let t_persist_done = std::time::Instant::now();
@@ -687,6 +696,73 @@ impl TracePipeline {
             dropped = before - spans.len(),
             projects = ?refusing,
             "Dropped spans for projects that do not accept writes (deleted or being deleted)"
+        );
+        Ok(before - spans.len())
+    }
+
+    /// Remove spans belonging to traces that have been deleted.
+    ///
+    /// The project fence does not cover this: a live project can have an individual trace deleted, and
+    /// this batch's files and associations were already written - deliberately, before the analytics row
+    /// that references them. So a batch in flight when `delete_traces` ran would commit a span carrying
+    /// a `#!B64!#` reference to bytes the deletion has reclaimed, for a trace the caller was told 204
+    /// for, and a queued redelivery would do it minutes later.
+    ///
+    /// `Err` means the tombstone table could not be read, which is not the same as empty: the caller
+    /// refuses the batch so the exporter retries, exactly as it does for an unreadable project fence.
+    /// Ingestion is idempotent by span id, so a retry costs a rewrite.
+    async fn drop_spans_for_deleted_traces(
+        &self,
+        spans: &mut Vec<NormalizedSpan>,
+    ) -> Result<usize, ()> {
+        // Grouped by project, because the tombstone is keyed by both and a trace id comes from the
+        // client - two projects can legitimately present the same one.
+        let mut by_project: HashMap<&str, Vec<String>> = HashMap::new();
+        for span in spans.iter() {
+            by_project
+                .entry(span.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID))
+                .or_default()
+                .push(span.trace_id.clone());
+        }
+        let repo = self.file_service.database().repository();
+        let mut deleted: HashSet<(String, String)> = HashSet::new();
+        for (project, mut trace_ids) in by_project {
+            trace_ids.sort_unstable();
+            trace_ids.dedup();
+            match repo.deleted_traces_among(project, &trace_ids).await {
+                Ok(found) => {
+                    for trace_id in found {
+                        deleted.insert((project.to_string(), trace_id));
+                    }
+                }
+                Err(e) => {
+                    self.file_cache.invalidate_all();
+                    tracing::error!(
+                        error = %e,
+                        project = project,
+                        "Refusing the batch: could not settle whether its traces have been deleted"
+                    );
+                    return Err(());
+                }
+            }
+        }
+        if deleted.is_empty() {
+            return Ok(0);
+        }
+        let before = spans.len();
+        spans.retain(|s| {
+            !deleted.contains(&(
+                s.project_id
+                    .as_deref()
+                    .unwrap_or(DEFAULT_PROJECT_ID)
+                    .to_string(),
+                s.trace_id.clone(),
+            ))
+        });
+        tracing::warn!(
+            dropped = before - spans.len(),
+            traces = deleted.len(),
+            "Dropped spans for traces that have been deleted"
         );
         Ok(before - spans.len())
     }

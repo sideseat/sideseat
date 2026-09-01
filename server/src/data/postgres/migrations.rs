@@ -140,15 +140,29 @@ async fn apply_versioned_migration(
     let start = std::time::Instant::now();
     let now = chrono::Utc::now().timestamp();
 
-    // Add future migrations here as match arms:
+    // One migration, because no schema above v1 was ever released - see the SQLite twin for the full
+    // reasoning. This reaches the current schema directly rather than replaying fourteen steps, two of
+    // which rebuilt tables a v1 database does not have.
     let (name, sql): (&str, &str) = match version {
         2 => (
-            "add_hash_algo_to_files",
-            "ALTER TABLE files ADD COLUMN IF NOT EXISTS hash_algo TEXT NOT NULL DEFAULT 'sha256'",
-        ),
-        3 => (
-            "add_credentials_tables",
-            r#"CREATE TABLE IF NOT EXISTS credentials (
+            "v1_to_current",
+            r#"-- files: the content hash algorithm, and the deletion claim that lets cleanup and
+-- ingestion agree about a file that is mid-deletion.
+ALTER TABLE files ADD COLUMN IF NOT EXISTS hash_algo TEXT NOT NULL DEFAULT 'sha256';
+ALTER TABLE files ADD COLUMN IF NOT EXISTS deleting_at BIGINT;
+-- 64-bit counters: an INTEGER ref_count is a decode failure waiting to happen against an i64 in Rust,
+-- which SQLite never hit because its INTEGER is already 64-bit.
+ALTER TABLE files ALTER COLUMN ref_count TYPE BIGINT;
+
+-- projects / organizations: the deletion tombstone plus the repeated-observation counters that decide
+-- when it may go. Driven by what has been observed, never by elapsed time.
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleting_at BIGINT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS clean_sweeps BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS last_sweep_at BIGINT;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS deleting_at BIGINT;
+
+-- Provider credentials, org-scoped with per-project permissions.
+CREATE TABLE IF NOT EXISTS credentials (
     id TEXT PRIMARY KEY,
     organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     provider_key TEXT NOT NULL,
@@ -180,112 +194,36 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cred_perms_unique_project
 CREATE UNIQUE INDEX IF NOT EXISTS idx_cred_perms_unique_org_default
     ON credential_project_permissions(credential_id)
     WHERE project_id IS NULL;
-"#,
-        ),
-        4 => (
-            "project_scoped_trace_files",
-            // A trace id comes from the client, so two projects can present the same one. Keyed
-            // without the project, one project's association satisfied the other's conflict clause -
-            // leaving the second with no association and a file reference nothing would release.
-            //
-            // Postgres can drop and add a primary key in place, so no table rebuild is needed. The
-            // index is what makes the derived reference count cheap: it is a COUNT over
-            // `(project_id, file_hash)`, which the widened primary key leads with `project_id` but
-            // separates by `trace_id`.
-            r#"ALTER TABLE trace_files DROP CONSTRAINT IF EXISTS trace_files_pkey;
+
+-- trace_files keyed with the project first. A trace id comes from the client, so two projects can
+-- present the same one, and keyed without the project one project's association satisfied the other's
+-- conflict clause. Postgres can swap a primary key in place.
+ALTER TABLE trace_files DROP CONSTRAINT IF EXISTS trace_files_pkey;
 ALTER TABLE trace_files ADD PRIMARY KEY (project_id, trace_id, file_hash);
 CREATE INDEX IF NOT EXISTS idx_trace_files_project_hash ON trace_files(project_id, file_hash);
-"#,
-        ),
-        5 => (
-            "file_deletion_fence",
-            // Deleting the row then the bytes leaves a window where ingestion recreates the row,
-            // associates and finalises - and the byte delete then removes content a committed row
-            // references. A count cannot express "deletion in progress"; this claim can.
-            "ALTER TABLE files ADD COLUMN IF NOT EXISTS deleting_at BIGINT",
-        ),
-        6 => (
-            "project_deletion_fence",
-            // Deleting a project touches four stores with no transaction over them, and used to delete
-            // the data first and the row last - so spans could arrive after their analytics rows were
-            // gone and survive the cleanup, attached to a project id with no row. The claim states the
-            // intent first: reads treat the project as absent, ingestion refuses it, and the row goes
-            // only once the data is verified gone. See the SQLite twin.
-            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleting_at BIGINT",
-        ),
-        7 => (
-            "file_counters_are_64_bit",
-            // `FileRow.id` and `FileRow.ref_count` are `i64`, and SQLite's INTEGER is 64-bit, but these
-            // were INT4 - so decoding depended on each query remembering `::bigint`, and the one that
-            // forgot (`sync_ref_count`, whose `RETURNING ref_count` has no cast) failed at runtime with
-            // "Rust type `i64` is not compatible with SQL type `INT4`". Fixing the column removes the
-            // whole class rather than the instance.
-            r#"ALTER TABLE files ALTER COLUMN ref_count TYPE BIGINT;
-ALTER TABLE files ALTER COLUMN id TYPE BIGINT;
-"#,
-        ),
-        8 => (
-            "deletion_tombstones",
-            // Removal driven by observation rather than by elapsed time: a wall-clock grace period is
-            // not a bound on how long a stalled writer can take to commit, and the tombstone is what
-            // keeps the cleanup that collects such a write running. Organizations get one too, because
-            // deleting an organization row cascades its project rows - the projects' own tombstones -
-            // away. See the SQLite twin.
-            // BIGINT, not INTEGER: the counter is read into `i64`, and an INT4 column decodes into that only
-            // where a query remembers `::bigint`. `files.ref_count` was the same mistake, and the parity
-            // suite caught this one within a minute of the column existing.
-            r#"ALTER TABLE projects ADD COLUMN IF NOT EXISTS clean_sweeps BIGINT NOT NULL DEFAULT 0;
-ALTER TABLE organizations ADD COLUMN IF NOT EXISTS deleting_at BIGINT;
-"#,
-        ),
-        9 => (
-            "sweep_windows",
-            // The count has to measure elapsed observation rather than sweeps: every instance runs the
-            // sweep, so a bare increment let five instances reach five "consecutive clean sweeps" inside
-            // one interval - the barrier weakening as you scale out. See the SQLite twin.
-            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS last_sweep_at BIGINT",
-        ),
-        10 => (
-            "deleted_projects",
-            // Cleanup that stays discoverable after the row is gone: a tombstone removed on finite
-            // evidence still loses to an arbitrarily delayed writer. See the SQLite twin.
-            r#"CREATE TABLE IF NOT EXISTS deleted_projects (
+
+-- Deletion records kept permanently, leased and backed off, indexed on the due time itself.
+-- `next_check_at` is NOT NULL because the eligibility test is `next_check_at <= now`, which no null
+-- satisfies - and PostgreSQL sorts nulls *last*, so a nullable column also queued a fresh deletion
+-- behind the whole backlog.
+CREATE TABLE IF NOT EXISTS deleted_projects (
     project_id TEXT PRIMARY KEY,
-    deleted_at BIGINT NOT NULL
+    deleted_at BIGINT NOT NULL,
+    last_checked_at BIGINT,
+    quiet_checks BIGINT NOT NULL DEFAULT 0,
+    next_check_at BIGINT NOT NULL DEFAULT 0,
+    claim_token BIGINT NOT NULL DEFAULT 0
 );
-"#,
-        ),
-        11 => (
-            "deleted_project_windows",
-            // One check per deleted id per window rather than one per instance per sweep - the records are
-            // permanent, so the unwindowed cost is instances times lifetime deletions. See the SQLite twin.
-            "ALTER TABLE deleted_projects ADD COLUMN IF NOT EXISTS last_checked_at BIGINT",
-        ),
-        12 => (
-            "deleted_project_backoff",
-            // Permanent records re-checked at a fixed rate are unbounded lifetime work, and finding the due
-            // ones was an unindexed scan. See the SQLite twin.
-            r#"ALTER TABLE deleted_projects ADD COLUMN IF NOT EXISTS quiet_checks BIGINT NOT NULL DEFAULT 0;
-CREATE INDEX IF NOT EXISTS idx_deleted_projects_next_check ON deleted_projects(last_checked_at);
-"#,
-        ),
-        13 => (
-            "deleted_project_due_index",
-            // The due time itself, indexed - an index on an input to the eligibility expression bounds
-            // rows returned, not rows examined. See the SQLite twin.
-            r#"ALTER TABLE deleted_projects ADD COLUMN IF NOT EXISTS next_check_at BIGINT;
-UPDATE deleted_projects SET next_check_at = COALESCE(last_checked_at, deleted_at);
 CREATE INDEX IF NOT EXISTS idx_deleted_projects_due ON deleted_projects(next_check_at);
-"#,
-        ),
-        14 => (
-            "deleted_project_claim_token",
-            // An owned claim, and a due time that is never null - PostgreSQL sorts nulls last, so a fresh
-            // deletion queued behind the whole backlog. See the SQLite twin.
-            r#"UPDATE deleted_projects SET next_check_at = COALESCE(next_check_at, deleted_at);
-ALTER TABLE deleted_projects ALTER COLUMN next_check_at SET DEFAULT 0;
-ALTER TABLE deleted_projects ALTER COLUMN next_check_at SET NOT NULL;
-ALTER TABLE deleted_projects ADD COLUMN IF NOT EXISTS claim_token BIGINT NOT NULL DEFAULT 0;
+
+-- The trace deletion tombstone; see the SQLite twin.
+CREATE TABLE IF NOT EXISTS deleted_traces (
+    project_id  TEXT   NOT NULL,
+    trace_id    TEXT   NOT NULL,
+    deleted_at  BIGINT NOT NULL,
+    PRIMARY KEY (project_id, trace_id)
+);
+CREATE INDEX IF NOT EXISTS idx_deleted_traces_at ON deleted_traces(deleted_at);
 "#,
         ),
         _ => {

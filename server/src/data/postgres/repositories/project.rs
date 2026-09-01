@@ -735,3 +735,50 @@ pub async fn delete_project(
 
     Ok(deleted)
 }
+
+/// Record that these traces were deleted, so a late ingest cannot resurrect them.
+///
+/// See `TransactionalRepository::record_deleted_traces` for the race. Written *before* the analytics
+/// delete, so there is no instant at which a trace is deleted and not yet tombstoned.
+pub async fn record_deleted_traces(
+    pool: &PgPool,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<(), PostgresError> {
+    if trace_ids.is_empty() {
+        return Ok(());
+    }
+    let now = chrono::Utc::now().timestamp();
+    // `UNNEST` rather than a loop: one statement for the whole batch, and no placeholder count that
+    // grows with it.
+    sqlx::query(
+        "INSERT INTO deleted_traces (project_id, trace_id, deleted_at)
+         SELECT $1, t, $3 FROM UNNEST($2::text[]) AS t
+         ON CONFLICT (project_id, trace_id) DO NOTHING",
+    )
+    .bind(project_id)
+    .bind(trace_ids)
+    .bind(now)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Which of these traces are tombstoned.
+pub async fn deleted_traces_among(
+    pool: &PgPool,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<std::collections::HashSet<String>, PostgresError> {
+    if trace_ids.is_empty() {
+        return Ok(std::collections::HashSet::new());
+    }
+    let rows: Vec<String> = sqlx::query_scalar(
+        "SELECT trace_id FROM deleted_traces WHERE project_id = $1 AND trace_id = ANY($2::text[])",
+    )
+    .bind(project_id)
+    .bind(trace_ids)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().collect())
+}

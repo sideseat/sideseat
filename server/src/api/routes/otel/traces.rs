@@ -303,6 +303,24 @@ pub async fn delete_traces(
     auth: ProjectWrite,
     ValidatedJson(body): ValidatedJson<DeleteTracesBody>,
 ) -> Result<StatusCode, ApiError> {
+    let repo = state.database.repository();
+
+    // Tombstone first, then delete.
+    //
+    // The order is the point. Files and their associations are written *before* the analytics row that
+    // references them, so an ingest already in flight for one of these traces commits after this route
+    // has reclaimed its bytes - and the result is a span carrying a `#!B64!#` reference to content that
+    // is gone, for a trace the caller was already told 204 for. Nothing bounds how late that commit is:
+    // a queued batch can be redelivered minutes later.
+    //
+    // Recording the tombstone before the delete leaves no instant in which a trace is deleted and not
+    // yet tombstoned, and the write path consults it immediately before its analytics write - so the
+    // late batch drops these traces instead of resurrecting them. A failure here is fatal rather than
+    // logged: without the tombstone the deletion is not safe to perform.
+    repo.record_deleted_traces(&auth.project_id, &body.trace_ids)
+        .await
+        .map_err(ApiError::from_data)?;
+
     // Delete from analytics backend
     let analytics_repo = state.analytics.repository();
     analytics_repo
@@ -326,7 +344,6 @@ pub async fn delete_traces(
     }
 
     // Cleanup favorites for deleted traces
-    let repo = state.database.repository();
     if let Err(e) = repo
         .delete_favorites_by_entity("trace", &body.trace_ids, &auth.project_id)
         .await

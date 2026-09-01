@@ -458,6 +458,30 @@ mechanism and getting it wrong is invisible until there are two instances.
 | Deletion sweeps | Run on every instance | Every step is idempotent and the claims are CAS-guarded, so concurrent sweeps duplicate work rather than corrupt state. |
 | Migrations | Serialised by `pg_advisory_lock` | Concurrent instances starting together cannot race the schema. |
 
+**Deleting a *trace* leaves a tombstone too** (`deleted_traces`, `drop_spans_for_deleted_traces`). The
+file fence protects a file from cleanup while something references it; it cannot stop the reverse. Files
+and their associations are written **before** the analytics row that names them - deliberately, so the
+surviving failure is a reclaimable orphan rather than a dangling reference - which means a batch already
+in flight when `delete_traces` runs commits *after* the deletion reclaimed its bytes, producing a span
+carrying a `#!B64!#` reference to nothing for a trace the caller was told 204 for. No elapsed time bounds
+that: a queued batch can be redelivered minutes later. So the route records the tombstone **before** the
+analytics delete (no instant exists where a trace is deleted and not tombstoned), and ingest consults it
+immediately before its own write. Keyed by `(project, trace)`, because a trace id comes from the client
+and two projects can present the same one.
+
+**The schema is at version 2, and there is one migration.** Nothing above v1 was ever released, so the
+fourteen historical steps that used to live in each backend described upgrades no database could need -
+and replaying them meant replaying two table *rebuilds* against tables a v1 database does not have. The
+single `v1_to_current` step reaches the destination directly. `a_v1_database_upgrades_to_exactly_the_fresh_schema`
+builds a v1 database as "the current schema minus what the migration adds", walks it forward, and compares
+`pragma_table_info` for **every** table against a fresh one - so a future migration that alters any table
+is covered, not just the one that prompted the test.
+
+A related trap, now removed by construction rather than by care: a multi-statement schema executed through
+`sqlx::query` stops at its first `;`, **including one inside a `--` comment**, and the fragment after it is
+a syntax error in a place nobody looks. It cost a debugging session in each backend. Every schema and
+migration script goes through `raw_sql` now.
+
 **Deleting a project or an organization is asynchronous, and the row is a tombstone.** The fence lives in
 the transactional store and spans in the analytics store, so no transaction spans them: a writer can read
 "live", have the deletion land underneath it, and commit afterwards. **No elapsed time bounds that** - a
