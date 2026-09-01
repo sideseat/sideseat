@@ -102,8 +102,11 @@ services:
       - "noeviction"
       - "--appendonly"
       - "yes"
+      # `always`, not `everysec`: this Valkey backs the trace queue, which acknowledges an export before
+      # the analytics write. With `everysec` a 200 can precede the fsync, so a host failure loses data this
+      # server has already reported as stored - and the startup probe refuses it.
       - "--appendfsync"
-      - "everysec"
+      - "always"
       - "--save"
       - "60"
       - "1"

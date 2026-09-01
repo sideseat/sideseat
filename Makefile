@@ -608,7 +608,7 @@ test-redis:
 	@docker rm -f $(REDIS_TEST_CONTAINER) >/dev/null 2>&1 || true
 	@docker run -d --name $(REDIS_TEST_CONTAINER) -p $(REDIS_TEST_PORT):6379 \
 		$(REDIS_TEST_IMAGE) redis-server \
-		  --appendonly yes --appendfsync everysec --maxmemory-policy noeviction >/dev/null
+		  --appendonly yes --appendfsync always --maxmemory-policy noeviction >/dev/null
 	@for i in $$(seq 1 60); do \
 		docker exec $(REDIS_TEST_CONTAINER) redis-cli ping 2>/dev/null | grep -q PONG && break; \
 		sleep 1; \

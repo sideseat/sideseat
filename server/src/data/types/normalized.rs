@@ -100,6 +100,16 @@ pub struct NormalizedMetric {
 
     // Raw
     pub raw_metric: JsonValue,
+
+    // Instrumentation scope and schema, which OTel counts as part of what names a stream.
+    //
+    // Extracted late: they were discarded entirely, so two scopes differing only in their attributes - or
+    // two resources differing only in `schema_url` - produced datapoints with the same identity, and a
+    // replacing engine kept one. Stored as well as hashed, because discarding telemetry to save a column
+    // is how the gap arose in the first place.
+    pub scope_attributes: JsonValue,
+    pub scope_schema_url: Option<String>,
+    pub resource_schema_url: Option<String>,
 }
 
 // ============================================================================

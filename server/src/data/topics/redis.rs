@@ -1003,21 +1003,16 @@ impl TopicBackend for RedisTopicBackend {
         // A Redis stream holds the message until it is acknowledged, and an unacknowledged one is
         // reclaimed by another consumer - which is what makes acknowledging before writing honest.
         //
-        // Honest **to a stated bound**, and the bound is worth naming rather than glossing. Startup
-        // refuses AOF-off and `appendfsync no` (`probe_redis_durability`), so the accepted settings are:
+        // Checked, not assumed: `probe_redis_durability` requires AOF with `appendfsync always` at startup,
+        // and refuses an eviction policy that could delete an unread entry. `everysec` was accepted for a
+        // while on the grounds that it is what production Redis runs - but it lets a 200 precede the fsync,
+        // so a host failure loses up to a second of exports already reported as stored, and no amount of
+        // documenting that makes the data durable. An operator who wants that throughput has the in-memory
+        // backend, which writes inside the request rather than acknowledging early.
         //
-        //   * `appendfsync always` - fsync per write, so an acknowledged entry survives a host loss.
-        //   * `appendfsync everysec` - fsync once a second, so a host power loss can take up to a second
-        //     of acknowledged entries with it.
-        //
-        // `everysec` is accepted because it is what essentially every production Redis runs and the
-        // alternative costs an order of magnitude in throughput - but that makes this a one-second bound,
-        // not zero. An operator who needs zero sets `always`; the queue's guarantee then matches the word
-        // without qualification. Replication is a second window this does not close: a failover can
-        // promote a replica that had not yet received the entry, which needs a per-publish `WAIT` and the
-        // latency that implies.
-        //
-        // Recorded here rather than in a document nobody reads next to the code that depends on it.
+        // One window remains and is not closed here: a failover can promote a replica that had not yet
+        // received the entry. Closing it needs a per-publish `WAIT`/`WAITAOF` and the latency that implies,
+        // and it is not something this probe can verify from a single connection.
         true
     }
 }
@@ -1151,18 +1146,21 @@ async fn probe_redis_durability(conn: &mut deadpool_redis::Connection) -> Result
             "appendonly is {ao:?}; AOF must be enabled for a durable queue"
         )));
     }
+    // `always`, not `everysec`.
+    //
+    // The queue's whole purpose is that a 200 means the data is stored. With `everysec` a 200 can precede
+    // the next fsync, so a host failure loses up to a second of *acknowledged* exports - and documenting
+    // that window makes the loss honest without making the data durable, which is not the promise. An
+    // operator who wants the throughput of `everysec` has the in-memory topic backend, where the request
+    // writes to the analytics store before answering and nothing is acknowledged early.
     let fs = appendfsync.unwrap_or_default().to_ascii_lowercase();
-    if !(fs == "always" || fs == "everysec") {
+    if fs != "always" {
         return Err(TopicError::Connection(format!(
-            "appendfsync is {fs:?}; use `everysec` (bounds loss to one second) or `always`"
+            "appendfsync is {fs:?}; a queue that acknowledges before the write needs `always`. With \
+             `everysec` a 200 can precede the fsync, so a host failure loses up to a second of exports \
+             this server has already reported as stored. Use the default in-memory topic backend if you \
+             prefer that throughput - it writes inside the request instead of acknowledging early."
         )));
-    }
-
-    if fs == "everysec" {
-        tracing::info!(
-            "Redis AOF is `everysec`: an acknowledged trace export can be lost if the host fails within \
-             one second of it. Set `appendfsync always` to remove that window, at a throughput cost."
-        );
     }
 
     let ev = policy.unwrap_or_default().to_ascii_lowercase();

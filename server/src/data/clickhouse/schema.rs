@@ -479,6 +479,11 @@ CREATE TABLE IF NOT EXISTS otel_metrics_local ON CLUSTER {cluster} (
     flags                   Nullable(Int32),
     raw_metric              Nullable(String) CODEC(ZSTD(3)),
 
+    -- SCOPE AND SCHEMA
+    scope_attributes        Nullable(String),
+    scope_schema_url        Nullable(String),
+    resource_schema_url     Nullable(String),
+
     -- INDEXES
     INDEX idx_metric_name metric_name TYPE bloom_filter GRANULARITY 1,
     INDEX idx_session_id session_id TYPE bloom_filter GRANULARITY 1
@@ -581,6 +586,11 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     -- FLAGS & RAW
     flags                   Nullable(Int32),
     raw_metric              Nullable(String) CODEC(ZSTD(3)),
+
+    -- SCOPE AND SCHEMA
+    scope_attributes        Nullable(String),
+    scope_schema_url        Nullable(String),
+    resource_schema_url     Nullable(String),
 
     -- INDEXES
     INDEX idx_metric_name metric_name TYPE bloom_filter GRANULARITY 1,

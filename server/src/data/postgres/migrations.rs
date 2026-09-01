@@ -157,6 +157,10 @@ ALTER TABLE files ADD COLUMN IF NOT EXISTS deleting_at BIGINT;
 -- sequence default, and the sequence itself is already 64-bit in PostgreSQL.
 ALTER TABLE files ALTER COLUMN ref_count TYPE BIGINT;
 ALTER TABLE files ALTER COLUMN id TYPE BIGINT;
+-- And the *sequence*, which `ALTER COLUMN ... TYPE` does not touch. A v1 `SERIAL` owns an `integer`
+-- sequence, so widening only the column leaves the id space bounded at 2^31 while a fresh `BIGSERIAL`
+-- reaches 2^63 - the two schemas would differ in the one dimension that eventually stops inserts.
+ALTER SEQUENCE IF EXISTS files_id_seq AS bigint MAXVALUE 9223372036854775807;
 
 -- projects / organizations: the deletion tombstone plus the repeated-observation counters that decide
 -- when it may go. Driven by what has been observed, never by elapsed time.

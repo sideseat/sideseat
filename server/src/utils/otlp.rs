@@ -73,6 +73,19 @@ pub fn attrs_to_typed_json(attrs: &[KeyValue]) -> JsonValue {
     JsonValue::Object(map)
 }
 
+/// An OTLP value JSON has no type for, rendered so that no plain string can imitate it.
+///
+/// A two-element array: `["__otlp:<kind>", "<rendering>"]`. The *array* is the load-bearing part - a hash
+/// that tags JSON kinds (as the metric identity's does) can never confuse it with a string, whatever a
+/// producer chooses to send. A string prefix cannot make that promise: it only moves the collision to
+/// whichever literal was chosen as the prefix.
+fn otlp_tagged(kind: &str, rendering: &str) -> JsonValue {
+    JsonValue::Array(vec![
+        JsonValue::String(format!("__otlp:{kind}")),
+        JsonValue::String(rendering.to_string()),
+    ])
+}
+
 /// One [`AnyValue`] to typed JSON. See [`attrs_to_typed_json`] for why this exists.
 fn any_value_to_typed_json(value: &AnyValue) -> JsonValue {
     match &value.value {
@@ -80,17 +93,17 @@ fn any_value_to_typed_json(value: &AnyValue) -> JsonValue {
         Some(any_value::Value::StringValue(s)) => JsonValue::String(s.clone()),
         Some(any_value::Value::BoolValue(b)) => JsonValue::Bool(*b),
         Some(any_value::Value::IntValue(i)) => JsonValue::Number((*i).into()),
-        // NaN and infinities have no JSON representation, so they fall back to a tagged string that a
-        // reader can recognise - and, crucially, that does not compare equal to a numeric field.
+        // NaN and infinities have no JSON number, so they become a tagged **array**. A string tag is
+        // forgeable - a producer sending the literal `"__non_finite:NaN"` would collide with a real NaN -
+        // while a JSON *kind* is not: `write_canonical_json` tags each kind with its own byte, so an array
+        // can never hash as a string however its contents are chosen.
         Some(any_value::Value::DoubleValue(d)) => serde_json::Number::from_f64(*d)
             .map(JsonValue::Number)
-            .unwrap_or_else(|| JsonValue::String(format!("__non_finite:{d}"))),
-        // Tagged, because untagged hex collides with a string that happens to be hex: OTLP bytes
-        // `DE AD` and the string `"dead"` both rendered as `"dead"`, so two labelled metric series
-        // received the same identity and the replacing engine merged one away.
-        Some(any_value::Value::BytesValue(bytes)) => {
-            JsonValue::String(format!("__bytes:{}", hex::encode(bytes)))
-        }
+            .unwrap_or_else(|| otlp_tagged("double", &d.to_string())),
+        // Bytes, for the same reason and by the same means. Untagged hex collided with a hex-looking
+        // string (`DE AD` against `"dead"`); a string prefix only moved the collision to
+        // `"__bytes:dead"`. The kind is what carries the distinction.
+        Some(any_value::Value::BytesValue(bytes)) => otlp_tagged("bytes", &hex::encode(bytes)),
         Some(any_value::Value::ArrayValue(arr)) => {
             JsonValue::Array(arr.values.iter().map(any_value_to_typed_json).collect())
         }
@@ -312,13 +325,24 @@ mod tests {
             "an integer 200 and a string \"200\" must not hash to the same identity"
         );
 
-        // Bytes are tagged, or hex-looking bytes collide with a hex-looking string.
+        // Bytes are tagged by JSON *kind*, so no string can imitate them - not the bare hex, and not the
+        // tag itself. A string prefix would only have moved the collision to whichever literal was chosen.
         let raw = attrs_to_typed_json(&[kv("id", any_value::Value::BytesValue(vec![0xde, 0xad]))]);
-        let text = attrs_to_typed_json(&[kv("id", any_value::Value::StringValue("dead".into()))]);
-        assert_ne!(
-            raw, text,
-            "OTLP bytes DE AD and the string \"dead\" must not share an identity"
-        );
+        for imitation in ["dead", "__otlp:bytes", "__bytes:dead"] {
+            let text =
+                attrs_to_typed_json(&[kv("id", any_value::Value::StringValue(imitation.into()))]);
+            assert_ne!(
+                raw, text,
+                "OTLP bytes DE AD must not share an identity with the string {imitation:?}"
+            );
+        }
+
+        // Non-finite doubles, likewise.
+        let nan = attrs_to_typed_json(&[kv("v", any_value::Value::DoubleValue(f64::NAN))]);
+        let nan_text = attrs_to_typed_json(&[kv("v", any_value::Value::StringValue("NaN".into()))]);
+        assert_ne!(nan, nan_text, "a NaN must not equal the string \"NaN\"");
+        let inf = attrs_to_typed_json(&[kv("v", any_value::Value::DoubleValue(f64::INFINITY))]);
+        assert_ne!(nan, inf, "NaN and infinity are different values");
 
         // Booleans keep their own kind too.
         let flag_true = attrs_to_typed_json(&[kv("ok", any_value::Value::BoolValue(true))]);

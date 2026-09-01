@@ -195,7 +195,6 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     -- IDENTITY
     -- ═══════════════════════════════════════════════════════════════════
     project_id              VARCHAR,            -- Tenant isolation
-    datapoint_id            VARCHAR NOT NULL,   -- Series + instant identity; see domain::metrics::identity
     metric_name             VARCHAR NOT NULL,   -- Metric name (e.g., "http.server.duration")
     metric_description      VARCHAR,            -- Human-readable description
     metric_unit             VARCHAR,            -- Unit (e.g., "ms", "By", "1")
@@ -287,7 +286,24 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     -- FLAGS & RAW
     -- ═══════════════════════════════════════════════════════════════════
     flags                   INTEGER,            -- OTLP data point flags
-    raw_metric              JSON                -- Raw metric JSON for debugging
+    raw_metric              JSON,               -- Raw metric JSON for debugging
+
+    -- ═══════════════════════════════════════════════════════════════════
+    -- IDENTITY (last, deliberately)
+    -- ═══════════════════════════════════════════════════════════════════
+    -- Series + instant identity; see domain::metrics::identity.
+    --
+    -- *Last* because the writer is DuckDB's `Appender`, which is positional, and `ALTER TABLE ADD COLUMN`
+    -- appends. Declared where it reads best - beside `project_id` - a fresh database had it second while
+    -- an upgraded one had it last, so the appender shifted every value by one column on exactly the
+    -- databases a migration exists to serve. Fresh and upgraded have to agree on the physical order, and
+    -- the only order a migration can produce is "at the end".
+    datapoint_id            VARCHAR NOT NULL,
+    -- Instrumentation scope attributes and the schema URLs, which OTel counts as part of what names a
+    -- stream. Appended, like `datapoint_id`, for the reason above.
+    scope_attributes        JSON,
+    scope_schema_url        VARCHAR,
+    resource_schema_url     VARCHAR
 );
 
 -- Indexes for metrics

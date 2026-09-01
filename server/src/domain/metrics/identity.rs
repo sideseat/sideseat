@@ -57,6 +57,10 @@ pub fn datapoint_id(metric: &NormalizedMetric) -> String {
         metric.metric_unit.as_deref(),
         metric.scope_name.as_deref(),
         metric.scope_version.as_deref(),
+        // The schema URLs pin the *meaning* of the attribute names, so two resources that differ only here
+        // describe different streams under identical labels.
+        metric.scope_schema_url.as_deref(),
+        metric.resource_schema_url.as_deref(),
     ] {
         write_optional_str(&mut hasher, field);
     }
@@ -92,6 +96,9 @@ pub fn datapoint_id(metric: &NormalizedMetric) -> String {
     // The attribute set *is* the series, so this is the field that the ClickHouse sort key was missing.
     write_canonical_json(&mut hasher, &metric.attributes);
     write_canonical_json(&mut hasher, &metric.resource_attributes);
+    // Scope attributes too: OTel counts the instrumentation scope as part of a stream's identity, and two
+    // scopes sharing a name and version can still differ here.
+    write_canonical_json(&mut hasher, &metric.scope_attributes);
 
     hasher.finalize().to_hex().to_string()
 }
@@ -294,6 +301,57 @@ mod tests {
             datapoint_id(&monotonic),
             datapoint_id(&not_monotonic),
             "a monotonic sum is not the same instrument as a non-monotonic one"
+        );
+    }
+
+    /// The instrumentation scope's attributes and the schema URLs are part of the stream.
+    ///
+    /// OTel counts the scope as part of what names a series, and the schema URL is what gives the attribute
+    /// names their meaning - so two resources differing only there are describing different things under
+    /// identical labels. All three were discarded entirely before, which made such streams share an identity
+    /// and let a replacing engine keep one.
+    #[test]
+    fn the_scope_and_schema_urls_are_part_of_the_identity() {
+        let base = datapoint(json!({"route": "/v1/traces"}));
+        let id = datapoint_id(&base);
+
+        let scoped = NormalizedMetric {
+            scope_attributes: json!({"library.tier": "beta"}),
+            ..base.clone()
+        };
+        let other_scope = NormalizedMetric {
+            scope_attributes: json!({"library.tier": "stable"}),
+            ..base.clone()
+        };
+        assert_ne!(id, datapoint_id(&scoped), "scope attributes matter");
+        assert_ne!(
+            datapoint_id(&scoped),
+            datapoint_id(&other_scope),
+            "two scopes sharing a name and version can still differ in their attributes"
+        );
+
+        let scope_schema = NormalizedMetric {
+            scope_schema_url: Some("https://opentelemetry.io/schemas/1.30.0".to_string()),
+            ..base.clone()
+        };
+        let resource_schema = NormalizedMetric {
+            resource_schema_url: Some("https://opentelemetry.io/schemas/1.30.0".to_string()),
+            ..base.clone()
+        };
+        assert_ne!(
+            id,
+            datapoint_id(&scope_schema),
+            "the scope schema url matters"
+        );
+        assert_ne!(
+            id,
+            datapoint_id(&resource_schema),
+            "the resource schema url matters"
+        );
+        assert_ne!(
+            datapoint_id(&scope_schema),
+            datapoint_id(&resource_schema),
+            "the two schema urls are different fields, not one"
         );
     }
 

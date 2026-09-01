@@ -43,12 +43,20 @@ fn replace_existing(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(
         let mut by_project: std::collections::HashMap<&str, Vec<&str>> =
             std::collections::HashMap::new();
         for m in chunk {
+            // Empty means "no identity known" - legacy rows carry it, and deleting `datapoint_id = ''`
+            // would take every one of them on the first write after an upgrade.
+            if m.datapoint_id.is_empty() {
+                continue;
+            }
             by_project
                 .entry(m.project_id.as_deref().unwrap_or(""))
                 .or_default()
                 .push(m.datapoint_id.as_str());
         }
         for (project, mut ids) in by_project {
+            if ids.is_empty() {
+                continue;
+            }
             ids.sort_unstable();
             ids.dedup();
             let placeholders = vec!["?"; ids.len()].join(", ");
@@ -71,12 +79,45 @@ fn insert_metrics(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(),
 
     let mut appender = conn.appender("otel_metrics")?;
 
-    for m in metrics {
+    // Within one batch too, and last-wins.
+    //
+    // `replace_existing` removes what is already *stored*, which leaves a batch that carries the same
+    // datapoint twice - a retrying exporter that re-sends part of a payload, or an SDK that flushes an
+    // overlapping window - appending both rows. The delete cannot catch that, because neither row existed
+    // when it ran. Keeping the last occurrence matches the rule everywhere else: a later delivery of a
+    // datapoint replaces an earlier one.
+    // An *empty* id is "no identity known", never "the same datapoint". Legacy rows carry `''` for that
+    // reason, and so does anything written without going through the extractor that stamps identities.
+    // Collapsing on it made every such datapoint one row - which a test writing three metrics by hand
+    // caught at once, and which a caller in production would not have.
+    let mut last_by_identity: std::collections::HashMap<(&str, &str), usize> =
+        std::collections::HashMap::with_capacity(metrics.len());
+    for (index, m) in metrics.iter().enumerate() {
+        if m.datapoint_id.is_empty() {
+            continue;
+        }
+        last_by_identity.insert(
+            (
+                m.project_id.as_deref().unwrap_or(""),
+                m.datapoint_id.as_str(),
+            ),
+            index,
+        );
+    }
+
+    for (index, m) in metrics.iter().enumerate() {
+        if !m.datapoint_id.is_empty()
+            && last_by_identity.get(&(
+                m.project_id.as_deref().unwrap_or(""),
+                m.datapoint_id.as_str(),
+            )) != Some(&index)
+        {
+            continue;
+        }
         // Column order must match schema.rs CREATE TABLE definition
         appender.append_row(params![
             // IDENTITY
             m.project_id.as_deref(),
-            m.datapoint_id.as_str(),
             m.metric_name.as_str(),
             m.metric_description.as_deref(),
             m.metric_unit.as_deref(),
@@ -132,6 +173,12 @@ fn insert_metrics(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(),
             // FLAGS & RAW
             m.flags as i32,
             json_to_opt_string(&m.raw_metric).as_deref(),
+            // IDENTITY, last - see the schema comment. The appender is positional and `ALTER TABLE ADD
+            // COLUMN` appends, so this is the only position a fresh and an upgraded database share.
+            m.datapoint_id.as_str(),
+            json_to_opt_string(&m.scope_attributes).as_deref(),
+            m.scope_schema_url.as_deref(),
+            m.resource_schema_url.as_deref(),
         ])?;
     }
 

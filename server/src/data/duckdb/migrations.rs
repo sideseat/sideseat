@@ -90,12 +90,35 @@ fn apply_initial_schema(conn: &Connection) -> Result<(), DuckdbError> {
 /// computes. Legacy rows therefore keep the old behaviour among themselves, and every row written
 /// from here on has an identity. The 90-day retention window ages the untagged ones out.
 ///
-/// The `NOT NULL` at the end matters: a fresh schema declares it, so without this an upgraded database
-/// carried a nullable column and the two schemas differed for one version. Backfilling and stopping is
-/// the same half-kept invariant the SQLite upgrade test was written to catch.
-const MIGRATION_V2: &str = r#"ALTER TABLE otel_metrics ADD COLUMN datapoint_id VARCHAR;
-UPDATE otel_metrics SET datapoint_id = '' WHERE datapoint_id IS NULL;
+/// The `NOT NULL` matters: a fresh schema declares it, so without it an upgraded database carried a
+/// nullable column and the two schemas differed for one version. Backfilling and stopping is the same
+/// half-kept invariant the upgrade tests exist to catch.
+///
+/// Backfilled by a column `DEFAULT` rather than an `UPDATE`, then the default dropped so the shape matches
+/// the fresh schema exactly. An `UPDATE` followed by `SET NOT NULL` in one transaction is refused by
+/// DuckDB ("Cannot create index with outstanding updates"), so on a *populated* table the migration failed
+/// outright. Only a test that populates the table before migrating finds that.
+///
+/// The indexes are dropped and recreated around the `ALTER`, because DuckDB refuses to alter a table that
+/// has dependents at all: "Cannot alter entry because there are entries that depend on it". Every real v1
+/// database has these five indexes, so without this the migration failed on *every* database it exists to
+/// serve - and a test against a bare table would never have noticed.
+const MIGRATION_V2: &str = r#"DROP INDEX IF EXISTS idx_metrics_project_ts;
+DROP INDEX IF EXISTS idx_metrics_project_name;
+DROP INDEX IF EXISTS idx_metrics_project_name_ts;
+DROP INDEX IF EXISTS idx_metrics_exemplar_trace;
+DROP INDEX IF EXISTS idx_metrics_session;
+ALTER TABLE otel_metrics ADD COLUMN datapoint_id VARCHAR DEFAULT '';
 ALTER TABLE otel_metrics ALTER COLUMN datapoint_id SET NOT NULL;
+ALTER TABLE otel_metrics ALTER COLUMN datapoint_id DROP DEFAULT;
+ALTER TABLE otel_metrics ADD COLUMN scope_attributes JSON;
+ALTER TABLE otel_metrics ADD COLUMN scope_schema_url VARCHAR;
+ALTER TABLE otel_metrics ADD COLUMN resource_schema_url VARCHAR;
+CREATE INDEX IF NOT EXISTS idx_metrics_project_ts ON otel_metrics(project_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_metrics_project_name ON otel_metrics(project_id, metric_name);
+CREATE INDEX IF NOT EXISTS idx_metrics_project_name_ts ON otel_metrics(project_id, metric_name, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_metrics_exemplar_trace ON otel_metrics(project_id, exemplar_trace_id);
+CREATE INDEX IF NOT EXISTS idx_metrics_session ON otel_metrics(project_id, session_id);
 "#;
 
 fn apply_migration(conn: &Connection, version: i32) -> Result<(), DuckdbError> {
@@ -162,6 +185,7 @@ fn apply_versioned_migration(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::duckdb::schema::SCHEMA;
 
     fn create_test_db() -> Connection {
         Connection::open_in_memory().expect("Failed to create in-memory database")
@@ -218,5 +242,93 @@ mod tests {
         } else {
             panic!("Expected MigrationFailed error");
         }
+    }
+
+    /// A v1 database walked forward has the same columns, **in the same physical order**, as a fresh one.
+    ///
+    /// Order is the point, and a membership comparison misses it entirely. The writer is DuckDB's
+    /// `Appender`, which is positional, and `ALTER TABLE ADD COLUMN` can only append - so a column declared
+    /// mid-table in the fresh schema sits at the end of an upgraded one, and the appender then shifts every
+    /// value by one column on exactly the databases a migration exists to serve. That is not a subtle
+    /// difference in behaviour; metrics ingestion fails outright, or worse, stores each value under its
+    /// neighbour's name.
+    #[test]
+    fn a_v1_database_upgrades_to_the_same_column_order_as_a_fresh_one() {
+        fn columns(conn: &Connection, table: &str) -> Vec<(String, String)> {
+            // `ORDER BY column_index`, not sorted by name: the physical order is what the appender uses.
+            let mut stmt = conn
+                .prepare(
+                    "SELECT column_name, data_type FROM duckdb_columns() \
+                     WHERE table_name = ? ORDER BY column_index",
+                )
+                .expect("prepare");
+            let rows = stmt
+                .query_map([table], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })
+                .expect("query");
+            rows.map(|r| r.expect("row")).collect()
+        }
+
+        let fresh = Connection::open_in_memory().expect("fresh");
+        fresh.execute_batch(SCHEMA).expect("fresh schema");
+
+        // A v1 database: the current schema minus what migration 2 adds.
+        let upgraded = Connection::open_in_memory().expect("upgraded");
+        upgraded.execute_batch(SCHEMA).expect("base schema");
+        // The indexes depend on the table, so they go first - DuckDB refuses to alter a table with
+        // dependents. Recreated after, since the fresh schema declares them.
+        upgraded
+            .execute_batch(
+                "DROP INDEX idx_metrics_project_ts;
+                 DROP INDEX idx_metrics_project_name;
+                 DROP INDEX idx_metrics_project_name_ts;
+                 DROP INDEX idx_metrics_exemplar_trace;
+                 DROP INDEX idx_metrics_session;
+                 ALTER TABLE otel_metrics DROP COLUMN datapoint_id;
+                 ALTER TABLE otel_metrics DROP COLUMN scope_attributes;
+                 ALTER TABLE otel_metrics DROP COLUMN scope_schema_url;
+                 ALTER TABLE otel_metrics DROP COLUMN resource_schema_url;
+                 -- Recreated, because a real v1 database has them and DuckDB refuses to alter a table
+                 -- with dependents: the migration has to handle that itself.
+                 CREATE INDEX idx_metrics_project_ts ON otel_metrics(project_id, timestamp DESC);
+                 CREATE INDEX idx_metrics_project_name ON otel_metrics(project_id, metric_name);
+                 CREATE INDEX idx_metrics_project_name_ts ON otel_metrics(project_id, metric_name, timestamp DESC);
+                 CREATE INDEX idx_metrics_exemplar_trace ON otel_metrics(project_id, exemplar_trace_id);
+                 CREATE INDEX idx_metrics_session ON otel_metrics(project_id, session_id);",
+            )
+            .expect("reduce to the v1 shape");
+        // A pre-existing row, to prove the backfill reaches it rather than leaving a null the NOT NULL
+        // would then refuse.
+        upgraded
+            .execute_batch(
+                "INSERT INTO otel_metrics (project_id, metric_name, metric_type, timestamp) \
+                 VALUES ('p1', 'legacy.metric', 'gauge', TIMESTAMP '2026-01-01 00:00:00');",
+            )
+            .expect("legacy row");
+
+        apply_migration(&upgraded, 2).expect("migration 2");
+
+        assert_eq!(
+            columns(&upgraded, "otel_metrics"),
+            columns(&fresh, "otel_metrics"),
+            "an upgraded database's otel_metrics columns differ in name, type or *position* from a fresh \
+             one's - and the metrics writer is positional, so a position difference silently writes every \
+             value into the wrong column"
+        );
+
+        // And the legacy row came through with a value rather than a null.
+        let legacy: String = upgraded
+            .query_row(
+                "SELECT datapoint_id FROM otel_metrics WHERE metric_name = 'legacy.metric'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("legacy row survives the migration");
+        assert_eq!(
+            legacy, "",
+            "a legacy datapoint has no computable identity, so it carries the empty one - not a null, \
+             which the fresh schema's NOT NULL would refuse"
+        );
     }
 }

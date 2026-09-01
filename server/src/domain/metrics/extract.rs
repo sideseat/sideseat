@@ -33,13 +33,22 @@ pub fn extract_metrics_batch(request: &ExportMetricsServiceRequest) -> Vec<Norma
             .map(|r| attrs_to_typed_json(&r.attributes))
             .unwrap_or(JsonValue::Object(serde_json::Map::new()));
 
-        let ctx = ResourceContext::from_attrs(&resource_attrs, typed_resource_attrs);
+        let ctx = ResourceContext::from_attrs(
+            &resource_attrs,
+            typed_resource_attrs,
+            (!resource_metrics.schema_url.is_empty()).then(|| resource_metrics.schema_url.clone()),
+        );
 
         for scope_metrics in &resource_metrics.scope_metrics {
             let scope = scope_metrics.scope.as_ref();
             let scope_ctx = ScopeContext {
                 name: scope.map(|s| s.name.clone()).filter(|s| !s.is_empty()),
                 version: scope.and_then(|s| (!s.version.is_empty()).then(|| s.version.clone())),
+                attributes: scope
+                    .map(|s| attrs_to_typed_json(&s.attributes))
+                    .unwrap_or(JsonValue::Object(serde_json::Map::new())),
+                schema_url: (!scope_metrics.schema_url.is_empty())
+                    .then(|| scope_metrics.schema_url.clone()),
             };
 
             for metric in &scope_metrics.metrics {
@@ -66,10 +75,15 @@ struct ResourceContext {
     service_instance_id: Option<String>,
     environment: Option<String>,
     resource_attributes: JsonValue,
+    schema_url: Option<String>,
 }
 
 impl ResourceContext {
-    fn from_attrs(attrs: &HashMap<String, String>, resource_attributes: JsonValue) -> Self {
+    fn from_attrs(
+        attrs: &HashMap<String, String>,
+        resource_attributes: JsonValue,
+        schema_url: Option<String>,
+    ) -> Self {
         Self {
             project_id: attrs.get(PROJECT_ID_ATTR).cloned(),
             service_name: attrs.get(keys::SERVICE_NAME).cloned(),
@@ -78,6 +92,7 @@ impl ResourceContext {
             service_instance_id: attrs.get(keys::SERVICE_INSTANCE_ID).cloned(),
             environment: get_environment(attrs),
             resource_attributes,
+            schema_url,
         }
     }
 }
@@ -86,6 +101,9 @@ impl ResourceContext {
 struct ScopeContext {
     name: Option<String>,
     version: Option<String>,
+    /// Typed, for the same reason the datapoint's own attributes are - see `attrs_to_typed_json`.
+    attributes: JsonValue,
+    schema_url: Option<String>,
 }
 
 /// Metric base info (name, description, unit)
@@ -217,6 +235,9 @@ fn extract_number_dp(
         service_instance_id: ctx.service_instance_id.clone(),
         scope_name: scope.name.clone(),
         scope_version: scope.version.clone(),
+        scope_attributes: scope.attributes.clone(),
+        scope_schema_url: scope.schema_url.clone(),
+        resource_schema_url: ctx.schema_url.clone(),
         attributes: attrs_to_typed_json(&dp.attributes),
         resource_attributes: ctx.resource_attributes.clone(),
         exemplar_trace_id: extract_exemplar_trace_id(exemplar),
@@ -268,6 +289,9 @@ fn extract_histogram_dp(
         service_instance_id: ctx.service_instance_id.clone(),
         scope_name: scope.name.clone(),
         scope_version: scope.version.clone(),
+        scope_attributes: scope.attributes.clone(),
+        scope_schema_url: scope.schema_url.clone(),
+        resource_schema_url: ctx.schema_url.clone(),
         attributes: attrs_to_typed_json(&dp.attributes),
         resource_attributes: ctx.resource_attributes.clone(),
         exemplar_trace_id: extract_exemplar_trace_id(exemplar),
@@ -322,6 +346,9 @@ fn extract_exp_histogram_dp(
         service_instance_id: ctx.service_instance_id.clone(),
         scope_name: scope.name.clone(),
         scope_version: scope.version.clone(),
+        scope_attributes: scope.attributes.clone(),
+        scope_schema_url: scope.schema_url.clone(),
+        resource_schema_url: ctx.schema_url.clone(),
         attributes: attrs_to_typed_json(&dp.attributes),
         resource_attributes: ctx.resource_attributes.clone(),
         exemplar_trace_id: extract_exemplar_trace_id(exemplar),
@@ -375,6 +402,9 @@ fn extract_summary_dp(
         service_instance_id: ctx.service_instance_id.clone(),
         scope_name: scope.name.clone(),
         scope_version: scope.version.clone(),
+        scope_attributes: scope.attributes.clone(),
+        scope_schema_url: scope.schema_url.clone(),
+        resource_schema_url: ctx.schema_url.clone(),
         attributes: attrs_to_typed_json(&dp.attributes),
         resource_attributes: ctx.resource_attributes.clone(),
         flags: dp.flags,

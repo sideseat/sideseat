@@ -425,6 +425,18 @@ answers built by the previous pipeline, and a version constant someone must reme
 rather than a design. The *unfiltered* reconstruction is cached and `?role=` is applied to a copy, so one
 entry serves every role.
 
+**A migration can only append a column, so the fresh schema declares added columns last.** DuckDB's metrics
+writer is an `Appender`, which is *positional*: with `datapoint_id` declared second in the fresh schema and
+appended last by the migration, an upgraded database had every value written one column across — failing on
+type conversion if it was lucky. Fresh and upgraded must agree on the physical order, and the only order a
+migration can produce is "at the end". `a_v1_database_upgrades_to_the_same_column_order_as_a_fresh_one`
+compares `duckdb_columns()` *ordered by position*, against a v1 database that is populated first — and
+writing it found three defects in one migration: the column order, an `UPDATE`-then-`SET NOT NULL` pair
+DuckDB refuses in one transaction, and an `ALTER` DuckDB refuses at all while indexes depend on the table
+(so it failed on *every* real database it existed to serve). SQLite's writers all name their columns, but
+`migration_added_columns_are_declared_last` pins the same property there against the schema text, because
+the trap is one mistake away.
+
 **A store holding bytes must be at least as reachable as the rows that name them.** One rule
 (`Sharing`, `validate_store_sharing`), checked once at startup, because the same mismatch produces three
 unrelated-looking silent failures — and SideSeat splits bytes from their naming record three times over:
@@ -593,10 +605,13 @@ startup and refuses AOF-off, `appendfsync no`, and any policy that could evict a
 server that refuses `CONFIG GET` is refused too, rather than assumed. The shipped compose file's
 `allkeys-lru` failed this and is now `noeviction`.
 
-The bound, stated rather than glossed: `appendfsync everysec` is accepted, so a host power loss can take up
-to **one second** of acknowledged entries. `always` removes that window at an order-of-magnitude throughput
-cost, and startup logs which one is in force. Replication is a second window this does not close — a
-failover can promote a replica that had not received the entry, which needs a per-publish `WAIT`.
+`appendfsync always` is **required**, not merely preferred. `everysec` was accepted for a while on the
+grounds that it is what production Redis runs — but it lets a 200 precede the fsync, so a host failure loses
+up to a second of exports this server has already reported as stored, and documenting that window makes the
+loss honest without making the data durable. An operator who wants that throughput has the default
+in-memory backend, which writes inside the request instead of acknowledging early. One window remains and is
+not closed: a failover can promote a replica that had not received the entry, which needs a per-publish
+`WAIT`/`WAITAOF` and the latency that implies.
 
 **Recovery cannot be starved, and a poison payload cannot stop ingestion.** `stream_claim` asked for the
 first N pending entries and discarded the ones that were not idle enough, so a backlog of freshly delivered
@@ -626,6 +641,17 @@ Attributes are hashed with their **OTLP types preserved** (`attrs_to_typed_json`
 path stringifies every value, which is right for display and wrong for identity: `code=200` (int) and
 `code="200"` (string) became the same series, as did OTLP bytes `DE AD` and the string `"dead"` until the
 byte form was tagged.
+
+Attribute *types* are preserved through a tagged **array** rather than a string prefix
+(`["__otlp:bytes", "dead"]`), because a prefix only moves the collision to the prefix: OTLP bytes `DE AD`
+first collided with the string `"dead"`, then with `"__bytes:dead"`. A JSON *kind* cannot be forged, since
+the canonical hash tags each kind with its own byte. The scope's attributes and both schema URLs are in the
+identity too — and were being discarded entirely, so two scopes differing only in their attributes, or two
+resources differing only in `schema_url`, produced datapoints that a replacing engine merged into one.
+
+An **empty** `datapoint_id` means "no identity known" and never collapses: legacy rows carry it, and so
+does anything written without passing through the extractor that stamps one. Treating it as an identity
+made every such datapoint a single row.
 
 ClickHouse carries the id in its sorting key so a `ReplacingMergeTree` merge keeps distinct series;
 **DuckDB deletes the ids it is about to write, in the same transaction as the append**. Counting distinct
