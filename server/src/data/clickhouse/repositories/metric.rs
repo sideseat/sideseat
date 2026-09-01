@@ -66,10 +66,32 @@ struct MetricRow {
     resource_schema_url: Option<String>,
 }
 
-/// Convert chrono DateTime to time OffsetDateTime
+/// Convert chrono DateTime to time OffsetDateTime.
+///
+/// Via seconds plus the subsecond part, never nanoseconds-since-epoch. `timestamp_nanos_opt` is `None`
+/// outside 1677-2262 - narrower than the `DateTime64(6)` column it feeds - and the fallback was the
+/// **epoch**, which the schema's 90-day TTL then deleted. Ingestion refuses an unstorable instant
+/// (`utils::time::is_storable`), so this saturates and shouts rather than silently relocating a row: a value
+/// arriving here out of range means that check was bypassed, not that the row should be moved to 1970.
 fn chrono_to_time(dt: chrono::DateTime<chrono::Utc>) -> time::OffsetDateTime {
-    time::OffsetDateTime::from_unix_timestamp_nanos(dt.timestamp_nanos_opt().unwrap_or(0) as i128)
-        .unwrap_or(time::OffsetDateTime::UNIX_EPOCH)
+    match time::OffsetDateTime::from_unix_timestamp(dt.timestamp()) {
+        Ok(t) => t + time::Duration::nanoseconds(i64::from(dt.timestamp_subsec_nanos())),
+        Err(e) => {
+            tracing::error!(
+                timestamp = %dt,
+                error = %e,
+                "A timestamp reached storage that cannot be represented; storing it at the epoch would \
+                 hand it to the retention TTL, so it is clamped to the representable bound instead"
+            );
+            if dt.timestamp() < 0 {
+                time::OffsetDateTime::from_unix_timestamp(i32::MIN.into())
+                    .unwrap_or(time::OffsetDateTime::UNIX_EPOCH)
+            } else {
+                time::OffsetDateTime::from_unix_timestamp(i32::MAX.into())
+                    .unwrap_or(time::OffsetDateTime::UNIX_EPOCH)
+            }
+        }
+    }
 }
 
 impl From<&NormalizedMetric> for MetricRow {
