@@ -853,19 +853,8 @@ impl TracePipeline {
                 .collect_spans_written_for_deleted_traces(&written, &mut created_associations)
                 .await;
             // Now the survivors are durable, and no failure path may take them.
-            if let Err(e) = self
-                .file_service
-                .database()
-                .repository()
-                .confirm_trace_file_associations(&created_associations)
-                .await
-            {
-                tracing::warn!(
-                    error = %e,
-                    "Could not confirm this batch's file associations as durable; they keep a pending \
-                     writer and a later failure path could release them"
-                );
-            }
+            self.confirm_associations(&created_associations, "batch")
+                .await;
             // Published *after* every drop and compensation, and only for spans that survived both. Built
             // before the filtering, `sse_events` announced spans this batch went on to discard - so a
             // reader saw a span appear and then never find it.
@@ -1169,6 +1158,44 @@ impl TracePipeline {
         created
             .retain(|(project, trace, _)| surviving.contains(&(project.as_str(), trace.as_str())));
         self.release_created_associations(&orphaned).await;
+    }
+
+    /// Mark this batch's associations durable, reporting a confirmation that matched fewer rows than it had.
+    ///
+    /// A shortfall means an association this batch owns is **not there** - something removed it between the
+    /// file write and here - so the span row now committed carries a `#!B64!#` reference whose file nothing
+    /// holds, and the orphan sweeper reclaims on zero references. That is the dangling reference the
+    /// write-files-before-rows ordering exists to prevent, so it cannot be inferred from a bare `Ok`: the
+    /// count is the only evidence, and it was previously discarded.
+    ///
+    /// Reported rather than repaired. Re-creating the row would point it at bytes that may already have been
+    /// collected, turning a detectable inconsistency into an undetectable one; the deletion sweep converges
+    /// on the trace either way. What this buys is that the case is *visible* if it ever happens, instead of
+    /// being the silent `Ok(0)` it was.
+    async fn confirm_associations(&self, created: &[(String, String, String)], path: &str) {
+        if created.is_empty() {
+            return;
+        }
+        match self
+            .file_service
+            .database()
+            .repository()
+            .confirm_trace_file_associations(created)
+            .await
+        {
+            Ok(confirmed) if confirmed < created.len() as u64 => tracing::error!(
+                path,
+                expected = created.len(),
+                confirmed,
+                "Fewer file associations were confirmed than this batch owns; a committed span may reference                  a file that nothing holds. Something removed the association between the file write and the                  confirmation."
+            ),
+            Ok(_) => {}
+            Err(e) => tracing::warn!(
+                error = %e,
+                path,
+                "Could not confirm this batch's file associations as durable; they keep a pending writer and                  a later failure path could release them"
+            ),
+        }
     }
 
     /// Release associations this batch referenced, decrementing its own writer.
@@ -1637,19 +1664,8 @@ impl TracePipeline {
                 let compensated = self
                     .collect_spans_written_for_deleted_traces(&written, &mut created_associations)
                     .await;
-                if let Err(e) = self
-                    .file_service
-                    .database()
-                    .repository()
-                    .confirm_trace_file_associations(&created_associations)
-                    .await
-                {
-                    tracing::warn!(
-                        error = %e,
-                        "Could not confirm this request's file associations as durable; they keep a \
-                         pending writer"
-                    );
-                }
+                self.confirm_associations(&created_associations, "request")
+                    .await;
                 // Only spans that survived every drop and the compensation - see the batch path, including
                 // why the survivor identity carries the project id.
                 let surviving: HashSet<(&str, &str, &str)> = written
