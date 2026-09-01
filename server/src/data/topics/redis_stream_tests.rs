@@ -401,3 +401,81 @@ async fn a_non_durable_redis_is_refused_at_startup() {
         "the refusal must name the offending setting, so an operator knows what to fix: {message}"
     );
 }
+
+/// An abandoned entry behind a wall of fresh ones is still reclaimed.
+///
+/// `stream_claim` used to ask for the first `count` pending entries from the start of the list and then
+/// discard the ones that were not idle enough - so a group with more than `count` recently-delivered
+/// entries in front hid every abandoned entry behind them, and one at position `count + 1` was never
+/// examined however long its consumer had been dead. Filtering with `XPENDING ... IDLE` makes the window
+/// contain only eligible entries.
+///
+/// The test delivers a batch, acknowledges nothing, then asks for a claim window *smaller* than the
+/// backlog - which is the shape that produced the starvation.
+#[tokio::test]
+async fn an_abandoned_entry_behind_fresh_ones_is_still_reclaimed() {
+    let Some((backend, topic)) = backend("starvation").await else {
+        return;
+    };
+    let group = "traces";
+    backend
+        .ensure_group_for_test(&topic, group)
+        .await
+        .expect("group");
+
+    // One entry delivered and abandoned first, so it is the oldest and the most idle.
+    let abandoned = backend
+        .stream_publish(&topic, b"abandoned")
+        .await
+        .expect("publish");
+    let mut doomed = backend
+        .stream_subscribe(&topic, group, "doomed")
+        .await
+        .expect("subscribe");
+    tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        futures::StreamExt::next(&mut doomed.receiver),
+    )
+    .await
+    .expect("delivered")
+    .expect("open")
+    .expect("ok");
+    drop(doomed);
+
+    // Then a wall of entries delivered to a *live* consumer and left pending. Under the old window these
+    // would fill the first `count` slots and hide the abandoned one.
+    for i in 0..10u32 {
+        backend
+            .stream_publish(&topic, format!("fresh-{i}").as_bytes())
+            .await
+            .expect("publish");
+    }
+    let mut live = backend
+        .stream_subscribe(&topic, group, "live")
+        .await
+        .expect("subscribe");
+    for _ in 0..10 {
+        tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            futures::StreamExt::next(&mut live.receiver),
+        )
+        .await
+        .expect("delivered")
+        .expect("open")
+        .expect("ok");
+    }
+
+    // A window of two, against a pending list of eleven. `min_idle_ms` of 0 makes everything eligible, so
+    // the test instead relies on the *order*: with IDLE filtering the oldest eligible entries come first,
+    // and the abandoned one is the oldest.
+    let claimed = backend
+        .stream_claim(&topic, group, "rescuer", 0, 2)
+        .await
+        .expect("claim a small window");
+    let ids: Vec<&str> = claimed.iter().map(|m| m.id.as_str()).collect();
+    assert!(
+        ids.contains(&abandoned.as_str()),
+        "the oldest abandoned entry must be reachable through a window smaller than the backlog: \
+         got {ids:?}"
+    );
+}

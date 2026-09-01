@@ -15,9 +15,53 @@ pub fn insert_batch(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(
     }
 
     in_transaction(conn, |conn| {
+        // A re-delivery *replaces* its datapoints rather than joining them.
+        //
+        // The table is append-only, and counting distinct ids at read time hid the duplicates from the
+        // deletion check without removing them: two rows for one datapoint remained, holding two possibly
+        // different measurements of the same instant with nothing to say which is current, and the write
+        // amplification of a retrying exporter was unbounded. That is the same failure ClickHouse's
+        // `ReplacingMergeTree` avoids by construction, so DuckDB does it explicitly - deleting the ids
+        // about to be written, in the same transaction as the append, which is what makes it atomic.
+        //
+        // Spans already follow this rule: a re-delivered span id overwrites. `datapoint_id` is what lets
+        // metrics follow it - see `domain::metrics::identity`.
+        replace_existing(conn, metrics)?;
         insert_metrics(conn, metrics)?;
         Ok(())
     })
+}
+
+/// Delete any rows already stored for the datapoints about to be written.
+///
+/// Chunked, because a batch can carry many datapoints and a parameter list has a practical limit. Rows
+/// written before the identity existed carry `''`, which never appears in this list - every datapoint that
+/// reaches here has a real id - so legacy rows are untouched.
+fn replace_existing(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(), DuckdbError> {
+    const CHUNK: usize = 500;
+    for chunk in metrics.chunks(CHUNK) {
+        let mut by_project: std::collections::HashMap<&str, Vec<&str>> =
+            std::collections::HashMap::new();
+        for m in chunk {
+            by_project
+                .entry(m.project_id.as_deref().unwrap_or(""))
+                .or_default()
+                .push(m.datapoint_id.as_str());
+        }
+        for (project, mut ids) in by_project {
+            ids.sort_unstable();
+            ids.dedup();
+            let placeholders = vec!["?"; ids.len()].join(", ");
+            let sql = format!(
+                "DELETE FROM otel_metrics WHERE project_id = ? AND datapoint_id IN ({placeholders})"
+            );
+            let mut params: Vec<&str> = Vec::with_capacity(ids.len() + 1);
+            params.push(project);
+            params.extend(ids);
+            conn.execute(&sql, duckdb::params_from_iter(params))?;
+        }
+    }
+    Ok(())
 }
 
 fn insert_metrics(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(), DuckdbError> {

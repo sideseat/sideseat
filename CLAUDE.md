@@ -586,6 +586,27 @@ group is never trimmed: nobody has read it, so everything is still needed.
 `make test-redis` runs this against a pinned Redis, because none of it had ever run against one — the unit
 tests covered key prefixes and URL redaction. Restoring `MAXLEN` fails the suite.
 
+**A durable Redis is one that is checked, to a stated bound.** `is_durable()` returned true for anything
+that answered `PING`, so a cache-tier instance with AOF off and a keyspace-wide LRU licensed acknowledging
+before the write. `probe_redis_durability` now reads `appendonly`, `appendfsync` and `maxmemory-policy` at
+startup and refuses AOF-off, `appendfsync no`, and any policy that could evict an unread stream entry; a
+server that refuses `CONFIG GET` is refused too, rather than assumed. The shipped compose file's
+`allkeys-lru` failed this and is now `noeviction`.
+
+The bound, stated rather than glossed: `appendfsync everysec` is accepted, so a host power loss can take up
+to **one second** of acknowledged entries. `always` removes that window at an order-of-magnitude throughput
+cost, and startup logs which one is in force. Replication is a second window this does not close — a
+failover can promote a replica that had not received the entry, which needs a per-publish `WAIT`.
+
+**Recovery cannot be starved, and a poison payload cannot stop ingestion.** `stream_claim` asked for the
+first N pending entries and discarded the ones that were not idle enough, so a backlog of freshly delivered
+entries hid every abandoned one behind it; the window is filtered with `XPENDING ... IDLE` now, so it holds
+only eligible entries and the oldest abandoned come first. And a payload that cannot be decoded used to
+reach the consumer loop as a generic error and *break* it — one malformed message stopped all trace
+ingestion for the life of the process, and since it was never acknowledged a restart met the same message.
+It is now `TopicError::Undecodable`, carrying the id so the consumer acknowledges it and continues: nothing
+can store a payload it cannot parse, and the alternative is blocking every message behind it.
+
 **A metric datapoint has an identity, because a `ReplacingMergeTree` needs one.** `otel_metrics` was sorted
 by `(project_id, metric_name, toDate(timestamp), timestamp)`, and a replacing engine treats rows with an
 equal sorting key as versions of one row. Attributes were not in the key, so `requests{status=200}` and
@@ -594,13 +615,24 @@ row at the next merge, after the ingest had returned 200. DuckDB, append-only wi
 failure: the same export delivered twice was stored twice.
 
 `domain/metrics/identity.rs` defines it once for both: the resource, the scope, the metric name, the type,
-the temporality, the attribute set and both timestamps — everything OTel says names a series and an
-instant. The *measurement* is deliberately excluded, so a re-delivery carrying a corrected value replaces
-its row rather than sitting beside it, which is the rule spans already follow. ClickHouse appends the id to
-its sorting key (a metadata-only `MODIFY ORDER BY`, guarded by a `precondition` so a partly-applied
-migration stays retryable); DuckDB counts distinct ids. Rows written before this keep `''` and retain the
-old behaviour among themselves — a value invented in SQL would not match the one Rust computes — and
-datapoints already merged away are gone.
+the temporality, the **unit**, the **monotonicity**, the attribute set and both timestamps — everything OTel
+says names a series and an instant. The unit and the monotonic flag are in it because they are part of what
+the instrument measures rather than commentary on it: one name reported in `ms` and in `s`, or a monotonic
+sum against a non-monotonic one, are different streams. The *description* is excluded, and so is the
+*measurement* — so a re-delivery carrying a corrected value replaces its row rather than sitting beside it,
+which is the rule spans already follow.
+
+Attributes are hashed with their **OTLP types preserved** (`attrs_to_typed_json`). The ordinary extraction
+path stringifies every value, which is right for display and wrong for identity: `code=200` (int) and
+`code="200"` (string) became the same series, as did OTLP bytes `DE AD` and the string `"dead"` until the
+byte form was tagged.
+
+ClickHouse carries the id in its sorting key so a `ReplacingMergeTree` merge keeps distinct series;
+**DuckDB deletes the ids it is about to write, in the same transaction as the append**. Counting distinct
+ids at read time was not enough — it hid the physical duplicates rather than preventing them, leaving two
+rows for one instant with nothing to say which measurement was current, and a retrying exporter's write
+amplification unbounded. Rows written before the identity existed keep `''` and retain the old behaviour
+among themselves; datapoints already merged away are gone.
 
 Measured by `make bench-http`, which **enforces** these numbers rather than printing them: the run exits
 non-zero when an operation misses its ceiling. A benchmark nobody compares against a target is a report,

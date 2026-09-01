@@ -61,6 +61,28 @@ impl Drop for DuckdbService {
 }
 
 impl DuckdbService {
+    /// Physical metric row count for a project. Test-only: production counts through
+    /// `count_project_rows`, and the point of this is to see the rows *behind* that answer - a count that
+    /// deduplicates would pass while the table held two rows for one datapoint.
+    #[cfg(test)]
+    pub async fn count_metric_rows_for_test(
+        self: &Arc<Self>,
+        project_id: &str,
+    ) -> Result<u64, DuckdbError> {
+        let db = Arc::clone(self);
+        let id = project_id.to_string();
+        Self::run_query(move || {
+            let conn = db.conn();
+            let count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM otel_metrics WHERE project_id = ?",
+                [id.as_str()],
+                |row| row.get(0),
+            )?;
+            Ok(count as u64)
+        })
+        .await?
+    }
+
     /// Initialize the analytics service with a single connection
     pub async fn init(storage: &AppStorage) -> Result<Self, DuckdbError> {
         let db_path = storage.subdir(DataSubdir::Duckdb).join(DUCKDB_DB_FILENAME);
