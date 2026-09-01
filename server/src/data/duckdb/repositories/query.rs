@@ -1897,6 +1897,18 @@ pub fn count_project_rows(conn: &Connection, project_id: &str) -> Result<u64, Du
     Ok((spans + metrics) as u64)
 }
 
+/// The newest committed ingestion time for a project, in microseconds. See the trait method.
+pub fn max_ingested_at_us(conn: &Connection, project_id: &str) -> Result<Option<i64>, DuckdbError> {
+    // `MAX` over the raw table rather than the deduplicated view: the question is what the store has
+    // committed, and a re-delivery's newer row is exactly the kind of commit a watermark must account for.
+    let value: Option<i64> = conn.query_row(
+        "SELECT MAX(EPOCH_US(ingested_at)) FROM otel_spans WHERE project_id = ?",
+        [project_id],
+        |row| row.get(0),
+    )?;
+    Ok(value)
+}
+
 /// Count spans grouped by project for a set of project IDs.
 pub fn count_spans_by_project(
     conn: &Connection,

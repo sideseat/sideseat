@@ -457,6 +457,22 @@ pub struct FeedMessagesMetadata {
     pub total_tokens: i64,
     /// Total cost from contributing spans
     pub total_cost: f64,
+    /// Whether this page's reconstruction saw every trace of every session it touches.
+    ///
+    /// True is the normal case: the page's traces are resolved to their sessions and each session is loaded
+    /// in full, so a replay crossing traces within a session is recognised wherever the page boundary fell.
+    /// False means at least one contributing span carried no session id, so there was nothing wider to load
+    /// for it - which is fine, because a session-less trace cannot take part in a cross-trace replay, but a
+    /// caller reasoning about completeness should not have to guess which case it got.
+    pub session_scoped: bool,
+    /// Whether concatenating pages yields a globally ordered transcript. Always **false**, and stated
+    /// rather than implied.
+    ///
+    /// Pages are selected by *ingestion* time - the only key that gives a stable, total cursor - while each
+    /// page's messages are ordered by *message* time, which the pipeline computes and SQL cannot page by. So
+    /// a page is a correct window on activity and a concatenation of pages is not a transcript. The trace
+    /// and session endpoints are where a conversation is read in order.
+    pub pages_are_globally_ordered: bool,
 }
 
 /// Feed messages response with cursor-based pagination
@@ -525,12 +541,23 @@ mod serialisation_tests {
             span_count: 1,
             total_tokens: 0,
             total_cost: 0.0,
+            session_scoped: true,
+            pages_are_globally_ordered: false,
         };
+        let json = serde_json::to_string(&feed).expect("serialise");
         assert!(
-            serde_json::to_string(&feed)
-                .expect("serialise")
-                .contains("\"replay_matching_complete\":false"),
+            json.contains("\"replay_matching_complete\":false"),
             "the feed page must report it too"
+        );
+        // These two are always present, unlike `replay_matching_complete`: a caller cannot infer either
+        // from silence, and the whole point is that the contract is stated rather than assumed.
+        assert!(
+            json.contains("\"session_scoped\":true"),
+            "a caller must be told whether the page saw every trace of its sessions: {json}"
+        );
+        assert!(
+            json.contains("\"pages_are_globally_ordered\":false"),
+            "and that concatenating pages is not a transcript: {json}"
         );
     }
 }

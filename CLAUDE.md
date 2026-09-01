@@ -624,6 +624,21 @@ startup and refuses AOF-off, `appendfsync no`, and any policy that could evict a
 server that refuses `CONFIG GET` is refused too, rather than assumed. The shipped compose file's
 `allkeys-lru` failed this and is now `noeviction`.
 
+**Replication is acknowledged, not assumed.** `appendfsync always` covers the loss of *that host*; a failover
+promoting a replica that never received an entry is a separate window. `database.redis.min_replica_acks`
+makes each publish issue `WAIT`, and a shortfall is a 503 the exporter retries — with a startup warning when
+the server *has* replicas and nothing requires their acknowledgement, which is the configuration where the
+gap exists and is invisible. ClickHouse has `insert_quorum` (with `insert_quorum_parallel = 0`) for the same
+reason at shard level, since `insert_distributed_sync` reaches a shard rather than its replicas. A quorum of
+**1** is refused at startup: it is satisfied by the initiating replica alone, which is what happens with no
+quorum, plus latency and a false sense of safety.
+
+**Recovery cannot be starved, and no entry is silently immortal.** Claiming resets an entry's idle time, so
+one that fails every delivery re-enters the window ahead of everything older; past `MAX_DELIVERY_ATTEMPTS` it
+is acknowledged with an error, which unblocks everything behind it. An entry with no readable payload is
+acknowledged too, rather than skipped — a pending entry is what bounds trimming, so one malformed entry
+stopped the stream from ever being trimmed and was re-examined by every sweep.
+
 `appendfsync always` is **required**, not merely preferred. `everysec` was accepted for a while on the
 grounds that it is what production Redis runs — but it lets a 200 precede the fsync, so a host failure loses
 up to a second of exports this server has already reported as stored, and documenting that window makes the
@@ -830,13 +845,29 @@ now carries a **watermark**, established on the first page, and it bounds both t
 context load. A cursor issued before the watermark existed carries none and keeps the old behaviour, so a
 traversal in flight across an upgrade completes rather than failing on its next page.
 
-The bound goes **inside the deduplication**, not around it (`dedup_spans_as_of_watermark`). Applied outside,
+The bound goes **inside the deduplication**, not around it (`dedup_spans_as_of_watermark`), and in **both**
+queries the endpoint issues — the page selection and the reconstruction context beside it. Applied outside,
 it is worse than no bound for a *re-delivered* span: dedup picks the newest row over the whole table, the
-bound rejects it, and the older row was never selected — so the span disappears from every page. Choosing
-the newest row that existed *at* the watermark is what a watermark means, and it is what DuckDB now does.
-ClickHouse cannot: `FINAL` has no "as of" form and a merge may already have removed the earlier version, so
-there is nothing to select. That limit is per backend, like the latency ceilings, and stated rather than
-implied.
+bound rejects it, and the older row was never selected — so the span disappears. Applied to only one of the
+two queries, the page could select a span whose context held no version of it, and reconstruction saw a
+fragment of a trace it was told to treat as whole. ClickHouse cannot do this: `FINAL` has no "as of" form and
+a merge may already have removed the earlier version, so there is nothing to select. That limit is per
+backend, like the latency ceilings, and stated rather than implied.
+
+The watermark itself comes from the **store**, not from `Utc::now()` (`max_ingested_at_us`). A reader's clock
+is a statement about the reader: ahead of the store's it excluded rows already committed, behind it admitted
+rows the next page would read again. The residual is stated on that method — a write stamped before the read
+but committing after it is below the watermark and appears on a later page — and it is the duration of one
+write rather than an arbitrary clock difference. Closing it fully needs a commit-ordered sequence neither
+analytics backend provides.
+
+**The feed loads whole sessions, not whole traces**, so a replay crossing traces *within* a session is
+recognised wherever the page boundary fell — previously both pages returned the turn. What remains is stated
+in the response rather than left to assumption: `session_scoped` says whether every contributing span carried
+a session id, and `pages_are_globally_ordered` is always **false**, because pages are selected by *ingestion*
+time (the only key giving a stable total cursor) while each page's messages are ordered by *message* time,
+which the pipeline computes and SQL cannot page by. A page is a correct window on activity; a concatenation
+of pages is not a transcript, and the trace and session endpoints are where a conversation is read in order.
 
 The project feed pages by cursor but does **not** reconstruct page-locally: it takes the page's spans, loads every trace they name in full (`MessageQueryParams::trace_ids`), reconstructs, then keeps the blocks whose span is on the page (`scope_feed_to_page`). Otherwise a trace split across two pages was reconstructed twice from half its spans each time, and the turn each generation span re-sends had nothing to collapse against, so both pages returned it. Page totals come from the page's own rows, because the pipeline now sees more than the page shows. Still page-local by nature: a replay crossing *traces* within a session is recognised only when both traces are on the page, and pages are chosen by ingestion time while each is ordered by message time, so concatenating pages is not globally ordered.
 

@@ -270,6 +270,12 @@ impl AnalyticsRepository for DedupAnalyticsRepository {
         self.inner.count_project_rows(project_id).await
     }
 
+    async fn max_ingested_at_us(&self, project_id: &str) -> Result<Option<i64>, DataError> {
+        // Not deduplicated either: this asks what the store has committed, and a re-delivery's newer row is
+        // exactly the kind of commit a traversal watermark exists to account for.
+        self.inner.max_ingested_at_us(project_id).await
+    }
+
     async fn count_spans_by_project(
         &self,
         project_ids: &[String],
