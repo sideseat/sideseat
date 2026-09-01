@@ -375,11 +375,11 @@ impl ApiServer {
         let api_files_routes =
             files_routes(app.files.clone()).layer(axum::middleware::from_fn_with_state(
                 AuthState {
-                    auth_manager,
+                    auth_manager: auth_manager.clone(),
                     allowed_origins: allowed_origins.clone(),
                     database: app.database.clone(),
                     cache: app.cache.clone(),
-                    api_key_secret,
+                    api_key_secret: api_key_secret.clone(),
                 },
                 require_auth,
             ));
@@ -395,10 +395,28 @@ impl ApiServer {
             api_files_routes
         };
 
-        // Build MCP routes if enabled (no auth, rate limited by IP)
+        // Build MCP routes if enabled: authenticated like every other read of project data, rate limited by IP.
+        //
+        // This was mounted with *no auth* while `auth.enabled` defaults to true, and it serves spans, prompts,
+        // raw attributes, sessions and statistics for whatever project the URL names - so any caller who
+        // could reach the port could read another organisation's conversations. `require_auth` passes through
+        // untouched when auth is disabled (injecting `LocalDefault`), so `--no-auth` development is
+        // unaffected; the proxy then checks the URL's project against the caller's organisation, because a
+        // valid key from a *different* org is otherwise perfectly valid.
         let mcp_routes = if app.config.mcp.enabled {
             let ct = super::mcp::cancellation_token_from_shutdown(&shutdown);
-            let mcp = super::mcp::routes(app.analytics.clone(), ct);
+            let mcp = super::mcp::routes(app.analytics.clone(), ct).layer(
+                axum::middleware::from_fn_with_state(
+                    AuthState {
+                        auth_manager: auth_manager.clone(),
+                        allowed_origins: allowed_origins.clone(),
+                        database: app.database.clone(),
+                        cache: app.cache.clone(),
+                        api_key_secret: api_key_secret.clone(),
+                    },
+                    require_auth,
+                ),
+            );
             let mcp = if rate_limit_per_ip {
                 mcp.layer(axum::middleware::from_fn_with_state(
                     make_rate_limit_state(
