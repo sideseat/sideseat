@@ -436,6 +436,45 @@ impl RedisTopicBackend {
         Ok(())
     }
 
+    /// Write a raw value straight into the cursor key, for a test staging a malformed one.
+    #[cfg(test)]
+    pub(super) async fn set_raw_scan_cursor_for_test(
+        &self,
+        topic: &str,
+        group: &str,
+        raw: &str,
+    ) -> Result<(), TopicError> {
+        let mut conn = self.pool.get().await?;
+        deadpool_redis::redis::cmd("SET")
+            .arg(self.scan_cursor_key(topic, group))
+            .arg(raw)
+            .query_async::<RedisValue>(&mut conn)
+            .await?;
+        Ok(())
+    }
+
+    /// Claim one specific pending id, bypassing the rotating scan - a test's stand-in for a peer consumer.
+    #[cfg(test)]
+    pub(super) async fn claim_specific_for_test(
+        &self,
+        topic: &str,
+        group: &str,
+        consumer: &str,
+        id: &str,
+    ) -> Result<(), TopicError> {
+        let key = self.stream_key(topic);
+        let mut conn = self.pool.get().await?;
+        deadpool_redis::redis::cmd("XCLAIM")
+            .arg(&key)
+            .arg(group)
+            .arg(consumer)
+            .arg(0)
+            .arg(id)
+            .query_async::<RedisValue>(&mut conn)
+            .await?;
+        Ok(())
+    }
+
     /// Everything currently on a topic's dead-letter stream, one debug rendering per entry.
     #[cfg(test)]
     pub(super) async fn dead_letter_entries_for_test(
@@ -535,7 +574,7 @@ impl RedisTopicBackend {
             Some(rotation) => rotation,
             // Start one. The end is the newest id currently pending; if nothing is pending there is no
             // rotation to run.
-            None => match pending_summary_max(conn, key, group).await {
+            None => match pending_summary_max(conn, key, group).await? {
                 Some(end) => Rotation {
                     position: None,
                     end,
@@ -616,30 +655,35 @@ impl RedisTopicBackend {
     /// and the only cost is that the next pass re-scans this page. Losing rotation progress is recoverable;
     /// failing the claim over it would not be.
     async fn apply_cursor(&self, conn: &mut deadpool_redis::Connection, action: CursorAction) {
-        // `expected` absent means the scan found no cursor, so the write applies only if there is still none.
+        // Absence is its own argument, not an empty string.
+        //
+        // Overloading `''` to mean "the key was absent" made a key that genuinely holds `""` unreplaceable:
+        // parsing treats it as malformed and starts a fresh rotation, but the CAS then demands the key be
+        // absent, which it never is - so with more entries than one page holds, every pass rescanned the first
+        // page and everything behind it starved. `ARGV[1]` is now an explicit flag.
         const CAS: &str = r#"
             local current = redis.call('GET', KEYS[1])
-            local expected = ARGV[1]
             local matches
-            if expected == '' then
+            if ARGV[1] == '1' then
                 matches = (current == false)
             else
-                matches = (current == expected)
+                matches = (current == ARGV[2])
             end
             if not matches then
                 return 0
             end
-            if ARGV[2] == '' then
+            if ARGV[3] == '' then
                 redis.call('DEL', KEYS[1])
             else
-                redis.call('SET', KEYS[1], ARGV[2])
+                redis.call('SET', KEYS[1], ARGV[3])
             end
             return 1
         "#;
+        let expect_absent = action.expected.is_none();
         let expected = action.expected.clone().unwrap_or_default();
         let next = action.next.map(|r| r.to_string()).unwrap_or_default();
         // Nothing to do: no cursor was there and none is wanted.
-        if expected.is_empty() && next.is_empty() {
+        if expect_absent && next.is_empty() {
             return;
         }
         // `EVAL` rather than the crate's `Script` helper, which is behind a feature this build does not
@@ -648,6 +692,7 @@ impl RedisTopicBackend {
             .arg(CAS)
             .arg(1)
             .arg(&action.key)
+            .arg(if expect_absent { "1" } else { "0" })
             .arg(expected)
             .arg(next)
             .query_async(conn)
@@ -1809,12 +1854,16 @@ fn advance_rotation(
     if scanned < count {
         return None;
     }
-    let position = last_scanned?.next();
-    if position > rotation.end {
+    let last = last_scanned?;
+    // Compared *before* incrementing. `StreamId::next` saturates, so the maximum id
+    // (`u64::MAX-u64::MAX`) increments to `u64::MAX-0`, which is *earlier* - and a rotation ending there
+    // would then rescan its final entry forever, never revisiting the earlier failures behind it.
+    // Comparing the id we actually examined has no such edge.
+    if last >= rotation.end {
         return None;
     }
     Some(Rotation {
-        position: Some(position),
+        position: Some(last.next()),
         end: rotation.end,
     })
 }
@@ -1826,21 +1875,27 @@ async fn pending_summary_max(
     conn: &mut deadpool_redis::Connection,
     key: &str,
     group: &str,
-) -> Option<StreamId> {
+) -> Result<Option<StreamId>, TopicError> {
+    // The error is **propagated**, not swallowed. Reading a failure as "nothing is pending" made an ACL
+    // denial, a `NOGROUP`, or any persistent command failure look like a healthy idle queue - so recovery
+    // silently stopped running while every pass reported success. A refusal is what surfaces it.
     let summary: RedisValue = deadpool_redis::redis::cmd("XPENDING")
         .arg(key)
         .arg(group)
         .query_async(conn)
-        .await
-        .ok()?;
+        .await?;
     let RedisValue::Array(parts) = summary else {
-        return None;
+        return Ok(None);
     };
     // [count, min_id, max_id, consumers]; a zero count leaves the ids nil.
     if let Some(RedisValue::Int(0)) = parts.first() {
-        return None;
+        return Ok(None);
     }
-    StreamId::parse(&redis_string(parts.get(2)?)?)
+    Ok(parts
+        .get(2)
+        .and_then(redis_string)
+        .as_deref()
+        .and_then(StreamId::parse))
 }
 
 /// One page of a group's pending list, over the inclusive id range `[from, to]`.
