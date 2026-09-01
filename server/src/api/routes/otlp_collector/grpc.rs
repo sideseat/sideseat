@@ -56,6 +56,54 @@ pub struct OtlpGrpcServer {
     /// written in the request.
     trace_pipeline: Option<Arc<crate::domain::TracePipeline>>,
     debug_path: Option<PathBuf>,
+    /// What `otel.auth.required` demands of *this* transport.
+    ///
+    /// The setting used to apply to HTTP only: the gRPC server had no interceptor at all and took the
+    /// project id from an untrusted `x-sideseat-project-id` metadata entry, so with auth required an
+    /// unauthenticated client could still write traces or metrics into any existing project. A setting that
+    /// is enforced on one of two equivalent transports is not a setting.
+    auth: Option<GrpcIngestAuth>,
+}
+
+/// What a gRPC ingest call must present when `otel.auth.required` is set.
+#[derive(Clone)]
+pub struct GrpcIngestAuth {
+    pub cache: Arc<crate::data::cache::CacheService>,
+    pub database: Arc<crate::data::TransactionalService>,
+    pub api_key_secret: Arc<Vec<u8>>,
+}
+
+impl GrpcIngestAuth {
+    /// Authorise one request against the project it names, mirroring the HTTP middleware.
+    ///
+    /// The same `validate_api_key_for_project` with the same `Ingest` scope, so the two transports cannot
+    /// drift apart on what a key is allowed to do. The project id comes from the metadata the call also uses
+    /// to route its data, so a key valid for another organisation's project cannot write here.
+    async fn authorize<T>(&self, request: &Request<T>, project_id: &str) -> Result<(), Status> {
+        let header = request
+            .metadata()
+            .get("authorization")
+            .and_then(|v| v.to_str().ok())
+            .ok_or_else(|| {
+                Status::unauthenticated(
+                    "OTLP ingestion requires an API key in the authorization metadata",
+                )
+            })?;
+        crate::api::auth::validate_api_key_for_project(
+            &self.cache,
+            Arc::clone(&self.database),
+            &self.api_key_secret,
+            header,
+            project_id,
+            crate::data::types::ApiKeyScope::Ingest,
+        )
+        .await
+        .map(|_| ())
+        .map_err(|e| {
+            tracing::debug!(project_id, error = %e, "Refused a gRPC OTLP export");
+            Status::unauthenticated("invalid or unauthorized API key")
+        })
+    }
 }
 
 impl OtlpGrpcServer {
@@ -66,6 +114,7 @@ impl OtlpGrpcServer {
         storage: &AppStorage,
         stores: IngestStores,
         debug: bool,
+        auth: Option<GrpcIngestAuth>,
     ) -> Result<Self> {
         let IngestStores {
             analytics,
@@ -92,6 +141,7 @@ impl OtlpGrpcServer {
             trace_pipeline,
             logs_publisher,
             debug_path,
+            auth,
         })
     }
 
@@ -108,6 +158,7 @@ impl OtlpGrpcServer {
                     debug_path.clone(),
                     self.trace_pipeline,
                     Arc::clone(&self.database),
+                    self.auth.clone(),
                 ))
                 .max_decoding_message_size(OTLP_BODY_LIMIT)
                 .max_encoding_message_size(OTLP_BODY_LIMIT),
@@ -117,14 +168,19 @@ impl OtlpGrpcServer {
                     self.analytics,
                     self.database,
                     debug_path.clone(),
+                    self.auth.clone(),
                 ))
                 .max_decoding_message_size(OTLP_BODY_LIMIT)
                 .max_encoding_message_size(OTLP_BODY_LIMIT),
             )
             .add_service(
-                LogsServiceServer::new(OtlpLogsService::new(self.logs_publisher, debug_path))
-                    .max_decoding_message_size(OTLP_BODY_LIMIT)
-                    .max_encoding_message_size(OTLP_BODY_LIMIT),
+                LogsServiceServer::new(OtlpLogsService::new(
+                    self.logs_publisher,
+                    debug_path,
+                    self.auth,
+                ))
+                .max_decoding_message_size(OTLP_BODY_LIMIT)
+                .max_encoding_message_size(OTLP_BODY_LIMIT),
             )
             .serve_with_shutdown(addr, async move {
                 let _ = shutdown_rx.wait_for(|&v| v).await;
@@ -194,6 +250,8 @@ struct OtlpTraceService {
     pipeline: Option<Arc<crate::domain::TracePipeline>>,
     /// For telling an exporter now that its project will not accept writes.
     database: Arc<crate::data::TransactionalService>,
+    /// Set exactly when `otel.auth.required` is on - see `GrpcIngestAuth`.
+    auth: Option<GrpcIngestAuth>,
 }
 
 impl OtlpTraceService {
@@ -202,12 +260,14 @@ impl OtlpTraceService {
         debug_path: Option<PathBuf>,
         pipeline: Option<Arc<crate::domain::TracePipeline>>,
         database: Arc<crate::data::TransactionalService>,
+        auth: Option<GrpcIngestAuth>,
     ) -> Self {
         Self {
             topic,
             debug_path,
             pipeline,
             database,
+            auth,
         }
     }
 }
@@ -220,6 +280,11 @@ impl TraceService for OtlpTraceService {
     ) -> Result<Response<ExportTraceServiceResponse>, Status> {
         let project_id = extract_project_id(&request)
             .ok_or_else(|| Status::invalid_argument("Invalid project_id"))?;
+        // Authorised *before* anything is read from the payload, and against the project the call names -
+        // so `otel.auth.required` refuses an unauthenticated write here exactly as it does over HTTP.
+        if let Some(auth) = &self.auth {
+            auth.authorize(&request, &project_id).await?;
+        }
         if !project_accepts_writes(&self.database, &project_id).await {
             return Err(Status::not_found("unknown project, or it is being deleted"));
         }
@@ -310,6 +375,8 @@ struct OtlpMetricsService {
     analytics: Arc<crate::data::AnalyticsService>,
     database: Arc<crate::data::TransactionalService>,
     debug_path: Option<PathBuf>,
+    /// Set exactly when `otel.auth.required` is on - see `GrpcIngestAuth`.
+    auth: Option<GrpcIngestAuth>,
 }
 
 impl OtlpMetricsService {
@@ -317,11 +384,13 @@ impl OtlpMetricsService {
         analytics: Arc<crate::data::AnalyticsService>,
         database: Arc<crate::data::TransactionalService>,
         debug_path: Option<PathBuf>,
+        auth: Option<GrpcIngestAuth>,
     ) -> Self {
         Self {
             analytics,
             database,
             debug_path,
+            auth,
         }
     }
 }
@@ -334,6 +403,11 @@ impl MetricsService for OtlpMetricsService {
     ) -> Result<Response<ExportMetricsServiceResponse>, Status> {
         let project_id = extract_project_id(&request)
             .ok_or_else(|| Status::invalid_argument("Invalid project_id"))?;
+        // Authorised *before* anything is read from the payload, and against the project the call names -
+        // so `otel.auth.required` refuses an unauthenticated write here exactly as it does over HTTP.
+        if let Some(auth) = &self.auth {
+            auth.authorize(&request, &project_id).await?;
+        }
         if !project_accepts_writes(&self.database, &project_id).await {
             return Err(Status::not_found("unknown project, or it is being deleted"));
         }
@@ -375,13 +449,20 @@ impl MetricsService for OtlpMetricsService {
 struct OtlpLogsService {
     publisher: Publisher<ExportLogsServiceRequest>,
     debug_path: Option<PathBuf>,
+    /// Set exactly when `otel.auth.required` is on - see `GrpcIngestAuth`.
+    auth: Option<GrpcIngestAuth>,
 }
 
 impl OtlpLogsService {
-    fn new(publisher: Publisher<ExportLogsServiceRequest>, debug_path: Option<PathBuf>) -> Self {
+    fn new(
+        publisher: Publisher<ExportLogsServiceRequest>,
+        debug_path: Option<PathBuf>,
+        auth: Option<GrpcIngestAuth>,
+    ) -> Self {
         Self {
             publisher,
             debug_path,
+            auth,
         }
     }
 }
@@ -394,6 +475,11 @@ impl LogsService for OtlpLogsService {
     ) -> Result<Response<ExportLogsServiceResponse>, Status> {
         let project_id = extract_project_id(&request)
             .ok_or_else(|| Status::invalid_argument("Invalid project_id"))?;
+        // Authorised *before* anything is read from the payload, and against the project the call names -
+        // so `otel.auth.required` refuses an unauthenticated write here exactly as it does over HTTP.
+        if let Some(auth) = &self.auth {
+            auth.authorize(&request, &project_id).await?;
+        }
         let mut req = request.into_inner();
 
         // Inject project_id into resource attributes
@@ -425,5 +511,54 @@ impl LogsService for OtlpLogsService {
                 },
             ),
         }))
+    }
+}
+
+#[cfg(test)]
+mod grpc_auth_tests {
+    /// Every gRPC ingest service authorises before it reads its payload.
+    ///
+    /// `otel.auth.required` used to apply to the HTTP transport only: this server had no interceptor at all
+    /// and took the project id from an untrusted `x-sideseat-project-id` metadata entry, so an
+    /// unauthenticated client could write traces, metrics or logs into any existing project while the
+    /// operator believed ingestion was locked down. A setting enforced on one of two equivalent transports is
+    /// not a setting.
+    ///
+    /// The compiler is the first guard: each service owns its own `auth` field, so deleting any one gate makes
+    /// that field dead and fails the build. This test covers what the compiler cannot - that the gate runs
+    /// *before* the payload is consumed, and that a fourth signal added later carries it too. The rule: each `extract_project_id` in an `export` handler is followed
+    /// by the authorisation call before anything else happens.
+    #[test]
+    fn every_grpc_export_authorizes_before_reading_its_payload() {
+        let whole = include_str!("grpc.rs");
+        // Only the code above this test module: the assertions below quote the very strings they look for,
+        // so scanning the whole file would count them too.
+        let source = whole
+            .split_once("mod grpc_auth_tests {")
+            .map(|(code, _)| code)
+            .unwrap_or(whole);
+        let extractions: Vec<usize> = source
+            .match_indices("let project_id = extract_project_id(&request)")
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(
+            extractions.len(),
+            3,
+            "expected the trace, metrics and logs services; found {} extraction sites - a new signal must \
+             carry the same gate",
+            extractions.len()
+        );
+        for start in extractions {
+            // The gate has to appear before the payload is consumed, so look only at the window between the
+            // extraction and the first `into_inner()` that follows it.
+            let rest = &source[start..];
+            let consumed = rest.find("into_inner()").unwrap_or(rest.len());
+            let window = &rest[..consumed];
+            assert!(
+                window.contains("auth.authorize(&request, &project_id)"),
+                "a gRPC export reads its payload without authorising the project it names; \
+                 otel.auth.required would then apply to HTTP only"
+            );
+        }
     }
 }

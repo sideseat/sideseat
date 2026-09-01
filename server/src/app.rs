@@ -260,6 +260,18 @@ impl CoreApp {
                     }),
                 },
                 app.config.debug,
+                // The same gate the HTTP transport applies. Built here rather than inside the gRPC server so
+                // it shares the one API-key secret: a second read could pick up a *replacement* secret if the
+                // backend had regenerated one, and a key hashed under the other pepper verifies nowhere.
+                if app.config.otel.auth_required {
+                    Some(crate::api::routes::otlp_collector::GrpcIngestAuth {
+                        cache: Arc::clone(&app.cache),
+                        database: Arc::clone(&app.database),
+                        api_key_secret: Arc::new(app.secrets.get_api_key_secret().await?),
+                    })
+                } else {
+                    None
+                },
             )?;
             let shutdown_rx = app.shutdown.subscribe();
             let handle = tokio::spawn(async move {

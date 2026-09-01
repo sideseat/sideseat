@@ -16,7 +16,9 @@ pub use extractors::{
 };
 
 // OTEL auth middleware (for ingestion routes)
-pub use api_key::{ApiKeyAuthError, OtelAuthState, otel_auth_middleware};
+pub use api_key::{
+    ApiKeyAuthError, OtelAuthState, otel_auth_middleware, validate_api_key_for_project,
+};
 
 // Other exports
 pub use jwt::SessionClaims;
