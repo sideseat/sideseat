@@ -29,11 +29,36 @@ use super::state::WsState;
 pub async fn stream_presence(
     State(state): State<WsState>,
     Path(ProjectPath { project_id }): Path<ProjectPath>,
+    auth: Option<axum::Extension<crate::api::auth::AuthContext>>,
+    auth_service: Option<axum::Extension<std::sync::Arc<crate::api::auth::AuthService>>>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
     if !is_valid_project_id(&project_id) {
         return Err(ApiError::bad_request(
             "invalid_project_id",
             "project_id has invalid characters or length",
+        ));
+    }
+
+    // Valid **for this project** - see the AG-UI route. Presence names which agents a project is running.
+    if let (Some(axum::Extension(auth)), Some(axum::Extension(service))) = (auth, auth_service) {
+        if service
+            .verify_project_access(&auth, &project_id, crate::data::types::ApiKeyScope::Read)
+            .await
+            .is_err()
+        {
+            return Err(ApiError::forbidden(
+                "PROJECT_ACCESS_DENIED",
+                "not authorised for this project",
+            ));
+        }
+    } else {
+        tracing::error!(
+            project_id,
+            "A presence stream request arrived with no authentication context; refusing it."
+        );
+        return Err(ApiError::forbidden(
+            "AUTH_CONTEXT_MISSING",
+            "authentication context missing",
         ));
     }
 
