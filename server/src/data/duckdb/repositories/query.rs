@@ -69,7 +69,12 @@ pub(crate) const DEDUP_SPANS: &str = "(SELECT * FROM otel_spans \
 /// mid-traversal is read with its old content but expanded under its new session, so the session it
 /// actually replays is never loaded and its history has nothing to collapse against - which the reader sees
 /// as duplicated turns across pages. Returns the relation and the bind it needs (none when unbounded).
-/// The traces of one session. Four `?` in the order [`traces_of_session_binds`] returns them.
+/// The traces of one session, deduplicated against `dedup`. Four `?` in the order
+/// [`traces_of_session_binds`] returns them.
+///
+/// Parameterised by the relation so the message read - which deduplicates *as of* a traversal watermark -
+/// shares this definition instead of keeping its own copy. It kept one, and that copy was the last place the
+/// four-placeholder order was spelled out by hand.
 ///
 /// A trace belongs to the session on its **earliest** span - the same total order the row displays and the
 /// feed groups by. `WHERE session_id = ?` asked instead whether *any* span of the trace named it, so a trace
@@ -88,20 +93,23 @@ pub(crate) const DEDUP_SPANS: &str = "(SELECT * FROM otel_spans \
 /// session necessarily has a raw row naming it, and the outer `canonical_session = ?` still applies the
 /// current-version test.
 ///
-/// Defined once because ten call sites asked this question and had drifted in two dimensions at once - some
+/// Defined once because eleven call sites asked this question and had drifted in two dimensions at once - some
 /// read the raw table, all used the loose predicate.
-pub(crate) const TRACES_OF_SESSION: &str = "SELECT trace_id FROM ( \
-       SELECT trace_id, arg_min(session_id, (timestamp_start, span_id)) AS canonical_session \
-       FROM (SELECT * FROM otel_spans \
-             WHERE project_id = ? AND trace_id IN ( \
-               SELECT trace_id FROM otel_spans WHERE project_id = ? AND session_id = ?) \
-             QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-                                        ORDER BY ingested_at DESC, rowid DESC) = 1) \
-       WHERE session_id IS NOT NULL AND session_id != '' \
-       GROUP BY trace_id \
-     ) WHERE canonical_session = ?";
+pub(crate) fn traces_of_session(dedup: &str) -> String {
+    format!(
+        "SELECT trace_id FROM ( \
+           SELECT trace_id, arg_min(session_id, (timestamp_start, span_id)) AS canonical_session \
+           FROM {dedup} \
+           WHERE project_id = ? \
+           AND trace_id IN (SELECT trace_id FROM otel_spans \
+                            WHERE project_id = ? AND session_id = ?) \
+           AND session_id IS NOT NULL AND session_id != '' \
+           GROUP BY trace_id \
+         ) WHERE canonical_session = ?"
+    )
+}
 
-/// The binds [`TRACES_OF_SESSION`] needs, in the order its placeholders appear.
+/// The binds [`traces_of_session`] needs, in the order its placeholders appear.
 ///
 /// Returned together with the SQL rather than left to each call site, because the subquery has four
 /// placeholders in a non-obvious order and a wrong one is a silently wrong answer, not an error. The array
@@ -276,7 +284,8 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
     if let Some(ref sid) = params.session_id {
         // A trace's session lives on the span that knows it, so the filter is by trace - and by the
         // trace's *canonical* session; see `TRACES_OF_SESSION`.
-        conditions.push(format!("{} IN ({TRACES_OF_SESSION})", col("trace_id")));
+        let traces = traces_of_session(DEDUP_SPANS);
+        conditions.push(format!("{} IN ({traces})", col("trace_id")));
         bind_values.extend(traces_of_session_binds(&params.project_id, sid));
     }
 
@@ -741,7 +750,8 @@ pub fn list_spans(
 
     if let Some(ref sid) = params.session_id {
         // session_id is only on root spans; use trace_id subquery to include all spans
-        conditions.push(format!("trace_id IN ({TRACES_OF_SESSION})"));
+        let traces = traces_of_session(DEDUP_SPANS);
+        conditions.push(format!("trace_id IN ({traces})"));
         bind_values.extend(traces_of_session_binds(&params.project_id, sid));
     }
 
@@ -1333,9 +1343,10 @@ pub fn get_session(
     // session_id is only on root spans; use session_traces CTE to find all traces,
     // then query all spans from those traces.
     // Two-path token filter: see get_trace for detailed explanation.
+    let session_traces = traces_of_session(DEDUP_SPANS);
     let sql = format!(
         r#"
-        WITH session_traces AS ({TRACES_OF_SESSION}),
+        WITH session_traces AS ({session_traces}),
         gen_totals AS (
             SELECT
                 COALESCE(SUM(gen_ai_usage_input_tokens), 0) AS input_tokens,
@@ -1445,9 +1456,10 @@ pub fn get_traces_for_session(
     session_id: &str,
 ) -> Result<Vec<TraceRow>, DuckdbError> {
     // Two-path token filter: see get_trace for detailed explanation.
+    let session_traces = traces_of_session(DEDUP_SPANS);
     let sql = format!(
         r#"
-        WITH session_traces AS ({TRACES_OF_SESSION}),
+        WITH session_traces AS ({session_traces}),
         gen_totals AS (
             SELECT
                 g.trace_id,
@@ -5198,7 +5210,7 @@ mod tests {
 
         // The two correct forms must select the same rows, or a speed comparison means nothing.
         let (_, want) = run(CANONICAL_WIDE, 2);
-        let (_, got) = run(TRACES_OF_SESSION, 4);
+        let (_, got) = run(&traces_of_session(DEDUP_SPANS), 4);
         assert_eq!(
             want, got,
             "narrowing the deduplication must not change which spans are selected"
@@ -5213,7 +5225,7 @@ mod tests {
         for _ in 0..ITERATIONS {
             wide.push(run(CANONICAL_WIDE, 2).0);
             loose.push(run(LOOSE, 2).0);
-            production.push(run(TRACES_OF_SESSION, 4).0);
+            production.push(run(&traces_of_session(DEDUP_SPANS), 4).0);
         }
         wide.sort();
         loose.sort();
@@ -5234,5 +5246,69 @@ mod tests {
             median(&production),
             median(&production) / median(&loose),
         );
+    }
+
+    /// The session-membership subquery is written **once** per backend.
+    ///
+    /// It has four placeholders in a non-obvious order (project, project, session, session), so a copy that
+    /// drifts is a silently wrong answer rather than an error - no test fails, the query simply selects
+    /// different traces. Eleven call sites ask this question, and they had already drifted twice: some read
+    /// the raw table instead of the deduplicated one, and both message reads kept a hand-written copy of the
+    /// SQL that a later change to the shared definition would not have reached.
+    ///
+    /// Checked on the source text because a second copy compiles and passes every behavioural test. The
+    /// membership *test* is what identifies it - `WHERE canonical_session = ?` - since the two mirror
+    /// queries legitimately select the same expression without testing it that way.
+    #[test]
+    fn the_session_membership_subquery_is_defined_once_per_backend() {
+        let backends = [
+            (
+                "duckdb",
+                vec![
+                    ("query.rs", include_str!("query.rs")),
+                    ("messages.rs", include_str!("messages.rs")),
+                ],
+            ),
+            (
+                "clickhouse",
+                vec![
+                    (
+                        "query.rs",
+                        include_str!("../../clickhouse/repositories/query.rs"),
+                    ),
+                    (
+                        "messages.rs",
+                        include_str!("../../clickhouse/repositories/messages.rs"),
+                    ),
+                ],
+            ),
+        ];
+
+        const MEMBERSHIP_TEST: &str = "WHERE canonical_session = ?";
+
+        for (backend, files) in backends {
+            let mut where_found: Vec<String> = Vec::new();
+            for (name, source) in files {
+                // Only the code, not this test's own text quoting the pattern.
+                let code = source
+                    .split("#[cfg(test)]")
+                    .next()
+                    .expect("source before its test module");
+                for (i, line) in code.lines().enumerate() {
+                    if line.contains(MEMBERSHIP_TEST) {
+                        where_found.push(format!("{backend}/{name}:{}", i + 1));
+                    }
+                }
+            }
+            assert_eq!(
+                where_found.len(),
+                1,
+                "the {backend} session-membership subquery must be written exactly once, found it at:\n  \
+                 {}\n\nIf a call site needs a different relation, parameterise the shared definition - \
+                 `traces_of_session(dedup)` already does that for the watermarked message read - rather \
+                 than copying the SQL.",
+                where_found.join("\n  ")
+            );
+        }
     }
 }

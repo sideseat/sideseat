@@ -114,20 +114,13 @@ pub async fn get_messages(
             string_binds.push(trace_id.clone());
         }
     } else if let Some(session_id) = &params.session_id {
-        // The trace's canonical session; see the DuckDB twin.
-        // Narrowed before `FINAL`, matching the DuckDB twin and `query::TRACES_OF_SESSION`.
-        conditions.push(
-            "trace_id IN (SELECT trace_id FROM ( \
-               SELECT trace_id, argMin(assumeNotNull(session_id), (timestamp_start, span_id)) \
-                 AS canonical_session \
-               FROM otel_spans FINAL \
-               WHERE project_id = ? \
-               AND trace_id IN (SELECT trace_id FROM otel_spans \
-                                WHERE project_id = ? AND session_id = ?) \
-               AND session_id IS NOT NULL AND session_id != '' GROUP BY trace_id \
-             ) WHERE canonical_session = ?)"
-                .to_string(),
-        );
+        // The shared definition, not a copy of it. ClickHouse ignores the traversal watermark here (`FINAL`
+        // has no "as of" form), so the constant serves this call site unchanged - and keeping a second copy
+        // of the SQL is the drift a single definition exists to prevent.
+        conditions.push(format!(
+            "trace_id IN ({})",
+            crate::data::clickhouse::repositories::query::TRACES_OF_SESSION
+        ));
         string_binds.extend(
             crate::data::clickhouse::repositories::query::traces_of_session_binds(
                 &params.project_id,
