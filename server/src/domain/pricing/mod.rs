@@ -513,7 +513,10 @@ pub fn cache_counters_are_separate_for_provider(provider: &str) -> bool {
     //
     // Bedrock's whole API reports its cache counters separately, whichever vendor's model is behind it, so
     // the family is what matters there rather than the model's vendor.
-    provider.starts_with("bedrock") || vendor_of(provider) == Vendor::Anthropic
+    // `contains`, not `starts_with`: the catalogue already spells it `bedrock`, `bedrock_converse` and
+    // `bedrock_mantle`, and a future `amazon_bedrock_converse` is the same API with the same convention. A
+    // prefix test would send it to the inclusive default and undercharge every cached call on it.
+    provider.contains("bedrock") || vendor_of(provider) == Vendor::Anthropic
 }
 
 /// The [`cache_counters_are_separate_for_provider`] question for reasoning tokens.
@@ -4233,6 +4236,19 @@ mod tests {
             ("vertex_ai-image-models", (false, true)),
             ("vertex_ai-video-models", (false, true)),
         ]);
+
+        // Names the catalogue does not use *yet*, pinned so a rename upstream cannot quietly change the
+        // convention. `amazon_bedrock_converse` is the shape a prefix test would have missed.
+        for future in [
+            "amazon_bedrock_converse",
+            "aws_bedrock",
+            "bedrock_converse_v2",
+        ] {
+            assert!(
+                cache_counters_are_separate_for_provider(future),
+                "{future} is Bedrock, whose cache counters are billed on top"
+            );
+        }
 
         let mut wrong: Vec<String> = Vec::new();
         for provider in &providers {

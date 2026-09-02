@@ -1732,3 +1732,60 @@ fn a_reported_total_larger_than_the_counters_is_honoured() {
 
     assert_eq!(span.gen_ai_usage_total_tokens, 9_999);
 }
+
+/// A framework fallback fills only the side that was not reported.
+///
+/// The gate was `input == 0 && output == 0`, which conflates "the provider said 0" with "nobody said
+/// anything" - in both directions. With a flat input of 200 and no output attribute the CrewAI fallback was
+/// skipped entirely, so the output stayed 0 and its cost was never charged.
+#[test]
+fn a_fallback_fills_the_missing_side_when_the_other_was_reported() {
+    let mut attrs = HashMap::new();
+    attrs.insert("crew_key".to_string(), "crew-1".to_string());
+    attrs.insert("gen_ai.usage.input_tokens".to_string(), "200".to_string());
+    attrs.insert(
+        "output.value".to_string(),
+        serde_json::json!({
+            "token_usage": {"prompt_tokens": 200, "completion_tokens": 100, "total_tokens": 300}
+        })
+        .to_string(),
+    );
+
+    let mut span = SpanData::default();
+    extract_genai(&mut span, &attrs, "crew");
+
+    assert_eq!(span.gen_ai_usage_input_tokens, 200);
+    assert_eq!(
+        span.gen_ai_usage_output_tokens, 100,
+        "the output side was never reported, so the fallback must supply it"
+    );
+    assert_eq!(span.gen_ai_usage_total_tokens, 300);
+}
+
+/// And a reported zero is a fact the fallback must not overwrite.
+#[test]
+fn a_reported_zero_survives_a_fallback() {
+    let mut attrs = HashMap::new();
+    attrs.insert("crew_key".to_string(), "crew-1".to_string());
+    attrs.insert("gen_ai.usage.input_tokens".to_string(), "0".to_string());
+    attrs.insert("gen_ai.usage.output_tokens".to_string(), "0".to_string());
+    attrs.insert(
+        "output.value".to_string(),
+        serde_json::json!({
+            "token_usage": {"prompt_tokens": 999, "completion_tokens": 999}
+        })
+        .to_string(),
+    );
+
+    let mut span = SpanData::default();
+    extract_genai(&mut span, &attrs, "crew");
+
+    assert_eq!(
+        (
+            span.gen_ai_usage_input_tokens,
+            span.gen_ai_usage_output_tokens
+        ),
+        (0, 0),
+        "the provider stated zero; an aggregate elsewhere in the payload does not override it"
+    );
+}

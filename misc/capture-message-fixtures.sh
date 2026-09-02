@@ -204,10 +204,37 @@ for entry in "${SUITES[@]}"; do
     # whole model config into a span attribute - CrewAI's agent_core dumped a live
     # aws_secret_access_key and aws_session_token - and a captured payload goes straight into
     # git history, where a secret cannot be taken back.
-    if [[ -d "${FIXTURES}/${label}" ]] && grep -rlqE \
-        "aws_secret_access_key['\"]?[[:space:]]*[:=][[:space:]]*['\"][^'\"]{8,}|aws_session_token['\"]?[[:space:]]*[:=][[:space:]]*['\"][^'\"]{20,}" \
-        "${FIXTURES}/${label}" 2>/dev/null; then
-      echo "[capture] $label: SECRET MATERIAL in payload - DISCARDING fixture"
+    #
+    # Two checks, because each catches what the other misses. `gitleaks` knows hundreds of
+    # credential shapes and is the primary gate; the pattern list below is the fallback for a
+    # machine without it, and covers the shapes that have actually turned up here.
+    #
+    # The narrow version of this guard matched exactly two snake_case AWS field names, and that is
+    # how `aws.auth.account.access_key` reached three committed fixtures with four STS key ids in
+    # it: a dotted OTel attribute name matched nothing. Field names are not the thing to enumerate -
+    # the *values* are.
+    secret_hit=""
+    if [[ -d "${FIXTURES}/${label}" ]]; then
+      if command -v gitleaks >/dev/null 2>&1; then
+        gitleaks detect --no-git --no-banner --redact \
+          --source "${FIXTURES}/${label}" >/dev/null 2>&1 || secret_hit="gitleaks"
+      else
+        # Loud, not silent: a guard whose strength depends on whether a tool happens to be
+        # installed, without saying so, is a guard nobody can rely on.
+        echo "[capture] $label: WARNING gitleaks not installed - only the fallback patterns ran"
+      fi
+
+      # Value shapes, not field names. AWS long-term and STS key ids; secret keys and session
+      # tokens in either snake_case or camelCase; bearer tokens; generic api keys; SigV4
+      # signatures in a presigned URL.
+      if [[ -z "$secret_hit" ]] && grep -rlqE \
+          "(AKIA|ASIA)[A-Z0-9]{16}|(aws_?secret_?access_?key|secretAccessKey)['\"]?[[:space:]]*[:=][[:space:]]*['\"][^'\"]{8,}|(aws_?session_?token|sessionToken)['\"]?[[:space:]]*[:=][[:space:]]*['\"][^'\"]{20,}|[Bb]earer[[:space:]]+[A-Za-z0-9._~+/-]{20,}|(api[_-]?key|apiKey)['\"]?[[:space:]]*[:=][[:space:]]*['\"][^'\"]{16,}|X-Amz-Signature=[a-f0-9]{32,}" \
+          "${FIXTURES}/${label}" 2>/dev/null; then
+        secret_hit="pattern"
+      fi
+    fi
+    if [[ -n "$secret_hit" ]]; then
+      echo "[capture] $label: SECRET MATERIAL in payload ($secret_hit) - DISCARDING fixture"
       rm -rf "${FIXTURES:?}/${label}"
       failed+=("$label(secrets)")
       continue

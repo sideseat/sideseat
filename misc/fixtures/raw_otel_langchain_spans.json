@@ -370,7 +370,7 @@
         "gen_ai.usage.input_tokens": 338,
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
-        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
+        "aws.auth.account.access_key": "ASIA-REDACTED-EXAMPLE",
         "session.id": "383c4a9d-5682-4186-a125-e226f9f6c141"
       },
       "status": {
@@ -749,7 +749,7 @@
         "gen_ai.usage.input_tokens": 329,
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
-        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
+        "aws.auth.account.access_key": "ASIA-REDACTED-EXAMPLE",
         "session.id": "383c4a9d-5682-4186-a125-e226f9f6c141"
       },
       "status": {

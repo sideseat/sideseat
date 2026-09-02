@@ -423,7 +423,7 @@ const client = new SideSeat(options);
 | `getTracer(name?, version?)`     | `Tracer`           | Get an OpenTelemetry tracer       |
 | `forceFlush(timeoutMs?)`         | `Promise<boolean>` | Export pending spans immediately  |
 | `validateConnection(timeoutMs?)` | `Promise<boolean>` | Test server connectivity          |
-| `shutdown(timeoutMs?)`           | `Promise<void>`    | Flush pending spans and shut down |
+| `shutdown(timeoutMs?)`           | `Promise<boolean>` | Flush and shut down; `false` = not all flushed |
 | `setupConsoleExporter()`         | `this`             | Add console exporter              |
 | `setupFileExporter(path?)`       | `this`             | Add JSONL file exporter           |
 | `addSpanProcessor(processor)`    | `this`             | Add custom span processor         |

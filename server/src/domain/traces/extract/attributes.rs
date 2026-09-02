@@ -1377,13 +1377,6 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     // whose final link need not update it is a chain the next link will not either. A generation span with no
     // counter at all is worth seeing - it bills as free, and the usual cause is an instrumentation version
     // that moved its attribute names.
-    if !input_supplied && !output_supplied {
-        tracing::trace!(
-            span_name,
-            "No token counters were supplied by any source; this span bills as free"
-        );
-    }
-
     // Held rather than applied: the total is synthesised once, at the end, from every counter the
     // fallbacks below may still fill in. Computed here it could only ever floor at input + output, which
     // is *below* the true total for a provider that reports its cache counters beside them.
@@ -1414,7 +1407,13 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
 
     // CrewAI: tokens from output.value JSON (CrewOutput.token_usage)
     // CrewAI embeds token usage in the serialized CrewOutput object, not as flat attributes.
-    if span.gen_ai_usage_input_tokens == 0 && span.gen_ai_usage_output_tokens == 0 {
+    //
+    // Gated on what was *supplied*, per side, rather than on the stored value being zero. A zero is two
+    // different facts - "the provider said 0" and "nobody said anything" - and testing it conflated them in
+    // both directions: with a flat input of 200 and no output attribute the whole fallback was skipped, so
+    // the output stayed 0 and its cost was never charged; and an explicit flat `0/0` was overwritten by
+    // whatever the fallback found. The `*_supplied` flags exist precisely to tell those apart.
+    if !input_supplied || !output_supplied {
         let is_crewai = attrs.contains_key("crew_key")
             || attrs.contains_key("crew_id")
             || attrs.contains_key("crew_tasks")
@@ -1422,14 +1421,18 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
         if is_crewai {
             if let Some(output) = extract_json::<JsonValue>(attrs, keys::OUTPUT_VALUE) {
                 if let Some(usage) = output.get("token_usage") {
-                    span.gen_ai_usage_input_tokens = usage
-                        .get("prompt_tokens")
-                        .and_then(|v| v.as_i64())
-                        .unwrap_or(0);
-                    span.gen_ai_usage_output_tokens = usage
-                        .get("completion_tokens")
-                        .and_then(|v| v.as_i64())
-                        .unwrap_or(0);
+                    if !input_supplied
+                        && let Some(v) = usage.get("prompt_tokens").and_then(|v| v.as_i64())
+                    {
+                        span.gen_ai_usage_input_tokens = v;
+                        input_supplied = true;
+                    }
+                    if !output_supplied
+                        && let Some(v) = usage.get("completion_tokens").and_then(|v| v.as_i64())
+                    {
+                        span.gen_ai_usage_output_tokens = v;
+                        output_supplied = true;
+                    }
                     if span.gen_ai_usage_cache_read_tokens == 0 {
                         span.gen_ai_usage_cache_read_tokens = usage
                             .get("cached_prompt_tokens")
@@ -1448,12 +1451,28 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
 
     // AutoGen: tokens from output.value.messages[].models_usage on chain spans.
     // The models_usage field is AutoGen-specific; safe to check without framework guard.
-    if span.gen_ai_usage_input_tokens == 0 && span.gen_ai_usage_output_tokens == 0 {
+    if !input_supplied || !output_supplied {
         let (pt, ct) = extract_autogen_tokens(attrs);
         if pt > 0 || ct > 0 {
-            span.gen_ai_usage_input_tokens = pt;
-            span.gen_ai_usage_output_tokens = ct;
+            // Per side, for the same reason as the CrewAI fallback above.
+            if !input_supplied {
+                span.gen_ai_usage_input_tokens = pt;
+                input_supplied = true;
+            }
+            if !output_supplied {
+                span.gen_ai_usage_output_tokens = ct;
+                output_supplied = true;
+            }
         }
+    }
+
+    // After every fallback, not before them: reported ahead of the CrewAI and AutoGen paths it announced
+    // "no counters" for spans those paths went on to fill in.
+    if !input_supplied && !output_supplied {
+        tracing::trace!(
+            span_name,
+            "No token counters were supplied by any source; this span bills as free"
+        );
     }
 
     // The synthesised floor counts what the provider reports *beside* its input and output, and counts

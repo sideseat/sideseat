@@ -134,9 +134,10 @@ const client = getClient();
 function shutdown(): Promise<boolean>;
 ```
 
-Shutdown the global instance, flushing pending spans and releasing resources. Resolves to whether the flush
-completed: `false` means an exporter failed and those spans were not delivered, which is worth acting on if
-you are draining before exit.
+Shutdown the global instance, flushing pending spans and releasing resources. Resolves to whether shutdown
+completed cleanly. `false` means something in flush-or-teardown failed and is worth acting on before exit —
+usually an exporter that could not deliver, though provider cleanup failing after a clean flush also reports
+`false`. Check the `diag` log for which.
 
 It does not throw — this also runs from process signal handlers, where an unhandled rejection would replace
 your exit code with a crash. Note also that `true` means everything still queued was exported; a burst that
@@ -233,11 +234,11 @@ app.listen(3000);
 The SDK automatically handles shutdown via Node.js process events. For explicit control:
 
 ```typescript
-import { trace } from '@opentelemetry/api';
+import { shutdown } from '@sideseat/sdk';
 
-const provider = trace.getTracerProvider();
-if ('forceFlush' in provider) {
-  await provider.forceFlush();
+// Or `forceFlush()` to drain without tearing the SDK down.
+if (!(await shutdown())) {
+  console.warn('some spans were not exported');
 }
 ```
 
