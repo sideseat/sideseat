@@ -1381,6 +1381,11 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     // fallbacks below may still fill in. Computed here it could only ever floor at input + output, which
     // is *below* the true total for a provider that reports its cache counters beside them.
     let mut reported_total = TOTAL_TOKENS.extract(attrs);
+    // Presence, not the value: a reported `0` is a fact the framework fallbacks must not overwrite, exactly
+    // as for the input and output sides.
+    let cache_read_supplied = CACHE_READ_TOKENS
+        .extract_opt_for_span(attrs, span_name)
+        .is_some();
     span.gen_ai_usage_cache_read_tokens = CACHE_READ_TOKENS.extract_for_span(attrs, span_name);
     span.gen_ai_usage_cache_write_tokens = CACHE_WRITE_TOKENS.extract_for_span(attrs, span_name);
     span.gen_ai_usage_reasoning_tokens = REASONING_TOKENS.extract(attrs);
@@ -1421,29 +1426,38 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
         if is_crewai {
             if let Some(output) = extract_json::<JsonValue>(attrs, keys::OUTPUT_VALUE) {
                 if let Some(usage) = output.get("token_usage") {
+                    let mut took_input = false;
+                    let mut took_output = false;
                     if !input_supplied
                         && let Some(v) = usage.get("prompt_tokens").and_then(|v| v.as_i64())
                     {
                         span.gen_ai_usage_input_tokens = v;
                         input_supplied = true;
+                        took_input = true;
                     }
                     if !output_supplied
                         && let Some(v) = usage.get("completion_tokens").and_then(|v| v.as_i64())
                     {
                         span.gen_ai_usage_output_tokens = v;
                         output_supplied = true;
+                        took_output = true;
                     }
-                    if span.gen_ai_usage_cache_read_tokens == 0 {
-                        span.gen_ai_usage_cache_read_tokens = usage
-                            .get("cached_prompt_tokens")
+                    if !cache_read_supplied
+                        && let Some(v) = usage.get("cached_prompt_tokens").and_then(|v| v.as_i64())
+                    {
+                        span.gen_ai_usage_cache_read_tokens = v;
+                    }
+                    // The embedded total describes the embedded *parts*, so it is only usable when this
+                    // payload supplied both sides. Taking it regardless produced a row whose total did not
+                    // match its own input and output: a flat `input=0` kept its reported zero while the
+                    // output came from here, and the total then claimed 1,099 for 0 + 100 tokens.
+                    if took_input && took_output {
+                        reported_total = usage
+                            .get("total_tokens")
                             .and_then(|v| v.as_i64())
-                            .unwrap_or(0);
+                            .unwrap_or(0)
+                            .max(reported_total);
                     }
-                    reported_total = usage
-                        .get("total_tokens")
-                        .and_then(|v| v.as_i64())
-                        .unwrap_or(0)
-                        .max(reported_total);
                 }
             }
         }

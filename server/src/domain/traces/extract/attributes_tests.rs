@@ -1789,3 +1789,74 @@ fn a_reported_zero_survives_a_fallback() {
         "the provider stated zero; an aggregate elsewhere in the payload does not override it"
     );
 }
+
+/// A reported cache counter of zero survives a framework fallback, like the two sides do.
+///
+/// The per-side gate fixed input and output but left the cache counter testing its *value*, so an explicit
+/// `cache_read=0` was replaced by whatever the embedded payload reported - inflating stored usage, and the
+/// cost with it.
+#[test]
+fn a_reported_zero_cache_counter_survives_a_fallback() {
+    let mut attrs = HashMap::new();
+    attrs.insert("crew_key".to_string(), "crew-1".to_string());
+    attrs.insert("gen_ai.usage.input_tokens".to_string(), "10".to_string());
+    attrs.insert(
+        "gen_ai.usage.cache_read_input_tokens".to_string(),
+        "0".to_string(),
+    );
+    attrs.insert(
+        "output.value".to_string(),
+        serde_json::json!({
+            "token_usage": {"completion_tokens": 5, "cached_prompt_tokens": 100}
+        })
+        .to_string(),
+    );
+
+    let mut span = SpanData::default();
+    extract_genai(&mut span, &attrs, "crew");
+
+    assert_eq!(span.gen_ai_usage_input_tokens, 10);
+    assert_eq!(
+        span.gen_ai_usage_output_tokens, 5,
+        "the output side was absent, so the fallback supplies it"
+    );
+    assert_eq!(
+        span.gen_ai_usage_cache_read_tokens, 0,
+        "the provider stated zero cache reads; the embedded payload does not override that"
+    );
+}
+
+/// An imported total must describe the parts that were imported with it.
+///
+/// With a flat `input_tokens=0` and no output attribute, the output came from the embedded payload while the
+/// input kept its reported zero - and taking the embedded *total* regardless left the row claiming 1,099
+/// tokens for 0 + 100.
+#[test]
+fn an_imported_total_is_only_used_when_it_describes_the_imported_parts() {
+    let mut attrs = HashMap::new();
+    attrs.insert("crew_key".to_string(), "crew-1".to_string());
+    attrs.insert("gen_ai.usage.input_tokens".to_string(), "0".to_string());
+    attrs.insert(
+        "output.value".to_string(),
+        serde_json::json!({
+            "token_usage": {"prompt_tokens": 999, "completion_tokens": 100, "total_tokens": 1099}
+        })
+        .to_string(),
+    );
+
+    let mut span = SpanData::default();
+    extract_genai(&mut span, &attrs, "crew");
+
+    assert_eq!(
+        (
+            span.gen_ai_usage_input_tokens,
+            span.gen_ai_usage_output_tokens
+        ),
+        (0, 100),
+        "the reported zero stands; only the absent side is filled"
+    );
+    assert_eq!(
+        span.gen_ai_usage_total_tokens, 100,
+        "the total must account for the input and output actually stored"
+    );
+}

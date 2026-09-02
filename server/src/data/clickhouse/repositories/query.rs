@@ -2044,7 +2044,18 @@ pub async fn get_trace_ids_for_sessions(
     let in_clause = placeholders.join(", ");
 
     let sql = format!(
-        "SELECT DISTINCT trace_id FROM otel_spans FINAL WHERE project_id = ? AND session_id IN ({})",
+        // The trace's **canonical** session, as the DuckDB twin does and as every read does. `session_id IN
+        // (...)` asked whether *any* span of the trace named one of these sessions, so deleting session B
+        // resolved to - and then deleted every span of - a trace the whole product displays under session A.
+        // That is data loss, and this backend was missed when the reads were fixed because the regression
+        // test covered DuckDB only.
+        "SELECT trace_id FROM ( \
+           SELECT trace_id, argMin(assumeNotNull(session_id), (timestamp_start, span_id)) \
+             AS canonical_session \
+           FROM otel_spans FINAL \
+           WHERE project_id = ? AND session_id IS NOT NULL AND session_id != '' \
+           GROUP BY trace_id \
+         ) WHERE canonical_session IN ({})",
         in_clause
     );
 

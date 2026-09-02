@@ -838,24 +838,11 @@ impl TracePipeline {
                 )
             })
             .collect();
-        // Which session each written trace belongs to, for the session compensation below. A trace's spans
-        // agree about it, so the first one that names a session decides.
-        let session_of: HashMap<(String, String), String> = all_db_spans
-            .iter()
-            .filter_map(|s| {
-                let session = s.session_id.as_deref().filter(|v| !v.is_empty())?;
-                Some((
-                    (
-                        s.project_id
-                            .as_deref()
-                            .unwrap_or(DEFAULT_PROJECT_ID)
-                            .to_string(),
-                        s.trace_id.clone(),
-                    ),
-                    session.to_string(),
-                ))
-            })
-            .collect();
+        // Which session each written trace belongs to, for the session compensation below - resolved by the
+        // same rule the reads use, not by whichever span came first in the batch. See
+        // `canonical_session_of_traces`.
+        let session_of: HashMap<(String, String), String> =
+            canonical_session_of_traces(&all_db_spans);
         let db_ok = write_to_duckdb(all_db_spans, &self.analytics).await;
 
         let t_persist_done = std::time::Instant::now();
@@ -1727,22 +1714,9 @@ impl TracePipeline {
                     )
                 })
                 .collect();
-            let session_of: HashMap<(String, String), String> = db_spans
-                .iter()
-                .filter_map(|s| {
-                    let session = s.session_id.as_deref().filter(|v| !v.is_empty())?;
-                    Some((
-                        (
-                            s.project_id
-                                .as_deref()
-                                .unwrap_or(DEFAULT_PROJECT_ID)
-                                .to_string(),
-                            s.trace_id.clone(),
-                        ),
-                        session.to_string(),
-                    ))
-                })
-                .collect();
+            // The same rule the reads use; see `canonical_session_of_traces`.
+            let session_of: HashMap<(String, String), String> =
+                canonical_session_of_traces(&db_spans);
             let db_ok = write_to_duckdb(db_spans, &self.analytics).await;
             if !db_ok {
                 self.release_created_associations(&created_associations)
@@ -1943,17 +1917,53 @@ fn traces_of_sessions(
     spans: &[NormalizedSpan],
     sessions: &HashSet<(String, String)>,
 ) -> HashSet<(String, String)> {
-    let mut traces = HashSet::new();
+    canonical_session_of_traces(spans)
+        .into_iter()
+        .filter(|((project, _), session)| sessions.contains(&(project.clone(), session.clone())))
+        .map(|(trace, _)| trace)
+        .collect()
+}
+
+/// The session each `(project, trace)` in this batch belongs to: the one on its **earliest** span.
+///
+/// The same rule the reads use - `arg_min(session_id, (timestamp_start, span_id))` - so ingestion and
+/// retrieval cannot disagree about which session a trace is in. Taking whichever span happened to come first
+/// in the batch made that a function of iteration order; taking *any* span that named a deleted session was
+/// worse still, and it is what let a redelivery of a trace canonically in session A be tombstoned and
+/// dropped in full because one of its child spans named a deleted session B.
+///
+/// Bounded by what a batch can see: if an earlier span of the trace arrives in a *later* batch, this answers
+/// from the spans in hand. That is inherent - the fence cannot consult a span nobody has sent - and the
+/// remaining cases are what the trace tombstones and the deletion sweep exist for. The store-side resolution
+/// is authoritative once the rows are written.
+fn canonical_session_of_traces(spans: &[NormalizedSpan]) -> HashMap<(String, String), String> {
+    /// `(project, trace)`.
+    type TraceKey = (String, String);
+    /// `(timestamp_start, span_id)` - the same total order the reads use.
+    type EarliestBy = (chrono::DateTime<chrono::Utc>, String);
+
+    let mut best: HashMap<TraceKey, (EarliestBy, String)> = HashMap::new();
     for span in spans {
         let Some(session_id) = span.session_id.as_deref().filter(|v| !v.is_empty()) else {
             continue;
         };
-        let project = span.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID);
-        if sessions.contains(&(project.to_string(), session_id.to_string())) {
-            traces.insert((project.to_string(), span.trace_id.clone()));
-        }
+        let project = span
+            .project_id
+            .as_deref()
+            .unwrap_or(DEFAULT_PROJECT_ID)
+            .to_string();
+        let key = (span.timestamp_start, span.span_id.clone());
+        best.entry((project, span.trace_id.clone()))
+            .and_modify(|current| {
+                if key < current.0 {
+                    *current = (key.clone(), session_id.to_string());
+                }
+            })
+            .or_insert((key, session_id.to_string()));
     }
-    traces
+    best.into_iter()
+        .map(|(trace, (_, session))| (trace, session))
+        .collect()
 }
 
 #[cfg(test)]
@@ -1961,13 +1971,70 @@ mod session_fence_tests {
     use super::*;
 
     fn span(project: &str, trace: &str, id: &str, session: Option<&str>) -> NormalizedSpan {
+        at(project, trace, id, session, 0)
+    }
+
+    /// As [`span`], with an explicit start offset so a trace's earliest span is unambiguous.
+    fn at(
+        project: &str,
+        trace: &str,
+        id: &str,
+        session: Option<&str>,
+        offset_secs: i64,
+    ) -> NormalizedSpan {
         NormalizedSpan {
             project_id: Some(project.to_string()),
             trace_id: trace.to_string(),
             span_id: id.to_string(),
             session_id: session.map(str::to_string),
+            timestamp_start: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH
+                + chrono::Duration::seconds(offset_secs),
             ..Default::default()
         }
+    }
+
+    /// Deleting one session must not drop a trace that belongs to another.
+    ///
+    /// A trace whose earliest span names session A and whose child names B is displayed, read, filtered and
+    /// deleted as belonging to **A** everywhere else. The ingestion fence asked whether *any* span named a
+    /// deleted session, so deleting B caused a redelivery of that trace to be tombstoned and dropped in
+    /// full - and the tombstone then had the sweep delete the rows already stored under A. Data loss, from a
+    /// deletion of a session the trace was never canonically in.
+    #[test]
+    fn deleting_a_session_a_trace_is_not_canonically_in_leaves_it_alone() {
+        let spans = vec![
+            at("p", "t1", "root", Some("session-a"), 0),
+            at("p", "t1", "child", Some("session-b"), 1),
+        ];
+
+        // Deleting the session named only by the later span touches nothing.
+        let deleted_b = HashSet::from([("p".to_string(), "session-b".to_string())]);
+        assert!(
+            traces_of_sessions(&spans, &deleted_b).is_empty(),
+            "the trace's canonical session is A, so deleting B must not resolve to it"
+        );
+
+        // Deleting the canonical session takes the whole trace, as before.
+        let deleted_a = HashSet::from([("p".to_string(), "session-a".to_string())]);
+        assert_eq!(
+            traces_of_sessions(&spans, &deleted_a),
+            HashSet::from([("p".to_string(), "t1".to_string())]),
+        );
+
+        // And the resolver answers by earliest span, not by batch order: reversing the input must not
+        // change which session the trace is in.
+        let reversed: Vec<NormalizedSpan> = spans.iter().rev().cloned().collect();
+        assert_eq!(
+            canonical_session_of_traces(&spans),
+            canonical_session_of_traces(&reversed),
+            "the canonical session must not depend on the order spans arrive in"
+        );
+        assert_eq!(
+            canonical_session_of_traces(&spans)
+                .get(&("p".to_string(), "t1".to_string()))
+                .map(String::as_str),
+            Some("session-a")
+        );
     }
 
     /// A deleted session takes its trace's *whole* set of spans, not only the ones naming it.
