@@ -4749,4 +4749,112 @@ mod tests {
             "the new session did not exist at the watermark"
         );
     }
+
+    /// A session message query *with* a watermark binds two deduplicated relations in one statement.
+    ///
+    /// The session branch resolves membership against its own copy of the dedup relation, and the outer
+    /// query against another - so with a watermark there are two `?` placeholders from two relations plus the
+    /// condition binds, in an order the statement text decides. Get that order wrong and the query either
+    /// fails or silently answers about the wrong instant, and no other test exercised the combination: the
+    /// watermark tests all use the `trace_ids` branch and the session tests all run unbounded.
+    #[tokio::test]
+    async fn a_session_query_with_a_watermark_binds_in_the_right_order() {
+        use crate::data::duckdb::repositories::messages::get_messages;
+        use crate::data::types::MessageQueryParams;
+
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+
+        let payload = |text: &str| {
+            Some(
+                serde_json::json!([{
+                    "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+                    "content": {"role": "user", "content": text}
+                }])
+                .to_string(),
+            )
+        };
+
+        let early = Utc::now() - chrono::Duration::seconds(60);
+        let late = Utc::now();
+
+        let span = |session: &str, text: &str, ingested: chrono::DateTime<Utc>| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: "trace-1".to_string(),
+            span_id: "span-1".to_string(),
+            span_name: "generation".to_string(),
+            observation_type: Some(ObservationType::Generation),
+            timestamp_start: early,
+            session_id: Some(session.to_string()),
+            messages: payload(text),
+            ingested_at: Some(ingested),
+            ..Default::default()
+        };
+
+        {
+            let conn = service.conn();
+            insert_batch(&conn, &[span("session-old", "the first answer", early)]).expect("first");
+            insert_batch(&conn, &[span("session-new", "the corrected answer", late)])
+                .expect("re-delivery");
+        }
+
+        let conn = service.conn();
+        let as_of = early.timestamp_micros() + 1;
+
+        // As of before the re-delivery: the trace is in the old session and carries the old content.
+        let bounded = get_messages(
+            &conn,
+            &MessageQueryParams {
+                project_id: project.to_string(),
+                session_id: Some("session-old".to_string()),
+                ingested_before_us: Some(as_of),
+                ..Default::default()
+            },
+        )
+        .expect("the bounded session query must execute");
+        assert_eq!(
+            bounded.rows.len(),
+            1,
+            "the trace belonged to this session then"
+        );
+        assert!(
+            bounded.rows[0].messages_json.contains("the first answer"),
+            "membership and content must describe the same instant, got {}",
+            bounded.rows[0].messages_json
+        );
+
+        // The session it moved *to* did not exist at that instant.
+        let future_session = get_messages(
+            &conn,
+            &MessageQueryParams {
+                project_id: project.to_string(),
+                session_id: Some("session-new".to_string()),
+                ingested_before_us: Some(as_of),
+                ..Default::default()
+            },
+        )
+        .expect("query");
+        assert!(
+            future_session.rows.is_empty(),
+            "a session created after the watermark must not appear in the traversal"
+        );
+
+        // Unbounded, the re-delivery wins in both membership and content.
+        let current = get_messages(
+            &conn,
+            &MessageQueryParams {
+                project_id: project.to_string(),
+                session_id: Some("session-new".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("query");
+        assert_eq!(current.rows.len(), 1);
+        assert!(
+            current.rows[0]
+                .messages_json
+                .contains("the corrected answer"),
+            "the current read must return the corrected content"
+        );
+    }
 }
