@@ -2437,6 +2437,11 @@ fn the_corpus_matches_the_support_matrix() {
 
     let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/messages");
     let mut found: Vec<(String, usize, usize)> = Vec::new();
+    // Kept honest by `local_only_samples_are_actually_gitignored`, so this cannot drift into excusing a
+    // sample that someone simply forgot to commit.
+    const LOCAL_ONLY_SAMPLES: [(&str, &str); 2] =
+        [("strands-js", "image-gen"), ("vercel-ai-js", "image-gen")];
+
     for entry in std::fs::read_dir(&root).expect("fixture root") {
         let path = entry.expect("dir entry").path();
         if !path.is_dir() {
@@ -2448,6 +2453,15 @@ fn the_corpus_matches_the_support_matrix() {
         for sample in std::fs::read_dir(&path).expect("suite dir") {
             let sample = sample.expect("sample entry").path();
             if !sample.is_dir() {
+                continue;
+            }
+            // Samples captured locally only are not part of the documented corpus. They are gitignored
+            // because their payloads are 15 MB and 7 MB of inlined base64 image data, so a clean checkout
+            // does not have them - and comparing the *filesystem* against a table that counted them made
+            // this test fail for everyone but whoever captured them, including CI. The table now describes
+            // what the repository actually contains.
+            let sample_name = sample.file_name().unwrap().to_string_lossy().to_string();
+            if LOCAL_ONLY_SAMPLES.contains(&(suite.as_str(), sample_name.as_str())) {
                 continue;
             }
             samples += 1;
@@ -3215,4 +3229,29 @@ fn a_session_known_only_to_the_store_reconstructs_identically() {
         "no fixture exercised cross-trace stripping, so this test proved nothing"
     );
     eprintln!("session grouping: {exercised} fixture(s) exercised cross-trace stripping");
+}
+
+/// Every sample the support matrix excuses is one `.gitignore` actually excludes.
+///
+/// The exclusion list exists so a clean checkout passes `the_corpus_matches_the_support_matrix`, and that is
+/// only legitimate for samples the repository deliberately does not carry. Without this check the list would
+/// equally excuse a sample somebody forgot to commit, which is the opposite of what the matrix is for.
+#[test]
+fn local_only_samples_are_actually_gitignored() {
+    let gitignore = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("repo root")
+            .join(".gitignore"),
+    )
+    .expect("read .gitignore");
+
+    for (suite, sample) in [("strands-js", "image-gen"), ("vercel-ai-js", "image-gen")] {
+        let path = format!("server/tests/fixtures/messages/{suite}/{sample}/");
+        assert!(
+            gitignore.lines().any(|line| line.trim() == path),
+            "{path} is excused from the support matrix but is not gitignored, so a missing capture there \
+             would be silently accepted"
+        );
+    }
 }

@@ -499,7 +499,11 @@ pub fn list_traces(
             MIN(s.timestamp_start) AS start_time,
             MAX(COALESCE(s.timestamp_end, s.timestamp_start)) AS end_time,
             DATE_DIFF('millisecond', MIN(s.timestamp_start), MAX(COALESCE(s.timestamp_end, s.timestamp_start))) AS duration_ms,
-            FIRST(s.session_id ORDER BY s.timestamp_start) FILTER (WHERE s.session_id IS NOT NULL) AS session_id,
+            -- `span_id` breaks the tie, so this is a *total* order. Feed grouping resolves the same
+            -- question with `arg_min(session_id, (timestamp_start, span_id))`, and with the tie left to the
+            -- engine here the two could pick different spans of the same trace - a trace displayed under one
+            -- session and grouped under another, which splits a conversation and duplicates its history.
+            FIRST(s.session_id ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.session_id IS NOT NULL) AS session_id,
             FIRST(s.user_id ORDER BY s.timestamp_start) FILTER (WHERE s.user_id IS NOT NULL) AS user_id,
             FIRST(s.environment ORDER BY s.timestamp_start) FILTER (WHERE s.environment IS NOT NULL) AS environment,
             COUNT(*) AS span_count,
@@ -622,7 +626,11 @@ pub fn get_trace(
             EPOCH_US(MIN(s.timestamp_start)) AS start_time,
             EPOCH_US(MAX(COALESCE(s.timestamp_end, s.timestamp_start))) AS end_time,
             DATE_DIFF('millisecond', MIN(s.timestamp_start), MAX(COALESCE(s.timestamp_end, s.timestamp_start))) AS duration_ms,
-            FIRST(s.session_id ORDER BY s.timestamp_start) FILTER (WHERE s.session_id IS NOT NULL) AS session_id,
+            -- `span_id` breaks the tie, so this is a *total* order. Feed grouping resolves the same
+            -- question with `arg_min(session_id, (timestamp_start, span_id))`, and with the tie left to the
+            -- engine here the two could pick different spans of the same trace - a trace displayed under one
+            -- session and grouped under another, which splits a conversation and duplicates its history.
+            FIRST(s.session_id ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.session_id IS NOT NULL) AS session_id,
             FIRST(s.user_id ORDER BY s.timestamp_start) FILTER (WHERE s.user_id IS NOT NULL) AS user_id,
             FIRST(s.environment ORDER BY s.timestamp_start) FILTER (WHERE s.environment IS NOT NULL) AS environment,
             COUNT(*) AS span_count,
@@ -1462,7 +1470,11 @@ pub fn get_traces_for_session(
             EPOCH_US(MIN(s.timestamp_start)) AS start_time,
             EPOCH_US(MAX(COALESCE(s.timestamp_end, s.timestamp_start))) AS end_time,
             DATE_DIFF('millisecond', MIN(s.timestamp_start), MAX(COALESCE(s.timestamp_end, s.timestamp_start))) AS duration_ms,
-            FIRST(s.session_id ORDER BY s.timestamp_start) FILTER (WHERE s.session_id IS NOT NULL) AS session_id,
+            -- `span_id` breaks the tie, so this is a *total* order. Feed grouping resolves the same
+            -- question with `arg_min(session_id, (timestamp_start, span_id))`, and with the tie left to the
+            -- engine here the two could pick different spans of the same trace - a trace displayed under one
+            -- session and grouped under another, which splits a conversation and duplicates its history.
+            FIRST(s.session_id ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.session_id IS NOT NULL) AS session_id,
             FIRST(s.user_id ORDER BY s.timestamp_start) FILTER (WHERE s.user_id IS NOT NULL) AS user_id,
             FIRST(s.environment ORDER BY s.timestamp_start) FILTER (WHERE s.environment IS NOT NULL) AS environment,
             COUNT(*) AS span_count,

@@ -243,6 +243,14 @@ pub struct SpanData {
     pub gen_ai_usage_input_tokens: i64,
     pub gen_ai_usage_output_tokens: i64,
     pub gen_ai_usage_total_tokens: i64,
+    /// The total the provider *stated*, or 0 when it stated none. Not persisted.
+    ///
+    /// Kept apart from the synthesised total above so enrichment can redo the synthesis once pricing has
+    /// resolved which provider's convention applies. Folding the two together meant the synthesised value
+    /// became a floor that could not be lowered: `system=anthropic, model=gpt-4o` synthesised
+    /// `input + output + cache` here, pricing then resolved OpenAI (cache already inside the input), and
+    /// `max(synthesised, corrected)` kept the too-large number.
+    pub gen_ai_usage_total_tokens_reported: i64,
     pub gen_ai_usage_cache_read_tokens: i64,
     pub gen_ai_usage_cache_write_tokens: i64,
     pub gen_ai_usage_reasoning_tokens: i64,
@@ -1465,6 +1473,7 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     } else {
         0
     };
+    span.gen_ai_usage_total_tokens_reported = reported_total;
     span.gen_ai_usage_total_tokens = reported_total.max(
         span.gen_ai_usage_input_tokens
             + span.gen_ai_usage_output_tokens

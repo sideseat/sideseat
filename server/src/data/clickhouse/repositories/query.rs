@@ -242,7 +242,9 @@ fn trace_projection(trace_id_expr: &str, totals_alias: &str, totals: Totals) -> 
             toInt64(toUnixTimestamp64Micro(min(s.timestamp_start))) as start_time,
             toInt64(toUnixTimestamp64Micro(max(coalesce(s.timestamp_end, s.timestamp_start)))) as end_time,
             dateDiff('millisecond', min(s.timestamp_start), max(coalesce(s.timestamp_end, s.timestamp_start))) as duration_ms,
-            argMinIf(s.session_id, s.timestamp_start, s.session_id IS NOT NULL) as session_id,
+            -- `(timestamp_start, span_id)`, a total order: see the DuckDB twin for why a tie left to the
+            -- engine lets the displayed session and the feed's grouping disagree about one trace.
+            argMinIf(s.session_id, (s.timestamp_start, s.span_id), s.session_id IS NOT NULL) as session_id,
             argMinIf(s.user_id, s.timestamp_start, s.user_id IS NOT NULL) as user_id,
             argMinIf(s.environment, s.timestamp_start, s.environment IS NOT NULL) as environment,
             count() AS span_count,

@@ -396,7 +396,7 @@ All data is sent to your self-hosted server. Nothing leaves your infrastructure.
 | `init(options)`          | `SideSeat`          | Create global instance (sync)  |
 | `createClient(options)`  | `Promise<SideSeat>` | Create global instance (async) |
 | `getClient()`            | `SideSeat`          | Get global instance            |
-| `shutdown()`             | `Promise<void>`     | Shut down global instance      |
+| `shutdown()`             | `Promise<boolean>`  | Shut down; `false` means spans were not exported |
 | `isInitialized()`        | `boolean`           | Check if initialized           |
 
 ### SideSeat Class

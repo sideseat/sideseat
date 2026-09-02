@@ -113,7 +113,7 @@ pip install "sideseat[openai]"          # + OpenAI / OpenAI Agents
 
 # Extras for provider instrumentation:
 pip install "sideseat[anthropic]"       # + Anthropic
-pip install "sideseat[aws]"             # + Amazon Bedrock
+pip install "sideseat[aws]" boto3      # + Amazon Bedrock (the extra adds wrapt; boto3 is yours)
 pip install "sideseat[google-genai]"    # + Google Gemini
 pip install "sideseat[vertex-ai]"       # + Google Vertex AI (native SDK)
 

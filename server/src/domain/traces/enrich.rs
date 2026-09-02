@@ -126,7 +126,11 @@ fn corrected_total_tokens(span: &SpanData, resolved_provider: Option<&str>) -> O
         + span.gen_ai_usage_output_tokens
         + beside_input
         + beside_output;
-    Some(span.gen_ai_usage_total_tokens.max(floor))
+    // Against the *reported* total, not the extractor's synthesised one. The extractor could only guess the
+    // convention from `gen_ai.system`, so its value is not evidence: for `system=anthropic, model=gpt-4o` it
+    // synthesised `input + output + cache` and, taken as a floor, that too-large number survived the
+    // correction it exists to receive. A total the provider actually stated is still honoured.
+    Some(span.gen_ai_usage_total_tokens_reported.max(floor))
 }
 
 // ============================================================================
@@ -829,5 +833,53 @@ mod tests {
         };
         assert_eq!(extract_content_preview(&msg, PREVIEW_MAX_LENGTH, false), "");
         assert!(!extract_content_preview(&msg, PREVIEW_MAX_LENGTH, true).is_empty());
+    }
+
+    /// The correction can *lower* a total the extractor synthesised under the wrong convention.
+    ///
+    /// The extractor only sees `gen_ai.system`; pricing resolves the provider from the model name too. With
+    /// `system=anthropic` and `model=gpt-4o` the extractor synthesised `input + output + cache`, and taking
+    /// that as the floor meant the too-large number survived the very correction it exists to receive.
+    #[test]
+    fn a_total_synthesised_under_the_wrong_convention_is_corrected_downwards() {
+        let pricing = PricingService::init_for_test().unwrap();
+
+        let mut span = SpanData {
+            gen_ai_system: Some("anthropic".to_string()),
+            gen_ai_request_model: Some("gpt-4o".to_string()),
+            gen_ai_usage_input_tokens: 100,
+            gen_ai_usage_output_tokens: 20,
+            gen_ai_usage_cache_read_tokens: 80,
+            ..Default::default()
+        };
+        // What the extractor would have produced: no reported total, Anthropic's convention assumed.
+        span.gen_ai_usage_total_tokens_reported = 0;
+        span.gen_ai_usage_total_tokens = 200;
+
+        let enrichment = enrich_one(&span, &[], &pricing);
+        assert_eq!(
+            enrichment.total_tokens,
+            Some(120),
+            "gpt-4o counts its cached tokens inside the prompt total, so the answer is input + output"
+        );
+    }
+
+    /// A total the provider actually stated is still honoured, even when it exceeds the counters.
+    #[test]
+    fn a_reported_total_survives_the_correction() {
+        let pricing = PricingService::init_for_test().unwrap();
+
+        let mut span = SpanData {
+            gen_ai_system: Some("openai".to_string()),
+            gen_ai_request_model: Some("gpt-4o".to_string()),
+            gen_ai_usage_input_tokens: 10,
+            gen_ai_usage_output_tokens: 20,
+            ..Default::default()
+        };
+        span.gen_ai_usage_total_tokens_reported = 9_999;
+        span.gen_ai_usage_total_tokens = 9_999;
+
+        let enrichment = enrich_one(&span, &[], &pricing);
+        assert_eq!(enrichment.total_tokens, Some(9_999));
     }
 }

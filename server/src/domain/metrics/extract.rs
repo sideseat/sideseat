@@ -14,8 +14,8 @@ use serde_json::{Value as JsonValue, json};
 
 use crate::data::types::{AggregationTemporality, MetricType, NormalizedMetric};
 use crate::utils::otlp::{
-    PROJECT_ID_ATTR, attrs_to_json, attrs_to_typed_json, extract_attributes, get_environment,
-    get_session_id, get_user_id, keys,
+    PROJECT_ID_ATTR, attrs_to_typed_json, extract_attributes, get_environment, get_session_id,
+    get_user_id, keys,
 };
 use crate::utils::time::{is_storable, nanos_to_datetime};
 
@@ -616,11 +616,16 @@ fn extract_all_exemplars(
     JsonValue::Array(entries)
 }
 
+/// The first exemplar's attributes, typed exactly as the `exemplars` array stores them.
+///
+/// Both representations describe the same exemplar, so they have to agree: with this one going through the
+/// stringifying path, an integer `status_code=200` was `200` in the array and `"200"` in this column, and
+/// this is the column the queries expose.
 fn extract_exemplar_attrs(
     exemplar: Option<&opentelemetry_proto::tonic::metrics::v1::Exemplar>,
 ) -> JsonValue {
     exemplar
-        .map(|e| attrs_to_json(&extract_attributes(&e.filtered_attributes)))
+        .map(|e| crate::utils::otlp::attrs_to_typed_json(&e.filtered_attributes))
         .unwrap_or(JsonValue::Null)
 }
 

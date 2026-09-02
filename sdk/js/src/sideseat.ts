@@ -336,7 +336,12 @@ export class SideSeat {
   }
 
   /**
-   * Flush and release. Resolves to whether every span was exported.
+   * Flush and release. Resolves to whether the flush and shutdown **completed**.
+   *
+   * That is narrower than "no span was lost, ever", and the difference is worth stating: the batch
+   * processor has a bounded queue (`maxQueueSize`), and a burst that overruns it is discarded by the OTel
+   * SDK at the moment it happens, with no counter this can read. So `true` means everything still queued
+   * was exported successfully - it cannot mean nothing was ever dropped.
    *
    * The boolean is the point, and it mirrors {@link forceFlush}: this used to resolve `void`
    * whatever happened, so a caller draining before exit received a fulfilled promise while its

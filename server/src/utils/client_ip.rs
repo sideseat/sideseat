@@ -23,7 +23,7 @@
 use std::net::IpAddr;
 use std::str::FromStr;
 
-use ipnet::IpNet;
+use ipnet::{IpNet, Ipv4Net};
 
 /// A parsed trusted-proxy list, from CIDR blocks or bare addresses.
 #[derive(Debug, Clone, Default)]
@@ -48,9 +48,9 @@ impl TrustedProxies {
             }
             // A bare address is a /32 or /128.
             if let Ok(net) = IpNet::from_str(trimmed) {
-                nets.push(net);
+                nets.push(canonical_net(net));
             } else if let Ok(addr) = IpAddr::from_str(trimmed) {
-                nets.push(IpNet::from(addr));
+                nets.push(IpNet::from(canonical(addr)));
             } else {
                 return Err(format!(
                     "rate_limit.trusted_proxies entry {trimmed:?} is neither an IP address nor a CIDR block. \
@@ -80,6 +80,25 @@ impl TrustedProxies {
 ///
 /// `::ffff:10.0.0.5` and `10.0.0.5` are the same host, and every comparison here has to agree about that -
 /// otherwise whether a proxy is trusted depends on whether the listener happens to be dual-stack.
+/// A network written in IPv4-mapped IPv6 form as its IPv4 equivalent; anything else unchanged.
+///
+/// Canonicalising only the *peer* was half a fix: an operator who writes the mapped form
+/// (`::ffff:10.0.0.5`, or `::ffff:10.0.0.0/104`) then had the peer converted to IPv4 while the configured
+/// network stayed IPv6, so it stopped matching - the same silent collapse into one rate-limit bucket, arrived
+/// at from the opposite side. Both sides are canonicalised, so the two forms are interchangeable in
+/// configuration.
+fn canonical_net(net: IpNet) -> IpNet {
+    match net {
+        IpNet::V6(v6) if v6.prefix_len() >= 96 => match v6.addr().to_ipv4_mapped() {
+            Some(v4) => Ipv4Net::new(v4, v6.prefix_len() - 96)
+                .map(IpNet::V4)
+                .unwrap_or(net),
+            None => net,
+        },
+        other => other,
+    }
+}
+
 fn canonical(addr: IpAddr) -> IpAddr {
     match addr {
         IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
@@ -100,9 +119,14 @@ pub fn attributable_ip(
     trusted: &TrustedProxies,
 ) -> Option<String> {
     let peer = peer?;
+    // Canonical before it becomes a bucket key. `::ffff:203.0.113.9` and `203.0.113.9` are the same client,
+    // and returning whichever form the socket happened to produce gave that client *two* buckets on a
+    // dual-stack listener - twice the allowance, from nothing the client did.
+    let key = |addr: IpAddr| Some(canonical(addr).to_string());
+
     // Nothing vouched for the header, so only the peer is a fact.
     if trusted.is_empty() || !trusted.contains(peer) {
-        return Some(peer.to_string());
+        return key(peer);
     }
     // The peer is a trusted proxy: walk the chain from the right, skipping hops we also trust. The first
     // untrusted address is the furthest one a trusted proxy actually vouched for.
@@ -115,12 +139,12 @@ pub fn attributable_ip(
             if let Some(addr) = parse_hop(hop)
                 && !trusted.contains(addr)
             {
-                return Some(addr.to_string());
+                return key(addr);
             }
         }
     }
     // Every hop was trusted, or none was parseable: the proxy itself is the best available attribution.
-    Some(peer.to_string())
+    key(peer)
 }
 
 /// One forwarded hop as an address, tolerating an attached port.
@@ -293,5 +317,55 @@ mod tests {
             attributable_ip(None, Some("1.2.3.4"), &TrustedProxies::default()),
             None
         );
+    }
+
+    /// The two ways of writing the same host are interchangeable, on both sides of the comparison.
+    ///
+    /// A reverse proxy on a dual-stack socket connects as `::ffff:10.0.0.5`, and `IpNet::contains` compares
+    /// address families - so an operator's `10.0.0.0/8` matched nothing, the proxy was untrusted, every
+    /// forwarded client address was ignored, and per-client limiting became one bucket for the whole proxy.
+    /// Canonicalising only the peer left the mirror image: an operator writing the *mapped* form had it stop
+    /// matching an IPv4 peer.
+    #[test]
+    fn ipv4_mapped_and_plain_ipv4_are_the_same_host_either_way_round() {
+        let plain = "10.0.0.5".parse::<IpAddr>().unwrap();
+        let mapped = "::ffff:10.0.0.5".parse::<IpAddr>().unwrap();
+        let forwarded = Some("203.0.113.9");
+
+        // An IPv4 CIDR trusts a mapped peer.
+        let v4_cidr = TrustedProxies::parse(&["10.0.0.0/8".to_string()]).unwrap();
+        for peer in [plain, mapped] {
+            assert_eq!(
+                attributable_ip(Some(peer), forwarded, &v4_cidr),
+                Some("203.0.113.9".to_string()),
+                "peer {peer} is inside 10.0.0.0/8 however it is written"
+            );
+        }
+
+        // And a mapped CIDR - or a mapped bare address - trusts a plain IPv4 peer.
+        for entry in ["::ffff:10.0.0.0/104", "::ffff:10.0.0.5"] {
+            let cidr = TrustedProxies::parse(&[entry.to_string()]).unwrap();
+            for peer in [plain, mapped] {
+                assert_eq!(
+                    attributable_ip(Some(peer), forwarded, &cidr),
+                    Some("203.0.113.9".to_string()),
+                    "configured {entry} must trust peer {peer}"
+                );
+            }
+        }
+    }
+
+    /// A host genuinely outside the range is still untrusted, so the canonicalisation has not widened it.
+    #[test]
+    fn canonicalisation_does_not_widen_a_trusted_range() {
+        let cidr = TrustedProxies::parse(&["10.0.0.0/8".to_string()]).unwrap();
+        for peer in ["192.0.2.7", "::ffff:192.0.2.7", "2001:db8::1"] {
+            let addr = peer.parse::<IpAddr>().unwrap();
+            assert_eq!(
+                attributable_ip(Some(addr), Some("203.0.113.9"), &cidr),
+                Some(canonical(addr).to_string()),
+                "peer {peer} is not a trusted proxy, so the header must be ignored"
+            );
+        }
     }
 }

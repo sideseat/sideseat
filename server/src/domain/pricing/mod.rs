@@ -505,12 +505,62 @@ impl PricingData {
 /// billed at Bedrock's rates and *counted* under OpenAI's convention - a cached turn reporting 15 tokens
 /// where 1,215 were billed, with ten ordinary input tokens dropped from the cost.
 pub fn cache_counters_are_separate_for_provider(provider: &str) -> bool {
-    matches!(provider, "anthropic" | "bedrock" | "vertex_ai_anthropic")
+    // By **family**, not by exact string. The catalogue does not use one name per provider: Bedrock alone
+    // appears as `bedrock` (268 entries), `bedrock_converse` (152) and `bedrock_mantle` (15), and Anthropic
+    // on Vertex is `vertex_ai-anthropic_models` (37). Matching exact short names classified the minority and
+    // sent the majority to the inclusive default - so the very Bedrock calls this rule exists for were
+    // charged one way and counted another.
+    //
+    // Bedrock's whole API reports its cache counters separately, whichever vendor's model is behind it, so
+    // the family is what matters there rather than the model's vendor.
+    provider.starts_with("bedrock") || vendor_of(provider) == Vendor::Anthropic
 }
 
 /// The [`cache_counters_are_separate_for_provider`] question for reasoning tokens.
 pub fn reasoning_is_separate_for_provider(provider: &str) -> bool {
-    matches!(provider, "gemini" | "vertex_ai")
+    // Google's own models report thoughts beside the output. `vertex_ai` names *forty* provider variants in
+    // the catalogue, most of them third-party vendors hosted on Vertex, so this is Google's families only -
+    // `vertex_ai-anthropic_models` is Anthropic's convention, not Google's.
+    vendor_of(provider) == Vendor::Google
+}
+
+/// Whose model a catalogue provider name refers to.
+///
+/// Derived from the name rather than listed per provider, because the catalogue gains providers with every
+/// sync and a hand-maintained list of 40+ names is the hole this whole area keeps falling into. An
+/// unrecognised name is [`Vendor::Other`], which takes the inclusive (OpenAI-shaped) reading of both
+/// conventions - the cautious direction, since over-counting a total and over-charging are the worse errors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Vendor {
+    Anthropic,
+    Google,
+    Other,
+}
+
+fn vendor_of(provider: &str) -> Vendor {
+    if provider == "anthropic" {
+        return Vendor::Anthropic;
+    }
+    if provider == "gemini" || provider == "vertex_ai" {
+        return Vendor::Google;
+    }
+    // `vertex_ai-…` splits on the catalogue's own naming convention rather than on a list of forty names:
+    // a third party hosted on Vertex is `vertex_ai-<vendor>_models` (underscore - `anthropic_models`,
+    // `mistral_models`, `llama_models`, `qwen_models`, …), while Google's own categories use hyphens
+    // (`language-models`, `text-models`, `image-models`, `video-models`, `embedding-models`). Every one of
+    // the sixteen `vertex_ai*` providers in the catalogue follows it.
+    //
+    // A convention is only safe to lean on if something checks it, so
+    // `every_catalogue_provider_name_is_classified_deliberately` enumerates the real names: if upstream
+    // renames anything, that test fails rather than this quietly returning the wrong vendor.
+    if let Some(suffix) = provider.strip_prefix("vertex_ai-") {
+        return match suffix.strip_suffix("_models") {
+            Some(vendor) if vendor.starts_with("anthropic") => Vendor::Anthropic,
+            Some(_) => Vendor::Other,
+            None => Vendor::Google,
+        };
+    }
+    Vendor::Other
 }
 
 /// Whether this provider reports cache counters *beside* its input total rather than within it.
@@ -4138,5 +4188,121 @@ mod tests {
                 "{system} is Bedrock, whose cache counters are billed on top"
             );
         }
+    }
+
+    /// Every provider name the real catalogue contains is classified, and a new one fails this test.
+    ///
+    /// This is the guard that was missing. The conventions were written against exact short names
+    /// (`bedrock`, `vertex_ai`) while the catalogue actually uses forty-odd - `bedrock_converse` alone has
+    /// 152 entries and `vertex_ai-anthropic_models` 37 - so the majority of the affected models fell through
+    /// to the inclusive default and were charged one way while counted another. No test noticed, because
+    /// every test named a provider by hand.
+    ///
+    /// Listing the expectation per *name* rather than per rule is the point: a sync that introduces a
+    /// provider name lands here as a failure, and someone has to decide which convention it follows instead
+    /// of inheriting whatever the string matching happens to do.
+    #[test]
+    fn every_catalogue_provider_name_is_classified_deliberately() {
+        use std::collections::{BTreeMap, BTreeSet};
+
+        let raw: serde_json::Value = serde_json::from_str(EMBEDDED_PRICING_JSON).unwrap();
+        let mut providers: BTreeSet<String> = BTreeSet::new();
+        for (_, entry) in raw.as_object().unwrap() {
+            if let Some(p) = entry.get("litellm_provider").and_then(|v| v.as_str()) {
+                providers.insert(p.to_string());
+            }
+        }
+        assert!(
+            providers.len() > 20,
+            "the catalogue should name many providers, found {}",
+            providers.len()
+        );
+
+        // (cache counters beside input, reasoning beside output) per provider name.
+        let expected: BTreeMap<&str, (bool, bool)> = BTreeMap::from([
+            ("anthropic", (true, false)),
+            ("bedrock", (true, false)),
+            ("bedrock_converse", (true, false)),
+            ("bedrock_mantle", (true, false)),
+            ("vertex_ai-anthropic_models", (true, false)),
+            ("gemini", (false, true)),
+            ("vertex_ai", (false, true)),
+            ("vertex_ai-language-models", (false, true)),
+            ("vertex_ai-text-models", (false, true)),
+            ("vertex_ai-embedding-models", (false, true)),
+            ("vertex_ai-image-models", (false, true)),
+            ("vertex_ai-video-models", (false, true)),
+        ]);
+
+        let mut wrong: Vec<String> = Vec::new();
+        for provider in &providers {
+            let cache = cache_counters_are_separate_for_provider(provider);
+            let reasoning = reasoning_is_separate_for_provider(provider);
+            let want = expected
+                .get(provider.as_str())
+                .copied()
+                // Everything else takes the inclusive reading, which is the documented cautious default.
+                .unwrap_or((false, false));
+            if (cache, reasoning) != want {
+                wrong.push(format!(
+                    "{provider}: got (cache_separate={cache}, reasoning_separate={reasoning}), want {want:?}"
+                ));
+            }
+        }
+        assert!(
+            wrong.is_empty(),
+            "provider conventions disagree with the expected table:\n  {}\n\nIf the catalogue introduced \
+             a provider name, decide its convention and add it to `expected` - do not let string matching \
+             decide it.",
+            wrong.join("\n  ")
+        );
+    }
+
+    /// The concrete miss, priced end to end: a Bedrock model whose catalogue entry says `bedrock_converse`.
+    #[test]
+    fn a_bedrock_converse_entry_bills_its_cache_counters_as_extra() {
+        let data = PricingData::from_json_str(EMBEDDED_PRICING_JSON).unwrap();
+
+        // Find a real entry whose provider is the variant that used to fall through.
+        let raw: serde_json::Value = serde_json::from_str(EMBEDDED_PRICING_JSON).unwrap();
+        let model = raw
+            .as_object()
+            .unwrap()
+            .iter()
+            .find(|(_, e)| {
+                e.get("litellm_provider").and_then(|v| v.as_str()) == Some("bedrock_converse")
+                    && e.get("cache_read_input_token_cost").is_some()
+                    && e.get("input_cost_per_token").is_some()
+            })
+            .map(|(k, _)| k.clone())
+            .expect("the catalogue must hold a bedrock_converse entry with cache pricing");
+
+        let (pricing, _) = data.lookup(None, &model).expect("priced");
+        assert_eq!(pricing.litellm_provider, "bedrock_converse");
+        assert!(
+            cache_counters_are_separate_for_provider(&pricing.litellm_provider),
+            "{model} is priced from a bedrock_converse entry, so its cache counters are billed on top"
+        );
+
+        let service = PricingService::init_for_test().unwrap();
+        let output = service.calculate_cost(&SpanCostInput {
+            model: Some(model.clone()),
+            system: None,
+            input_tokens: 10,
+            output_tokens: 5,
+            cache_read_tokens: 1200,
+            ..Default::default()
+        });
+
+        // Under the inclusive reading the 1,200 cached tokens were subtracted from an input of 10, so the
+        // ten ordinary input tokens were billed at nothing.
+        assert!(
+            output.input_cost > 0.0,
+            "{model}: input tokens beyond the cached ones must still be charged"
+        );
+        assert!(
+            output.cache_read_cost > 0.0,
+            "{model}: cache reads are charged"
+        );
     }
 }

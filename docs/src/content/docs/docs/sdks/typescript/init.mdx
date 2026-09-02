@@ -131,15 +131,24 @@ const client = getClient();
 ## shutdown()
 
 ```typescript
-function shutdown(): Promise<void>;
+function shutdown(): Promise<boolean>;
 ```
 
-Shutdown the global instance, flushing pending spans and releasing resources.
+Shutdown the global instance, flushing pending spans and releasing resources. Resolves to whether the flush
+completed: `false` means an exporter failed and those spans were not delivered, which is worth acting on if
+you are draining before exit.
+
+It does not throw — this also runs from process signal handlers, where an unhandled rejection would replace
+your exit code with a crash. Note also that `true` means everything still queued was exported; a burst that
+overran the batch processor's queue is discarded by the OpenTelemetry SDK at the time, and no return value can
+report that after the fact.
 
 ```typescript
 import { shutdown } from '@sideseat/sdk';
 
-await shutdown();
+if (!(await shutdown())) {
+  console.warn('some spans were not exported');
+}
 ```
 
 ## isInitialized()
