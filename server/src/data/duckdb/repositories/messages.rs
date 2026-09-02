@@ -94,10 +94,19 @@ pub fn get_messages(
         // spans name two sessions was returned in full by both, so one session's view showed content the UI
         // displays under another. `arg_min` over `(timestamp_start, span_id)` is the same total order the
         // display and the feed's grouping use.
+        // Narrowed before deduplicating, like `TRACES_OF_SESSION`: the window function cannot use an index,
+        // so deduplicating every span of the project to answer a question about one session is where the time
+        // goes - measured at 1.73x the loose predicate against 1.26x narrowed (`bench_session_membership`),
+        // and this is the path that benchmark's session read exercises. The inner filter only *includes*
+        // candidates, so the outer canonical test still decides; it is deliberately not watermarked, because
+        // admitting an extra candidate cannot change the answer the watermarked outer query gives.
         conditions.push(format!(
             "trace_id IN (SELECT trace_id FROM ( \
                SELECT trace_id, arg_min(session_id, (timestamp_start, span_id)) AS canonical_session \
-               FROM {dedup} WHERE project_id = ? AND session_id IS NOT NULL AND session_id != '' \
+               FROM {dedup} WHERE project_id = ? \
+               AND trace_id IN (SELECT trace_id FROM otel_spans \
+                                WHERE project_id = ? AND session_id = ?) \
+               AND session_id IS NOT NULL AND session_id != '' \
                GROUP BY trace_id \
              ) WHERE canonical_session = ?)"
         ));
@@ -105,6 +114,8 @@ pub fn get_messages(
             bind_values.push(watermark.clone());
         }
         bind_values.push(params.project_id.clone());
+        bind_values.push(params.project_id.clone());
+        bind_values.push(session_id.clone());
         bind_values.push(session_id.clone());
         conditions.push(MESSAGE_CONTENT_FILTER.to_string());
     } else if let Some(trace_id) = &params.trace_id {

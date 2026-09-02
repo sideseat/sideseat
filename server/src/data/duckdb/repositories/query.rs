@@ -69,25 +69,51 @@ pub(crate) const DEDUP_SPANS: &str = "(SELECT * FROM otel_spans \
 /// mid-traversal is read with its old content but expanded under its new session, so the session it
 /// actually replays is never loaded and its history has nothing to collapse against - which the reader sees
 /// as duplicated turns across pages. Returns the relation and the bind it needs (none when unbounded).
-/// The traces of one session: `?` project, `?` session, in that order.
+/// The traces of one session. Four `?` in the order [`traces_of_session_binds`] returns them.
 ///
 /// A trace belongs to the session on its **earliest** span - the same total order the row displays and the
 /// feed groups by. `WHERE session_id = ?` asked instead whether *any* span of the trace named it, so a trace
-/// whose spans name two sessions matched both, and a list filtered by one session showed a row displayed
-/// under the other. Deduplicated as well, so a re-delivery that changed a span's session does not answer for
-/// the version it replaced.
+/// whose spans name two sessions matched both: both sessions' reads returned it, both sessions' filters
+/// listed it, and deleting either deleted the whole trace.
 ///
-/// Defined once because it appeared in six places here and drifted in two dimensions at once - some sites
-/// read raw `otel_spans`, all of them used the loose predicate. The bind order is the same as the text it
-/// replaced, so call sites did not have to change.
+/// Deduplicated as well, so a re-delivery that changed a span's session does not answer for the version it
+/// replaced - and the deduplication is applied to **the candidate traces, not the whole project**. A window
+/// function cannot use an index, so deduplicating every span of the project to answer a question about one
+/// session was 1.73x the cost of the loose predicate; restricting its input to traces that ever mentioned the
+/// session is index-served and brings that to 1.26x (`bench_session_membership`, which also asserts both
+/// forms select identical rows). At 8 concurrent session reads on DuckDB - which serialises them - the
+/// difference was the enforced p95 ceiling.
+///
+/// The inner filter is sound because it only *includes* candidates: a trace whose current rows name the
+/// session necessarily has a raw row naming it, and the outer `canonical_session = ?` still applies the
+/// current-version test.
+///
+/// Defined once because ten call sites asked this question and had drifted in two dimensions at once - some
+/// read the raw table, all used the loose predicate.
 pub(crate) const TRACES_OF_SESSION: &str = "SELECT trace_id FROM ( \
        SELECT trace_id, arg_min(session_id, (timestamp_start, span_id)) AS canonical_session \
        FROM (SELECT * FROM otel_spans \
+             WHERE project_id = ? AND trace_id IN ( \
+               SELECT trace_id FROM otel_spans WHERE project_id = ? AND session_id = ?) \
              QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
                                         ORDER BY ingested_at DESC, rowid DESC) = 1) \
-       WHERE project_id = ? AND session_id IS NOT NULL AND session_id != '' \
+       WHERE session_id IS NOT NULL AND session_id != '' \
        GROUP BY trace_id \
      ) WHERE canonical_session = ?";
+
+/// The binds [`TRACES_OF_SESSION`] needs, in the order its placeholders appear.
+///
+/// Returned together with the SQL rather than left to each call site, because the subquery has four
+/// placeholders in a non-obvious order and a wrong one is a silently wrong answer, not an error. The array
+/// length is checked by the compiler.
+pub(crate) fn traces_of_session_binds(project_id: &str, session_id: &str) -> [String; 4] {
+    [
+        project_id.to_string(),
+        project_id.to_string(),
+        session_id.to_string(),
+        session_id.to_string(),
+    ]
+}
 
 pub(crate) fn membership_relation(as_of_us: Option<i64>) -> (&'static str, Option<String>) {
     match as_of_us {
@@ -251,8 +277,7 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
         // A trace's session lives on the span that knows it, so the filter is by trace - and by the
         // trace's *canonical* session; see `TRACES_OF_SESSION`.
         conditions.push(format!("{} IN ({TRACES_OF_SESSION})", col("trace_id")));
-        bind_values.push(params.project_id.clone());
-        bind_values.push(sid.clone());
+        bind_values.extend(traces_of_session_binds(&params.project_id, sid));
     }
 
     // A trace-level subquery, like the session above and for the same reason: a user id sits on the
@@ -717,8 +742,7 @@ pub fn list_spans(
     if let Some(ref sid) = params.session_id {
         // session_id is only on root spans; use trace_id subquery to include all spans
         conditions.push(format!("trace_id IN ({TRACES_OF_SESSION})"));
-        bind_values.push(params.project_id.clone());
-        bind_values.push(sid.clone());
+        bind_values.extend(traces_of_session_binds(&params.project_id, sid));
     }
 
     if let Some(ref uid) = params.user_id {
@@ -1393,14 +1417,16 @@ pub fn get_session(
     );
 
     let mut stmt = conn.prepare(&sql)?;
-    // Bind order: session_traces(project_id, session_id), gen_totals(project_id),
+    // Bind order: session_traces (four - see `traces_of_session_binds`), gen_totals(project_id),
     //             SELECT(session_id), main(project_id)
-    let mut rows = stmt.query([
-        project_id, session_id, // session_traces CTE
-        project_id, // gen_totals CTE
-        session_id, // SELECT session_id literal
-        project_id, // main query
-    ])?;
+    let mut binds: Vec<String> = traces_of_session_binds(project_id, session_id).to_vec();
+    binds.extend([
+        project_id.to_string(), // gen_totals CTE
+        session_id.to_string(), // SELECT session_id literal
+        project_id.to_string(), // main query
+    ]);
+    let params: Vec<&dyn duckdb::ToSql> = binds.iter().map(|v| v as &dyn duckdb::ToSql).collect();
+    let mut rows = stmt.query(params.as_slice())?;
 
     if let Some(row) = rows.next()? {
         Ok(Some(row_to_session(row)?))
@@ -1525,17 +1551,14 @@ pub fn get_traces_for_session(
         DEDUP_SPANS = DEDUP_SPANS
     );
 
-    // Bind order: session_traces(project_id, session_id), gen_totals(project_id), main(project_id)
-    execute_trace_query(
-        conn,
-        &sql,
-        &[
-            project_id.to_string(),
-            session_id.to_string(), // session_traces CTE
-            project_id.to_string(), // gen_totals CTE
-            project_id.to_string(), // main query
-        ],
-    )
+    // Bind order: session_traces (four - see `traces_of_session_binds`), gen_totals(project_id),
+    //             main(project_id)
+    let mut binds: Vec<String> = traces_of_session_binds(project_id, session_id).to_vec();
+    binds.extend([
+        project_id.to_string(), // gen_totals CTE
+        project_id.to_string(), // main query
+    ]);
+    execute_trace_query(conn, &sql, &binds)
 }
 
 /// Span counts result
@@ -5071,6 +5094,145 @@ mod tests {
             rows_for("session-canonical").len(),
             2,
             "the trace survived the other session's deletion"
+        );
+    }
+
+    /// What the canonical session-membership subquery costs, measured against the predicate it replaced.
+    ///
+    /// `make bench-http` showed the concurrent session-read p95 at 154.6 ms against its 150 ms ceiling right
+    /// after this area changed - but on a machine at load 13-35, where CLAUDE.md already records this figure
+    /// moving between 43 and 135 ms for another operation. That number cannot settle the question.
+    ///
+    /// This can, without a quiet machine: both formulations run **interleaved in one process**, so whatever
+    /// else the host is doing hits them equally and the *ratio* is meaningful even when the absolute times
+    /// are not. The concern is structural rather than speculative - membership now deduplicates, which is a
+    /// window function over the project's spans and cannot use an index, so the read may be paying a second
+    /// full pass.
+    ///
+    /// `cargo test --release -p sideseat-server bench_session_membership -- --ignored --nocapture`
+    #[tokio::test]
+    #[ignore]
+    async fn bench_session_membership() {
+        const TRACES: usize = 4_000;
+        const SPANS_PER_TRACE: usize = 5;
+        const ITERATIONS: usize = 15;
+
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+        let t0 = Utc::now() - chrono::Duration::seconds(7_200);
+
+        // One session holding a tenth of the traces, which is the shape a session read faces.
+        let mut spans = Vec::with_capacity(TRACES * SPANS_PER_TRACE);
+        for t in 0..TRACES {
+            let session = (t % 10 == 0).then(|| format!("session-{}", t / 10));
+            for sp in 0..SPANS_PER_TRACE {
+                spans.push(NormalizedSpan {
+                    project_id: Some(project.to_string()),
+                    trace_id: format!("trace-{t:05}"),
+                    span_id: format!("span-{sp}"),
+                    span_name: "generation".to_string(),
+                    observation_type: Some(ObservationType::Generation),
+                    timestamp_start: t0 + chrono::Duration::milliseconds((t * 10 + sp) as i64),
+                    session_id: session.clone(),
+                    messages: Some(
+                        serde_json::json!([{
+                            "source": {"event": {"name": "gen_ai.user.message",
+                                                 "time": "2025-01-01T00:00:00Z"}},
+                            "content": {"role": "user", "content": "a turn of conversation"}
+                        }])
+                        .to_string(),
+                    ),
+                    ..Default::default()
+                });
+            }
+        }
+        {
+            let conn = service.conn();
+            for chunk in spans.chunks(2_000) {
+                insert_batch(&conn, chunk).expect("insert");
+            }
+        }
+
+        // The predicate this replaced, kept here only as the comparison arm.
+        const LOOSE: &str =
+            "SELECT DISTINCT trace_id FROM otel_spans WHERE project_id = ? AND session_id = ?";
+
+        let conn = service.conn();
+        // The form this replaced: deduplicate the whole project, then pick the canonical session. Kept
+        // here only as a comparison arm, to show what the narrowing buys.
+        const CANONICAL_WIDE: &str = "SELECT trace_id FROM ( \
+               SELECT trace_id, arg_min(session_id, (timestamp_start, span_id)) AS canonical_session \
+               FROM (SELECT * FROM otel_spans \
+                     QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
+                                                ORDER BY ingested_at DESC, rowid DESC) = 1) \
+               WHERE project_id = ? AND session_id IS NOT NULL AND session_id != '' \
+               GROUP BY trace_id \
+             ) WHERE canonical_session = ?";
+
+        let run = |subquery: &str, subquery_binds: usize| -> (std::time::Duration, i64) {
+            let sql = format!(
+                "SELECT count(*) FROM {DEDUP_SPANS} WHERE project_id = ? AND trace_id IN ({subquery})"
+            );
+            let mut binds: Vec<String> = vec![project.to_string()];
+            // The subquery's own binds, in the order its `?` appear.
+            if subquery_binds == 4 {
+                binds.extend([
+                    project.to_string(),
+                    project.to_string(),
+                    "session-7".to_string(),
+                    "session-7".to_string(),
+                ]);
+            } else {
+                binds.extend([project.to_string(), "session-7".to_string()]);
+            }
+            let started = std::time::Instant::now();
+            let mut stmt = conn.prepare(&sql).expect("prepare");
+            let params: Vec<&dyn duckdb::ToSql> =
+                binds.iter().map(|v| v as &dyn duckdb::ToSql).collect();
+            let n: i64 = stmt
+                .query_row(params.as_slice(), |r| r.get(0))
+                .expect("query");
+            assert!(n > 0, "the fixture must match rows, got {n}");
+            (started.elapsed(), n)
+        };
+
+        // The two correct forms must select the same rows, or a speed comparison means nothing.
+        let (_, want) = run(CANONICAL_WIDE, 2);
+        let (_, got) = run(TRACES_OF_SESSION, 4);
+        assert_eq!(
+            want, got,
+            "narrowing the deduplication must not change which spans are selected"
+        );
+
+        // Interleaved, so whatever else the host is doing hits every arm equally - which is what makes the
+        // ratio meaningful on a machine this benchmark cannot have to itself.
+        let _ = run(LOOSE, 2);
+        let mut wide = Vec::with_capacity(ITERATIONS);
+        let mut loose = Vec::with_capacity(ITERATIONS);
+        let mut production = Vec::with_capacity(ITERATIONS);
+        for _ in 0..ITERATIONS {
+            wide.push(run(CANONICAL_WIDE, 2).0);
+            loose.push(run(LOOSE, 2).0);
+            production.push(run(TRACES_OF_SESSION, 4).0);
+        }
+        wide.sort();
+        loose.sort();
+        production.sort();
+
+        let median = |v: &[std::time::Duration]| v[v.len() / 2].as_secs_f64() * 1000.0;
+
+        eprintln!(
+            "bench_session_membership: {} traces x {} spans, {ITERATIONS} interleaved iterations\n  \
+             loose (raw, any span - the old, incorrect predicate): {:.2} ms\n  \
+             canonical, dedup whole project:                       {:.2} ms  ({:.2}x loose)\n  \
+             canonical, dedup candidates only (production):        {:.2} ms  ({:.2}x loose)",
+            TRACES,
+            SPANS_PER_TRACE,
+            median(&loose),
+            median(&wide),
+            median(&wide) / median(&loose),
+            median(&production),
+            median(&production) / median(&loose),
         );
     }
 }

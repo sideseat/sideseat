@@ -881,9 +881,11 @@ pub async fn list_traces(
         // session_id is only on root spans; use trace_id subquery to include all spans
         cb.conditions
             .push(format!("trace_id IN ({TRACES_OF_SESSION})"));
-        cb.params
-            .push(QueryParam::String(params.project_id.clone()));
-        cb.params.push(QueryParam::String(sid.clone()));
+        cb.params.extend(
+            traces_of_session_binds(&params.project_id, sid)
+                .into_iter()
+                .map(QueryParam::String),
+        );
     }
     // Trace-level, like the session above: a user id is on the spans that carry one, so a row
     // predicate selected the same traces but summed only those spans, reporting a trace's tokens as
@@ -1231,9 +1233,11 @@ pub async fn list_spans(
         // session_id is only on root spans; use trace_id subquery to include all spans
         cb.conditions
             .push(format!("trace_id IN ({TRACES_OF_SESSION})"));
-        cb.params
-            .push(QueryParam::String(params.project_id.clone()));
-        cb.params.push(QueryParam::String(sid.clone()));
+        cb.params.extend(
+            traces_of_session_binds(&params.project_id, sid)
+                .into_iter()
+                .map(QueryParam::String),
+        );
     }
     if let Some(ref uid) = params.user_id {
         cb.add_eq("user_id", uid);
@@ -1728,12 +1732,13 @@ pub async fn get_session(
         dedup_condition = TOKEN_DEDUP_CONDITION,
     );
 
-    // Bind order: session_traces(project_id, session_id), dedup_lookup(project_id),
+    // Bind order: session_traces (four - see `traces_of_session_binds`), dedup_lookup(project_id),
     //             gen_totals(project_id), SELECT(session_id), main(project_id)
-    let row: Option<ChSessionRow> = client
-        .query(&sql)
-        .bind(project_id)
-        .bind(session_id)
+    let mut query = client.query(&sql);
+    for bind in traces_of_session_binds(project_id, session_id) {
+        query = query.bind(bind);
+    }
+    let row: Option<ChSessionRow> = query
         .bind(project_id)
         .bind(project_id)
         .bind(session_id)
@@ -1889,12 +1894,13 @@ pub async fn get_traces_for_session(
         projection = trace_projection("s.trace_id", "gt", Totals::Grouped),
     );
 
-    // Bind order: session_traces(project_id, session_id), dedup_lookup(project_id),
+    // Bind order: session_traces (four - see `traces_of_session_binds`), dedup_lookup(project_id),
     //             gen_totals(project_id), main(project_id)
-    let rows: Vec<ChTraceRow> = client
-        .query(&sql)
-        .bind(project_id)
-        .bind(session_id)
+    let mut query = client.query(&sql);
+    for bind in traces_of_session_binds(project_id, session_id) {
+        query = query.bind(bind);
+    }
+    let rows: Vec<ChTraceRow> = query
         .bind(project_id)
         .bind(project_id)
         .bind(project_id)
@@ -1904,18 +1910,30 @@ pub async fn get_traces_for_session(
     Ok(rows.into_iter().map(TraceRow::from).collect())
 }
 
-/// The traces of one session: `?` project, `?` session, in that order. The DuckDB twin is
-/// `TRACES_OF_SESSION` there, and the reasoning is recorded on it.
+/// The traces of one session. Four `?` in the order [`traces_of_session_binds`] returns them.
 ///
-/// A trace belongs to the session on its **earliest** span, which is what the row displays and what the feed
-/// groups by. `WHERE session_id = ?` asked whether *any* span named it, so a trace whose spans name two
-/// sessions matched both filters.
+/// The DuckDB twin is `TRACES_OF_SESSION` there, and the reasoning is recorded on it: a trace belongs to the
+/// session on its **earliest** span (what the row displays and the feed groups by), and `FINAL` is narrowed to
+/// the candidate traces rather than applied to the whole project, which on DuckDB was the difference between
+/// 1.73x and 1.26x the cost of the loose predicate.
 pub(crate) const TRACES_OF_SESSION: &str = "SELECT trace_id FROM ( \
        SELECT trace_id, argMin(assumeNotNull(session_id), (timestamp_start, span_id)) AS canonical_session \
        FROM otel_spans FINAL \
-       WHERE project_id = ? AND session_id IS NOT NULL AND session_id != '' \
+       WHERE project_id = ? \
+       AND trace_id IN (SELECT trace_id FROM otel_spans WHERE project_id = ? AND session_id = ?) \
+       AND session_id IS NOT NULL AND session_id != '' \
        GROUP BY trace_id \
      ) WHERE canonical_session = ?";
+
+/// The binds [`TRACES_OF_SESSION`] needs, in the order its placeholders appear.
+pub(crate) fn traces_of_session_binds(project_id: &str, session_id: &str) -> [String; 4] {
+    [
+        project_id.to_string(),
+        project_id.to_string(),
+        session_id.to_string(),
+        session_id.to_string(),
+    ]
+}
 
 /// Which session each of the given traces belongs to; traces with none are absent.
 ///

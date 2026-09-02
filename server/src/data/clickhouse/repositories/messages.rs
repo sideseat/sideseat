@@ -115,16 +115,25 @@ pub async fn get_messages(
         }
     } else if let Some(session_id) = &params.session_id {
         // The trace's canonical session; see the DuckDB twin.
+        // Narrowed before `FINAL`, matching the DuckDB twin and `query::TRACES_OF_SESSION`.
         conditions.push(
             "trace_id IN (SELECT trace_id FROM ( \
                SELECT trace_id, argMin(assumeNotNull(session_id), (timestamp_start, span_id)) \
                  AS canonical_session \
                FROM otel_spans FINAL \
-               WHERE project_id = ? AND session_id IS NOT NULL AND session_id != '' GROUP BY trace_id \
-             ) WHERE canonical_session = ?)".to_string()
+               WHERE project_id = ? \
+               AND trace_id IN (SELECT trace_id FROM otel_spans \
+                                WHERE project_id = ? AND session_id = ?) \
+               AND session_id IS NOT NULL AND session_id != '' GROUP BY trace_id \
+             ) WHERE canonical_session = ?)"
+                .to_string(),
         );
-        string_binds.push(params.project_id.clone());
-        string_binds.push(session_id.clone());
+        string_binds.extend(
+            crate::data::clickhouse::repositories::query::traces_of_session_binds(
+                &params.project_id,
+                session_id,
+            ),
+        );
         conditions.push(MESSAGE_CONTENT_FILTER.to_string());
     } else if let Some(trace_id) = &params.trace_id {
         conditions.push("trace_id = ?".to_string());
