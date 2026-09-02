@@ -1908,8 +1908,10 @@ pub async fn get_traces_for_session(
 
 /// Which session each of the given traces belongs to; traces with none are absent.
 ///
-/// The DuckDB twin. `FINAL` for the same reason it deduplicates there, and `min(...)` so a trace whose
-/// spans disagree resolves to one session deterministically rather than by row order.
+/// The DuckDB twin. `FINAL` for the same reason it deduplicates there, and `argMin` over
+/// `(timestamp_start, span_id)` so the session is the one on the trace's earliest span - which is what the
+/// trace and session views display. `min(session_id)` picked the lexicographically smallest instead, so a
+/// trace could be displayed under one session and grouped under another.
 pub async fn get_trace_session_pairs(
     client: &Client,
     project_id: &str,
@@ -1930,7 +1932,8 @@ pub async fn get_trace_session_pairs(
         // shadows the column, so `AS session_id` made the predicate read the aggregate and the query failed
         // outright with ILLEGAL_AGGREGATION - on ClickHouse only. The parity comparison caught it; nothing
         // else would have until a user ran the feed on ClickHouse.
-        "SELECT trace_id, min(assumeNotNull(session_id)) AS session FROM otel_spans FINAL \
+        "SELECT trace_id, argMin(assumeNotNull(session_id), (timestamp_start, span_id)) AS session \
+         FROM otel_spans FINAL \
          WHERE project_id = ? AND trace_id IN ({}) \
          AND session_id IS NOT NULL AND session_id != '' GROUP BY trace_id",
         placeholders.join(", ")

@@ -1263,23 +1263,33 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
             session_of_trace.entry(&row.trace_id).or_insert(session);
         }
     }
-    let conversation_of_trace: HashMap<String, String> = rows
+    // A typed key, not a formatted string. `format!("trace:{id}")` shared a namespace with real session
+    // ids, so a trace whose session was literally named `trace:B` grouped with the sessionless trace B -
+    // two unrelated conversations reconstructed as one, where either can strip the other's messages as
+    // replayed history. Session ids come from the client, so that is a collision a caller can cause.
+    #[derive(Clone, PartialEq, Eq, Hash)]
+    enum Conversation {
+        Session(String),
+        LoneTrace(String),
+    }
+
+    let conversation_of_trace: HashMap<String, Conversation> = rows
         .iter()
         .map(|row| {
             let key = session_of_trace
                 .get(row.trace_id.as_str())
-                .map(|session| (*session).to_string())
-                .unwrap_or_else(|| format!("trace:{}", row.trace_id));
+                .map(|session| Conversation::Session((*session).to_string()))
+                .unwrap_or_else(|| Conversation::LoneTrace(row.trace_id.clone()));
             (row.trace_id.clone(), key)
         })
         .collect();
 
-    let mut spans_by_conversation: HashMap<String, Vec<MessageSpanRow>> = HashMap::new();
+    let mut spans_by_conversation: HashMap<Conversation, Vec<MessageSpanRow>> = HashMap::new();
     for row in rows {
         let key = conversation_of_trace
             .get(&row.trace_id)
             .cloned()
-            .unwrap_or_else(|| format!("trace:{}", row.trace_id));
+            .unwrap_or_else(|| Conversation::LoneTrace(row.trace_id.clone()));
         spans_by_conversation.entry(key).or_default().push(row);
     }
 

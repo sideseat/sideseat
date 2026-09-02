@@ -67,7 +67,26 @@ impl TrustedProxies {
     }
 
     fn contains(&self, addr: IpAddr) -> bool {
+        // Canonicalised first. A reverse proxy on a dual-stack socket connects as `::ffff:10.0.0.5`, and
+        // `IpNet::contains` compares address families - so an operator's `10.0.0.0/8` matched nothing, the
+        // proxy was treated as untrusted, and every forwarded client address was ignored. That silently
+        // turns per-client rate limiting into one bucket for the whole proxy.
+        let addr = canonical(addr);
         self.nets.iter().any(|net| net.contains(&addr))
+    }
+}
+
+/// An IPv4-mapped IPv6 address as its IPv4 form; anything else unchanged.
+///
+/// `::ffff:10.0.0.5` and `10.0.0.5` are the same host, and every comparison here has to agree about that -
+/// otherwise whether a proxy is trusted depends on whether the listener happens to be dual-stack.
+fn canonical(addr: IpAddr) -> IpAddr {
+    match addr {
+        IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
+            Some(v4) => IpAddr::V4(v4),
+            None => addr,
+        },
+        other => other,
     }
 }
 

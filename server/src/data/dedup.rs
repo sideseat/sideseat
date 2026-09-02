@@ -193,9 +193,10 @@ impl AnalyticsRepository for DedupAnalyticsRepository {
         &self,
         project_id: &str,
         trace_ids: &[String],
+        as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError> {
         self.inner
-            .get_session_ids_for_traces(project_id, trace_ids)
+            .get_session_ids_for_traces(project_id, trace_ids, as_of_us)
             .await
     }
 
@@ -203,9 +204,10 @@ impl AnalyticsRepository for DedupAnalyticsRepository {
         &self,
         project_id: &str,
         trace_ids: &[String],
+        as_of_us: Option<i64>,
     ) -> Result<Vec<(String, String)>, DataError> {
         self.inner
-            .get_trace_session_pairs(project_id, trace_ids)
+            .get_trace_session_pairs(project_id, trace_ids, as_of_us)
             .await
     }
 
@@ -213,9 +215,10 @@ impl AnalyticsRepository for DedupAnalyticsRepository {
         &self,
         project_id: &str,
         session_ids: &[String],
+        as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError> {
         self.inner
-            .get_trace_ids_for_sessions(project_id, session_ids)
+            .get_trace_ids_for_sessions(project_id, session_ids, as_of_us)
             .await
     }
 

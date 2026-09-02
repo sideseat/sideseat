@@ -62,6 +62,20 @@ pub(crate) const DEDUP_SPANS: &str = "(SELECT * FROM otel_spans \
 /// The bound appears **once** now (a single `?`), because `QUALIFY ROW_NUMBER()` chooses within the
 /// watermarked set in one pass - see [`DEDUP_SPANS`] for why the window function replaced the `MAX` join.
 /// The call site binds the watermark once.
+/// The relation to resolve *membership* against, bounded to a traversal's instant when there is one.
+///
+/// Session membership is part of "a traversal is a view of one instant". Resolved against current data
+/// while the rows are read as of a watermark, the two disagree: a trace re-delivered into another session
+/// mid-traversal is read with its old content but expanded under its new session, so the session it
+/// actually replays is never loaded and its history has nothing to collapse against - which the reader sees
+/// as duplicated turns across pages. Returns the relation and the bind it needs (none when unbounded).
+pub(crate) fn membership_relation(as_of_us: Option<i64>) -> (&'static str, Option<String>) {
+    match as_of_us {
+        Some(us) => (dedup_spans_as_of_watermark(), Some(us.to_string())),
+        None => (DEDUP_SPANS, None),
+    }
+}
+
 pub(crate) fn dedup_spans_as_of_watermark() -> &'static str {
     "(SELECT * FROM otel_spans WHERE EPOCH_US(ingested_at) < ?::BIGINT \
      QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
@@ -1802,26 +1816,34 @@ pub fn delete_traces(
 ///
 /// `DEDUP_SPANS` for the same reason as [`get_session_ids_for_traces`]: the append-only table keeps both
 /// versions of a span whose session changed, so a raw read reports a trace in two sessions at once.
-/// `MIN(session_id)` makes the answer one session per trace deterministically, in the (malformed) case
-/// where a trace's spans disagree - so the grouping cannot depend on row order.
+/// The session is the one on the trace's **earliest** span, which is exactly what the trace and session
+/// views display (`FIRST(session_id ORDER BY timestamp_start)`). `MIN(session_id)` was deterministic but
+/// picked the lexicographically smallest instead, so a trace that started in `z-session` and had a later
+/// span report `a-session` was displayed under one and *grouped* under the other - splitting a conversation
+/// and replaying its shared history as duplicates. `span_id` breaks a timestamp tie, so the answer cannot
+/// depend on row order.
 pub fn get_trace_session_pairs(
     conn: &Connection,
     project_id: &str,
     trace_ids: &[String],
+    as_of_us: Option<i64>,
 ) -> Result<Vec<(String, String)>, DuckdbError> {
     if trace_ids.is_empty() {
         return Ok(vec![]);
     }
 
     let placeholders: Vec<&str> = trace_ids.iter().map(|_| "?").collect();
+    let (dedup, as_of_bind) = membership_relation(as_of_us);
     let sql = format!(
-        "SELECT trace_id, MIN(session_id) AS session_id FROM {DEDUP}          WHERE project_id = ? AND trace_id IN ({})          AND session_id IS NOT NULL AND session_id != '' GROUP BY trace_id",
+        "SELECT trace_id, arg_min(session_id, (timestamp_start, span_id)) AS session_id FROM {DEDUP}          WHERE project_id = ? AND trace_id IN ({})          AND session_id IS NOT NULL AND session_id != '' GROUP BY trace_id",
         placeholders.join(", "),
-        DEDUP = DEDUP_SPANS
+        DEDUP = dedup
     );
     let mut stmt = conn.prepare(&sql)?;
 
     let mut all_params: Vec<String> = Vec::with_capacity(1 + trace_ids.len());
+    // The relation's own bind sits at the head of the FROM, so it comes first.
+    all_params.extend(as_of_bind);
     all_params.push(project_id.to_string());
     all_params.extend(trace_ids.iter().cloned());
     let params: Vec<&dyn duckdb::ToSql> =
@@ -1840,12 +1862,14 @@ pub fn get_session_ids_for_traces(
     conn: &Connection,
     project_id: &str,
     trace_ids: &[String],
+    as_of_us: Option<i64>,
 ) -> Result<Vec<String>, DuckdbError> {
     if trace_ids.is_empty() {
         return Ok(vec![]);
     }
 
     let placeholders: Vec<&str> = trace_ids.iter().map(|_| "?").collect();
+    let (dedup, as_of_bind) = membership_relation(as_of_us);
     let sql = format!(
         // `DEDUP_SPANS`, not raw `otel_spans`: a re-delivery that changed a span's session leaves both
         // versions in the append-only table, so reading raw returned the old session *and* the new one -
@@ -1854,11 +1878,13 @@ pub fn get_session_ids_for_traces(
         "SELECT DISTINCT session_id FROM {DEDUP} WHERE project_id = ? AND trace_id IN ({}) \
          AND session_id IS NOT NULL AND session_id != ''",
         placeholders.join(", "),
-        DEDUP = DEDUP_SPANS
+        DEDUP = dedup
     );
     let mut stmt = conn.prepare(&sql)?;
 
     let mut all_params: Vec<String> = Vec::with_capacity(1 + trace_ids.len());
+    // The relation's own bind sits at the head of the FROM, so it comes first.
+    all_params.extend(as_of_bind);
     all_params.push(project_id.to_string());
     all_params.extend(trace_ids.iter().cloned());
     let params: Vec<&dyn duckdb::ToSql> =
@@ -1878,6 +1904,7 @@ pub fn get_trace_ids_for_sessions(
     conn: &Connection,
     project_id: &str,
     session_ids: &[String],
+    as_of_us: Option<i64>,
 ) -> Result<Vec<String>, DuckdbError> {
     if session_ids.is_empty() {
         return Ok(vec![]);
@@ -1886,16 +1913,19 @@ pub fn get_trace_ids_for_sessions(
     let placeholders: Vec<&str> = session_ids.iter().map(|_| "?").collect();
     let in_clause = placeholders.join(", ");
 
+    let (dedup, as_of_bind) = membership_relation(as_of_us);
     let sql = format!(
         // `DEDUP_SPANS`, matching the ClickHouse `FINAL` twin: resolve against each span's current version
         // so a re-delivery that changed a span's session does not return a trace under its old session.
         "SELECT DISTINCT trace_id FROM {DEDUP} WHERE project_id = ? AND session_id IN ({})",
         in_clause,
-        DEDUP = DEDUP_SPANS
+        DEDUP = dedup
     );
     let mut stmt = conn.prepare(&sql)?;
 
     let mut all_params: Vec<String> = Vec::with_capacity(1 + session_ids.len());
+    // The relation's own bind sits at the head of the FROM, so it comes first.
+    all_params.extend(as_of_bind);
     all_params.push(project_id.to_string());
     all_params.extend(session_ids.iter().cloned());
 
@@ -1917,7 +1947,9 @@ pub fn delete_sessions(
     project_id: &str,
     session_ids: &[String],
 ) -> Result<u64, DuckdbError> {
-    let trace_ids = get_trace_ids_for_sessions(conn, project_id, session_ids)?;
+    // `None`: a deletion acts on what exists *now*. Bounding it to some past instant would leave a trace
+    // that joined the session since, which the caller was told 204 for.
+    let trace_ids = get_trace_ids_for_sessions(conn, project_id, session_ids, None)?;
     if trace_ids.is_empty() {
         return Ok(0);
     }
@@ -4642,5 +4674,79 @@ mod tests {
             "the session is on the root span and the tokens on its child; both describe the trace"
         );
         assert_eq!(total, 1, "the count must agree with the page");
+    }
+
+    /// Session membership resolves at the traversal's instant, not at the current one.
+    ///
+    /// A feed traversal reads its rows as of a watermark so that it is a view of one instant. Membership was
+    /// resolved against current data, so the two could disagree: a trace re-delivered into another session
+    /// mid-traversal is read with its old content but expanded under its *new* session, so the session it
+    /// actually replays is never loaded, its replayed history has nothing to collapse against, and the reader
+    /// sees the turn twice across pages.
+    #[tokio::test]
+    async fn membership_is_resolved_as_of_the_traversal_watermark() {
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+
+        let span = |session: &str, ingested: chrono::DateTime<Utc>| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: "trace-1".to_string(),
+            span_id: "span-1".to_string(),
+            span_name: "generation".to_string(),
+            observation_type: Some(ObservationType::Generation),
+            timestamp_start: Utc::now(),
+            session_id: Some(session.to_string()),
+            ingested_at: Some(ingested),
+            ..Default::default()
+        };
+
+        let early = Utc::now() - chrono::Duration::seconds(60);
+        let late = Utc::now();
+
+        {
+            let conn = service.conn();
+            // Two deliveries of one span, the second moving it to another session.
+            insert_batch(&conn, &[span("session-old", early)]).expect("first delivery");
+            insert_batch(&conn, &[span("session-new", late)]).expect("re-delivery");
+        }
+
+        let as_of = early.timestamp_micros() + 1;
+        let traces = &["trace-1".to_string()];
+
+        let conn = service.conn();
+
+        // Current membership: the re-delivery won, so the trace is in the new session.
+        let now = get_trace_session_pairs(&conn, project, traces, None).expect("current");
+        assert_eq!(
+            now,
+            vec![("trace-1".to_string(), "session-new".to_string())],
+            "without a bound, the latest delivery decides membership"
+        );
+
+        // As of an instant before the re-delivery: the session the traversal is actually reading.
+        let bounded =
+            get_trace_session_pairs(&conn, project, traces, Some(as_of)).expect("bounded");
+        assert_eq!(
+            bounded,
+            vec![("trace-1".to_string(), "session-old".to_string())],
+            "a traversal must group the trace with the session its rows belong to"
+        );
+
+        // The same for both directions of the membership lookup.
+        let sessions =
+            get_session_ids_for_traces(&conn, project, traces, Some(as_of)).expect("sessions");
+        assert_eq!(sessions, vec!["session-old".to_string()]);
+
+        let old_traces =
+            get_trace_ids_for_sessions(&conn, project, &["session-old".to_string()], Some(as_of))
+                .expect("traces");
+        assert_eq!(old_traces, vec!["trace-1".to_string()]);
+        let new_traces =
+            get_trace_ids_for_sessions(&conn, project, &["session-new".to_string()], Some(as_of))
+                .expect("traces");
+        assert!(
+            new_traces.is_empty(),
+            "the new session did not exist at the watermark"
+        );
     }
 }

@@ -365,7 +365,11 @@ pub async fn advance_pending_deletions(
                 // that snapshot is exactly what a late trace escapes.
                 let trace_ids = analytics
                     .repository()
-                    .get_trace_ids_for_sessions(&project_id, std::slice::from_ref(&session_id))
+                    .get_trace_ids_for_sessions(
+                        &project_id,
+                        std::slice::from_ref(&session_id),
+                        None,
+                    )
                     .await;
                 let was_quiet = match trace_ids {
                     Ok(ids) if ids.is_empty() => true,

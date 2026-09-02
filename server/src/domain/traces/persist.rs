@@ -1155,7 +1155,12 @@ fn to_normalized_span(
         // Token usage
         gen_ai_usage_input_tokens: span.gen_ai_usage_input_tokens,
         gen_ai_usage_output_tokens: span.gen_ai_usage_output_tokens,
-        gen_ai_usage_total_tokens: span.gen_ai_usage_total_tokens,
+        // The extractor's total, unless pricing resolved a provider and so knows which convention applies -
+        // see `enrich::corrected_total_tokens`. Without this the charge and the total could describe
+        // different calls whenever `gen_ai.system` was absent or spelled in a way the mapper did not know.
+        gen_ai_usage_total_tokens: enrichment
+            .total_tokens
+            .unwrap_or(span.gen_ai_usage_total_tokens),
         gen_ai_usage_cache_read_tokens: span.gen_ai_usage_cache_read_tokens,
         gen_ai_usage_cache_write_tokens: span.gen_ai_usage_cache_write_tokens,
         gen_ai_usage_reasoning_tokens: span.gen_ai_usage_reasoning_tokens,

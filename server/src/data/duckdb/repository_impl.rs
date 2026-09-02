@@ -382,13 +382,14 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         &self,
         project_id: &str,
         trace_ids: &[String],
+        as_of_us: Option<i64>,
     ) -> Result<Vec<(String, String)>, DataError> {
         let db = Arc::clone(self);
         let pid = project_id.to_string();
         let tids = trace_ids.to_vec();
         DuckdbService::run_query(move || {
             let conn = db.conn();
-            query::get_trace_session_pairs(&conn, &pid, &tids)
+            query::get_trace_session_pairs(&conn, &pid, &tids, as_of_us)
         })
         .await
         .map_err(DataError::from)?
@@ -399,13 +400,14 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         &self,
         project_id: &str,
         trace_ids: &[String],
+        as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError> {
         let db = Arc::clone(self);
         let pid = project_id.to_string();
         let tids = trace_ids.to_vec();
         DuckdbService::run_query(move || {
             let conn = db.conn();
-            query::get_session_ids_for_traces(&conn, &pid, &tids)
+            query::get_session_ids_for_traces(&conn, &pid, &tids, as_of_us)
         })
         .await
         .map_err(DataError::from)?
@@ -416,13 +418,14 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         &self,
         project_id: &str,
         session_ids: &[String],
+        as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError> {
         let db = Arc::clone(self);
         let pid = project_id.to_string();
         let sids = session_ids.to_vec();
         DuckdbService::run_query(move || {
             let conn = db.conn();
-            query::get_trace_ids_for_sessions(&conn, &pid, &sids)
+            query::get_trace_ids_for_sessions(&conn, &pid, &sids, as_of_us)
         })
         .await
         .map_err(DataError::from)?

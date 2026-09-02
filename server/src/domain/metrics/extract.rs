@@ -599,9 +599,14 @@ fn extract_all_exemplars(
                 );
             }
             if !e.filtered_attributes.is_empty() {
+                // Typed, not stringified. The ordinary extraction path turns every value into a string,
+                // which is right for display and wrong for a record of what was received: `status_code=200`
+                // as an int and `status_code="200"` as a string both became `"200"`, and a bool became
+                // `"true"`. An exemplar exists to let someone get back to the exact call, so the value it
+                // carries has to be the value that was sent.
                 entry.insert(
                     "attributes".to_string(),
-                    attrs_to_json(&extract_attributes(&e.filtered_attributes)),
+                    crate::utils::otlp::attrs_to_typed_json(&e.filtered_attributes),
                 );
             }
             JsonValue::Object(entry)

@@ -158,14 +158,14 @@ Config file for Kiro, Cursor, and other MCP clients:
     "sideseat": {
       "url": "http://localhost:5388/api/v1/projects/default/mcp",
       "headers": {
-        "Authorization": "Bearer ${SIDESEAT_API_KEY}"
+        "Authorization": "Bearer <your-api-key>"
       }
     }
   }
 }
 ```
 
-Drop the `headers` block if the server runs with `--no-auth`.
+Replace `<your-api-key>` with a key for the organisation that owns the project. Some clients expand environment variables in this file (Cursor and other VS Code-derived editors use `${env:VAR}`); check your client's docs before relying on that. Drop the `headers` block entirely if the server runs with `--no-auth`.
 
 See the [MCP docs](https://sideseat.ai/docs/mcp/) for all setup options.
 

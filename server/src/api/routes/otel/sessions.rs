@@ -307,7 +307,7 @@ pub async fn delete_sessions(
     // in-flight batch from recreating the session after this route has answered 204, and that is true
     // whether or not any of its spans carried a file.
     let trace_ids = analytics_repo
-        .get_trace_ids_for_sessions(&auth.project_id, &body.session_ids)
+        .get_trace_ids_for_sessions(&auth.project_id, &body.session_ids, None)
         .await
         .map_err(ApiError::from_data)?;
 

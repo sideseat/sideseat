@@ -811,11 +811,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         );
 
         let mut d = duck
-            .get_trace_ids_for_sessions(PROJECT, &[session_id.to_string()])
+            .get_trace_ids_for_sessions(PROJECT, &[session_id.to_string()], None)
             .await
             .expect("duckdb trace ids");
         let mut c = ch
-            .get_trace_ids_for_sessions(PROJECT, &[session_id.to_string()])
+            .get_trace_ids_for_sessions(PROJECT, &[session_id.to_string()], None)
             .await
             .expect("clickhouse trace ids");
         d.sort();
@@ -831,11 +831,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         // check rather than a formality.
         let trace_ids: Vec<String> = d.clone();
         let mut d = duck
-            .get_session_ids_for_traces(PROJECT, &trace_ids)
+            .get_session_ids_for_traces(PROJECT, &trace_ids, None)
             .await
             .expect("duckdb session ids");
         let mut c = ch
-            .get_session_ids_for_traces(PROJECT, &trace_ids)
+            .get_session_ids_for_traces(PROJECT, &trace_ids, None)
             .await
             .expect("clickhouse session ids");
         d.sort();
@@ -849,11 +849,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         // separately in each dialect - `MIN`/`min` over a Nullable column on one side - so a disagreement
         // here is a feed that collapses a cross-trace replay on one backend and duplicates it on the other.
         let mut d = duck
-            .get_trace_session_pairs(PROJECT, &trace_ids)
+            .get_trace_session_pairs(PROJECT, &trace_ids, None)
             .await
             .expect("duckdb trace/session pairs");
         let mut c = ch
-            .get_trace_session_pairs(PROJECT, &trace_ids)
+            .get_trace_session_pairs(PROJECT, &trace_ids, None)
             .await
             .expect("clickhouse trace/session pairs");
         d.sort();

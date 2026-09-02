@@ -351,18 +351,23 @@ pub async fn get_feed_messages(
     // whole expansion exists for did not run. Which spans a cursor page holds is decided by ingestion time,
     // so that is not an edge case: any page can begin or end mid-trace. Asking by trace is what makes the
     // answer independent of which spans the page drew.
+    // Membership is resolved at the traversal's own instant, like the rows are. Against current data it
+    // disagreed with them: a trace re-delivered into another session mid-traversal is read with its old
+    // content but expanded under its new session, so the session it actually replays is never loaded and its
+    // replayed history has nothing to collapse against - duplicated turns across pages. DuckDB honours the
+    // bound; ClickHouse cannot express it, which is the same limit already stated for the page query.
     let mut trace_ids: Vec<String> = spans.iter().map(|s| s.trace_id.clone()).collect();
     trace_ids.sort();
     trace_ids.dedup();
 
     let session_ids = repo
-        .get_session_ids_for_traces(&project_id, &trace_ids)
+        .get_session_ids_for_traces(&project_id, &trace_ids, Some(watermark_us))
         .await
         .map_err(ApiError::from_data)?;
 
     if !session_ids.is_empty() {
         let session_traces = repo
-            .get_trace_ids_for_sessions(&project_id, &session_ids)
+            .get_trace_ids_for_sessions(&project_id, &session_ids, Some(watermark_us))
             .await
             .map_err(ApiError::from_data)?;
         trace_ids.extend(session_traces);
@@ -399,7 +404,7 @@ pub async fn get_feed_messages(
     // replay stripping that this whole expansion exists for did not run and the re-sent history came back as
     // duplicates - while the response still said `session_scoped`.
     let session_of_trace: std::collections::HashMap<String, String> = repo
-        .get_trace_session_pairs(&project_id, &context_trace_ids)
+        .get_trace_session_pairs(&project_id, &context_trace_ids, Some(watermark_us))
         .await
         .map_err(ApiError::from_data)?
         .into_iter()

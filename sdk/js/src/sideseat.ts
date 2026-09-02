@@ -198,7 +198,7 @@ export class SideSeat {
   private _processors = new ForwardingSpanProcessor();
   private _fileExporterPaths: Set<string> = new Set();
   private _shutdownCalled = false;
-  private _shutdownPromise: Promise<void> | null = null;
+  private _shutdownPromise: Promise<boolean> | null = null;
   private _cleanupHandlers: Array<() => void> = [];
 
   constructor(options: SideSeatOptions) {
@@ -335,12 +335,22 @@ export class SideSeat {
     }
   }
 
-  async shutdown(timeoutMs = 30000): Promise<void> {
+  /**
+   * Flush and release. Resolves to whether every span was exported.
+   *
+   * The boolean is the point, and it mirrors {@link forceFlush}: this used to resolve `void`
+   * whatever happened, so a caller draining before exit received a fulfilled promise while its
+   * spans were being discarded. The diagnostic warnings alone are not a substitute - `diag` is a
+   * no-op until the host installs a logger, so by default the loss was reported nowhere at all.
+   * It still does not throw: this also runs from a SIGTERM handler, where an unhandled rejection
+   * would replace the exit code with a crash.
+   */
+  async shutdown(timeoutMs = 30000): Promise<boolean> {
     // Return existing promise if shutdown already in progress (concurrent protection)
     if (this._shutdownPromise !== null) {
       return this._shutdownPromise;
     }
-    if (this._shutdownCalled) return;
+    if (this._shutdownCalled) return true;
     this._shutdownCalled = true;
 
     this._shutdownPromise = this._doShutdown(timeoutMs);
@@ -488,6 +498,8 @@ export class SideSeat {
   }
 
   private _registerCleanupHandlers(): void {
+    // The boolean is deliberately dropped here: a signal handler has nobody to report to, and the
+    // warning has already been logged.
     const cleanup = () => void this.shutdown();
     process.once("SIGTERM", cleanup);
     process.once("SIGINT", cleanup);
@@ -499,7 +511,7 @@ export class SideSeat {
     ];
   }
 
-  private async _doShutdown(timeoutMs: number): Promise<void> {
+  private async _doShutdown(timeoutMs: number): Promise<boolean> {
     diag.info("[sideseat] Shutting down...");
 
     // Remove process listeners (prevent memory leaks)
@@ -517,7 +529,7 @@ export class SideSeat {
       await this._provider?.shutdown();
     } catch (e) {
       diag.warn(`[sideseat] Provider shutdown failed: ${describeError(e)}`);
-      return;
+      return false;
     }
     if (flushed) {
       diag.info("[sideseat] Shutdown complete");
@@ -526,5 +538,6 @@ export class SideSeat {
         "[sideseat] Shutdown complete, but some spans were not exported",
       );
     }
+    return flushed;
   }
 }

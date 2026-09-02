@@ -24,9 +24,15 @@ class AWSInstrumentor:
     def __init__(self, tracer_provider: TracerProvider | None = None) -> None:
         self._provider = tracer_provider
 
-    def instrument(self) -> None:
+    def instrument(self) -> bool:
+        """Install the botocore wrappers. Returns whether instrumentation is now active.
+
+        The bool is the point: returning ``None`` regardless meant the caller recorded AWS as
+        instrumented and logged success even when nothing had been patched, which also stopped
+        any later attempt from retrying.
+        """
         if AWSInstrumentor._instance is not None:
-            return
+            return True
 
         if not _module_available("wrapt"):
             # Warning, not debug: the caller asked for AWS instrumentation and is about to get
@@ -37,7 +43,7 @@ class AWSInstrumentor:
                 "AWS instrumentation is unavailable because 'wrapt' is not installed, so no "
                 "Bedrock spans will be produced. Install the extra: pip install 'sideseat[aws]'"
             )
-            return
+            return False
 
         import wrapt  # type: ignore[import-untyped]
 
@@ -47,6 +53,7 @@ class AWSInstrumentor:
             self._on_create_client,
         )
         AWSInstrumentor._instance = self
+        return True
         logger.debug("Patched botocore ClientCreator.create_client")
 
     def _on_create_client(

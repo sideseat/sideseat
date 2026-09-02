@@ -413,4 +413,24 @@ describe("SideSeat.forceFlush reports a failed flush", () => {
     // way to know it lost them.
     await expect(client.forceFlush(2000)).resolves.toBe(false);
   });
+
+  it("shutdown reports the loss too", async () => {
+    const client = init({
+      framework: Frameworks.VercelAI,
+      endpoint: "http://127.0.0.1:1",
+    });
+    client.addSpanProcessor({
+      onStart: () => {},
+      onEnd: () => {},
+      forceFlush: async () => {
+        throw new Error("exporter unreachable");
+      },
+      shutdown: async () => {},
+    });
+
+    // It resolved `void` regardless, so a caller awaiting shutdown before exit was told everything
+    // was fine while its spans were discarded - and the diagnostic warning is silent until the host
+    // installs a `diag` logger, so the loss was reported nowhere at all.
+    await expect(client.shutdown(2000)).resolves.toBe(false);
+  });
 });

@@ -181,8 +181,14 @@ def _try_instrument_aws(provider: "TracerProvider | None") -> None:
     try:
         from sideseat.instrumentors.aws import AWSInstrumentor
 
-        AWSInstrumentor(tracer_provider=provider).instrument()
-        logger.info("Instrumented: aws (botocore)")
+        if AWSInstrumentor(tracer_provider=provider).instrument():
+            logger.info("Instrumented: aws (botocore)")
+        else:
+            # Nothing was patched - `wrapt` is missing, and the instrumentor said so.
+            # Recording it as done anyway logged success for telemetry that will never
+            # be produced, and permanently blocked a retry after the extra is installed.
+            with _lock:
+                _instrumented.discard("aws")
     except Exception as e:
         logger.debug("AWS instrumentation skipped: %s", e)
         with _lock:

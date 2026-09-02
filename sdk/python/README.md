@@ -297,7 +297,7 @@ Use SideSeat directly with cloud provider SDKs, without an agent framework. Inst
 ### Amazon Bedrock
 
 ```bash
-pip install "sideseat[aws]"
+pip install "sideseat[aws]" boto3
 ```
 
 ```python

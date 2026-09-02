@@ -17,14 +17,16 @@
           <span class="terminal-title">connect your tool</span>
         </div>
         <div class="terminal-body">
-          <pre><code><span class="text-muted"># Kiro CLI</span>
-kiro-cli mcp add --name sideseat --url <span class="text-accent">http://localhost:5388/api/v1/projects/default/mcp</span>
+          <pre><code><span class="text-muted"># Auth is on by default; export a key first (or run the server with --no-auth)</span>
+export SIDESEAT_API_KEY=...
 
 <span class="text-muted"># Claude Code</span>
-claude mcp add --transport http sideseat <span class="text-accent">http://localhost:5388/api/v1/projects/default/mcp</span>
+claude mcp add --transport http sideseat <span class="text-accent">http://localhost:5388/api/v1/projects/default/mcp</span> \
+  --header "Authorization: Bearer $SIDESEAT_API_KEY"
 
 <span class="text-muted"># OpenAI Codex</span>
-codex mcp add sideseat --url <span class="text-accent">http://localhost:5388/api/v1/projects/default/mcp</span></code></pre>
+codex mcp add sideseat --url <span class="text-accent">http://localhost:5388/api/v1/projects/default/mcp</span> \
+  --bearer-token-env-var SIDESEAT_API_KEY</code></pre>
         </div>
       </div>
 

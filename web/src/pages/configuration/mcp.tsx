@@ -18,7 +18,13 @@ type Tool = {
 /// `auth.enabled` defaults to true and this endpoint serves the project's prompts, spans and raw
 /// attributes, so a snippet with no credential fails as written against a default server - and the
 /// resulting 401 looks like a broken URL rather than a missing key.
-const AUTH_HEADER = { Authorization: "Bearer ${SIDESEAT_API_KEY}" } as const;
+///
+/// A literal placeholder rather than `${SIDESEAT_API_KEY}`: whether a client expands environment
+/// variables in its MCP config, and with what syntax, differs per client (VS Code-derived editors use
+/// `${env:VAR}`). An unexpanded variable is sent verbatim as the bearer token and 401s exactly like no
+/// credential at all, with nothing on screen to suggest why - while a visible `<your-api-key>` cannot be
+/// mistaken for something that works.
+const AUTH_HEADER = { Authorization: "Bearer <your-api-key>" } as const;
 
 const TOOLS: Tool[] = [
   {

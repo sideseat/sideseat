@@ -70,9 +70,13 @@ export function getClient(): SideSeat {
 
 /**
  * Shutdown the global SideSeat instance.
- * Flushes pending spans and releases resources.
+ *
+ * Flushes pending spans and releases resources. Resolves to whether every span was exported - `false`
+ * means some were lost, which a caller draining before exit needs to know and could not previously
+ * learn: this resolved `void` regardless, and the diagnostic warning is silent until the host installs
+ * a `diag` logger.
  */
-export async function shutdown(): Promise<void> {
+export async function shutdown(): Promise<boolean> {
   // Wait for any pending init to complete first
   if (_initPromise !== null) {
     try {
@@ -83,9 +87,11 @@ export async function shutdown(): Promise<void> {
   }
 
   if (_instance !== null) {
-    await _instance.shutdown();
+    const flushed = await _instance.shutdown();
     _instance = null;
+    return flushed;
   }
+  return true;
 }
 
 /**

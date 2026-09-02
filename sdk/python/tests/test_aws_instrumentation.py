@@ -72,6 +72,10 @@ class TestAWSInstrumentor:
                 inst.instrument()
             assert AWSInstrumentor._instance is None
 
+        # And it reports the failure, so the caller does not record success it did not have.
+        with patch("importlib.util.find_spec", return_value=None):
+            assert AWSInstrumentor(tracer_provider=None).instrument() is False
+
         warnings = [r for r in caplog.records if r.levelname == "WARNING"]
         assert warnings, "a user getting no telemetry at all must be told"
         message = warnings[0].getMessage()
@@ -1631,3 +1635,29 @@ class TestInstrumentProviders:
 
         instrument_providers(None, ("unknown_provider",))
         assert "unknown_provider" not in _instrumented
+
+
+class TestInstrumentationOutcome:
+    """A framework is recorded as instrumented only if it actually was."""
+
+    def test_missing_wrapt_does_not_record_aws_as_instrumented(self) -> None:
+        """Otherwise a later retry is skipped and the log claims success.
+
+        `_try_instrument_aws` added "aws" to `_instrumented` before calling the instrumentor and
+        `instrument()` returned normally when `wrapt` was absent - so a process with botocore and no
+        wrapt logged "Instrumented: aws (botocore)", produced no spans, and could never retry.
+        """
+        from sideseat.instrumentation import _instrumented, _try_instrument_aws
+
+        with _lock:
+            _instrumented.discard("aws")
+
+        def only_wrapt_missing(name: str, *args: object, **kwargs: object) -> object | None:
+            return None if name == "wrapt" else MagicMock()
+
+        with patch("importlib.util.find_spec", side_effect=only_wrapt_missing):
+            _try_instrument_aws(None)
+
+        assert "aws" not in _instrumented, (
+            "AWS must not be recorded as instrumented when nothing was patched"
+        )

@@ -10,7 +10,7 @@ SideSeat instruments the boto3 Bedrock Runtime client to capture model informati
 ## Prerequisites
 
 - SideSeat running locally (`sideseat`)
-- Python SDK installed (`pip install "sideseat[aws]"` or `uv add "sideseat[aws]"`) — the `aws` extra pulls in `wrapt`, without which Bedrock instrumentation silently does nothing
+- Python SDK installed (`pip install "sideseat[aws]" boto3` or `uv add "sideseat[aws]" boto3`) — the `aws` extra pulls in `wrapt`, without which Bedrock instrumentation warns and produces no spans
 - AWS credentials configured for Amazon Bedrock
 
 ## Converse API

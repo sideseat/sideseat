@@ -79,10 +79,6 @@ fn embedded_digest() -> &'static str {
 /// is refused.
 const MIN_PLAUSIBLE_MODEL_COUNT: usize = 100;
 
-/// How many distinct models the coverage check remembers. Generous: a deployment uses a handful, and the
-/// point of the bound is only that a hostile or misconfigured client cannot grow it without limit.
-const PRICED_MODEL_SAMPLE_CAP: usize = 256;
-
 /// GitHub raw URL for LiteLLM pricing data
 const PRICING_SYNC_URL: &str =
     "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
@@ -499,6 +495,24 @@ impl PricingData {
 /// Maps gen_ai.system attribute to LiteLLM provider name
 ///
 /// Returns empty string for framework-only values (let model lookup handle them)
+/// Whether this **litellm provider** reports cache counters beside its input rather than within it.
+///
+/// Keyed on the provider of the catalogue entry that actually priced the call, not on a second parse of
+/// `gen_ai.system`. The two are not the same question: the price lookup resolves a provider from the
+/// model name as well as the system attribute, so `anthropic.claude-3-haiku-...` is priced from a Bedrock
+/// entry even when the system attribute says `AWS` (which the mapper did not recognise) or says nothing at
+/// all. Reading `system` for the convention while the price came from elsewhere meant a Bedrock call was
+/// billed at Bedrock's rates and *counted* under OpenAI's convention - a cached turn reporting 15 tokens
+/// where 1,215 were billed, with ten ordinary input tokens dropped from the cost.
+pub fn cache_counters_are_separate_for_provider(provider: &str) -> bool {
+    matches!(provider, "anthropic" | "bedrock" | "vertex_ai_anthropic")
+}
+
+/// The [`cache_counters_are_separate_for_provider`] question for reasoning tokens.
+pub fn reasoning_is_separate_for_provider(provider: &str) -> bool {
+    matches!(provider, "gemini" | "vertex_ai")
+}
+
 /// Whether this provider reports cache counters *beside* its input total rather than within it.
 ///
 /// The single source of truth for the question, because two places need it and they must not drift: the cost
@@ -507,11 +521,8 @@ impl PricingData {
 /// separately; OpenAI's `cached_tokens` and Gemini's `cached_content_token_count` sit inside their prompt
 /// totals, and an unrecognised provider takes that reading.
 pub fn cache_counters_are_separate(system: Option<&str>) -> bool {
-    matches!(
-        system
-            .map(map_system_to_litellm_provider)
-            .filter(|p| !p.is_empty()),
-        Some("anthropic") | Some("bedrock") | Some("vertex_ai_anthropic")
+    cache_counters_are_separate_for_provider(
+        system.map(map_system_to_litellm_provider).unwrap_or(""),
     )
 }
 
@@ -521,12 +532,7 @@ pub fn cache_counters_are_separate(system: Option<&str>) -> bool {
 /// counting cached content inside its prompt total, and Anthropic is the mirror image. One flag for both
 /// mis-bills one of them for every provider that is not OpenAI-shaped.
 pub fn reasoning_is_separate(system: Option<&str>) -> bool {
-    matches!(
-        system
-            .map(map_system_to_litellm_provider)
-            .filter(|p| !p.is_empty()),
-        Some("gemini") | Some("vertex_ai")
-    )
+    reasoning_is_separate_for_provider(system.map(map_system_to_litellm_provider).unwrap_or(""))
 }
 
 fn map_system_to_litellm_provider(system: &str) -> &'static str {
@@ -543,7 +549,12 @@ fn map_system_to_litellm_provider(system: &str) -> &'static str {
         "mistral" => "mistral",
 
         // AWS Bedrock variants
-        "aws_bedrock" | "aws.bedrock" | "bedrock" | "amazon_bedrock" => "bedrock",
+        // `aws` and `amazon` on their own are what several instrumentations emit; without them the
+        // convention fell through to the inclusive default even though the price lookup found the
+        // Bedrock entry from the model name.
+        "aws_bedrock" | "aws.bedrock" | "bedrock" | "amazon_bedrock" | "aws" | "amazon" => {
+            "bedrock"
+        }
 
         // Azure OpenAI variants
         "azure" | "azure_openai" | "azure.openai" | "azureopenai" => "azure",
@@ -872,6 +883,14 @@ pub struct SpanCostOutput {
 
     /// Confidence scoring: indicates how the model was matched
     pub match_type: Option<MatchType>,
+
+    /// The litellm provider of the entry that priced this call, when one did.
+    ///
+    /// Reported so the token total is derived from the same answer as the charge. Without it the two were
+    /// resolved independently - the charge from the catalogue entry, the total from `gen_ai.system` - and a
+    /// Bedrock call whose system attribute the mapper did not recognise was billed under Bedrock's
+    /// separate-cache convention while its total assumed the inclusive one.
+    pub resolved_provider: Option<String>,
 }
 
 impl SpanCostOutput {
@@ -894,10 +913,6 @@ impl SpanCostOutput {
 pub struct PricingService {
     /// Pricing data (read-heavy, RwLock for concurrent reads)
     data: RwLock<PricingData>,
-
-    /// Models this instance has actually priced, bounded, so a sync can be checked against the workload
-    /// rather than against a size ratio. See [`PricingService::apply_sync_data`].
-    priced_models: RwLock<std::collections::HashSet<(String, String)>>,
 
     /// Path to local pricing file in data directory
     local_path: PathBuf,
@@ -928,7 +943,6 @@ impl PricingService {
 
         let service = Arc::new(Self {
             data: RwLock::new(data),
-            priced_models: RwLock::new(std::collections::HashSet::new()),
             local_path,
             http_client,
         });
@@ -1024,25 +1038,6 @@ impl PricingService {
         Ok(data)
     }
 
-    /// Note a model this instance priced, so a sync can be checked against the real workload.
-    ///
-    /// Bounded, and it stops recording rather than evicting: the set exists to answer "would this sync break
-    /// what we are pricing", and an LRU would quietly drop the evidence for a long-tail model that is still
-    /// in use. A cap of [`PRICED_MODEL_SAMPLE_CAP`] is far more than any deployment's distinct model set.
-    fn record_priced_model(&self, system: Option<&str>, model: &str) {
-        let key = (system.unwrap_or_default().to_string(), model.to_lowercase());
-        {
-            let observed = self.priced_models.read();
-            if observed.contains(&key) || observed.len() >= PRICED_MODEL_SAMPLE_CAP {
-                return;
-            }
-        }
-        let mut observed = self.priced_models.write();
-        if observed.len() < PRICED_MODEL_SAMPLE_CAP {
-            observed.insert(key);
-        }
-    }
-
     /// Read the sidecar beside the catalogue. Absent or unreadable is simply "unknown provenance", which
     /// the caller treats as "not this build's" - the safe direction, since the cost is re-saving a file.
     async fn read_provenance(local_path: &Path) -> Option<PricingProvenance> {
@@ -1071,7 +1066,6 @@ impl PricingService {
         let data = PricingData::from_json_str(EMBEDDED_PRICING_JSON)?;
         Ok(Self {
             data: RwLock::new(data),
-            priced_models: RwLock::new(std::collections::HashSet::new()),
             local_path: std::env::temp_dir().join("sideseat_test_pricing.json"),
             http_client: reqwest::Client::new(),
         })
@@ -1109,7 +1103,6 @@ impl PricingService {
         };
 
         let data = self.data.read();
-        self.record_priced_model(input.system.as_deref(), model);
         let (pricing, match_type) = match data.lookup(input.system.as_deref(), model) {
             Some(result) => result,
             None => {
@@ -1153,12 +1146,15 @@ impl PricingService {
         // said - and the *charge* is normalised here, where the provider is known. Unknown providers take the
         // inclusive reading, because OpenAI-compatible endpoints are the common case by a wide margin and
         // over-charging is the worse error to hand someone.
-        // The two conventions, from the one place that defines them - see `cache_counters_are_separate` and
-        // `reasoning_is_separate`. They are asked here *and* by the extractor that synthesises a token total,
-        // and the two must not drift: a total that assumes the counters are inside `input + output` while the
-        // charge assumes they are beside it describes two different calls.
-        let cache_is_included = !cache_counters_are_separate(input.system.as_deref());
-        let reasoning_is_included = !reasoning_is_separate(input.system.as_deref());
+        // The conventions, keyed on the provider of the entry that **priced this call** rather than on a
+        // second parse of `gen_ai.system`. The lookup resolves a provider from the model name as well as
+        // the attribute, so the two answers differ exactly when the attribute is missing or spelled in a
+        // way the mapper does not know - and then the call was charged at one provider's rates and counted
+        // under another's convention. The resolved provider is reported back so the token total can be
+        // derived from the same answer.
+        let resolved_provider = pricing.litellm_provider.as_str();
+        let cache_is_included = !cache_counters_are_separate_for_provider(resolved_provider);
+        let reasoning_is_included = !reasoning_is_separate_for_provider(resolved_provider);
 
         // The portion charged at the plain input rate: everything not already billed as cache.
         let billable_input = if cache_is_included {
@@ -1216,6 +1212,8 @@ impl PricingService {
             reasoning_cost,
             total_cost,
             match_type: Some(match_type),
+            resolved_provider: (!resolved_provider.is_empty())
+                .then(|| resolved_provider.to_string()),
         }
     }
 
@@ -1286,29 +1284,19 @@ impl PricingService {
             return;
         }
 
-        // 2. Coverage of the models this instance is actually pricing. A catalogue legitimately shrinks as
-        //    models are retired, and that is fine - what is not fine is losing a model we are being asked
-        //    about right now, which is the shape a truncated download takes for a live workload.
-        let observed: Vec<(String, String)> = self.priced_models.read().iter().cloned().collect();
-        let lost: Vec<&(String, String)> = {
-            let current = self.data.read();
-            observed
-                .iter()
-                .filter(|(system, model)| {
-                    let system = (!system.is_empty()).then_some(system.as_str());
-                    current.lookup(system, model).is_some()
-                        && new_data.lookup(system, model).is_none()
-                })
-                .collect()
-        };
-        if !lost.is_empty() {
-            tracing::warn!(
-                lost = lost.len(),
-                example = ?lost.first(),
-                "Rejecting synced pricing: it cannot price models this instance is currently pricing"
-            );
-            return;
-        }
+        // There is deliberately no second check against "the models this instance is using".
+        //
+        // That was tried, and it made acceptance a function of the *replica* rather than of the catalogue:
+        // replica A had priced model M and refused an upstream catalogue that dropped it, while replica B
+        // had not and accepted the same catalogue. Cost is persisted at ingestion, so which price a span was
+        // stored at then depended on which replica the balancer picked - the exact routing-dependence the
+        // provenance rule above exists to remove. The observation set was also caller-fillable: a client
+        // sending 256 junk model names displaced every real one and the check protected nothing.
+        //
+        // What is left is a decision about the catalogue alone, so every replica of a build reaches the same
+        // one. The residual risk is a partially truncated catalogue that still holds more than the floor and
+        // happens to drop a model in use; that leaves the model *unpriced* (cost 0, visible) rather than
+        // mispriced, and the next sync corrects it.
 
         // Save to disk atomically
         if let Err(e) = Self::save_to_file(&self.local_path, json).await {
@@ -1384,7 +1372,6 @@ impl Default for PricingService {
             .expect("Failed to parse embedded pricing data");
         Self {
             data: RwLock::new(data),
-            priced_models: RwLock::new(std::collections::HashSet::new()),
             local_path: PathBuf::new(),
             http_client: reqwest::Client::new(),
         }
@@ -3899,35 +3886,41 @@ mod tests {
         );
     }
 
-    /// And a sync that cannot price a model this instance is currently pricing is refused.
+    /// Acceptance depends on the catalogue alone, so two replicas never disagree.
     ///
-    /// This is what the size ratio was reaching for and could not express: a shrinking catalogue is normal,
-    /// losing a model in active use is not, and only the second is evidence of a bad download.
+    /// A coverage check against "the models this instance is using" was tried and removed: replica A had
+    /// priced model M and refused a catalogue that dropped it while replica B accepted the same catalogue,
+    /// and since cost is persisted at ingestion, which price a span was stored at then depended on which
+    /// replica served the request. The observation set was also caller-fillable - 256 junk model names
+    /// displaced every real one - so the check protected nothing while costing determinism.
     #[tokio::test]
-    async fn a_sync_that_loses_a_model_in_use_is_rejected() {
-        let service = PricingService::init_for_test().unwrap();
-        let before = service.data.read().model_count;
+    async fn two_instances_reach_the_same_verdict_on_the_same_catalogue() {
+        let busy = PricingService::init_for_test().unwrap();
+        let idle = PricingService::init_for_test().unwrap();
 
-        // Price something, so the instance has a workload to protect.
-        let in_use = "gpt-4o-mini";
-        let output = service.calculate_cost(&SpanCostInput {
-            model: Some(in_use.to_string()),
+        // One instance has been pricing; the other has served nothing.
+        let priced = busy.calculate_cost(&SpanCostInput {
+            model: Some("gpt-4o-mini".to_string()),
             system: Some("openai".to_string()),
             input_tokens: 100,
             output_tokens: 10,
             ..Default::default()
         });
-        assert!(output.total_cost > 0.0, "the fixture model must be priced");
+        assert!(priced.total_cost > 0.0, "the fixture model must be priced");
 
-        // A catalogue that is plausible in size but does not hold it.
-        let without = smaller_catalogue_excluding(MIN_PLAUSIBLE_MODEL_COUNT + 50, in_use);
-        service.apply_sync_data(&without).await;
+        // A catalogue that is plausible in size but does not hold that model.
+        let without = smaller_catalogue_excluding(MIN_PLAUSIBLE_MODEL_COUNT + 50, "gpt-4o-mini");
+        let expected = PricingData::from_json_str(&without).unwrap().model_count;
+
+        busy.apply_sync_data(&without).await;
+        idle.apply_sync_data(&without).await;
 
         assert_eq!(
-            service.data.read().model_count,
-            before,
-            "losing a model in active use must not be applied"
+            busy.data.read().model_count,
+            idle.data.read().model_count,
+            "a busy replica and an idle one must reach the same verdict"
         );
+        assert_eq!(busy.data.read().model_count, expected);
     }
 
     /// Provenance, not size, decides whether the file on disk survives a restart - and provenance means
@@ -4083,5 +4076,67 @@ mod tests {
             }
         }
         serde_json::Value::Object(out).to_string()
+    }
+
+    /// The convention follows the provider that **priced** the call, not a second parse of `gen_ai.system`.
+    ///
+    /// A Bedrock model name resolves to a Bedrock catalogue entry however the system attribute is spelled -
+    /// or if it is absent entirely. Reading `system` for the convention meant such a call was charged at
+    /// Bedrock's rates (cache counters extra) and counted under OpenAI's (cache counters inside the input),
+    /// so a cached turn reported 15 tokens where 1,215 were billed and ten ordinary input tokens were
+    /// dropped from the charge.
+    #[test]
+    fn the_convention_follows_the_provider_that_priced_the_call() {
+        let service = PricingService::init_for_test().unwrap();
+
+        let bedrock_model = "anthropic.claude-3-haiku-20240307-v1:0";
+        let usage = |system: Option<&str>| SpanCostInput {
+            model: Some(bedrock_model.to_string()),
+            system: system.map(str::to_string),
+            input_tokens: 10,
+            output_tokens: 5,
+            cache_read_tokens: 1200,
+            ..Default::default()
+        };
+
+        // The reference: the spelling the mapper has always known.
+        let known = service.calculate_cost(&usage(Some("aws_bedrock")));
+        assert!(known.total_cost > 0.0, "the fixture model must be priced");
+        assert_eq!(known.resolved_provider.as_deref(), Some("bedrock"));
+
+        // A spelling the mapper does not list, and no system attribute at all. Both are priced from the
+        // same entry, so both must be charged the same way.
+        for system in [Some("AWS"), None] {
+            let output = service.calculate_cost(&usage(system));
+            assert_eq!(
+                output.resolved_provider.as_deref(),
+                Some("bedrock"),
+                "system={system:?}: the entry that priced this call names its provider"
+            );
+            assert!(
+                (output.total_cost - known.total_cost).abs() < f64::EPSILON,
+                "system={system:?}: charged {} against {} for the same model and usage",
+                output.total_cost,
+                known.total_cost
+            );
+        }
+
+        // And the ten ordinary input tokens are charged: under the inclusive reading they were subtracted
+        // away by the 1,200 cache-read tokens and billed at nothing.
+        assert!(
+            known.input_cost > 0.0,
+            "input tokens beyond the cached ones must still be charged"
+        );
+    }
+
+    /// `aws` and `amazon` on their own resolve to Bedrock.
+    #[test]
+    fn bare_aws_spellings_resolve_to_bedrock() {
+        for system in ["aws", "AWS", "amazon", "Amazon"] {
+            assert!(
+                cache_counters_are_separate(Some(system)),
+                "{system} is Bedrock, whose cache counters are billed on top"
+            );
+        }
     }
 }

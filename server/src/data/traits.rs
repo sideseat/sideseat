@@ -172,9 +172,15 @@ pub trait AnalyticsRepository: Send + Sync {
         &self,
         project_id: &str,
         session_ids: &[String],
+        as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError>;
 
     /// The sessions the given traces belong to.
+    ///
+    /// `as_of_us` bounds the answer to a traversal's watermark, so membership is resolved at the same
+    /// instant the rows are. **Honoured by DuckDB only**: ClickHouse's `FINAL` has no "as of" form and a
+    /// merge may already have discarded the earlier version, exactly as documented for the page and context
+    /// queries. `None` means "current", which is what every non-paging caller wants.
     ///
     /// The mirror of [`Self::get_trace_ids_for_sessions`], and needed for the same reason the feed needs to
     /// widen its context: a framework records the session id on the span that knows it, usually the root
@@ -184,6 +190,7 @@ pub trait AnalyticsRepository: Send + Sync {
         &self,
         project_id: &str,
         trace_ids: &[String],
+        as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError>;
 
     /// Which session each of the given traces belongs to.
@@ -203,6 +210,7 @@ pub trait AnalyticsRepository: Send + Sync {
         &self,
         project_id: &str,
         trace_ids: &[String],
+        as_of_us: Option<i64>,
     ) -> Result<Vec<(String, String)>, DataError>;
 
     /// Get distinct values with counts for session filter options

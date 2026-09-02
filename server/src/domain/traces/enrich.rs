@@ -7,7 +7,7 @@
 //! Returns enrichment data separately; persist stage applies it to DB records.
 
 use crate::data::types::MessageCategory;
-use crate::domain::pricing::{PricingService, SpanCostInput};
+use crate::domain::pricing::{self, PricingService, SpanCostInput};
 use crate::domain::sideml::{ChatMessage, SideMLMessage};
 use crate::domain::traces::SpanData;
 use crate::utils::string::{PREVIEW_MAX_LENGTH, truncate_preview};
@@ -38,6 +38,14 @@ pub(super) struct SpanEnrichment {
     pub input_preview: Option<String>,
     /// Preview of output (from assistant/choice messages)
     pub output_preview: Option<String>,
+    /// The token total, recomputed once pricing resolved which provider's convention applies.
+    ///
+    /// `None` when nothing priced the span and the extractor's own answer stands. The extractor can only
+    /// consult `gen_ai.system`, while the price lookup also resolves a provider from the *model name* - so
+    /// for a Bedrock model whose system attribute is absent or spelled unrecognisably, the charge used
+    /// Bedrock's separate-cache convention and the total assumed the inclusive one. They have to come from
+    /// the same answer or the number on screen contradicts the money beside it.
+    pub total_tokens: Option<i64>,
 }
 
 // ============================================================================
@@ -67,6 +75,7 @@ fn enrich_one(
     pricing: &PricingService,
 ) -> SpanEnrichment {
     let costs = calculate_span_cost(span, pricing);
+    let total_tokens = corrected_total_tokens(span, costs.resolved_provider.as_deref());
     let (input_preview, output_preview) = extract_io_preview(messages);
 
     // Fall back to exception_message when no output messages produced a preview
@@ -86,7 +95,38 @@ fn enrich_one(
         total_cost: costs.total_cost,
         input_preview,
         output_preview,
+        total_tokens,
     }
+}
+
+/// The token total, recomputed under the convention of the provider that priced the span.
+///
+/// `None` when nothing priced it - the extractor's `gen_ai.system`-based answer then stands, because
+/// there is no better information available. When something did price it, that entry names the provider
+/// authoritatively and the total must follow the same convention as the charge: `input + output` plus
+/// whatever the provider reports *beside* them.
+///
+/// A reported total larger than the counters account for is still honoured, exactly as the extractor does,
+/// so a provider reporting counters this code does not know about keeps its own number.
+fn corrected_total_tokens(span: &SpanData, resolved_provider: Option<&str>) -> Option<i64> {
+    let provider = resolved_provider?;
+
+    let beside_input = if pricing::cache_counters_are_separate_for_provider(provider) {
+        span.gen_ai_usage_cache_read_tokens + span.gen_ai_usage_cache_write_tokens
+    } else {
+        0
+    };
+    let beside_output = if pricing::reasoning_is_separate_for_provider(provider) {
+        span.gen_ai_usage_reasoning_tokens
+    } else {
+        0
+    };
+
+    let floor = span.gen_ai_usage_input_tokens
+        + span.gen_ai_usage_output_tokens
+        + beside_input
+        + beside_output;
+    Some(span.gen_ai_usage_total_tokens.max(floor))
 }
 
 // ============================================================================
@@ -102,6 +142,8 @@ struct CostResult {
     cache_write_cost: f64,
     reasoning_cost: f64,
     total_cost: f64,
+    /// The litellm provider of the entry that priced this span, when one did.
+    resolved_provider: Option<String>,
 }
 
 /// Calculate costs for a span using the pricing service.
@@ -140,6 +182,7 @@ fn calculate_span_cost(span: &SpanData, pricing: &PricingService) -> CostResult 
                 cache_write_cost: output.cache_write_cost,
                 reasoning_cost: output.reasoning_cost,
                 total_cost: output.total_cost,
+                resolved_provider: output.resolved_provider,
             };
         }
     }
@@ -153,6 +196,9 @@ fn calculate_span_cost(span: &SpanData, pricing: &PricingService) -> CostResult 
             cache_write_cost: 0.0,
             reasoning_cost: 0.0,
             total_cost: total,
+            // The producer supplied the cost outright, so nothing here resolved a provider and the
+            // extractor's total stands.
+            resolved_provider: None,
         };
     }
 

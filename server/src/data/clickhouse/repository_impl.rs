@@ -218,6 +218,10 @@ impl AnalyticsRepository for Arc<ClickhouseService> {
         &self,
         project_id: &str,
         trace_ids: &[String],
+        // Accepted and ignored: `FINAL` has no "as of" form, and a merge may already have discarded the
+        // version a past watermark would select - the same limit as the page and context queries. Stated
+        // rather than silently dropped, so a caller reading this knows the bound is not honoured here.
+        _as_of_us: Option<i64>,
     ) -> Result<Vec<(String, String)>, DataError> {
         query::get_trace_session_pairs(self.client(), project_id, trace_ids)
             .await
@@ -228,6 +232,10 @@ impl AnalyticsRepository for Arc<ClickhouseService> {
         &self,
         project_id: &str,
         trace_ids: &[String],
+        // Accepted and ignored: `FINAL` has no "as of" form, and a merge may already have discarded the
+        // version a past watermark would select - the same limit as the page and context queries. Stated
+        // rather than silently dropped, so a caller reading this knows the bound is not honoured here.
+        _as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError> {
         query::get_session_ids_for_traces(self.client(), project_id, trace_ids)
             .await
@@ -238,6 +246,10 @@ impl AnalyticsRepository for Arc<ClickhouseService> {
         &self,
         project_id: &str,
         session_ids: &[String],
+        // Accepted and ignored: `FINAL` has no "as of" form, and a merge may already have discarded the
+        // version a past watermark would select - the same limit as the page and context queries. Stated
+        // rather than silently dropped, so a caller reading this knows the bound is not honoured here.
+        _as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError> {
         query::get_trace_ids_for_sessions(self.client(), project_id, session_ids)
             .await
