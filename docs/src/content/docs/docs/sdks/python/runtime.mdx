@@ -56,6 +56,9 @@ presence work, but invocation requests are rejected.
    client.register(researcher).connect()
    ```
 
+   With auth enabled — the default — the WebSocket needs a key: pass `api_key=...` to
+   `sideseat.init(...)`, or set `SIDESEAT_API_KEY` and it is picked up automatically.
+
 2. **Open the Playground**
 
    Visit `http://localhost:5388/ui/projects/default/playground`. `researcher` is listed as

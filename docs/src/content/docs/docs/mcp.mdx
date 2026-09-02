@@ -18,6 +18,14 @@ Your coding agent can then:
 
 MCP is enabled by default. Pick your tool and connect:
 
+<Aside type="caution" title="Auth is on by default">
+The commands below carry no credential, so they work as written against a server started with
+`--no-auth`. A default server requires `Authorization: Bearer <api-key>` on MCP as on any other read of
+project data — this endpoint serves the project's prompts, spans and raw attributes. Add the header via
+the config-file form in each tab (`"headers": { "Authorization": "Bearer $SIDESEAT_API_KEY" }`), and see
+[Authentication](#authentication) below for how the key is scoped.
+</Aside>
+
 <Tabs>
   <TabItem label="Kiro / Kiro CLI">
     **CLI:**
@@ -54,11 +62,16 @@ MCP is enabled by default. Pick your tool and connect:
       "mcpServers": {
         "sideseat": {
           "type": "streamable-http",
-          "url": "http://localhost:5388/api/v1/projects/default/mcp"
+          "url": "http://localhost:5388/api/v1/projects/default/mcp",
+          "headers": {
+            "Authorization": "Bearer ${SIDESEAT_API_KEY}"
+          }
         }
       }
     }
     ```
+
+    Drop the `headers` block if the server runs with `--no-auth`.
   </TabItem>
   <TabItem label="OpenAI Codex">
     **CLI:**
@@ -99,6 +112,8 @@ For any other MCP-compatible client, point it at the Streamable HTTP endpoint:
 ```
 http://localhost:5388/api/v1/projects/{project_id}/mcp
 ```
+
+### Authentication
 
 <Aside type="note">
 Authentication follows the server's own setting. A server started with `--no-auth` needs no credential, and

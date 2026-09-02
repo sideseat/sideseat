@@ -134,6 +134,11 @@ SideSeat includes a built-in [MCP](https://modelcontextprotocol.io/) server that
 
 Connect your coding tool and let it optimize prompts, debug failures, and reduce costs using real observability data instead of guesswork.
 
+> **Auth is on by default.** These commands assume a server started with `--no-auth`. Against a
+> default server the endpoint needs `Authorization: Bearer <api-key>` — a key from the organisation
+> that owns the project — so use the config-file form with a `headers` block (below), or set
+> `SIDESEAT_API_KEY` and pass it through your client's header option.
+
 ```bash
 # Kiro CLI
 kiro-cli mcp add --name sideseat --url http://localhost:5388/api/v1/projects/default/mcp

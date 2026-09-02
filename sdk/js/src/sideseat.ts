@@ -44,34 +44,98 @@ import { VERSION } from "./version.js";
  * to the constructor. Registering one of these up front keeps this SDK's public
  * addSpanProcessor / setupConsoleExporter / setupFileExporter API working.
  */
-class ForwardingSpanProcessor implements SpanProcessor {
+export class ForwardingSpanProcessor implements SpanProcessor {
   private _delegates: SpanProcessor[] = [];
 
   add(processor: SpanProcessor): void {
     this._delegates.push(processor);
   }
 
+  // Each delegate is isolated, on every hook. A processor that throws must not stop the
+  // ones after it - that would silently drop the user's spans from every healthy exporter -
+  // and must not throw out of here either, since onStart/onEnd run inside the application's
+  // own call to span.end() and OTel's contract is that they do not raise.
   onStart(
     span: Parameters<SpanProcessor["onStart"]>[0],
     parentContext: Parameters<SpanProcessor["onStart"]>[1],
   ): void {
-    for (const d of this._delegates) d.onStart(span, parentContext);
+    for (const d of this._delegates) {
+      try {
+        d.onStart(span, parentContext);
+      } catch (e) {
+        diag.warn(
+          `[sideseat] A span processor threw in onStart: ${describeError(e)}`,
+        );
+      }
+    }
   }
 
   onEnd(span: Parameters<SpanProcessor["onEnd"]>[0]): void {
-    for (const d of this._delegates) d.onEnd(span);
+    for (const d of this._delegates) {
+      try {
+        d.onEnd(span);
+      } catch (e) {
+        diag.warn(
+          `[sideseat] A span processor threw in onEnd: ${describeError(e)}`,
+        );
+      }
+    }
   }
 
   // allSettled, not all: one exporter rejecting must not stop the others from
   // flushing, or pending spans in healthy exporters are lost on exit.
+  //
+  // But the failures are then *reported*, not discarded. Resolving regardless made
+  // `forceFlush()` succeed while spans sat unexported, so the boolean the public API
+  // returns said the data was flushed when it was not - the same lie as acknowledging a
+  // write before it is durable.
   async forceFlush(): Promise<void> {
-    await Promise.allSettled(this._delegates.map((d) => d.forceFlush()));
+    const results = await Promise.allSettled(
+      this._delegates.map((d) => d.forceFlush()),
+    );
+    throwIfAnyRejected(results, "forceFlush");
   }
 
+  // The delegate list is cleared whatever happened: shutdown is not retryable and holding
+  // references to dead processors only means onEnd keeps calling them.
   async shutdown(): Promise<void> {
-    await Promise.allSettled(this._delegates.map((d) => d.shutdown()));
+    const results = await Promise.allSettled(
+      this._delegates.map((d) => d.shutdown()),
+    );
     this._delegates = [];
+    throwIfAnyRejected(results, "shutdown");
   }
+}
+
+function describeError(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+/**
+ * Log every rejection and raise one error describing them all.
+ *
+ * Logging alone is not enough: the caller needs to know its flush did not complete, and a
+ * log line is not something a program can act on. Raising alone is not enough either -
+ * an AggregateError from N exporters is far less useful than N messages naming each one.
+ */
+function throwIfAnyRejected(
+  results: PromiseSettledResult<unknown>[],
+  operation: string,
+): void {
+  const failures = results.filter(
+    (r): r is PromiseRejectedResult => r.status === "rejected",
+  );
+  if (failures.length === 0) return;
+
+  for (const failure of failures) {
+    diag.warn(
+      `[sideseat] Span processor ${operation} failed: ${describeError(failure.reason)}`,
+    );
+  }
+  throw new Error(
+    `${failures.length} of ${results.length} span processors failed to ${operation}: ` +
+      failures.map((f) => describeError(f.reason)).join("; "),
+  );
 }
 
 export const DEFAULT_EXPORT_TIMEOUT_MS = 30_000;
@@ -243,7 +307,10 @@ export class SideSeat {
         }),
       ]);
       return true;
-    } catch {
+    } catch (e) {
+      // Named, because `false` on its own tells an operator nothing about which exporter
+      // failed or whether it was simply slow - and this is the signal that spans were lost.
+      diag.warn(`[sideseat] forceFlush did not complete: ${describeError(e)}`);
       return false;
     } finally {
       if (timer) clearTimeout(timer);
@@ -421,9 +488,25 @@ export class SideSeat {
     for (const handler of this._cleanupHandlers) handler();
     this._cleanupHandlers = [];
 
-    // Flush and shutdown provider (handles all processors + exporters)
-    await this.forceFlush(timeoutMs);
-    await this._provider?.shutdown();
-    diag.info("[sideseat] Shutdown complete");
+    // Flush and shutdown provider (handles all processors + exporters).
+    //
+    // `forceFlush` reports its own failure and returns false rather than throwing, and the
+    // provider's shutdown is caught here: this runs from a SIGTERM/beforeExit handler, where
+    // an unhandled rejection would replace the exit code with a crash and tell the operator
+    // nothing about the spans that did not make it.
+    const flushed = await this.forceFlush(timeoutMs);
+    try {
+      await this._provider?.shutdown();
+    } catch (e) {
+      diag.warn(`[sideseat] Provider shutdown failed: ${describeError(e)}`);
+      return;
+    }
+    if (flushed) {
+      diag.info("[sideseat] Shutdown complete");
+    } else {
+      diag.warn(
+        "[sideseat] Shutdown complete, but some spans were not exported",
+      );
+    }
   }
 }

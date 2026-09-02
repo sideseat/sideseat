@@ -9,7 +9,10 @@ import {
   SideSeatError,
   Frameworks,
 } from "../index.js";
-import { resolveExportTimeoutMs } from "../sideseat.js";
+import {
+  ForwardingSpanProcessor,
+  resolveExportTimeoutMs,
+} from "../sideseat.js";
 
 describe("SideSeat", () => {
   afterEach(async () => {
@@ -278,5 +281,113 @@ describe("README framework list", () => {
         !readme.includes(`"${value}"`),
     );
     expect(missing.map(([n]) => n)).toEqual([]);
+  });
+});
+
+describe("ForwardingSpanProcessor", () => {
+  const noopSpan = {} as Parameters<ForwardingSpanProcessor["onEnd"]>[0];
+
+  function processor(overrides: Record<string, unknown> = {}) {
+    return {
+      onStart: vi.fn(),
+      onEnd: vi.fn(),
+      forceFlush: vi.fn(async () => {}),
+      shutdown: vi.fn(async () => {}),
+      ...overrides,
+    };
+  }
+
+  it("a throwing processor does not stop the ones after it", () => {
+    const forwarder = new ForwardingSpanProcessor();
+    const bad = processor({
+      onStart: vi.fn(() => {
+        throw new Error("boom");
+      }),
+      onEnd: vi.fn(() => {
+        throw new Error("boom");
+      }),
+    });
+    const good = processor();
+    forwarder.add(bad as never);
+    forwarder.add(good as never);
+
+    // And it does not throw out: these run inside the application's own span.end().
+    expect(() =>
+      forwarder.onStart(noopSpan as never, {} as never),
+    ).not.toThrow();
+    expect(() => forwarder.onEnd(noopSpan)).not.toThrow();
+
+    expect(good.onStart).toHaveBeenCalledTimes(1);
+    expect(good.onEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it("forceFlush flushes every processor and then reports the failures", async () => {
+    const forwarder = new ForwardingSpanProcessor();
+    const failing = processor({
+      forceFlush: vi.fn(async () => {
+        throw new Error("exporter unreachable");
+      }),
+    });
+    const healthy = processor();
+    forwarder.add(failing as never);
+    forwarder.add(healthy as never);
+
+    // Reported, not discarded: resolving regardless made the public forceFlush() return
+    // true while spans sat unexported.
+    await expect(forwarder.forceFlush()).rejects.toThrow(
+      "exporter unreachable",
+    );
+    expect(healthy.forceFlush).toHaveBeenCalledTimes(1);
+  });
+
+  it("forceFlush resolves when every processor succeeds", async () => {
+    const forwarder = new ForwardingSpanProcessor();
+    forwarder.add(processor() as never);
+    forwarder.add(processor() as never);
+    await expect(forwarder.forceFlush()).resolves.toBeUndefined();
+  });
+
+  it("shutdown clears its delegates even when one fails", async () => {
+    const forwarder = new ForwardingSpanProcessor();
+    const failing = processor({
+      shutdown: vi.fn(async () => {
+        throw new Error("no");
+      }),
+    });
+    const healthy = processor();
+    forwarder.add(failing as never);
+    forwarder.add(healthy as never);
+
+    await expect(forwarder.shutdown()).rejects.toThrow("no");
+    expect(healthy.shutdown).toHaveBeenCalledTimes(1);
+
+    // Cleared, so onEnd no longer reaches dead processors.
+    forwarder.onEnd(noopSpan);
+    expect(healthy.onEnd).not.toHaveBeenCalled();
+  });
+});
+
+describe("SideSeat.forceFlush reports a failed flush", () => {
+  afterEach(async () => {
+    await shutdown();
+  });
+
+  it("returns false when a processor cannot flush", async () => {
+    const client = init({
+      framework: Frameworks.VercelAI,
+      endpoint: "http://127.0.0.1:1",
+    });
+    client.addSpanProcessor({
+      onStart: () => {},
+      onEnd: () => {},
+      forceFlush: async () => {
+        throw new Error("exporter unreachable");
+      },
+      shutdown: async () => {},
+    });
+
+    // `true` has to mean the spans were flushed, or a caller draining before exit has no
+    // way to know it lost them.
+    await expect(client.forceFlush(2000)).resolves.toBe(false);
   });
 });

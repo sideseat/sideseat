@@ -634,6 +634,12 @@ _Showing the most common integrations. SideSeat also supports LangChain, AutoGen
 
 SideSeat includes a built-in [MCP server](/docs/mcp/) that gives your coding agent direct access to your agent's traces, conversations, and costs. Connect it and let your coding tool optimize prompts, debug failures, and reduce costs using real data.
 
+<Aside type="caution" title="Auth is on by default">
+These commands assume a server started with `--no-auth`. Against a default server the MCP endpoint
+requires `Authorization: Bearer <api-key>`, since it serves the project's prompts and spans — see the
+[MCP Server guide](/docs/mcp/) for the config-file form that carries the header.
+</Aside>
+
 ```bash
 # Kiro CLI
 kiro-cli mcp add --name sideseat --url http://localhost:5388/api/v1/projects/default/mcp
