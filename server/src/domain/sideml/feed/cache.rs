@@ -23,6 +23,7 @@
 //! and callers that narrow the answer afterwards (a trace scoped out of its session, a role filter, a
 //! feed page) do that to the cached result.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -86,7 +87,24 @@ impl ReconstructionCache {
         rows: Vec<MessageSpanRow>,
         reconstruct: impl FnOnce(Vec<MessageSpanRow>) -> FeedResult,
     ) -> Arc<FeedResult> {
-        let key = (digest(&rows), mode);
+        self.get_or_reconstruct_grouped(mode, rows, &HashMap::new(), reconstruct)
+    }
+
+    /// As [`Self::get_or_reconstruct`], with a caller-supplied trace → session grouping.
+    ///
+    /// The grouping is **in the key**, because the pipeline reads it and the rule here is that the key
+    /// covers everything reconstruction reads. It is not redundant with the rows: the grouping comes from
+    /// the store and therefore knows about spans the content filter removed, so a contentless root span
+    /// whose session changed alters the answer while leaving every row identical. Keyed, that is a
+    /// different entry; unkeyed, it would be a stale hit that no invalidation could reach.
+    pub fn get_or_reconstruct_grouped(
+        &self,
+        mode: Reconstruction,
+        rows: Vec<MessageSpanRow>,
+        session_of_trace: &HashMap<String, String>,
+        reconstruct: impl FnOnce(Vec<MessageSpanRow>) -> FeedResult,
+    ) -> Arc<FeedResult> {
+        let key = (digest_with(&rows, session_of_trace), mode);
         self.entries.get_with(key, || Arc::new(reconstruct(rows)))
     }
 
@@ -111,8 +129,24 @@ impl ReconstructionCache {
 /// Order matters and is included: the pipeline sorts internally, but two different row orders are two
 /// different inputs as far as this memo is concerned, and treating them as one would be a claim about the
 /// pipeline that this file has no business making.
-fn digest(rows: &[MessageSpanRow]) -> [u8; 32] {
+fn digest_with(rows: &[MessageSpanRow], session_of_trace: &HashMap<String, String>) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new();
+
+    // Sorted, so the same grouping hashes the same however the map iterated. Length-prefixed, so
+    // `("ab","c")` and `("a","bc")` cannot produce the same bytes.
+    let mut grouping: Vec<(&str, &str)> = session_of_trace
+        .iter()
+        .map(|(t, s)| (t.as_str(), s.as_str()))
+        .collect();
+    grouping.sort_unstable();
+    hasher.update(&(grouping.len() as u64).to_le_bytes());
+    for (trace, session) in grouping {
+        hasher.update(&(trace.len() as u64).to_le_bytes());
+        hasher.update(trace.as_bytes());
+        hasher.update(&(session.len() as u64).to_le_bytes());
+        hasher.update(session.as_bytes());
+    }
+
     hasher.update(&(rows.len() as u64).to_le_bytes());
     for row in rows {
         // Present-or-absent is hashed as well as the value. Mapping `None` to `""` made them the same

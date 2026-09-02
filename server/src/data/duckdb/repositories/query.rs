@@ -1798,6 +1798,44 @@ pub fn delete_traces(
 
 /// Get trace_ids for given session_ids
 /// The distinct sessions the given traces belong to.
+/// Which session each of the given traces belongs to; traces with none are absent.
+///
+/// `DEDUP_SPANS` for the same reason as [`get_session_ids_for_traces`]: the append-only table keeps both
+/// versions of a span whose session changed, so a raw read reports a trace in two sessions at once.
+/// `MIN(session_id)` makes the answer one session per trace deterministically, in the (malformed) case
+/// where a trace's spans disagree - so the grouping cannot depend on row order.
+pub fn get_trace_session_pairs(
+    conn: &Connection,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<Vec<(String, String)>, DuckdbError> {
+    if trace_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let placeholders: Vec<&str> = trace_ids.iter().map(|_| "?").collect();
+    let sql = format!(
+        "SELECT trace_id, MIN(session_id) AS session_id FROM {DEDUP}          WHERE project_id = ? AND trace_id IN ({})          AND session_id IS NOT NULL AND session_id != '' GROUP BY trace_id",
+        placeholders.join(", "),
+        DEDUP = DEDUP_SPANS
+    );
+    let mut stmt = conn.prepare(&sql)?;
+
+    let mut all_params: Vec<String> = Vec::with_capacity(1 + trace_ids.len());
+    all_params.push(project_id.to_string());
+    all_params.extend(trace_ids.iter().cloned());
+    let params: Vec<&dyn duckdb::ToSql> =
+        all_params.iter().map(|v| v as &dyn duckdb::ToSql).collect();
+    let mut rows = stmt.query(params.as_slice())?;
+
+    let mut pairs: Vec<(String, String)> = vec![];
+    while let Some(row) = rows.next()? {
+        pairs.push((row.get(0)?, row.get(1)?));
+    }
+    pairs.sort();
+    Ok(pairs)
+}
+
 pub fn get_session_ids_for_traces(
     conn: &Connection,
     project_id: &str,

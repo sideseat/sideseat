@@ -1906,6 +1906,54 @@ pub async fn get_traces_for_session(
     Ok(rows.into_iter().map(TraceRow::from).collect())
 }
 
+/// Which session each of the given traces belongs to; traces with none are absent.
+///
+/// The DuckDB twin. `FINAL` for the same reason it deduplicates there, and `min(...)` so a trace whose
+/// spans disagree resolves to one session deterministically rather than by row order.
+pub async fn get_trace_session_pairs(
+    client: &Client,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<Vec<(String, String)>, ClickhouseError> {
+    if trace_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let placeholders: Vec<&str> = trace_ids.iter().map(|_| "?").collect();
+    let sql = format!(
+        // Two ClickHouse traps in one statement.
+        //
+        // `assumeNotNull` inside the aggregate, because an expression on a Nullable column stays Nullable
+        // and the crate refuses to deserialise `Nullable(String)` into `String` - as in the sibling method.
+        //
+        // And the alias is `session`, not `session_id`: a SELECT alias is visible in WHERE in ClickHouse and
+        // shadows the column, so `AS session_id` made the predicate read the aggregate and the query failed
+        // outright with ILLEGAL_AGGREGATION - on ClickHouse only. The parity comparison caught it; nothing
+        // else would have until a user ran the feed on ClickHouse.
+        "SELECT trace_id, min(assumeNotNull(session_id)) AS session FROM otel_spans FINAL \
+         WHERE project_id = ? AND trace_id IN ({}) \
+         AND session_id IS NOT NULL AND session_id != '' GROUP BY trace_id",
+        placeholders.join(", ")
+    );
+
+    #[derive(Row, Deserialize)]
+    struct PairRow {
+        trace_id: String,
+        session: String,
+    }
+
+    let mut query = client.query(&sql).bind(project_id);
+    for tid in trace_ids {
+        query = query.bind(tid);
+    }
+    let rows: Vec<PairRow> = query.fetch_all().await?;
+
+    let mut pairs: Vec<(String, String)> =
+        rows.into_iter().map(|r| (r.trace_id, r.session)).collect();
+    pairs.sort();
+    Ok(pairs)
+}
+
 /// Get trace IDs for given session IDs
 /// The distinct sessions the given traces belong to.
 pub async fn get_session_ids_for_traces(

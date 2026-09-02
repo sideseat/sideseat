@@ -3117,3 +3117,102 @@ fn bench_session_scaling() {
         }
     }
 }
+
+/// A session known only to the store reconstructs exactly as one named on every row.
+///
+/// The feed groups traces into conversations so a replay crossing traces can be recognised, and it derived
+/// that grouping from the `session_id` on the rows it was handed. Those rows have been through
+/// `MESSAGE_CONTENT_FILTER`, and a framework records the session on the span that knows it - usually a root
+/// carrying no messages, which the filter removes. When every row naming the session was filtered out, each
+/// trace became its own conversation, the cross-trace stripping never ran, and the second trace's re-sent
+/// history came back as duplicates while the response still reported `session_scoped`.
+///
+/// Checked against the fixtures where cross-trace stripping actually fires - the ones whose session view
+/// holds fewer messages than its traces' views sum to - because a fixture with nothing to strip would pass
+/// this test without exercising anything.
+#[test]
+fn a_session_known_only_to_the_store_reconstructs_identically() {
+    let fixtures = discover_fixtures();
+    if fixtures.is_empty() {
+        eprintln!("session grouping: no fixtures - run misc/capture-message-fixtures.sh");
+        return;
+    }
+
+    let mut exercised = 0usize;
+    let mut failures: Vec<String> = Vec::new();
+
+    for (label, paths) in &fixtures {
+        let rows = rows_for(paths);
+
+        // The trace -> session mapping the store would report.
+        let mut session_of_trace: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+        for (_, row) in &rows {
+            if let Some(session) = row.session_id.as_deref().filter(|s| !s.is_empty()) {
+                session_of_trace
+                    .entry(row.trace_id.clone())
+                    .or_insert_with(|| session.to_string());
+            }
+        }
+        // Only fixtures whose session spans more than one trace can strip anything across traces.
+        let traces: std::collections::HashSet<&String> = session_of_trace.keys().collect();
+        if session_of_trace.is_empty() || traces.len() < 2 {
+            continue;
+        }
+
+        let with_session_on_rows: Vec<MessageSpanRow> =
+            rows.iter().map(|(_, r)| r.clone()).collect();
+
+        // The same rows with every session id removed - the state the content filter leaves when the only
+        // spans naming the session carried no messages.
+        let stripped: Vec<MessageSpanRow> = with_session_on_rows
+            .iter()
+            .cloned()
+            .map(|mut r| {
+                r.session_id = None;
+                r
+            })
+            .collect();
+
+        let named = process_feed(with_session_on_rows, &FeedOptions::new());
+        let from_store = process_feed(
+            stripped.clone(),
+            &FeedOptions::new().with_session_of_trace(session_of_trace.clone()),
+        );
+        let ungrouped = process_feed(stripped, &FeedOptions::new());
+
+        let describe = |result: &crate::domain::sideml::FeedResult| -> Vec<String> {
+            result
+                .messages
+                .iter()
+                .map(|b| format!("{}:{}", b.role.as_str(), b.content_hash))
+                .collect()
+        };
+
+        let named_blocks = describe(&named);
+        let store_blocks = describe(&from_store);
+
+        if named_blocks != store_blocks {
+            failures.push(format!(
+                "{label}: a store-supplied session differs from one on the rows\n  on rows: {named_blocks:?}\n  from store: {store_blocks:?}"
+            ));
+            continue;
+        }
+
+        // And the grouping is what does the work: without it, this fixture returns more.
+        if describe(&ungrouped).len() > named_blocks.len() {
+            exercised += 1;
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "session grouping must not depend on which rows survived the content filter:\n{}",
+        failures.join("\n")
+    );
+    assert!(
+        exercised > 0,
+        "no fixture exercised cross-trace stripping, so this test proved nothing"
+    );
+    eprintln!("session grouping: {exercised} fixture(s) exercised cross-trace stripping");
+}

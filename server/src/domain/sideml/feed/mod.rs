@@ -614,9 +614,17 @@ pub fn process_feed_cached(
     rows: Vec<MessageSpanRow>,
     options: &FeedOptions,
 ) -> FeedResult {
-    let reconstructed = cache.get_or_reconstruct(cache::Reconstruction::Feed, rows, |rows| {
-        process_feed(rows, &FeedOptions::new())
-    });
+    // The grouping is passed through, and is part of the cache key: it is the caller's authoritative
+    // trace → session mapping, and the reconstruction's answer depends on it. Reconstructing with a bare
+    // `FeedOptions::new()` silently discarded it, so the route's fix had no effect on the cached path -
+    // which is every production read.
+    let grouping = options.session_of_trace.clone();
+    let reconstructed = cache.get_or_reconstruct_grouped(
+        cache::Reconstruction::Feed,
+        rows,
+        &options.session_of_trace,
+        move |rows| process_feed(rows, &FeedOptions::new().with_session_of_trace(grouping)),
+    );
     apply_role_filter((*reconstructed).clone(), options.role.as_deref())
 }
 
@@ -1243,7 +1251,13 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
     // the root span only, which is how several frameworks record it: the root went to the session
     // group and its children to a trace group, so history detection ran on the two halves
     // separately and had nothing to recognise a re-send against.
-    let mut session_of_trace: HashMap<&str, &str> = HashMap::new();
+    // The caller's mapping first, when it supplied one: it comes from the store, so it survives the content
+    // filter that may have removed every row naming the session. See `FeedOptions::session_of_trace`.
+    let mut session_of_trace: HashMap<&str, &str> = options
+        .session_of_trace
+        .iter()
+        .map(|(trace, session)| (trace.as_str(), session.as_str()))
+        .collect();
     for row in &rows {
         if let Some(session) = row.session_id.as_deref().filter(|s| !s.is_empty()) {
             session_of_trace.entry(&row.trace_id).or_insert(session);

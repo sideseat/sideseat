@@ -370,6 +370,8 @@ pub async fn get_feed_messages(
         trace_ids.dedup();
     }
 
+    let context_trace_ids = trace_ids.clone();
+
     let context = repo
         .get_messages(&MessageQueryParams {
             project_id: project_id.clone(),
@@ -389,7 +391,23 @@ pub async fn get_feed_messages(
         .await
         .map_err(ApiError::from_data)?;
 
-    let options = FeedOptions::new().with_role(query.role.clone());
+    // Which trace is in which session, from the store rather than from the rows below.
+    //
+    // The rows have been through `MESSAGE_CONTENT_FILTER`, and a framework records the session on the span
+    // that knows it - usually a root that often carries no content and is therefore removed. Left to derive
+    // the grouping from those rows, the pipeline made each trace its own conversation, so the cross-trace
+    // replay stripping that this whole expansion exists for did not run and the re-sent history came back as
+    // duplicates - while the response still said `session_scoped`.
+    let session_of_trace: std::collections::HashMap<String, String> = repo
+        .get_trace_session_pairs(&project_id, &context_trace_ids)
+        .await
+        .map_err(ApiError::from_data)?
+        .into_iter()
+        .collect();
+
+    let options = FeedOptions::new()
+        .with_role(query.role.clone())
+        .with_session_of_trace(session_of_trace);
 
     // The window is a filter on the answer, here as in the other three views.
     //

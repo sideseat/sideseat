@@ -186,6 +186,25 @@ pub trait AnalyticsRepository: Send + Sync {
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError>;
 
+    /// Which session each of the given traces belongs to.
+    ///
+    /// [`Self::get_session_ids_for_traces`] answers *which sessions are involved*; this answers *which
+    /// trace is in which*, which is what the feed needs to group traces into conversations so a replay
+    /// crossing traces can be recognised.
+    ///
+    /// It has to come from the store rather than from the rows the feed is handed: those rows have been
+    /// through `MESSAGE_CONTENT_FILTER`, and a framework records the session on the span that knows it -
+    /// usually a root that often carries no content and is therefore removed. Deriving the grouping from
+    /// the filtered rows made each trace its own conversation, so the cross-trace stripping never ran and
+    /// re-sent history came back as duplicates while the response still claimed `session_scoped`.
+    ///
+    /// Traces with no session are simply absent from the result.
+    async fn get_trace_session_pairs(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<(String, String)>, DataError>;
+
     /// Get distinct values with counts for session filter options
     async fn get_session_filter_options(
         &self,

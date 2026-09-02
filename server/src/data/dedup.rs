@@ -199,6 +199,16 @@ impl AnalyticsRepository for DedupAnalyticsRepository {
             .await
     }
 
+    async fn get_trace_session_pairs(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<(String, String)>, DataError> {
+        self.inner
+            .get_trace_session_pairs(project_id, trace_ids)
+            .await
+    }
+
     async fn get_trace_ids_for_sessions(
         &self,
         project_id: &str,

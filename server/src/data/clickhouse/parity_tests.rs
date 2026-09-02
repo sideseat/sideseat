@@ -844,6 +844,28 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             d, c,
             "get_session_ids_for_traces({session_id}) differs between backends"
         );
+
+        // And which trace is in which session, which is what the feed groups conversations by. Built
+        // separately in each dialect - `MIN`/`min` over a Nullable column on one side - so a disagreement
+        // here is a feed that collapses a cross-trace replay on one backend and duplicates it on the other.
+        let mut d = duck
+            .get_trace_session_pairs(PROJECT, &trace_ids)
+            .await
+            .expect("duckdb trace/session pairs");
+        let mut c = ch
+            .get_trace_session_pairs(PROJECT, &trace_ids)
+            .await
+            .expect("clickhouse trace/session pairs");
+        d.sort();
+        c.sort();
+        assert_eq!(
+            d, c,
+            "get_trace_session_pairs({session_id}) differs between backends"
+        );
+        assert!(
+            !d.is_empty(),
+            "the fixture must name a session, or this comparison proves nothing"
+        );
     }
 
     // --- message rows ------------------------------------------------------

@@ -5,6 +5,7 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value as JsonValue;
+use std::collections::HashMap;
 
 use super::super::provenance::PositionPath;
 use super::super::types::{ChatRole, ContentBlock, FinishReason};
@@ -20,6 +21,22 @@ use crate::data::types::MessageCategory;
 pub struct FeedOptions {
     /// Filter by specific role (e.g., "user", "assistant", "system", "tool").
     pub role: Option<String>,
+
+    /// Which session each trace belongs to, when the caller resolved it from the store.
+    ///
+    /// The feed groups traces into conversations so a replay crossing traces can be recognised, and it
+    /// used to derive the grouping from the `session_id` on the rows it was handed. Those rows have been
+    /// through `MESSAGE_CONTENT_FILTER`, which removes any span carrying no messages, tools or error - and
+    /// a framework records the session on the span that knows it, usually a root that often carries no
+    /// content at all. When every row naming the session was filtered out, each trace became its own
+    /// conversation, the cross-trace stripping never ran, and the second trace's re-sent history came back
+    /// as duplicates - while the response still said `session_scoped`.
+    ///
+    /// The caller already has this from the store (it is what it used to widen the page to whole
+    /// sessions), so it passes the fact rather than leaving the pipeline to infer it from a filtered view.
+    /// Empty means "not supplied", and the row-derived grouping is used, which is right for callers that
+    /// hand over a complete row set.
+    pub session_of_trace: HashMap<String, String>,
 }
 
 impl FeedOptions {
@@ -33,6 +50,13 @@ impl FeedOptions {
     #[must_use]
     pub fn with_role(mut self, role: Option<String>) -> Self {
         self.role = role;
+        self
+    }
+
+    /// Supply the trace → session mapping the caller resolved from the store.
+    #[must_use]
+    pub fn with_session_of_trace(mut self, session_of_trace: HashMap<String, String>) -> Self {
+        self.session_of_trace = session_of_trace;
         self
     }
 }
