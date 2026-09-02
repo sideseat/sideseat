@@ -53,8 +53,20 @@ pub fn get_messages(
     conn: &Connection,
     params: &MessageQueryParams,
 ) -> Result<MessageQueryResult, DuckdbError> {
+    // Chosen before the conditions are built, because the session-membership subquery below needs the
+    // same relation the outer query reads - see the comment on that branch.
+    let (dedup, watermark_bind) = match params.ingested_before_us {
+        Some(watermark_us) => (
+            crate::data::duckdb::repositories::query::dedup_spans_as_of_watermark(),
+            Some(watermark_us.to_string()),
+        ),
+        None => (DEDUP_SPANS, None),
+    };
+
+    // The dedup relation is at the head of the FROM, so its bind comes first.
     let mut conditions = vec!["project_id = ?".to_string()];
-    let mut bind_values: Vec<String> = vec![params.project_id.clone()];
+    let mut bind_values: Vec<String> = watermark_bind.iter().cloned().collect();
+    bind_values.push(params.project_id.clone());
 
     if let Some(span_id) = &params.span_id {
         conditions.push("span_id = ?".to_string());
@@ -66,9 +78,24 @@ pub fn get_messages(
             bind_values.push(trace_id.clone());
         }
     } else if let Some(session_id) = &params.session_id {
-        conditions.push(
-            "trace_id IN (SELECT DISTINCT trace_id FROM otel_spans WHERE project_id = ? AND session_id = ?)".to_string()
-        );
+        // Membership is resolved against the **deduplicated** relation, not the raw table.
+        //
+        // `otel_spans` is append-only, so it holds every delivery of a span. Reading membership from it
+        // while the outer query reads the deduplicated view made the two disagree about the same trace: a
+        // span re-delivered with a different (or absent) `session_id` left its old row behind, so the
+        // subquery still found the trace for the *old* session while the outer query returned the trace's
+        // current content. The session then reported a trace that no longer belongs to it - wrong count,
+        // wrong content - and the trace appeared under two sessions at once. ClickHouse reads this
+        // subquery with `FINAL` and was already correct, so this was also a silent backend disagreement.
+        //
+        // The same relation as the outer query, watermark included: a traversal must resolve membership as
+        // of the instant it is reading, or it can load a trace whose context it will not select.
+        conditions.push(format!(
+            "trace_id IN (SELECT DISTINCT trace_id FROM {dedup} WHERE project_id = ? AND session_id = ?)"
+        ));
+        if let Some(watermark) = &watermark_bind {
+            bind_values.push(watermark.clone());
+        }
         bind_values.push(params.project_id.clone());
         bind_values.push(session_id.clone());
         conditions.push(MESSAGE_CONTENT_FILTER.to_string());
@@ -96,24 +123,11 @@ pub fn get_messages(
         conditions.push("timestamp_start < ?".to_string());
         bind_values.push(to.format("%Y-%m-%d %H:%M:%S%.6f").to_string());
     }
-    // The feed's traversal watermark is applied *inside* the deduplication, below - not as a condition
-    // here. Bounding the dedup's *result* rather than its *choice* makes a span re-delivered during the
-    // traversal vanish entirely: the newest row is rejected and the older one was never selected. The page
-    // query learned that first; this is the context load beside it, and the two have to agree about what
-    // exists or a page can select a span whose context holds no version of it.
-    let (dedup, watermark_binds) = match params.ingested_before_us {
-        Some(watermark_us) => (
-            crate::data::duckdb::repositories::query::dedup_spans_as_of_watermark(),
-            vec![watermark_us.to_string()],
-        ),
-        None => (DEDUP_SPANS, Vec::new()),
-    };
-    // The dedup's binds come first: its subquery is at the head of the FROM.
-    let bind_values = {
-        let mut all = watermark_binds;
-        all.extend(bind_values);
-        all
-    };
+    // The feed's traversal watermark is applied *inside* the deduplication (chosen above) - not as a
+    // condition here. Bounding the dedup's *result* rather than its *choice* makes a span re-delivered
+    // during the traversal vanish entirely: the newest row is rejected and the older one was never
+    // selected. The page query learned that first; this is the context load beside it, and the two have to
+    // agree about what exists or a page can select a span whose context holds no version of it.
 
     let sql = format!(
         // Deduplicated, like every other read: this query fed the pipeline *both* copies of a

@@ -41,8 +41,9 @@ const PRICING_FILE_NAME: &str = "model_prices.json";
 struct PricingProvenance {
     /// [`PROVENANCE_SYNC`] or [`PROVENANCE_EMBEDDED`].
     source: String,
-    /// For an embedded save, the digest of the catalogue it came from, so a later build can tell whether
-    /// the file on disk is its own snapshot or a previous release's.
+    /// The digest of the embedded catalogue current when this file was written - for a sync, the build it
+    /// was fetched under. This is what lets a later build tell that the file predates its own snapshot,
+    /// whichever source produced it.
     #[serde(default)]
     embedded_digest: Option<String>,
     /// Informational; nothing decides on it, because a filesystem clock is not a fact about the catalogue.
@@ -950,13 +951,24 @@ impl PricingService {
     ///
     /// What decides it now is **provenance**, recorded when the file is written (see [`PricingProvenance`]):
     ///
-    /// - written by a **sync** - upstream data, so at least as authoritative as any snapshot compiled into a
-    ///   binary. Used, and the startup sync refreshes it anyway.
-    /// - written from an **embedded** catalogue whose digest matches this build's - the same bytes. Used.
-    /// - written from a *different* embedded catalogue, or carrying no provenance at all: this build shipped
-    ///   its own snapshot and that is the one to trust. Replaced.
+    /// The rule is one question, asked of either source: **was this file written by the build that is now
+    /// running?** Its `embedded_digest` records the snapshot current when it was written, so:
     ///
-    /// Every branch is decidable from facts this code controls, and none of them is a proxy for another.
+    /// - digest matches - the file is either this build's own snapshot, or a sync fetched *over* it, which is
+    ///   strictly newer upstream data. Used.
+    /// - digest differs, or there is no provenance at all - the binary has been upgraded since, so this
+    ///   build's snapshot may hold corrections the file predates. Replaced.
+    ///
+    /// "A sync always wins" was the first version of this and was wrong in two ways. With `sync_hours = 0`,
+    /// or with the network unavailable, a January sync was preferred over a September release's corrected
+    /// prices *forever* - the reasoning "the startup sync refreshes it anyway" assumed a sync that may never
+    /// run. And it broke agreement between replicas: a long-lived replica priced from its January file while
+    /// a freshly-started one priced from September's snapshot, and the cost is persisted at ingestion, so the
+    /// same request was stored at two different prices depending on routing. Under this rule every replica of
+    /// a given build agrees, and the only divergence left is a replica that has synced since starting - which
+    /// is upstream data the others converge on.
+    ///
+    /// Every branch is decidable from facts this code controls: no timestamps, no counts, no proxies.
     async fn load_pricing_data(local_path: &Path) -> Result<PricingData, PricingError> {
         if !local_path.exists() {
             return Self::load_embedded_with_save(local_path).await;
@@ -965,11 +977,9 @@ impl PricingService {
         match Self::try_load_local(local_path).await {
             Ok(local_data) => {
                 let provenance = Self::read_provenance(local_path).await;
-                let keep = match &provenance {
-                    Some(p) if p.source == PROVENANCE_SYNC => true,
-                    Some(p) => p.embedded_digest.as_deref() == Some(embedded_digest()),
-                    None => false,
-                };
+                let keep = provenance
+                    .as_ref()
+                    .is_some_and(|p| p.embedded_digest.as_deref() == Some(embedded_digest()));
                 if keep {
                     tracing::debug!(
                         models = local_data.model_count,
@@ -982,8 +992,8 @@ impl PricingService {
                     Ok(local_data)
                 } else {
                     tracing::debug!(
-                        "The local pricing catalogue came from a different build's embedded copy; \
-                         replacing it with this build's"
+                        "The local pricing catalogue predates this build; replacing it with this \
+                         build's snapshot, which the next sync will update"
                     );
                     Self::load_embedded_with_save(local_path).await
                 }
@@ -1308,7 +1318,9 @@ impl PricingService {
                 &self.local_path,
                 PricingProvenance {
                     source: PROVENANCE_SYNC.to_string(),
-                    embedded_digest: None,
+                    // The build this sync was fetched under. A later build with a different snapshot
+                    // must not keep pricing from a catalogue that predates its own corrections.
+                    embedded_digest: Some(embedded_digest().to_string()),
                     written_at: chrono::Utc::now().to_rfc3339(),
                 },
             )
@@ -3918,14 +3930,18 @@ mod tests {
         );
     }
 
-    /// Provenance, not size, decides whether the file on disk survives a restart.
+    /// Provenance, not size, decides whether the file on disk survives a restart - and provenance means
+    /// "written by the build that is now running", for a sync as much as for an embedded copy.
     #[tokio::test]
-    async fn a_synced_catalogue_survives_and_a_previous_build_s_embedded_copy_does_not() {
+    async fn a_catalogue_from_this_build_survives_and_one_predating_it_does_not() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("model_prices.json");
+        let embedded_count = PricingData::from_json_str(EMBEDDED_PRICING_JSON)
+            .unwrap()
+            .model_count;
 
-        // A small catalogue on disk, recorded as coming from a sync. Under the old rule its size alone
-        // would have condemned it.
+        // A small catalogue on disk, synced *under this build*. Under the old size rule its size alone
+        // would have condemned it; it is upstream data fetched over this build's own snapshot.
         let synced = smaller_catalogue(200);
         let synced_count = PricingData::from_json_str(&synced).unwrap().model_count;
         tokio::fs::write(&path, &synced).await.unwrap();
@@ -3933,7 +3949,7 @@ mod tests {
             &path,
             PricingProvenance {
                 source: PROVENANCE_SYNC.to_string(),
-                embedded_digest: None,
+                embedded_digest: Some(embedded_digest().to_string()),
                 written_at: "2026-01-01T00:00:00Z".to_string(),
             },
         )
@@ -3942,10 +3958,31 @@ mod tests {
         let loaded = PricingService::load_pricing_data(&path).await.unwrap();
         assert_eq!(
             loaded.model_count, synced_count,
-            "upstream data must not be displaced by a snapshot compiled into the binary"
+            "a sync fetched under this build is newer upstream data than the snapshot it replaced"
         );
 
-        // The same file, but recorded as some *other* build's embedded copy: this build's snapshot wins.
+        // The same synced file, but fetched under a *previous* build. This build shipped its own snapshot
+        // since, which may carry corrections the file predates - and with sync disabled or the network
+        // down, keeping the old file would pin those prices permanently. It would also make a long-lived
+        // replica disagree with a freshly started one about the cost of an identical request.
+        PricingService::write_provenance(
+            &path,
+            PricingProvenance {
+                source: PROVENANCE_SYNC.to_string(),
+                embedded_digest: Some("a-previous-release".to_string()),
+                written_at: "2026-01-01T00:00:00Z".to_string(),
+            },
+        )
+        .await;
+
+        let loaded = PricingService::load_pricing_data(&path).await.unwrap();
+        assert_eq!(
+            loaded.model_count, embedded_count,
+            "a catalogue predating this build must not outrank the snapshot this build shipped"
+        );
+
+        // Same answer for a previous build's embedded copy, which is the same question.
+        tokio::fs::write(&path, &synced).await.unwrap();
         PricingService::write_provenance(
             &path,
             PricingProvenance {
@@ -3955,20 +3992,43 @@ mod tests {
             },
         )
         .await;
-
         let loaded = PricingService::load_pricing_data(&path).await.unwrap();
-        let embedded_count = PricingData::from_json_str(EMBEDDED_PRICING_JSON)
-            .unwrap()
-            .model_count;
-        assert_eq!(
-            loaded.model_count, embedded_count,
-            "a previous release's embedded copy must be replaced by this build's"
-        );
+        assert_eq!(loaded.model_count, embedded_count);
 
         // And having replaced it, the provenance on disk now names this build.
         let recorded = PricingService::read_provenance(&path).await.unwrap();
         assert_eq!(recorded.source, PROVENANCE_EMBEDDED);
         assert_eq!(recorded.embedded_digest.as_deref(), Some(embedded_digest()));
+    }
+
+    /// Every replica of one build resolves to the same catalogue, which is what keeps a persisted cost
+    /// independent of which replica handled the request.
+    #[tokio::test]
+    async fn replicas_of_one_build_agree_on_the_catalogue() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Replica A: long-lived, holds a catalogue synced under a previous build.
+        let a = dir.path().join("a.json");
+        tokio::fs::write(&a, smaller_catalogue(200)).await.unwrap();
+        PricingService::write_provenance(
+            &a,
+            PricingProvenance {
+                source: PROVENANCE_SYNC.to_string(),
+                embedded_digest: Some("a-previous-release".to_string()),
+                written_at: "2026-01-01T00:00:00Z".to_string(),
+            },
+        )
+        .await;
+
+        // Replica B: freshly started, no file at all.
+        let b = dir.path().join("b.json");
+
+        let from_a = PricingService::load_pricing_data(&a).await.unwrap();
+        let from_b = PricingService::load_pricing_data(&b).await.unwrap();
+        assert_eq!(
+            from_a.model_count, from_b.model_count,
+            "a long-lived replica and a fresh one must price identically before either syncs"
+        );
     }
 
     /// A file with no provenance at all is treated as unknown, so this build's snapshot is written.

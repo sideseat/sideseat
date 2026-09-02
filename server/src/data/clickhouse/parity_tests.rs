@@ -3314,3 +3314,98 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
         stored[0]
     );
 }
+
+/// A re-delivery that moves a trace to another session must move it on both backends.
+///
+/// `otel_spans` is append-only, so the old row survives. DuckDB resolved session membership from that raw
+/// table while reading the messages from the deduplicated view, so the trace stayed in its *old* session
+/// while returning its *current* content - a session reporting a trace that no longer belongs to it, and the
+/// same trace listed under two sessions at once. ClickHouse read the subquery with `FINAL` and was correct,
+/// so the two backends disagreed about the same data with nothing to say which was right.
+#[tokio::test]
+async fn a_redelivery_that_changes_the_session_moves_the_trace_on_both_backends() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_session_move").await;
+
+    let payload = |text: &str| {
+        Some(
+            serde_json::json!([{
+                "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+                "content": {"role": "user", "content": text}
+            }])
+            .to_string(),
+        )
+    };
+
+    let base = NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: "trace-moved".to_string(),
+        span_id: "span-1".to_string(),
+        span_name: "generation".to_string(),
+        observation_type: Some(ObservationType::Generation),
+        span_category: Some(SpanCategory::LLM),
+        timestamp_start: ts(0),
+        timestamp_end: Some(ts(1)),
+        duration_ms: 1000,
+        status_code: Some("OK".to_string()),
+        environment: Some("test".to_string()),
+        ..Default::default()
+    };
+
+    let first = NormalizedSpan {
+        session_id: Some("session-old".to_string()),
+        messages: payload("the first attempt"),
+        ingested_at: Some(ts(10)),
+        ..base.clone()
+    };
+    let corrected = NormalizedSpan {
+        session_id: Some("session-new".to_string()),
+        messages: payload("the corrected answer"),
+        ingested_at: Some(ts(20)),
+        ..base
+    };
+
+    for repo in [&duck as &dyn AnalyticsRepository, &ch] {
+        repo.insert_spans(vec![first.clone()]).await.expect("first");
+        repo.insert_spans(vec![corrected.clone()])
+            .await
+            .expect("corrected");
+    }
+
+    async fn rows_for(repo: &dyn AnalyticsRepository, session: &str) -> Vec<MessageSpanRow> {
+        let params = MessageQueryParams {
+            project_id: PROJECT.to_string(),
+            session_id: Some(session.to_string()),
+            ..Default::default()
+        };
+        repo.get_messages(&params).await.expect("messages").rows
+    }
+
+    for (label, repo) in [
+        ("duckdb", &duck as &dyn AnalyticsRepository),
+        ("clickhouse", &ch),
+    ] {
+        let old = rows_for(repo, "session-old").await;
+        assert!(
+            old.is_empty(),
+            "{label}: the trace moved to another session, so its old session must be empty; got {} row(s)",
+            old.len()
+        );
+
+        let new = rows_for(repo, "session-new").await;
+        assert_eq!(
+            new.len(),
+            1,
+            "{label}: the current session must hold the trace"
+        );
+        assert!(
+            new[0].messages_json.contains("the corrected answer"),
+            "{label}: and hand the pipeline the corrected content"
+        );
+    }
+}

@@ -49,15 +49,39 @@ export function tokenDisplay(counters: TokenCounters): TokenDisplay {
   const total = total_tokens || input_tokens + output_tokens;
   const separate = Math.max(0, total - input_tokens - output_tokens);
 
-  // Named from whichever counters are actually present. Under a separate-cache convention the residual is
-  // the cache counters; under a separate-reasoning one it is the thoughts. Both listed if both are set,
-  // since a mixed-provider trace can hold both and the residual is then their combined contribution.
-  const separateOf: string[] = [];
-  if (separate > 0) {
-    if (cache_read_tokens > 0) separateOf.push("cache read");
-    if (cache_write_tokens > 0) separateOf.push("cache write");
-    if (reasoning_tokens > 0) separateOf.push("reasoning");
-  }
+  // Named only when the arithmetic identifies which counters make up the residual, and left unnamed
+  // otherwise. Listing every non-zero counter was wrong in a way that matters: Gemini reports cached
+  // content *inside* its prompt total and thoughts beside its output, so a call with cache-read 400 and
+  // reasoning 300 leaves a residual of exactly 300 - and naming both told the user 400 cached tokens had
+  // been billed on top when they had not. An unlabelled residual is a gap in the explanation; a wrongly
+  // labelled one is a false statement about the bill.
+  const separateOf = attributeResidual(separate, [
+    ["cache read", cache_read_tokens],
+    ["cache write", cache_write_tokens],
+    ["reasoning", reasoning_tokens],
+  ]);
 
   return { input: input_tokens, output: output_tokens, separate, separateOf, total };
+}
+
+/**
+ * Which counters sum to the residual, when exactly one combination does.
+ *
+ * Three counters, so seven non-empty subsets - cheap to enumerate exactly rather than guess. A unique
+ * match is proof: those counters are the ones reported beside the two sides. Two or more matching
+ * combinations mean the numbers do not say which, and the honest answer is to name none of them.
+ */
+function attributeResidual(residual: number, counters: [string, number][]): string[] {
+  if (residual <= 0) return [];
+
+  const present = counters.filter(([, value]) => value > 0);
+  let unique: string[] | null = null;
+  for (let mask = 1; mask < 1 << present.length; mask++) {
+    const subset = present.filter((_, i) => (mask >> i) & 1);
+    const sum = subset.reduce((acc, [, value]) => acc + value, 0);
+    if (sum !== residual) continue;
+    if (unique !== null) return []; // ambiguous: two combinations explain the same residual
+    unique = subset.map(([label]) => label);
+  }
+  return unique ?? [];
 }

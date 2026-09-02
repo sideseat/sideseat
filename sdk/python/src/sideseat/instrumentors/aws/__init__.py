@@ -29,7 +29,14 @@ class AWSInstrumentor:
             return
 
         if not _module_available("wrapt"):
-            logger.debug("wrapt not installed — AWS instrumentation unavailable")
+            # Warning, not debug: the caller asked for AWS instrumentation and is about to get
+            # none. At debug level this was invisible, so `pip install sideseat boto3` produced a
+            # program that ran fine and sent nothing - and the only symptom was an empty SideSeat,
+            # which sends a user looking at the server, the endpoint and their credentials.
+            logger.warning(
+                "AWS instrumentation is unavailable because 'wrapt' is not installed, so no "
+                "Bedrock spans will be produced. Install the extra: pip install 'sideseat[aws]'"
+            )
             return
 
         import wrapt  # type: ignore[import-untyped]

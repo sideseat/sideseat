@@ -58,7 +58,7 @@ print(response)
 **Amazon Bedrock (direct):**
 
 ```bash
-pip install sideseat boto3
+pip install "sideseat[aws]" boto3
 ```
 
 ```python

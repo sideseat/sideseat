@@ -59,12 +59,24 @@ class TestAWSInstrumentor:
             assert AWSInstrumentor._instance is inst
             assert mock_wrapt.wrap_function_wrapper.call_count == 1
 
-    def test_no_wrapt_graceful(self) -> None:
-        """Missing wrapt logs debug and returns without error."""
+    def test_no_wrapt_warns_and_names_the_remedy(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Missing wrapt returns without error, but says so loudly.
+
+        At debug level this was invisible, so the documented `pip install sideseat boto3`
+        produced a program that ran fine and emitted nothing - and the only symptom was an
+        empty SideSeat, which sends a user looking at the server and their credentials.
+        """
         with patch("importlib.util.find_spec", return_value=None):
             inst = AWSInstrumentor(tracer_provider=None)
-            inst.instrument()
+            with caplog.at_level("WARNING"):
+                inst.instrument()
             assert AWSInstrumentor._instance is None
+
+        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert warnings, "a user getting no telemetry at all must be told"
+        message = warnings[0].getMessage()
+        assert "wrapt" in message
+        assert "sideseat[aws]" in message, "the message must name the fix, not just the symptom"
 
     def test_on_create_client_bedrock_runtime(
         self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]

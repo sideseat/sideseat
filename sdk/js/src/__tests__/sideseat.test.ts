@@ -340,6 +340,29 @@ describe("ForwardingSpanProcessor", () => {
     expect(healthy.forceFlush).toHaveBeenCalledTimes(1);
   });
 
+  it("a synchronously throwing processor still lets the others flush", async () => {
+    const forwarder = new ForwardingSpanProcessor();
+    // A plain function, not async: this throws while `map` is *building* the array, so
+    // `allSettled` never sees it and the delegates after it were skipped entirely.
+    const throwsSynchronously = processor({
+      forceFlush: vi.fn(() => {
+        throw new Error("sync boom");
+      }),
+      shutdown: vi.fn(() => {
+        throw new Error("sync boom");
+      }),
+    });
+    const healthy = processor();
+    forwarder.add(throwsSynchronously as never);
+    forwarder.add(healthy as never);
+
+    await expect(forwarder.forceFlush()).rejects.toThrow("sync boom");
+    expect(healthy.forceFlush).toHaveBeenCalledTimes(1);
+
+    await expect(forwarder.shutdown()).rejects.toThrow("sync boom");
+    expect(healthy.shutdown).toHaveBeenCalledTimes(1);
+  });
+
   it("forceFlush resolves when every processor succeeds", async () => {
     const forwarder = new ForwardingSpanProcessor();
     forwarder.add(processor() as never);

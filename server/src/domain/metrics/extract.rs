@@ -17,7 +17,7 @@ use crate::utils::otlp::{
     PROJECT_ID_ATTR, attrs_to_json, attrs_to_typed_json, extract_attributes, get_environment,
     get_session_id, get_user_id, keys,
 };
-use crate::utils::time::nanos_to_datetime;
+use crate::utils::time::{is_storable, nanos_to_datetime};
 
 use super::identity::IdentityInputs;
 
@@ -276,7 +276,8 @@ fn extract_number_dp(
         None => (None, None),
     };
 
-    let exemplar = dp.exemplars.first();
+    let storable = storable_exemplars(&dp.exemplars);
+    let exemplar = storable.first().copied();
 
     NormalizedMetric {
         project_id: ctx.project_id.clone(),
@@ -311,7 +312,7 @@ fn extract_number_dp(
         exemplar_value_double: extract_exemplar_value_double(exemplar),
         exemplar_timestamp: extract_exemplar_timestamp(exemplar),
         exemplar_attributes: extract_exemplar_attrs(exemplar),
-        exemplars: extract_all_exemplars(&dp.exemplars),
+        exemplars: extract_all_exemplars(&storable),
         flags: dp.flags,
         raw_metric: build_raw_metric_json(metric, metric_type),
         ..Default::default()
@@ -328,7 +329,8 @@ fn extract_histogram_dp(
     metric: &Metric,
 ) -> NormalizedMetric {
     let attrs = extract_attributes(&dp.attributes);
-    let exemplar = dp.exemplars.first();
+    let storable = storable_exemplars(&dp.exemplars);
+    let exemplar = storable.first().copied();
 
     NormalizedMetric {
         project_id: ctx.project_id.clone(),
@@ -366,7 +368,7 @@ fn extract_histogram_dp(
         exemplar_value_double: extract_exemplar_value_double(exemplar),
         exemplar_timestamp: extract_exemplar_timestamp(exemplar),
         exemplar_attributes: extract_exemplar_attrs(exemplar),
-        exemplars: extract_all_exemplars(&dp.exemplars),
+        exemplars: extract_all_exemplars(&storable),
         flags: dp.flags,
         raw_metric: build_raw_metric_json(metric, MetricType::Histogram),
         ..Default::default()
@@ -383,7 +385,8 @@ fn extract_exp_histogram_dp(
     metric: &Metric,
 ) -> NormalizedMetric {
     let attrs = extract_attributes(&dp.attributes);
-    let exemplar = dp.exemplars.first();
+    let storable = storable_exemplars(&dp.exemplars);
+    let exemplar = storable.first().copied();
 
     NormalizedMetric {
         project_id: ctx.project_id.clone(),
@@ -424,7 +427,7 @@ fn extract_exp_histogram_dp(
         exemplar_value_double: extract_exemplar_value_double(exemplar),
         exemplar_timestamp: extract_exemplar_timestamp(exemplar),
         exemplar_attributes: extract_exemplar_attrs(exemplar),
-        exemplars: extract_all_exemplars(&dp.exemplars),
+        exemplars: extract_all_exemplars(&storable),
         flags: dp.flags,
         raw_metric: build_raw_metric_json(metric, MetricType::ExponentialHistogram),
         ..Default::default()
@@ -529,7 +532,28 @@ fn extract_exemplar_timestamp(
         .map(|e| nanos_to_datetime(e.time_unix_nano))
 }
 
-/// Every exemplar of a data point, as a JSON array; `Null` when there are none.
+/// The exemplars a backend can actually store, in order.
+///
+/// Filtered *once*, and both the flat `exemplar_*` fields and the `exemplars` array are derived from the
+/// result - otherwise the two disagree about the same data point. That is what happened when only the flat
+/// fields were validated (in `metrics::ingest`): an exemplar dated year 3000 had its flat copy cleared while
+/// the array still carried it, so the row simultaneously said "no exemplar" and held one. Filtering here
+/// also means no timestamp is parsed back out of a string, and the *later* exemplars are checked at all -
+/// only the first ever was.
+///
+/// A bad exemplar clock drops the exemplar, never the measurement: an exemplar is an auxiliary debugging
+/// sample, and refusing a real measurement over one would be the wrong trade. `metrics::ingest` keeps its
+/// own check as a backstop for anything not built through this extractor.
+fn storable_exemplars(
+    exemplars: &[opentelemetry_proto::tonic::metrics::v1::Exemplar],
+) -> Vec<&opentelemetry_proto::tonic::metrics::v1::Exemplar> {
+    exemplars
+        .iter()
+        .filter(|e| e.time_unix_nano == 0 || is_storable(nanos_to_datetime(e.time_unix_nano)))
+        .collect()
+}
+
+/// Every storable exemplar of a data point, as a JSON array; `Null` when there are none.
 ///
 /// The six flat `exemplar_*` columns keep the *first* one - they are what the trace-correlation index is
 /// built on and what the queries read. But a histogram carries one exemplar **per bucket**, which is the
@@ -537,7 +561,7 @@ fn extract_exemplar_timestamp(
 /// only the first discarded every link but one, so a latency histogram with ten populated buckets offered
 /// one trace out of ten and gave no sign the others had been received.
 fn extract_all_exemplars(
-    exemplars: &[opentelemetry_proto::tonic::metrics::v1::Exemplar],
+    exemplars: &[&opentelemetry_proto::tonic::metrics::v1::Exemplar],
 ) -> JsonValue {
     use opentelemetry_proto::tonic::metrics::v1::exemplar::Value;
 
@@ -1046,5 +1070,75 @@ mod tests {
 
         let result = extract_metrics_batch(&request);
         assert!(result[0].exemplars.is_null());
+    }
+
+    /// An exemplar with an unstorable clock is dropped from *both* representations, and the ones after it
+    /// survive.
+    ///
+    /// Validating only the flat first-exemplar fields left the row contradicting itself: the flat copy was
+    /// cleared while the array still held the same year-3000 instant. And a bad timestamp on any exemplar
+    /// but the first was never examined at all.
+    #[test]
+    fn an_unstorable_exemplar_is_dropped_from_both_representations() {
+        use opentelemetry_proto::tonic::metrics::v1::{Exemplar, exemplar};
+
+        // Year ~2554: past what a microsecond-precision column can hold.
+        const UNSTORABLE_NANOS: u64 = 18_446_744_073_000_000_000;
+        const GOOD_NANOS: u64 = 1_704_067_200_000_000_000;
+
+        fn at(nanos: u64, trace: u8) -> Exemplar {
+            Exemplar {
+                trace_id: vec![trace; 16],
+                span_id: vec![trace; 8],
+                time_unix_nano: nanos,
+                value: Some(exemplar::Value::AsDouble(1.0)),
+                filtered_attributes: vec![],
+            }
+        }
+
+        let request = ExportMetricsServiceRequest {
+            resource_metrics: vec![ResourceMetrics {
+                resource: Some(Resource {
+                    attributes: vec![make_key_value("sideseat.project_id", "test-project")],
+                    ..Default::default()
+                }),
+                scope_metrics: vec![ScopeMetrics {
+                    metrics: vec![Metric {
+                        name: "http.server.duration".to_string(),
+                        data: Some(Data::Histogram(Histogram {
+                            data_points: vec![HistogramDataPoint {
+                                time_unix_nano: GOOD_NANOS,
+                                count: 2,
+                                // The bad one first, so the flat fields would have taken it.
+                                exemplars: vec![at(UNSTORABLE_NANOS, 1), at(GOOD_NANOS, 2)],
+                                ..Default::default()
+                            }],
+                            ..Default::default()
+                        })),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+        };
+
+        let result = extract_metrics_batch(&request);
+        assert_eq!(result.len(), 1, "the measurement itself must survive");
+        let metric = &result[0];
+
+        let all = metric
+            .exemplars
+            .as_array()
+            .expect("the good exemplar remains");
+        assert_eq!(all.len(), 1, "only the storable exemplar is kept");
+        assert_eq!(all[0]["trace_id"], "02".repeat(16));
+
+        // And the flat fields name the same one, rather than the dropped one or nothing.
+        assert_eq!(
+            metric.exemplar_trace_id.as_deref(),
+            Some(&"02".repeat(16)[..]),
+            "the flat fields and the array must describe the same exemplar"
+        );
     }
 }

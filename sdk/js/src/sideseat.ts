@@ -91,7 +91,7 @@ export class ForwardingSpanProcessor implements SpanProcessor {
   // write before it is durable.
   async forceFlush(): Promise<void> {
     const results = await Promise.allSettled(
-      this._delegates.map((d) => d.forceFlush()),
+      this._delegates.map((d) => settle(() => d.forceFlush())),
     );
     throwIfAnyRejected(results, "forceFlush");
   }
@@ -100,10 +100,28 @@ export class ForwardingSpanProcessor implements SpanProcessor {
   // references to dead processors only means onEnd keeps calling them.
   async shutdown(): Promise<void> {
     const results = await Promise.allSettled(
-      this._delegates.map((d) => d.shutdown()),
+      this._delegates.map((d) => settle(() => d.shutdown())),
     );
     this._delegates = [];
     throwIfAnyRejected(results, "shutdown");
+  }
+}
+
+/**
+ * Invoke a delegate so that *however* it fails, the failure is a rejected promise.
+ *
+ * `allSettled` only settles what it is given, and `map((d) => d.forceFlush())` calls each
+ * delegate synchronously while building that array - so a processor whose `forceFlush` is a
+ * plain function that throws propagated straight out of the `map`, before `allSettled` was
+ * reached, and every delegate after it was never flushed. That is the exact failure the
+ * `allSettled` is there to prevent, arriving by a route it cannot see. `Promise.resolve`
+ * also covers a delegate that returns a non-promise.
+ */
+function settle(invoke: () => Promise<void>): Promise<void> {
+  try {
+    return Promise.resolve(invoke());
+  } catch (e) {
+    return Promise.reject(e);
   }
 }
 

@@ -49,8 +49,10 @@ describe("tokenDisplay", () => {
     expect(d.separateOf).toEqual(["cache write"]);
   });
 
-  it("names the residual after the counter that is actually separate", () => {
-    // Gemini: cached content inside the prompt total, thoughts beside the output.
+  it("names the counter that is actually separate, not every counter present", () => {
+    // Gemini: cached content inside the prompt total, thoughts beside the output. The residual is 300,
+    // which only the reasoning counter explains - naming cache read too said 400 cached tokens had been
+    // billed on top when they had not.
     const d = tokenDisplay(
       counters({
         input_tokens: 500,
@@ -62,9 +64,53 @@ describe("tokenDisplay", () => {
     );
 
     expect(d.separate).toBe(300);
-    // Both counters are present, so both are listed: the residual is their combined contribution and the
-    // browser cannot attribute it further without knowing the provider.
-    expect(d.separateOf).toEqual(["cache read", "reasoning"]);
+    expect(d.separateOf).toEqual(["reasoning"]);
+  });
+
+  it("names both when both together explain the residual", () => {
+    // Anthropic-shaped: cache read and cache write are each billed on top of input_tokens.
+    const d = tokenDisplay(
+      counters({
+        input_tokens: 10,
+        output_tokens: 20,
+        cache_read_tokens: 100,
+        cache_write_tokens: 200,
+        total_tokens: 330,
+      }),
+    );
+
+    expect(d.separate).toBe(300);
+    expect(d.separateOf).toEqual(["cache read", "cache write"]);
+  });
+
+  it("names none when the numbers do not say which counter it was", () => {
+    // Two counters of equal value: either alone explains a residual of 100, so nothing is proven.
+    const d = tokenDisplay(
+      counters({
+        input_tokens: 10,
+        output_tokens: 20,
+        cache_read_tokens: 100,
+        reasoning_tokens: 100,
+        total_tokens: 130,
+      }),
+    );
+
+    expect(d.separate).toBe(100);
+    expect(d.separateOf).toEqual([]);
+  });
+
+  it("names none when no combination explains the residual", () => {
+    const d = tokenDisplay(
+      counters({
+        input_tokens: 10,
+        output_tokens: 20,
+        cache_read_tokens: 7,
+        total_tokens: 500,
+      }),
+    );
+
+    expect(d.separate).toBe(470);
+    expect(d.separateOf).toEqual([]);
   });
 
   it("always sums exactly", () => {
