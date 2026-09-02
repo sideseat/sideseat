@@ -19,11 +19,10 @@ Your coding agent can then:
 MCP is enabled by default. Pick your tool and connect:
 
 <Aside type="caution" title="Auth is on by default">
-The commands below carry no credential, so they work as written against a server started with
-`--no-auth`. A default server requires `Authorization: Bearer <api-key>` on MCP as on any other read of
-project data — this endpoint serves the project's prompts, spans and raw attributes. Add the header via
-the config-file form in each tab (`"headers": { "Authorization": "Bearer $SIDESEAT_API_KEY" }`), and see
-[Authentication](#authentication) below for how the key is scoped.
+A default server requires `Authorization: Bearer <api-key>` on MCP as on any other read of project data —
+this endpoint serves the project's prompts, spans and raw attributes. Each tab below carries the credential
+where its client supports one; set `SIDESEAT_API_KEY` first, or drop the credential if the server runs with
+`--no-auth`. See [Authentication](#authentication) for how the key is scoped.
 </Aside>
 
 <Tabs>
@@ -34,17 +33,25 @@ the config-file form in each tab (`"headers": { "Authorization": "Bearer $SIDESE
     kiro-cli mcp add --name sideseat --url http://localhost:5388/api/v1/projects/default/mcp
     ```
 
-    **Or config file** — add to `.kiro/settings/mcp.json`:
+    `kiro-cli mcp add` has no option for HTTP headers, so this form works against a server started
+    with `--no-auth`. With auth enabled, use the config file.
+
+    **Config file** — add to `.kiro/settings/mcp.json`:
 
     ```json
     {
       "mcpServers": {
         "sideseat": {
-          "url": "http://localhost:5388/api/v1/projects/default/mcp"
+          "url": "http://localhost:5388/api/v1/projects/default/mcp",
+          "headers": {
+            "Authorization": "Bearer ${SIDESEAT_API_KEY}"
+          }
         }
       }
     }
     ```
+
+    Drop the `headers` block if the server runs with `--no-auth`.
 
     See [Kiro MCP docs](https://kiro.dev/docs/mcp/configuration/) for more options.
   </TabItem>
@@ -52,8 +59,11 @@ the config-file form in each tab (`"headers": { "Authorization": "Bearer $SIDESE
     **CLI:**
 
     ```bash
-    claude mcp add --transport http sideseat http://localhost:5388/api/v1/projects/default/mcp
+    claude mcp add --transport http sideseat http://localhost:5388/api/v1/projects/default/mcp \
+      --header "Authorization: Bearer $SIDESEAT_API_KEY"
     ```
+
+    Drop the `--header` if the server runs with `--no-auth`.
 
     **Or config file** — add to `.mcp.json` in your project root:
 
@@ -77,14 +87,19 @@ the config-file form in each tab (`"headers": { "Authorization": "Bearer $SIDESE
     **CLI:**
 
     ```bash
-    codex mcp add --transport http sideseat http://localhost:5388/api/v1/projects/default/mcp
+    codex mcp add sideseat --url http://localhost:5388/api/v1/projects/default/mcp \
+      --bearer-token-env-var SIDESEAT_API_KEY
     ```
+
+    `codex mcp add` takes no `--transport` flag — `--url` is what selects streamable HTTP. Drop
+    `--bearer-token-env-var` if the server runs with `--no-auth`.
 
     **Or config file** — add to `~/.codex/config.toml`:
 
     ```toml
     [mcp_servers.sideseat]
     url = "http://localhost:5388/api/v1/projects/default/mcp"
+    bearer_token_env_var = "SIDESEAT_API_KEY"
     ```
   </TabItem>
   <TabItem label="Cursor">
@@ -95,11 +110,16 @@ the config-file form in each tab (`"headers": { "Authorization": "Bearer $SIDESE
       "mcpServers": {
         "sideseat": {
           "type": "streamable-http",
-          "url": "http://localhost:5388/api/v1/projects/default/mcp"
+          "url": "http://localhost:5388/api/v1/projects/default/mcp",
+          "headers": {
+            "Authorization": "Bearer ${SIDESEAT_API_KEY}"
+          }
         }
       }
     }
     ```
+
+    Drop the `headers` block if the server runs with `--no-auth`.
   </TabItem>
 </Tabs>
 

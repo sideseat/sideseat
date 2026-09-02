@@ -13,6 +13,13 @@ type Tool = {
   description: string;
 };
 
+/// The credential every config example carries.
+///
+/// `auth.enabled` defaults to true and this endpoint serves the project's prompts, spans and raw
+/// attributes, so a snippet with no credential fails as written against a default server - and the
+/// resulting 401 looks like a broken URL rather than a missing key.
+const AUTH_HEADER = { Authorization: "Bearer ${SIDESEAT_API_KEY}" } as const;
+
 const TOOLS: Tool[] = [
   {
     name: "list_traces",
@@ -226,7 +233,7 @@ export default function McpPage() {
         configContent: JSON.stringify(
           {
             mcpServers: {
-              sideseat: { url: endpoint },
+              sideseat: { url: endpoint, headers: AUTH_HEADER },
             },
           },
           null,
@@ -234,18 +241,22 @@ export default function McpPage() {
         ),
         deepLink: {
           label: "Install in Kiro",
-          url: `kiro://kiro.mcp/add?name=sideseat&config=${encodeURIComponent(JSON.stringify({ url: endpoint }))}`,
+          // The header is in the deep link too. This page cannot know the user's key, so it carries the
+          // placeholder: a client that expands it works, and one that does not leaves a visible header for
+          // the user to fill in - either beats installing a config that 401s with no hint why.
+          url: `kiro://kiro.mcp/add?name=sideseat&config=${encodeURIComponent(JSON.stringify({ url: endpoint, headers: AUTH_HEADER }))}`,
         },
       },
       {
         id: "claude-code",
         name: "Claude Code",
-        cli: `claude mcp add --transport http sideseat ${endpoint}`,
+        // `claude mcp add` supports `--header`, so the credential can go on the command line.
+        cli: `claude mcp add --transport http sideseat ${endpoint} --header "Authorization: Bearer $SIDESEAT_API_KEY"`,
         configFile: ".mcp.json",
         configContent: JSON.stringify(
           {
             mcpServers: {
-              sideseat: { type: "streamable-http", url: endpoint },
+              sideseat: { type: "streamable-http", url: endpoint, headers: AUTH_HEADER },
             },
           },
           null,
@@ -255,9 +266,11 @@ export default function McpPage() {
       {
         id: "codex",
         name: "Codex",
-        cli: `codex mcp add --transport http sideseat ${endpoint}`,
+        // `codex mcp add` has no `--transport` flag - `--url` is what selects streamable HTTP - and it
+        // reads a bearer token from an env var rather than taking a header.
+        cli: `codex mcp add sideseat --url ${endpoint} --bearer-token-env-var SIDESEAT_API_KEY`,
         configFile: "~/.codex/config.toml",
-        configContent: `[mcp_servers.sideseat]\nurl = "${endpoint}"`,
+        configContent: `[mcp_servers.sideseat]\nurl = "${endpoint}"\nbearer_token_env_var = "SIDESEAT_API_KEY"`,
       },
       {
         id: "cursor",
@@ -266,7 +279,7 @@ export default function McpPage() {
         configContent: JSON.stringify(
           {
             mcpServers: {
-              sideseat: { type: "streamable-http", url: endpoint },
+              sideseat: { type: "streamable-http", url: endpoint, headers: AUTH_HEADER },
             },
           },
           null,
@@ -274,7 +287,7 @@ export default function McpPage() {
         ),
         deepLink: {
           label: "Install in Cursor",
-          url: `cursor://anysphere.cursor-deeplink/mcp/install?name=sideseat&config=${btoa(JSON.stringify({ type: "streamable-http", url: endpoint }))}`,
+          url: `cursor://anysphere.cursor-deeplink/mcp/install?name=sideseat&config=${btoa(JSON.stringify({ type: "streamable-http", url: endpoint, headers: AUTH_HEADER }))}`,
         },
       },
     ],

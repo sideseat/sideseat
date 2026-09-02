@@ -134,20 +134,20 @@ SideSeat includes a built-in [MCP](https://modelcontextprotocol.io/) server that
 
 Connect your coding tool and let it optimize prompts, debug failures, and reduce costs using real observability data instead of guesswork.
 
-> **Auth is on by default.** These commands assume a server started with `--no-auth`. Against a
-> default server the endpoint needs `Authorization: Bearer <api-key>` — a key from the organisation
-> that owns the project — so use the config-file form with a `headers` block (below), or set
-> `SIDESEAT_API_KEY` and pass it through your client's header option.
-
 ```bash
-# Kiro CLI
-kiro-cli mcp add --name sideseat --url http://localhost:5388/api/v1/projects/default/mcp
+# Auth is on by default: set a key first, or start the server with --no-auth and drop the credential.
+export SIDESEAT_API_KEY=...
 
 # Claude Code
-claude mcp add --transport http sideseat http://localhost:5388/api/v1/projects/default/mcp
+claude mcp add --transport http sideseat http://localhost:5388/api/v1/projects/default/mcp \
+  --header "Authorization: Bearer $SIDESEAT_API_KEY"
 
-# OpenAI Codex
-codex mcp add --transport http sideseat http://localhost:5388/api/v1/projects/default/mcp
+# OpenAI Codex  (no --transport flag; --url selects streamable HTTP)
+codex mcp add sideseat --url http://localhost:5388/api/v1/projects/default/mcp \
+  --bearer-token-env-var SIDESEAT_API_KEY
+
+# Kiro CLI  (its CLI cannot send headers - use the config file below when auth is on)
+kiro-cli mcp add --name sideseat --url http://localhost:5388/api/v1/projects/default/mcp
 ```
 
 Config file for Kiro, Cursor, and other MCP clients:
@@ -156,11 +156,16 @@ Config file for Kiro, Cursor, and other MCP clients:
 {
   "mcpServers": {
     "sideseat": {
-      "url": "http://localhost:5388/api/v1/projects/default/mcp"
+      "url": "http://localhost:5388/api/v1/projects/default/mcp",
+      "headers": {
+        "Authorization": "Bearer ${SIDESEAT_API_KEY}"
+      }
     }
   }
 }
 ```
+
+Drop the `headers` block if the server runs with `--no-auth`.
 
 See the [MCP docs](https://sideseat.ai/docs/mcp/) for all setup options.
 
