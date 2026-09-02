@@ -32,6 +32,56 @@ const EMBEDDED_PRICING_JSON: &str =
 /// Pricing file name in data directory
 const PRICING_FILE_NAME: &str = "model_prices.json";
 
+/// Where the catalogue on disk came from, recorded beside it.
+///
+/// A model count says nothing about freshness, and it was the only thing distinguishing a local catalogue
+/// from the embedded one - so a stale local file that had accumulated retired models won on size. This
+/// records the fact directly instead of inferring it from a proxy.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct PricingProvenance {
+    /// [`PROVENANCE_SYNC`] or [`PROVENANCE_EMBEDDED`].
+    source: String,
+    /// For an embedded save, the digest of the catalogue it came from, so a later build can tell whether
+    /// the file on disk is its own snapshot or a previous release's.
+    #[serde(default)]
+    embedded_digest: Option<String>,
+    /// Informational; nothing decides on it, because a filesystem clock is not a fact about the catalogue.
+    #[serde(default)]
+    written_at: String,
+}
+
+const PROVENANCE_SYNC: &str = "sync";
+const PROVENANCE_EMBEDDED: &str = "embedded";
+
+fn provenance_path(local_path: &Path) -> PathBuf {
+    local_path.with_extension("provenance.json")
+}
+
+/// A digest of the catalogue compiled into *this* build.
+///
+/// Computed rather than hand-maintained: a constant somebody has to remember to bump when the embedded file
+/// is refreshed is a hole, and it would be silently wrong in exactly the case this exists to detect.
+fn embedded_digest() -> &'static str {
+    static DIGEST: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    DIGEST.get_or_init(|| {
+        blake3::hash(EMBEDDED_PRICING_JSON.as_bytes())
+            .to_hex()
+            .to_string()
+    })
+}
+
+/// The smallest catalogue that could plausibly be the real upstream one.
+///
+/// A structural floor, not a ratio against the current count: a truncated download is the failure this
+/// guards, and any genuine LiteLLM catalogue holds thousands of priced models. Unlike a percentage of
+/// whatever is loaded, it cannot be dragged upward by a bloated local file until legitimate upstream data
+/// is refused.
+const MIN_PLAUSIBLE_MODEL_COUNT: usize = 100;
+
+/// How many distinct models the coverage check remembers. Generous: a deployment uses a handful, and the
+/// point of the bound is only that a hostile or misconfigured client cannot grow it without limit.
+const PRICED_MODEL_SAMPLE_CAP: usize = 256;
+
 /// GitHub raw URL for LiteLLM pricing data
 const PRICING_SYNC_URL: &str =
     "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
@@ -844,6 +894,10 @@ pub struct PricingService {
     /// Pricing data (read-heavy, RwLock for concurrent reads)
     data: RwLock<PricingData>,
 
+    /// Models this instance has actually priced, bounded, so a sync can be checked against the workload
+    /// rather than against a size ratio. See [`PricingService::apply_sync_data`].
+    priced_models: RwLock<std::collections::HashSet<(String, String)>>,
+
     /// Path to local pricing file in data directory
     local_path: PathBuf,
 
@@ -873,6 +927,7 @@ impl PricingService {
 
         let service = Arc::new(Self {
             data: RwLock::new(data),
+            priced_models: RwLock::new(std::collections::HashSet::new()),
             local_path,
             http_client,
         });
@@ -887,7 +942,21 @@ impl PricingService {
         Ok(service)
     }
 
-    /// Load pricing data with fallback: local file → embedded
+    /// Load pricing data: the local file when it is the better catalogue, else this build's embedded one.
+    ///
+    /// "Better" used to mean *larger* - `local.model_count >= embedded_count` - and a model count is not a
+    /// statement about freshness. A catalogue that accumulated retired models is bigger and more wrong, so a
+    /// stale local file won on size and pinned its prices, and upgrading the binary could not dislodge it.
+    ///
+    /// What decides it now is **provenance**, recorded when the file is written (see [`PricingProvenance`]):
+    ///
+    /// - written by a **sync** - upstream data, so at least as authoritative as any snapshot compiled into a
+    ///   binary. Used, and the startup sync refreshes it anyway.
+    /// - written from an **embedded** catalogue whose digest matches this build's - the same bytes. Used.
+    /// - written from a *different* embedded catalogue, or carrying no provenance at all: this build shipped
+    ///   its own snapshot and that is the one to trust. Replaced.
+    ///
+    /// Every branch is decidable from facts this code controls, and none of them is a proxy for another.
     async fn load_pricing_data(local_path: &Path) -> Result<PricingData, PricingError> {
         if !local_path.exists() {
             return Self::load_embedded_with_save(local_path).await;
@@ -895,10 +964,27 @@ impl PricingService {
 
         match Self::try_load_local(local_path).await {
             Ok(local_data) => {
-                let embedded_count = Self::count_embedded_models();
-                if local_data.model_count >= embedded_count {
+                let provenance = Self::read_provenance(local_path).await;
+                let keep = match &provenance {
+                    Some(p) if p.source == PROVENANCE_SYNC => true,
+                    Some(p) => p.embedded_digest.as_deref() == Some(embedded_digest()),
+                    None => false,
+                };
+                if keep {
+                    tracing::debug!(
+                        models = local_data.model_count,
+                        source = provenance
+                            .as_ref()
+                            .map(|p| p.source.as_str())
+                            .unwrap_or("none"),
+                        "Using the local pricing catalogue"
+                    );
                     Ok(local_data)
                 } else {
+                    tracing::debug!(
+                        "The local pricing catalogue came from a different build's embedded copy; \
+                         replacing it with this build's"
+                    );
                     Self::load_embedded_with_save(local_path).await
                 }
             }
@@ -914,26 +1000,58 @@ impl PricingService {
         let data = PricingData::from_json_str(EMBEDDED_PRICING_JSON)?;
         if let Err(e) = Self::save_to_file(local_path, EMBEDDED_PRICING_JSON).await {
             tracing::warn!(error = %e, "Failed to save pricing to disk (continuing with embedded)");
+        } else {
+            Self::write_provenance(
+                local_path,
+                PricingProvenance {
+                    source: PROVENANCE_EMBEDDED.to_string(),
+                    embedded_digest: Some(embedded_digest().to_string()),
+                    written_at: chrono::Utc::now().to_rfc3339(),
+                },
+            )
+            .await;
         }
         Ok(data)
     }
 
-    /// Count models in embedded data
-    /// The embedded catalogue's model count, measured **the same way** the local one is.
+    /// Note a model this instance priced, so a sync can be checked against the real workload.
     ///
-    /// Counting raw JSON keys and comparing that against `PricingData::model_count` - which counts only the
-    /// entries that actually carry token prices - compared two different quantities: 3,407 keys against 2,710
-    /// priced models for the very same file. So a *newer* synced catalogue was judged smaller than the
-    /// embedded one and overwritten on every restart, and the sync was effectively dead. Parsing it through
-    /// the same path is the only way the numbers mean the same thing.
-    fn count_embedded_models() -> usize {
-        match PricingData::from_json_str(EMBEDDED_PRICING_JSON) {
-            Ok(data) => data.model_count,
-            Err(e) => {
-                tracing::warn!(error = %e, "Failed to count embedded models, keeping the local catalogue");
-                // Zero, so an unparseable *embedded* catalogue never displaces a local one that did parse.
-                0
+    /// Bounded, and it stops recording rather than evicting: the set exists to answer "would this sync break
+    /// what we are pricing", and an LRU would quietly drop the evidence for a long-tail model that is still
+    /// in use. A cap of [`PRICED_MODEL_SAMPLE_CAP`] is far more than any deployment's distinct model set.
+    fn record_priced_model(&self, system: Option<&str>, model: &str) {
+        let key = (system.unwrap_or_default().to_string(), model.to_lowercase());
+        {
+            let observed = self.priced_models.read();
+            if observed.contains(&key) || observed.len() >= PRICED_MODEL_SAMPLE_CAP {
+                return;
             }
+        }
+        let mut observed = self.priced_models.write();
+        if observed.len() < PRICED_MODEL_SAMPLE_CAP {
+            observed.insert(key);
+        }
+    }
+
+    /// Read the sidecar beside the catalogue. Absent or unreadable is simply "unknown provenance", which
+    /// the caller treats as "not this build's" - the safe direction, since the cost is re-saving a file.
+    async fn read_provenance(local_path: &Path) -> Option<PricingProvenance> {
+        let raw = tokio::fs::read_to_string(provenance_path(local_path))
+            .await
+            .ok()?;
+        serde_json::from_str(&raw).ok()
+    }
+
+    /// Best-effort: a missing sidecar costs one re-save, never a wrong price.
+    async fn write_provenance(local_path: &Path, provenance: PricingProvenance) {
+        let path = provenance_path(local_path);
+        match serde_json::to_string(&provenance) {
+            Ok(json) => {
+                if let Err(e) = tokio::fs::write(&path, json).await {
+                    tracing::debug!(error = %e, "Could not record pricing provenance");
+                }
+            }
+            Err(e) => tracing::debug!(error = %e, "Could not serialise pricing provenance"),
         }
     }
 
@@ -943,6 +1061,7 @@ impl PricingService {
         let data = PricingData::from_json_str(EMBEDDED_PRICING_JSON)?;
         Ok(Self {
             data: RwLock::new(data),
+            priced_models: RwLock::new(std::collections::HashSet::new()),
             local_path: std::env::temp_dir().join("sideseat_test_pricing.json"),
             http_client: reqwest::Client::new(),
         })
@@ -980,6 +1099,7 @@ impl PricingService {
         };
 
         let data = self.data.read();
+        self.record_priced_model(input.system.as_deref(), model);
         let (pricing, match_type) = match data.lookup(input.system.as_deref(), model) {
             Some(result) => result,
             None => {
@@ -1136,34 +1256,63 @@ impl PricingService {
             }
         };
 
-        let new_count = new_data.model_count;
-        let current_count = self.data.read().model_count;
+        // Two guards, neither of them a ratio against whatever happens to be loaded.
+        //
+        // The old check refused a sync holding fewer than half the current catalogue's models. A model count
+        // measures accumulated history, not correctness: a local catalogue bloated with retired models raised
+        // the bar until the *current* upstream catalogue was refused, and since the check ran on every sync
+        // the prices were pinned permanently - the worse the local file, the harder it was to fix.
+        //
+        // What the check was actually for is a truncated or wrong download, and that is asked directly:
 
-        // Sanity check: reject if new data has < 50% of current models
-        let min_acceptable = current_count / 2;
-        if new_count < min_acceptable {
+        // 1. A structural floor. Fixed, so it cannot be dragged upward by a bad local file, and far below
+        //    any genuine catalogue.
+        if new_data.model_count < MIN_PLAUSIBLE_MODEL_COUNT {
             tracing::warn!(
-                current = current_count,
-                new = new_count,
-                min_acceptable = min_acceptable,
-                "Synced data has too few models (<50%), rejecting"
+                new = new_data.model_count,
+                minimum = MIN_PLAUSIBLE_MODEL_COUNT,
+                "Rejecting synced pricing: too few priced models to be a real catalogue"
             );
             return;
         }
 
-        // Warn if < 80%
-        let warning_threshold = (current_count * 80) / 100;
-        if new_count < warning_threshold {
+        // 2. Coverage of the models this instance is actually pricing. A catalogue legitimately shrinks as
+        //    models are retired, and that is fine - what is not fine is losing a model we are being asked
+        //    about right now, which is the shape a truncated download takes for a live workload.
+        let observed: Vec<(String, String)> = self.priced_models.read().iter().cloned().collect();
+        let lost: Vec<&(String, String)> = {
+            let current = self.data.read();
+            observed
+                .iter()
+                .filter(|(system, model)| {
+                    let system = (!system.is_empty()).then_some(system.as_str());
+                    current.lookup(system, model).is_some()
+                        && new_data.lookup(system, model).is_none()
+                })
+                .collect()
+        };
+        if !lost.is_empty() {
             tracing::warn!(
-                current = current_count,
-                new = new_count,
-                "Synced data has fewer models (< 80%), accepting with warning"
+                lost = lost.len(),
+                example = ?lost.first(),
+                "Rejecting synced pricing: it cannot price models this instance is currently pricing"
             );
+            return;
         }
 
         // Save to disk atomically
         if let Err(e) = Self::save_to_file(&self.local_path, json).await {
             tracing::warn!(error = %e, "Failed to save pricing data to disk");
+        } else {
+            Self::write_provenance(
+                &self.local_path,
+                PricingProvenance {
+                    source: PROVENANCE_SYNC.to_string(),
+                    embedded_digest: None,
+                    written_at: chrono::Utc::now().to_rfc3339(),
+                },
+            )
+            .await;
         }
 
         // Update in-memory data
@@ -1223,6 +1372,7 @@ impl Default for PricingService {
             .expect("Failed to parse embedded pricing data");
         Self {
             data: RwLock::new(data),
+            priced_models: RwLock::new(std::collections::HashSet::new()),
             local_path: PathBuf::new(),
             http_client: reqwest::Client::new(),
         }
@@ -1327,12 +1477,6 @@ mod tests {
         };
         let output = service.calculate_cost(&input);
         assert_eq!(output.total_cost, 0.0);
-    }
-
-    #[test]
-    fn test_count_embedded_models() {
-        let count = PricingService::count_embedded_models();
-        assert!(count > 1000, "Should count 1000+ models");
     }
 
     #[test]
@@ -1765,23 +1909,6 @@ mod tests {
         }
     }
 
-    /// The embedded count is measured the same way a local catalogue's is, so a synced one is not discarded.
-    ///
-    /// Counting raw JSON keys and comparing that with `model_count` - which counts only token-priced entries -
-    /// compared 3,407 against 2,710 for the *same* file, so every restart judged the freshly-synced catalogue
-    /// smaller than the embedded one and overwrote it. The sync was dead and nothing said so.
-    #[test]
-    fn the_embedded_model_count_is_measured_like_a_local_one() {
-        let parsed = PricingData::from_json_str(EMBEDDED_PRICING_JSON).unwrap();
-        assert_eq!(
-            PricingService::count_embedded_models(),
-            parsed.model_count,
-            "the two sides of the freshness comparison must count the same thing"
-        );
-        // And a local catalogue of exactly the same content must not be replaced.
-        assert!(parsed.model_count >= PricingService::count_embedded_models());
-    }
-
     /// A provider-qualified price beats the generic one for the same model.
     ///
     /// The generic exact match used to win, so every Azure deployment was billed at OpenAI's rates - about 9%
@@ -1825,35 +1952,6 @@ mod tests {
         let service = PricingService::init(&storage, 0).await.unwrap();
         // If we got here without network, sync was disabled correctly
         assert!(service.data.read().model_count > 0);
-    }
-
-    #[test]
-    fn test_count_embedded_models_robust() {
-        let count = PricingService::count_embedded_models();
-        // Should count all top-level keys except sample_spec
-        assert!(count > 1000, "Should have 1000+ models");
-        // Verify it handles JSON parsing correctly
-        assert!(count < 100000, "Should not be unreasonably large");
-    }
-
-    #[test]
-    fn test_apply_sync_data_percentage_threshold() {
-        // Test that sync accepts data with 51% of models (above 50% threshold)
-        // and rejects data with 49% of models (below 50% threshold)
-        // This would require constructing test data with specific counts
-        // For now, verify the logic by checking the threshold calculation
-        let current = 1000;
-        let min_acceptable = current / 2;
-        assert_eq!(
-            min_acceptable, 500,
-            "50% threshold should be 500 for 1000 models"
-        );
-
-        let warning_threshold = (current * 80) / 100;
-        assert_eq!(
-            warning_threshold, 800,
-            "80% threshold should be 800 for 1000 models"
-        );
     }
 
     // Bedrock regional prefix tests
@@ -3742,5 +3840,188 @@ mod tests {
             .expect("found after stripping the prefix");
         assert_eq!(stripped, MatchType::ProviderInferred);
         assert!(stripped.confidence() < stated.confidence());
+    }
+
+    /// A smaller upstream catalogue is accepted. This is the regression the size ratio caused.
+    ///
+    /// The old guard refused a sync holding under half the current catalogue's models. A count measures
+    /// accumulated history, not correctness - a local file bloated with retired models raised the bar until
+    /// the *current* upstream was refused, and because the check ran on every sync the prices were pinned
+    /// permanently: the worse the local file, the harder it was to fix.
+    #[tokio::test]
+    async fn a_smaller_but_current_catalogue_is_accepted() {
+        let service = PricingService::init_for_test().unwrap();
+        let before = service.data.read().model_count;
+
+        // A real-shaped catalogue with far fewer models than the embedded one.
+        let smaller = smaller_catalogue(before / 4);
+        let smaller_count = PricingData::from_json_str(&smaller).unwrap().model_count;
+        assert!(
+            smaller_count < before / 2,
+            "the fixture must be under the old 50% bar to be a regression test, got {smaller_count} of {before}"
+        );
+
+        service.apply_sync_data(&smaller).await;
+
+        assert_eq!(
+            service.data.read().model_count,
+            smaller_count,
+            "a catalogue that shrank because models were retired must still be applied"
+        );
+    }
+
+    /// But something too small to be a catalogue at all is refused - a truncated download.
+    #[tokio::test]
+    async fn a_catalogue_too_small_to_be_real_is_rejected() {
+        let service = PricingService::init_for_test().unwrap();
+        let before = service.data.read().model_count;
+
+        service
+            .apply_sync_data(&smaller_catalogue(MIN_PLAUSIBLE_MODEL_COUNT - 1))
+            .await;
+
+        assert_eq!(
+            service.data.read().model_count,
+            before,
+            "a catalogue below the structural floor must not replace a real one"
+        );
+    }
+
+    /// And a sync that cannot price a model this instance is currently pricing is refused.
+    ///
+    /// This is what the size ratio was reaching for and could not express: a shrinking catalogue is normal,
+    /// losing a model in active use is not, and only the second is evidence of a bad download.
+    #[tokio::test]
+    async fn a_sync_that_loses_a_model_in_use_is_rejected() {
+        let service = PricingService::init_for_test().unwrap();
+        let before = service.data.read().model_count;
+
+        // Price something, so the instance has a workload to protect.
+        let in_use = "gpt-4o-mini";
+        let output = service.calculate_cost(&SpanCostInput {
+            model: Some(in_use.to_string()),
+            system: Some("openai".to_string()),
+            input_tokens: 100,
+            output_tokens: 10,
+            ..Default::default()
+        });
+        assert!(output.total_cost > 0.0, "the fixture model must be priced");
+
+        // A catalogue that is plausible in size but does not hold it.
+        let without = smaller_catalogue_excluding(MIN_PLAUSIBLE_MODEL_COUNT + 50, in_use);
+        service.apply_sync_data(&without).await;
+
+        assert_eq!(
+            service.data.read().model_count,
+            before,
+            "losing a model in active use must not be applied"
+        );
+    }
+
+    /// Provenance, not size, decides whether the file on disk survives a restart.
+    #[tokio::test]
+    async fn a_synced_catalogue_survives_and_a_previous_build_s_embedded_copy_does_not() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("model_prices.json");
+
+        // A small catalogue on disk, recorded as coming from a sync. Under the old rule its size alone
+        // would have condemned it.
+        let synced = smaller_catalogue(200);
+        let synced_count = PricingData::from_json_str(&synced).unwrap().model_count;
+        tokio::fs::write(&path, &synced).await.unwrap();
+        PricingService::write_provenance(
+            &path,
+            PricingProvenance {
+                source: PROVENANCE_SYNC.to_string(),
+                embedded_digest: None,
+                written_at: "2026-01-01T00:00:00Z".to_string(),
+            },
+        )
+        .await;
+
+        let loaded = PricingService::load_pricing_data(&path).await.unwrap();
+        assert_eq!(
+            loaded.model_count, synced_count,
+            "upstream data must not be displaced by a snapshot compiled into the binary"
+        );
+
+        // The same file, but recorded as some *other* build's embedded copy: this build's snapshot wins.
+        PricingService::write_provenance(
+            &path,
+            PricingProvenance {
+                source: PROVENANCE_EMBEDDED.to_string(),
+                embedded_digest: Some("a-previous-release".to_string()),
+                written_at: "2026-01-01T00:00:00Z".to_string(),
+            },
+        )
+        .await;
+
+        let loaded = PricingService::load_pricing_data(&path).await.unwrap();
+        let embedded_count = PricingData::from_json_str(EMBEDDED_PRICING_JSON)
+            .unwrap()
+            .model_count;
+        assert_eq!(
+            loaded.model_count, embedded_count,
+            "a previous release's embedded copy must be replaced by this build's"
+        );
+
+        // And having replaced it, the provenance on disk now names this build.
+        let recorded = PricingService::read_provenance(&path).await.unwrap();
+        assert_eq!(recorded.source, PROVENANCE_EMBEDDED);
+        assert_eq!(recorded.embedded_digest.as_deref(), Some(embedded_digest()));
+    }
+
+    /// A file with no provenance at all is treated as unknown, so this build's snapshot is written.
+    #[tokio::test]
+    async fn a_catalogue_with_no_provenance_is_replaced() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("model_prices.json");
+        tokio::fs::write(&path, smaller_catalogue(200))
+            .await
+            .unwrap();
+
+        let loaded = PricingService::load_pricing_data(&path).await.unwrap();
+        assert_eq!(
+            loaded.model_count,
+            PricingData::from_json_str(EMBEDDED_PRICING_JSON)
+                .unwrap()
+                .model_count
+        );
+    }
+
+    /// A catalogue of `n` priced models, in the upstream shape.
+    fn smaller_catalogue(n: usize) -> String {
+        smaller_catalogue_inner(n, None)
+    }
+
+    /// The same, but built from models other than `excluded`, so a model in active use is absent.
+    fn smaller_catalogue_excluding(n: usize, excluded: &str) -> String {
+        smaller_catalogue_inner(n, Some(excluded))
+    }
+
+    /// Built by taking a subset of the *real* embedded catalogue rather than by inventing entries, so the
+    /// fixture cannot pass by being shaped differently from what upstream actually sends.
+    fn smaller_catalogue_inner(n: usize, excluded: Option<&str>) -> String {
+        let raw: serde_json::Value = serde_json::from_str(EMBEDDED_PRICING_JSON).unwrap();
+        let all = raw.as_object().unwrap();
+        let mut keys: Vec<&String> = all.keys().collect();
+        keys.sort(); // deterministic
+        let mut out = serde_json::Map::new();
+        for key in keys {
+            if out.len() >= n {
+                break;
+            }
+            if let Some(excluded) = excluded
+                && key.eq_ignore_ascii_case(excluded)
+            {
+                continue;
+            }
+            let entry = &all[key];
+            // Only token-priced entries count toward `model_count`, so take those.
+            if entry.get("input_cost_per_token").is_some() {
+                out.insert(key.clone(), entry.clone());
+            }
+        }
+        serde_json::Value::Object(out).to_string()
     }
 }

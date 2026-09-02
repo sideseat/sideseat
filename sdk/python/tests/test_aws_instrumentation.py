@@ -207,6 +207,67 @@ class TestConverse:
         assert len(output_msgs) == 1
         assert output_msgs[0]["role"] == "assistant"
 
+    def test_converse_reports_the_cache_counters_aws_actually_sends(
+        self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
+    ) -> None:
+        """Converse's TokenUsage names them cacheReadInputTokens / cacheWriteInputTokens.
+
+        The `...TokenCount` spellings read here previously exist nowhere in the API, so a cached
+        Converse call reported no cache usage and was priced as a full fresh prompt - silently, and
+        in the expensive direction.
+        """
+        provider, exporter = tracer_setup
+        client = MagicMock()
+
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "Hi"}]}},
+            "usage": {
+                "inputTokens": 10,
+                "outputTokens": 5,
+                "cacheReadInputTokens": 1200,
+                "cacheWriteInputTokens": 3400,
+            },
+            "stopReason": "end_turn",
+        }
+        client.converse = MagicMock(return_value=response)
+        patch_bedrock_client(client, provider)
+
+        client.converse(
+            modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            messages=[{"role": "user", "content": [{"text": "Hi"}]}],
+        )
+
+        attrs = dict(exporter.get_finished_spans()[0].attributes or {})
+        assert attrs["gen_ai.usage.cache_read_input_tokens"] == 1200
+        assert attrs["gen_ai.usage.cache_write_input_tokens"] == 3400
+
+    def test_converse_zero_cache_tokens_are_reported_not_dropped(
+        self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
+    ) -> None:
+        """A reported 0 is a fact about the call, distinct from the field being absent."""
+        provider, exporter = tracer_setup
+        client = MagicMock()
+
+        client.converse = MagicMock(
+            return_value={
+                "output": {"message": {"role": "assistant", "content": [{"text": "Hi"}]}},
+                "usage": {
+                    "inputTokens": 10,
+                    "outputTokens": 5,
+                    "cacheWriteInputTokens": 0,
+                },
+            }
+        )
+        patch_bedrock_client(client, provider)
+        client.converse(
+            modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            messages=[{"role": "user", "content": [{"text": "Hi"}]}],
+        )
+
+        attrs = dict(exporter.get_finished_spans()[0].attributes or {})
+        assert attrs["gen_ai.usage.cache_write_input_tokens"] == 0
+        assert "gen_ai.usage.cache_read_input_tokens" not in attrs
+
     def test_converse_with_system_prompt(
         self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
     ) -> None:

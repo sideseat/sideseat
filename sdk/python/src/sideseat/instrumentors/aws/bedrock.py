@@ -762,16 +762,36 @@ def _set_response_attrs(span: Span, model_id: str, response: dict[str, Any]) -> 
         span.set_attribute(FINISH_REASONS, [stop])
 
 
+# Converse's `TokenUsage` names its cache counters `cacheReadInputTokens` and
+# `cacheWriteInputTokens`. The `...TokenCount` spellings read here previously exist
+# nowhere in the API, so every cached Converse call reported no cache usage at all and
+# was priced as if the whole prompt had been sent fresh - the expensive direction. Both
+# spellings are accepted since an extra key lookup costs nothing, and the correct one is
+# confirmed rather than guessed: the Vercel AI SDK passes Converse's `usage` through
+# verbatim, and the captured corpus holds `cacheWriteInputTokens`.
+_CACHE_READ_KEYS = ("cacheReadInputTokens", "cacheReadInputTokenCount")
+_CACHE_WRITE_KEYS = ("cacheWriteInputTokens", "cacheWriteInputTokenCount")
+
+
+def _first_present(usage: dict[str, Any], keys: tuple[str, ...]) -> Any | None:
+    for key in keys:
+        if key in usage:
+            return usage[key]
+    return None
+
+
 def _set_usage_attrs(span: Span, usage: dict[str, Any]) -> None:
     """Set token usage attributes."""
     if "inputTokens" in usage:
         span.set_attribute(INPUT_TOKENS, usage["inputTokens"])
     if "outputTokens" in usage:
         span.set_attribute(OUTPUT_TOKENS, usage["outputTokens"])
-    if "cacheReadInputTokenCount" in usage:
-        span.set_attribute(CACHE_READ_TOKENS, usage["cacheReadInputTokenCount"])
-    if "cacheWriteInputTokenCount" in usage:
-        span.set_attribute(CACHE_WRITE_TOKENS, usage["cacheWriteInputTokenCount"])
+    cache_read = _first_present(usage, _CACHE_READ_KEYS)
+    if cache_read is not None:
+        span.set_attribute(CACHE_READ_TOKENS, cache_read)
+    cache_write = _first_present(usage, _CACHE_WRITE_KEYS)
+    if cache_write is not None:
+        span.set_attribute(CACHE_WRITE_TOKENS, cache_write)
 
 
 _BINARY_BLOCK_KEYS = frozenset({"image", "document", "video", "audio"})
