@@ -1976,14 +1976,20 @@ pub async fn get_session_ids_for_traces(
         // stays Nullable - the crate then refuses to deserialise `Nullable(String)` into `String`. Safe
         // because the predicate has already excluded null; without it this method failed outright on
         // ClickHouse while working on DuckDB, which is the exact class the parity suite exists to catch.
-        "SELECT DISTINCT assumeNotNull(session_id) AS session_id FROM otel_spans FINAL \
-         WHERE project_id = ? AND trace_id IN ({}) AND session_id IS NOT NULL AND session_id != ''",
+        // The canonical session per trace - see the DuckDB twin: a trace has one session, the one on its
+        // earliest span, and reporting every session any of its spans named made a trace belong to two.
+        "SELECT DISTINCT canonical_session FROM ( \
+           SELECT argMin(assumeNotNull(session_id), (timestamp_start, span_id)) AS canonical_session \
+           FROM otel_spans FINAL \
+           WHERE project_id = ? AND trace_id IN ({}) AND session_id IS NOT NULL AND session_id != '' \
+           GROUP BY trace_id \
+         )",
         placeholders.join(", ")
     );
 
     #[derive(Row, Deserialize)]
     struct SessionIdRow {
-        session_id: String,
+        canonical_session: String,
     }
 
     let mut query = client.query(&sql).bind(project_id);
@@ -1992,7 +1998,7 @@ pub async fn get_session_ids_for_traces(
     }
     let rows: Vec<SessionIdRow> = query.fetch_all().await?;
 
-    let mut session_ids: Vec<String> = rows.into_iter().map(|r| r.session_id).collect();
+    let mut session_ids: Vec<String> = rows.into_iter().map(|r| r.canonical_session).collect();
     session_ids.sort();
     session_ids.dedup();
     Ok(session_ids)

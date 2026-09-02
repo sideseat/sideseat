@@ -90,8 +90,16 @@ pub fn get_messages(
         //
         // The same relation as the outer query, watermark included: a traversal must resolve membership as
         // of the instant it is reading, or it can load a trace whose context it will not select.
+        // The trace's **canonical** session - its earliest span's - not "any span named it". A trace whose
+        // spans name two sessions was returned in full by both, so one session's view showed content the UI
+        // displays under another. `arg_min` over `(timestamp_start, span_id)` is the same total order the
+        // display and the feed's grouping use.
         conditions.push(format!(
-            "trace_id IN (SELECT DISTINCT trace_id FROM {dedup} WHERE project_id = ? AND session_id = ?)"
+            "trace_id IN (SELECT trace_id FROM ( \
+               SELECT trace_id, arg_min(session_id, (timestamp_start, span_id)) AS canonical_session \
+               FROM {dedup} WHERE project_id = ? AND session_id IS NOT NULL AND session_id != '' \
+               GROUP BY trace_id \
+             ) WHERE canonical_session = ?)"
         ));
         if let Some(watermark) = &watermark_bind {
             bind_values.push(watermark.clone());

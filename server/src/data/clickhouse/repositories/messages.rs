@@ -114,8 +114,14 @@ pub async fn get_messages(
             string_binds.push(trace_id.clone());
         }
     } else if let Some(session_id) = &params.session_id {
+        // The trace's canonical session; see the DuckDB twin.
         conditions.push(
-            "trace_id IN (SELECT DISTINCT trace_id FROM otel_spans FINAL WHERE project_id = ? AND session_id = ?)".to_string()
+            "trace_id IN (SELECT trace_id FROM ( \
+               SELECT trace_id, argMin(assumeNotNull(session_id), (timestamp_start, span_id)) \
+                 AS canonical_session \
+               FROM otel_spans FINAL \
+               WHERE project_id = ? AND session_id IS NOT NULL AND session_id != '' GROUP BY trace_id \
+             ) WHERE canonical_session = ?)".to_string()
         );
         string_binds.push(params.project_id.clone());
         string_binds.push(session_id.clone());

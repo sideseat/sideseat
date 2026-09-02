@@ -2395,20 +2395,24 @@ fn no_fixture_exhausts_the_replay_matching_budget() {
     assert!(checked > 80, "only checked {checked} fixtures");
 }
 
-/// The corpus matches the support matrix **in CLAUDE.md**, parsed from the document itself.
+/// The corpus matches the support matrix, parsed from the document that carries it.
 ///
 /// "Correct for all frameworks" is an open-world claim unless the set is written down, so it is written
 /// down - and a table in a document drifts the moment someone adds a suite. A second hard-coded table in
 /// this file would have drifted with it, which is what this test used to be: it compared the corpus against
 /// its own copy and left the document free to be wrong. It reads the document now, so the claim "the table
 /// and the corpus agree" is the thing actually checked.
+///
+/// The document is `server/tests/fixtures/messages/README.md`, **not** `CLAUDE.md`, and that is the whole
+/// point of moving it: `CLAUDE.md` is deliberately never committed, so this test asserted against a file the
+/// repository does not carry. It passed only on a working copy someone had edited and failed on every clean
+/// checkout and in CI - which is the exact opposite of a guard. A test can only hold a *committed* file to
+/// account.
 #[test]
 fn the_corpus_matches_the_support_matrix() {
     let doc = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("repository root")
-        .join("CLAUDE.md");
-    let text = std::fs::read_to_string(&doc).expect("CLAUDE.md");
+        .join("tests/fixtures/messages/README.md");
+    let text = std::fs::read_to_string(&doc).expect("fixtures README");
 
     // Rows look like: | `suite` | version | samples | requests |
     let mut documented: Vec<(String, usize, usize, String)> = Vec::new();
@@ -2431,7 +2435,8 @@ fn the_corpus_matches_the_support_matrix() {
     documented.sort();
     assert!(
         documented.len() > 10,
-        "the support matrix was not found in CLAUDE.md; this test is the thing that keeps it true, so a \
+        "the support matrix was not found in the fixtures README; this test is the thing that keeps it \
+         true, so a \
          format change here must be matched there"
     );
 
@@ -2484,7 +2489,8 @@ fn the_corpus_matches_the_support_matrix() {
         .collect();
     assert_eq!(
         found, documented_counts,
-        "the fixture corpus and CLAUDE.md's support matrix disagree; update the table, because the \
+        "the fixture corpus and the fixtures README's support matrix disagree; update the table, because \
+         the \
          boundary of \"correct for all frameworks\" is exactly that list"
     );
 

@@ -1887,8 +1887,13 @@ pub fn get_session_ids_for_traces(
         // versions in the append-only table, so reading raw returned the old session *and* the new one -
         // while ClickHouse `FINAL` returns only the current one. Deduplicating first makes the two backends
         // resolve the same current membership. See the ClickHouse twin.
-        "SELECT DISTINCT session_id FROM {DEDUP} WHERE project_id = ? AND trace_id IN ({}) \
-         AND session_id IS NOT NULL AND session_id != ''",
+        // The canonical session per trace, for the same reason as the mirror query: a trace has one
+        // session, so this must not report a session the trace is not actually in.
+        "SELECT DISTINCT canonical_session FROM ( \
+           SELECT arg_min(session_id, (timestamp_start, span_id)) AS canonical_session \
+           FROM {DEDUP} WHERE project_id = ? AND trace_id IN ({}) \
+           AND session_id IS NOT NULL AND session_id != '' GROUP BY trace_id \
+         )",
         placeholders.join(", "),
         DEDUP = dedup
     );
@@ -1927,9 +1932,20 @@ pub fn get_trace_ids_for_sessions(
 
     let (dedup, as_of_bind) = membership_relation(as_of_us);
     let sql = format!(
-        // `DEDUP_SPANS`, matching the ClickHouse `FINAL` twin: resolve against each span's current version
-        // so a re-delivery that changed a span's session does not return a trace under its old session.
-        "SELECT DISTINCT trace_id FROM {DEDUP} WHERE project_id = ? AND session_id IN ({})",
+        // A trace belongs to **one** session: the one on its earliest span, which is what every view
+        // displays and what the feed groups by. `WHERE session_id IN (…)` asked instead whether *any* span
+        // of the trace named the session, so a trace whose spans name two sessions belonged to both - it was
+        // returned by both sessions' reads, and deleting either one deleted the whole trace, taking content
+        // the UI showed under the other. `arg_min` over `(timestamp_start, span_id)` is the same total order
+        // the display and the grouping use, so all four now agree.
+        //
+        // `DEDUP_SPANS` (or its watermarked form) matches the ClickHouse `FINAL` twin: resolve against each
+        // span's current version, so a re-delivery that changed a session does not answer for the old one.
+        "SELECT trace_id FROM ( \
+           SELECT trace_id, arg_min(session_id, (timestamp_start, span_id)) AS canonical_session \
+           FROM {DEDUP} WHERE project_id = ? AND session_id IS NOT NULL AND session_id != '' \
+           GROUP BY trace_id \
+         ) WHERE canonical_session IN ({})",
         in_clause,
         DEDUP = dedup
     );
@@ -4867,6 +4883,109 @@ mod tests {
                 .messages_json
                 .contains("the corrected answer"),
             "the current read must return the corrected content"
+        );
+    }
+
+    /// A trace belongs to exactly one session, and deleting another session leaves it alone.
+    ///
+    /// Every *view* already treats a trace's session as the one on its earliest span, but membership asked
+    /// whether *any* span of the trace named the session. So a trace whose spans name two sessions belonged
+    /// to both: both sessions' reads returned it in full, and deleting either deleted the whole trace -
+    /// taking content the UI was displaying under the other. That last one is data loss, not a display
+    /// inconsistency.
+    #[tokio::test]
+    async fn a_trace_belongs_to_one_session_across_reads_and_deletion() {
+        use crate::data::duckdb::repositories::messages::get_messages;
+        use crate::data::types::MessageQueryParams;
+
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+        let t0 = Utc::now() - chrono::Duration::seconds(60);
+
+        let payload = |text: &str| {
+            Some(
+                serde_json::json!([{
+                    "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+                    "content": {"role": "user", "content": text}
+                }])
+                .to_string(),
+            )
+        };
+
+        // One trace, two spans naming different sessions. The earliest span is the canonical one.
+        let span = |span_id: &str, session: &str, offset: i64, text: &str| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: "trace-1".to_string(),
+            span_id: span_id.to_string(),
+            span_name: "generation".to_string(),
+            observation_type: Some(ObservationType::Generation),
+            timestamp_start: t0 + chrono::Duration::seconds(offset),
+            session_id: Some(session.to_string()),
+            messages: payload(text),
+            ..Default::default()
+        };
+
+        {
+            let conn = service.conn();
+            insert_batch(
+                &conn,
+                &[
+                    span("span-1", "session-canonical", 0, "the first turn"),
+                    span(
+                        "span-2",
+                        "session-stray",
+                        1,
+                        "a later span with another session",
+                    ),
+                ],
+            )
+            .expect("insert");
+        }
+
+        let rows_for = |session: &str| {
+            let conn = service.conn();
+            get_messages(
+                &conn,
+                &MessageQueryParams {
+                    project_id: project.to_string(),
+                    session_id: Some(session.to_string()),
+                    ..Default::default()
+                },
+            )
+            .expect("query")
+            .rows
+        };
+
+        assert_eq!(
+            rows_for("session-canonical").len(),
+            2,
+            "the canonical session holds the whole trace"
+        );
+        assert!(
+            rows_for("session-stray").is_empty(),
+            "a session named only by a later span does not own the trace"
+        );
+
+        // And which sessions the trace reports is the same single answer.
+        {
+            let conn = service.conn();
+            let sessions =
+                get_session_ids_for_traces(&conn, project, &["trace-1".to_string()], None)
+                    .expect("sessions");
+            assert_eq!(sessions, vec!["session-canonical".to_string()]);
+        }
+
+        // Deleting the stray session must not touch the trace. This is the data-loss case.
+        {
+            let conn = service.conn();
+            let deleted =
+                delete_sessions(&conn, project, &["session-stray".to_string()]).expect("delete");
+            assert_eq!(deleted, 0, "no trace belongs to the stray session");
+        }
+        assert_eq!(
+            rows_for("session-canonical").len(),
+            2,
+            "the trace survived the other session's deletion"
         );
     }
 }

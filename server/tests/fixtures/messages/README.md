@@ -35,6 +35,41 @@ is the only input the server really receives, so a fixture cannot drift from rea
 replays it through the real ingestion path (`extract_attributes_batch`,
 `extract_messages_batch`, SideML conversion, enrichment) before comparing.
 
+## Support matrix
+
+The boundary of "correct for all frameworks": exactly the suites below, at the versions they were captured
+against. `the_corpus_matches_the_support_matrix` fails if a suite is added or removed without updating this
+table - so the claim stays checked rather than described.
+
+It lives here, in a **committed** file, and not in `CLAUDE.md`: that file is deliberately never committed, so
+a test reading it passed only on the machine whose working copy had been edited and failed on every clean
+checkout and in CI. A test cannot assert against a file the repository does not carry.
+
+| Suite | Version captured against | Samples | Captured requests |
+| --- | --- | --- | --- |
+| `_synthetic` | hand-written shapes, no SDK | 5 | 5 |
+| `adk` | google-adk >=1.27.0 | 8 | 18 |
+| `agent-framework` | agent-framework-core >=1.0.0b0 | 10 | 17 |
+| `anthropic` | anthropic >=0.84.0 | 7 | 18 |
+| `bedrock` | boto3 (bedrock runtime) | 6 | 14 |
+| `claude-agent-sdk` | claude-agent-sdk >=0.2.0 | 8 | 17 |
+| `claude-agent-sdk-js` | @anthropic-ai/claude-agent-sdk ^0.3.246 | 8 | 17 |
+| `crewai` | crewai >=1.10.1 | 9 | 33 |
+| `langgraph` | langgraph >=1.1.2 | 9 | 23 |
+| `openai` | openai >=1.80.0 | 6 | 8 |
+| `openai-agents` | openai-agents >=0.12.1 | 10 | 37 |
+| `strands` | strands-agents >=1.30.0 | 10 | 40 |
+| `strands-js` | @strands-agents/sdk ^1.14.0 | 7 | 12 |
+| `vercel-ai-js` | ai ^7.0.79 | 6 | 13 |
+| **14 suites** | | **109** | **272** |
+
+Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
+`vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
+`image_gen` fixtures cover the same path in under 100 KB, because media is rewritten to file URIs). They are
+gitignored and captured locally when working on image handling, so the counts above are what a checkout has.
+`local_only_samples_are_actually_gitignored` stops that exemption from excusing a sample somebody merely
+forgot to commit.
+
 ## Capturing a suite
 
 Needs working model credentials, since the samples call a real model.
