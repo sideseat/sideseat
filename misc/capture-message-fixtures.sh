@@ -224,11 +224,14 @@ for entry in "${SUITES[@]}"; do
         echo "[capture] $label: WARNING gitleaks not installed - only the fallback patterns ran"
       fi
 
-      # Value shapes, not field names. AWS long-term and STS key ids; secret keys and session
-      # tokens in either snake_case or camelCase; bearer tokens; generic api keys; SigV4
-      # signatures in a presigned URL.
+      # Value shapes, not field names - and where a field name is unavoidable, its *separator* is a
+      # character class rather than a fixed spelling. OTel attributes are dotted
+      # (`aws.auth.account.secret_access_key`), SDK config is snake_case, JSON is often camelCase, and
+      # enumerating spellings is precisely how the dotted form slipped through and put four STS key ids
+      # into git history. Covered: AWS long-term and STS key ids; secret keys and session tokens in any
+      # of those spellings; bearer tokens; generic api keys; SigV4 signatures in a presigned URL.
       if [[ -z "$secret_hit" ]] && grep -rlqE \
-          "(AKIA|ASIA)[A-Z0-9]{16}|(aws_?secret_?access_?key|secretAccessKey)['\"]?[[:space:]]*[:=][[:space:]]*['\"][^'\"]{8,}|(aws_?session_?token|sessionToken)['\"]?[[:space:]]*[:=][[:space:]]*['\"][^'\"]{20,}|[Bb]earer[[:space:]]+[A-Za-z0-9._~+/-]{20,}|(api[_-]?key|apiKey)['\"]?[[:space:]]*[:=][[:space:]]*['\"][^'\"]{16,}|X-Amz-Signature=[a-f0-9]{32,}" \
+          "(AKIA|ASIA)[A-Z0-9]{16}|(aws[._]?)?[Ss]ecret[._]?[Aa]ccess[._]?[Kk]ey['\"]?[[:space:]]*[:=][[:space:]]*['\"][^'\"]{8,}|(aws[._]?)?[Ss]ession[._]?[Tt]oken['\"]?[[:space:]]*[:=][[:space:]]*['\"][^'\"]{20,}|[Bb]earer[[:space:]]+[A-Za-z0-9._~+/-]{20,}|[Aa]pi[._-]?[Kk]ey['\"]?[[:space:]]*[:=][[:space:]]*['\"][^'\"]{16,}|X-Amz-Signature=[a-f0-9]{32,}" \
           "${FIXTURES}/${label}" 2>/dev/null; then
         secret_hit="pattern"
       fi

@@ -72,12 +72,16 @@ pub fn trace_display_first(column: &str, alias: &str, dialect_first: DisplayName
         format!("{alias}.")
     };
     match dialect_first {
+        // `span_id` breaks the tie, making this a **total** order. Ordering by the timestamp alone left
+        // same-instant spans to the engine, so a filter could match a different span's value than the one
+        // the row displays and than the one session membership resolves to - three answers about one trace.
         DisplayNameDialect::DuckDb => format!(
-            "FIRST({prefix}{column} ORDER BY {prefix}timestamp_start) \
+            "FIRST({prefix}{column} ORDER BY {prefix}timestamp_start, {prefix}span_id) \
              FILTER (WHERE {prefix}{column} IS NOT NULL)"
         ),
         DisplayNameDialect::ClickHouse => format!(
-            "argMinIf({prefix}{column}, {prefix}timestamp_start, {prefix}{column} IS NOT NULL)"
+            "argMinIf({prefix}{column}, ({prefix}timestamp_start, {prefix}span_id), \
+             {prefix}{column} IS NOT NULL)"
         ),
     }
 }
