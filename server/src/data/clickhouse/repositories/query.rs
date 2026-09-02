@@ -879,7 +879,8 @@ pub async fn list_traces(
 
     if let Some(ref sid) = params.session_id {
         // session_id is only on root spans; use trace_id subquery to include all spans
-        cb.conditions.push("trace_id IN (SELECT DISTINCT trace_id FROM otel_spans FINAL WHERE project_id = ? AND session_id = ?)".to_string());
+        cb.conditions
+            .push(format!("trace_id IN ({TRACES_OF_SESSION})"));
         cb.params
             .push(QueryParam::String(params.project_id.clone()));
         cb.params.push(QueryParam::String(sid.clone()));
@@ -1228,7 +1229,8 @@ pub async fn list_spans(
     }
     if let Some(ref sid) = params.session_id {
         // session_id is only on root spans; use trace_id subquery to include all spans
-        cb.conditions.push("trace_id IN (SELECT DISTINCT trace_id FROM otel_spans FINAL WHERE project_id = ? AND session_id = ?)".to_string());
+        cb.conditions
+            .push(format!("trace_id IN ({TRACES_OF_SESSION})"));
         cb.params
             .push(QueryParam::String(params.project_id.clone()));
         cb.params.push(QueryParam::String(sid.clone()));
@@ -1671,10 +1673,7 @@ pub async fn get_session(
 ) -> Result<Option<SessionRow>, ClickhouseError> {
     let sql = format!(
         r#"
-        WITH session_traces AS (
-            SELECT DISTINCT trace_id FROM otel_spans FINAL
-            WHERE project_id = ? AND session_id = ?
-        ),
+        WITH session_traces AS ({TRACES_OF_SESSION}),
         {dedup_cte},
         gen_totals AS (
             SELECT
@@ -1870,10 +1869,7 @@ pub async fn get_traces_for_session(
 ) -> Result<Vec<TraceRow>, ClickhouseError> {
     let sql = format!(
         r#"
-        WITH session_traces AS (
-            SELECT DISTINCT trace_id FROM otel_spans FINAL
-            WHERE project_id = ? AND session_id = ?
-        ),
+        WITH session_traces AS ({TRACES_OF_SESSION}),
         {dedup_cte},
         {gen_totals}
         SELECT
@@ -1907,6 +1903,19 @@ pub async fn get_traces_for_session(
 
     Ok(rows.into_iter().map(TraceRow::from).collect())
 }
+
+/// The traces of one session: `?` project, `?` session, in that order. The DuckDB twin is
+/// `TRACES_OF_SESSION` there, and the reasoning is recorded on it.
+///
+/// A trace belongs to the session on its **earliest** span, which is what the row displays and what the feed
+/// groups by. `WHERE session_id = ?` asked whether *any* span named it, so a trace whose spans name two
+/// sessions matched both filters.
+pub(crate) const TRACES_OF_SESSION: &str = "SELECT trace_id FROM ( \
+       SELECT trace_id, argMin(assumeNotNull(session_id), (timestamp_start, span_id)) AS canonical_session \
+       FROM otel_spans FINAL \
+       WHERE project_id = ? AND session_id IS NOT NULL AND session_id != '' \
+       GROUP BY trace_id \
+     ) WHERE canonical_session = ?";
 
 /// Which session each of the given traces belongs to; traces with none are absent.
 ///

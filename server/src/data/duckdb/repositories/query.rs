@@ -69,6 +69,26 @@ pub(crate) const DEDUP_SPANS: &str = "(SELECT * FROM otel_spans \
 /// mid-traversal is read with its old content but expanded under its new session, so the session it
 /// actually replays is never loaded and its history has nothing to collapse against - which the reader sees
 /// as duplicated turns across pages. Returns the relation and the bind it needs (none when unbounded).
+/// The traces of one session: `?` project, `?` session, in that order.
+///
+/// A trace belongs to the session on its **earliest** span - the same total order the row displays and the
+/// feed groups by. `WHERE session_id = ?` asked instead whether *any* span of the trace named it, so a trace
+/// whose spans name two sessions matched both, and a list filtered by one session showed a row displayed
+/// under the other. Deduplicated as well, so a re-delivery that changed a span's session does not answer for
+/// the version it replaced.
+///
+/// Defined once because it appeared in six places here and drifted in two dimensions at once - some sites
+/// read raw `otel_spans`, all of them used the loose predicate. The bind order is the same as the text it
+/// replaced, so call sites did not have to change.
+pub(crate) const TRACES_OF_SESSION: &str = "SELECT trace_id FROM ( \
+       SELECT trace_id, arg_min(session_id, (timestamp_start, span_id)) AS canonical_session \
+       FROM (SELECT * FROM otel_spans \
+             QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
+                                        ORDER BY ingested_at DESC, rowid DESC) = 1) \
+       WHERE project_id = ? AND session_id IS NOT NULL AND session_id != '' \
+       GROUP BY trace_id \
+     ) WHERE canonical_session = ?";
+
 pub(crate) fn membership_relation(as_of_us: Option<i64>) -> (&'static str, Option<String>) {
     match as_of_us {
         Some(us) => (dedup_spans_as_of_watermark(), Some(us.to_string())),
@@ -228,11 +248,9 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
 
     // Optional filters
     if let Some(ref sid) = params.session_id {
-        // session_id is only on root spans; use trace_id subquery to include all spans
-        conditions.push(format!(
-            "{} IN (SELECT DISTINCT trace_id FROM otel_spans WHERE project_id = ? AND session_id = ?)",
-            col("trace_id")
-        ));
+        // A trace's session lives on the span that knows it, so the filter is by trace - and by the
+        // trace's *canonical* session; see `TRACES_OF_SESSION`.
+        conditions.push(format!("{} IN ({TRACES_OF_SESSION})", col("trace_id")));
         bind_values.push(params.project_id.clone());
         bind_values.push(sid.clone());
     }
@@ -698,9 +716,7 @@ pub fn list_spans(
 
     if let Some(ref sid) = params.session_id {
         // session_id is only on root spans; use trace_id subquery to include all spans
-        conditions.push(
-            "trace_id IN (SELECT DISTINCT trace_id FROM otel_spans WHERE project_id = ? AND session_id = ?)".to_string()
-        );
+        conditions.push(format!("trace_id IN ({TRACES_OF_SESSION})"));
         bind_values.push(params.project_id.clone());
         bind_values.push(sid.clone());
     }
@@ -1295,10 +1311,7 @@ pub fn get_session(
     // Two-path token filter: see get_trace for detailed explanation.
     let sql = format!(
         r#"
-        WITH session_traces AS (
-            SELECT DISTINCT trace_id FROM otel_spans
-            WHERE project_id = ? AND session_id = ?
-        ),
+        WITH session_traces AS ({TRACES_OF_SESSION}),
         gen_totals AS (
             SELECT
                 COALESCE(SUM(gen_ai_usage_input_tokens), 0) AS input_tokens,
@@ -1408,10 +1421,7 @@ pub fn get_traces_for_session(
     // Two-path token filter: see get_trace for detailed explanation.
     let sql = format!(
         r#"
-        WITH session_traces AS (
-            SELECT DISTINCT trace_id FROM otel_spans
-            WHERE project_id = ? AND session_id = ?
-        ),
+        WITH session_traces AS ({TRACES_OF_SESSION}),
         gen_totals AS (
             SELECT
                 g.trace_id,
@@ -4884,6 +4894,81 @@ mod tests {
                 .contains("the corrected answer"),
             "the current read must return the corrected content"
         );
+    }
+
+    /// A session *filter* on the trace and span lists also honours the canonical session.
+    ///
+    /// Parity between the backends is not enough on its own - they can agree on being wrong - so this pins
+    /// the answer itself. The filter asked whether *any* span of the trace named the session, so a row
+    /// displayed under one session matched a filter for another.
+    #[tokio::test]
+    async fn a_session_filter_selects_only_traces_canonically_in_it() {
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+        let t0 = Utc::now() - chrono::Duration::seconds(60);
+
+        let span = |span_id: &str, session: &str, offset: i64| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: "trace-1".to_string(),
+            span_id: span_id.to_string(),
+            span_name: "generation".to_string(),
+            observation_type: Some(ObservationType::Generation),
+            timestamp_start: t0 + chrono::Duration::seconds(offset),
+            session_id: Some(session.to_string()),
+            ..Default::default()
+        };
+
+        {
+            let conn = service.conn();
+            insert_batch(
+                &conn,
+                &[
+                    span("span-1", "session-canonical", 0),
+                    span("span-2", "session-stray", 1),
+                ],
+            )
+            .expect("insert");
+        }
+
+        let conn = service.conn();
+        for (session, expect_traces, expect_spans) in [
+            ("session-canonical", 1usize, 2usize),
+            ("session-stray", 0, 0),
+        ] {
+            let traces = list_traces(
+                &conn,
+                &ListTracesParams {
+                    project_id: project.to_string(),
+                    session_id: Some(session.to_string()),
+                    page: 1,
+                    limit: 50,
+                    ..Default::default()
+                },
+            )
+            .expect("list_traces");
+            assert_eq!(
+                traces.0.len(),
+                expect_traces,
+                "trace list filtered by {session}"
+            );
+
+            let spans = list_spans(
+                &conn,
+                &ListSpansParams {
+                    project_id: project.to_string(),
+                    session_id: Some(session.to_string()),
+                    page: 1,
+                    limit: 50,
+                    ..Default::default()
+                },
+            )
+            .expect("list_spans");
+            assert_eq!(
+                spans.0.len(),
+                expect_spans,
+                "span list filtered by {session}"
+            );
+        }
     }
 
     /// A trace belongs to exactly one session, and deleting another session leaves it alone.
