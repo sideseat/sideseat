@@ -173,7 +173,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 201,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -235,7 +235,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -345,7 +345,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 201,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -407,7 +407,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -469,7 +469,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 201,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -598,7 +598,7 @@
         "gen_ai.usage.input_tokens": 21245,
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -660,7 +660,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -722,7 +722,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -784,7 +784,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 201,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -846,7 +846,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -908,7 +908,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 201,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -970,7 +970,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -1032,7 +1032,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -1094,7 +1094,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -1276,7 +1276,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 201,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -1338,7 +1338,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -1400,7 +1400,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 201,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -1510,7 +1510,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -1572,7 +1572,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 201,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -1644,7 +1644,7 @@
         "gen_ai.usage.input_tokens": 21209,
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -1763,7 +1763,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -1825,7 +1825,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -1887,7 +1887,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 201,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -1949,7 +1949,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -2011,7 +2011,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 201,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -2073,7 +2073,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -2135,7 +2135,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -2197,7 +2197,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -2320,7 +2320,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 201,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -2441,7 +2441,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -2551,7 +2551,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 201,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -2613,7 +2613,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -2675,7 +2675,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 201,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -2804,7 +2804,7 @@
         "gen_ai.usage.input_tokens": 21114,
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -2866,7 +2866,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -2928,7 +2928,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -2990,7 +2990,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 201,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
@@ -3052,7 +3052,7 @@
         "retry_attempts": 0,
         "PlatformType": "AWS::BedrockAgentCore",
         "http.response.status_code": 200,
-        "aws.auth.account.access_key": "ASIAIOSFODNN7EXAMPLE",
+        "aws.auth.account.access_key": "ASIAEXAMPLEREDACTED0",
         "session.id": "cc8a8e69-8bed-4e5f-9a06-9a58550fd713"
       },
       "status": {
