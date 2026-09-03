@@ -3130,6 +3130,18 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
             "{label}: the trace has moved on, so unbounded the old session holds nothing: \
              {expanded_now:?}"
         );
+        // The session the trace moved *to* holds nothing as of the watermark, on both backends - it did not
+        // hold the trace yet. Asserted for both because it also exercises the bound's bind order: with the
+        // watermark and the project id swapped this query fails outright rather than answering wrongly.
+        let too_early = backend
+            .get_trace_ids_for_sessions(PROJECT, &["session-late".to_string()], Some(watermark_us))
+            .await
+            .unwrap_or_else(|e| panic!("{label}: bounded expansion of the later session: {e}"));
+        assert!(
+            too_early.is_empty(),
+            "{label}: as of the watermark the trace had not moved to session-late: {too_early:?}"
+        );
+
         if exact {
             let expanded = backend
                 .get_trace_ids_for_sessions(

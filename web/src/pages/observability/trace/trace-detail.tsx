@@ -101,9 +101,17 @@ export function TraceDetail({
     return traceData?.spans?.filter((s) => s.raw_span) ?? [];
   }, [traceData?.spans]);
 
-  // Memoize breakdown objects to avoid recreation on each render
+  // Memoize breakdown objects to avoid recreation on each render.
+  //
+  // Withheld when the detail query has errored, even though React Query still holds its last answer: the
+  // header prefers the breakdown's total over the message response's, so a detail request that failed after
+  // new spans arrived left the page showing fresh messages beside stale token and cost totals with nothing
+  // saying so. Without a breakdown the header falls back to the totals that came *with* these messages, so
+  // the number and the thread it describes are from one answer.
+  const detailIsStale = !!traceError;
+
   const tokenBreakdown = useMemo(() => {
-    if (!traceData) return undefined;
+    if (!traceData || detailIsStale) return undefined;
     return {
       input_tokens: traceData.input_tokens,
       output_tokens: traceData.output_tokens,
@@ -112,10 +120,10 @@ export function TraceDetail({
       reasoning_tokens: traceData.reasoning_tokens,
       total_tokens: traceData.total_tokens,
     };
-  }, [traceData]);
+  }, [traceData, detailIsStale]);
 
   const costBreakdown = useMemo(() => {
-    if (!traceData) return undefined;
+    if (!traceData || detailIsStale) return undefined;
     return {
       input_cost: traceData.input_cost,
       output_cost: traceData.output_cost,
@@ -124,7 +132,7 @@ export function TraceDetail({
       reasoning_cost: traceData.reasoning_cost,
       total_cost: traceData.total_cost,
     };
-  }, [traceData]);
+  }, [traceData, detailIsStale]);
 
   if (activeTab === "thread") {
     return (

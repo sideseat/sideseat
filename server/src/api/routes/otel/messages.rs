@@ -82,6 +82,16 @@ pub async fn get_span_messages(
         .await
         .map_err(ApiError::from_data)?;
 
+    // A span that exists always yields its row: unlike the trace and session queries, this one applies no
+    // content filter, so "no rows" means the span is not there. Answering an empty 200 said the span exists
+    // and holds no messages, which is a different fact - and the detail routes beside this one already 404.
+    if result.rows.is_empty() {
+        return Err(ApiError::not_found(
+            "SPAN_NOT_FOUND",
+            format!("Span not found: {span_id}"),
+        ));
+    }
+
     // Process through feed pipeline
     let processed = process_spans_cached(&state.reconstruction, result.rows, &options);
     let processed = apply_time_window(processed, from_timestamp, to_timestamp);
@@ -122,17 +132,19 @@ pub async fn get_trace_messages(
 
     // Fetch trace metadata for session_id and totals
     let repo = state.analytics.repository();
+    // Absent means absent, as on the trace detail route: an empty 200 said the trace exists and holds no
+    // messages, so a stale URL after a deletion was indistinguishable from a trace that never spoke.
     let trace = repo
         .get_trace(project_id, trace_id)
         .await
-        .map_err(ApiError::from_data)?;
+        .map_err(ApiError::from_data)?
+        .ok_or_else(|| {
+            ApiError::not_found("TRACE_NOT_FOUND", format!("Trace not found: {trace_id}"))
+        })?;
 
     // Session-aware loading: if trace belongs to a session, load ALL session spans
     // so cross-trace prefix stripping can remove history re-sent from prior traces
-    let session_id = trace
-        .as_ref()
-        .and_then(|t| t.session_id.as_ref())
-        .filter(|s| !s.is_empty());
+    let session_id = trace.session_id.as_ref().filter(|s| !s.is_empty());
 
     let result = if let Some(sid) = session_id {
         let params = MessageQueryParams {
@@ -182,7 +194,7 @@ pub async fn get_trace_messages(
     let processed = apply_time_window(processed, from_timestamp, to_timestamp);
 
     // Use trace-level totals for metadata (matches trace endpoint)
-    let trace_totals = trace.map(|t| (t.total_tokens, t.total_cost));
+    let trace_totals = Some((trace.total_tokens, trace.total_cost));
     let response = build_messages_response(processed, trace_totals);
     Ok(Json(response))
 }
@@ -217,8 +229,25 @@ pub async fn get_session_messages(
     // History filtering is automatic (duplicates are detected and filtered)
     let options = query.to_feed_options();
 
-    // Fetch raw span rows
     let repo = state.analytics.repository();
+
+    // Before the rows, so a session that is not there is a 404 rather than an empty 200 - the same answer
+    // the session detail route gives, and the same distinction: "no such session" is not "no messages".
+    // Its totals are read here too; the pipeline's cover only the rows it was handed, and a message query is
+    // handed only rows carrying messages, tools or an error, so a span billed with nothing to show counted as
+    // free. They also lack the parent/child billing dedup the session summary applies.
+    let session = repo
+        .get_session(project_id, session_id)
+        .await
+        .map_err(ApiError::from_data)?
+        .ok_or_else(|| {
+            ApiError::not_found(
+                "SESSION_NOT_FOUND",
+                format!("Session not found: {session_id}"),
+            )
+        })?;
+    let session_totals = Some((session.total_tokens, session.total_cost));
+
     let params = MessageQueryParams {
         project_id: project_id.to_string(),
         session_id: Some(session_id.to_string()),
@@ -234,17 +263,6 @@ pub async fn get_session_messages(
     // Process through feed pipeline
     let processed = process_spans_cached(&state.reconstruction, result.rows, &options);
     let processed = apply_time_window(processed, from_timestamp, to_timestamp);
-
-    // The session's own totals, as the trace endpoint uses the trace's. The pipeline's totals cover
-    // the rows it was handed, and a message query is handed only rows carrying messages, tools or an
-    // error - so a span that was billed with nothing to show counted as free. They also lack the
-    // parent/child billing dedup the session summary applies, which counts a nested generation once.
-    // What the session page reports as its cost now matches what the session list reports for it.
-    let session = repo
-        .get_session(project_id, session_id)
-        .await
-        .map_err(ApiError::from_data)?;
-    let session_totals = session.map(|s| (s.total_tokens, s.total_cost));
 
     let response = build_messages_response(processed, session_totals);
     Ok(Json(response))

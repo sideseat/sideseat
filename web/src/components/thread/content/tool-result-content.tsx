@@ -14,6 +14,12 @@ interface ToolResultContentProps {
   errorMessage?: string;
   toolName?: string;
   toolCallId?: string;
+  /**
+   * The id was worked out by the server, not sent by the framework - so it is shown as inferred.
+   * Correlation pairs a result with a call by name and order, which can be wrong where a framework
+   * returns results out of order without ids.
+   */
+  toolCallIdInferred?: boolean;
   /** Show inline header (for ContentRenderer use) */
   showInlineHeader?: boolean;
   /** Project ID for resolving file references */
@@ -90,6 +96,7 @@ export function ToolResultContent({
   errorMessage,
   toolName,
   toolCallId,
+  toolCallIdInferred,
   showInlineHeader = false,
   projectId,
 }: ToolResultContentProps) {
@@ -128,7 +135,17 @@ export function ToolResultContent({
         </div>
       )}
       {toolCallId && (
-        <div className="text-xs text-muted-foreground font-mono">tool_call_id: {toolCallId}</div>
+        <div className="text-xs text-muted-foreground font-mono">
+          tool_call_id: {toolCallId}
+          {toolCallIdInferred && (
+            <span
+              className="ml-1.5 rounded-sm bg-muted px-1 py-0.5 font-sans not-italic"
+              title="The framework sent this result without an id; it was matched to a call in the same trace by name and order."
+            >
+              inferred
+            </span>
+          )}
+        </div>
       )}
       {renderExtractedContent(extracted, projectId)}
     </div>

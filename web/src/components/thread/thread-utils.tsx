@@ -105,6 +105,7 @@ export function renderBlockContent(
         content={content.content}
         isError={content.is_error || block.is_error}
         toolCallId={content.tool_use_id || block.tool_use_id}
+        toolCallIdInferred={block.tool_use_id_correlated}
         toolName={block.tool_name || block.name}
         projectId={projectId}
       />

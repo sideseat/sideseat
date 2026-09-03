@@ -15,6 +15,7 @@ import {
   Layers,
   Users,
   Trash2,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -331,6 +332,10 @@ export default function RealtimePage() {
   // - spans: stored DESC (newest first), reversed for display
   const [traceMap, setTraceMap] = useState<Map<string, TraceData>>(() => new Map());
   const [spans, setSpans] = useState<SpanSummary[]>([]);
+  /// How many of the last refresh's requests could not be served. Zero after a refresh in which all did.
+  const [refreshFailures, setRefreshFailures] = useState(0);
+  /// Whether any contributing reconstruction reported that its replay matching was not exhaustive.
+  const [replayIncomplete, setReplayIncomplete] = useState(false);
 
   // Derived: flat block array for display (computed from traceMap)
   // Named displayBlocks to clarify this is the display-ready array
@@ -486,10 +491,27 @@ export default function RealtimePage() {
     try {
       if (fetchTab === "messages") {
         // Fetch messages for each trace (backend returns correctly sorted)
-        const traceMessagesPromises = traceIds.map((traceId) =>
-          otelClient.getTraceMessages(projectId, traceId).catch(() => ({ messages: [] })),
+        // A failure is reported, not converted into an empty answer. Swallowing it made a request that
+        // could not be served look like "no new messages": with nothing on screen the page sat on
+        // "waiting", and with something on screen it kept showing it - and a 404 for a deleted project
+        // looked exactly like a quiet one. `settled` keeps the distinction all the way to the banner.
+        const settled = await Promise.all(
+          traceIds.map((traceId) =>
+            otelClient
+              .getTraceMessages(projectId, traceId)
+              .then((res) => ({ ok: true as const, res }))
+              .catch((e: unknown) => ({ ok: false as const, error: e })),
+          ),
         );
-        const results = await Promise.all(traceMessagesPromises);
+        const failed = settled.filter((r) => !r.ok).length;
+        const results = settled.map((r) => (r.ok ? r.res : { messages: [] }));
+        // The server's own completeness metadata, which this page used to discard along with the rest of the
+        // response. `replay_matching_complete === false` means the reconstruction stopped short of a complete
+        // answer, so a repeated turn below may be history rather than a model repeating itself - the one
+        // conclusion someone debugging must not draw by accident.
+        const incomplete = settled.some(
+          (r) => r.ok && r.res.metadata?.replay_matching_complete === false,
+        );
 
         // Skip state updates if tab changed or component unmounted
         if (activeTabRef.current !== fetchTab || !isMountedRef.current) return;
@@ -507,6 +529,11 @@ export default function RealtimePage() {
             });
           }
         }
+
+        // Reported before the early return, or a refresh in which *every* request failed would leave the
+        // page exactly as a quiet one does.
+        setRefreshFailures(failed);
+        setReplayIncomplete(incomplete);
 
         if (newTraceData.size === 0) return;
 
@@ -541,6 +568,8 @@ export default function RealtimePage() {
         // Skip state updates if tab changed or component unmounted
         if (activeTabRef.current !== fetchTab || !isMountedRef.current) return;
 
+        setRefreshFailures(0);
+
         if (res.data.length > 0 && res.data[0].timestamp_start) {
           lastSpanTimeRef.current = res.data[0].timestamp_start;
         }
@@ -561,7 +590,10 @@ export default function RealtimePage() {
         });
       }
     } catch (error) {
-      console.error("Failed to refetch trace messages:", error);
+      // The raw tab's single request, and anything the message path threw outside its own settling. A
+      // console line is not a report: the page said nothing while it was failing.
+      console.error("Failed to refetch:", error);
+      if (isMountedRef.current) setRefreshFailures((n) => Math.max(n, 1));
     } finally {
       isFetchingRef.current = false;
 
@@ -964,6 +996,26 @@ export default function RealtimePage() {
 
         {/* Content container */}
         <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border">
+          {refreshFailures > 0 && (
+            <div className="mb-2 flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                {refreshFailures === 1
+                  ? "The last refresh could not be served for one trace."
+                  : `The last refresh could not be served for ${refreshFailures} traces.`}{" "}
+                What is shown may be out of date.
+              </span>
+            </div>
+          )}
+          {replayIncomplete && (
+            <div
+              role="status"
+              className="mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200"
+            >
+              Repeated history may appear twice below: a conversation here was large enough that
+              duplicate-detection stopped short of a complete answer.
+            </div>
+          )}
           {showWaitingIndicator ? (
             <div className="h-full flex items-center justify-center">
               <WaitingIndicator

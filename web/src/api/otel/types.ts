@@ -344,6 +344,11 @@ export interface Block {
 
   // Tool context
   tool_use_id?: string;
+  /**
+   * True when `tool_use_id` was derived by correlating this result with a call in the same trace,
+   * because the framework sent the result without one. Absent when the id came from the provider.
+   */
+  tool_use_id_correlated?: boolean;
   tool_name?: string;
 
   // Metrics
@@ -470,14 +475,17 @@ export interface FeedMessagesMetadata {
   /**
    * Whether every span contributing to this page carried a session id, so the reconstruction could widen its
    * context to whole sessions. The server states it rather than leaving it to assumption.
+   *
+   * Not optional: the server always sends it. Typing it optional let a consumer skip the case silently, which
+   * is how the completeness metadata came to be dropped once already.
    */
-  session_scoped?: boolean;
+  session_scoped: boolean;
   /**
    * Always false, and said out loud by the server: pages are selected by *ingestion* time while each page's
    * messages are ordered by *message* time. A page is a correct window on activity; a concatenation of pages
    * is not a transcript - the trace and session views are where a conversation is read in order.
    */
-  pages_are_globally_ordered?: boolean;
+  pages_are_globally_ordered: boolean;
 }
 
 export interface FeedMessagesResponse {

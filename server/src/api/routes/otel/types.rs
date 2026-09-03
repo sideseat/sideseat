@@ -264,6 +264,16 @@ pub struct BlockDto {
     // Tool context
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_use_id: Option<String>,
+    /// True when `tool_use_id` was **derived** by correlating this result with a call in the same trace,
+    /// because the framework sent the result without one.
+    ///
+    /// Absent when false, so an ordinary provider-supplied id costs nothing. It reaches the client because
+    /// a UI showing an inferred reference as `tool_call_id` states as observed telemetry something the
+    /// server worked out - the same defect as reporting `replay_matching_complete` only internally: a flag
+    /// nobody can read is not a disclosure. Correlation is name-and-order based, so it can be wrong where a
+    /// framework returns results out of order without ids.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub tool_use_id_correlated: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_name: Option<String>,
 
@@ -308,6 +318,7 @@ impl BlockDto {
             name: entry.name.clone(),
             finish_reason: entry.finish_reason,
             tool_use_id: entry.tool_use_id.clone(),
+            tool_use_id_correlated: entry.tool_use_id_correlated,
             tool_name: entry.tool_name.clone(),
             tokens: entry.tokens,
             cost: entry.cost,
