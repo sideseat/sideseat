@@ -224,32 +224,42 @@ for entry in "${SUITES[@]}"; do
         echo "[capture] $label: WARNING gitleaks not installed - only the fallback patterns ran"
       fi
 
-      # Two tiers, because the two kinds of evidence want different rules.
+      # Two tiers, because the two kinds of evidence justify different actions - and both scan with `-a`,
+      # so binary payloads are actually read.
       #
-      # Tier 1 - value shapes, matched case-sensitively: an AWS long-term or STS key id, a bearer token, a
-      # SigV4 signature in a presigned URL. These are unmistakable on their own.
-      if [[ -z "$secret_hit" ]] && grep -rlqE \
-          "(AKIA|ASIA)[A-Z0-9]{16}|[Bb]earer[[:space:]]+[A-Za-z0-9._~+/-]{20,}|X-Amz-Signature=[a-f0-9]{32,}" \
+      # `.pb` is the primary fixture format, and without `-a` grep skips binary files: every pattern here
+      # was silently inert for most of the corpus. The earlier version of this guard was verified against
+      # hand-written JSON only, which is exactly why it looked fine.
+      #
+      # Tier 1 - value shapes. An AWS long-term or STS key id, a bearer token, a SigV4 signature: these are
+      # unmistakable on their own, so a match **discards** the fixture.
+      # The key id must be a delimited **token**, not a run inside a longer base64 string. The JS image
+      # suites inline 15 MB of base64 per request, and `AKIA` followed by sixteen upper-case-or-digit
+      # characters occurs there by chance - `vercel-ai-js/image-gen` contains `AKIAEJHBBE1EFFERAUM6`, which
+      # is not a credential. Without the boundary this tier would have deleted valid captures, which is the
+      # worst outcome available to a guard that deletes. In real telemetry the id sits alone in a JSON
+      # string, so it is delimited.
+      if [[ -z "$secret_hit" ]] && grep -raqE \
+          "(^|[^A-Za-z0-9+/=])(AKIA|ASIA)[A-Z0-9]{16}([^A-Za-z0-9+/=]|$)|[Bb]earer[[:space:]]+[A-Za-z0-9._~+/-]{20,}|X-Amz-Signature=[a-f0-9]{32,}" \
           "${FIXTURES}/${label}" 2>/dev/null; then
         secret_hit="value-shape"
       fi
 
-      # Tier 2 - credential field *names*, anywhere in the payload, case-insensitively.
+      # Tier 2 - credential field *names*, anywhere, case-insensitively. This **warns**; it does not discard.
       #
-      # Deliberately not requiring the value beside the name. In real OTLP the two are separate members -
-      # `{"key":"aws.auth.account.secret_access_key","value":{"stringValue":"..."}}` - so every pattern that
-      # demanded `name: value` adjacency matched nothing at all, which is how the dotted form put four STS
-      # key ids into git history in the first place. A separator class fixed the spelling and left the
-      # adjacency, so it still missed.
+      # The name has to be matched on its own, because in real OTLP the name and the value are separate
+      # members - `{"key":"aws.auth.account.secret_access_key","value":{"stringValue":"..."}}` - so every
+      # pattern demanding `name: value` adjacency matched nothing, which is how the dotted spelling put four
+      # STS key ids into git history.
       #
-      # The name alone is enough to stop and look: this scans only the directory just captured, and a
-      # fixture mentioning a secret field deserves a human decision even when the value is a placeholder.
-      # The failure mode on the other side is permanent.
-      if [[ -z "$secret_hit" ]] && grep -rliqE \
-          "secret[._-]?access[._-]?key|session[._-]?token|api[._-]?key|private[._-]?key|client[._-]?secret" \
-          "${FIXTURES}/${label}" 2>/dev/null; then
-        secret_hit="credential-field-name"
-      fi
+      # But a name alone is weak evidence: `openai-agents/image_gen` contains a provider error reading "pass
+      # an `api_key`", and discarding on that destroys a legitimate fixture. Automatic destruction needs
+      # high-confidence evidence; this prints the files and asks for a decision, which is the honest split.
+      while IFS= read -r suspect; do
+        [[ -n "$suspect" ]] && echo "[capture] $label: REVIEW credential field name in $suspect"
+      done < <(grep -rlaiE \
+        "secret[._-]?access[._-]?key|session[._-]?token|api[._-]?key|private[._-]?key|client[._-]?secret" \
+        "${FIXTURES}/${label}" 2>/dev/null)
     fi
     if [[ -n "$secret_hit" ]]; then
       echo "[capture] $label: SECRET MATERIAL in payload ($secret_hit) - DISCARDING fixture"
