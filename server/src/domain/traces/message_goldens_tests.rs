@@ -489,8 +489,15 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
     // trace id -> (earliest timestamp carrying a session id, that session id)
     // Keyed by `(timestamp_start, span_id)`, so the earliest span is unambiguous - the same total order
     // production uses.
-    let mut session_of_trace: BTreeMap<String, ((chrono::DateTime<chrono::Utc>, String), String)> =
-        BTreeMap::new();
+    #[allow(clippy::type_complexity)]
+    let mut session_of_trace: BTreeMap<
+        String,
+        (
+            (chrono::DateTime<chrono::Utc>, String),
+            chrono::DateTime<chrono::Utc>,
+            String,
+        ),
+    > = BTreeMap::new();
 
     for (span_name, row) in rows {
         by_span
@@ -508,19 +515,26 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
         // what every query uses - the display, the membership subquery, the lists and both deletions.
         if let Some(sid) = row.session_id.clone().filter(|s| !s.is_empty()) {
             let key = (row.span_timestamp, row.span_id.clone());
+            let ingested = row.ingested_at;
             match session_of_trace.entry(row.trace_id.clone()) {
                 std::collections::btree_map::Entry::Vacant(slot) => {
-                    slot.insert((key, sid));
+                    slot.insert((key, ingested, sid));
                 }
                 std::collections::btree_map::Entry::Occupied(mut slot) => {
-                    // The *session* is part of the comparison, not just the key. Production reads one row
-                    // per span, so two different sessions can never tie there; this harness is handed
-                    // pre-deduplication rows, where the same span appears once per request that carried it.
-                    // With a strict comparison on the key alone, an exact tie kept whichever row came first,
-                    // which made the answer depend on the order the requests were replayed in - caught by
-                    // `the_order_spans_arrive_in_does_not_change_the_answer`.
-                    if (&key, &sid) < (&slot.get().0, &slot.get().1) {
-                        slot.insert((key, sid));
+                    // Earliest span wins, and an exact tie is broken by the session id itself.
+                    //
+                    // That is deliberately **not** production's rule, which is "the latest delivery wins"
+                    // (`DEDUP_SPANS` orders by `ingested_at DESC, rowid DESC`). Production cannot face this
+                    // tie: it reads one row per span, so two different sessions never compete. This harness
+                    // is handed *pre-deduplication* rows - the same span appears once per request that
+                    // carried it - and it has no delivery order to consult, because `normalize_for_test`
+                    // stamps `ingested_at` from the span's own start time. Three rules were tried: `<` keeps
+                    // whichever row came first and `<=` whichever came last, both order-dependent, and
+                    // `ingested_at` cannot separate them for the reason just given. Only a function of the
+                    // *values* is order-independent here, which is what
+                    // `the_order_spans_arrive_in_does_not_change_the_answer` requires.
+                    if (&key, &sid) < (&slot.get().0, &slot.get().2) {
+                        slot.insert((key, ingested, sid));
                     }
                 }
             }
@@ -530,7 +544,7 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
     // Membership follows from that, rather than being collected per row. Collecting each row's own session
     // gave a trace whose spans name two sessions a session view under **both** - which production does not
     // do, so the goldens described an answer no endpoint returns.
-    for (trace_id, (_, session)) in &session_of_trace {
+    for (trace_id, (_, _, session)) in &session_of_trace {
         traces_of_session
             .entry(session.clone())
             .or_default()
@@ -610,7 +624,9 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
             .get(trace_id)
             .cloned()
             .unwrap_or_else(|| "trace-?".to_string());
-        let session = session_of_trace.get(trace_id).map(|(_, sid)| sid.clone());
+        let session = session_of_trace
+            .get(trace_id)
+            .map(|(_, _, sid)| sid.clone());
         let (rows_for_view, session_scoped) = match &session {
             Some(sid) => (session_rows(sid), true),
             None => (
@@ -677,7 +693,7 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
         trace_labels: labels,
         session_of_trace: session_of_trace
             .into_iter()
-            .map(|(t, (_, sid))| (t, sid))
+            .map(|(t, (_, _, sid))| (t, sid))
             .collect(),
     }
 }

@@ -738,9 +738,11 @@ async fn query_canonical_session_count(
     to: DateTime<Utc>,
 ) -> Result<u64, ClickhouseError> {
     let sql = format!(
+        // `(project_id, trace_id)`; see the DuckDB twin - a client-supplied trace id is not unique across
+        // projects, so matching on it alone counted another project's session.
         "SELECT count(DISTINCT canonical_session) FROM ({CANONICAL}) cts \
-         WHERE cts.trace_id IN ( \
-           SELECT trace_id FROM otel_spans FINAL \
+         WHERE (cts.project_id, cts.trace_id) IN ( \
+           SELECT project_id, trace_id FROM otel_spans FINAL \
            WHERE project_id = ? \
              AND timestamp_start >= fromUnixTimestamp64Micro(?) \
              AND timestamp_start <= fromUnixTimestamp64Micro(?))",

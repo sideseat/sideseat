@@ -232,9 +232,11 @@ fn query_canonical_session_count(
     to: DateTime<Utc>,
 ) -> Result<i64, DuckdbError> {
     let sql = format!(
+        // `(project_id, trace_id)`, not `trace_id` alone: a trace id comes from the client, so two projects
+        // can present the same one - and matching on it alone let another project's session be counted here.
         "SELECT COUNT(DISTINCT session_id) FROM ({CANONICAL}) cts \
-         WHERE cts.trace_id IN ( \
-           SELECT trace_id FROM otel_spans \
+         WHERE (cts.project_id, cts.trace_id) IN ( \
+           SELECT project_id, trace_id FROM otel_spans \
            WHERE project_id = ? AND timestamp_start >= ? AND timestamp_start <= ?)",
         CANONICAL = crate::data::duckdb::repositories::query::CANONICAL_TRACE_SESSIONS
     );
