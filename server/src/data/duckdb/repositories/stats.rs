@@ -139,6 +139,8 @@ fn query_main_aggregation(
         )
         SELECT
             COUNT(DISTINCT s.trace_id) AS traces,
+            -- Replaced below by `canonical_session_count`. Left in the projection so the row shape and every
+            -- index after it are unchanged; the value is overwritten.
             COUNT(DISTINCT s.session_id) FILTER (WHERE s.session_id IS NOT NULL) AS sessions,
             COUNT(*) AS spans,
             COUNT(DISTINCT s.user_id) FILTER (WHERE s.user_id IS NOT NULL) AS unique_users,
@@ -204,7 +206,43 @@ fn query_main_aggregation(
         },
     )?;
 
+    // The session count, as a separate statement.
+    //
+    // A session is a property of the **trace** - the one on its earliest span - so counting distinct
+    // `session_id` over spans counted a session named only by a later span of another session's trace, and
+    // the dashboard reported more sessions than the session list can return. Resolving that inside the main
+    // statement would mean a subquery in the SELECT list, whose placeholders precede the ten already there;
+    // a bind-order mistake in that query is a silently wrong number, so it is asked on its own instead.
+    let mut row = row;
+    row.0.sessions = query_canonical_session_count(
+        conn,
+        &params.project_id,
+        params.from_timestamp,
+        params.to_timestamp,
+    )?;
+
     Ok(row)
+}
+
+/// Distinct sessions in the window, counting each trace under its canonical session only.
+fn query_canonical_session_count(
+    conn: &Connection,
+    project_id: &str,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> Result<i64, DuckdbError> {
+    let sql = format!(
+        "SELECT COUNT(DISTINCT session_id) FROM ({CANONICAL}) cts \
+         WHERE cts.trace_id IN ( \
+           SELECT trace_id FROM otel_spans \
+           WHERE project_id = ? AND timestamp_start >= ? AND timestamp_start <= ?)",
+        CANONICAL = crate::data::duckdb::repositories::query::CANONICAL_TRACE_SESSIONS
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let count: i64 = stmt.query_row([project_id, &from.to_rfc3339(), &to.to_rfc3339()], |row| {
+        row.get(0)
+    })?;
+    Ok(count)
 }
 
 fn query_trace_count(

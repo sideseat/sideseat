@@ -17,7 +17,6 @@ use crate::data::types::{
 #[derive(Row, Deserialize)]
 struct ChMainAggRow {
     traces: u64,
-    sessions: u64,
     spans: u64,
     unique_users: u64,
     input_tokens: i64,
@@ -179,7 +178,6 @@ async fn query_main_aggregation(
         )
         SELECT
             count(DISTINCT s.trace_id) AS traces,
-            countIf(DISTINCT s.session_id, s.session_id IS NOT NULL) AS sessions,
             count() AS spans,
             countIf(DISTINCT s.user_id, s.user_id IS NOT NULL) AS unique_users,
             coalesce(max(ga.input_tokens), 0) AS input_tokens,
@@ -217,10 +215,20 @@ async fn query_main_aggregation(
         .fetch_one()
         .await?;
 
+    // The session count, asked separately; see the DuckDB twin for why it is not folded into the statement
+    // above.
+    let sessions = query_canonical_session_count(
+        client,
+        &params.project_id,
+        params.from_timestamp,
+        params.to_timestamp,
+    )
+    .await?;
+
     Ok((
         MainCounts {
             traces: row.traces,
-            sessions: row.sessions,
+            sessions,
             spans: row.spans,
             unique_users: row.unique_users,
         },
@@ -720,6 +728,32 @@ fn calculate_bucket_boundaries(
     }
 
     buckets
+}
+
+/// Distinct sessions in the window, counting each trace under its canonical session only.
+async fn query_canonical_session_count(
+    client: &Client,
+    project_id: &str,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> Result<u64, ClickhouseError> {
+    let sql = format!(
+        "SELECT count(DISTINCT canonical_session) FROM ({CANONICAL}) cts \
+         WHERE cts.trace_id IN ( \
+           SELECT trace_id FROM otel_spans FINAL \
+           WHERE project_id = ? \
+             AND timestamp_start >= fromUnixTimestamp64Micro(?) \
+             AND timestamp_start <= fromUnixTimestamp64Micro(?))",
+        CANONICAL = super::query::CANONICAL_TRACE_SESSIONS
+    );
+    let count: u64 = client
+        .query(&sql)
+        .bind(project_id)
+        .bind(from.timestamp_micros())
+        .bind(to.timestamp_micros())
+        .fetch_one()
+        .await?;
+    Ok(count)
 }
 
 #[cfg(test)]

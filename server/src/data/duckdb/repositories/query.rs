@@ -109,6 +109,23 @@ pub(crate) fn traces_of_session(dedup: &str) -> String {
     )
 }
 
+/// The canonical session of every trace that has one: `project_id, trace_id, session_id`.
+///
+/// The mirror of [`traces_of_session`], for queries that group *by* session rather than filtering to one. A
+/// trace belongs to the session on its earliest span, so a session's traces are exactly the rows here that
+/// name it - and a session named only by a later span of some other session's trace is not a session at all.
+///
+/// Selecting distinct `session_id` from spans instead attributed a trace whose spans name A and B to **both**:
+/// `/sessions` listed two sessions, each reporting that trace's full spans, tokens and cost, and opening the
+/// second showed nothing. Project statistics counted two sessions for the same reason.
+pub(crate) const CANONICAL_TRACE_SESSIONS: &str = "SELECT project_id, trace_id, \
+       arg_min(session_id, (timestamp_start, span_id)) AS session_id \
+     FROM (SELECT * FROM otel_spans \
+           QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
+                                      ORDER BY ingested_at DESC, rowid DESC) = 1) \
+     WHERE session_id IS NOT NULL AND session_id != '' \
+     GROUP BY project_id, trace_id";
+
 /// The binds [`traces_of_session`] needs, in the order its placeholders appear.
 ///
 /// Returned together with the SQL rather than left to each call site, because the subquery has four
@@ -1154,12 +1171,17 @@ pub fn list_sessions(
     conn: &Connection,
     params: &ListSessionsParams,
 ) -> Result<(Vec<SessionRow>, u64), DuckdbError> {
-    // Build WHERE clause without alias for count query (single table)
+    // Unqualified: the filter sits inside its own subquery over `otel_spans`, so it cannot become
+    // ambiguous against the canonical-session relation beside it.
     let (span_where, bind_values) = build_session_span_conditions(params, "");
 
-    // Count query — raw otel_spans avoids the DEDUP_SPANS self-join
+    // Distinct **canonical** sessions among the traces the filter selects. Counting distinct `session_id`
+    // over spans counted a session named only by a later span of another session's trace, so the total
+    // exceeded the number of rows the list could return.
     let count_sql = format!(
-        "SELECT COUNT(DISTINCT session_id) FROM otel_spans WHERE {}",
+        "SELECT COUNT(DISTINCT ts.session_id) FROM ({CANONICAL_TRACE_SESSIONS}) ts \
+         WHERE (ts.project_id, ts.trace_id) IN ( \
+           SELECT project_id, trace_id FROM otel_spans WHERE {})",
         span_where
     );
     let total = execute_count(conn, &count_sql, &bind_values)?;
@@ -1198,27 +1220,31 @@ pub fn list_sessions(
 
     let data_sql = format!(
         r#"
-        WITH matching_sessions AS (
-            -- Which sessions the request selects. Rows that name a session, exactly as the count
-            -- query counts them, so the two agree.
-            SELECT DISTINCT sp.project_id, sp.session_id
+        WITH trace_sessions AS ({CANONICAL_TRACE_SESSIONS}),
+        matching_sessions AS (
+            -- Which sessions the request selects. The filter runs on spans, but the session it selects is
+            -- the *canonical* one of the span's trace - so a filter matching any span of a trace selects the
+            -- session that trace actually belongs to, and never a session named only by some later span.
+            SELECT DISTINCT ts.project_id, ts.session_id
             FROM {DEDUP_SPANS} sp
+            JOIN trace_sessions ts
+              ON ts.project_id = sp.project_id AND ts.trace_id = sp.trace_id
             WHERE {span_where_sp}
         ),
         session_traces AS (
-            -- Which traces belong to those sessions - every trace of each, not only the ones whose
-            -- naming rows passed the filter.
+            -- Every trace of those sessions, not only the ones whose naming rows passed the filter.
             --
-            -- Selection and membership are separate questions, and answering both with one
-            -- predicate returned a partial session: a session of two traces in different
-            -- environments, filtered to one, was listed with that trace's times, counts and cost
-            -- while opening it showed both. Aggregating the naming rows alone had the same shape,
-            -- and under-reported every session whose id is recorded on the root span only, which is
-            -- how several frameworks record it.
-            SELECT DISTINCT sp.project_id, sp.session_id, sp.trace_id
-            FROM {DEDUP_SPANS} sp
+            -- Selection and membership are separate questions, and answering both with one predicate
+            -- returned a partial session: a session of two traces in different environments, filtered to
+            -- one, was listed with that trace's times, counts and cost while opening it showed both.
+            --
+            -- Taken from `trace_sessions`, so each trace appears under exactly one session. Joining spans on
+            -- `sp.session_id = ms.session_id` instead attributed a trace whose spans name A and B to both,
+            -- and reported its full spans, tokens and cost under each.
+            SELECT ts.project_id, ts.session_id, ts.trace_id
+            FROM trace_sessions ts
             JOIN matching_sessions ms
-              ON ms.project_id = sp.project_id AND ms.session_id = sp.session_id
+              ON ms.project_id = ts.project_id AND ms.session_id = ts.session_id
         ),
         gen_totals AS (
             SELECT
@@ -4928,6 +4954,89 @@ mod tests {
                 .messages_json
                 .contains("the corrected answer"),
             "the current read must return the corrected content"
+        );
+    }
+
+    /// The session list reports each trace under exactly one session.
+    ///
+    /// A trace whose earliest span names A and whose child names B belongs to A everywhere else. The list
+    /// selected distinct `session_id` from spans, so it returned **two** sessions and attributed that
+    /// trace's full spans, tokens and cost to each - and opening B showed nothing, because every read
+    /// resolves it to A.
+    #[tokio::test]
+    async fn the_session_list_reports_each_trace_under_one_session() {
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+        let t0 = Utc::now() - chrono::Duration::seconds(60);
+
+        let span = |span_id: &str, session: &str, offset: i64, tokens: i64| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: "trace-1".to_string(),
+            span_id: span_id.to_string(),
+            span_name: "generation".to_string(),
+            observation_type: Some(ObservationType::Generation),
+            timestamp_start: t0 + chrono::Duration::seconds(offset),
+            timestamp_end: Some(t0 + chrono::Duration::seconds(offset + 1)),
+            session_id: Some(session.to_string()),
+            gen_ai_usage_total_tokens: tokens,
+            gen_ai_usage_input_tokens: tokens,
+            ..Default::default()
+        };
+
+        {
+            let conn = service.conn();
+            insert_batch(
+                &conn,
+                &[
+                    span("span-1", "session-canonical", 0, 100),
+                    span("span-2", "session-stray", 1, 50),
+                ],
+            )
+            .expect("insert");
+        }
+
+        let conn = service.conn();
+        let (sessions, total) = list_sessions(
+            &conn,
+            &ListSessionsParams {
+                project_id: project.to_string(),
+                page: 1,
+                limit: 50,
+                ..Default::default()
+            },
+        )
+        .expect("list_sessions");
+
+        let ids: Vec<&str> = sessions.iter().map(|s| s.session_id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["session-canonical"],
+            "only the trace's canonical session is a session"
+        );
+        assert_eq!(
+            total, 1,
+            "and the count must agree with what the list can return"
+        );
+        assert_eq!(
+            sessions[0].total_tokens, 150,
+            "the whole trace's tokens belong to its one session, counted once"
+        );
+
+        // And the dashboard agrees with the list. Parity between the backends cannot establish this - they
+        // can agree on being wrong - so the number itself is pinned here.
+        let stats = crate::data::duckdb::repositories::stats::get_project_stats(
+            &conn,
+            &crate::data::types::StatsParams {
+                project_id: project.to_string(),
+                from_timestamp: t0 - chrono::Duration::seconds(10),
+                to_timestamp: t0 + chrono::Duration::seconds(600),
+                timezone: None,
+            },
+        )
+        .expect("project stats");
+        assert_eq!(
+            stats.counts.sessions, 1,
+            "project statistics must not count a session no trace canonically belongs to"
         );
     }
 

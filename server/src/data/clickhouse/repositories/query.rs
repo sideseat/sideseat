@@ -1543,7 +1543,14 @@ pub async fn list_sessions(
     let where_clause = cb.build();
 
     let count_sql = format!(
-        "SELECT count(DISTINCT session_id) as cnt FROM otel_spans FINAL WHERE {}",
+        // Distinct **canonical** sessions among the traces the filter selects; see
+        // `CANONICAL_TRACE_SESSIONS`. Counting distinct `session_id` over spans made the total exceed the
+        // number of rows the list can return.
+        // The filter stays in its own subquery over `otel_spans` alone, so its unqualified columns cannot
+        // become ambiguous against the canonical relation beside them.
+        "SELECT count(DISTINCT ts.canonical_session) as cnt FROM ({CANONICAL_TRACE_SESSIONS}) ts \
+         WHERE (ts.project_id, ts.trace_id) IN ( \
+           SELECT project_id, trace_id FROM otel_spans FINAL WHERE {})",
         where_clause
     );
     let total: u64 = cb.bind_to(client.query(&count_sql)).fetch_one().await?;
@@ -1583,21 +1590,27 @@ pub async fn list_sessions(
     let data_sql = format!(
         r#"
         WITH {dedup_cte},
+        trace_sessions AS ({CANONICAL_TRACE_SESSIONS}),
         matching_sessions AS (
-            -- Which sessions the request selects, counted exactly as the count query counts them.
-            SELECT DISTINCT sp.project_id as project_id, sp.session_id as session_id
+            -- Which sessions the request selects, counted exactly as the count query counts them. The
+            -- filter runs on spans, but the session it selects is the *canonical* one of that span's
+            -- trace - see the DuckDB copy.
+            SELECT DISTINCT ts.project_id as project_id, ts.canonical_session as session_id
             FROM otel_spans sp FINAL
+            JOIN trace_sessions ts
+              ON ts.project_id = sp.project_id AND ts.trace_id = sp.trace_id
             WHERE {where_clause}
         ),
         session_traces AS (
             -- Every trace of those sessions, not only the ones whose naming rows passed the filter:
             -- selection and membership are separate questions, and one predicate for both returned a
-            -- partial session. See the DuckDB copy.
-            SELECT DISTINCT sp.project_id as project_id, sp.session_id as session_id,
-                   sp.trace_id as trace_id
-            FROM otel_spans sp FINAL
+            -- partial session. Taken from `trace_sessions`, so each trace appears under exactly one
+            -- session. See the DuckDB copy.
+            SELECT ts.project_id as project_id, ts.canonical_session as session_id,
+                   ts.trace_id as trace_id
+            FROM trace_sessions ts
             JOIN matching_sessions ms
-              ON ms.project_id = sp.project_id AND ms.session_id = sp.session_id
+              ON ms.project_id = ts.project_id AND ms.session_id = ts.canonical_session
         ),
         {gen_totals},
         filtered_sessions AS (
@@ -1623,7 +1636,9 @@ pub async fn list_sessions(
             LIMIT {limit} OFFSET {offset}
         )
         SELECT
-            f.session_id as session_id,
+            -- `toNullable`: the canonical session comes through `assumeNotNull`, so it is a plain `String`
+            -- here while the row type is `Option<String>` (the column is Nullable in the schema).
+            toNullable(f.session_id) as session_id,
             argMinIf(s.user_id, s.timestamp_start, s.user_id IS NOT NULL) as user_id,
             argMinIf(s.environment, s.timestamp_start, s.environment IS NOT NULL) as environment,
             toInt64(toUnixTimestamp64Micro(min(s.timestamp_start))) as start_time,
@@ -1924,6 +1939,21 @@ pub(crate) const TRACES_OF_SESSION: &str = "SELECT trace_id FROM ( \
        AND session_id IS NOT NULL AND session_id != '' \
        GROUP BY trace_id \
      ) WHERE canonical_session = ?";
+
+/// The canonical session of every trace that has one: `project_id, trace_id, session_id`.
+///
+/// The DuckDB twin is `CANONICAL_TRACE_SESSIONS`, and the reasoning is recorded there: a trace belongs to the
+/// session on its earliest span, so selecting distinct `session_id` from spans attributed a trace whose spans
+/// name A and B to both - two sessions in the list, each claiming that trace's full spans, tokens and cost.
+/// The output column is `canonical_session`, not `session_id`: a SELECT alias is visible in WHERE in
+/// ClickHouse and shadows the column, so `AS session_id` made the predicate read the aggregate and the query
+/// failed outright with ILLEGAL_AGGREGATION - on ClickHouse only. CLAUDE.md gotcha 17, caught by the parity
+/// comparison for the second time in two days.
+pub(crate) const CANONICAL_TRACE_SESSIONS: &str = "SELECT project_id, trace_id, \
+       argMin(assumeNotNull(session_id), (timestamp_start, span_id)) AS canonical_session \
+     FROM otel_spans FINAL \
+     WHERE session_id IS NOT NULL AND session_id != '' \
+     GROUP BY project_id, trace_id";
 
 /// The binds [`TRACES_OF_SESSION`] needs, in the order its placeholders appear.
 pub(crate) fn traces_of_session_binds(project_id: &str, session_id: &str) -> [String; 4] {
