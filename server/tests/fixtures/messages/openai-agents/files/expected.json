@@ -3,7 +3,7 @@
   "request_count": 2,
   "span_count": 6,
   "trace_count": 1,
-  "session_count": 2,
+  "session_count": 1,
   "span_views": {
     "trace-1/Agent run: 'file_analyzer'/span-4": {
       "message_count": 0,
@@ -189,78 +189,6 @@
   },
   "session_views": {
     "[Scrubbed due to 'session']": {
-      "message_count": 7,
-      "role_sequence": [
-        "system",
-        "user",
-        "user",
-        "user",
-        "user",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a file analysis AI that can read images and documents.",
-          "content_digest": "a7b564c8a3a5cf2b",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Read the attached image. Describe its contents in detail using instructions from the attached PDF pages (rendered as images).",
-          "content_digest": "161ef845b84df4f8",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "user",
-          "entry_type": "text",
-          "content": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wgARC…[218647 chars]",
-          "content_digest": "16394de49b839393",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "user",
-          "entry_type": "text",
-          "content": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABPsAAAZyCAIAAADJpnZZAAAACXBIWXMAABcSAAAXEgFnn9JSAAAwxUlEQVR4nOzda9Buc8H48e1MRlFyiExpokn1IpVDg51xqOggpRmlgwkVNZHywtQYY8oQXuCRKUnTlNFMh0lTynTQ+UBUaBAhp50ONnZs2/b8xpr/Pff/vu3dFk89vs/n88Jc67d+11q/69…[16774 chars]",
-          "content_digest": "cecba9d90aaaade4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "user",
-          "entry_type": "text",
-          "content": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABPsAAAZyCAIAAADJpnZZAAAACXBIWXMAABcSAAAXEgFnn9JSAAAspUlEQVR4nOzdbailZb3AYZ0pTT8koo6jjhKaL1QoGtqoBBkDKSpqpBFCEGi+pEIRfjiKpIgjZaZOJZPI6ICag6iMSfiCil/UQKJUhFGTfGUsKHXU0Zmxc8PCfXbbGd3qOWfg13V92Oznv+…[15366 chars]",
-          "content_digest": "5de47f90c2979d9d",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "user",
-          "entry_type": "text",
-          "content": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABPsAAAZyCAIAAADJpnZZAAAACXBIWXMAABcSAAAXEgFnn9JSAAAs+klEQVR4nOzdfchfdd3AcedKXX84Ql2iM1RKJZHM8CErEBk0NUnC1FTCZKWbGhliYSEq2gTLp/nAEpkJmg5B3RTRjSYS5ESJtBBWKT7rJESb1txmHe4fXffV5abX9L7vwft+vf4Y1/mc7z…[15478 chars]",
-          "content_digest": "f69470a2c7c17790",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "**A Path Through the Park** Beneath a wide and cloudless blue, the winter trees lift arms of gray, their bare branches sketching lines against the bright and open day. A ribbon of black pavement bends from the foreground, smooth and new, th…[1041 chars]",
-          "content_digest": "6518717151783df5",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "openai-agents-files-ba2c78b9": {
       "message_count": 7,
       "role_sequence": [
         "system",

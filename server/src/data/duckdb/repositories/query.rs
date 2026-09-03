@@ -95,15 +95,27 @@ pub(crate) const DEDUP_SPANS: &str = "(SELECT * FROM otel_spans \
 ///
 /// Defined once because eleven call sites asked this question and had drifted in two dimensions at once - some
 /// read the raw table, all used the loose predicate.
-pub(crate) fn traces_of_session(dedup: &str) -> String {
+pub(crate) fn traces_of_session(as_of_us: Option<i64>) -> String {
+    // The relation is built here, not passed in, because the candidate filter has to go **inside** it.
+    // Passing the deduplicated relation as opaque SQL put the filter in the outer `WHERE`, which is after
+    // the window function has already run over the whole project - and `bench_session_membership` shows
+    // that costs the entire optimisation (1.79x the loose predicate, against 1.29x when the filter is
+    // inside). The window cannot use an index, so what matters is how many rows reach it.
+    let watermark = if as_of_us.is_some() {
+        "AND EPOCH_US(ingested_at) < ?::BIGINT "
+    } else {
+        ""
+    };
     format!(
         "SELECT trace_id FROM ( \
            SELECT trace_id, arg_min(session_id, (timestamp_start, span_id)) AS canonical_session \
-           FROM {dedup} \
-           WHERE project_id = ? \
-           AND trace_id IN (SELECT trace_id FROM otel_spans \
-                            WHERE project_id = ? AND session_id = ?) \
-           AND session_id IS NOT NULL AND session_id != '' \
+           FROM (SELECT * FROM otel_spans \
+                 WHERE project_id = ? {watermark}\
+                 AND trace_id IN (SELECT trace_id FROM otel_spans \
+                                  WHERE project_id = ? AND session_id = ?) \
+                 QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
+                                            ORDER BY ingested_at DESC, rowid DESC) = 1) \
+           WHERE session_id IS NOT NULL AND session_id != '' \
            GROUP BY trace_id \
          ) WHERE canonical_session = ?"
     )
@@ -131,13 +143,21 @@ pub(crate) const CANONICAL_TRACE_SESSIONS: &str = "SELECT project_id, trace_id, 
 /// Returned together with the SQL rather than left to each call site, because the subquery has four
 /// placeholders in a non-obvious order and a wrong one is a silently wrong answer, not an error. The array
 /// length is checked by the compiler.
-pub(crate) fn traces_of_session_binds(project_id: &str, session_id: &str) -> [String; 4] {
-    [
-        project_id.to_string(),
-        project_id.to_string(),
-        session_id.to_string(),
-        session_id.to_string(),
-    ]
+pub(crate) fn traces_of_session_binds(
+    as_of_us: Option<i64>,
+    project_id: &str,
+    session_id: &str,
+) -> Vec<String> {
+    let mut binds = vec![project_id.to_string()];
+    // Inside the relation, immediately after its project predicate - so the watermark bind belongs here
+    // rather than being managed by the call site, which is where it was and where it could drift.
+    if let Some(us) = as_of_us {
+        binds.push(us.to_string());
+    }
+    binds.push(project_id.to_string());
+    binds.push(session_id.to_string());
+    binds.push(session_id.to_string());
+    binds
 }
 
 pub(crate) fn membership_relation(as_of_us: Option<i64>) -> (&'static str, Option<String>) {
@@ -301,9 +321,9 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
     if let Some(ref sid) = params.session_id {
         // A trace's session lives on the span that knows it, so the filter is by trace - and by the
         // trace's *canonical* session; see `TRACES_OF_SESSION`.
-        let traces = traces_of_session(DEDUP_SPANS);
+        let traces = traces_of_session(None);
         conditions.push(format!("{} IN ({traces})", col("trace_id")));
-        bind_values.extend(traces_of_session_binds(&params.project_id, sid));
+        bind_values.extend(traces_of_session_binds(None, &params.project_id, sid));
     }
 
     // A trace-level subquery, like the session above and for the same reason: a user id sits on the
@@ -767,9 +787,9 @@ pub fn list_spans(
 
     if let Some(ref sid) = params.session_id {
         // session_id is only on root spans; use trace_id subquery to include all spans
-        let traces = traces_of_session(DEDUP_SPANS);
+        let traces = traces_of_session(None);
         conditions.push(format!("trace_id IN ({traces})"));
-        bind_values.extend(traces_of_session_binds(&params.project_id, sid));
+        bind_values.extend(traces_of_session_binds(None, &params.project_id, sid));
     }
 
     if let Some(ref uid) = params.user_id {
@@ -1369,7 +1389,7 @@ pub fn get_session(
     // session_id is only on root spans; use session_traces CTE to find all traces,
     // then query all spans from those traces.
     // Two-path token filter: see get_trace for detailed explanation.
-    let session_traces = traces_of_session(DEDUP_SPANS);
+    let session_traces = traces_of_session(None);
     let sql = format!(
         r#"
         WITH session_traces AS ({session_traces}),
@@ -1456,7 +1476,7 @@ pub fn get_session(
     let mut stmt = conn.prepare(&sql)?;
     // Bind order: session_traces (four - see `traces_of_session_binds`), gen_totals(project_id),
     //             SELECT(session_id), main(project_id)
-    let mut binds: Vec<String> = traces_of_session_binds(project_id, session_id).to_vec();
+    let mut binds: Vec<String> = traces_of_session_binds(None, project_id, session_id);
     binds.extend([
         project_id.to_string(), // gen_totals CTE
         session_id.to_string(), // SELECT session_id literal
@@ -1482,7 +1502,7 @@ pub fn get_traces_for_session(
     session_id: &str,
 ) -> Result<Vec<TraceRow>, DuckdbError> {
     // Two-path token filter: see get_trace for detailed explanation.
-    let session_traces = traces_of_session(DEDUP_SPANS);
+    let session_traces = traces_of_session(None);
     let sql = format!(
         r#"
         WITH session_traces AS ({session_traces}),
@@ -1591,7 +1611,7 @@ pub fn get_traces_for_session(
 
     // Bind order: session_traces (four - see `traces_of_session_binds`), gen_totals(project_id),
     //             main(project_id)
-    let mut binds: Vec<String> = traces_of_session_binds(project_id, session_id).to_vec();
+    let mut binds: Vec<String> = traces_of_session_binds(None, project_id, session_id);
     binds.extend([
         project_id.to_string(), // gen_totals CTE
         project_id.to_string(), // main query
@@ -5290,9 +5310,10 @@ mod tests {
                GROUP BY trace_id \
              ) WHERE canonical_session = ?";
 
-        let run = |subquery: &str, subquery_binds: usize| -> (std::time::Duration, i64) {
+        let run = |subquery: &str, subquery_binds: usize| -> (std::time::Duration, Vec<String>) {
             let sql = format!(
-                "SELECT count(*) FROM {DEDUP_SPANS} WHERE project_id = ? AND trace_id IN ({subquery})"
+                "SELECT DISTINCT trace_id FROM {DEDUP_SPANS} \
+                 WHERE project_id = ? AND trace_id IN ({subquery})"
             );
             let mut binds: Vec<String> = vec![project.to_string()];
             // The subquery's own binds, in the order its `?` appear.
@@ -5310,19 +5331,25 @@ mod tests {
             let mut stmt = conn.prepare(&sql).expect("prepare");
             let params: Vec<&dyn duckdb::ToSql> =
                 binds.iter().map(|v| v as &dyn duckdb::ToSql).collect();
-            let n: i64 = stmt
-                .query_row(params.as_slice(), |r| r.get(0))
-                .expect("query");
-            assert!(n > 0, "the fixture must match rows, got {n}");
-            (started.elapsed(), n)
+            // The trace ids, not a count. Two formulations selecting the same *number* of different traces
+            // would pass an equality check on counts, so a faster wrong answer could have been adopted on
+            // the strength of it.
+            let mut rows = stmt.query(params.as_slice()).expect("query");
+            let mut ids: Vec<String> = Vec::new();
+            while let Some(row) = rows.next().expect("row") {
+                ids.push(row.get(0).expect("trace_id"));
+            }
+            assert!(!ids.is_empty(), "the fixture must match traces, got none");
+            ids.sort();
+            (started.elapsed(), ids)
         };
 
         // The two correct forms must select the same rows, or a speed comparison means nothing.
         let (_, want) = run(CANONICAL_WIDE, 2);
-        let (_, got) = run(&traces_of_session(DEDUP_SPANS), 4);
+        let (_, got) = run(&traces_of_session(None), 4);
         assert_eq!(
             want, got,
-            "narrowing the deduplication must not change which spans are selected"
+            "narrowing the deduplication must not change *which* traces are selected"
         );
 
         // Interleaved, so whatever else the host is doing hits every arm equally - which is what makes the
@@ -5334,7 +5361,7 @@ mod tests {
         for _ in 0..ITERATIONS {
             wide.push(run(CANONICAL_WIDE, 2).0);
             loose.push(run(LOOSE, 2).0);
-            production.push(run(&traces_of_session(DEDUP_SPANS), 4).0);
+            production.push(run(&traces_of_session(None), 4).0);
         }
         wide.sort();
         loose.sort();

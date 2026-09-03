@@ -3,7 +3,7 @@
   "request_count": 4,
   "span_count": 16,
   "trace_count": 1,
-  "session_count": 2,
+  "session_count": 1,
   "span_views": {
     "trace-1/Agent run: 'ReasoningAssistant'/span-14": {
       "message_count": 0,
@@ -281,78 +281,6 @@
   },
   "session_views": {
     "[Scrubbed due to 'session']": {
-      "message_count": 7,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "user",
-        "assistant",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
-          "content_digest": "5d7906f7726f06b7",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The person with the…[414 chars]",
-          "content_digest": "037aab7424da917a",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The clues do not determine a unique solution. They allow two possibilities. ### Step 1: Determine Carol’s house and pet - Carol lives in the **red** house. - The cat’s owner lives in the **blue** house. - The dog’s owner lives in the **gree…[1110 chars]",
-          "content_digest": "81a8acadc66ad67e",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "user",
-          "entry_type": "text",
-          "content": "A water tank has two pipes. Pipe A can fill the tank in 6 hours. Pipe B can empty the tank in 8 hours. If both pipes are opened when the tank is half full, how long will it take to fill the tank completely? Show your reasoning step by step.",
-          "content_digest": "cdaca6f5888cd52c",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "1. Pipe A fills at a rate of \\[ \\frac{1}{6}\\text{ tank per hour}. \\] 2. Pipe B empties at a rate of \\[ \\frac{1}{8}\\text{ tank per hour}. \\] 3. With both pipes open, the net filling rate is \\[ \\frac{1}{6}-\\frac{1}{8} =\\frac{4}{24}-\\frac{3}{2…[513 chars]",
-          "content_digest": "4fd21bf47da6a8d5",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Analyze this Python function and explain what it computes: ```python def mystery(n): if n <= 1: return n a, b = 0, 1 for _ in range(2, n + 1): a, b = b, a + b return b ``` What mathematical sequence does this implement? Prove your answer by…[265 chars]",
-          "content_digest": "ff3a1fd7c1a725cc",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The function computes the **Fibonacci sequence**, defined by \\[ F_0=0,\\qquad F_1=1,\\qquad F_n=F_{n-1}+F_{n-2}. \\] For \\(n\\le 1\\), the function directly returns \\(n\\), giving \\(F_0=0\\) and \\(F_1=1\\). For larger \\(n\\), it starts with ```pytho…[793 chars]",
-          "content_digest": "e595a637532e3f33",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "openai-agents-reasoning-9dc1a30d": {
       "message_count": 7,
       "role_sequence": [
         "system",

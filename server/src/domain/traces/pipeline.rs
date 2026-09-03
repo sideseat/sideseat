@@ -665,7 +665,7 @@ impl TracePipeline {
         let span_count = all_db_spans.len();
 
         // Build SSE events before write (captures span metadata)
-        let sse_events: Vec<SseSpanEvent> = all_db_spans.iter().map(SseSpanEvent::from).collect();
+        let sse_events: Vec<SseSpanEvent> = sse_events_for(&all_db_spans);
 
         // Files first, then the rows that reference them.
         //
@@ -1596,7 +1596,7 @@ impl TracePipeline {
                 partly_dropped += unstorable;
             }
 
-            let sse_events: Vec<SseSpanEvent> = db_spans.iter().map(SseSpanEvent::from).collect();
+            let sse_events: Vec<SseSpanEvent> = sse_events_for(&db_spans);
             // Ordered, exactly as the batch path is: this path ran the two concurrently, so it could
             // commit a row referencing a file whose write had failed - the same defect, in the path
             // that runs at shutdown and recovery, where it is least likely to be noticed.
@@ -1902,6 +1902,36 @@ pub fn strip_unstorable_spans(request: &mut ExportTraceServiceRequest) -> usize 
     removed
 }
 
+/// SSE events for a batch, each stamped with its trace's **canonical** session rather than the span's own.
+///
+/// A subscriber filtered by session compares `event.session_id`, and a span carries a session only if it is
+/// the span that knew one - usually the root alone. So every child span produced an event a session
+/// subscription discarded, and a span naming a *different* session sent an event to a page that session's
+/// trace does not appear on while the page it does appear on received nothing. Resolving from the batch makes
+/// the live stream agree with what a subsequent read returns.
+fn sse_events_for(spans: &[NormalizedSpan]) -> Vec<SseSpanEvent> {
+    let sessions = canonical_session_of_traces(spans);
+    spans
+        .iter()
+        .map(|span| {
+            let mut event = SseSpanEvent::from(span);
+            let key = (
+                span.project_id
+                    .as_deref()
+                    .unwrap_or(DEFAULT_PROJECT_ID)
+                    .to_string(),
+                span.trace_id.clone(),
+            );
+            // Only when this batch knows the trace's session; otherwise the span's own value stands, which
+            // is what a batch of orphan children can say.
+            if let Some(session) = sessions.get(&key) {
+                event.session_id = Some(session.clone());
+            }
+            event
+        })
+        .collect()
+}
+
 /// Which `(project, trace)` pairs in this batch belong to one of `sessions`.
 ///
 /// Session membership is a property of the **trace**, not of each span, and this is the whole reason the
@@ -1991,6 +2021,37 @@ mod session_fence_tests {
                 + chrono::Duration::seconds(offset_secs),
             ..Default::default()
         }
+    }
+
+    /// A live event names the trace's session, so a session subscription sees the whole trace.
+    ///
+    /// A subscriber filtered by session compares `event.session_id`, and a span carries one only if it is the
+    /// span that knew it - the root, for every framework here. So a child span's event was discarded by the
+    /// session page it belonged to, and a span naming a different session sent an event to a page that
+    /// session's trace does not appear on.
+    #[test]
+    fn a_live_event_carries_its_trace_s_canonical_session() {
+        let spans = vec![
+            at("p", "t1", "root", Some("session-a"), 0),
+            at("p", "t1", "child", None, 1),
+            at("p", "t1", "stray", Some("session-b"), 2),
+        ];
+
+        let events = sse_events_for(&spans);
+        let sessions: Vec<Option<&str>> = events.iter().map(|e| e.session_id.as_deref()).collect();
+        assert_eq!(
+            sessions,
+            vec![Some("session-a"), Some("session-a"), Some("session-a")],
+            "every span of the trace must reach the session page the trace is displayed on"
+        );
+    }
+
+    /// A batch of orphan children names no session, and the event says so rather than guessing.
+    #[test]
+    fn a_batch_that_names_no_session_leaves_the_event_unstamped() {
+        let spans = vec![at("p", "t1", "child", None, 0)];
+        let events = sse_events_for(&spans);
+        assert_eq!(events[0].session_id, None);
     }
 
     /// Deleting one session must not drop a trace that belongs to another.

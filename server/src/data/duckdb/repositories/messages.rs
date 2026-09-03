@@ -94,15 +94,14 @@ pub fn get_messages(
         // spans name two sessions was returned in full by both, so one session's view showed content the UI
         // displays under another. `arg_min` over `(timestamp_start, span_id)` is the same total order the
         // display and the feed's grouping use.
-        // The shared definition, given this query's own relation - the watermarked one when a traversal is
-        // in progress. It kept a hand-written copy of this SQL until the structural guard was written, which
-        // is exactly the drift a single definition exists to prevent.
-        let traces = super::query::traces_of_session(dedup);
+        //
+        // The shared definition, told this query's traversal instant so it can bound its own relation. The
+        // watermark bind belongs to the subquery and is returned with the rest, so this call site no longer
+        // manages it - it did, and that is one more place the order could drift.
+        let traces = super::query::traces_of_session(params.ingested_before_us);
         conditions.push(format!("trace_id IN ({traces})"));
-        if let Some(watermark) = &watermark_bind {
-            bind_values.push(watermark.clone());
-        }
         bind_values.extend(super::query::traces_of_session_binds(
+            params.ingested_before_us,
             &params.project_id,
             session_id,
         ));

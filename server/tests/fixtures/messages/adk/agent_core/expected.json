@@ -3,7 +3,7 @@
   "request_count": 2,
   "span_count": 11,
   "trace_count": 1,
-  "session_count": 2,
+  "session_count": 1,
   "span_views": {
     "trace-1/adk.session/span-1": {
       "message_count": 0,
@@ -327,105 +327,6 @@
     }
   },
   "session_views": {
-    "0fc1d1c6-e8ff-4fef-8675-9bd2468994b5": {
-      "message_count": 9,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "assistant",
-        "tool",
-        "assistant",
-        "assistant",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 3,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are an AI assistant that validates answers through code execution. When asked about code, algorithms, or calculations, write Python code to verify your answers. When asked about user preferences or personal information (like favorite nu…[392 chars]",
-          "content_digest": "0cb0126db9f7c8e7",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Calculate my favorite number squared. First retrieve my favorite number using the retrieve_user_preference tool with 'favorite_number' as the argument. Then use the execute_python_code tool to compute and verify the square.",
-          "content_digest": "fd747accf64e583a",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "I'll help you calculate your favorite number squared. Let me first retrieve your favorite number from memory.",
-          "content_digest": "fab00acbeb1aff53",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_retrieve_user_preference_call_7f6fcde5\",\"name\":\"retrieve_user_preference\",\"input\":{\"preference_type\":\"favorite_number\"}}",
-          "content_digest": "ce8479dbbc4ad6d6",
-          "tool_name": "retrieve_user_preference",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_retrieve_user_preference_call_7f6fcde5\",\"name\":\"retrieve_user_preference\",\"content\":{\"result\":\"7\"}}",
-          "content_digest": "4bad7add93a5c366",
-          "tool_name": "retrieve_user_preference",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "Great! Your favorite number is 7. Now let me calculate 7 squared:",
-          "content_digest": "4336756d1b342adc",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_execute_python_code_call_bfdc00a7\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"\\nfavorite_number = 7\\nresult = favorite_number ** 2\\nprint(f\\\"Your favorite number is: {favorite_number}\\\")\\nprint(f\\\"{favorit…[276 chars]",
-          "content_digest": "e8492a8f25d67587",
-          "tool_name": "execute_python_code",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 7,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_execute_python_code_call_bfdc00a7\",\"name\":\"execute_python_code\",\"content\":{\"result\":\"Your favorite number is: 7\\n7 squared = 49\\n\"}}",
-          "content_digest": "15757b364552e92f",
-          "tool_name": "execute_python_code",
-          "observation_type": "generation"
-        },
-        {
-          "index": 8,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "**Result:** Your favorite number is **7**, and 7 squared equals **49**.",
-          "content_digest": "0cc9b2fea3045bc9",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
     "adk-agent_core-72bf6e45": {
       "message_count": 9,
       "role_sequence": [

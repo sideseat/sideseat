@@ -487,7 +487,9 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
     // rows holding the messages and made sessions look empty.
     let mut traces_of_session: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     // trace id -> (earliest timestamp carrying a session id, that session id)
-    let mut session_of_trace: BTreeMap<String, (chrono::DateTime<chrono::Utc>, String)> =
+    // Keyed by `(timestamp_start, span_id)`, so the earliest span is unambiguous - the same total order
+    // production uses.
+    let mut session_of_trace: BTreeMap<String, ((chrono::DateTime<chrono::Utc>, String), String)> =
         BTreeMap::new();
 
     for (span_name, row) in rows {
@@ -501,25 +503,38 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
             .or_default()
             .push(row.clone());
 
-        let session = row.session_id.clone().filter(|s| !s.is_empty());
-        if let Some(sid) = &session {
-            traces_of_session
-                .entry(sid.clone())
-                .or_default()
-                .insert(row.trace_id.clone());
-        }
-        // Which session a trace belongs to, chosen the way production does:
-        // `FIRST(s.session_id ORDER BY s.timestamp_start) FILTER (WHERE s.session_id IS NOT NULL)`
-        // in the trace query. Taking the first row encountered instead could pick a different
-        // session for a trace whose spans carry more than one.
-        if let Some(sid) = session {
-            let entry = session_of_trace
-                .entry(row.trace_id.clone())
-                .or_insert((row.span_timestamp, sid.clone()));
-            if row.span_timestamp < entry.0 {
-                *entry = (row.span_timestamp, sid);
+        // Which session a trace belongs to, chosen the way production does: the session on its **earliest**
+        // span, ordered by `(timestamp_start, span_id)` so the answer is total. `arg_min` over that key is
+        // what every query uses - the display, the membership subquery, the lists and both deletions.
+        if let Some(sid) = row.session_id.clone().filter(|s| !s.is_empty()) {
+            let key = (row.span_timestamp, row.span_id.clone());
+            match session_of_trace.entry(row.trace_id.clone()) {
+                std::collections::btree_map::Entry::Vacant(slot) => {
+                    slot.insert((key, sid));
+                }
+                std::collections::btree_map::Entry::Occupied(mut slot) => {
+                    // The *session* is part of the comparison, not just the key. Production reads one row
+                    // per span, so two different sessions can never tie there; this harness is handed
+                    // pre-deduplication rows, where the same span appears once per request that carried it.
+                    // With a strict comparison on the key alone, an exact tie kept whichever row came first,
+                    // which made the answer depend on the order the requests were replayed in - caught by
+                    // `the_order_spans_arrive_in_does_not_change_the_answer`.
+                    if (&key, &sid) < (&slot.get().0, &slot.get().1) {
+                        slot.insert((key, sid));
+                    }
+                }
             }
         }
+    }
+
+    // Membership follows from that, rather than being collected per row. Collecting each row's own session
+    // gave a trace whose spans name two sessions a session view under **both** - which production does not
+    // do, so the goldens described an answer no endpoint returns.
+    for (trace_id, (_, session)) in &session_of_trace {
+        traces_of_session
+            .entry(session.clone())
+            .or_default()
+            .insert(trace_id.clone());
     }
 
     // Rows a session query would return: every row of every trace in the session, content
