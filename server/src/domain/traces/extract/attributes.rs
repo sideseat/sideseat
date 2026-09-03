@@ -1380,13 +1380,23 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     // Held rather than applied: the total is synthesised once, at the end, from every counter the
     // fallbacks below may still fill in. Computed here it could only ever floor at input + output, which
     // is *below* the true total for a provider that reports its cache counters beside them.
+    // Presence, not the value, for the total as well: with only the number, "the provider said 1,100" and
+    // "nobody said anything" are the same 0, and a framework fallback's `max` could then raise a total the
+    // provider had stated explicitly.
+    let total_supplied = TOTAL_TOKENS
+        .extract_opt_for_span(attrs, span_name)
+        .is_some();
     let mut reported_total = TOTAL_TOKENS.extract(attrs);
     // Presence, not the value: a reported `0` is a fact the framework fallbacks must not overwrite, exactly
     // as for the input and output sides.
-    let cache_read_supplied = CACHE_READ_TOKENS
+    //
+    // `mut`, because a *later source* supplying the counter makes it supplied too. As a record of "a flat
+    // attribute existed", the Logfire path below could fill in a cache read of 17 and the CrewAI path then
+    // overwrite it with 100 - the flag has to describe the span, not one of the sources that write to it.
+    let mut cache_read_supplied = CACHE_READ_TOKENS
         .extract_opt_for_span(attrs, span_name)
         .is_some();
-    let cache_write_supplied = CACHE_WRITE_TOKENS
+    let mut cache_write_supplied = CACHE_WRITE_TOKENS
         .extract_opt_for_span(attrs, span_name)
         .is_some();
     span.gen_ai_usage_cache_read_tokens = CACHE_READ_TOKENS.extract_for_span(attrs, span_name);
@@ -1407,6 +1417,7 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
                         .and_then(|v| v.as_i64())
                 {
                     span.gen_ai_usage_cache_read_tokens = v;
+                    cache_read_supplied = true;
                 }
                 if !cache_write_supplied
                     && let Some(v) = usage
@@ -1414,6 +1425,7 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
                         .and_then(|v| v.as_i64())
                 {
                     span.gen_ai_usage_cache_write_tokens = v;
+                    cache_write_supplied = true;
                 }
             }
         }
@@ -1459,6 +1471,7 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
                         && let Some(v) = usage.get("cached_prompt_tokens").and_then(|v| v.as_i64())
                     {
                         span.gen_ai_usage_cache_read_tokens = v;
+                        cache_read_supplied = true;
                     }
                     // The embedded total describes the embedded *parts*, so it is usable exactly when the
                     // parts actually stored are those parts - either this payload supplied a side, or the
@@ -1469,7 +1482,11 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
                     let side_agrees = |took: bool, stored: i64, key: &str| {
                         took || usage.get(key).and_then(|v| v.as_i64()) == Some(stored)
                     };
-                    if side_agrees(took_input, span.gen_ai_usage_input_tokens, "prompt_tokens")
+                    // And only when the provider did not state a total itself: `max` against an explicit
+                    // flat total can only raise it, which replaces the provider's own statement about the
+                    // call with the framework's - flat `500/600` and a flat total of 1,100 became 2,000.
+                    if !total_supplied
+                        && side_agrees(took_input, span.gen_ai_usage_input_tokens, "prompt_tokens")
                         && side_agrees(
                             took_output,
                             span.gen_ai_usage_output_tokens,
@@ -1506,7 +1523,13 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
 
     // After every fallback, not before them: reported ahead of the CrewAI and AutoGen paths it announced
     // "no counters" for spans those paths went on to fill in.
-    if !input_supplied && !output_supplied {
+    //
+    // Every counter, not only the two sides: a span reporting cache tokens and nothing else is billed, so
+    // announcing it as free would be wrong - and reading each flag here is also what keeps every source
+    // maintaining it, since a chain whose final link need not update the tracker is a chain the next link
+    // will not either. That is exactly how `cache_read_supplied` came to mean "a flat attribute existed"
+    // rather than "the span has one", letting a later source overwrite an earlier source's value.
+    if !input_supplied && !output_supplied && !cache_read_supplied && !cache_write_supplied {
         tracing::trace!(
             span_name,
             "No token counters were supplied by any source; this span bills as free"

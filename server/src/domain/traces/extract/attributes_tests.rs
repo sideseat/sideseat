@@ -1894,3 +1894,62 @@ fn an_embedded_cache_counter_is_read_even_when_both_sides_were_reported() {
         "the payload's parts match what is stored, so its reported total applies"
     );
 }
+
+/// A later source does not overwrite a counter an earlier one supplied.
+///
+/// `cache_read_supplied` recorded only whether a *flat attribute* existed, so a value the Logfire
+/// `response_data` path filled in was not protected: CrewAI's `cached_prompt_tokens` overwrote it, and the
+/// cache charge followed the wrong number. The flag describes the span, not one source's view of it.
+#[test]
+fn a_framework_fallback_does_not_overwrite_an_earlier_fallback_s_cache_count() {
+    let mut attrs = HashMap::new();
+    attrs.insert("crew_key".to_string(), "crew-1".to_string());
+    attrs.insert(
+        "response_data".to_string(),
+        serde_json::json!({ "usage": { "cache_read_input_tokens": 17 } }).to_string(),
+    );
+    attrs.insert(
+        "output.value".to_string(),
+        serde_json::json!({ "token_usage": { "cached_prompt_tokens": 100 } }).to_string(),
+    );
+
+    let mut span = SpanData::default();
+    extract_genai(&mut span, &attrs, "crew");
+
+    assert_eq!(
+        span.gen_ai_usage_cache_read_tokens, 17,
+        "the first source to supply the counter owns it"
+    );
+}
+
+/// A framework's embedded total does not raise a total the provider stated itself.
+///
+/// The embedded total is taken through `max`, which against an explicit flat total can only replace the
+/// provider's own statement with the framework's: flat `500/600` with a flat total of 1,100 became 2,000.
+#[test]
+fn an_embedded_total_does_not_override_an_explicit_flat_total() {
+    let mut attrs = HashMap::new();
+    attrs.insert("crew_key".to_string(), "crew-1".to_string());
+    attrs.insert("gen_ai.usage.input_tokens".to_string(), "500".to_string());
+    attrs.insert("gen_ai.usage.output_tokens".to_string(), "600".to_string());
+    attrs.insert("gen_ai.usage.total_tokens".to_string(), "1100".to_string());
+    attrs.insert(
+        "output.value".to_string(),
+        serde_json::json!({
+            "token_usage": {
+                "prompt_tokens": 500,
+                "completion_tokens": 600,
+                "total_tokens": 2000
+            }
+        })
+        .to_string(),
+    );
+
+    let mut span = SpanData::default();
+    extract_genai(&mut span, &attrs, "crew");
+
+    assert_eq!(
+        span.gen_ai_usage_total_tokens, 1_100,
+        "the provider stated the total; the framework's does not raise it"
+    );
+}
