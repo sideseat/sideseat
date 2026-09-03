@@ -838,11 +838,6 @@ impl TracePipeline {
                 )
             })
             .collect();
-        // Which session each written trace belongs to, for the session compensation below - resolved by the
-        // same rule the reads use, not by whichever span came first in the batch. See
-        // `canonical_session_of_traces`.
-        let session_of: HashMap<(String, String), String> =
-            canonical_session_of_traces(&all_db_spans);
         let db_ok = write_to_duckdb(all_db_spans, &self.analytics).await;
 
         let t_persist_done = std::time::Instant::now();
@@ -856,8 +851,7 @@ impl TracePipeline {
             // means the association is at zero pending and non-durable, so it goes; confirm then sees only
             // the survivors, which `collect_spans_written_for_deleted_traces` has pruned from the set.
             // Sessions first: tombstoning their traces is what makes the trace compensation see them.
-            self.tombstone_traces_of_deleted_sessions(&written, &session_of)
-                .await;
+            self.tombstone_traces_of_deleted_sessions(&written).await;
             let compensated = self
                 .collect_spans_written_for_deleted_traces(&written, &mut created_associations)
                 .await;
@@ -977,14 +971,60 @@ impl TracePipeline {
     async fn tombstone_traces_of_deleted_sessions(
         &self,
         written: &[(String, String, String)],
-        session_of: &HashMap<(String, String), String>,
     ) -> HashSet<(String, String)> {
         let mut affected: HashSet<(String, String)> = HashSet::new();
+        if written.is_empty() {
+            return affected;
+        }
+
+        // Which session each written trace belongs to, **from the store**, not from the batch.
+        //
+        // This runs after the write, so the store holds these spans *and* everything delivered earlier - it
+        // is the complete and authoritative view, which a batch never is. Taking the batch's answer here
+        // undid the pre-write confirmation entirely: a child-only export naming a deleted session B, for a
+        // trace stored under a live session A, was kept by the fence and then tombstoned by this - and the
+        // sweep deleted its stored A content. It also fixes the concurrent case, where another instance's
+        // root was committing while this batch was checked.
+        let mut traces_by_project: HashMap<String, Vec<String>> = HashMap::new();
+        for (project, trace, _) in written {
+            traces_by_project
+                .entry(project.clone())
+                .or_default()
+                .push(trace.clone());
+        }
+        let mut session_of: HashMap<(String, String), String> = HashMap::new();
+        for (project, mut trace_ids) in traces_by_project {
+            trace_ids.sort_unstable();
+            trace_ids.dedup();
+            match self
+                .analytics
+                .repository()
+                .get_trace_session_pairs(&project, &trace_ids, None)
+                .await
+            {
+                Ok(pairs) => {
+                    for (trace, session) in pairs {
+                        session_of.insert((project.clone(), trace), session);
+                    }
+                }
+                Err(e) => {
+                    // The deletion sweep re-resolves sessions, so anything missed here is collected there.
+                    // Guessing from the batch is what this change exists to stop.
+                    tracing::warn!(
+                        error = %e,
+                        project_id = %project,
+                        "Could not resolve written traces' sessions after the write; leaving them to the \
+                         deletion sweep"
+                    );
+                }
+            }
+        }
         if session_of.is_empty() {
             return affected;
         }
+
         let mut sessions_by_project: HashMap<&str, Vec<String>> = HashMap::new();
-        for ((project, _trace), session) in session_of {
+        for ((project, _trace), session) in &session_of {
             sessions_by_project
                 .entry(project.as_str())
                 .or_default()
@@ -1349,6 +1389,29 @@ impl TracePipeline {
         let mut deleted_traces = traces_of_sessions(spans, &deleted);
         if !deleted_traces.is_empty() {
             let batch_sessions = canonical_session_of_traces(spans);
+
+            // Which traces this batch actually witnesses the *beginning* of - it carries a span with no
+            // parent.
+            //
+            // A span that has a parent is not a trace's earliest span, so a batch of only such spans is no
+            // evidence at all about which session the trace belongs to. That matters for a trace the store
+            // has never seen, where the batch is the only evidence available: two instances ingesting one
+            // trace concurrently, or an exporter whose first flush happens to carry a child, would otherwise
+            // let a deleted session B tombstone a trace whose root says live session A - and the tombstone
+            // is what makes that permanent.
+            let batch_has_root: HashSet<(String, String)> = spans
+                .iter()
+                .filter(|s| s.parent_span_id.as_deref().unwrap_or("").is_empty())
+                .map(|s| {
+                    (
+                        s.project_id
+                            .as_deref()
+                            .unwrap_or(DEFAULT_PROJECT_ID)
+                            .to_string(),
+                        s.trace_id.clone(),
+                    )
+                })
+                .collect();
             let mut by_project: HashMap<String, Vec<String>> = HashMap::new();
             for (project, trace) in &deleted_traces {
                 by_project
@@ -1364,6 +1427,23 @@ impl TracePipeline {
                     .await
                 {
                     Ok(pairs) => {
+                        let known: HashSet<String> = pairs.iter().map(|(t, _)| t.clone()).collect();
+                        // A trace the store does not know, and whose root this batch has not seen either.
+                        // Nothing here is evidence about its session, so it is not fenced; the deletion
+                        // sweep re-resolves sessions and reclaims it if it does belong to a deleted one.
+                        // Keeping data that might need reclaiming beats deleting data that did not.
+                        for trace in &trace_ids {
+                            let key = (project.clone(), trace.clone());
+                            if !known.contains(trace) && !batch_has_root.contains(&key) {
+                                tracing::debug!(
+                                    project_id = %project,
+                                    trace_id = %trace,
+                                    "Not fencing a trace the store does not know and whose root this batch \
+                                     does not carry; the sweep will resolve it"
+                                );
+                                deleted_traces.remove(&key);
+                            }
+                        }
                         for (trace, stored_session) in pairs {
                             let key = (project.clone(), trace);
                             // The store knows this trace. Keep it unless the session *it* reports is one of
@@ -1384,14 +1464,21 @@ impl TracePipeline {
                         }
                     }
                     Err(e) => {
-                        // Unreadable store: fall back to the batch's answer, which is the pre-existing
-                        // behaviour. Dropping the spans is the conservative side of *this* choice - the
-                        // alternative is writing into a session the caller was told was gone.
+                        // Refuse the batch rather than guess. Falling back to the batch's view was the
+                        // pre-existing behaviour and it is the *destructive* side of the choice: a transient
+                        // read failure would permanently tombstone a trace that belongs to a live session,
+                        // and the sweep would then delete its stored rows. Nothing recovers that.
+                        //
+                        // The exporter still has this data, so an error it can retry loses nothing - which
+                        // is the same reasoning the acknowledgement rules follow: a 200 has to mean stored,
+                        // and where that cannot be established the answer is a failure, not a guess.
                         tracing::warn!(
                             error = %e,
                             project_id = %project,
-                            "Could not confirm trace sessions against the store; using the batch's view"
+                            "Could not confirm trace sessions against the store; refusing the batch so the \
+                             exporter retries rather than risking a tombstone on a partial view"
                         );
+                        return Err(());
                     }
                 }
             }
@@ -1779,9 +1866,6 @@ impl TracePipeline {
                     )
                 })
                 .collect();
-            // The same rule the reads use; see `canonical_session_of_traces`.
-            let session_of: HashMap<(String, String), String> =
-                canonical_session_of_traces(&db_spans);
             let db_ok = write_to_duckdb(db_spans, &self.analytics).await;
             if !db_ok {
                 self.release_created_associations(&created_associations)
@@ -1790,8 +1874,7 @@ impl TracePipeline {
             if db_ok {
                 // Compensate before confirming - see the batch path for why the order is load-bearing under
                 // the counter model.
-                self.tombstone_traces_of_deleted_sessions(&written, &session_of)
-                    .await;
+                self.tombstone_traces_of_deleted_sessions(&written).await;
                 let compensated = self
                     .collect_spans_written_for_deleted_traces(&written, &mut created_associations)
                     .await;
@@ -2034,33 +2117,56 @@ fn traces_of_sessions(
 fn canonical_session_of_traces(spans: &[NormalizedSpan]) -> HashMap<(String, String), String> {
     /// `(project, trace)`.
     type TraceKey = (String, String);
+    /// `(project, trace, span)` - one delivery survives per span, as storage keeps one row per span.
+    type SpanKey = (String, String, String);
     /// `(timestamp_start, span_id)` - the same total order the reads use.
     type EarliestBy = (chrono::DateTime<chrono::Utc>, String);
 
-    let mut best: HashMap<TraceKey, (EarliestBy, String)> = HashMap::new();
-    for span in spans {
-        let Some(session_id) = span.session_id.as_deref().filter(|v| !v.is_empty()) else {
-            continue;
-        };
+    // Two passes, mirroring what the store actually does.
+    //
+    // First the latest delivery of each span wins, exactly as `DEDUP_SPANS` keeps one row per span ordered
+    // by `ingested_at DESC, rowid DESC` - within a batch that is the last occurrence, because insertion
+    // order is the order iterated here. This is the pass that was missing: a span re-delivered *without* a
+    // session still counted with its earlier session, so a trace whose session had been removed was fenced
+    // against the deleted one.
+    //
+    // Then the session on the earliest surviving span that has one, which is `arg_min(session_id, …)` after
+    // `WHERE session_id IS NOT NULL`. A sessionless span is not a candidate - folding it into the first pass
+    // as a competing value made the *earliest span* depend on spans that say nothing about membership.
+    let mut latest: HashMap<SpanKey, (usize, Option<String>, chrono::DateTime<chrono::Utc>)> =
+        HashMap::new();
+    for (position, span) in spans.iter().enumerate() {
         let project = span
             .project_id
             .as_deref()
             .unwrap_or(DEFAULT_PROJECT_ID)
             .to_string();
-        let key = (span.timestamp_start, span.span_id.clone());
-        // `<=`, not `<`: on an exact tie the **last** value in the batch wins, which is what storage does
-        // (`DEDUP_SPANS` orders by `ingested_at DESC, rowid DESC`, so a later delivery of the same span
-        // replaces the earlier one). With a strict comparison the resolver kept the *first*, so a batch
-        // carrying a span twice - a correction following its original - classified the trace by the value
-        // storage was about to discard. Reads then resolved one session and the fence another.
-        best.entry((project, span.trace_id.clone()))
+        let session = span
+            .session_id
+            .as_deref()
+            .filter(|v| !v.is_empty())
+            .map(str::to_string);
+        latest.insert(
+            (project, span.trace_id.clone(), span.span_id.clone()),
+            (position, session, span.timestamp_start),
+        );
+    }
+
+    let mut best: HashMap<TraceKey, (EarliestBy, String)> = HashMap::new();
+    for ((project, trace, span_id), (_, session, timestamp_start)) in latest {
+        let Some(session_id) = session else {
+            continue;
+        };
+        let key = (timestamp_start, span_id);
+        best.entry((project, trace))
             .and_modify(|current| {
-                if key <= current.0 {
-                    *current = (key.clone(), session_id.to_string());
+                if key < current.0 {
+                    *current = (key.clone(), session_id.clone());
                 }
             })
-            .or_insert((key, session_id.to_string()));
+            .or_insert((key, session_id));
     }
+
     best.into_iter()
         .map(|(trace, (_, session))| (trace, session))
         .collect()
@@ -2091,6 +2197,59 @@ mod session_fence_tests {
                 + chrono::Duration::seconds(offset_secs),
             ..Default::default()
         }
+    }
+
+    /// A later delivery that *removes* a span's session wins, as it does in storage.
+    ///
+    /// Storage keeps one row per span - the latest delivery - so a span re-sent without a session no longer
+    /// carries one. The resolver visited every delivery, so the earlier session survived and a trace whose
+    /// session had been removed was still resolved to it. Two passes now: latest delivery per span, then the
+    /// earliest surviving span that has a session, which is exactly `arg_min(...)` after
+    /// `WHERE session_id IS NOT NULL`.
+    #[test]
+    fn a_delivery_that_removes_a_session_wins_over_the_one_that_set_it() {
+        let spans = vec![
+            at("p", "t1", "root", Some("session-a"), 0),
+            // The same span again, corrected to carry no session.
+            at("p", "t1", "root", None, 0),
+        ];
+        assert!(
+            !canonical_session_of_traces(&spans).contains_key(&("p".to_string(), "t1".to_string())),
+            "the latest delivery of that span has no session, so the trace has none"
+        );
+
+        // And the reverse order is not symmetric - it is the *last* delivery that counts, not the one with
+        // a session.
+        let reinstated = vec![
+            at("p", "t1", "root", None, 0),
+            at("p", "t1", "root", Some("session-a"), 0),
+        ];
+        assert_eq!(
+            canonical_session_of_traces(&reinstated)
+                .get(&("p".to_string(), "t1".to_string()))
+                .map(String::as_str),
+            Some("session-a")
+        );
+    }
+
+    /// A sessionless span does not decide which span is the trace's earliest.
+    ///
+    /// The rule is "the session on the earliest span *that has one*" - `arg_min` runs after
+    /// `WHERE session_id IS NOT NULL`. Letting sessionless spans compete made the answer depend on spans
+    /// that say nothing about membership: a child sorting before the root by span id emptied the trace's
+    /// session entirely.
+    #[test]
+    fn a_sessionless_span_does_not_decide_the_trace_s_session() {
+        let spans = vec![
+            at("p", "t1", "aaa-child", None, 0),
+            at("p", "t1", "root", Some("session-a"), 0),
+        ];
+        assert_eq!(
+            canonical_session_of_traces(&spans)
+                .get(&("p".to_string(), "t1".to_string()))
+                .map(String::as_str),
+            Some("session-a")
+        );
     }
 
     /// A live event names the trace's session, so a session subscription sees the whole trace.
