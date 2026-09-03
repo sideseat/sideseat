@@ -421,12 +421,11 @@ struct Built {
     /// session id -> its traces, and trace id -> canonical label, for the cross-view invariant.
     ///
     /// Session membership is a set, not a single value: a trace can belong to more than one
-    /// session. Google ADK emits its own session id on some spans and the sample's `session.id`
-    /// on others, so one ADK trace appears under two sessions and the API returns it for both.
+    /// session. Google ADK emits its own session id on some spans and the sample's `session.id` on
+    /// others - which used to put one ADK trace under two sessions. A trace now belongs to the session
+    /// on its earliest span, so each appears exactly once.
     traces_of_session: BTreeMap<String, BTreeSet<String>>,
     trace_labels: BTreeMap<String, String>,
-    /// trace id -> the single session production resolves it to.
-    session_of_trace: BTreeMap<String, String>,
 }
 
 /// The content filter every trace/session message query applies
@@ -698,10 +697,6 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
         invariants,
         traces_of_session,
         trace_labels: labels,
-        session_of_trace: session_of_trace
-            .into_iter()
-            .map(|(t, (_, _, sid))| (t, sid))
-            .collect(),
     }
 }
 
@@ -1087,7 +1082,6 @@ fn assert_session_partitions_into_traces(
     golden: &Golden,
     traces_of_session: &BTreeMap<String, BTreeSet<String>>,
     trace_labels: &BTreeMap<String, String>,
-    session_of_trace: &BTreeMap<String, String>,
 ) {
     for (session_id, session_view) in &golden.session_views {
         let Some(traces) = traces_of_session.get(session_id) else {
@@ -1097,20 +1091,16 @@ fn assert_session_partitions_into_traces(
         // Production builds that trace's view from whichever session it resolves to, so the
         // partition only holds for that session; skip the others rather than assert something
         // the API would not produce.
-        // Asserted, not excused. This used to `continue` for a session that shared a trace with another -
-        // ADK emits its own session id alongside the sample's, so a trace appeared under two - and the
-        // partition simply went unchecked for those fixtures. A trace now belongs to exactly one session
-        // (see `CANONICAL_TRACE_SESSIONS`), so the condition cannot arise, and saying so as an assertion
-        // means the invariant is checked everywhere rather than quietly skipped where it mattered most.
-        let foreign: Vec<&String> = traces
-            .iter()
-            .filter(|t| session_of_trace.get(*t) != Some(session_id))
-            .collect();
-        assert!(
-            foreign.is_empty(),
-            "{label}: session {session_id} claims trace(s) {foreign:?} whose canonical session is \
-             different - a trace belongs to exactly one session"
-        );
+        // The partition is asserted for **every** session now. It used to `continue` for a session sharing
+        // a trace with another - ADK emits its own session id alongside the sample's, so a trace appeared
+        // under two - which skipped the check for exactly the fixtures where it mattered. A trace belongs to
+        // one session, so that no longer happens.
+        //
+        // There is deliberately no assertion here that a session claims no foreign trace: this harness
+        // *derives* `traces_of_session` from `session_of_trace`, so such a check compares a map with itself
+        // and cannot fail. The production rule is proved where it is implemented - the DuckDB query tests and
+        // the ClickHouse parity suite - not by a tautology here. What this loop does prove is that the
+        // recorded trace views and the recorded session view agree, which are two independent numbers.
         let expected: usize = traces
             .iter()
             .filter_map(|trace_id| trace_labels.get(trace_id))
@@ -1202,7 +1192,6 @@ fn check_invariants(label: &str, built: &Built) {
         golden,
         &built.traces_of_session,
         &built.trace_labels,
-        &built.session_of_trace,
     );
 
     // Not every sample uses sessions, so assert on traces: those always exist.

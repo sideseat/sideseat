@@ -1860,3 +1860,37 @@ fn an_imported_total_is_only_used_when_it_describes_the_imported_parts() {
         "the total must account for the input and output actually stored"
     );
 }
+
+/// The embedded cache counter and total are reachable even when both flat sides were reported.
+///
+/// The CrewAI block was gated on a *side* being missing, so a payload reporting both sides flatly could
+/// never contribute its cache counter or its total: `{prompt:500, completion:600, total:2000, cached:100}`
+/// with flat `500/600` stored a total of 1,100 and no cache at all.
+#[test]
+fn an_embedded_cache_counter_is_read_even_when_both_sides_were_reported() {
+    let mut attrs = HashMap::new();
+    attrs.insert("crew_key".to_string(), "crew-1".to_string());
+    attrs.insert("gen_ai.usage.input_tokens".to_string(), "500".to_string());
+    attrs.insert("gen_ai.usage.output_tokens".to_string(), "600".to_string());
+    attrs.insert(
+        "output.value".to_string(),
+        serde_json::json!({
+            "token_usage": {
+                "prompt_tokens": 500,
+                "completion_tokens": 600,
+                "total_tokens": 2000,
+                "cached_prompt_tokens": 100
+            }
+        })
+        .to_string(),
+    );
+
+    let mut span = SpanData::default();
+    extract_genai(&mut span, &attrs, "crew");
+
+    assert_eq!(span.gen_ai_usage_cache_read_tokens, 100);
+    assert_eq!(
+        span.gen_ai_usage_total_tokens, 2_000,
+        "the payload's parts match what is stored, so its reported total applies"
+    );
+}

@@ -872,7 +872,7 @@ impl TracePipeline {
                     ))
                 })
                 .collect();
-            let sse_events: Vec<SseSpanEvent> = sse_events
+            let mut sse_events: Vec<SseSpanEvent> = sse_events
                 .into_iter()
                 .filter(|e| {
                     surviving.contains(&(
@@ -882,6 +882,8 @@ impl TracePipeline {
                     ))
                 })
                 .collect();
+            // The rows are in, so the store can answer authoritatively - which the batch cannot.
+            self.stamp_stored_sessions(&mut sse_events).await;
             publish_sse_events(&sse_events, &self.topics).await;
         } else {
             // Release the associations this batch created, since the rows that would have justified them
@@ -959,6 +961,72 @@ impl TracePipeline {
     /// writing - and it is not sufficient alone either, since a crash between the write and this line
     /// leaves the spans. The deletion sweep is what covers that, exactly as it covers a project whose
     /// tombstone outlived its claim.
+    /// Stamp each event with its trace's session as **the store** resolves it.
+    ///
+    /// A subscriber filtered by session compares `event.session_id`, so the value has to be the one a
+    /// subsequent read will return - and only the store can say what that is. The canonical session is the
+    /// one on the trace's *earliest* span, and an earlier span may have arrived in a previous batch, so
+    /// resolving from the batch alone announced a span under session B while every read placed its trace
+    /// under A. The live stream and the page then disagree about the same trace, which for a debugging tool
+    /// reads as a message that appears and then cannot be found.
+    ///
+    /// Run **after** the write, so the store's answer includes this batch's own spans. On a read failure the
+    /// batch's value stands: an event whose session may be superseded is worth more to a subscriber than no
+    /// event at all, and the next read is authoritative either way.
+    async fn stamp_stored_sessions(&self, events: &mut [SseSpanEvent]) {
+        let mut by_project: HashMap<String, HashSet<String>> = HashMap::new();
+        for event in events.iter() {
+            by_project
+                .entry(
+                    event
+                        .project_id
+                        .as_deref()
+                        .unwrap_or(DEFAULT_PROJECT_ID)
+                        .to_string(),
+                )
+                .or_default()
+                .insert(event.trace_id.clone());
+        }
+
+        let mut stored: HashMap<(String, String), String> = HashMap::new();
+        for (project, trace_ids) in by_project {
+            let trace_ids: Vec<String> = trace_ids.into_iter().collect();
+            match self
+                .analytics
+                .repository()
+                .get_trace_session_pairs(&project, &trace_ids, None)
+                .await
+            {
+                Ok(pairs) => {
+                    for (trace, session) in pairs {
+                        stored.insert((project.clone(), trace), session);
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        project_id = %project,
+                        error = %e,
+                        "Could not resolve canonical sessions for SSE; publishing the batch's own view"
+                    );
+                }
+            }
+        }
+
+        for event in events.iter_mut() {
+            let key = (
+                event
+                    .project_id
+                    .as_deref()
+                    .unwrap_or(DEFAULT_PROJECT_ID)
+                    .to_string(),
+                event.trace_id.clone(),
+            );
+            if let Some(session) = stored.get(&key) {
+                event.session_id = Some(session.clone());
+            }
+        }
+    }
+
     /// After the write, tombstone the traces of any session deleted in the meantime.
     ///
     /// The session check before the write is not atomic with it, exactly as the trace check is not - and a
@@ -1893,7 +1961,7 @@ impl TracePipeline {
                         ))
                     })
                     .collect();
-                let sse_events: Vec<SseSpanEvent> = sse_events
+                let mut sse_events: Vec<SseSpanEvent> = sse_events
                     .into_iter()
                     .filter(|e| {
                         surviving.contains(&(
@@ -1903,6 +1971,8 @@ impl TracePipeline {
                         ))
                     })
                     .collect();
+                // Same as the batch path: resolved from the store, now that the rows are there.
+                self.stamp_stored_sessions(&mut sse_events).await;
                 publish_sse_events(&sse_events, &self.topics).await;
                 if partly_dropped > 0 {
                     IngestOutcome::PartlyDropped {
@@ -2055,8 +2125,10 @@ pub fn strip_unstorable_spans(request: &mut ExportTraceServiceRequest) -> usize 
 /// A subscriber filtered by session compares `event.session_id`, and a span carries a session only if it is
 /// the span that knew one - usually the root alone. So every child span produced an event a session
 /// subscription discarded, and a span naming a *different* session sent an event to a page that session's
-/// trace does not appear on while the page it does appear on received nothing. Resolving from the batch makes
-/// the live stream agree with what a subsequent read returns.
+/// trace does not appear on while the page it does appear on received nothing.
+///
+/// The batch's answer is the starting point; `stamp_stored_sessions` supersedes it from the store once the
+/// rows are written, which is what makes the live stream agree with what a subsequent read returns.
 fn sse_events_for(spans: &[NormalizedSpan]) -> Vec<SseSpanEvent> {
     let sessions = canonical_session_of_traces(spans);
     spans
@@ -2197,6 +2269,114 @@ mod session_fence_tests {
                 + chrono::Duration::seconds(offset_secs),
             ..Default::default()
         }
+    }
+
+    /// A pipeline over a temporary DuckDB, with files off - enough to ask the store a question.
+    async fn pipeline_over_a_temp_store()
+    -> (tempfile::TempDir, Arc<AnalyticsService>, TracePipeline) {
+        use crate::core::config::{
+            CacheBackendType, CacheConfig, EvictionPolicy, FilesConfig, StorageBackend,
+        };
+        use crate::core::storage::AppStorage;
+        use crate::data::TransactionalService;
+        use crate::data::files::FileService;
+        use crate::domain::pricing::PricingService;
+
+        let temp = tempfile::TempDir::new().expect("temp dir");
+        let storage = AppStorage::init_for_test(temp.path().to_path_buf());
+        tokio::fs::create_dir_all(temp.path().join("duckdb"))
+            .await
+            .expect("duckdb dir");
+        let analytics = Arc::new(AnalyticsService::Duckdb(Arc::new(
+            crate::data::duckdb::DuckdbService::init(&storage)
+                .await
+                .expect("duckdb"),
+        )));
+        let sqlite_pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect(":memory:")
+            .await
+            .expect("sqlite");
+        sqlx::raw_sql(crate::data::sqlite::schema::SCHEMA)
+            .execute(&sqlite_pool)
+            .await
+            .expect("sqlite schema");
+        let database = Arc::new(TransactionalService::Sqlite(Arc::new(
+            crate::data::sqlite::SqliteService::from_pool(sqlite_pool),
+        )));
+        let files = Arc::new(
+            FileService::new(
+                FilesConfig {
+                    enabled: false,
+                    storage: StorageBackend::Filesystem,
+                    quota_bytes: 0,
+                    filesystem_path: Some(temp.path().join("files").display().to_string()),
+                    s3: None,
+                },
+                &storage,
+                Arc::clone(&database),
+                Arc::new(
+                    crate::data::cache::CacheService::new(&CacheConfig {
+                        backend: CacheBackendType::Memory,
+                        max_entries: 16,
+                        eviction_policy: EvictionPolicy::TinyLfu,
+                        redis_url: None,
+                        redis_min_replica_acks: 0,
+                    })
+                    .await
+                    .expect("memory cache"),
+                ),
+            )
+            .await
+            .expect("file service"),
+        );
+        let pipeline = TracePipeline::new(
+            Arc::clone(&analytics),
+            Arc::new(PricingService::init_for_test().expect("offline pricing")),
+            Arc::new(crate::core::TopicService::default()),
+            files,
+        );
+        (temp, analytics, pipeline)
+    }
+
+    /// An SSE event names the session **a read will return**, not the one this batch happens to know.
+    ///
+    /// A subscriber filtered by session compares `event.session_id`. The canonical session is the one on the
+    /// trace's earliest span, so a batch carrying only a later span - the ordinary shape of a streaming
+    /// exporter - resolved the trace to its own span's session and announced the span under a session no read
+    /// places it in. The store is asked after the write, when it can answer.
+    #[tokio::test]
+    async fn an_sse_event_carries_the_session_a_read_will_return() {
+        let (_temp, analytics, pipeline) = pipeline_over_a_temp_store().await;
+
+        // The trace begins in session A, already stored.
+        analytics
+            .repository()
+            .insert_spans(vec![at("p", "t1", "root", Some("session-a"), 0)])
+            .await
+            .expect("store the root");
+
+        // A later batch carries only a child, which names a different session.
+        let batch = vec![at("p", "t1", "child", Some("session-b"), 5)];
+        let mut events = sse_events_for(&batch);
+        assert_eq!(
+            events[0].session_id.as_deref(),
+            Some("session-b"),
+            "the batch on its own can only say what its own spans say"
+        );
+
+        analytics
+            .repository()
+            .insert_spans(batch)
+            .await
+            .expect("store the child");
+        pipeline.stamp_stored_sessions(&mut events).await;
+
+        assert_eq!(
+            events[0].session_id.as_deref(),
+            Some("session-a"),
+            "the store holds the trace's earliest span, so its session is the one a read returns"
+        );
     }
 
     /// A later delivery that *removes* a span's session wins, as it does in storage.

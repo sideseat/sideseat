@@ -1427,7 +1427,11 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     // both directions: with a flat input of 200 and no output attribute the whole fallback was skipped, so
     // the output stayed 0 and its cost was never charged; and an explicit flat `0/0` was overwritten by
     // whatever the fallback found. The `*_supplied` flags exist precisely to tell those apart.
-    if !input_supplied || !output_supplied {
+    // The *outer* gate is only "is this CrewAI": the block also carries a cache counter and a reported
+    // total, and neither is reachable through a gate that asks whether a *side* is missing. With both flat
+    // sides present, `{prompt:500, completion:600, total:2000, cached:100}` stored a total of 1,100 and no
+    // cache at all. Each value inside decides for itself whether it was already supplied.
+    {
         let is_crewai = attrs.contains_key("crew_key")
             || attrs.contains_key("crew_id")
             || attrs.contains_key("crew_tasks")
