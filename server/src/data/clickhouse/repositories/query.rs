@@ -423,11 +423,16 @@ impl ConditionBuilder {
     ///
     /// `mapper` translates the request's view column names to span columns, the same mapping the
     /// DuckDB backend applies, so a filter means the same thing on both.
-    fn add_filters<'a, F>(&mut self, filters: &'a [Filter], mapper: F, alias: &str)
-    where
+    fn add_filters<'a, F>(
+        &mut self,
+        filters: &'a [Filter],
+        mapper: F,
+        alias: &str,
+        project_id: &str,
+    ) where
         F: Fn(&'a str) -> &'a str + Copy,
     {
-        self.add_filters_except(filters, mapper, alias, "");
+        self.add_filters_except(filters, mapper, alias, "", project_id);
     }
 
     /// Add the filters, skipping one column.
@@ -442,11 +447,47 @@ impl ConditionBuilder {
         mapper: F,
         alias: &str,
         skip_column: &str,
+        project_id: &str,
     ) where
         F: Fn(&'a str) -> &'a str + Copy,
     {
         for filter in filters {
             if !skip_column.is_empty() && filter.column() == skip_column {
+                continue;
+            }
+            // A `session_id` filter is a statement about the **trace**, not about a span row.
+            //
+            // Both callers - the span list and the session list - also accept a dedicated `session_id`
+            // parameter, and that one goes through `TRACES_OF_SESSION`. Mapping the filter to the raw column
+            // made the two ways of asking the same question disagree: filtering by a session that only a
+            // later span named returned that child, though every view displays its trace under a different
+            // session. The trace list already handles this, in `add_trace_filters`.
+            //
+            // A negated operator becomes `NOT IN` around the *positive* form, for the reason recorded on the
+            // trace list's subquery: "not this session" means "its session is not this one", and the negation
+            // as written also drops traces with no session (`NULL NOT IN (…)` is NULL).
+            if filter.column() == "session_id" {
+                let twin = filter.positive_twin();
+                let rendered = twin.as_ref().unwrap_or(filter);
+                let quantifier = if twin.is_some() { "NOT IN" } else { "IN" };
+                let condition = crate::data::clickhouse::filters::to_clickhouse_sql_against(
+                    rendered,
+                    &mut self.params,
+                    "cts.canonical_session",
+                );
+                // The project predicate comes *after* the condition, so its bind simply follows - no
+                // insertion into the middle of a parameter list, which is where bind-order mistakes live.
+                self.params.push(QueryParam::String(project_id.to_string()));
+                let column = if alias.is_empty() {
+                    "trace_id".to_string()
+                } else {
+                    format!("{alias}.trace_id")
+                };
+                self.conditions.push(format!(
+                    "{column} {quantifier} (SELECT cts.trace_id FROM ({CANONICAL}) cts \
+                     WHERE {condition} AND cts.project_id = ?)",
+                    CANONICAL = CANONICAL_TRACE_SESSIONS,
+                ));
                 continue;
             }
             let condition = crate::data::clickhouse::filters::to_clickhouse_sql(
@@ -1275,7 +1316,12 @@ pub async fn list_spans(
     }
 
     // The UI's filter bar, mapped through the span view's column names.
-    cb.add_filters(&params.filters, columns::map_span_column, "");
+    cb.add_filters(
+        &params.filters,
+        columns::map_span_column,
+        "",
+        &params.project_id,
+    );
 
     let where_clause = cb.build();
 
@@ -1538,7 +1584,12 @@ pub async fn list_sessions(
 
     // The UI's filter bar. Unqualified because these queries scan otel_spans directly, and
     // mapped through the session view's column names.
-    cb.add_filters(&params.filters, columns::map_session_column_to_spans, "");
+    cb.add_filters(
+        &params.filters,
+        columns::map_session_column_to_spans,
+        "",
+        &params.project_id,
+    );
 
     let where_clause = cb.build();
 

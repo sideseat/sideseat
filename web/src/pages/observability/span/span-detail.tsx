@@ -24,7 +24,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { ThreadView, type ThreadTab } from "@/components/thread";
 import { DataInspector } from "@/components/data-inspector";
 import { JsonContent } from "@/components/thread/content/json-content";
-import { useSpan, useSpanMessages } from "@/api/otel/hooks/queries";
+import { useSpan, useSpanMessages, useTrace } from "@/api/otel/hooks/queries";
 import { useSpanStream } from "@/api/otel/hooks/streams";
 import {
   SPAN_TYPE_CONFIG,
@@ -120,11 +120,13 @@ function TagBadge({ children, tooltip, variant = "secondary", className }: TagBa
 
 interface SpanHeaderProps {
   span: SpanDetailType;
+  /// The session the *trace* belongs to, which is not always the one this span carries.
+  sessionId?: string;
   onViewInTrace?: () => void;
   onViewInSession?: () => void;
 }
 
-function SpanHeader({ span, onViewInTrace, onViewInSession }: SpanHeaderProps) {
+function SpanHeader({ span, sessionId, onViewInTrace, onViewInSession }: SpanHeaderProps) {
   const spanType = getSpanType(span);
   const config = SPAN_TYPE_CONFIG[spanType];
   const Icon = config.icon;
@@ -132,7 +134,10 @@ function SpanHeader({ span, onViewInTrace, onViewInSession }: SpanHeaderProps) {
   const hasError = span.status_code === "ERROR";
   const hasTokens = span.total_tokens > 0;
   const hasCost = span.total_cost > 0;
-  const hasSession = !!span.session_id;
+  // The trace's session, not this span's. A session id sits on the span that knew it - the root, for every
+  // framework here - so gating on `span.session_id` hid the button on every child span of a trace that does
+  // have a session, and showed it on a span naming one the trace is not in, where it led nowhere.
+  const hasSession = !!sessionId;
 
   const tokenDisplay = hasTokens
     ? span.input_tokens > 0 && span.output_tokens > 0
@@ -286,6 +291,13 @@ export function SpanDetail({
     error: spanError,
     refetch: refetchSpan,
   } = useSpan(projectId, traceId, spanId, { include_raw_span: true });
+
+  // The trace, for its session id only.
+  //
+  // A span carries the session *it* knew, and a trace belongs to the session on its earliest span - so a
+  // child naming another session sent "View in session" to a page that shows nothing, because every read
+  // resolves the trace elsewhere. The trace endpoint reports the canonical one.
+  const { data: traceForSession } = useTrace(projectId, traceId);
 
   const {
     data: messagesData,
@@ -466,11 +478,14 @@ export function SpanDetail({
     navigate(`/projects/${projectId}/observability/traces/${traceId}`);
   }, [navigate, projectId, traceId]);
 
+  // The trace's session, falling back to the span's own only when the trace has not loaded.
+  const sessionForNavigation = traceForSession?.session_id ?? spanData?.session_id;
+
   const handleViewInSession = useCallback(() => {
-    if (spanData?.session_id) {
-      navigate(`/projects/${projectId}/observability/sessions/${spanData.session_id}`);
+    if (sessionForNavigation) {
+      navigate(`/projects/${projectId}/observability/sessions/${sessionForNavigation}`);
     }
-  }, [navigate, projectId, spanData?.session_id]);
+  }, [navigate, projectId, sessionForNavigation]);
 
   if (activeTab === "messages") {
     return (
@@ -567,6 +582,7 @@ export function SpanDetail({
     <ScrollArea className="h-full">
       <SpanHeader
         span={spanData}
+        sessionId={sessionForNavigation ?? undefined}
         onViewInTrace={handleViewInTrace}
         onViewInSession={handleViewInSession}
       />

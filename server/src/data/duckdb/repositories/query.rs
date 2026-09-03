@@ -5,6 +5,7 @@ use duckdb::{Connection, Row};
 
 use crate::api::routes::otel::filters::{SqlParams, columns};
 use crate::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_TRACE};
+use crate::data::duckdb::filters::Filter;
 use crate::data::duckdb::{DuckdbError, in_transaction};
 use crate::data::types::{
     DisplayNameDialect, EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams,
@@ -267,6 +268,52 @@ fn gen_totals_sql(where_clause: &str) -> String {
 /// where "the trace has a span with this value" is the honest reading.
 ///
 /// Aliases are those of [`trace_filter_subquery`]: `n` for the span rows, `gtf` for the totals.
+/// A `session_id` advanced filter, as a **trace-level** predicate against the canonical relation.
+///
+/// `None` for any other column, so a caller can fall through to its ordinary column mapping.
+///
+/// The span list and the session list mapped `session_id` to the raw column, while the dedicated
+/// `session_id` *parameter* on the very same queries goes through [`traces_of_session`]. So the two ways of
+/// asking the same question disagreed: filtering spans by a session a later span happened to name returned
+/// that child, though every view displays its trace under a different session. The trace list already does
+/// this properly, via `trace_display_first`.
+///
+/// A negated operator becomes `NOT IN` around the *positive* form, for the reason recorded on the trace
+/// list's own subquery: for an entity made of many spans, "not this session" means "its session is not this
+/// one", and asking the negation as written also drops traces with no session at all
+/// (`NULL NOT IN (…)` is NULL).
+fn canonical_session_filter(
+    filter: &Filter,
+    project_id: &str,
+    alias: &str,
+) -> Option<(String, Vec<String>)> {
+    if filter.column() != "session_id" {
+        return None;
+    }
+    let twin = filter.positive_twin();
+    let rendered = twin.as_ref().unwrap_or(filter);
+    let quantifier = if twin.is_some() { "NOT IN" } else { "IN" };
+
+    let mut inner = SqlParams::default();
+    let condition = rendered.to_sql_against(&mut inner, "cts.session_id");
+
+    // Unqualified when there is no alias: these callers read from an unnamed deduplicated subquery, not
+    // from `otel_spans`, so naming the table is a binder error rather than a no-op.
+    let column = if alias.is_empty() {
+        "trace_id".to_string()
+    } else {
+        format!("{alias}.trace_id")
+    };
+    let sql = format!(
+        "{column} {quantifier} (SELECT cts.trace_id FROM ({CANONICAL}) cts \
+         WHERE cts.project_id = ? AND {condition})",
+        CANONICAL = CANONICAL_TRACE_SESSIONS,
+    );
+    let mut binds = vec![project_id.to_string()];
+    binds.extend(inner.values);
+    Some((sql, binds))
+}
+
 fn trace_aggregate_expression(view_column: &str) -> Option<String> {
     let totals = |col: &str| Some(format!("COALESCE(MAX(gtf.{col}), 0)"));
     match view_column {
@@ -851,6 +898,12 @@ pub fn list_spans(
 
     // Apply advanced filters - map API column names to DB columns
     for filter in &params.filters {
+        // A session filter is a statement about the *trace*; see `canonical_session_filter`.
+        if let Some((sql, binds)) = canonical_session_filter(filter, &params.project_id, "") {
+            conditions.push(sql);
+            sql_params.values.extend(binds);
+            continue;
+        }
         conditions.push(filter.to_sql_aliased(&mut sql_params, columns::map_span_column, ""));
     }
     bind_values.extend(sql_params.values);
@@ -1171,6 +1224,12 @@ fn build_session_span_conditions(
 
     // Advanced filters with aliasing
     for filter in &params.filters {
+        // A session filter is a statement about the *trace*; see `canonical_session_filter`.
+        if let Some((sql, binds)) = canonical_session_filter(filter, &params.project_id, alias) {
+            conditions.push(sql);
+            sql_params.values.extend(binds);
+            continue;
+        }
         conditions.push(filter.to_sql_aliased(
             &mut sql_params,
             columns::map_session_column_to_spans,
@@ -5099,6 +5158,89 @@ mod tests {
             stats.counts.sessions, 1,
             "project statistics must not count a session no trace canonically belongs to"
         );
+    }
+
+    /// An *advanced* session filter agrees with the dedicated session parameter.
+    ///
+    /// Two ways of asking the same question lived in the same query: `params.session_id` went through the
+    /// canonical relation while an advanced filter on `session_id` compared the span's own column. So
+    /// filtering by a session that only a later span named returned that child, though every view displays
+    /// its trace under a different session.
+    #[tokio::test]
+    async fn an_advanced_session_filter_agrees_with_the_session_parameter() {
+        use crate::data::duckdb::filters::{Filter, StringOp};
+
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+        let t0 = Utc::now() - chrono::Duration::seconds(60);
+
+        let span = |span_id: &str, session: &str, offset: i64| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: "trace-1".to_string(),
+            span_id: span_id.to_string(),
+            span_name: "generation".to_string(),
+            observation_type: Some(ObservationType::Generation),
+            timestamp_start: t0 + chrono::Duration::seconds(offset),
+            timestamp_end: Some(t0 + chrono::Duration::seconds(offset + 1)),
+            session_id: Some(session.to_string()),
+            ..Default::default()
+        };
+
+        {
+            let conn = service.conn();
+            insert_batch(
+                &conn,
+                &[
+                    span("span-1", "session-canonical", 0),
+                    span("span-2", "session-stray", 1),
+                ],
+            )
+            .expect("insert");
+        }
+
+        let conn = service.conn();
+        let eq = |value: &str| Filter::String {
+            column: "session_id".to_string(),
+            operator: StringOp::Eq,
+            value: value.to_string(),
+        };
+
+        for (session, expect) in [("session-canonical", 2usize), ("session-stray", 0)] {
+            let spans = list_spans(
+                &conn,
+                &ListSpansParams {
+                    project_id: project.to_string(),
+                    page: 1,
+                    limit: 50,
+                    filters: vec![eq(session)],
+                    ..Default::default()
+                },
+            )
+            .expect("list_spans");
+            assert_eq!(
+                spans.0.len(),
+                expect,
+                "span list, advanced filter session_id = {session}"
+            );
+
+            // And the dedicated parameter agrees, which is the whole point.
+            let by_param = list_spans(
+                &conn,
+                &ListSpansParams {
+                    project_id: project.to_string(),
+                    page: 1,
+                    limit: 50,
+                    session_id: Some(session.to_string()),
+                    ..Default::default()
+                },
+            )
+            .expect("list_spans");
+            assert_eq!(
+                spans.0.len(),
+                by_param.0.len(),
+                "the advanced filter and the session parameter must agree for {session}"
+            );
+        }
     }
 
     /// A session *filter* on the trace and span lists also honours the canonical session.
