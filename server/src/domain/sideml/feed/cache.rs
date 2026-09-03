@@ -233,6 +233,58 @@ mod tests {
         }
     }
 
+    /// Every field of a row reaches the digest.
+    ///
+    /// The module's claim is that a stale hit is impossible because the key covers everything
+    /// reconstruction reads. That holds only while the digest and `MessageSpanRow` agree, and a field added
+    /// to the row compiles, passes every behavioural test here, and is silently outside the key - which is
+    /// the one failure this design exists to make impossible: an answer built from a value the key does not
+    /// mention, with no invalidation that could ever reach it.
+    ///
+    /// Read from the source text, because there is no way to enumerate a struct's fields at runtime. A field
+    /// the pipeline genuinely does not read still has to be hashed or explicitly excused here, which is the
+    /// right default: hashing a field that turns out to be irrelevant costs a cache miss, and omitting one
+    /// that is relevant costs a wrong answer.
+    #[test]
+    fn every_field_of_a_row_reaches_the_digest() {
+        let types = include_str!("../../../data/types/messages.rs");
+        let start = types
+            .find("pub struct MessageSpanRow {")
+            .expect("the row struct");
+        let body = &types[start..start + types[start..].find("\n}").expect("its end")];
+
+        let fields: Vec<&str> = body
+            .lines()
+            .map(str::trim)
+            .filter(|line| line.starts_with("pub ") && line.contains(':'))
+            .filter_map(|line| line.strip_prefix("pub "))
+            .filter_map(|rest| rest.split(':').next())
+            .map(str::trim)
+            .collect();
+        assert!(
+            fields.len() > 15,
+            "the struct was not parsed: {fields:?} - if its shape changed, fix this test rather than \
+             letting it pass vacuously"
+        );
+
+        let digest = {
+            let source = include_str!("cache.rs");
+            let from = source.find("fn digest_with(").expect("the digest");
+            let to = from
+                + source[from..]
+                    .find("\n#[cfg(test)]")
+                    .unwrap_or(source.len() - from);
+            &source[from..to]
+        };
+        for field in fields {
+            assert!(
+                digest.contains(&format!("row.{field}")),
+                "`{field}` is a field of MessageSpanRow that the reconstruction digest does not hash, so \
+                 two row sets differing only in it share a cache entry"
+            );
+        }
+    }
+
     /// The same rows are reconstructed once; different rows are not confused for them.
     #[test]
     fn a_hit_needs_the_same_rows_and_a_change_of_any_kind_misses() {
