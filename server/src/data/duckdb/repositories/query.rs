@@ -2501,17 +2501,23 @@ pub fn get_session_filter_options(
             continue;
         }
 
-        // COUNT(DISTINCT session_id) is immune to row duplication, and exact so both analytics
-        // backends report the same number (see get_trace_filter_options).
+        // COUNT(DISTINCT ...) is immune to row duplication, and exact so both analytics backends report the
+        // same number (see get_trace_filter_options).
+        //
+        // Counted over the trace's **canonical** session, so a suggestion cannot claim more sessions than the
+        // session list can show: a trace whose spans name two sessions counted twice here while the list
+        // returns it once. The ninth surface of the same question - see `CANONICAL_TRACE_SESSIONS`.
         let sql = format!(
             r#"
-            SELECT {col}, COUNT(DISTINCT session_id) as cnt
-            FROM otel_spans
-            WHERE {base_where} AND {col} IS NOT NULL
-            GROUP BY {col}
+            SELECT s.{col}, COUNT(DISTINCT cts.session_id) as cnt
+            FROM (SELECT * FROM otel_spans WHERE {base_where} AND {col} IS NOT NULL) s
+            JOIN ({CANONICAL}) cts
+              ON cts.project_id = s.project_id AND cts.trace_id = s.trace_id
+            GROUP BY s.{col}
             ORDER BY cnt DESC
             LIMIT {limit}
             "#,
+            CANONICAL = CANONICAL_TRACE_SESSIONS,
             base_where = base_where,
             col = column,
             limit = QUERY_MAX_FILTER_SUGGESTIONS
@@ -4998,6 +5004,7 @@ mod tests {
             timestamp_start: t0 + chrono::Duration::seconds(offset),
             timestamp_end: Some(t0 + chrono::Duration::seconds(offset + 1)),
             session_id: Some(session.to_string()),
+            environment: Some("prod".to_string()),
             gen_ai_usage_total_tokens: tokens,
             gen_ai_usage_input_tokens: tokens,
             ..Default::default()
@@ -5041,6 +5048,21 @@ mod tests {
             sessions[0].total_tokens, 150,
             "the whole trace's tokens belong to its one session, counted once"
         );
+
+        // The filter-option suggestions agree too: a dropdown must not claim more sessions than the list
+        // can return. This was the ninth surface of the same question.
+        let options =
+            get_session_filter_options(&conn, project, &["environment".to_string()], None, None)
+                .expect("filter options");
+        if let Some(env_counts) = options.get("environment") {
+            for opt in env_counts {
+                assert_eq!(
+                    opt.count, 1,
+                    "environment {:?} belongs to one session, not {}",
+                    opt.value, opt.count
+                );
+            }
+        }
 
         // And the dashboard agrees with the list. Parity between the backends cannot establish this - they
         // can agree on being wrong - so the number itself is pinned here.

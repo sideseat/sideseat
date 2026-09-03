@@ -2687,15 +2687,21 @@ pub async fn get_session_filter_options(
 
         let sql = format!(
             r#"
-            SELECT {col} as value, count(DISTINCT session_id) as count
-            FROM otel_spans FINAL
-            WHERE project_id = ?{cond} AND session_id IS NOT NULL AND {col} IS NOT NULL
-            GROUP BY {col}
+            -- Counted over the trace's **canonical** session, so a suggestion cannot claim more sessions
+            -- than the session list can show; see the DuckDB twin and `CANONICAL_TRACE_SESSIONS`. The
+            -- filter stays in its own subquery so its unqualified columns cannot become ambiguous.
+            SELECT s.{col} as value, count(DISTINCT cts.canonical_session) as count
+            FROM (SELECT * FROM otel_spans FINAL
+                  WHERE project_id = ?{cond} AND session_id IS NOT NULL AND {col} IS NOT NULL) s
+            JOIN ({CANONICAL}) cts
+              ON cts.project_id = s.project_id AND cts.trace_id = s.trace_id
+            GROUP BY s.{col}
             ORDER BY count DESC
             LIMIT {limit}
             "#,
             col = column,
             cond = conditions,
+            CANONICAL = CANONICAL_TRACE_SESSIONS,
             limit = QUERY_MAX_FILTER_SUGGESTIONS
         );
 
