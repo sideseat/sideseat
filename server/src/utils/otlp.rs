@@ -209,10 +209,14 @@ pub fn make_project_id_attr(project_id: &str) -> KeyValue {
 /// shows empty and someone else's project shows content that is not theirs. A request mixing groups with
 /// and without a resource was split between the two.
 fn set_project_id(resource: &mut Option<Resource>, attr: &KeyValue) {
-    resource
-        .get_or_insert_with(Resource::default)
-        .attributes
-        .push(attr.clone());
+    let attributes = &mut resource.get_or_insert_with(Resource::default).attributes;
+    // *Set*, not append. A client may already carry `sideseat.project_id`, and appending left the key
+    // twice - harmless for storage, which collapses duplicate keys into one JSON object, and not harmless
+    // for **metric identity**, which digests the raw attribute list: the same datapoint at the same instant
+    // hashed differently depending on whether the client had sent the attribute, so one series became two
+    // rows. Removing every prior occurrence makes the injected list a function of the project alone.
+    attributes.retain(|kv| kv.key != attr.key);
+    attributes.push(attr.clone());
 }
 
 /// Inject project_id into resource attributes for traces
@@ -298,6 +302,66 @@ pub fn inject_project_id_logs(request: &mut ExportLogsServiceRequest, project_id
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Injecting the project id twice leaves it once, whatever the client sent.
+    ///
+    /// Metric identity digests the raw resource attribute list, so appending rather than setting made the
+    /// same datapoint at the same instant hash differently depending on whether the client had already
+    /// carried `sideseat.project_id` - one series stored as two rows, and the stored dimensions identical
+    /// because typed-attribute storage collapses duplicate keys.
+    #[test]
+    fn injecting_the_project_id_replaces_any_the_client_sent() {
+        use opentelemetry_proto::tonic::metrics::v1::ResourceMetrics;
+
+        let with_existing = |values: &[&str]| {
+            let mut request = ExportMetricsServiceRequest::default();
+            request.resource_metrics.push(ResourceMetrics {
+                resource: Some(Resource {
+                    attributes: values
+                        .iter()
+                        .map(|v| make_project_id_attr(v))
+                        .chain(std::iter::once(KeyValue {
+                            key: "service.name".to_string(),
+                            value: Some(AnyValue {
+                                value: Some(any_value::Value::StringValue("svc".to_string())),
+                            }),
+                        }))
+                        .collect(),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            });
+            inject_project_id_metrics(&mut request, "P");
+            request.resource_metrics[0]
+                .resource
+                .as_ref()
+                .unwrap()
+                .attributes
+                .clone()
+        };
+
+        for sent in [vec![], vec!["P"], vec!["other"], vec!["P", "P"]] {
+            let attrs = with_existing(&sent);
+            let ours: Vec<&KeyValue> = attrs
+                .iter()
+                .filter(|kv| kv.key == PROJECT_ID_ATTR)
+                .collect();
+            assert_eq!(
+                ours.len(),
+                1,
+                "the project id must appear once whatever the client sent ({sent:?}): {attrs:?}"
+            );
+            assert_eq!(
+                ours[0].value.as_ref().unwrap().value,
+                Some(any_value::Value::StringValue("P".to_string())),
+                "and it must be the project the request was addressed to"
+            );
+            assert!(
+                attrs.iter().any(|kv| kv.key == "service.name"),
+                "other attributes are untouched"
+            );
+        }
+    }
 
     #[test]
     fn test_attrs_to_json_empty() {

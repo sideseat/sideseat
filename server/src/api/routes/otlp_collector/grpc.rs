@@ -62,7 +62,7 @@ pub struct OtlpGrpcServer {
     /// project id from an untrusted `x-sideseat-project-id` metadata entry, so with auth required an
     /// unauthenticated client could still write traces or metrics into any existing project. A setting that
     /// is enforced on one of two equivalent transports is not a setting.
-    auth: Option<GrpcIngestAuth>,
+    guards: GrpcIngestGuards,
 }
 
 /// What a gRPC ingest call must present when `otel.auth.required` is set.
@@ -79,6 +79,58 @@ pub struct GrpcIngestAuth {
     pub rate_limiter: Option<Arc<crate::data::cache::RateLimiter>>,
     /// Whose forwarded-for metadata may be believed - shared with the HTTP transport.
     pub trusted_proxies: Arc<crate::utils::client_ip::TrustedProxies>,
+}
+
+/// What every gRPC ingest call passes through before its payload is read.
+///
+/// The two travel together because they are the same kind of thing - a gate the HTTP transport already has -
+/// and because each was added separately and the second one was missed: `otel.auth.required` applied to HTTP
+/// only until it was fixed, and then `rate_limit.ingestion_rpm` did. Grouping them means a third gate is one
+/// field on one struct rather than another parameter nobody threads through.
+#[derive(Clone, Default)]
+pub struct GrpcIngestGuards {
+    /// Set exactly when `otel.auth.required` is on.
+    pub auth: Option<GrpcIngestAuth>,
+    /// Set when rate limiting is on.
+    pub limit: Option<GrpcIngestLimit>,
+}
+
+/// The per-project ingestion limit, applied to gRPC exactly as the HTTP middleware applies it.
+///
+/// It was missing entirely: HTTP OTLP routes carry `RateLimitBucket::ingestion` keyed by project, while the
+/// gRPC server had only the auth-failure limiter - so `rate_limit.ingestion_rpm` was a setting enforced on
+/// one of two equivalent transports, and an exporter that got 429s over HTTP was unlimited over gRPC.
+///
+/// **The same bucket as HTTP**, not a separate namespace. The auth-failure buckets are deliberately separate
+/// because their key is a spoofable address and one transport must not exhaust the other's counters; this
+/// key is the project the data is being written to, so the quota belongs to the project rather than to a
+/// transport - separate buckets would hand a client twice the limit for splitting its traffic.
+#[derive(Clone)]
+pub struct GrpcIngestLimit {
+    pub limiter: Arc<crate::data::cache::RateLimiter>,
+    pub ingestion_rpm: u32,
+}
+
+impl GrpcIngestLimit {
+    /// Applied before authorisation, as the HTTP layer is, so an unauthenticated flood is bounded too.
+    async fn check(limit: Option<&Self>, project_id: &str) -> Result<(), Status> {
+        let Some(limit) = limit else {
+            return Ok(());
+        };
+        let bucket = crate::data::cache::RateLimitBucket::ingestion(limit.ingestion_rpm);
+        let result = limit.limiter.check(&bucket, project_id).await;
+        if !result.allowed {
+            tracing::warn!(
+                project_id,
+                retry_after = ?result.retry_after,
+                "gRPC OTLP export refused: ingestion rate limit"
+            );
+            return Err(Status::resource_exhausted(
+                "ingestion rate limit exceeded for this project",
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl GrpcIngestAuth {
@@ -163,7 +215,7 @@ impl OtlpGrpcServer {
         storage: &AppStorage,
         stores: IngestStores,
         debug: bool,
-        auth: Option<GrpcIngestAuth>,
+        guards: GrpcIngestGuards,
     ) -> Result<Self> {
         let IngestStores {
             analytics,
@@ -190,7 +242,7 @@ impl OtlpGrpcServer {
             trace_pipeline,
             logs_publisher,
             debug_path,
-            auth,
+            guards,
         })
     }
 
@@ -207,7 +259,7 @@ impl OtlpGrpcServer {
                     debug_path.clone(),
                     self.trace_pipeline,
                     Arc::clone(&self.database),
-                    self.auth.clone(),
+                    self.guards.clone(),
                 ))
                 .max_decoding_message_size(OTLP_BODY_LIMIT)
                 .max_encoding_message_size(OTLP_BODY_LIMIT),
@@ -217,7 +269,7 @@ impl OtlpGrpcServer {
                     self.analytics,
                     self.database,
                     debug_path.clone(),
-                    self.auth.clone(),
+                    self.guards.clone(),
                 ))
                 .max_decoding_message_size(OTLP_BODY_LIMIT)
                 .max_encoding_message_size(OTLP_BODY_LIMIT),
@@ -226,7 +278,7 @@ impl OtlpGrpcServer {
                 LogsServiceServer::new(OtlpLogsService::new(
                     self.logs_publisher,
                     debug_path,
-                    self.auth,
+                    self.guards,
                 ))
                 .max_decoding_message_size(OTLP_BODY_LIMIT)
                 .max_encoding_message_size(OTLP_BODY_LIMIT),
@@ -299,8 +351,8 @@ struct OtlpTraceService {
     pipeline: Option<Arc<crate::domain::TracePipeline>>,
     /// For telling an exporter now that its project will not accept writes.
     database: Arc<crate::data::TransactionalService>,
-    /// Set exactly when `otel.auth.required` is on - see `GrpcIngestAuth`.
-    auth: Option<GrpcIngestAuth>,
+    /// The gates every export passes through - see `GrpcIngestGuards`.
+    guards: GrpcIngestGuards,
 }
 
 impl OtlpTraceService {
@@ -309,14 +361,14 @@ impl OtlpTraceService {
         debug_path: Option<PathBuf>,
         pipeline: Option<Arc<crate::domain::TracePipeline>>,
         database: Arc<crate::data::TransactionalService>,
-        auth: Option<GrpcIngestAuth>,
+        guards: GrpcIngestGuards,
     ) -> Self {
         Self {
             topic,
             debug_path,
             pipeline,
             database,
-            auth,
+            guards,
         }
     }
 }
@@ -329,9 +381,11 @@ impl TraceService for OtlpTraceService {
     ) -> Result<Response<ExportTraceServiceResponse>, Status> {
         let project_id = extract_project_id(&request)
             .ok_or_else(|| Status::invalid_argument("Invalid project_id"))?;
+        // Limited before authorisation, as the HTTP layer is - see `GrpcIngestLimit`.
+        GrpcIngestLimit::check(self.guards.limit.as_ref(), &project_id).await?;
         // Authorised *before* anything is read from the payload, and against the project the call names -
         // so `otel.auth.required` refuses an unauthenticated write here exactly as it does over HTTP.
-        if let Some(auth) = &self.auth {
+        if let Some(auth) = &self.guards.auth {
             auth.authorize(&request, &project_id).await?;
         }
         if !project_accepts_writes(&self.database, &project_id).await {
@@ -485,8 +539,8 @@ struct OtlpMetricsService {
     analytics: Arc<crate::data::AnalyticsService>,
     database: Arc<crate::data::TransactionalService>,
     debug_path: Option<PathBuf>,
-    /// Set exactly when `otel.auth.required` is on - see `GrpcIngestAuth`.
-    auth: Option<GrpcIngestAuth>,
+    /// The gates every export passes through - see `GrpcIngestGuards`.
+    guards: GrpcIngestGuards,
 }
 
 impl OtlpMetricsService {
@@ -494,13 +548,13 @@ impl OtlpMetricsService {
         analytics: Arc<crate::data::AnalyticsService>,
         database: Arc<crate::data::TransactionalService>,
         debug_path: Option<PathBuf>,
-        auth: Option<GrpcIngestAuth>,
+        guards: GrpcIngestGuards,
     ) -> Self {
         Self {
             analytics,
             database,
             debug_path,
-            auth,
+            guards,
         }
     }
 }
@@ -513,9 +567,11 @@ impl MetricsService for OtlpMetricsService {
     ) -> Result<Response<ExportMetricsServiceResponse>, Status> {
         let project_id = extract_project_id(&request)
             .ok_or_else(|| Status::invalid_argument("Invalid project_id"))?;
+        // Limited before authorisation, as the HTTP layer is - see `GrpcIngestLimit`.
+        GrpcIngestLimit::check(self.guards.limit.as_ref(), &project_id).await?;
         // Authorised *before* anything is read from the payload, and against the project the call names -
         // so `otel.auth.required` refuses an unauthenticated write here exactly as it does over HTTP.
-        if let Some(auth) = &self.auth {
+        if let Some(auth) = &self.guards.auth {
             auth.authorize(&request, &project_id).await?;
         }
         if !project_accepts_writes(&self.database, &project_id).await {
@@ -542,13 +598,12 @@ impl MetricsService for OtlpMetricsService {
                 }
             };
 
-        // Reported, not swallowed - see the HTTP twin.
-        let rejected = stored.total.saturating_sub(stored.stored);
+        // Reported, and named by cause - see the HTTP twin.
         Ok(Response::new(ExportMetricsServiceResponse {
-            partial_success: (rejected > 0).then(|| {
+            partial_success: stored.rejection().map(|(rejected, error_message)| {
                 opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsPartialSuccess {
                     rejected_data_points: rejected as i64,
-                    error_message: "the project is unknown or is being deleted".to_string(),
+                    error_message,
                 }
             }),
         }))
@@ -559,20 +614,20 @@ impl MetricsService for OtlpMetricsService {
 struct OtlpLogsService {
     publisher: Publisher<ExportLogsServiceRequest>,
     debug_path: Option<PathBuf>,
-    /// Set exactly when `otel.auth.required` is on - see `GrpcIngestAuth`.
-    auth: Option<GrpcIngestAuth>,
+    /// The gates every export passes through - see `GrpcIngestGuards`.
+    guards: GrpcIngestGuards,
 }
 
 impl OtlpLogsService {
     fn new(
         publisher: Publisher<ExportLogsServiceRequest>,
         debug_path: Option<PathBuf>,
-        auth: Option<GrpcIngestAuth>,
+        guards: GrpcIngestGuards,
     ) -> Self {
         Self {
             publisher,
             debug_path,
-            auth,
+            guards,
         }
     }
 }
@@ -585,9 +640,11 @@ impl LogsService for OtlpLogsService {
     ) -> Result<Response<ExportLogsServiceResponse>, Status> {
         let project_id = extract_project_id(&request)
             .ok_or_else(|| Status::invalid_argument("Invalid project_id"))?;
+        // Limited before authorisation, as the HTTP layer is - see `GrpcIngestLimit`.
+        GrpcIngestLimit::check(self.guards.limit.as_ref(), &project_id).await?;
         // Authorised *before* anything is read from the payload, and against the project the call names -
         // so `otel.auth.required` refuses an unauthenticated write here exactly as it does over HTTP.
-        if let Some(auth) = &self.auth {
+        if let Some(auth) = &self.guards.auth {
             auth.authorize(&request, &project_id).await?;
         }
         let mut req = request.into_inner();
@@ -668,6 +725,13 @@ mod grpc_auth_tests {
                 window.contains("auth.authorize(&request, &project_id)"),
                 "a gRPC export reads its payload without authorising the project it names; \
                  otel.auth.required would then apply to HTTP only"
+            );
+            // And the ingestion limit, for the same reason and in the same window: it was missing from this
+            // transport entirely, so `rate_limit.ingestion_rpm` bounded HTTP exporters and not gRPC ones.
+            assert!(
+                window.contains("GrpcIngestLimit::check(self.guards.limit.as_ref(), &project_id)"),
+                "a gRPC export reads its payload without applying the project's ingestion limit; \
+                 rate_limit.ingestion_rpm would then apply to HTTP only"
             );
         }
     }

@@ -547,9 +547,17 @@ fn extract_exemplar_timestamp(
 fn storable_exemplars(
     exemplars: &[opentelemetry_proto::tonic::metrics::v1::Exemplar],
 ) -> Vec<&opentelemetry_proto::tonic::metrics::v1::Exemplar> {
+    use opentelemetry_proto::tonic::metrics::v1::exemplar::Value;
     exemplars
         .iter()
         .filter(|e| e.time_unix_nano == 0 || is_storable(nanos_to_datetime(e.time_unix_nano)))
+        // A non-finite value is unstorable for the same reason an unstorable instant is: the two
+        // representations cannot agree about it. The flat `exemplar_value_double` column keeps the NaN or
+        // infinity, while the JSON array goes through `serde_json`, which has no non-finite numbers and
+        // writes `null` - so the indexed column and the full array described different values for one
+        // exemplar. Dropped here, in the one filter both derive from, so they agree by absence; the
+        // measurement itself is untouched, exactly as for a bad exemplar clock.
+        .filter(|e| !matches!(&e.value, Some(Value::AsDouble(d)) if !d.is_finite()))
         .collect()
 }
 
@@ -1150,5 +1158,73 @@ mod tests {
             Some(&"02".repeat(16)[..]),
             "the flat fields and the array must describe the same exemplar"
         );
+    }
+
+    /// A non-finite exemplar value is dropped from both representations, for the same reason.
+    ///
+    /// JSON has no NaN or infinity: the array goes through `serde_json`, which writes `null`, while the flat
+    /// `exemplar_value_double` column keeps the float - so the indexed column and the full array described
+    /// different values for one exemplar. Unstorable, therefore, exactly as an unstorable instant is, and
+    /// dropped in the one filter both derive from.
+    #[test]
+    fn a_non_finite_exemplar_value_is_dropped_from_both_representations() {
+        use opentelemetry_proto::tonic::metrics::v1::{Exemplar, exemplar};
+
+        const GOOD_NANOS: u64 = 1_704_067_200_000_000_000;
+
+        fn with_value(value: f64, trace: u8) -> Exemplar {
+            Exemplar {
+                trace_id: vec![trace; 16],
+                span_id: vec![trace; 8],
+                time_unix_nano: GOOD_NANOS,
+                value: Some(exemplar::Value::AsDouble(value)),
+                filtered_attributes: vec![],
+            }
+        }
+
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let request = ExportMetricsServiceRequest {
+                resource_metrics: vec![ResourceMetrics {
+                    resource: Some(Resource {
+                        attributes: vec![make_key_value("sideseat.project_id", "test-project")],
+                        ..Default::default()
+                    }),
+                    scope_metrics: vec![ScopeMetrics {
+                        metrics: vec![Metric {
+                            name: "http.server.duration".to_string(),
+                            data: Some(Data::Histogram(Histogram {
+                                data_points: vec![HistogramDataPoint {
+                                    time_unix_nano: GOOD_NANOS,
+                                    count: 2,
+                                    // The bad one first, so the flat fields would have taken it.
+                                    exemplars: vec![with_value(bad, 1), with_value(1.0, 2)],
+                                    ..Default::default()
+                                }],
+                                ..Default::default()
+                            })),
+                            ..Default::default()
+                        }],
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+            };
+
+            let result = extract_metrics_batch(&request);
+            assert_eq!(result.len(), 1, "the measurement itself must survive {bad}");
+            let metric = &result[0];
+            let all = metric.exemplars.as_array().expect("the finite one remains");
+            assert_eq!(all.len(), 1, "only the finite exemplar is kept for {bad}");
+            assert_eq!(all[0]["value_double"], 1.0);
+            assert_eq!(
+                metric.exemplar_value_double,
+                Some(1.0),
+                "the flat value and the array must agree for {bad}"
+            );
+            assert_eq!(
+                metric.exemplar_trace_id.as_deref(),
+                Some(&"02".repeat(16)[..])
+            );
+        }
     }
 }

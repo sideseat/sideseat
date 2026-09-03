@@ -28,14 +28,49 @@ use crate::core::constants::DEFAULT_PROJECT_ID;
 use crate::data::{AnalyticsService, TransactionalService};
 use crate::utils::time::is_storable;
 
-/// How many of a request's data points were stored, out of how many it had.
+/// How many of a request's data points were stored, out of how many it had, and **why** the rest were not.
 ///
-/// The two differ when a project will not accept writes. Returned rather than folded into a bare success,
-/// because a caller told success for records that were dropped has no way to learn otherwise - which is
-/// the failure this path exists to remove.
+/// Returned rather than folded into a bare success, because a caller told success for records that were
+/// dropped has no way to learn otherwise - which is the failure this path exists to remove. The reason is
+/// carried for the same reason the trace path carries `DropReason`: the two causes imply different actions.
+/// "The project is gone" means stop sending there; "no backend can store that instant" means the exporter's
+/// clock is wrong and a retry cannot help. Reporting every rejection as the first sent an operator hunting a
+/// deletion that never happened.
 pub struct Stored {
     pub stored: usize,
     pub total: usize,
+    /// Dropped because the project will not accept writes.
+    pub gone: usize,
+    /// Dropped because the timestamp is outside every backend's storable range.
+    pub unstorable: usize,
+}
+
+impl Stored {
+    fn nothing_of(total: usize) -> Self {
+        Self {
+            stored: 0,
+            total,
+            gone: 0,
+            unstorable: 0,
+        }
+    }
+
+    /// What to tell the exporter about the records that did not land, or `None` when they all did.
+    pub fn rejection(&self) -> Option<(usize, String)> {
+        let rejected = self.total.saturating_sub(self.stored);
+        if rejected == 0 {
+            return None;
+        }
+        let message = match (self.gone, self.unstorable) {
+            (0, 0) => "some data points were not stored".to_string(),
+            (_, 0) => "the project is unknown or is being deleted".to_string(),
+            (0, _) => "the data point timestamps are outside the storable range".to_string(),
+            (_, _) => "some projects are unknown or being deleted, and some data point timestamps \
+                       are outside the storable range"
+                .to_string(),
+        };
+        Some((rejected, message))
+    }
 }
 
 /// Extract, fence and write a metrics request. `Err` means nothing was stored and a retry is warranted.
@@ -47,8 +82,10 @@ pub async fn ingest(
     let mut metrics = extract_metrics_batch(request);
     let total = metrics.len();
     if metrics.is_empty() {
-        return Ok(Stored { stored: 0, total });
+        return Ok(Stored::nothing_of(total));
     }
+    let mut gone = 0usize;
+    let mut unstorable = 0usize;
 
     // The project deletion fence, which this path did not apply at all. A request admitted before a
     // deletion would otherwise persist after its cleanup, and metrics are exactly as unreachable as spans
@@ -84,13 +121,19 @@ pub async fn ingest(
         let before = metrics.len();
         metrics
             .retain(|m| !refusing.contains(m.project_id.as_deref().unwrap_or(DEFAULT_PROJECT_ID)));
+        gone = before - metrics.len();
         tracing::warn!(
-            dropped = before - metrics.len(),
+            dropped = gone,
             projects = ?refusing,
             "Dropped metrics for projects that do not accept writes"
         );
         if metrics.is_empty() {
-            return Ok(Stored { stored: 0, total });
+            return Ok(Stored {
+                stored: 0,
+                total,
+                gone,
+                unstorable,
+            });
         }
     }
 
@@ -139,18 +182,86 @@ pub async fn ingest(
         ok
     });
     if metrics.len() < before {
+        unstorable = before - metrics.len();
         tracing::warn!(
-            rejected = before - metrics.len(),
+            rejected = unstorable,
             "Rejected data points with timestamps no analytics backend can store"
         );
     }
     if metrics.is_empty() {
-        return Ok(Stored { stored: 0, total });
+        return Ok(Stored {
+            stored: 0,
+            total,
+            gone,
+            unstorable,
+        });
     }
 
     persist_batch(&metrics, analytics).await?;
     Ok(Stored {
         stored: metrics.len(),
         total,
+        gone,
+        unstorable,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A rejection says which of the two causes applied, because they imply different actions.
+    ///
+    /// "The project is gone" tells an exporter to stop sending there; "that instant is unstorable" tells it
+    /// its clock is wrong and a retry cannot help. Every rejection used to be reported as the first, so a
+    /// year-2300 datapoint sent an operator hunting a deletion that never happened.
+    #[test]
+    fn a_rejection_names_the_cause_that_applied() {
+        let all_stored = Stored {
+            stored: 3,
+            total: 3,
+            gone: 0,
+            unstorable: 0,
+        };
+        assert!(
+            all_stored.rejection().is_none(),
+            "nothing was rejected, so there is nothing to report"
+        );
+
+        let gone = Stored {
+            stored: 1,
+            total: 3,
+            gone: 2,
+            unstorable: 0,
+        };
+        let (n, msg) = gone.rejection().expect("a rejection");
+        assert_eq!(n, 2);
+        assert!(msg.contains("deleted"), "{msg}");
+        assert!(!msg.contains("storable range"), "{msg}");
+
+        let clock = Stored {
+            stored: 1,
+            total: 3,
+            gone: 0,
+            unstorable: 2,
+        };
+        let (n, msg) = clock.rejection().expect("a rejection");
+        assert_eq!(n, 2);
+        assert!(msg.contains("storable range"), "{msg}");
+        assert!(!msg.contains("deleted"), "{msg}");
+
+        // Both, in one request: the message has to admit both rather than pick one.
+        let mixed = Stored {
+            stored: 1,
+            total: 4,
+            gone: 2,
+            unstorable: 1,
+        };
+        let (n, msg) = mixed.rejection().expect("a rejection");
+        assert_eq!(n, 3);
+        assert!(
+            msg.contains("deleted") && msg.contains("storable range"),
+            "{msg}"
+        );
+    }
 }

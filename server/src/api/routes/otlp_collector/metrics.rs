@@ -79,11 +79,15 @@ pub async fn export(
     // Anything dropped is *reported* dropped. A project that stopped accepting writes between the check
     // above and the write leaves records unstored, and an unqualified success would have the exporter
     // count them as delivered.
-    let rejected = stored.total.saturating_sub(stored.stored);
+    // Named by cause, not by the first cause anyone thought of: `Stored::rejection` distinguishes a project
+    // that will not accept writes from a timestamp no backend can store. Reporting a bad clock as a missing
+    // project sent an operator looking for a deletion that never happened.
     let response = ExportMetricsServiceResponse {
-        partial_success: (rejected > 0).then(|| ExportMetricsPartialSuccess {
-            rejected_data_points: rejected as i64,
-            error_message: "the project is unknown or is being deleted".to_string(),
+        partial_success: stored.rejection().map(|(rejected, error_message)| {
+            ExportMetricsPartialSuccess {
+                rejected_data_points: rejected as i64,
+                error_message,
+            }
         }),
     };
     success_response(&response, content_type)

@@ -95,6 +95,22 @@ impl ClickhouseService {
         if config.insert_quorum > 0 {
             client = client.with_option("insert_quorum", config.insert_quorum.to_string());
             client = client.with_option("insert_quorum_parallel", "0");
+        } else if config.distributed {
+            // The window is open and nothing says so otherwise. In distributed mode the tables are
+            // `Replicated*` by construction, so an insert that `insert_distributed_sync` carried to a shard
+            // still lives on one replica until replication catches up - and that is after the exporter was
+            // answered 200 and the ingestion queue acknowledged. The Redis backend warns on exactly this
+            // shape (replicas present, no acknowledgement required); this is its ClickHouse twin.
+            //
+            // Warned rather than refused, unlike `insert_quorum = 1`: a cluster with one replica per shard is
+            // a legitimate deployment, and a quorum of two would block every insert there forever. So the
+            // operator is told what the default costs and left to decide.
+            tracing::warn!(
+                "database.clickhouse.distributed is on with no insert_quorum, so an accepted export lives \
+                 on one replica until replication carries it - losing that node loses data already \
+                 acknowledged. Set database.clickhouse.insert_quorum to at least 2 where each shard has two \
+                 or more replicas, at the cost of waiting for them."
+            );
         }
 
         // Configure async inserts for high-throughput ingestion

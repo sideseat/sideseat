@@ -268,24 +268,34 @@ impl CoreApp {
                     }),
                 },
                 app.config.debug,
-                // The same gate the HTTP transport applies. Built here rather than inside the gRPC server so
-                // it shares the one API-key secret: a second read could pick up a *replacement* secret if the
-                // backend had regenerated one, and a key hashed under the other pepper verifies nowhere.
-                if app.config.otel.auth_required {
-                    Some(crate::api::routes::otlp_collector::GrpcIngestAuth {
-                        cache: Arc::clone(&app.cache),
-                        database: Arc::clone(&app.database),
-                        api_key_secret: Arc::new(app.secrets.get_api_key_secret().await?),
-                        // Both switches, as the HTTP path reads them: `per_ip` alone ignored the master
-                        // `enabled`, so a deployment that had turned rate limiting off still had it enforced
-                        // on this transport only.
-                        rate_limiter: (app.config.rate_limit.enabled
-                            && app.config.rate_limit.per_ip)
-                            .then(|| Arc::clone(&app.rate_limiter)),
-                        trusted_proxies: Arc::clone(&grpc_trusted_proxies),
-                    })
-                } else {
-                    None
+                crate::api::routes::otlp_collector::GrpcIngestGuards {
+                    // The same gate the HTTP transport applies. Built here rather than inside the gRPC server so
+                    // it shares the one API-key secret: a second read could pick up a *replacement* secret if the
+                    // backend had regenerated one, and a key hashed under the other pepper verifies nowhere.
+                    auth: if app.config.otel.auth_required {
+                        Some(crate::api::routes::otlp_collector::GrpcIngestAuth {
+                            cache: Arc::clone(&app.cache),
+                            database: Arc::clone(&app.database),
+                            api_key_secret: Arc::new(app.secrets.get_api_key_secret().await?),
+                            // Both switches, as the HTTP path reads them: `per_ip` alone ignored the master
+                            // `enabled`, so a deployment that had turned rate limiting off still had it enforced
+                            // on this transport only.
+                            rate_limiter: (app.config.rate_limit.enabled
+                                && app.config.rate_limit.per_ip)
+                                .then(|| Arc::clone(&app.rate_limiter)),
+                            trusted_proxies: Arc::clone(&grpc_trusted_proxies),
+                        })
+                    } else {
+                        None
+                    },
+                    // The per-project ingestion limit the HTTP routes carry. Independent of auth: a quota on how
+                    // fast a project may be written to applies whether or not the write is authenticated.
+                    limit: (app.config.rate_limit.enabled).then(|| {
+                        crate::api::routes::otlp_collector::GrpcIngestLimit {
+                            limiter: Arc::clone(&app.rate_limiter),
+                            ingestion_rpm: app.config.rate_limit.ingestion_rpm,
+                        }
+                    }),
                 },
             )?;
             let shutdown_rx = app.shutdown.subscribe();
