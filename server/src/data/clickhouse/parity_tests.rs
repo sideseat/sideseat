@@ -1625,6 +1625,51 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         d[0].total_tokens
     );
 
+    // The complement, on the list whose entities are sessions. A session that never used user-1 belongs in
+    // "none of user-1" - including one that names no user at all, which the row predicate dropped because
+    // `NULL NOT IN (…)` is NULL. Both backends have to answer it the same way and both have to answer it at
+    // all, so the result is required to be a strict, non-empty subset.
+    let session_negated = ListSessionsParams {
+        filters: vec![Filter::StringOptions {
+            column: "user_id".to_string(),
+            operator: OptionsOp::NoneOf,
+            value: vec!["user-1".to_string()],
+        }],
+        ..session_filtered.clone()
+    };
+    let (d_all, _) = duck
+        .list_sessions(&ListSessionsParams {
+            filters: vec![],
+            ..session_filtered.clone()
+        })
+        .await
+        .expect("duckdb sessions");
+    let (d, d_total) = duck
+        .list_sessions(&session_negated)
+        .await
+        .expect("duckdb sessions");
+    let (c, c_total) = ch
+        .list_sessions(&session_negated)
+        .await
+        .expect("clickhouse sessions");
+    assert_eq!(d_total, c_total, "negated session totals differ");
+    assert_eq!(
+        d.iter().map(describe_session).collect::<Vec<_>>(),
+        c.iter().map(describe_session).collect::<Vec<_>>(),
+        "negated list_sessions differs between backends"
+    );
+    assert!(
+        !d.is_empty() && d.len() < d_all.len(),
+        "\"none of user-1\" returned {} of {} sessions, so it exercises nothing",
+        d.len(),
+        d_all.len()
+    );
+    assert!(
+        !d.iter().any(|s| s.session_id == "session-1"),
+        "session-1 used user-1, so it is not \"none of user-1\": {:?}",
+        d.iter().map(|s| &s.session_id).collect::<Vec<_>>()
+    );
+
     // Every column the API accepts as a trace sort must actually sort by it. One that is accepted
     // and unmapped falls through to min_ts, so the list comes back in time order while the UI shows
     // the chosen column as active - which was true of total_tokens.

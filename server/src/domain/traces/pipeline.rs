@@ -665,7 +665,7 @@ impl TracePipeline {
         let span_count = all_db_spans.len();
 
         // Build SSE events before write (captures span metadata)
-        let sse_events: Vec<SseSpanEvent> = sse_events_for(&all_db_spans);
+        let (sse_events, settled_sessions) = sse_events_for(&all_db_spans);
 
         // Files first, then the rows that reference them.
         //
@@ -883,7 +883,8 @@ impl TracePipeline {
                 })
                 .collect();
             // The rows are in, so the store can answer authoritatively - which the batch cannot.
-            self.stamp_stored_sessions(&mut sse_events).await;
+            self.stamp_stored_sessions(&mut sse_events, &settled_sessions)
+                .await;
             publish_sse_events(&sse_events, &self.topics).await;
         } else {
             // Release the associations this batch created, since the rows that would have justified them
@@ -973,19 +974,29 @@ impl TracePipeline {
     /// Run **after** the write, so the store's answer includes this batch's own spans. On a read failure the
     /// batch's value stands: an event whose session may be superseded is worth more to a subscriber than no
     /// event at all, and the next read is authoritative either way.
-    async fn stamp_stored_sessions(&self, events: &mut [SseSpanEvent]) {
+    async fn stamp_stored_sessions(
+        &self,
+        events: &mut [SseSpanEvent],
+        settled: &HashSet<(String, String)>,
+    ) {
         let mut by_project: HashMap<String, HashSet<String>> = HashMap::new();
         for event in events.iter() {
+            let project = event
+                .project_id
+                .as_deref()
+                .unwrap_or(DEFAULT_PROJECT_ID)
+                .to_string();
+            // Nothing to ask for a trace this batch already settles: see `traces_settled_by_the_batch`.
+            if settled.contains(&(project.clone(), event.trace_id.clone())) {
+                continue;
+            }
             by_project
-                .entry(
-                    event
-                        .project_id
-                        .as_deref()
-                        .unwrap_or(DEFAULT_PROJECT_ID)
-                        .to_string(),
-                )
+                .entry(project)
                 .or_default()
                 .insert(event.trace_id.clone());
+        }
+        if by_project.is_empty() {
+            return;
         }
 
         let mut stored: HashMap<(String, String), String> = HashMap::new();
@@ -1816,7 +1827,7 @@ impl TracePipeline {
                 partly_dropped += unstorable;
             }
 
-            let sse_events: Vec<SseSpanEvent> = sse_events_for(&db_spans);
+            let (sse_events, settled_sessions) = sse_events_for(&db_spans);
             // Ordered, exactly as the batch path is: this path ran the two concurrently, so it could
             // commit a row referencing a file whose write had failed - the same defect, in the path
             // that runs at shutdown and recovery, where it is least likely to be noticed.
@@ -1972,7 +1983,8 @@ impl TracePipeline {
                     })
                     .collect();
                 // Same as the batch path: resolved from the store, now that the rows are there.
-                self.stamp_stored_sessions(&mut sse_events).await;
+                self.stamp_stored_sessions(&mut sse_events, &settled_sessions)
+                    .await;
                 publish_sse_events(&sse_events, &self.topics).await;
                 if partly_dropped > 0 {
                     IngestOutcome::PartlyDropped {
@@ -2129,9 +2141,10 @@ pub fn strip_unstorable_spans(request: &mut ExportTraceServiceRequest) -> usize 
 ///
 /// The batch's answer is the starting point; `stamp_stored_sessions` supersedes it from the store once the
 /// rows are written, which is what makes the live stream agree with what a subsequent read returns.
-fn sse_events_for(spans: &[NormalizedSpan]) -> Vec<SseSpanEvent> {
+fn sse_events_for(spans: &[NormalizedSpan]) -> (Vec<SseSpanEvent>, HashSet<(String, String)>) {
     let sessions = canonical_session_of_traces(spans);
-    spans
+    let settled = traces_settled_by_the_batch(spans);
+    let events = spans
         .iter()
         .map(|span| {
             let mut event = SseSpanEvent::from(span);
@@ -2148,6 +2161,38 @@ fn sse_events_for(spans: &[NormalizedSpan]) -> Vec<SseSpanEvent> {
                 event.session_id = Some(session.clone());
             }
             event
+        })
+        .collect();
+    (events, settled)
+}
+
+/// Traces whose canonical session this batch establishes on its own, so the store cannot say otherwise.
+///
+/// The canonical session is the one on the trace's earliest span that has one, and a span with no parent is
+/// the earliest span of its trace - so a batch carrying such a span *with* a session already knows the
+/// answer, and asking the store costs a query per batch to be told the same thing. Measured at ~2.7 ms per
+/// batch on the `langgraph/swarm` fixture, which is 12% of that batch's whole ingestion and lands in full on
+/// a single-span export.
+///
+/// The residual, stated rather than hidden: a second parentless span, or a child stamped by a skewed clock
+/// with a start time before its parent's, could make the store's answer differ. Then the live stream carries
+/// this batch's reading and the next read is authoritative - which is the same outcome as a failed store
+/// read, and strictly better than the child-only batch this exists to fix, where the batch knows nothing.
+fn traces_settled_by_the_batch(spans: &[NormalizedSpan]) -> HashSet<(String, String)> {
+    spans
+        .iter()
+        .filter(|s| {
+            s.parent_span_id.as_deref().unwrap_or("").is_empty()
+                && s.session_id.as_deref().is_some_and(|v| !v.is_empty())
+        })
+        .map(|s| {
+            (
+                s.project_id
+                    .as_deref()
+                    .unwrap_or(DEFAULT_PROJECT_ID)
+                    .to_string(),
+                s.trace_id.clone(),
+            )
         })
         .collect()
 }
@@ -2357,8 +2402,15 @@ mod session_fence_tests {
             .expect("store the root");
 
         // A later batch carries only a child, which names a different session.
-        let batch = vec![at("p", "t1", "child", Some("session-b"), 5)];
-        let mut events = sse_events_for(&batch);
+        let batch = vec![NormalizedSpan {
+            parent_span_id: Some("root".to_string()),
+            ..at("p", "t1", "child", Some("session-b"), 5)
+        }];
+        let (mut events, settled) = sse_events_for(&batch);
+        assert!(
+            settled.is_empty(),
+            "a batch of children settles nothing: it has no parentless span"
+        );
         assert_eq!(
             events[0].session_id.as_deref(),
             Some("session-b"),
@@ -2370,7 +2422,7 @@ mod session_fence_tests {
             .insert_spans(batch)
             .await
             .expect("store the child");
-        pipeline.stamp_stored_sessions(&mut events).await;
+        pipeline.stamp_stored_sessions(&mut events, &settled).await;
 
         assert_eq!(
             events[0].session_id.as_deref(),
@@ -2446,7 +2498,11 @@ mod session_fence_tests {
             at("p", "t1", "stray", Some("session-b"), 2),
         ];
 
-        let events = sse_events_for(&spans);
+        let (events, settled) = sse_events_for(&spans);
+        assert!(
+            settled.contains(&("p".to_string(), "t1".to_string())),
+            "the batch carries the trace's parentless span with a session, so it settles it"
+        );
         let sessions: Vec<Option<&str>> = events.iter().map(|e| e.session_id.as_deref()).collect();
         assert_eq!(
             sessions,
@@ -2459,8 +2515,12 @@ mod session_fence_tests {
     #[test]
     fn a_batch_that_names_no_session_leaves_the_event_unstamped() {
         let spans = vec![at("p", "t1", "child", None, 0)];
-        let events = sse_events_for(&spans);
+        let (events, settled) = sse_events_for(&spans);
         assert_eq!(events[0].session_id, None);
+        assert!(
+            settled.is_empty(),
+            "it settles nothing either, so the store is asked"
+        );
     }
 
     /// Deleting one session must not drop a trace that belongs to another.

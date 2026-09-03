@@ -402,7 +402,7 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
     // reporting a trace's tokens as whatever the matching spans held rather than the trace's own.
     if let Some(ref uid) = params.user_id {
         conditions.push(format!(
-            "{} IN (SELECT DISTINCT trace_id FROM otel_spans WHERE project_id = ? AND user_id = ?)",
+            "{} IN (SELECT DISTINCT trace_id FROM {DEDUP_SPANS} WHERE project_id = ? AND user_id = ?)",
             col("trace_id")
         ));
         bind_values.push(params.project_id.clone());
@@ -414,7 +414,7 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
     {
         let placeholders: Vec<&str> = envs.iter().map(|_| "?").collect();
         conditions.push(format!(
-            "{} IN (SELECT DISTINCT trace_id FROM otel_spans WHERE project_id = ? \
+            "{} IN (SELECT DISTINCT trace_id FROM {DEDUP_SPANS} WHERE project_id = ? \
              AND environment IN ({}))",
             col("trace_id"),
             placeholders.join(", ")
@@ -457,6 +457,10 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
     let mut join_totals = false;
 
     for filter in &params.filters {
+        // A filter that states nothing contributes no condition: see `Filter::is_vacuous`.
+        if filter.is_vacuous() {
+            continue;
+        }
         // A session filter goes through the canonical relation here too, not through the displayed
         // aggregate. The two agree on the *value* - both take the earliest span that has one, in the same
         // total order - and disagree on the negation: `trace_display_first(session_id) != 'A'` is NULL for a
@@ -485,7 +489,7 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
                         (String::new(), Vec::new())
                     };
                     conditions.push(format!(
-                        "{}.trace_id NOT IN (SELECT n.trace_id FROM otel_spans n {join} \
+                        "{}.trace_id NOT IN (SELECT n.trace_id FROM {DEDUP_SPANS} n {join} \
                          WHERE n.project_id = ? GROUP BY n.project_id, n.trace_id HAVING {condition})",
                         alias_or("otel_spans", alias)
                     ));
@@ -512,7 +516,7 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
                 let condition =
                     rendered.to_sql_aliased(&mut inner, columns::map_trace_column_to_spans, "n");
                 conditions.push(format!(
-                    "{}.trace_id {quantifier} (SELECT n.trace_id FROM otel_spans n \
+                    "{}.trace_id {quantifier} (SELECT n.trace_id FROM {DEDUP_SPANS} n \
                      WHERE n.project_id = ? AND {condition})",
                     alias_or("otel_spans", alias)
                 ));
@@ -534,7 +538,7 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
         // Bound before the outer project_id: the join is rendered ahead of the WHERE.
         bind_values.extend(join_binds);
         conditions.push(format!(
-            "{}.trace_id IN (SELECT n.trace_id FROM otel_spans n {totals_join} \
+            "{}.trace_id IN (SELECT n.trace_id FROM {DEDUP_SPANS} n {totals_join} \
              WHERE n.project_id = ? GROUP BY n.project_id, n.trace_id HAVING {})",
             alias_or("otel_spans", alias),
             aggregate_conditions.join(" AND ")
@@ -556,12 +560,18 @@ pub fn list_traces(
     conn: &Connection,
     params: &ListTracesParams,
 ) -> Result<(Vec<TraceRow>, u64), DuckdbError> {
-    // Build WHERE clause without alias for count query (single table)
-    let (span_where, bind_values) = build_trace_span_conditions(params, "");
+    // The count reads the deduplicated relation, which is an unnamed subquery - so it is given a name and
+    // the conditions are built against it. Unqualified would not do: `alias_or` falls back to the table's own
+    // name, which no longer appears in this query.
+    let (span_where, bind_values) = build_trace_span_conditions(params, "s");
 
-    // Count query — raw otel_spans avoids the DEDUP_SPANS self-join. Safe because duplicates share
-    // identical data for all filterable columns, and the HAVING checks are immune to row
-    // duplication.
+    // Count query, over the **deduplicated** relation. It used to read the raw table on the grounds that
+    // "duplicates share identical data for all filterable columns" - which is exactly what a re-delivery
+    // breaks: a corrected span is a second row with different values, and the whole reason `DEDUP_SPANS`
+    // exists is that the later one supersedes it. Reading raw, a trace displayed as `new` was not returned by
+    // `trace_name = new`, and was excluded from "none of old" by a value nothing displays.
+    //
+    // The `genai_span_predicate` is left unqualified: one relation, no ambiguity.
     //
     // Both HAVING conditions belong here as well as in the page query: a count that ignored them
     // reported more traces than the pages contain.
@@ -574,7 +584,7 @@ pub fn list_traces(
     }
     let count_sql = if count_having.is_empty() {
         format!(
-            "SELECT COUNT(DISTINCT trace_id) FROM otel_spans WHERE {}",
+            "SELECT COUNT(DISTINCT s.trace_id) FROM {DEDUP_SPANS} s WHERE {}",
             span_where
         )
     } else {
@@ -582,8 +592,8 @@ pub fn list_traces(
             // project_id is in the GROUP BY so the name subquery in the HAVING can correlate on
             // it. The WHERE already fixes it to one value, so the grouping is unchanged.
             r#"SELECT COUNT(*) FROM (
-                SELECT trace_id FROM otel_spans WHERE {}
-                GROUP BY project_id, trace_id
+                SELECT s.trace_id FROM {DEDUP_SPANS} s WHERE {}
+                GROUP BY s.project_id, s.trace_id
                 HAVING {}
             ) t"#,
             span_where,
@@ -702,7 +712,8 @@ pub fn list_traces(
                 FIRST(s.input_preview ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.input_preview IS NOT NULL)
             ) AS input_preview,
             COALESCE(
-                FIRST(s.output_preview ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.parent_span_id IS NULL AND s.output_preview IS NOT NULL),
+                -- Descending, like the fallback beside it: an output preview is the *last* thing produced.
+                FIRST(s.output_preview ORDER BY s.timestamp_start DESC, s.span_id DESC) FILTER (WHERE s.parent_span_id IS NULL AND s.output_preview IS NOT NULL),
                 FIRST(s.output_preview ORDER BY s.timestamp_start DESC, s.span_id DESC) FILTER (WHERE s.output_preview IS NOT NULL)
             ) AS output_preview,
             bool_or(s.status_code = 'ERROR') AS has_error
@@ -828,7 +839,8 @@ pub fn get_trace(
                 FIRST(s.input_preview ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.input_preview IS NOT NULL)
             ) AS input_preview,
             COALESCE(
-                FIRST(s.output_preview ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.parent_span_id IS NULL AND s.output_preview IS NOT NULL),
+                -- Descending, like the fallback beside it: an output preview is the *last* thing produced.
+                FIRST(s.output_preview ORDER BY s.timestamp_start DESC, s.span_id DESC) FILTER (WHERE s.parent_span_id IS NULL AND s.output_preview IS NOT NULL),
                 FIRST(s.output_preview ORDER BY s.timestamp_start DESC, s.span_id DESC) FILTER (WHERE s.output_preview IS NOT NULL)
             ) AS output_preview,
             bool_or(s.status_code = 'ERROR') AS has_error
@@ -938,6 +950,10 @@ pub fn list_spans(
 
     // Apply advanced filters - map API column names to DB columns
     for filter in &params.filters {
+        // A filter that states nothing contributes no condition: see `Filter::is_vacuous`.
+        if filter.is_vacuous() {
+            continue;
+        }
         // A session filter is a statement about the *trace*; see `canonical_session_filter`.
         if let Some((sql, binds)) = canonical_session_filter(filter, &params.project_id, "") {
             conditions.push(sql);
@@ -952,7 +968,7 @@ pub fn list_spans(
 
     // Count query — COUNT(DISTINCT) on raw table avoids the DEDUP_SPANS self-join
     let count_sql = format!(
-        "SELECT COUNT(*) FROM (SELECT DISTINCT trace_id, span_id FROM otel_spans WHERE {}) _c",
+        "SELECT COUNT(*) FROM (SELECT DISTINCT trace_id, span_id FROM {DEDUP_SPANS} WHERE {}) _c",
         where_clause
     );
     let total = execute_count(conn, &count_sql, &bind_values)?;
@@ -1212,6 +1228,40 @@ pub fn get_links_for_span(
 
 /// Build session span conditions with optional table alias.
 /// Returns (WHERE clause, bind values).
+/// A condition on the **session**, built from a condition on one of its spans.
+///
+/// `inner` is a predicate over the alias `n` on `otel_spans`, and the session qualifies when *some* span of
+/// *some* trace canonically in it satisfies that predicate. Asked as a row predicate instead, three things
+/// went wrong at once on the session list, all of them the trace list's already-fixed defect by another
+/// route:
+///
+/// - a filter on a column the session's *children* carry matched nothing, because a child span names no
+///   session and the row predicate requires one - `model = haiku` returned no session at all when the model
+///   sat on the generation child of a root that named the session, which is the ordinary shape;
+/// - `none of alice` returned a session that used alice in one span and bob in the next, because some row
+///   satisfied the negation;
+/// - and it dropped every session with no value at all (`NULL NOT IN (…)` is NULL) - exactly the sessions
+///   that are not alice.
+///
+/// A negated operator is therefore the **complement** of the positive form, never the negated predicate.
+/// Binds: the canonical relation's project, then the span subquery's.
+fn session_scope_condition(
+    session_col: &str,
+    project_id: &str,
+    inner: &str,
+    negated: bool,
+) -> (String, Vec<String>) {
+    let quantifier = if negated { "NOT IN" } else { "IN" };
+    let sql = format!(
+        "{session_col} {quantifier} (SELECT cts.session_id FROM ({CANONICAL}) cts \
+         WHERE cts.project_id = ? AND cts.trace_id IN \
+         (SELECT n.trace_id FROM {DEDUP} n WHERE n.project_id = ? AND {inner}))",
+        CANONICAL = CANONICAL_TRACE_SESSIONS,
+        DEDUP = DEDUP_SPANS,
+    );
+    (sql, vec![project_id.to_string(), project_id.to_string()])
+}
+
 fn build_session_span_conditions(
     params: &ListSessionsParams,
     alias: &str,
@@ -1234,22 +1284,32 @@ fn build_session_span_conditions(
     bind_values.push(params.project_id.clone());
     conditions.push(format!("{} IS NOT NULL", col("session_id")));
 
-    // Optional filters
+    // Optional filters, each a predicate on the session - see `session_scope_condition`.
     if let Some(ref uid) = params.user_id {
-        conditions.push(format!("{} = ?", col("user_id")));
-        bind_values.push(uid.clone());
+        let (sql, mut binds) = session_scope_condition(
+            &col("session_id"),
+            &params.project_id,
+            "n.user_id = ?",
+            false,
+        );
+        conditions.push(sql);
+        binds.push(uid.clone());
+        bind_values.extend(binds);
     }
 
     if let Some(ref envs) = params.environment
         && !envs.is_empty()
     {
         let placeholders: Vec<&str> = envs.iter().map(|_| "?").collect();
-        conditions.push(format!(
-            "{} IN ({})",
-            col("environment"),
-            placeholders.join(", ")
-        ));
-        bind_values.extend(envs.iter().cloned());
+        let (sql, mut binds) = session_scope_condition(
+            &col("session_id"),
+            &params.project_id,
+            &format!("n.environment IN ({})", placeholders.join(", ")),
+            false,
+        );
+        conditions.push(sql);
+        binds.extend(envs.iter().cloned());
+        bind_values.extend(binds);
     }
 
     if let Some(ref from) = params.from_timestamp {
@@ -1262,19 +1322,33 @@ fn build_session_span_conditions(
         bind_values.push(to.to_rfc3339());
     }
 
-    // Advanced filters with aliasing
+    // Advanced filters, each a predicate on the session - see `session_scope_condition`.
     for filter in &params.filters {
+        // A filter that states nothing contributes no condition: see `Filter::is_vacuous`.
+        if filter.is_vacuous() {
+            continue;
+        }
         // A session filter is a statement about the *trace*; see `canonical_session_filter`.
         if let Some((sql, binds)) = canonical_session_filter(filter, &params.project_id, alias) {
             conditions.push(sql);
             sql_params.values.extend(binds);
             continue;
         }
-        conditions.push(filter.to_sql_aliased(
-            &mut sql_params,
-            columns::map_session_column_to_spans,
-            alias,
-        ));
+        // The complement for a negated operator, the positive form otherwise.
+        let twin = filter.positive_twin();
+        let rendered = twin.as_ref().unwrap_or(filter);
+        let mut inner_params = SqlParams::default();
+        let inner =
+            rendered.to_sql_aliased(&mut inner_params, columns::map_session_column_to_spans, "n");
+        let (sql, mut binds) = session_scope_condition(
+            &col("session_id"),
+            &params.project_id,
+            &inner,
+            twin.is_some(),
+        );
+        conditions.push(sql);
+        binds.extend(inner_params.values);
+        sql_params.values.extend(binds);
     }
     bind_values.extend(sql_params.values);
 
@@ -1300,7 +1374,7 @@ pub fn list_sessions(
     let count_sql = format!(
         "SELECT COUNT(DISTINCT ts.session_id) FROM ({CANONICAL_TRACE_SESSIONS}) ts \
          WHERE (ts.project_id, ts.trace_id) IN ( \
-           SELECT project_id, trace_id FROM otel_spans WHERE {})",
+           SELECT project_id, trace_id FROM {DEDUP_SPANS} WHERE {})",
         span_where
     );
     let total = execute_count(conn, &count_sql, &bind_values)?;
@@ -1688,7 +1762,8 @@ pub fn get_traces_for_session(
                 FIRST(s.input_preview ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.input_preview IS NOT NULL)
             ) AS input_preview,
             COALESCE(
-                FIRST(s.output_preview ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.parent_span_id IS NULL AND s.output_preview IS NOT NULL),
+                -- Descending, like the fallback beside it: an output preview is the *last* thing produced.
+                FIRST(s.output_preview ORDER BY s.timestamp_start DESC, s.span_id DESC) FILTER (WHERE s.parent_span_id IS NULL AND s.output_preview IS NOT NULL),
                 FIRST(s.output_preview ORDER BY s.timestamp_start DESC, s.span_id DESC) FILTER (WHERE s.output_preview IS NOT NULL)
             ) AS output_preview,
             bool_or(s.status_code = 'ERROR') AS has_error
@@ -2034,18 +2109,31 @@ pub fn get_trace_session_pairs(
     }
 
     let placeholders: Vec<&str> = trace_ids.iter().map(|_| "?").collect();
-    let (dedup, as_of_bind) = membership_relation(as_of_us);
+    // The candidate filter goes **inside** the window, for the reason `traces_of_session` records: the
+    // deduplicating window cannot use an index, so passing the relation as opaque SQL and filtering outside
+    // it deduplicates the whole project. That matters most here, because this runs on the **ingest** path -
+    // once per batch, to stamp the SSE events and to check the deletion fence - so an outer filter made every
+    // export pay a scan proportional to everything the project has ever stored.
+    let watermark = if as_of_us.is_some() {
+        "AND EPOCH_US(ingested_at) < ?::BIGINT "
+    } else {
+        ""
+    };
     let sql = format!(
-        "SELECT trace_id, arg_min(session_id, (timestamp_start, span_id)) AS session_id FROM {DEDUP}          WHERE project_id = ? AND trace_id IN ({})          AND session_id IS NOT NULL AND session_id != '' GROUP BY trace_id",
+        "SELECT trace_id, arg_min(session_id, (timestamp_start, span_id)) AS session_id \
+         FROM (SELECT * FROM otel_spans \
+               WHERE project_id = ? {watermark}AND trace_id IN ({}) \
+               QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
+                                          ORDER BY ingested_at DESC, rowid DESC) = 1) \
+         WHERE session_id IS NOT NULL AND session_id != '' GROUP BY trace_id",
         placeholders.join(", "),
-        DEDUP = dedup
     );
     let mut stmt = conn.prepare(&sql)?;
 
-    let mut all_params: Vec<String> = Vec::with_capacity(1 + trace_ids.len());
-    // The relation's own bind sits at the head of the FROM, so it comes first.
-    all_params.extend(as_of_bind);
+    let mut all_params: Vec<String> = Vec::with_capacity(2 + trace_ids.len());
+    // In the order the placeholders appear: the project, then the watermark, then the trace ids.
     all_params.push(project_id.to_string());
+    all_params.extend(as_of_us.map(|us| us.to_string()));
     all_params.extend(trace_ids.iter().cloned());
     let params: Vec<&dyn duckdb::ToSql> =
         all_params.iter().map(|v| v as &dyn duckdb::ToSql).collect();
@@ -5518,6 +5606,341 @@ mod tests {
             "a trace with no user id is not alice, so it matches \"none of alice\""
         );
         assert_eq!(total, 1, "the count must agree with the page");
+    }
+
+    /// A filter reads the delivery the list displays, not one it superseded.
+    ///
+    /// Every filter subquery and both count queries read the raw table, on the recorded grounds that
+    /// "duplicates share identical data for all filterable columns". A corrected re-delivery is exactly the
+    /// case that breaks: it is a second row with *different* values, and superseding the first is what
+    /// `DEDUP_SPANS` is for. Measured before the fix, on one re-delivered root span: the row displayed `new`
+    /// and 5,000 tokens, while `trace_name = new` returned nothing, "none of old" excluded it, `model = old`
+    /// matched it, and the filter's own total was 5,100 - the sum of both deliveries.
+    #[tokio::test]
+    async fn a_filter_reads_the_delivery_the_row_displays() {
+        use crate::data::duckdb::filters::{Filter, NumberOp, OptionsOp, StringOp};
+
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+        let t0 = Utc::now() - chrono::Duration::seconds(60);
+
+        // The same span twice: same ids, same timestamp, corrected name, model and tokens.
+        let root = |name: &str, tokens: i64| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: "t1".to_string(),
+            span_id: "r1".to_string(),
+            span_name: name.to_string(),
+            observation_type: Some(ObservationType::Generation),
+            timestamp_start: t0,
+            timestamp_end: Some(t0 + chrono::Duration::seconds(1)),
+            gen_ai_usage_total_tokens: tokens,
+            gen_ai_request_model: Some(name.to_string()),
+            ..Default::default()
+        };
+
+        {
+            let conn = service.conn();
+            insert_batch(&conn, &[root("old", 100)]).expect("insert");
+        }
+        {
+            let conn = service.conn();
+            insert_batch(&conn, &[root("new", 5000)]).expect("re-deliver");
+        }
+
+        let conn = service.conn();
+        let (rows, _) = list_traces(&conn, &trace_filter_params(project, vec![])).expect("list");
+        assert_eq!(rows[0].trace_name.as_deref(), Some("new"), "premise");
+        assert_eq!(rows[0].total_tokens, 5_000, "premise");
+
+        let matches = |filters: Vec<Filter>| {
+            let (rows, total) =
+                list_traces(&conn, &trace_filter_params(project, filters)).expect("list");
+            // The count and the page must agree: they are two statements about one question.
+            assert_eq!(
+                rows.len() as u64,
+                total,
+                "the count disagrees with the page"
+            );
+            rows.len()
+        };
+
+        assert_eq!(
+            matches(vec![Filter::String {
+                column: "trace_name".to_string(),
+                operator: StringOp::Eq,
+                value: "new".to_string(),
+            }]),
+            1,
+            "the row displays `new`, so a filter for `new` must return it"
+        );
+        assert_eq!(
+            matches(vec![Filter::StringOptions {
+                column: "trace_name".to_string(),
+                operator: OptionsOp::NoneOf,
+                value: vec!["old".to_string()],
+            }]),
+            1,
+            "nothing displays `old`, so the trace is not excluded by \"none of old\""
+        );
+        assert_eq!(
+            matches(vec![Filter::String {
+                column: "gen_ai_request_model".to_string(),
+                operator: StringOp::Eq,
+                value: "old".to_string(),
+            }]),
+            0,
+            "the superseded delivery's model is not the trace's model"
+        );
+        assert_eq!(
+            matches(vec![Filter::Number {
+                column: "total_tokens".to_string(),
+                operator: NumberOp::Gt,
+                value: 5_000.0,
+            }]),
+            0,
+            "the filter's total must be the 5,000 displayed, not 5,100 summed over both deliveries"
+        );
+    }
+
+    /// An input preview is the first thing the trace received; an output preview the last it produced.
+    ///
+    /// Both are chosen among the root spans first and fall back to any span. The fallback for the output side
+    /// was already descending, and the root branch had no ordering at all - so once a tie-break made it
+    /// deterministic it deterministically chose the *earliest* root output, which is the wrong end of the
+    /// trace. Two roots is what makes the two ends distinguishable.
+    #[tokio::test]
+    async fn a_trace_shows_its_first_input_and_its_last_output() {
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+        let t0 = Utc::now() - chrono::Duration::seconds(60);
+
+        let root = |span_id: &str, offset: i64, text: &str| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: "t1".to_string(),
+            span_id: span_id.to_string(),
+            span_name: "generation".to_string(),
+            observation_type: Some(ObservationType::Generation),
+            timestamp_start: t0 + chrono::Duration::seconds(offset),
+            timestamp_end: Some(t0 + chrono::Duration::seconds(offset + 1)),
+            input_preview: Some(format!("in-{text}")),
+            output_preview: Some(format!("out-{text}")),
+            ..Default::default()
+        };
+
+        {
+            let conn = service.conn();
+            insert_batch(&conn, &[root("r1", 0, "first"), root("r2", 5, "last")]).expect("insert");
+        }
+
+        let conn = service.conn();
+        let (rows, _) = list_traces(&conn, &trace_filter_params(project, vec![])).expect("list");
+        assert_eq!(rows[0].input_preview.as_deref(), Some("in-first"));
+        assert_eq!(rows[0].output_preview.as_deref(), Some("out-last"));
+
+        let detail = get_trace(&conn, project, "t1")
+            .expect("query")
+            .expect("trace exists");
+        assert_eq!(
+            (detail.input_preview, detail.output_preview),
+            (
+                rows[0].input_preview.clone(),
+                rows[0].output_preview.clone()
+            ),
+            "the detail view and the list must show the same previews"
+        );
+    }
+
+    /// A filter with an empty value list changes nothing, on every list.
+    ///
+    /// An empty option list means "no value chosen", which the renderers answer with `1=1` - neutral in the
+    /// query's own WHERE and *not* neutral once wrapped in a subquery over a narrower relation. `session_id
+    /// any of []` became `trace_id IN (traces that have a session)`, so every sessionless trace vanished from
+    /// a list nobody had filtered. Such a filter now contributes no condition at all.
+    #[tokio::test]
+    async fn an_empty_value_list_is_not_a_filter() {
+        use crate::data::duckdb::filters::{Filter, OptionsOp};
+
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+        let t0 = Utc::now() - chrono::Duration::seconds(60);
+
+        let span = |trace: &str, session: Option<&str>| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: trace.to_string(),
+            span_id: format!("{trace}-s1"),
+            span_name: "generation".to_string(),
+            observation_type: Some(ObservationType::Generation),
+            timestamp_start: t0,
+            timestamp_end: Some(t0 + chrono::Duration::seconds(1)),
+            session_id: session.map(str::to_string),
+            ..Default::default()
+        };
+
+        {
+            let conn = service.conn();
+            insert_batch(
+                &conn,
+                &[
+                    span("t-in-a", Some("session-a")),
+                    span("t-sessionless", None),
+                ],
+            )
+            .expect("insert");
+        }
+
+        let conn = service.conn();
+        let unfiltered = list_traces(&conn, &trace_filter_params(project, vec![]))
+            .expect("list_traces")
+            .0
+            .len();
+        assert_eq!(unfiltered, 2, "premise of the test");
+
+        for operator in [OptionsOp::AnyOf, OptionsOp::NoneOf] {
+            for column in ["session_id", "user_id", "gen_ai_request_model"] {
+                let empty = vec![Filter::StringOptions {
+                    column: column.to_string(),
+                    operator: operator.clone(),
+                    value: vec![],
+                }];
+                let (rows, total) =
+                    list_traces(&conn, &trace_filter_params(project, empty.clone()))
+                        .expect("list_traces");
+                assert_eq!(
+                    (rows.len(), total),
+                    (unfiltered, unfiltered as u64),
+                    "an empty {column} list must leave the trace list alone"
+                );
+
+                let (spans, _) = list_spans(
+                    &conn,
+                    &ListSpansParams {
+                        project_id: project.to_string(),
+                        page: 1,
+                        limit: 50,
+                        filters: empty,
+                        ..Default::default()
+                    },
+                )
+                .expect("list_spans");
+                assert_eq!(
+                    spans.len(),
+                    2,
+                    "an empty {column} list must leave the span list alone"
+                );
+            }
+        }
+    }
+
+    /// A session-list filter selects sessions, whichever span of the session carries the value.
+    ///
+    /// Three defects in one predicate, all the trace list's already-fixed shape by another route: a filter on
+    /// a column only the session's *children* carry matched nothing, because a child names no session and the
+    /// row predicate requires one; `none of alice` returned a session that used alice in one span and bob in
+    /// the next; and it dropped every session with no value at all, which is exactly the sessions that are
+    /// not alice.
+    #[tokio::test]
+    async fn a_session_list_filter_selects_sessions_not_span_rows() {
+        use crate::data::duckdb::filters::{Filter, OptionsOp, StringOp};
+
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+        let t0 = Utc::now() - chrono::Duration::seconds(60);
+
+        let span = |trace: &str, span_id: &str, session: &str, user: Option<&str>| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: trace.to_string(),
+            span_id: span_id.to_string(),
+            span_name: "generation".to_string(),
+            observation_type: Some(ObservationType::Generation),
+            timestamp_start: t0,
+            timestamp_end: Some(t0 + chrono::Duration::seconds(1)),
+            session_id: Some(session.to_string()),
+            user_id: user.map(str::to_string),
+            ..Default::default()
+        };
+
+        {
+            let conn = service.conn();
+            insert_batch(
+                &conn,
+                &[
+                    // session-1 used alice once and bob once, so it is *not* "none of alice".
+                    span("t1", "s1", "session-1", Some("alice")),
+                    span("t1", "s2", "session-1", Some("bob")),
+                    // session-2's root names the session and carries no user; its child carries the
+                    // user and the model, and names no session - the ordinary framework shape.
+                    span("t2", "s1", "session-2", None),
+                    NormalizedSpan {
+                        user_id: Some("carol".to_string()),
+                        gen_ai_request_model: Some("haiku".to_string()),
+                        parent_span_id: Some("s1".to_string()),
+                        session_id: None,
+                        span_id: "s2".to_string(),
+                        ..span("t2", "s2", "session-2", None)
+                    },
+                ],
+            )
+            .expect("insert");
+        }
+
+        let conn = service.conn();
+        let ask = |params: ListSessionsParams| {
+            let (rows, total) = list_sessions(&conn, &params).expect("list_sessions");
+            let mut ids: Vec<String> = rows.into_iter().map(|r| r.session_id).collect();
+            ids.sort();
+            (ids, total)
+        };
+        let base = || ListSessionsParams {
+            project_id: project.to_string(),
+            page: 1,
+            limit: 50,
+            ..Default::default()
+        };
+        let only_two = (vec!["session-2".to_string()], 1);
+
+        assert_eq!(
+            ask(ListSessionsParams {
+                filters: vec![Filter::StringOptions {
+                    column: "user_id".to_string(),
+                    operator: OptionsOp::NoneOf,
+                    value: vec!["alice".to_string()],
+                }],
+                ..base()
+            }),
+            only_two,
+            "the session that used alice is not \"none of alice\"; the one with no user is"
+        );
+
+        assert_eq!(
+            ask(ListSessionsParams {
+                filters: vec![Filter::String {
+                    column: "gen_ai_request_model".to_string(),
+                    operator: StringOp::Eq,
+                    value: "haiku".to_string(),
+                }],
+                ..base()
+            }),
+            only_two,
+            "the model sits on a child span that names no session, and it is still the session's"
+        );
+
+        // The dedicated parameters take the same route, for the same reason.
+        assert_eq!(
+            ask(ListSessionsParams {
+                user_id: Some("carol".to_string()),
+                ..base()
+            }),
+            only_two,
+            "a user recorded on a child span is the session's user"
+        );
+        assert_eq!(
+            ask(ListSessionsParams {
+                user_id: Some("nobody".to_string()),
+                ..base()
+            }),
+            (vec![], 0),
+            "and a user nobody has selects nothing, so the subquery is not a no-op"
+        );
     }
 
     /// A negated aggregate filter binds in step with its neighbours, in every order.

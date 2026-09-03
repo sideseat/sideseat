@@ -266,7 +266,8 @@ fn trace_projection(trace_id_expr: &str, totals_alias: &str, totals: Totals) -> 
                 argMinIf(s.input_preview, (s.timestamp_start, s.span_id), s.input_preview IS NOT NULL AND s.input_preview != '')
             ) AS input_preview,
             COALESCE(
-                argMinIf(s.output_preview, (s.timestamp_start, s.span_id), s.parent_span_id IS NULL AND s.output_preview IS NOT NULL AND s.output_preview != ''),
+                -- argMax, like the fallback beside it: an output preview is the *last* thing produced.
+                argMaxIf(s.output_preview, (s.timestamp_start, s.span_id), s.parent_span_id IS NULL AND s.output_preview IS NOT NULL AND s.output_preview != ''),
                 argMaxIf(s.output_preview, (s.timestamp_start, s.span_id), s.output_preview IS NOT NULL AND s.output_preview != '')
             ) AS output_preview,
             coalesce(max(s.status_code = 'ERROR'), 0) AS has_error"#,
@@ -460,6 +461,68 @@ impl ConditionBuilder {
         )
     }
 
+    /// A condition on the **session**: it has a span satisfying `inner`, whatever span that is.
+    ///
+    /// The mirror of DuckDB's `session_scope_condition`, and the reasoning is recorded there: asked as a row
+    /// predicate, a filter on a column only the session's *children* carry matched nothing (a child names no
+    /// session and the row predicate requires one), a negation matched a session that used the value in one
+    /// span and something else in the next, and it dropped every session with no value at all - exactly the
+    /// ones a negation is asking for.
+    ///
+    /// Binds: the canonical relation's project, the span subquery's project, then the condition's own.
+    fn push_session_scope(
+        &mut self,
+        session_col: &str,
+        project_id: &str,
+        inner: &str,
+        negated: bool,
+        inner_params: Vec<QueryParam>,
+    ) {
+        let quantifier = if negated { "NOT IN" } else { "IN" };
+        self.conditions.push(format!(
+            "{session_col} {quantifier} (SELECT cts.canonical_session FROM ({CANONICAL}) cts \
+             WHERE cts.project_id = ? AND cts.trace_id IN \
+             (SELECT n.trace_id FROM otel_spans n FINAL WHERE n.project_id = ? AND {inner}))",
+            CANONICAL = CANONICAL_TRACE_SESSIONS,
+        ));
+        self.params.push(QueryParam::String(project_id.to_string()));
+        self.params.push(QueryParam::String(project_id.to_string()));
+        self.params.extend(inner_params);
+    }
+
+    /// The session list's filters, each a predicate on the session - see `push_session_scope`.
+    fn add_session_filters<F>(&mut self, filters: &[Filter], mapper: F, project_id: &str)
+    where
+        F: for<'a> Fn(&'a str) -> &'a str + Copy,
+    {
+        for filter in filters {
+            // A filter that states nothing contributes no condition: see `Filter::is_vacuous`.
+            if filter.is_vacuous() {
+                continue;
+            }
+            // A `session_id` filter is already a statement about the trace's canonical session.
+            if self.push_canonical_session_filter(filter, "", project_id) {
+                continue;
+            }
+            let twin = filter.positive_twin();
+            let rendered = twin.as_ref().unwrap_or(filter);
+            let mut inner_params: Vec<QueryParam> = Vec::new();
+            let inner = crate::data::clickhouse::filters::to_clickhouse_sql(
+                rendered,
+                &mut inner_params,
+                mapper,
+                "n",
+            );
+            self.push_session_scope(
+                "session_id",
+                project_id,
+                &inner,
+                twin.is_some(),
+                inner_params,
+            );
+        }
+    }
+
     /// A `session_id` filter, as the condition on the **trace** it is. Returns whether it handled the filter.
     ///
     /// Every surface routes it here - the span list, the session list and the trace list - because the same
@@ -533,6 +596,10 @@ impl ConditionBuilder {
         F: Fn(&'a str) -> &'a str + Copy,
     {
         for filter in filters {
+            // A filter that states nothing contributes no condition: see `Filter::is_vacuous`.
+            if filter.is_vacuous() {
+                continue;
+            }
             if !skip_column.is_empty() && filter.column() == skip_column {
                 continue;
             }
@@ -569,6 +636,10 @@ impl ConditionBuilder {
         let mut join_totals = false;
 
         for filter in filters {
+            // A filter that states nothing contributes no condition: see `Filter::is_vacuous`.
+            if filter.is_vacuous() {
+                continue;
+            }
             // Through the canonical relation here too - see `push_canonical_session_filter` for why the
             // displayed aggregate is the wrong basis for a negation.
             if self.push_canonical_session_filter(filter, "", project_id) {
@@ -1626,13 +1697,27 @@ pub async fn list_sessions(
     cb.add_eq("project_id", &params.project_id);
     cb.add_raw("session_id IS NOT NULL");
 
+    // Each a predicate on the session, not on a span row - see `push_session_scope`.
     if let Some(ref uid) = params.user_id {
-        cb.add_eq("user_id", uid);
+        cb.push_session_scope(
+            "session_id",
+            &params.project_id,
+            "n.user_id = ?",
+            false,
+            vec![QueryParam::String(uid.clone())],
+        );
     }
     if let Some(ref envs) = params.environment
         && !envs.is_empty()
     {
-        cb.add_in("environment", envs);
+        let placeholders: Vec<&str> = envs.iter().map(|_| "?").collect();
+        cb.push_session_scope(
+            "session_id",
+            &params.project_id,
+            &format!("n.environment IN ({})", placeholders.join(", ")),
+            false,
+            envs.iter().map(|e| QueryParam::String(e.clone())).collect(),
+        );
     }
     if let Some(ref from) = params.from_timestamp {
         cb.add_timestamp_gte("timestamp_start", from);
@@ -1641,12 +1726,10 @@ pub async fn list_sessions(
         cb.add_timestamp_lte("timestamp_start", to);
     }
 
-    // The UI's filter bar. Unqualified because these queries scan otel_spans directly, and
-    // mapped through the session view's column names.
-    cb.add_filters(
+    // The UI's filter bar, mapped through the session view's column names.
+    cb.add_session_filters(
         &params.filters,
         columns::map_session_column_to_spans,
-        "",
         &params.project_id,
     );
 

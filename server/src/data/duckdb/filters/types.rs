@@ -123,6 +123,21 @@ impl Filter {
         Ok(())
     }
 
+    /// Whether this filter states nothing, so it must contribute no condition at all.
+    ///
+    /// An empty option list is "the user has not chosen a value", not "match nothing" - which is why the
+    /// renderers answer `1=1` for it. But a condition of `1=1` is only neutral where it sits in the query's
+    /// own WHERE: wrapped in a subquery over a *narrower* relation it silently becomes that relation's
+    /// membership test. `session_id any of []` became `trace_id IN (traces that have a session)`, so every
+    /// sessionless trace vanished from a list the user had not filtered. Skipping the filter outright is the
+    /// only form that is neutral wherever it is used.
+    pub fn is_vacuous(&self) -> bool {
+        match self {
+            Self::StringOptions { value, .. } => value.is_empty(),
+            _ => false,
+        }
+    }
+
     /// The column this filter names, before any view-to-span mapping.
     pub fn column(&self) -> &String {
         match self {
