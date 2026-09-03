@@ -5243,6 +5243,93 @@ mod tests {
         }
     }
 
+    /// The session filter's binds stay in step with other filters, and with negation.
+    ///
+    /// It contributes a subquery with its own placeholders in the middle of a filter list, so its binds have
+    /// to interleave with the others in exactly the order the conditions are joined. A mistake there is a
+    /// silently wrong answer, not an error - the query runs and compares the wrong values.
+    #[tokio::test]
+    async fn a_session_filter_binds_in_step_with_its_neighbours() {
+        use crate::data::duckdb::filters::{Filter, OptionsOp, StringOp};
+
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+        let t0 = Utc::now() - chrono::Duration::seconds(60);
+
+        let span =
+            |trace: &str, span_id: &str, session: &str, model: &str, offset: i64| NormalizedSpan {
+                project_id: Some(project.to_string()),
+                trace_id: trace.to_string(),
+                span_id: span_id.to_string(),
+                span_name: "generation".to_string(),
+                observation_type: Some(ObservationType::Generation),
+                timestamp_start: t0 + chrono::Duration::seconds(offset),
+                timestamp_end: Some(t0 + chrono::Duration::seconds(offset + 1)),
+                session_id: Some(session.to_string()),
+                gen_ai_request_model: Some(model.to_string()),
+                ..Default::default()
+            };
+
+        {
+            let conn = service.conn();
+            insert_batch(
+                &conn,
+                &[
+                    span("trace-a", "s1", "session-a", "haiku", 0),
+                    span("trace-b", "s1", "session-b", "sonnet", 10),
+                ],
+            )
+            .expect("insert");
+        }
+
+        let conn = service.conn();
+        let count = |filters: Vec<Filter>| {
+            list_spans(
+                &conn,
+                &ListSpansParams {
+                    project_id: project.to_string(),
+                    page: 1,
+                    limit: 50,
+                    filters,
+                    ..Default::default()
+                },
+            )
+            .expect("list_spans")
+            .0
+            .len()
+        };
+
+        let session = |value: &str| Filter::String {
+            column: "session_id".to_string(),
+            operator: StringOp::Eq,
+            value: value.to_string(),
+        };
+        let model = |value: &str| Filter::String {
+            column: "gen_ai_request_model".to_string(),
+            operator: StringOp::Eq,
+            value: value.to_string(),
+        };
+
+        // The session filter before and after another filter: both orders must agree, which they only do
+        // if each filter's binds follow its own condition.
+        assert_eq!(count(vec![session("session-a"), model("haiku")]), 1);
+        assert_eq!(count(vec![model("haiku"), session("session-a")]), 1);
+        // And a combination that matches nothing, so a swapped bind cannot pass by luck.
+        assert_eq!(count(vec![session("session-a"), model("sonnet")]), 0);
+        assert_eq!(count(vec![model("sonnet"), session("session-a")]), 0);
+
+        // Negation is the complement over *sessions*, not the negated row predicate.
+        assert_eq!(
+            count(vec![Filter::StringOptions {
+                column: "session_id".to_string(),
+                operator: OptionsOp::NoneOf,
+                value: vec!["session-a".to_string()],
+            }]),
+            1,
+            "excluding session-a must leave exactly the other trace's span"
+        );
+    }
+
     /// A session *filter* on the trace and span lists also honours the canonical session.
     ///
     /// Parity between the backends is not enough on its own - they can agree on being wrong - so this pins
