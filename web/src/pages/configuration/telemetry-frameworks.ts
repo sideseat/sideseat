@@ -322,7 +322,7 @@ asyncio.run(main())`,
     altCode:
       () => `from openinference.instrumentation.autogen_agentchat import AutogenAgentChatInstrumentor
 
-AutogenAgentChatInstrumentor().instrument(tracer_provider=provider)`,
+AutogenAgentChatInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)`,
     run: "python agent.py",
     note: "autogen-agentchat installs the autogen_agentchat module, not a legacy autogen module.",
   },

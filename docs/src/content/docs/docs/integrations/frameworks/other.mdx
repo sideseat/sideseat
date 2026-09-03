@@ -102,8 +102,14 @@ print(response)
 
 There is no `Frameworks.LlamaIndex` constant. Passing `framework="llama-index"` would not do
 what it looks like: an unrecognised value is recorded as a **provider**, and `framework` still
-falls back to auto-detection. Hence `auto_instrument=False` above. The resulting spans are
-classified as OpenInference, which is what the instrumentor emits.
+falls back to auto-detection. Hence `auto_instrument=False` above.
+
+The server has a `LlamaIndex` rule (`llama_index.*` attributes) checked *before* the broader
+OpenInference one, so spans carrying those attributes are classified `LlamaIndex` and the rest as
+`OpenInference` — which of the two you get depends on what the instrumentor version you install
+emits. There is no captured fixture for LlamaIndex, so this is read from the classifier rather than
+measured; the support matrix in `server/tests/fixtures/messages/README.md` is the exact boundary of
+what the goldens verify.
 
 ## AutoGen
 
@@ -287,6 +293,24 @@ asyncio.run(main())
 
 No extra is needed: browser-use exports OpenTelemetry through the global provider. Every
 span it emits sets `gen_ai.provider.name = "browser_use"`, which is how SideSeat detects it.
+
+## Recognised without a setup guide
+
+The server classifies these, but nothing here tells you how to wire them up — each already emits
+OpenTelemetry on its own, so the generic setup below is the whole instruction and the spans are
+attributed once they arrive:
+
+| Framework | Recognised by |
+| --- | --- |
+| Semantic Kernel | `semantic_kernel.*` attributes |
+| Azure AI Foundry | Azure AI attributes, after the more specific Azure OpenAI rule |
+| Logfire | Pydantic Logfire's own attributes |
+| MLflow | MLflow tracing attributes |
+| TraceLoop | OpenLLMetry / TraceLoop attributes |
+| LiveKit | LiveKit Agents attributes |
+
+None of these has a captured fixture, so their message extraction is not covered by the goldens. The
+support matrix in `server/tests/fixtures/messages/README.md` is the exact boundary of what is verified.
 
 ## Generic OpenTelemetry
 

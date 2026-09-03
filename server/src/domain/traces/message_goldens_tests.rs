@@ -2435,10 +2435,11 @@ fn no_fixture_exhausts_the_replay_matching_budget() {
 /// and the corpus agree" is the thing actually checked.
 ///
 /// The document is `server/tests/fixtures/messages/README.md`, **not** `CLAUDE.md`, and that is the whole
-/// point of moving it: `CLAUDE.md` is deliberately never committed, so this test asserted against a file the
-/// repository does not carry. It passed only on a working copy someone had edited and failed on every clean
-/// checkout and in CI - which is the exact opposite of a guard. A test can only hold a *committed* file to
-/// account.
+/// point of moving it. `CLAUDE.md` is tracked, but project convention keeps it out of routine commits, so its
+/// committed content lags the working copy by however much has been written since: a test reading it compares
+/// the corpus against whatever state a checkout happens to carry, and so passes or fails on how recently
+/// someone committed a document rather than on whether the corpus matches it. This README is maintained
+/// beside the fixtures, which is what makes it answerable.
 #[test]
 fn the_corpus_matches_the_support_matrix() {
     let doc = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))

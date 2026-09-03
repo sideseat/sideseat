@@ -684,7 +684,13 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
                           \u{20}\u{20}prompt: 'What is 2+2?',\n\
                           \u{20}\u{20}experimental_telemetry: { isEnabled: true },\n});\nconsole.log(text);",
         no_sdk_extra_pkgs: "",
-        no_sdk_extra_setup: "import { registerTelemetry } from 'ai';\nimport { LegacyOpenTelemetry } from '@ai-sdk/otel';\n\nregisterTelemetry(new LegacyOpenTelemetry());",
+        // Empty on purpose: the snippet above already imports `registerTelemetry` and
+        // `LegacyOpenTelemetry` and calls them, and the no-SDK template emits
+        // `{extra_setup}{snippet}` - so repeating them here produced a module that declares each
+        // import twice and registers telemetry twice, which does not compile. The snippet's own
+        // registration is correctly placed for both paths: after `init()` in one and after
+        // `sdk.start()` in the other, because the template puts the snippet after both.
+        no_sdk_extra_setup: "",
     },
     FrameworkSetup {
         display: "Strands TypeScript",
@@ -739,6 +745,17 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         no_sdk_extra_setup: "",
     },
 ];
+
+/// The names `get_framework` accepts, as a caller would type them.
+fn supported_framework_names() -> Vec<String> {
+    let mut names: Vec<String> = FRAMEWORKS
+        .iter()
+        .map(|f| f.display.to_lowercase().replace(' ', "-"))
+        .collect();
+    names.sort();
+    names.dedup();
+    names
+}
 
 fn get_framework(name: &str) -> Option<FrameworkSetup> {
     FRAMEWORKS
@@ -839,10 +856,12 @@ fn build_setup_guide_template(otlp_url: &str, framework: Option<&str>) -> String
              provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(\n\
                  endpoint=\"{otlp}\"\n)))\n\
              trace.set_tracer_provider(provider)\n```\n\n\
-             Supported frameworks: strands, langchain, langgraph, crewai, autogen, \
-             openai-agents, pydantic-ai, google-adk, agent-framework, \
-             claude-agent-sdk, bedrock, openai, anthropic, google-genai, vertex-ai",
+             Supported frameworks: {frameworks}",
             otlp = otlp_url,
+            // Listed from the table that answers the request, not from a second hand-written list: the
+            // hand-written one named fifteen of the frameworks `get_framework` accepts and omitted the
+            // rest, so a caller was told its framework was unsupported when the guide had an entry for it.
+            frameworks = supported_framework_names().join(", "),
         ),
     }
 }
@@ -917,6 +936,120 @@ mod tests {
             span_lacks_its_trace(Some("abc123"), None),
             "span + session must be refused: the query ignores the session when a span is given"
         );
+    }
+
+    /// Every name the generic guide advertises is a name the guide can actually serve.
+    ///
+    /// It listed fifteen frameworks from a hand-written string while `get_framework` accepted every entry in
+    /// the table, so a caller whose framework *was* supported read that it was not. Derived from the table
+    /// now, and checked in both directions.
+    #[test]
+    fn the_advertised_framework_names_are_the_ones_the_guide_serves() {
+        let names = supported_framework_names();
+        assert!(names.len() > 20, "the table was not read: {names:?}");
+        for name in &names {
+            assert!(
+                get_framework(name).is_some(),
+                "the guide advertises `{name}` but cannot resolve it"
+            );
+        }
+        for fw in FRAMEWORKS {
+            let name = fw.display.to_lowercase().replace(' ', "-");
+            assert!(
+                names.contains(&name),
+                "{} has an entry but is not advertised",
+                fw.display
+            );
+        }
+    }
+
+    /// A framework's direct-OTLP instrumentation reads the same here as in the telemetry UI.
+    ///
+    /// The two are written by hand in different languages and are the setup a user copies, so drift between
+    /// them is a false instruction rather than a cosmetic difference: AutoGen's UI snippet omitted
+    /// `skip_dep_check=True`, which the MCP guide and the framework page both pass, and without it the
+    /// instrumentor refuses versions that work. Compared per *instrumentor*, not as whole sets, because the
+    /// two surfaces deliberately cover different framework lists - the UI has entries with no MCP twin.
+    #[test]
+    fn a_shared_instrumentor_line_reads_the_same_in_the_telemetry_ui() {
+        let ui = include_str!("../../../../web/src/pages/configuration/telemetry-frameworks.ts");
+
+        /// The instrumentor's name and the whole call, from any line that instruments one.
+        fn calls(source: &str) -> std::collections::HashMap<String, String> {
+            let mut found = std::collections::HashMap::new();
+            for line in source.lines() {
+                // Both, in any order: a TS line ends `...)`,` and a Rust one `...)",`.
+                let line = line.trim().trim_end_matches(['`', ',', '"', ';']);
+                let Some(open) = line.find("Instrumentor().instrument(") else {
+                    continue;
+                };
+                // The name is the identifier ending at `Instrumentor`, back to the last non-word char.
+                let head = &line[..open + "Instrumentor".len()];
+                let start = head
+                    .rfind(|c: char| !c.is_alphanumeric() && c != '_')
+                    .map(|i| i + 1)
+                    .unwrap_or(0);
+                let name = head[start..].to_string();
+                let call = line[start..].trim_end_matches("\\n").to_string();
+                found.insert(name, call);
+            }
+            found
+        }
+
+        let mcp: std::collections::HashMap<String, String> = FRAMEWORKS
+            .iter()
+            .flat_map(|fw| calls(fw.no_sdk_extra_setup))
+            .collect();
+        let ui_calls = calls(ui);
+        assert!(
+            mcp.len() > 3 && ui_calls.len() > 3,
+            "nothing was parsed, so this test proves nothing: mcp={:?} ui={:?}",
+            mcp.keys(),
+            ui_calls.keys()
+        );
+
+        for (name, mcp_call) in &mcp {
+            if let Some(ui_call) = ui_calls.get(name) {
+                assert_eq!(
+                    mcp_call, ui_call,
+                    "{name} is instrumented differently in the MCP setup guide and the telemetry UI; \
+                     one of them is telling users the wrong thing"
+                );
+            }
+        }
+    }
+
+    /// The extra setup and the snippet are concatenated, so no line may appear in both.
+    ///
+    /// Vercel's entry declared `registerTelemetry` and `LegacyOpenTelemetry` in *both*, and the no-SDK
+    /// template emits `{extra_setup}{snippet}` - so the module it generated imported each twice and
+    /// registered telemetry twice, which does not compile. Nothing caught it: the guide is assembled from
+    /// strings, so a redeclaration is only visible to whoever pastes it. A line-level comparison is the
+    /// whole check that was missing.
+    #[test]
+    fn the_extra_setup_never_repeats_a_line_of_the_snippet() {
+        for fw in FRAMEWORKS {
+            if fw.no_sdk_extra_setup.is_empty() {
+                continue;
+            }
+            let snippet_lines: std::collections::HashSet<&str> = fw
+                .sdk_snippet
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty() && !l.starts_with("//") && !l.starts_with('#'))
+                .collect();
+            for line in fw.no_sdk_extra_setup.lines().map(str::trim) {
+                if line.is_empty() || line.starts_with("//") || line.starts_with('#') {
+                    continue;
+                }
+                assert!(
+                    !snippet_lines.contains(line),
+                    "{}: `{line}` is in both no_sdk_extra_setup and sdk_snippet, and the guide \
+                     concatenates them - the generated code declares it twice",
+                    fw.display
+                );
+            }
+        }
     }
 
     #[test]
