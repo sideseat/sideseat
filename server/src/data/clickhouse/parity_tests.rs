@@ -1328,6 +1328,22 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             },
         ),
         (
+            // A negated filter on an aggregate, *with* a time window - the one shape whose subquery also
+            // carries a `gen_totals` join, whose scope binds are rendered ahead of the subquery's own
+            // project id. trace-a totals 330, so the complement is every other trace; a swapped bind
+            // group compares a project id against a timestamp and answers differently.
+            "filtered by none of a token total, time bounded",
+            ListTracesParams {
+                from_timestamp: Some(ts(-60)),
+                filters: vec![Filter::StringOptions {
+                    column: "total_tokens".to_string(),
+                    operator: OptionsOp::NoneOf,
+                    value: vec!["330".to_string()],
+                }],
+                ..trace_params()
+            },
+        ),
+        (
             "genai only",
             ListTracesParams {
                 include_nongenai: false,
