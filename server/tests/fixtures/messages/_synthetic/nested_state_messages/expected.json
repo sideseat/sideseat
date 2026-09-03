@@ -1,0 +1,93 @@
+{
+  "label": "_synthetic/nested_state_messages",
+  "request_count": 1,
+  "span_count": 1,
+  "trace_count": 1,
+  "session_count": 0,
+  "span_views": {
+    "trace-1/chat/span-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "ask",
+          "content_digest": "9bf227bf40362d69",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "the nested answer",
+          "content_digest": "449ed50c4d490135",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "ask",
+          "content_digest": "9bf227bf40362d69",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "the nested answer",
+          "content_digest": "449ed50c4d490135",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {},
+  "feed_view": {
+    "message_count": 2,
+    "role_sequence": [
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "ask",
+        "content_digest": "9bf227bf40362d69",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "the nested answer",
+        "content_digest": "449ed50c4d490135",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

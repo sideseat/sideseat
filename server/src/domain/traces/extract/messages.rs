@@ -2149,12 +2149,36 @@ pub(crate) fn try_langgraph(
     found
 }
 
+/// How deep to look for a `messages` list inside a state object.
+///
+/// LangGraph state is a dict a graph's nodes write into, so the conversation is not always at the top:
+/// `{"state": {"messages": [...]}}` is an ordinary shape and used to yield nothing, because the search
+/// looked only at the top level and at direct values. Bounded rather than unbounded: the point is to find a
+/// state member, not to trawl a tool's arguments for anything message-shaped.
+const LANGGRAPH_STATE_DEPTH: usize = 4;
+
 /// Extract messages from LangGraph state (handles nested messages in dicts/lists)
 fn extract_langgraph_messages(
     messages: &mut Vec<RawMessage>,
     value: &JsonValue,
     source_key: &str,
     timestamp: DateTime<Utc>,
+) -> bool {
+    extract_langgraph_messages_at(
+        messages,
+        value,
+        source_key,
+        timestamp,
+        LANGGRAPH_STATE_DEPTH,
+    )
+}
+
+fn extract_langgraph_messages_at(
+    messages: &mut Vec<RawMessage>,
+    value: &JsonValue,
+    source_key: &str,
+    timestamp: DateTime<Utc>,
+    depth: usize,
 ) -> bool {
     let mut found = false;
 
@@ -2183,6 +2207,42 @@ fn extract_langgraph_messages(
             if let Some(normalized) = normalize_langchain_message(val) {
                 messages.push(RawMessage::from_attr(source_key, timestamp, normalized));
                 found = true;
+            }
+        }
+
+        // The final answer beside the conversation, not inside it.
+        //
+        // A state object can carry both: CrewAI running through LangGraph writes the history under
+        // `messages` and the answer under `raw`. Reading only the list claimed the carrier and left the
+        // answer unread by anything - the extractor that knows `raw` never got the chance - so the trace
+        // showed the question and no reply. `raw` is this file's own vocabulary for that member; a plain
+        // string is the only shape taken, since anything structured is a state member rather than a reply.
+        if let Some(raw) = obj.get("raw").and_then(|r| r.as_str())
+            && !raw.trim().is_empty()
+        {
+            messages.push(RawMessage::from_attr(
+                source_key,
+                timestamp,
+                json!({"role": "assistant", "content": raw}),
+            ));
+            found = true;
+        }
+
+        // Nested state: `{"state": {"messages": [...]}}` and the like.
+        if depth > 0 {
+            for (key, val) in obj {
+                if key == "messages" || key == "raw" {
+                    continue; // already read above
+                }
+                if val.is_object() || val.is_array() {
+                    found |= extract_langgraph_messages_at(
+                        messages,
+                        val,
+                        source_key,
+                        timestamp,
+                        depth - 1,
+                    );
+                }
             }
         }
     }

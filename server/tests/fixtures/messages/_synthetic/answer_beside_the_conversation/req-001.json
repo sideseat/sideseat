@@ -1,0 +1,66 @@
+{
+ "resourceSpans": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "service.name",
+      "value": {
+       "stringValue": "synthetic"
+      }
+     }
+    ]
+   },
+   "scopeSpans": [
+    {
+     "scope": {
+      "name": "synthetic.telemetry"
+     },
+     "spans": [
+      {
+       "traceId": "aa0000000000000000000000000000c1",
+       "spanId": "c0ffffffffffffff",
+       "name": "chat",
+       "kind": 1,
+       "startTimeUnixNano": "1735689600000000000",
+       "endTimeUnixNano": "1735689601000000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "chat"
+         }
+        },
+        {
+         "key": "crew_key",
+         "value": {
+          "stringValue": "crew-1"
+         }
+        },
+        {
+         "key": "langgraph.node",
+         "value": {
+          "stringValue": "agent"
+         }
+        },
+        {
+         "key": "input.value",
+         "value": {
+          "stringValue": "{\"role\": \"user\", \"content\": \"ask\"}"
+         }
+        },
+        {
+         "key": "output.value",
+         "value": {
+          "stringValue": "{\"messages\": [{\"role\": \"user\", \"content\": \"ask\"}], \"raw\": \"the crewai answer\"}"
+         }
+        }
+       ],
+       "events": []
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
