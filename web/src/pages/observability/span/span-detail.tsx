@@ -122,11 +122,19 @@ interface SpanHeaderProps {
   span: SpanDetailType;
   /// The session the *trace* belongs to, which is not always the one this span carries.
   sessionId?: string;
+  /// True while the trace is still loading, so "no session" is not yet a fact.
+  sessionPending?: boolean;
   onViewInTrace?: () => void;
   onViewInSession?: () => void;
 }
 
-function SpanHeader({ span, sessionId, onViewInTrace, onViewInSession }: SpanHeaderProps) {
+function SpanHeader({
+  span,
+  sessionId,
+  sessionPending,
+  onViewInTrace,
+  onViewInSession,
+}: SpanHeaderProps) {
   const spanType = getSpanType(span);
   const config = SPAN_TYPE_CONFIG[spanType];
   const Icon = config.icon;
@@ -186,7 +194,11 @@ function SpanHeader({ span, sessionId, onViewInTrace, onViewInSession }: SpanHea
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                {hasSession ? "View in Session" : "No session available"}
+                {hasSession
+                  ? "View in Session"
+                  : sessionPending
+                    ? "Resolving the trace's session…"
+                    : "No session available"}
               </TooltipContent>
             </Tooltip>
           </div>
@@ -297,7 +309,8 @@ export function SpanDetail({
   // A span carries the session *it* knew, and a trace belongs to the session on its earliest span - so a
   // child naming another session sent "View in session" to a page that shows nothing, because every read
   // resolves the trace elsewhere. The trace endpoint reports the canonical one.
-  const { data: traceForSession } = useTrace(projectId, traceId);
+  // The trace is what knows the session: see `sessionForNavigation`.
+  const { data: traceForSession, isPending: tracePending } = useTrace(projectId, traceId);
 
   const {
     data: messagesData,
@@ -478,8 +491,12 @@ export function SpanDetail({
     navigate(`/projects/${projectId}/observability/traces/${traceId}`);
   }, [navigate, projectId, traceId]);
 
-  // The trace's session, falling back to the span's own only when the trace has not loaded.
-  const sessionForNavigation = traceForSession?.session_id ?? spanData?.session_id;
+  // The trace's session, and *only* the trace's. A span carries a session id only if it is the span that
+  // knew one, and a span naming a different session than its trace's canonical one is exactly the case this
+  // exists for - so falling back to the span's own while the trace loads offered a link to a session the
+  // trace does not appear in, and whether the user got it depended on how fast the request was. Until the
+  // trace answers, the destination is unknown, which the button says by staying disabled.
+  const sessionForNavigation = traceForSession?.session_id;
 
   const handleViewInSession = useCallback(() => {
     if (sessionForNavigation) {
@@ -583,6 +600,7 @@ export function SpanDetail({
       <SpanHeader
         span={spanData}
         sessionId={sessionForNavigation ?? undefined}
+        sessionPending={tracePending}
         onViewInTrace={handleViewInTrace}
         onViewInSession={handleViewInSession}
       />
