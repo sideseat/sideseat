@@ -32,18 +32,23 @@ pub fn trace_display_name(alias: &str, dialect_first: DisplayNameDialect) -> Str
         format!("{alias}.")
     };
     match dialect_first {
+        // `span_id` breaks the tie, for the same reason it does in `trace_display_first`: two roots
+        // stamped with the same start instant left the choice to the engine, so the name the list
+        // displayed, the name a filter matched and the name the detail view showed could be three
+        // different spans' - and could differ between two runs of the same query.
         DisplayNameDialect::DuckDb => format!(
             "COALESCE(\
-             FIRST({prefix}span_name ORDER BY {prefix}timestamp_start) \
+             FIRST({prefix}span_name ORDER BY {prefix}timestamp_start, {prefix}span_id) \
              FILTER (WHERE {prefix}parent_span_id IS NULL AND {prefix}span_name IS NOT NULL), \
-             FIRST({prefix}span_name ORDER BY {prefix}timestamp_start) \
+             FIRST({prefix}span_name ORDER BY {prefix}timestamp_start, {prefix}span_id) \
              FILTER (WHERE {prefix}span_name IS NOT NULL))"
         ),
         DisplayNameDialect::ClickHouse => format!(
             "coalesce(\
-             argMinIf({prefix}span_name, {prefix}timestamp_start, \
+             argMinIf({prefix}span_name, ({prefix}timestamp_start, {prefix}span_id), \
              {prefix}parent_span_id IS NULL AND {prefix}span_name IS NOT NULL), \
-             argMinIf({prefix}span_name, {prefix}timestamp_start, {prefix}span_name IS NOT NULL))"
+             argMinIf({prefix}span_name, ({prefix}timestamp_start, {prefix}span_id), \
+             {prefix}span_name IS NOT NULL))"
         ),
     }
 }

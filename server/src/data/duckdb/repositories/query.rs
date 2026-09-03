@@ -314,6 +314,30 @@ fn canonical_session_filter(
     Some((sql, binds))
 }
 
+/// The `gen_totals` join a subquery needs to compare against a trace's token or cost total, with its binds.
+///
+/// Scoped over the same rows the projection sums, time window included. Every other condition on the query
+/// is trace-level, so it keeps or drops a trace whole and cannot change a total; the window is the one that
+/// still selects spans, and a filter compared against an all-time total would select traces by a number the
+/// row does not show - the defect the whole trace-filter path exists to remove.
+fn gen_totals_join(params: &ListTracesParams) -> (String, Vec<String>) {
+    let mut scope = "g.project_id = ?".to_string();
+    let mut scope_binds = vec![params.project_id.clone()];
+    if let Some(ref from) = params.from_timestamp {
+        scope.push_str(" AND g.timestamp_start >= ?");
+        scope_binds.push(from.to_rfc3339());
+    }
+    if let Some(ref to) = params.to_timestamp {
+        scope.push_str(" AND g.timestamp_start <= ?");
+        scope_binds.push(to.to_rfc3339());
+    }
+    let join = format!(
+        "LEFT JOIN ({}) gtf ON gtf.trace_id = n.trace_id",
+        gen_totals_sql(&scope)
+    );
+    (join, scope_binds)
+}
+
 fn trace_aggregate_expression(view_column: &str) -> Option<String> {
     let totals = |col: &str| Some(format!("COALESCE(MAX(gtf.{col}), 0)"));
     match view_column {
@@ -433,8 +457,43 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
     let mut join_totals = false;
 
     for filter in &params.filters {
+        // A session filter goes through the canonical relation here too, not through the displayed
+        // aggregate. The two agree on the *value* - both take the earliest span that has one, in the same
+        // total order - and disagree on the negation: `trace_display_first(session_id) != 'A'` is NULL for a
+        // trace with no session, so the trace list dropped sessionless traces from "session is not A" while
+        // the span list returned their spans. One question, two answers, depending on which page you asked.
+        if let Some((sql, binds)) =
+            canonical_session_filter(filter, &params.project_id, alias_or("otel_spans", alias))
+        {
+            conditions.push(sql);
+            bind_values.extend(binds);
+            continue;
+        }
         match trace_aggregate_expression(filter.column()) {
             Some(expression) => {
+                // A negated filter is the **complement** of its positive form, not the negation
+                // rendered against the aggregate. `FIRST(user_id ORDER BY ...) NOT IN ('x')` is NULL
+                // for a trace with no user id at all, and NULL is not true - so "none of x" silently
+                // dropped every trace with no value, which is exactly the traces that are not x.
+                // Complemented as its own subquery, because these are ANDed inside one shared HAVING.
+                if let Some(twin) = filter.positive_twin() {
+                    let mut inner = SqlParams::default();
+                    let condition = twin.to_sql_against(&mut inner, &expression);
+                    let (join, join_binds) = if needs_gen_totals(filter.column()) {
+                        gen_totals_join(params)
+                    } else {
+                        (String::new(), Vec::new())
+                    };
+                    conditions.push(format!(
+                        "{}.trace_id NOT IN (SELECT n.trace_id FROM otel_spans n {join} \
+                         WHERE n.project_id = ? GROUP BY n.project_id, n.trace_id HAVING {condition})",
+                        alias_or("otel_spans", alias)
+                    ));
+                    bind_values.extend(join_binds);
+                    bind_values.push(params.project_id.clone());
+                    bind_values.extend(inner.values);
+                    continue;
+                }
                 let mut inner = SqlParams::default();
                 aggregate_conditions.push(filter.to_sql_against(&mut inner, &expression));
                 aggregate_binds.extend(inner.values);
@@ -467,30 +526,13 @@ fn build_trace_span_conditions(params: &ListTracesParams, alias: &str) -> (Strin
     // for. The totals join is added only when a token or cost column is involved: the other
     // aggregates come from the span rows directly and do not need it.
     if !aggregate_conditions.is_empty() {
-        let mut totals_join = String::new();
-        if join_totals {
-            // Scoped over the same rows the projection sums, time window included. Every other
-            // condition on this query is trace-level, so it keeps or drops a trace whole and cannot
-            // change a total; the window is the one that still selects spans, and a filter comparing
-            // against an all-time total would have selected traces by a number the row does not
-            // show - the defect this whole path exists to remove.
-            let mut scope = "g.project_id = ?".to_string();
-            let mut scope_binds = vec![params.project_id.clone()];
-            if let Some(ref from) = params.from_timestamp {
-                scope.push_str(" AND g.timestamp_start >= ?");
-                scope_binds.push(from.to_rfc3339());
-            }
-            if let Some(ref to) = params.to_timestamp {
-                scope.push_str(" AND g.timestamp_start <= ?");
-                scope_binds.push(to.to_rfc3339());
-            }
-            totals_join = format!(
-                "LEFT JOIN ({}) gtf ON gtf.trace_id = n.trace_id",
-                gen_totals_sql(&scope)
-            );
-            // Bound before the outer project_id: the join is rendered ahead of the WHERE.
-            bind_values.extend(scope_binds);
-        }
+        let (totals_join, join_binds) = if join_totals {
+            gen_totals_join(params)
+        } else {
+            (String::new(), Vec::new())
+        };
+        // Bound before the outer project_id: the join is rendered ahead of the WHERE.
+        bind_values.extend(join_binds);
         conditions.push(format!(
             "{}.trace_id IN (SELECT n.trace_id FROM otel_spans n {totals_join} \
              WHERE n.project_id = ? GROUP BY n.project_id, n.trace_id HAVING {})",
@@ -628,10 +670,7 @@ pub fn list_traces(
         )
         SELECT
             t.trace_id,
-            COALESCE(
-                FIRST(s.span_name) FILTER (WHERE s.parent_span_id IS NULL AND s.span_name IS NOT NULL),
-                FIRST(s.span_name ORDER BY s.timestamp_start) FILTER (WHERE s.span_name IS NOT NULL)
-            ) AS trace_name,
+            {TRACE_NAME} AS trace_name,
             MIN(s.timestamp_start) AS start_time,
             MAX(COALESCE(s.timestamp_end, s.timestamp_start)) AS end_time,
             DATE_DIFF('millisecond', MIN(s.timestamp_start), MAX(COALESCE(s.timestamp_end, s.timestamp_start))) AS duration_ms,
@@ -657,14 +696,14 @@ pub fn list_traces(
             COALESCE(MAX(gt2.total_cost), 0)::DOUBLE AS total_cost,
             TO_JSON(LIST_DISTINCT(FLATTEN(LIST(s.tags::JSON::VARCHAR[])))) AS tags,
             COUNT(*) FILTER (WHERE s.observation_type != 'span') AS observation_count,
-            TO_JSON(FIRST(s.metadata) FILTER (WHERE s.parent_span_id IS NULL)) AS metadata,
+            TO_JSON(FIRST(s.metadata ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.parent_span_id IS NULL)) AS metadata,
             COALESCE(
-                FIRST(s.input_preview) FILTER (WHERE s.parent_span_id IS NULL AND s.input_preview IS NOT NULL),
-                FIRST(s.input_preview ORDER BY s.timestamp_start) FILTER (WHERE s.input_preview IS NOT NULL)
+                FIRST(s.input_preview ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.parent_span_id IS NULL AND s.input_preview IS NOT NULL),
+                FIRST(s.input_preview ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.input_preview IS NOT NULL)
             ) AS input_preview,
             COALESCE(
-                FIRST(s.output_preview) FILTER (WHERE s.parent_span_id IS NULL AND s.output_preview IS NOT NULL),
-                FIRST(s.output_preview ORDER BY s.timestamp_start DESC) FILTER (WHERE s.output_preview IS NOT NULL)
+                FIRST(s.output_preview ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.parent_span_id IS NULL AND s.output_preview IS NOT NULL),
+                FIRST(s.output_preview ORDER BY s.timestamp_start DESC, s.span_id DESC) FILTER (WHERE s.output_preview IS NOT NULL)
             ) AS output_preview,
             bool_or(s.status_code = 'ERROR') AS has_error
         FROM filtered_traces t
@@ -685,7 +724,9 @@ pub fn list_traces(
         sort_dir = sort_dir,
         limit = params.limit,
         offset = offset,
-        DEDUP_SPANS = DEDUP_SPANS
+        DEDUP_SPANS = DEDUP_SPANS,
+        // One definition of the displayed name, shared with the filter that has to match it.
+        TRACE_NAME = trace_display_name("s", DisplayNameDialect::DuckDb)
     );
 
     // Combine bind values: gen_totals CTE first, then filtered_traces CTE
@@ -755,10 +796,7 @@ pub fn get_trace(
         )
         SELECT
             s.trace_id,
-            COALESCE(
-                FIRST(s.span_name) FILTER (WHERE s.parent_span_id IS NULL AND s.span_name IS NOT NULL),
-                FIRST(s.span_name ORDER BY s.timestamp_start) FILTER (WHERE s.span_name IS NOT NULL)
-            ) AS trace_name,
+            {TRACE_NAME} AS trace_name,
             EPOCH_US(MIN(s.timestamp_start)) AS start_time,
             EPOCH_US(MAX(COALESCE(s.timestamp_end, s.timestamp_start))) AS end_time,
             DATE_DIFF('millisecond', MIN(s.timestamp_start), MAX(COALESCE(s.timestamp_end, s.timestamp_start))) AS duration_ms,
@@ -784,14 +822,14 @@ pub fn get_trace(
             gt.total_cost::DOUBLE,
             TO_JSON(LIST_DISTINCT(FLATTEN(LIST(s.tags::JSON::VARCHAR[])))) AS tags,
             COUNT(*) FILTER (WHERE s.observation_type != 'span') AS observation_count,
-            TO_JSON(FIRST(s.metadata) FILTER (WHERE s.parent_span_id IS NULL)) AS metadata,
+            TO_JSON(FIRST(s.metadata ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.parent_span_id IS NULL)) AS metadata,
             COALESCE(
-                FIRST(s.input_preview) FILTER (WHERE s.parent_span_id IS NULL AND s.input_preview IS NOT NULL),
-                FIRST(s.input_preview ORDER BY s.timestamp_start) FILTER (WHERE s.input_preview IS NOT NULL)
+                FIRST(s.input_preview ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.parent_span_id IS NULL AND s.input_preview IS NOT NULL),
+                FIRST(s.input_preview ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.input_preview IS NOT NULL)
             ) AS input_preview,
             COALESCE(
-                FIRST(s.output_preview) FILTER (WHERE s.parent_span_id IS NULL AND s.output_preview IS NOT NULL),
-                FIRST(s.output_preview ORDER BY s.timestamp_start DESC) FILTER (WHERE s.output_preview IS NOT NULL)
+                FIRST(s.output_preview ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.parent_span_id IS NULL AND s.output_preview IS NOT NULL),
+                FIRST(s.output_preview ORDER BY s.timestamp_start DESC, s.span_id DESC) FILTER (WHERE s.output_preview IS NOT NULL)
             ) AS output_preview,
             bool_or(s.status_code = 'ERROR') AS has_error
         FROM {DEDUP_SPANS} s
@@ -802,7 +840,9 @@ pub fn get_trace(
                  gt.input_cost, gt.output_cost, gt.cache_read_cost, gt.cache_write_cost,
                  gt.reasoning_cost, gt.total_cost
     "#,
-        DEDUP_SPANS = DEDUP_SPANS
+        DEDUP_SPANS = DEDUP_SPANS,
+        // One definition of the displayed name, shared with the filter that has to match it.
+        TRACE_NAME = trace_display_name("s", DisplayNameDialect::DuckDb)
     );
 
     let mut stmt = conn.prepare(&sql)?;
@@ -1616,10 +1656,7 @@ pub fn get_traces_for_session(
         )
         SELECT
             s.trace_id,
-            COALESCE(
-                FIRST(s.span_name) FILTER (WHERE s.parent_span_id IS NULL AND s.span_name IS NOT NULL),
-                FIRST(s.span_name ORDER BY s.timestamp_start) FILTER (WHERE s.span_name IS NOT NULL)
-            ) AS trace_name,
+            {TRACE_NAME} AS trace_name,
             EPOCH_US(MIN(s.timestamp_start)) AS start_time,
             EPOCH_US(MAX(COALESCE(s.timestamp_end, s.timestamp_start))) AS end_time,
             DATE_DIFF('millisecond', MIN(s.timestamp_start), MAX(COALESCE(s.timestamp_end, s.timestamp_start))) AS duration_ms,
@@ -1645,14 +1682,14 @@ pub fn get_traces_for_session(
             COALESCE(gt.total_cost, 0)::DOUBLE AS total_cost,
             TO_JSON(LIST_DISTINCT(FLATTEN(LIST(s.tags::JSON::VARCHAR[])))) AS tags,
             COUNT(*) FILTER (WHERE s.observation_type != 'span') AS observation_count,
-            TO_JSON(FIRST(s.metadata) FILTER (WHERE s.parent_span_id IS NULL)) AS metadata,
+            TO_JSON(FIRST(s.metadata ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.parent_span_id IS NULL)) AS metadata,
             COALESCE(
-                FIRST(s.input_preview) FILTER (WHERE s.parent_span_id IS NULL AND s.input_preview IS NOT NULL),
-                FIRST(s.input_preview ORDER BY s.timestamp_start) FILTER (WHERE s.input_preview IS NOT NULL)
+                FIRST(s.input_preview ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.parent_span_id IS NULL AND s.input_preview IS NOT NULL),
+                FIRST(s.input_preview ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.input_preview IS NOT NULL)
             ) AS input_preview,
             COALESCE(
-                FIRST(s.output_preview) FILTER (WHERE s.parent_span_id IS NULL AND s.output_preview IS NOT NULL),
-                FIRST(s.output_preview ORDER BY s.timestamp_start DESC) FILTER (WHERE s.output_preview IS NOT NULL)
+                FIRST(s.output_preview ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.parent_span_id IS NULL AND s.output_preview IS NOT NULL),
+                FIRST(s.output_preview ORDER BY s.timestamp_start DESC, s.span_id DESC) FILTER (WHERE s.output_preview IS NOT NULL)
             ) AS output_preview,
             bool_or(s.status_code = 'ERROR') AS has_error
         FROM {DEDUP_SPANS} s
@@ -1665,7 +1702,9 @@ pub fn get_traces_for_session(
                  gt.reasoning_cost, gt.total_cost
         ORDER BY MIN(s.timestamp_start) DESC
     "#,
-        DEDUP_SPANS = DEDUP_SPANS
+        DEDUP_SPANS = DEDUP_SPANS,
+        // One definition of the displayed name, shared with the filter that has to match it.
+        TRACE_NAME = trace_display_name("s", DisplayNameDialect::DuckDb)
     );
 
     // Bind order: session_traces (four - see `traces_of_session_binds`), gen_totals(project_id),
@@ -5241,6 +5280,244 @@ mod tests {
                 "the advanced filter and the session parameter must agree for {session}"
             );
         }
+    }
+
+    /// A negated session filter means the same thing in the trace list and in the span list.
+    ///
+    /// The trace list matched the *displayed* aggregate, so `session_id NOT IN ('a')` evaluated
+    /// `trace_display_first(session_id) NOT IN ('a')`, which is NULL for a trace with no session at all -
+    /// and NULL is not true, so the trace was absent from "none of a" while the span list, which negates the
+    /// canonical subquery, returned its spans. Both routes are now the subquery.
+    #[tokio::test]
+    async fn a_negated_session_filter_agrees_between_the_trace_and_span_lists() {
+        use crate::data::duckdb::filters::{Filter, OptionsOp};
+
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+        let t0 = Utc::now() - chrono::Duration::seconds(60);
+
+        let span = |trace: &str, span_id: &str, session: Option<&str>| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: trace.to_string(),
+            span_id: span_id.to_string(),
+            span_name: "generation".to_string(),
+            observation_type: Some(ObservationType::Generation),
+            timestamp_start: t0,
+            timestamp_end: Some(t0 + chrono::Duration::seconds(1)),
+            session_id: session.map(str::to_string),
+            ..Default::default()
+        };
+
+        {
+            let conn = service.conn();
+            insert_batch(
+                &conn,
+                &[
+                    span("t-in-a", "s1", Some("session-a")),
+                    span("t-sessionless", "s2", None),
+                ],
+            )
+            .expect("insert");
+        }
+
+        let conn = service.conn();
+        let none_of_a = Filter::StringOptions {
+            column: "session_id".to_string(),
+            operator: OptionsOp::NoneOf,
+            value: vec!["session-a".to_string()],
+        };
+
+        let (traces, total) = list_traces(
+            &conn,
+            &trace_filter_params(project, vec![none_of_a.clone()]),
+        )
+        .expect("list_traces");
+        let ids: Vec<&str> = traces.iter().map(|t| t.trace_id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["t-sessionless"],
+            "a trace with no session is not in session A, so it matches \"none of A\""
+        );
+        assert_eq!(total, 1, "the count must agree with the page");
+
+        let (spans, _) = list_spans(
+            &conn,
+            &ListSpansParams {
+                project_id: project.to_string(),
+                page: 1,
+                limit: 50,
+                filters: vec![none_of_a],
+                ..Default::default()
+            },
+        )
+        .expect("list_spans");
+        let span_traces: Vec<&str> = spans.iter().map(|s| s.trace_id.as_str()).collect();
+        assert_eq!(
+            span_traces, ids,
+            "the two lists must select the same traces for one filter"
+        );
+    }
+
+    /// The name a trace displays is the same in the list, in the detail view and to a filter.
+    ///
+    /// Two roots stamped with the same start instant is not exotic - a millisecond-resolution clock and two
+    /// spans opened together produce it. Ordering by the timestamp alone left the choice to the engine, so
+    /// the list, the detail view and a `trace_name` filter could each pick a different span's name, and the
+    /// same query could answer differently twice. `span_id` makes the order total.
+    #[tokio::test]
+    async fn a_trace_displays_one_name_however_it_is_asked_for() {
+        use crate::data::duckdb::filters::{Filter, StringOp};
+
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+        let t0 = Utc::now() - chrono::Duration::seconds(60);
+
+        // Inserted in the order that contradicts the tie-break, so arrival order cannot pass for it.
+        let root = |span_id: &str, name: &str| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: "t1".to_string(),
+            span_id: span_id.to_string(),
+            span_name: name.to_string(),
+            observation_type: Some(ObservationType::Generation),
+            timestamp_start: t0,
+            timestamp_end: Some(t0 + chrono::Duration::seconds(1)),
+            ..Default::default()
+        };
+
+        {
+            let conn = service.conn();
+            insert_batch(&conn, &[root("z-root", "zeta"), root("a-root", "alpha")])
+                .expect("insert");
+        }
+
+        let conn = service.conn();
+        let (traces, _) = list_traces(&conn, &trace_filter_params(project, vec![])).expect("list");
+        assert_eq!(
+            traces[0].trace_name.as_deref(),
+            Some("alpha"),
+            "the earliest span in the total order (timestamp, span_id) names the trace"
+        );
+
+        let detail = get_trace(&conn, project, "t1")
+            .expect("query")
+            .expect("trace exists");
+        assert_eq!(
+            detail.trace_name, traces[0].trace_name,
+            "the detail view and the list must show the same name"
+        );
+
+        let (filtered, _) = list_traces(
+            &conn,
+            &trace_filter_params(
+                project,
+                vec![Filter::String {
+                    column: "trace_name".to_string(),
+                    operator: StringOp::Eq,
+                    value: traces[0].trace_name.clone().expect("a displayed name"),
+                }],
+            ),
+        )
+        .expect("list");
+        assert_eq!(
+            filtered.len(),
+            1,
+            "a filter for the displayed name must return the trace displaying it"
+        );
+    }
+
+    /// No query hand-writes the displayed trace name; every one takes it from `trace_display_name`.
+    ///
+    /// It was hand-written in three DuckDB projections and one ClickHouse projection, and the shared helper
+    /// was used only by the *filter* - so the filter's total order and the projections' partial one were
+    /// different expressions, and a trace with two roots at one instant was displayed under one name and
+    /// matched under another. A new copy compiles and passes every behavioural test, so this reads the source.
+    #[test]
+    fn the_displayed_trace_name_is_defined_once_per_backend() {
+        for (path, source) in [
+            (
+                "duckdb/repositories/query.rs",
+                include_str!("query.rs") as &str,
+            ),
+            (
+                "clickhouse/repositories/query.rs",
+                include_str!("../../clickhouse/repositories/query.rs"),
+            ),
+        ] {
+            // Assembled at runtime, or this test's own source is the first thing it finds.
+            let column = "span_name";
+            let needles = [format!("FIRST(s.{column}"), format!("If(s.{column}")];
+            for (number, line) in source.lines().enumerate() {
+                let sql = line.trim_start();
+                if sql.starts_with("//") {
+                    continue;
+                }
+                for needle in &needles {
+                    assert!(
+                        !sql.contains(needle.as_str()),
+                        "{path}:{} hand-writes the displayed trace name; \
+                         call trace_display_name instead: {sql}",
+                        number + 1
+                    );
+                }
+            }
+        }
+    }
+
+    /// A trace with no value for a displayed column matches "none of" that column.
+    ///
+    /// The trace list renders a filter on a displayed-but-per-span column against the aggregate the row
+    /// shows, and the negation as written is `FIRST(user_id ORDER BY ...) NOT IN ('x')` - which is NULL for a
+    /// trace that has no user id anywhere, so it was dropped. Those are precisely the traces that are not x.
+    /// Every negation is now the complement of its positive form, in its own subquery.
+    #[tokio::test]
+    async fn a_trace_with_no_value_matches_none_of_that_value() {
+        use crate::data::duckdb::filters::{Filter, OptionsOp};
+
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+        let t0 = Utc::now() - chrono::Duration::seconds(60);
+
+        let span = |trace: &str, user: Option<&str>| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: trace.to_string(),
+            span_id: format!("{trace}-s1"),
+            span_name: "generation".to_string(),
+            observation_type: Some(ObservationType::Generation),
+            timestamp_start: t0,
+            timestamp_end: Some(t0 + chrono::Duration::seconds(1)),
+            user_id: user.map(str::to_string),
+            ..Default::default()
+        };
+
+        {
+            let conn = service.conn();
+            insert_batch(
+                &conn,
+                &[span("t-user", Some("alice")), span("t-none", None)],
+            )
+            .expect("insert");
+        }
+
+        let conn = service.conn();
+        let (traces, total) = list_traces(
+            &conn,
+            &trace_filter_params(
+                project,
+                vec![Filter::StringOptions {
+                    column: "user_id".to_string(),
+                    operator: OptionsOp::NoneOf,
+                    value: vec!["alice".to_string()],
+                }],
+            ),
+        )
+        .expect("list_traces");
+        let ids: Vec<&str> = traces.iter().map(|t| t.trace_id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["t-none"],
+            "a trace with no user id is not alice, so it matches \"none of alice\""
+        );
+        assert_eq!(total, 1, "the count must agree with the page");
     }
 
     /// The session filter's binds stay in step with other filters, and with negation.

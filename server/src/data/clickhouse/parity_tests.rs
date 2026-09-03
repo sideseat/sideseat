@@ -1268,12 +1268,29 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             // those traces silently, and made a trace with two users match because one of them was
             // someone else. This is the case that pins the quantifier, because every other filtered
             // column is populated for every row.
+            //
+            // Named against a user the fixture *has*, so the answer is a strict subset: with an absent
+            // user every trace matches, and a filter that had been dropped entirely would look the same.
             "filtered by none of a nullable column",
             ListTracesParams {
                 filters: vec![Filter::StringOptions {
                     column: "user_id".to_string(),
                     operator: OptionsOp::NoneOf,
-                    value: vec!["someone-else".to_string()],
+                    value: vec!["user-1".to_string()],
+                }],
+                ..trace_params()
+            },
+        ),
+        (
+            // The complement, on the column whose filter is a statement about the trace. A trace with
+            // no session at all is not in session-3, so it belongs in the result - and both backends
+            // have to negate the canonical subquery rather than the displayed aggregate to say so.
+            "filtered by none of a session",
+            ListTracesParams {
+                filters: vec![Filter::StringOptions {
+                    column: "session_id".to_string(),
+                    operator: OptionsOp::NoneOf,
+                    value: vec!["session-3".to_string()],
                 }],
                 ..trace_params()
             },

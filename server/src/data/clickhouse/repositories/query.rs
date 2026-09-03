@@ -232,13 +232,11 @@ fn trace_projection(trace_id_expr: &str, totals_alias: &str, totals: Totals) -> 
 
     format!(
         r#"{trace_id_expr} as trace_id,
-            -- Falls back to the earliest named span when no root span is present, matching
-            -- DuckDB's COALESCE(...). Without the fallback a partial trace - root span not yet
-            -- ingested, or lost - had a name under DuckDB and none under ClickHouse.
-            coalesce(
-                argMinIf(s.span_name, s.timestamp_start, s.parent_span_id IS NULL AND s.span_name IS NOT NULL),
-                argMinIf(s.span_name, s.timestamp_start, s.span_name IS NOT NULL)
-            ) as trace_name,
+            -- One definition of the displayed name, shared with the filter that has to match it and
+            -- with DuckDB. It falls back to the earliest named span when no root span is present:
+            -- without that a partial trace - root not yet ingested, or lost - had a name under DuckDB
+            -- and none here.
+            {trace_name} as trace_name,
             toInt64(toUnixTimestamp64Micro(min(s.timestamp_start))) as start_time,
             toInt64(toUnixTimestamp64Micro(max(coalesce(s.timestamp_end, s.timestamp_start)))) as end_time,
             dateDiff('millisecond', min(s.timestamp_start), max(coalesce(s.timestamp_end, s.timestamp_start))) as duration_ms,
@@ -262,16 +260,17 @@ fn trace_projection(trace_id_expr: &str, totals_alias: &str, totals: Totals) -> 
                 JSONExtract(ifNull(s.tags, '[]'), 'Array(String)')
             ))))) AS tags,
             countIf(s.observation_type != 'span') AS observation_count,
-            argMinIf(s.metadata, s.timestamp_start, s.parent_span_id IS NULL) AS metadata,
+            argMinIf(s.metadata, (s.timestamp_start, s.span_id), s.parent_span_id IS NULL) AS metadata,
             COALESCE(
-                argMinIf(s.input_preview, s.timestamp_start, s.parent_span_id IS NULL AND s.input_preview IS NOT NULL AND s.input_preview != ''),
-                argMinIf(s.input_preview, s.timestamp_start, s.input_preview IS NOT NULL AND s.input_preview != '')
+                argMinIf(s.input_preview, (s.timestamp_start, s.span_id), s.parent_span_id IS NULL AND s.input_preview IS NOT NULL AND s.input_preview != ''),
+                argMinIf(s.input_preview, (s.timestamp_start, s.span_id), s.input_preview IS NOT NULL AND s.input_preview != '')
             ) AS input_preview,
             COALESCE(
-                argMinIf(s.output_preview, s.timestamp_start, s.parent_span_id IS NULL AND s.output_preview IS NOT NULL AND s.output_preview != ''),
-                argMaxIf(s.output_preview, s.timestamp_start, s.output_preview IS NOT NULL AND s.output_preview != '')
+                argMinIf(s.output_preview, (s.timestamp_start, s.span_id), s.parent_span_id IS NULL AND s.output_preview IS NOT NULL AND s.output_preview != ''),
+                argMaxIf(s.output_preview, (s.timestamp_start, s.span_id), s.output_preview IS NOT NULL AND s.output_preview != '')
             ) AS output_preview,
-            coalesce(max(s.status_code = 'ERROR'), 0) AS has_error"#
+            coalesce(max(s.status_code = 'ERROR'), 0) AS has_error"#,
+        trace_name = trace_display_name("s", DisplayNameDialect::ClickHouse)
     )
 }
 
@@ -422,6 +421,88 @@ impl ConditionBuilder {
     /// Add the advanced filters a list request carries.
     ///
     /// `mapper` translates the request's view column names to span columns, the same mapping the
+    /// The `WITH` prelude, the join and the binds a subquery needs to compare against a trace's totals.
+    ///
+    /// Scoped over the same rows the projection sums, time window included: every other condition here is
+    /// trace-level and so cannot change a total, while the window still selects spans - and a filter compared
+    /// against an all-time total would select traces by a number the row does not show.
+    ///
+    /// Self-contained, deliberately: the clause is embedded in the count query, which has no CTEs at all, and
+    /// twice in the data query, whose own `gen_totals` is scoped differently.
+    fn gen_totals_prelude(
+        &self,
+        project_id: &str,
+        from: Option<&DateTime<Utc>>,
+        to: Option<&DateTime<Utc>>,
+    ) -> (String, String, Vec<QueryParam>) {
+        let mut scope = "g.project_id = ?".to_string();
+        let mut scope_params = vec![QueryParam::String(project_id.to_string())];
+        if let Some(from) = from {
+            scope.push_str(" AND g.timestamp_start >= fromUnixTimestamp64Micro(?)");
+            scope_params.push(QueryParam::Int64(from.timestamp_micros()));
+        }
+        if let Some(to) = to {
+            scope.push_str(" AND g.timestamp_start <= fromUnixTimestamp64Micro(?)");
+            scope_params.push(QueryParam::Int64(to.timestamp_micros()));
+        }
+        let prelude = format!(
+            "WITH {}, {} ",
+            build_dedup_lookup_cte(""),
+            gen_totals_cte(Some("g.trace_id"), &scope)
+        );
+        // Bound in the order the SQL names them: dedup_lookup's project, then gen_totals' scope.
+        let mut params = vec![QueryParam::String(project_id.to_string())];
+        params.extend(scope_params);
+        (
+            prelude,
+            "LEFT JOIN gen_totals gtf ON gtf.trace_id = n.trace_id".to_string(),
+            params,
+        )
+    }
+
+    /// A `session_id` filter, as the condition on the **trace** it is. Returns whether it handled the filter.
+    ///
+    /// Every surface routes it here - the span list, the session list and the trace list - because the same
+    /// question must not have three answers. Mapping it to the raw column made a session that only a later
+    /// span named return that child, though every view displays its trace under a different session; and
+    /// matching the trace list's *displayed* aggregate answered a negation with NULL, so a trace with no
+    /// session was absent from "session is not A" there while its spans were present in the span list.
+    ///
+    /// A negated operator becomes `NOT IN` around the *positive* form: "not this session" means "its session
+    /// is not this one", and the negation as written also drops traces with no session at all.
+    fn push_canonical_session_filter(
+        &mut self,
+        filter: &Filter,
+        alias: &str,
+        project_id: &str,
+    ) -> bool {
+        if filter.column() != "session_id" {
+            return false;
+        }
+        let twin = filter.positive_twin();
+        let rendered = twin.as_ref().unwrap_or(filter);
+        let quantifier = if twin.is_some() { "NOT IN" } else { "IN" };
+        let condition = crate::data::clickhouse::filters::to_clickhouse_sql_against(
+            rendered,
+            &mut self.params,
+            "cts.canonical_session",
+        );
+        // The project predicate comes *after* the condition, so its bind simply follows - no
+        // insertion into the middle of a parameter list, which is where bind-order mistakes live.
+        self.params.push(QueryParam::String(project_id.to_string()));
+        let column = if alias.is_empty() {
+            "trace_id".to_string()
+        } else {
+            format!("{alias}.trace_id")
+        };
+        self.conditions.push(format!(
+            "{column} {quantifier} (SELECT cts.trace_id FROM ({CANONICAL}) cts \
+             WHERE {condition} AND cts.project_id = ?)",
+            CANONICAL = CANONICAL_TRACE_SESSIONS,
+        ));
+        true
+    }
+
     /// DuckDB backend applies, so a filter means the same thing on both.
     fn add_filters<'a, F>(
         &mut self,
@@ -456,38 +537,7 @@ impl ConditionBuilder {
                 continue;
             }
             // A `session_id` filter is a statement about the **trace**, not about a span row.
-            //
-            // Both callers - the span list and the session list - also accept a dedicated `session_id`
-            // parameter, and that one goes through `TRACES_OF_SESSION`. Mapping the filter to the raw column
-            // made the two ways of asking the same question disagree: filtering by a session that only a
-            // later span named returned that child, though every view displays its trace under a different
-            // session. The trace list already handles this, in `add_trace_filters`.
-            //
-            // A negated operator becomes `NOT IN` around the *positive* form, for the reason recorded on the
-            // trace list's subquery: "not this session" means "its session is not this one", and the negation
-            // as written also drops traces with no session (`NULL NOT IN (…)` is NULL).
-            if filter.column() == "session_id" {
-                let twin = filter.positive_twin();
-                let rendered = twin.as_ref().unwrap_or(filter);
-                let quantifier = if twin.is_some() { "NOT IN" } else { "IN" };
-                let condition = crate::data::clickhouse::filters::to_clickhouse_sql_against(
-                    rendered,
-                    &mut self.params,
-                    "cts.canonical_session",
-                );
-                // The project predicate comes *after* the condition, so its bind simply follows - no
-                // insertion into the middle of a parameter list, which is where bind-order mistakes live.
-                self.params.push(QueryParam::String(project_id.to_string()));
-                let column = if alias.is_empty() {
-                    "trace_id".to_string()
-                } else {
-                    format!("{alias}.trace_id")
-                };
-                self.conditions.push(format!(
-                    "{column} {quantifier} (SELECT cts.trace_id FROM ({CANONICAL}) cts \
-                     WHERE {condition} AND cts.project_id = ?)",
-                    CANONICAL = CANONICAL_TRACE_SESSIONS,
-                ));
+            if self.push_canonical_session_filter(filter, alias, project_id) {
                 continue;
             }
             let condition = crate::data::clickhouse::filters::to_clickhouse_sql(
@@ -519,8 +569,38 @@ impl ConditionBuilder {
         let mut join_totals = false;
 
         for filter in filters {
+            // Through the canonical relation here too - see `push_canonical_session_filter` for why the
+            // displayed aggregate is the wrong basis for a negation.
+            if self.push_canonical_session_filter(filter, "", project_id) {
+                continue;
+            }
             match ch_trace_aggregate_expression(filter.column()) {
                 Some(expression) => {
+                    // A negated filter is the **complement** of its positive form - see the DuckDB
+                    // copy: the negation rendered against the aggregate is NULL for a trace with no
+                    // value at all, so "none of x" dropped exactly the traces that are not x.
+                    if let Some(twin) = filter.positive_twin() {
+                        let mut inner_params: Vec<QueryParam> = Vec::new();
+                        let condition = crate::data::clickhouse::filters::to_clickhouse_sql_against(
+                            &twin,
+                            &mut inner_params,
+                            &expression,
+                        );
+                        let (prelude, totals_join, join_params) = if expression.contains("gtf.") {
+                            self.gen_totals_prelude(project_id, from, to)
+                        } else {
+                            (String::new(), String::new(), Vec::new())
+                        };
+                        self.conditions.push(format!(
+                            "trace_id NOT IN ({prelude}SELECT n.trace_id FROM otel_spans n FINAL \
+                             {totals_join} WHERE n.project_id = ? \
+                             GROUP BY n.project_id, n.trace_id HAVING {condition})"
+                        ));
+                        self.params.extend(join_params);
+                        self.params.push(QueryParam::String(project_id.to_string()));
+                        self.params.extend(inner_params);
+                        continue;
+                    }
                     aggregate_conditions.push(
                         crate::data::clickhouse::filters::to_clickhouse_sql_against(
                             filter,
@@ -569,33 +649,12 @@ impl ConditionBuilder {
         // repetition work at all. Measured on DuckDB, where the shape is the same, an aggregate
         // filter roughly doubles an unfiltered list query and stays linear (219->446 ms at 4k
         // traces, 680->1447 ms at 20k), so this is a constant factor rather than a cliff.
-        let mut prelude = String::new();
-        let mut totals_join = String::new();
-        if join_totals {
-            // Scoped over the same rows the projection sums, time window included: every other
-            // condition here is trace-level and so cannot change a total, while the window still
-            // selects spans - and a filter compared against an all-time total would select traces
-            // by a number the row does not show.
-            let mut scope = "g.project_id = ?".to_string();
-            let mut scope_params = vec![QueryParam::String(project_id.to_string())];
-            if let Some(from) = from {
-                scope.push_str(" AND g.timestamp_start >= fromUnixTimestamp64Micro(?)");
-                scope_params.push(QueryParam::Int64(from.timestamp_micros()));
-            }
-            if let Some(to) = to {
-                scope.push_str(" AND g.timestamp_start <= fromUnixTimestamp64Micro(?)");
-                scope_params.push(QueryParam::Int64(to.timestamp_micros()));
-            }
-            prelude = format!(
-                "WITH {}, {} ",
-                build_dedup_lookup_cte(""),
-                gen_totals_cte(Some("g.trace_id"), &scope)
-            );
-            totals_join = "LEFT JOIN gen_totals gtf ON gtf.trace_id = n.trace_id".to_string();
-            // Bound in the order the SQL names them: dedup_lookup's project, then gen_totals' scope.
-            self.params.push(QueryParam::String(project_id.to_string()));
-            self.params.extend(scope_params);
-        }
+        let (prelude, totals_join, join_params) = if join_totals {
+            self.gen_totals_prelude(project_id, from, to)
+        } else {
+            (String::new(), String::new(), Vec::new())
+        };
+        self.params.extend(join_params);
         self.conditions.push(format!(
             "trace_id IN ({prelude}SELECT n.trace_id FROM otel_spans n FINAL {totals_join} \
              WHERE n.project_id = ? GROUP BY n.project_id, n.trace_id HAVING {})",
