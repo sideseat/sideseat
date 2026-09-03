@@ -5520,6 +5520,114 @@ mod tests {
         assert_eq!(total, 1, "the count must agree with the page");
     }
 
+    /// A negated aggregate filter binds in step with its neighbours, in every order.
+    ///
+    /// It contributes its own subquery - optionally with a `gen_totals` join whose scope binds are rendered
+    /// *before* the subquery's own project id - in the middle of a filter list. A mistake in that order is a
+    /// query that runs and compares the wrong values, so it is checked by asking the same question with the
+    /// filters permuted and requiring one answer.
+    #[tokio::test]
+    async fn a_negated_aggregate_filter_binds_in_step_with_its_neighbours() {
+        use crate::data::duckdb::filters::{Filter, NumberOp, OptionsOp, StringOp};
+
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+        let t0 = Utc::now() - chrono::Duration::seconds(60);
+
+        let span = |trace: &str, user: Option<&str>, model: &str, tokens: i64| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: trace.to_string(),
+            span_id: format!("{trace}-s1"),
+            span_name: "generation".to_string(),
+            observation_type: Some(ObservationType::Generation),
+            timestamp_start: t0,
+            timestamp_end: Some(t0 + chrono::Duration::seconds(1)),
+            user_id: user.map(str::to_string),
+            gen_ai_request_model: Some(model.to_string()),
+            gen_ai_usage_input_tokens: tokens,
+            gen_ai_usage_total_tokens: tokens,
+            ..Default::default()
+        };
+
+        {
+            let conn = service.conn();
+            insert_batch(
+                &conn,
+                &[
+                    span("t-alice", Some("alice"), "haiku", 3000),
+                    span("t-none", None, "haiku", 3000),
+                    span("t-other", Some("bob"), "sonnet", 100),
+                ],
+            )
+            .expect("insert");
+        }
+
+        let conn = service.conn();
+        let names = |filters: Vec<Filter>| {
+            let (rows, total) =
+                list_traces(&conn, &trace_filter_params(project, filters)).expect("list_traces");
+            let mut ids: Vec<String> = rows.into_iter().map(|t| t.trace_id).collect();
+            ids.sort();
+            (ids, total)
+        };
+
+        let not_alice = Filter::StringOptions {
+            column: "user_id".to_string(),
+            operator: OptionsOp::NoneOf,
+            value: vec!["alice".to_string()],
+        };
+        let haiku = Filter::String {
+            column: "gen_ai_request_model".to_string(),
+            operator: StringOp::Eq,
+            value: "haiku".to_string(),
+        };
+        let big = Filter::Number {
+            column: "total_tokens".to_string(),
+            operator: NumberOp::Gt,
+            value: 2500.0,
+        };
+
+        // "Not alice, on haiku, over 2500 tokens" is t-none alone, whatever order the filters arrive in.
+        let expected = (vec!["t-none".to_string()], 1);
+        assert_eq!(
+            names(vec![not_alice.clone(), haiku.clone(), big.clone()]),
+            expected
+        );
+        assert_eq!(
+            names(vec![haiku.clone(), not_alice.clone(), big.clone()]),
+            expected
+        );
+        assert_eq!(names(vec![big, haiku, not_alice]), expected);
+
+        // And the path that carries a `gen_totals` join, whose scope binds are rendered *ahead* of the
+        // subquery's own project id. A time window makes the scope carry a bind of its own, so the two
+        // groups are distinguishable: with them swapped the project id is compared against a timestamp.
+        // `total_tokens` is an aggregate, so "none of 3000" is the complement over traces totalling 3000.
+        let (rows, total) = list_traces(
+            &conn,
+            &ListTracesParams {
+                project_id: project.to_string(),
+                page: 1,
+                limit: 50,
+                from_timestamp: Some(t0 - chrono::Duration::seconds(5)),
+                filters: vec![Filter::StringOptions {
+                    column: "total_tokens".to_string(),
+                    operator: OptionsOp::NoneOf,
+                    value: vec!["3000".to_string()],
+                }],
+                ..Default::default()
+            },
+        )
+        .expect("list_traces");
+        let mut ids: Vec<String> = rows.into_iter().map(|t| t.trace_id).collect();
+        ids.sort();
+        assert_eq!(
+            (ids, total),
+            (vec!["t-other".to_string()], 1),
+            "only the trace that does not total 3000 survives, and the count must agree"
+        );
+    }
+
     /// The session filter's binds stay in step with other filters, and with negation.
     ///
     /// It contributes a subquery with its own placeholders in the middle of a filter list, so its binds have
