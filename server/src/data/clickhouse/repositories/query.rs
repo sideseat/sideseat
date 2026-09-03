@@ -245,8 +245,8 @@ fn trace_projection(trace_id_expr: &str, totals_alias: &str, totals: Totals) -> 
             -- `(timestamp_start, span_id)`, a total order: see the DuckDB twin for why a tie left to the
             -- engine lets the displayed session and the feed's grouping disagree about one trace.
             argMinIf(s.session_id, (s.timestamp_start, s.span_id), s.session_id IS NOT NULL) as session_id,
-            argMinIf(s.user_id, s.timestamp_start, s.user_id IS NOT NULL) as user_id,
-            argMinIf(s.environment, s.timestamp_start, s.environment IS NOT NULL) as environment,
+            argMinIf(s.user_id, (s.timestamp_start, s.span_id), s.user_id IS NOT NULL) as user_id,
+            argMinIf(s.environment, (s.timestamp_start, s.span_id), s.environment IS NOT NULL) as environment,
             count() AS span_count,
 {totals_columns}
             -- Union and de-duplicate across the trace's spans, matching DuckDB's
@@ -1639,8 +1639,8 @@ pub async fn list_sessions(
             -- `toNullable`: the canonical session comes through `assumeNotNull`, so it is a plain `String`
             -- here while the row type is `Option<String>` (the column is Nullable in the schema).
             toNullable(f.session_id) as session_id,
-            argMinIf(s.user_id, s.timestamp_start, s.user_id IS NOT NULL) as user_id,
-            argMinIf(s.environment, s.timestamp_start, s.environment IS NOT NULL) as environment,
+            argMinIf(s.user_id, (s.timestamp_start, s.span_id), s.user_id IS NOT NULL) as user_id,
+            argMinIf(s.environment, (s.timestamp_start, s.span_id), s.environment IS NOT NULL) as environment,
             toInt64(toUnixTimestamp64Micro(min(s.timestamp_start))) as start_time,
             toInt64(toUnixTimestamp64Micro(max(coalesce(s.timestamp_end, s.timestamp_start)))) as end_time,
             count(DISTINCT s.trace_id) AS trace_count,
@@ -1715,8 +1715,8 @@ pub async fn get_session(
         )
         SELECT
             toNullable(?) as session_id,
-            argMinIf(s.user_id, s.timestamp_start, s.user_id IS NOT NULL) as user_id,
-            argMinIf(s.environment, s.timestamp_start, s.environment IS NOT NULL) as environment,
+            argMinIf(s.user_id, (s.timestamp_start, s.span_id), s.user_id IS NOT NULL) as user_id,
+            argMinIf(s.environment, (s.timestamp_start, s.span_id), s.environment IS NOT NULL) as environment,
             toInt64(toUnixTimestamp64Micro(min(s.timestamp_start))) as start_time,
             toInt64(toUnixTimestamp64Micro(max(coalesce(s.timestamp_end, s.timestamp_start)))) as end_time,
             count(DISTINCT s.trace_id) AS trace_count,
@@ -2450,7 +2450,29 @@ pub async fn get_trace_filter_options(
         // span, else earliest named span. Listing root span names only offered names that did not
         // match the list and omitted the ones a trace with no root span shows, so filtering by a
         // name the UI had just displayed returned nothing. Mirrors the DuckDB copy.
-        let sql = if column == "trace_name" {
+        let sql = if column == "session_id" {
+            // Only values the filter can match; see the DuckDB twin. The trace filter evaluates the
+            // canonical session, so offering every session id any span named produced dropdown entries
+            // that return nothing.
+            format!(
+                r#"
+                -- `toNullable`: the canonical session comes through `assumeNotNull`, while the row
+                -- type is `Option<String>`.
+                SELECT toNullable(cts.canonical_session) as value, count(DISTINCT cts.trace_id) as count
+                FROM ({CANONICAL}) cts
+                WHERE (cts.project_id, cts.trace_id) IN (
+                    SELECT project_id, trace_id FROM otel_spans FINAL
+                    WHERE project_id = ?{time_cond}
+                )
+                GROUP BY cts.canonical_session
+                ORDER BY count DESC
+                LIMIT {limit}
+                "#,
+                CANONICAL = CANONICAL_TRACE_SESSIONS,
+                time_cond = time_conditions,
+                limit = QUERY_MAX_FILTER_SUGGESTIONS
+            )
+        } else if column == "trace_name" {
             format!(
                 r#"
                 SELECT value, count(DISTINCT trace_id) as count

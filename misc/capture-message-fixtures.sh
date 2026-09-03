@@ -224,16 +224,31 @@ for entry in "${SUITES[@]}"; do
         echo "[capture] $label: WARNING gitleaks not installed - only the fallback patterns ran"
       fi
 
-      # Value shapes, not field names - and where a field name is unavoidable, its *separator* is a
-      # character class rather than a fixed spelling. OTel attributes are dotted
-      # (`aws.auth.account.secret_access_key`), SDK config is snake_case, JSON is often camelCase, and
-      # enumerating spellings is precisely how the dotted form slipped through and put four STS key ids
-      # into git history. Covered: AWS long-term and STS key ids; secret keys and session tokens in any
-      # of those spellings; bearer tokens; generic api keys; SigV4 signatures in a presigned URL.
+      # Two tiers, because the two kinds of evidence want different rules.
+      #
+      # Tier 1 - value shapes, matched case-sensitively: an AWS long-term or STS key id, a bearer token, a
+      # SigV4 signature in a presigned URL. These are unmistakable on their own.
       if [[ -z "$secret_hit" ]] && grep -rlqE \
-          "(AKIA|ASIA)[A-Z0-9]{16}|(aws[._]?)?[Ss]ecret[._]?[Aa]ccess[._]?[Kk]ey['\"]?[[:space:]]*[:=][[:space:]]*['\"][^'\"]{8,}|(aws[._]?)?[Ss]ession[._]?[Tt]oken['\"]?[[:space:]]*[:=][[:space:]]*['\"][^'\"]{20,}|[Bb]earer[[:space:]]+[A-Za-z0-9._~+/-]{20,}|[Aa]pi[._-]?[Kk]ey['\"]?[[:space:]]*[:=][[:space:]]*['\"][^'\"]{16,}|X-Amz-Signature=[a-f0-9]{32,}" \
+          "(AKIA|ASIA)[A-Z0-9]{16}|[Bb]earer[[:space:]]+[A-Za-z0-9._~+/-]{20,}|X-Amz-Signature=[a-f0-9]{32,}" \
           "${FIXTURES}/${label}" 2>/dev/null; then
-        secret_hit="pattern"
+        secret_hit="value-shape"
+      fi
+
+      # Tier 2 - credential field *names*, anywhere in the payload, case-insensitively.
+      #
+      # Deliberately not requiring the value beside the name. In real OTLP the two are separate members -
+      # `{"key":"aws.auth.account.secret_access_key","value":{"stringValue":"..."}}` - so every pattern that
+      # demanded `name: value` adjacency matched nothing at all, which is how the dotted form put four STS
+      # key ids into git history in the first place. A separator class fixed the spelling and left the
+      # adjacency, so it still missed.
+      #
+      # The name alone is enough to stop and look: this scans only the directory just captured, and a
+      # fixture mentioning a secret field deserves a human decision even when the value is a placeholder.
+      # The failure mode on the other side is permanent.
+      if [[ -z "$secret_hit" ]] && grep -rliqE \
+          "secret[._-]?access[._-]?key|session[._-]?token|api[._-]?key|private[._-]?key|client[._-]?secret" \
+          "${FIXTURES}/${label}" 2>/dev/null; then
+        secret_hit="credential-field-name"
       fi
     fi
     if [[ -n "$secret_hit" ]]; then

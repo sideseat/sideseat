@@ -1386,25 +1386,34 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     let cache_read_supplied = CACHE_READ_TOKENS
         .extract_opt_for_span(attrs, span_name)
         .is_some();
+    let cache_write_supplied = CACHE_WRITE_TOKENS
+        .extract_opt_for_span(attrs, span_name)
+        .is_some();
     span.gen_ai_usage_cache_read_tokens = CACHE_READ_TOKENS.extract_for_span(attrs, span_name);
     span.gen_ai_usage_cache_write_tokens = CACHE_WRITE_TOKENS.extract_for_span(attrs, span_name);
     span.gen_ai_usage_reasoning_tokens = REASONING_TOKENS.extract(attrs);
 
-    // Logfire: cache tokens from response_data.usage (after flat attribute extraction)
-    if span.gen_ai_usage_cache_read_tokens == 0 || span.gen_ai_usage_cache_write_tokens == 0 {
+    // Logfire: cache tokens from response_data.usage (after flat attribute extraction).
+    //
+    // Gated on presence, not on the value being zero - a reported `0` is a fact about the call, and testing
+    // the value replaced it with whatever this payload said, inflating both the total and the cache charge.
+    // The same conflation the input and output sides had.
+    if !cache_read_supplied || !cache_write_supplied {
         if let Some(resp) = extract_json::<JsonValue>(attrs, keys::RESPONSE_DATA) {
             if let Some(usage) = resp.get("usage") {
-                if span.gen_ai_usage_cache_read_tokens == 0 {
-                    span.gen_ai_usage_cache_read_tokens = usage
+                if !cache_read_supplied
+                    && let Some(v) = usage
                         .get("cache_read_input_tokens")
                         .and_then(|v| v.as_i64())
-                        .unwrap_or(0);
+                {
+                    span.gen_ai_usage_cache_read_tokens = v;
                 }
-                if span.gen_ai_usage_cache_write_tokens == 0 {
-                    span.gen_ai_usage_cache_write_tokens = usage
+                if !cache_write_supplied
+                    && let Some(v) = usage
                         .get("cache_creation_input_tokens")
                         .and_then(|v| v.as_i64())
-                        .unwrap_or(0);
+                {
+                    span.gen_ai_usage_cache_write_tokens = v;
                 }
             }
         }
@@ -1447,11 +1456,22 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
                     {
                         span.gen_ai_usage_cache_read_tokens = v;
                     }
-                    // The embedded total describes the embedded *parts*, so it is only usable when this
-                    // payload supplied both sides. Taking it regardless produced a row whose total did not
-                    // match its own input and output: a flat `input=0` kept its reported zero while the
-                    // output came from here, and the total then claimed 1,099 for 0 + 100 tokens.
-                    if took_input && took_output {
+                    // The embedded total describes the embedded *parts*, so it is usable exactly when the
+                    // parts actually stored are those parts - either this payload supplied a side, or the
+                    // flat attribute already agreed with it. Requiring that *this* payload supplied both
+                    // discarded a perfectly good total whenever one side happened to be reported twice with
+                    // the same value; taking it regardless produced a row whose total did not match its own
+                    // input and output, claiming 1,099 for 0 + 100 tokens.
+                    let side_agrees = |took: bool, stored: i64, key: &str| {
+                        took || usage.get(key).and_then(|v| v.as_i64()) == Some(stored)
+                    };
+                    if side_agrees(took_input, span.gen_ai_usage_input_tokens, "prompt_tokens")
+                        && side_agrees(
+                            took_output,
+                            span.gen_ai_usage_output_tokens,
+                            "completion_tokens",
+                        )
+                    {
                         reported_total = usage
                             .get("total_tokens")
                             .and_then(|v| v.as_i64())

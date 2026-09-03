@@ -593,8 +593,8 @@ pub fn list_traces(
             -- engine here the two could pick different spans of the same trace - a trace displayed under one
             -- session and grouped under another, which splits a conversation and duplicates its history.
             FIRST(s.session_id ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.session_id IS NOT NULL) AS session_id,
-            FIRST(s.user_id ORDER BY s.timestamp_start) FILTER (WHERE s.user_id IS NOT NULL) AS user_id,
-            FIRST(s.environment ORDER BY s.timestamp_start) FILTER (WHERE s.environment IS NOT NULL) AS environment,
+            FIRST(s.user_id ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.user_id IS NOT NULL) AS user_id,
+            FIRST(s.environment ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.environment IS NOT NULL) AS environment,
             COUNT(*) AS span_count,
             COALESCE(MAX(gt2.input_tokens), 0) AS input_tokens,
             COALESCE(MAX(gt2.output_tokens), 0) AS output_tokens,
@@ -720,8 +720,8 @@ pub fn get_trace(
             -- engine here the two could pick different spans of the same trace - a trace displayed under one
             -- session and grouped under another, which splits a conversation and duplicates its history.
             FIRST(s.session_id ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.session_id IS NOT NULL) AS session_id,
-            FIRST(s.user_id ORDER BY s.timestamp_start) FILTER (WHERE s.user_id IS NOT NULL) AS user_id,
-            FIRST(s.environment ORDER BY s.timestamp_start) FILTER (WHERE s.environment IS NOT NULL) AS environment,
+            FIRST(s.user_id ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.user_id IS NOT NULL) AS user_id,
+            FIRST(s.environment ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.environment IS NOT NULL) AS environment,
             COUNT(*) AS span_count,
             gt.input_tokens,
             gt.output_tokens,
@@ -1339,8 +1339,8 @@ pub fn list_sessions(
         )
         SELECT
             f.session_id,
-            FIRST(s.user_id ORDER BY s.timestamp_start) FILTER (WHERE s.user_id IS NOT NULL) AS user_id,
-            FIRST(s.environment ORDER BY s.timestamp_start) FILTER (WHERE s.environment IS NOT NULL) AS environment,
+            FIRST(s.user_id ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.user_id IS NOT NULL) AS user_id,
+            FIRST(s.environment ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.environment IS NOT NULL) AS environment,
             MIN(s.timestamp_start) AS start_time,
             MAX(COALESCE(s.timestamp_end, s.timestamp_start)) AS end_time,
             COUNT(DISTINCT s.trace_id) AS trace_count,
@@ -1442,8 +1442,8 @@ pub fn get_session(
         )
         SELECT
             ? AS session_id,
-            FIRST(s.user_id ORDER BY s.timestamp_start) FILTER (WHERE s.user_id IS NOT NULL) AS user_id,
-            FIRST(s.environment ORDER BY s.timestamp_start) FILTER (WHERE s.environment IS NOT NULL) AS environment,
+            FIRST(s.user_id ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.user_id IS NOT NULL) AS user_id,
+            FIRST(s.environment ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.environment IS NOT NULL) AS environment,
             EPOCH_US(MIN(s.timestamp_start)) AS start_time,
             EPOCH_US(MAX(COALESCE(s.timestamp_end, s.timestamp_start))) AS end_time,
             COUNT(DISTINCT s.trace_id) AS trace_count,
@@ -1569,8 +1569,8 @@ pub fn get_traces_for_session(
             -- engine here the two could pick different spans of the same trace - a trace displayed under one
             -- session and grouped under another, which splits a conversation and duplicates its history.
             FIRST(s.session_id ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.session_id IS NOT NULL) AS session_id,
-            FIRST(s.user_id ORDER BY s.timestamp_start) FILTER (WHERE s.user_id IS NOT NULL) AS user_id,
-            FIRST(s.environment ORDER BY s.timestamp_start) FILTER (WHERE s.environment IS NOT NULL) AS environment,
+            FIRST(s.user_id ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.user_id IS NOT NULL) AS user_id,
+            FIRST(s.environment ORDER BY s.timestamp_start, s.span_id) FILTER (WHERE s.environment IS NOT NULL) AS environment,
             COUNT(*) AS span_count,
             COALESCE(gt.input_tokens, 0) AS input_tokens,
             COALESCE(gt.output_tokens, 0) AS output_tokens,
@@ -2260,7 +2260,26 @@ pub fn get_trace_filter_options(
         // trace list displays. Listing root span names only offered names that did not match the
         // list and omitted the ones a trace with no root span shows - so filtering by a name the UI
         // had just displayed returned nothing.
-        let sql = if column == "trace_name" {
+        let sql = if column == "session_id" {
+            // Offered values must be ones the filter can match. The trace filter evaluates a trace's
+            // *canonical* session (`trace_display_first`), so listing every session id any span named
+            // offered values that return zero traces - a dropdown entry that does nothing when clicked.
+            format!(
+                r#"
+                SELECT cts.session_id, COUNT(DISTINCT cts.trace_id) as cnt
+                FROM ({CANONICAL}) cts
+                WHERE (cts.project_id, cts.trace_id) IN (
+                    SELECT project_id, trace_id FROM otel_spans WHERE {base_where}
+                )
+                GROUP BY cts.session_id
+                ORDER BY cnt DESC
+                LIMIT {limit}
+                "#,
+                CANONICAL = CANONICAL_TRACE_SESSIONS,
+                base_where = base_where,
+                limit = QUERY_MAX_FILTER_SUGGESTIONS
+            )
+        } else if column == "trace_name" {
             format!(
                 r#"
                 SELECT name, COUNT(DISTINCT trace_id) as cnt
