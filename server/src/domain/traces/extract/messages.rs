@@ -1199,6 +1199,18 @@ pub(crate) fn try_logfire_events(
     // Logfire Chat Completions / Anthropic Messages: request_data/response_data.
     // Stored as-is — structural extraction happens at query time
     // via MESSAGE_ARRAY_SOURCES expansion in normalize.rs.
+    //
+    // `request_data` keeps its precedence; `response_data` does not, and the asymmetry is the point.
+    //
+    // The gate used to cover both, so it asked about a *different* carrier than the one it guarded: a span
+    // whose `events` hold only the question and whose `response_data` holds the answer returned the question
+    // alone, because `events` had already set `found`. `_synthetic/logfire_partial_events` is that shape.
+    //
+    // `request_data` duplicates the *input* side that `events` also carries, and no captured Logfire fixture
+    // exists to show that the two spellings hash alike - so if they differ slightly, reading both would put
+    // the same question on screen twice, and downstream dedup could not tell. `response_data` carries the
+    // output side, which is what was being dropped, so it is read whatever the events said. Narrow on
+    // purpose: it closes a loss without risking a duplicate that nothing in the corpus can rule out.
     if !found {
         if let Some(parsed) = extract_json::<JsonValue>(attrs, keys::REQUEST_DATA) {
             if parsed
@@ -1210,6 +1222,8 @@ pub(crate) fn try_logfire_events(
                 found = true;
             }
         }
+    }
+    {
         if let Some(parsed) = extract_json::<JsonValue>(attrs, keys::RESPONSE_DATA) {
             // Non-streaming: {message: {role, ...}, usage: {...}}
             let has_message = parsed.get("message").is_some_and(|m| m.is_object());
@@ -3734,7 +3748,25 @@ pub(crate) fn try_claude_code(
 /// wraps it as `{"role": <role>, "content": <value>}` so normalize() can process it.
 /// Non-plain-data values (already message-shaped, arrays, strings) pass through unchanged.
 fn wrap_plain_data(value: JsonValue, role: &str) -> JsonValue {
-    if is_plain_data_value(&value) {
+    // A **scalar** is wrapped too, not only a plain object. `input.value` / `output.value` are
+    // documented as "any JSON", and a framework whose output is just text writes exactly that:
+    // `output.value = "the answer"`. Unwrapped, normalisation looks for `role` and `content` on a
+    // string, finds neither, and produces a message with no blocks - so the answer vanished, with no
+    // error anywhere. Measured on `_synthetic/plain_output_value`, where the answer invariant fires.
+    //
+    // An **array** is wrapped unless it is a list of *messages*. A message list is expanded upstream into
+    // its elements, so wrapping it would bury the conversation one level down; a list of content blocks
+    // (`[{"type": "text", ...}]`) or of plain values is this message's content and was lost the same way a
+    // scalar was. The two are told apart by whether the elements carry a `role`, which is what makes one a
+    // list of messages and the other a list of parts.
+    let is_scalar = value.is_string() || value.is_number() || value.is_boolean();
+    let is_content_list = value.as_array().is_some_and(|items| {
+        !items.is_empty()
+            && !items
+                .iter()
+                .any(|item| item.get("role").is_some() || item.get("messages").is_some())
+    });
+    if is_scalar || is_content_list || is_plain_data_value(&value) {
         json!({"role": role, "content": value})
     } else {
         value
@@ -4138,9 +4170,21 @@ pub(super) fn extract_messages_for_span(
     tool_definitions.extend(defs);
     tool_names.extend(names);
 
-    // Skip attribute extraction for tool spans - their input.value/output.value contain
-    // tool params/results, not conversation messages
-    let should_extract_attrs = !is_tool_span && should_fallback_to_attributes(&raw_messages);
+    // Attributes are read whatever the events said, except on tool spans - whose `input.value` and
+    // `output.value` hold tool params and results rather than conversation.
+    //
+    // One recognised event used to suppress *every* attribute carrier on the span, on the grounds that
+    // "events contain the authoritative conversation data". That is true of the carrier an event covers and
+    // false of the rest: a span whose question arrives as `gen_ai.user.message` and whose answer sits only in
+    // `output.value` returned the question alone - the recorded LangChain failure, across the event/attribute
+    // boundary instead of between two attribute carriers. Nothing detected it because no captured fixture
+    // has that shape; `_synthetic/event_question_attribute_answer` now does, and the answer invariant fires
+    // on it with the gate restored.
+    //
+    // Reading both is safe *because* claiming is per carrier: an event's blocks are already claimed, so the
+    // attribute pass contributes only what no event covered, and content-based dedup collapses a genuine
+    // overlap. Measured across all 111 fixtures and four views: removing the gate changed nothing.
+    let should_extract_attrs = !is_tool_span;
 
     // Debug: Log extraction decision
     if span_attrs.contains_key(keys::AI_PROMPT_MESSAGES) || span_attrs.contains_key(keys::AI_PROMPT)
@@ -4189,34 +4233,6 @@ pub(super) fn extract_messages_for_span(
     }
 
     (raw_messages, tool_definitions, tool_names)
-}
-
-/// Check if messages contain only non-conversation content (system prompts) or are empty.
-///
-/// Returns true if attribute extraction fallback should be attempted.
-/// This happens when:
-/// - No messages exist, OR
-/// - All messages are attribute-sourced system prompts (no event-sourced content)
-///
-/// Event-sourced messages indicate the span has OTEL GenAI events with conversation
-/// content, so we shouldn't also extract from attributes (which would duplicate).
-fn should_fallback_to_attributes(messages: &[RawMessage]) -> bool {
-    // If we have any event-sourced messages, don't fall back to attributes
-    // (events contain the authoritative conversation data)
-    let has_event_messages = messages
-        .iter()
-        .any(|m| matches!(&m.source, MessageSource::Event { .. }));
-
-    if has_event_messages {
-        return false;
-    }
-
-    // No events - check if we only have system prompts from attributes
-    // If so, fall back to attributes for conversation messages
-    messages.is_empty()
-        || messages
-            .iter()
-            .all(|m| m.content.get("role").and_then(|r| r.as_str()) == Some("system"))
 }
 
 #[cfg(test)]

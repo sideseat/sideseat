@@ -47,13 +47,15 @@ The boundary of "correct for all frameworks": exactly the suites below, at the v
 against. `the_corpus_matches_the_support_matrix` fails if a suite is added or removed without updating this
 table - so the claim stays checked rather than described.
 
-It lives here, in a **committed** file, and not in `CLAUDE.md`: that file is deliberately never committed, so
-a test reading it passed only on the machine whose working copy had been edited and failed on every clean
-checkout and in CI. A test cannot assert against a file the repository does not carry.
+It lives here, beside the fixtures it describes, and not in `CLAUDE.md`. That file is tracked, but project
+convention keeps it out of routine commits, so its committed content lags the working copy by however much has
+been written since - a test reading it would compare the corpus against whatever state a given checkout
+happens to carry, which passes or fails on how recently someone committed a document rather than on whether
+the corpus matches it.
 
 | Suite | Version captured against | Samples | Captured requests |
 | --- | --- | --- | --- |
-| `_synthetic` | hand-written shapes, no SDK | 5 | 5 |
+| `_synthetic` | hand-written shapes, no SDK | 9 | 9 |
 | `adk` | google-adk >=1.27.0 | 8 | 18 |
 | `agent-framework` | agent-framework-core >=1.0.0b0 | 10 | 17 |
 | `anthropic` | anthropic >=0.84.0 | 7 | 18 |

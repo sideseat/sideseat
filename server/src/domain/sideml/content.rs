@@ -432,13 +432,15 @@ fn normalize_tool_result_content(content: Option<JsonValue>) -> JsonValue {
     match content {
         None => json!(null),
         Some(JsonValue::Array(arr)) => {
-            // Normalize each block in the array to SideML format
-            let normalized: Vec<JsonValue> =
-                arr.iter().filter_map(normalize_content_block).collect();
+            // Each block with the source it came from: what makes two normalised blocks the *same datum*
+            // is that the carrier wrote it twice in two encodings, and only the sources say so.
+            let normalized: Vec<(JsonValue, JsonValue)> = arr
+                .iter()
+                .filter_map(|src| normalize_content_block(src).map(|out| (out, src.clone())))
+                .collect();
             if normalized.is_empty() {
                 json!(null)
             } else {
-                // Deduplicate identical blocks (same data in different formats)
                 json!(deduplicate_content_blocks(normalized))
             }
         }
@@ -456,24 +458,34 @@ fn normalize_tool_result_content(content: Option<JsonValue>) -> JsonValue {
     }
 }
 
-/// Deduplicate identical content blocks.
+/// Collapse blocks that are **one datum written twice**, and keep blocks that are two occurrences.
 ///
-/// Vercel AI SDK (and possibly others) may send the same data in multiple formats:
+/// Vercel AI SDK (and possibly others) writes the same tool result in two encodings within one array:
 /// - Raw structured data: `{status: "success", content: [...]}`
 /// - Wrapped format: `{type: "json", value: {status: "success", content: [...]}}`
 ///
-/// After normalization, these become identical `{type: "json", data: ...}` blocks.
-/// This function removes duplicates while preserving order (keeps first occurrence).
-fn deduplicate_content_blocks(blocks: Vec<JsonValue>) -> Vec<JsonValue> {
-    use std::collections::HashSet;
+/// Normalisation makes those identical, which is what this collapses. What it must *not* collapse is a tool
+/// that genuinely returned the same part twice - `[{"text": "retry"}, {"text": "retry"}]` is two ordered
+/// occurrences, and a carrier's position is the evidence of that. The two cases are told apart by the
+/// **source**: one datum in two encodings arrives as two *different* JSON values that normalise to one, while
+/// a genuine repeat arrives as two identical ones. So a normalised duplicate is dropped only when the source
+/// it came from differs from the source already kept.
+fn deduplicate_content_blocks(blocks: Vec<(JsonValue, JsonValue)>) -> Vec<JsonValue> {
+    use std::collections::HashMap;
 
-    let mut seen = HashSet::new();
+    // normalised form -> the sources already kept for it.
+    let mut seen: HashMap<String, Vec<String>> = HashMap::new();
     let mut result = Vec::with_capacity(blocks.len());
 
-    for block in blocks {
-        // Use JSON serialization as identity (deterministic ordering from serde_json)
+    for (block, source) in blocks {
+        // JSON serialisation as identity (deterministic ordering from serde_json).
         let key = serde_json::to_string(&block).unwrap_or_default();
-        if seen.insert(key) {
+        let source_key = serde_json::to_string(&source).unwrap_or_default();
+        let sources = seen.entry(key).or_default();
+        // Kept when nothing with this normalised form is present yet, or when everything present came from
+        // an identically-written source - which means this one is another occurrence, not another encoding.
+        if sources.is_empty() || sources.iter().all(|s| *s == source_key) {
+            sources.push(source_key);
             result.push(block);
         }
     }
@@ -2162,6 +2174,28 @@ mod tests {
         // Deduplication should keep only one
         assert_eq!(arr.len(), 1);
         assert_eq!(arr[0]["type"], "json");
+    }
+
+    /// Two identical parts are two occurrences, not one datum written twice.
+    ///
+    /// The collapse above exists for a carrier that writes one result in two encodings, which normalisation
+    /// makes identical. A tool that genuinely returned the same part twice writes two *identical* sources, and
+    /// collapsing those loses an occurrence the carrier's position is evidence of - the same distinction the
+    /// feed draws between a repeated tool call and a re-sent one.
+    #[test]
+    fn identical_tool_result_parts_are_both_kept() {
+        let content = json!([
+            {"type": "text", "text": "retry"},
+            {"type": "text", "text": "retry"}
+        ]);
+
+        let result = normalize_tool_result_content(Some(content));
+        let arr = result.as_array().unwrap();
+        assert_eq!(
+            arr.len(),
+            2,
+            "a tool that returned the same part twice returned two parts: {arr:?}"
+        );
     }
 
     #[test]

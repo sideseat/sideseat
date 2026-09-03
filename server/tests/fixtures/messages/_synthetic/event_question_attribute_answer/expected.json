@@ -1,0 +1,93 @@
+{
+  "label": "_synthetic/event_question_attribute_answer",
+  "request_count": 1,
+  "span_count": 1,
+  "trace_count": 1,
+  "session_count": 0,
+  "span_views": {
+    "trace-1/chat/span-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "ask something",
+          "content_digest": "eef0eb0a11ee1d2c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "the answer nobody saw",
+          "content_digest": "42a9de9bdde73d8e",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "ask something",
+          "content_digest": "eef0eb0a11ee1d2c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "the answer nobody saw",
+          "content_digest": "42a9de9bdde73d8e",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {},
+  "feed_view": {
+    "message_count": 2,
+    "role_sequence": [
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "ask something",
+        "content_digest": "eef0eb0a11ee1d2c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "the answer nobody saw",
+        "content_digest": "42a9de9bdde73d8e",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

@@ -1,0 +1,123 @@
+{
+  "label": "_synthetic/repeated_tool_result_parts",
+  "request_count": 1,
+  "span_count": 1,
+  "trace_count": 1,
+  "session_count": 0,
+  "span_views": {
+    "trace-1/chat/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "call the tool",
+          "content_digest": "2d405bbdd8fbd309",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-1\",\"name\":\"flaky\",\"input\":{\"q\":\"x\"}}",
+          "content_digest": "0cd5af730e5965e0",
+          "tool_name": "flaky",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-1\",\"content\":[{\"type\":\"text\",\"text\":\"retry\"},{\"type\":\"text\",\"text\":\"retry\"}]}",
+          "content_digest": "d305aeaa3689d872",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "call the tool",
+          "content_digest": "2d405bbdd8fbd309",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-1\",\"name\":\"flaky\",\"input\":{\"q\":\"x\"}}",
+          "content_digest": "0cd5af730e5965e0",
+          "tool_name": "flaky",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-1\",\"content\":[{\"type\":\"text\",\"text\":\"retry\"},{\"type\":\"text\",\"text\":\"retry\"}]}",
+          "content_digest": "d305aeaa3689d872",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {},
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "user",
+      "assistant",
+      "tool"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "call the tool",
+        "content_digest": "2d405bbdd8fbd309",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-1\",\"name\":\"flaky\",\"input\":{\"q\":\"x\"}}",
+        "content_digest": "0cd5af730e5965e0",
+        "tool_name": "flaky",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-1\",\"content\":[{\"type\":\"text\",\"text\":\"retry\"},{\"type\":\"text\",\"text\":\"retry\"}]}",
+        "content_digest": "d305aeaa3689d872",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}
