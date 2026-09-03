@@ -3039,6 +3039,113 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
 
     check("duckdb", &duck, watermark_us).await;
     check("clickhouse", &ch, watermark_us).await;
+
+    // And **membership** takes the same bound. It is the half that was missing: with the rows bounded and the
+    // session resolved from the current table, a traversal read one instant's rows and another instant's
+    // grouping - so the context loaded around a page came from a session the traversal's own rows do not
+    // place the trace in, and replayed history could be returned twice.
+    //
+    // One trace, delivered into session-early and re-delivered into session-late. What both backends must
+    // guarantee is that the *bound is applied*: below the watermark the answer is never the later session.
+    // Only DuckDB can guarantee it is the earlier one - `ReplacingMergeTree` may already have merged the
+    // pre-watermark version away, and then no query on that engine can see it (the residual documented on
+    // `ch_dedup_spans_as_of_watermark`). Observed: ClickHouse answers `[]` here, which is that residual and
+    // not this bug - before the bound was honoured at all it answered `session-late`, which is what this
+    // forbids.
+    let membership =
+        |span_id: &str, session: &str, ingested: chrono::DateTime<Utc>| NormalizedSpan {
+            trace_id: "trace-moved".to_string(),
+            session_id: Some(session.to_string()),
+            ..span(span_id, ingested)
+        };
+    let moved = vec![
+        membership("moved001", "session-early", early_ingest),
+        membership("moved001", "session-late", late_ingest),
+    ];
+    duck.insert_spans(moved.clone())
+        .await
+        .expect("duckdb moved");
+    ch.insert_spans(moved).await.expect("clickhouse moved");
+
+    for (label, backend, exact) in [
+        (
+            "duckdb",
+            &duck as &dyn crate::data::traits::AnalyticsRepository,
+            true,
+        ),
+        (
+            "clickhouse",
+            &ch as &dyn crate::data::traits::AnalyticsRepository,
+            false,
+        ),
+    ] {
+        let traces = vec!["trace-moved".to_string()];
+        let early = ("trace-moved".to_string(), "session-early".to_string());
+        let late = ("trace-moved".to_string(), "session-late".to_string());
+
+        let bounded = backend
+            .get_trace_session_pairs(PROJECT, &traces, Some(watermark_us))
+            .await
+            .unwrap_or_else(|e| panic!("{label}: bounded pairs: {e}"));
+        assert!(
+            !bounded.contains(&late),
+            "{label}: a session the trace moved to *after* the traversal began must not be its \
+             membership within it: {bounded:?}"
+        );
+        if exact {
+            assert_eq!(
+                bounded,
+                vec![early.clone()],
+                "{label}: retains every version, so the answer is exactly the earlier session"
+            );
+        }
+
+        let now = backend
+            .get_trace_session_pairs(PROJECT, &traces, None)
+            .await
+            .unwrap_or_else(|e| panic!("{label}: current pairs: {e}"));
+        assert_eq!(
+            now,
+            vec![late],
+            "{label}: unbounded it is the current session, so the bound is what decides"
+        );
+
+        let sessions = backend
+            .get_session_ids_for_traces(PROJECT, &traces, Some(watermark_us))
+            .await
+            .unwrap_or_else(|e| panic!("{label}: bounded sessions: {e}"));
+        assert!(
+            !sessions.contains(&"session-late".to_string()),
+            "{label}: nor when the same question is asked as \"which sessions\": {sessions:?}"
+        );
+
+        // The other direction: which traces a session holds. Unbounded, the old session holds nothing,
+        // because the trace has moved on - so a bounded answer naming it is the bound working.
+        let expanded_now = backend
+            .get_trace_ids_for_sessions(PROJECT, &["session-early".to_string()], None)
+            .await
+            .unwrap_or_else(|e| panic!("{label}: current expansion: {e}"));
+        assert!(
+            expanded_now.is_empty(),
+            "{label}: the trace has moved on, so unbounded the old session holds nothing: \
+             {expanded_now:?}"
+        );
+        if exact {
+            let expanded = backend
+                .get_trace_ids_for_sessions(
+                    PROJECT,
+                    &["session-early".to_string()],
+                    Some(watermark_us),
+                )
+                .await
+                .unwrap_or_else(|e| panic!("{label}: bounded expansion: {e}"));
+            assert_eq!(
+                expanded,
+                vec!["trace-moved".to_string()],
+                "{label}: as of the watermark the trace is still in the session it started in"
+            );
+        }
+    }
 }
 
 /// A span redelivered *during* a traversal still appears in it, on DuckDB.

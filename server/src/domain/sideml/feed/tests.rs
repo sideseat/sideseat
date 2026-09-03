@@ -10421,3 +10421,93 @@ fn an_incomplete_search_is_reported_as_incomplete() {
         "but it still strips what it found, rather than giving up entirely"
     );
 }
+
+/// **Known limit**, asserted as it behaves: two spans starting at the same instant are ordered by their
+/// span ids, and an id-less tool result whose call lands on the far side of that tie stays uncorrelated.
+///
+/// Between spans, document order is `(timestamp_start, trace_id, span_id)`, and correlation is a single
+/// forward pass over it - so when a tool span and the generation span that called it share a start time
+/// (ordinary with a millisecond clock) the pairing depends on two random bytes. With the ids the other way
+/// round the same telemetry correlates, which the second half of this test shows.
+///
+/// The obvious repair - letting a result also claim a *following* call in a span that starts at the same
+/// instant - was implemented and reverted. It changed `adk/tool_use` for the worse in every variant tried
+/// (an equal alternative to the preceding rule, and a fallback used only when no preceding call exists):
+/// ADK's tool and generation spans do tie, so the relaxation lets one result claim a call that a later
+/// result needed, and results that *had* ids lost them - three of them, with their order changing to put
+/// the results before their calls. Rules 3 and 4 have nothing but document order to go on, and relaxing
+/// them where that order is arbitrary trades a rare mis-order for a common mis-pairing.
+///
+/// What a real fix needs is causal evidence that does not come from the span id: the ordering redesign's
+/// partial order (`order_graph`), where a call→result edge is a constraint rather than a position. Recorded
+/// here so the next attempt starts from the measurement rather than the idea.
+#[test]
+fn an_idless_result_is_correlated_only_when_span_ids_order_its_call_first() {
+    let t = fixed_time();
+    let call = json!([{
+        "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:00Z"}},
+        "content": {
+            "role": "assistant",
+            "content": [{"type": "tool_use", "id": "call-1", "name": "get_weather",
+                         "input": {"city": "Paris"}}]
+        }
+    }]);
+    let result = json!([{
+        "source": {"event": {"name": "gen_ai.tool.message", "time": "2025-01-01T00:00:00Z"}},
+        "content": {
+            "role": "tool",
+            "content": [{"type": "tool_result", "name": "get_weather", "content": "sunny"}]
+        }
+    }]);
+
+    let feed_for = |tool_span: &str, gen_span: &str| {
+        let mut rows = vec![
+            make_span_row_full(
+                "t1",
+                tool_span,
+                None,
+                &result.to_string(),
+                t,
+                Some(t),
+                Some("tool"),
+            ),
+            make_span_row_full(
+                "t1",
+                gen_span,
+                None,
+                &call.to_string(),
+                t,
+                Some(t),
+                Some("generation"),
+            ),
+        ];
+        // As the query delivers them: `ORDER BY timestamp_start, trace_id, span_id`. With the starts equal
+        // the span id is the whole order, which is the point of this test.
+        rows.sort_by(|a, b| a.span_id.cmp(&b.span_id));
+        process_spans(rows, &FeedOptions::default())
+            .messages
+            .iter()
+            .map(|b| (b.entry_type.clone(), b.tool_use_id.clone()))
+            .collect::<Vec<_>>()
+    };
+
+    // The call's span sorts first: correlated, and the result follows its call.
+    assert_eq!(
+        feed_for("b-tool", "a-gen"),
+        vec![
+            ("tool_use".to_string(), Some("call-1".to_string())),
+            ("tool_result".to_string(), Some("call-1".to_string())),
+        ],
+        "when document order puts the call first, the result answers it"
+    );
+
+    // The result's span sorts first: uncorrelated, and it precedes the call it answers. This is the limit.
+    assert_eq!(
+        feed_for("a-tool", "b-gen"),
+        vec![
+            ("tool_result".to_string(), None),
+            ("tool_use".to_string(), Some("call-1".to_string())),
+        ],
+        "the same telemetry, ordered by span id the other way, leaves the result uncorrelated"
+    );
+}

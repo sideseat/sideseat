@@ -218,12 +218,14 @@ impl AnalyticsRepository for Arc<ClickhouseService> {
         &self,
         project_id: &str,
         trace_ids: &[String],
-        // Accepted and ignored: `FINAL` has no "as of" form, and a merge may already have discarded the
-        // version a past watermark would select - the same limit as the page and context queries. Stated
-        // rather than silently dropped, so a caller reading this knows the bound is not honoured here.
-        _as_of_us: Option<i64>,
+        // Honoured, through `ch_membership_source`. It used to be accepted and ignored on the grounds
+        // that `FINAL` has no "as of" form - which stopped being true when the message rows got one, and
+        // meanwhile a traversal read watermark-era rows with current membership, so it was not a view of
+        // one instant. The residual is the engine's: exact only while the pre-watermark version survives
+        // unmerged.
+        as_of_us: Option<i64>,
     ) -> Result<Vec<(String, String)>, DataError> {
-        query::get_trace_session_pairs(self.client(), project_id, trace_ids)
+        query::get_trace_session_pairs(self.client(), project_id, trace_ids, as_of_us)
             .await
             .map_err(Into::into)
     }
@@ -232,12 +234,14 @@ impl AnalyticsRepository for Arc<ClickhouseService> {
         &self,
         project_id: &str,
         trace_ids: &[String],
-        // Accepted and ignored: `FINAL` has no "as of" form, and a merge may already have discarded the
-        // version a past watermark would select - the same limit as the page and context queries. Stated
-        // rather than silently dropped, so a caller reading this knows the bound is not honoured here.
-        _as_of_us: Option<i64>,
+        // Honoured, through `ch_membership_source`. It used to be accepted and ignored on the grounds
+        // that `FINAL` has no "as of" form - which stopped being true when the message rows got one, and
+        // meanwhile a traversal read watermark-era rows with current membership, so it was not a view of
+        // one instant. The residual is the engine's: exact only while the pre-watermark version survives
+        // unmerged.
+        as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError> {
-        query::get_session_ids_for_traces(self.client(), project_id, trace_ids)
+        query::get_session_ids_for_traces(self.client(), project_id, trace_ids, as_of_us)
             .await
             .map_err(Into::into)
     }
@@ -246,12 +250,14 @@ impl AnalyticsRepository for Arc<ClickhouseService> {
         &self,
         project_id: &str,
         session_ids: &[String],
-        // Accepted and ignored: `FINAL` has no "as of" form, and a merge may already have discarded the
-        // version a past watermark would select - the same limit as the page and context queries. Stated
-        // rather than silently dropped, so a caller reading this knows the bound is not honoured here.
-        _as_of_us: Option<i64>,
+        // Honoured, through `ch_membership_source`. It used to be accepted and ignored on the grounds
+        // that `FINAL` has no "as of" form - which stopped being true when the message rows got one, and
+        // meanwhile a traversal read watermark-era rows with current membership, so it was not a view of
+        // one instant. The residual is the engine's: exact only while the pre-watermark version survives
+        // unmerged.
+        as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError> {
-        query::get_trace_ids_for_sessions(self.client(), project_id, session_ids)
+        query::get_trace_ids_for_sessions(self.client(), project_id, session_ids, as_of_us)
             .await
             .map_err(Into::into)
     }

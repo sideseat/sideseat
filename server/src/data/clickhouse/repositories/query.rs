@@ -2164,16 +2164,35 @@ pub(crate) fn traces_of_session_binds(project_id: &str, session_id: &str) -> [St
 /// `(timestamp_start, span_id)` so the session is the one on the trace's earliest span - which is what the
 /// trace and session views display. `min(session_id)` picked the lexicographically smallest instead, so a
 /// trace could be displayed under one session and grouped under another.
+/// The relation a membership query reads: deduplicated as of a watermark, or plain `FINAL`.
+///
+/// The three membership methods used to accept `as_of_us` and ignore it, on the grounds that "`FINAL` has no
+/// as-of form" - which stopped being true when `ch_dedup_spans_as_of_watermark` was written for the message
+/// rows. Ignoring it made a feed traversal read watermark-era *rows* and current *membership*: a trace
+/// re-delivered into another session mid-traversal was reconstructed as its old version while its session,
+/// and therefore the context loaded around it, came from the new one - so the traversal was not a view of one
+/// instant, which is the whole point of the watermark. The residual documented on
+/// `ch_dedup_spans_as_of_watermark` applies here too: exact only while the pre-watermark version has not been
+/// merged away.
+fn ch_membership_source(as_of_us: Option<i64>) -> (String, Option<i64>) {
+    match as_of_us {
+        Some(us) => (ch_dedup_spans_as_of_watermark().to_string(), Some(us)),
+        None => ("otel_spans FINAL".to_string(), None),
+    }
+}
+
 pub async fn get_trace_session_pairs(
     client: &Client,
     project_id: &str,
     trace_ids: &[String],
+    as_of_us: Option<i64>,
 ) -> Result<Vec<(String, String)>, ClickhouseError> {
     if trace_ids.is_empty() {
         return Ok(vec![]);
     }
 
     let placeholders: Vec<&str> = trace_ids.iter().map(|_| "?").collect();
+    let (source, watermark) = ch_membership_source(as_of_us);
     let sql = format!(
         // Two ClickHouse traps in one statement.
         //
@@ -2185,7 +2204,7 @@ pub async fn get_trace_session_pairs(
         // outright with ILLEGAL_AGGREGATION - on ClickHouse only. The parity comparison caught it; nothing
         // else would have until a user ran the feed on ClickHouse.
         "SELECT trace_id, argMin(assumeNotNull(session_id), (timestamp_start, span_id)) AS session \
-         FROM otel_spans FINAL \
+         FROM {source} \
          WHERE project_id = ? AND trace_id IN ({}) \
          AND session_id IS NOT NULL AND session_id != '' GROUP BY trace_id",
         placeholders.join(", ")
@@ -2197,7 +2216,12 @@ pub async fn get_trace_session_pairs(
         session: String,
     }
 
-    let mut query = client.query(&sql).bind(project_id);
+    // The relation's own placeholder sits at the head of the FROM, so it binds before the project.
+    let mut query = client.query(&sql);
+    if let Some(us) = watermark {
+        query = query.bind(us);
+    }
+    query = query.bind(project_id);
     for tid in trace_ids {
         query = query.bind(tid);
     }
@@ -2215,12 +2239,14 @@ pub async fn get_session_ids_for_traces(
     client: &Client,
     project_id: &str,
     trace_ids: &[String],
+    as_of_us: Option<i64>,
 ) -> Result<Vec<String>, ClickhouseError> {
     if trace_ids.is_empty() {
         return Ok(vec![]);
     }
 
     let placeholders: Vec<&str> = trace_ids.iter().map(|_| "?").collect();
+    let (source, watermark) = ch_membership_source(as_of_us);
     let sql = format!(
         // `assumeNotNull`, because `session_id` is Nullable here and an expression on a Nullable column
         // stays Nullable - the crate then refuses to deserialise `Nullable(String)` into `String`. Safe
@@ -2230,7 +2256,7 @@ pub async fn get_session_ids_for_traces(
         // earliest span, and reporting every session any of its spans named made a trace belong to two.
         "SELECT DISTINCT canonical_session FROM ( \
            SELECT argMin(assumeNotNull(session_id), (timestamp_start, span_id)) AS canonical_session \
-           FROM otel_spans FINAL \
+           FROM {source} \
            WHERE project_id = ? AND trace_id IN ({}) AND session_id IS NOT NULL AND session_id != '' \
            GROUP BY trace_id \
          )",
@@ -2242,7 +2268,11 @@ pub async fn get_session_ids_for_traces(
         canonical_session: String,
     }
 
-    let mut query = client.query(&sql).bind(project_id);
+    let mut query = client.query(&sql);
+    if let Some(us) = watermark {
+        query = query.bind(us);
+    }
+    query = query.bind(project_id);
     for tid in trace_ids {
         query = query.bind(tid);
     }
@@ -2258,6 +2288,7 @@ pub async fn get_trace_ids_for_sessions(
     client: &Client,
     project_id: &str,
     session_ids: &[String],
+    as_of_us: Option<i64>,
 ) -> Result<Vec<String>, ClickhouseError> {
     if session_ids.is_empty() {
         return Ok(vec![]);
@@ -2265,6 +2296,7 @@ pub async fn get_trace_ids_for_sessions(
 
     let placeholders: Vec<&str> = session_ids.iter().map(|_| "?").collect();
     let in_clause = placeholders.join(", ");
+    let (source, watermark) = ch_membership_source(as_of_us);
 
     let sql = format!(
         // The trace's **canonical** session, as the DuckDB twin does and as every read does. `session_id IN
@@ -2275,7 +2307,7 @@ pub async fn get_trace_ids_for_sessions(
         "SELECT trace_id FROM ( \
            SELECT trace_id, argMin(assumeNotNull(session_id), (timestamp_start, span_id)) \
              AS canonical_session \
-           FROM otel_spans FINAL \
+           FROM {source} \
            WHERE project_id = ? AND session_id IS NOT NULL AND session_id != '' \
            GROUP BY trace_id \
          ) WHERE canonical_session IN ({})",
@@ -2287,7 +2319,11 @@ pub async fn get_trace_ids_for_sessions(
         trace_id: String,
     }
 
-    let mut query = client.query(&sql).bind(project_id);
+    let mut query = client.query(&sql);
+    if let Some(us) = watermark {
+        query = query.bind(us);
+    }
+    query = query.bind(project_id);
     for sid in session_ids {
         query = query.bind(sid);
     }
@@ -2461,7 +2497,8 @@ pub async fn delete_sessions(
     // and kept its children - and the call returned success. The orphaned spans then show up as a
     // trace with no session and cannot be deleted by session again, because nothing names it any
     // more. Every read path already resolves a session through its traces; deletion has to agree.
-    let trace_ids = get_trace_ids_for_sessions(client, project_id, session_ids).await?;
+    // No watermark: a deletion acts on what is stored *now*, not as of some past instant.
+    let trace_ids = get_trace_ids_for_sessions(client, project_id, session_ids, None).await?;
     if trace_ids.is_empty() {
         return Ok(0);
     }
