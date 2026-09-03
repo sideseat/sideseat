@@ -20,6 +20,13 @@ pub struct ConnectionHandle {
     pub client_id: Mutex<Option<String>>,
     /// Outbound queue for serialized frames (JSON strings).
     pub outbound: mpsc::Sender<String>,
+    /// Fires when this connection must stop, whatever the client does.
+    ///
+    /// The protocol says a `replaced` connection does not survive, and the server only *queued* the notice:
+    /// nothing closed the socket or ended its receive loop, so the guarantee rested on the client
+    /// disconnecting voluntarily. The official SDKs do; a client that ignores the frame kept registering and
+    /// publishing events under a name it no longer owned.
+    pub close: Arc<tokio::sync::Notify>,
 }
 
 #[derive(Clone)]

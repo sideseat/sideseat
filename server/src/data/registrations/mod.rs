@@ -50,6 +50,13 @@ pub struct RegistrationEntry {
     pub name: String,
     pub manifest: RegistrationManifest,
     pub owner_client_id: String,
+    /// The socket that registered it.
+    ///
+    /// `owner_client_id` is stable across reconnects by design - the SDK reuses it so it can re-register -
+    /// which made teardown ambiguous: cleanup removed *every* entry for the client id, so a socket that had
+    /// already been replaced by a reconnect deleted the new socket's registrations when it finally timed out.
+    /// The connection is what teardown is about, so teardown keys on it.
+    pub owner_connection_id: String,
     pub owning_instance_id: String,
     /// Unix-epoch seconds.
     pub last_heartbeat_secs: u64,
@@ -126,6 +133,10 @@ pub enum ConnectionControl {
     /// Notify a socket that its registration was claimed by a different
     /// `client_id`. Owning instance pushes `replaced` then closes the socket.
     Replaced {
+        /// The project the target is registered under. A `client_id` is chosen by the SDK, so two projects
+        /// can present the same one; without this the owning instance delivered a control message to
+        /// whichever socket claimed the id, in any project.
+        project_id: String,
         target_client_id: String,
         kind: RegistrationKind,
         name: String,
@@ -133,6 +144,8 @@ pub enum ConnectionControl {
     /// Ask the owning instance to dispatch an `agent.invoke` frame to the
     /// socket bound to `target_client_id`.
     Invoke {
+        /// See `Replaced::project_id`: an invocation for one project's client must not reach another's.
+        project_id: String,
         target_client_id: String,
         request_id: String,
         agent_name: String,
@@ -140,6 +153,8 @@ pub enum ConnectionControl {
     },
     /// Ask the owning instance to dispatch an `agent.cancel` frame.
     Cancel {
+        /// See `Replaced::project_id`.
+        project_id: String,
         target_client_id: String,
         request_id: String,
     },
@@ -201,11 +216,14 @@ pub trait RegistrationStore: Send + Sync + 'static {
         Ok(None)
     }
 
-    /// Remove and return every entry owned by `client_id`. Used on socket
-    /// teardown to publish `Unregistered` events efficiently.
-    async fn remove_all_for_client(
+    /// Remove and return every entry registered by **this connection**. Used on socket teardown.
+    ///
+    /// By connection, not by client id: the id is stable across reconnects, so a client that reconnected and
+    /// re-registered had its live entries deleted when the *previous* socket timed out - the listing went
+    /// empty and AG-UI answered `registration_not_found` while the new socket sat there healthy.
+    async fn remove_all_for_connection(
         &self,
-        client_id: &str,
+        connection_id: &str,
     ) -> Result<Vec<RegistrationEntry>, RegistrationStoreError>;
 
     /// Refresh the heartbeat timestamp for entries owned by `client_id`.
@@ -241,6 +259,9 @@ pub struct MemoryRegistrationStore {
     by_project: DashMap<String, std::collections::HashSet<Key>>,
     /// owner_client_id -> set of keys
     by_client: DashMap<String, std::collections::HashSet<Key>>,
+    /// owner_connection_id -> set of keys. Teardown reads this one; `by_client` serves heartbeats, which
+    /// are per logical client and survive a reconnect.
+    by_connection: DashMap<String, std::collections::HashSet<Key>>,
 }
 
 impl MemoryRegistrationStore {
@@ -253,6 +274,9 @@ impl MemoryRegistrationStore {
             set.remove(key);
         }
         if let Some(mut set) = self.by_client.get_mut(&prev.owner_client_id) {
+            set.remove(key);
+        }
+        if let Some(mut set) = self.by_connection.get_mut(&prev.owner_connection_id) {
             set.remove(key);
         }
     }
@@ -272,6 +296,19 @@ impl RegistrationStore for MemoryRegistrationStore {
         match self.entries.entry(key.clone()) {
             dashmap::Entry::Occupied(mut occ) => {
                 let existing = occ.get_mut();
+                // The connection index follows the entry whatever the outcome: a reconnecting client keeps
+                // its `client_id` (so this is `UpdatedSameOwner`) but arrives on a *new* socket, and it is
+                // that socket whose teardown must take the entry with it.
+                if existing.owner_connection_id != entry.owner_connection_id {
+                    if let Some(mut set) = self.by_connection.get_mut(&existing.owner_connection_id)
+                    {
+                        set.remove(&key);
+                    }
+                    self.by_connection
+                        .entry(entry.owner_connection_id.clone())
+                        .or_default()
+                        .insert(key.clone());
+                }
                 let outcome = if existing.owner_client_id == entry.owner_client_id {
                     UpsertOutcome::UpdatedSameOwner
                 } else {
@@ -301,6 +338,10 @@ impl RegistrationStore for MemoryRegistrationStore {
                     .insert(key.clone());
                 self.by_client
                     .entry(entry.owner_client_id.clone())
+                    .or_default()
+                    .insert(key.clone());
+                self.by_connection
+                    .entry(entry.owner_connection_id.clone())
                     .or_default()
                     .insert(key);
                 vac.insert(entry);
@@ -371,22 +412,31 @@ impl RegistrationStore for MemoryRegistrationStore {
         Ok(())
     }
 
-    async fn remove_all_for_client(
+    async fn remove_all_for_connection(
         &self,
-        client_id: &str,
+        connection_id: &str,
     ) -> Result<Vec<RegistrationEntry>, RegistrationStoreError> {
-        let keys: Vec<Key> = match self.by_client.remove(client_id) {
+        let keys: Vec<Key> = match self.by_connection.remove(connection_id) {
             Some((_, set)) => set.into_iter().collect(),
             None => return Ok(Vec::new()),
         };
         let mut removed = Vec::with_capacity(keys.len());
         for k in keys {
-            if let Some((_, entry)) = self.entries.remove(&k) {
-                if let Some(mut set) = self.by_project.get_mut(&entry.project_id) {
-                    set.remove(&k);
-                }
-                removed.push(entry);
+            // Only while this connection is still the owner: a reconnect may have taken the entry over
+            // between the index read and here, and that entry belongs to the live socket.
+            let Some((_, entry)) = self
+                .entries
+                .remove_if(&k, |_, v| v.owner_connection_id == connection_id)
+            else {
+                continue;
+            };
+            if let Some(mut set) = self.by_project.get_mut(&entry.project_id) {
+                set.remove(&k);
             }
+            if let Some(mut set) = self.by_client.get_mut(&entry.owner_client_id) {
+                set.remove(&k);
+            }
+            removed.push(entry);
         }
         Ok(removed)
     }
@@ -423,6 +473,17 @@ mod tests {
     use super::*;
 
     fn entry(project: &str, name: &str, owner: &str, instance: &str) -> RegistrationEntry {
+        // One socket per client, which is the ordinary case; `entry_on` is for a reconnect.
+        entry_on(project, name, owner, &format!("conn-{owner}"), instance)
+    }
+
+    fn entry_on(
+        project: &str,
+        name: &str,
+        owner: &str,
+        connection: &str,
+        instance: &str,
+    ) -> RegistrationEntry {
         RegistrationEntry {
             project_id: project.into(),
             kind: RegistrationKind::Agent,
@@ -437,6 +498,7 @@ mod tests {
                 metadata: serde_json::Value::Null,
             },
             owner_client_id: owner.into(),
+            owner_connection_id: connection.into(),
             owning_instance_id: instance.into(),
             last_heartbeat_secs: 1_700_000_000,
         }
@@ -521,7 +583,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn remove_all_for_client_drops_only_that_client() {
+    async fn remove_all_for_connection_drops_only_that_connection() {
         let store = MemoryRegistrationStore::new();
         store
             .upsert(entry("p", "a", "client-1", "inst-A"))
@@ -536,15 +598,60 @@ mod tests {
             .await
             .unwrap();
 
-        let removed = store.remove_all_for_client("client-1").await.unwrap();
+        let removed = store
+            .remove_all_for_connection("conn-client-1")
+            .await
+            .unwrap();
         assert_eq!(removed.len(), 2);
         let remaining = store.list("p").await.unwrap();
         assert_eq!(remaining.len(), 1);
         assert_eq!(remaining[0].owner_client_id, "client-2");
 
-        // Idempotent for unknown client.
-        let removed_again = store.remove_all_for_client("client-1").await.unwrap();
+        // Idempotent for an unknown connection.
+        let removed_again = store
+            .remove_all_for_connection("conn-client-1")
+            .await
+            .unwrap();
         assert!(removed_again.is_empty());
+    }
+
+    /// A reconnect's registrations survive the old socket's teardown.
+    ///
+    /// The SDK reuses its `client_id` across reconnects so it can re-register, so teardown keyed on the id
+    /// removed the *live* socket's entries when the superseded one finally timed out: the listing went empty
+    /// and AG-UI answered `registration_not_found` while the new connection sat there healthy. Reachable
+    /// whenever the client notices a broken connection before the server does, which is the ordinary
+    /// asymmetric network failure.
+    #[tokio::test]
+    async fn a_reconnect_survives_the_previous_socket_s_teardown() {
+        let store = MemoryRegistrationStore::new();
+
+        // The first socket registers.
+        store
+            .upsert(entry_on("p", "a", "client-1", "conn-old", "inst-A"))
+            .await
+            .unwrap();
+        // The client reconnects and re-registers the same name under the same id, on a new socket.
+        store
+            .upsert(entry_on("p", "a", "client-1", "conn-new", "inst-A"))
+            .await
+            .unwrap();
+
+        // The old socket times out and tears down.
+        let removed = store.remove_all_for_connection("conn-old").await.unwrap();
+        assert!(
+            removed.is_empty(),
+            "the old socket no longer owns anything, so it removes nothing: {removed:?}"
+        );
+
+        let live = store.list("p").await.unwrap();
+        assert_eq!(live.len(), 1, "the registration is still there");
+        assert_eq!(live[0].owner_connection_id, "conn-new");
+
+        // And the new socket's own teardown does remove it.
+        let removed = store.remove_all_for_connection("conn-new").await.unwrap();
+        assert_eq!(removed.len(), 1);
+        assert!(store.list("p").await.unwrap().is_empty());
     }
 
     #[tokio::test]

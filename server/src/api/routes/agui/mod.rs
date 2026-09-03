@@ -70,6 +70,9 @@ pub fn routes(state: WsState) -> Router<()> {
 struct InvokeCancelGuard {
     state: WsState,
     owning_instance: String,
+    /// The project the target is registered under. A `client_id` is the SDK's own, so it identifies a socket
+    /// only together with the project - see `ConnectionControl`.
+    project_id: String,
     target_client_id: String,
     request_id: String,
     armed: bool,
@@ -103,10 +106,11 @@ impl Drop for InvokeCancelGuard {
         };
         let state = self.state.clone();
         let owning = std::mem::take(&mut self.owning_instance);
+        let project = std::mem::take(&mut self.project_id);
         let target = std::mem::take(&mut self.target_client_id);
         let req = self.request_id.clone();
         handle.spawn(async move {
-            publish_cancel(&state, &owning, &target, &req).await;
+            publish_cancel(&state, &owning, &project, &target, &req).await;
         });
     }
 }
@@ -191,6 +195,7 @@ async fn run_agent(
         .broadcast_topic::<ConnectionControl>(&format!("connection_control:{}", owning_instance));
     if let Err(e) = control
         .publish(&ConnectionControl::Invoke {
+            project_id: project_id.clone(),
             target_client_id: target_client.clone(),
             request_id: request_id.clone(),
             agent_name: name.clone(),
@@ -208,6 +213,7 @@ async fn run_agent(
     //    it inside the stream on every clean termination path so we
     //    don't double-cancel a finished run.
     let mut cancel_guard = InvokeCancelGuard {
+        project_id: project_id.clone(),
         state: state.clone(),
         owning_instance: owning_instance.clone(),
         target_client_id: target_client.clone(),
@@ -311,6 +317,7 @@ async fn run_agent(
 async fn publish_cancel(
     state: &WsState,
     owning_instance: &str,
+    project_id: &str,
     target_client_id: &str,
     request_id: &str,
 ) {
@@ -319,6 +326,7 @@ async fn publish_cancel(
         .broadcast_topic::<ConnectionControl>(&format!("connection_control:{}", owning_instance));
     if let Err(e) = control
         .publish(&ConnectionControl::Cancel {
+            project_id: project_id.to_string(),
             target_client_id: target_client_id.to_string(),
             request_id: request_id.to_string(),
         })

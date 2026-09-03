@@ -99,6 +99,7 @@ async fn run_connection(socket: WebSocket, state: WsState, project_id: String) {
         project_id: project_id.clone(),
         client_id: Mutex::new(None),
         outbound: out_tx.clone(),
+        close: Arc::new(tokio::sync::Notify::new()),
     });
     state
         .connections
@@ -151,6 +152,7 @@ async fn run_connection(socket: WebSocket, state: WsState, project_id: String) {
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut last_pong = tokio::time::Instant::now();
 
+    let close = Arc::clone(&handle.close);
     loop {
         tokio::select! {
             biased;
@@ -158,6 +160,13 @@ async fn run_connection(socket: WebSocket, state: WsState, project_id: String) {
                 if *shutdown_rx.borrow() {
                     break;
                 }
+            }
+            // Displaced: the protocol says this connection does not survive, so the server ends it rather
+            // than trusting the client to. `biased` puts it before the inbound arm, so a socket that keeps
+            // sending cannot starve its own closure.
+            _ = close.notified() => {
+                tracing::debug!(connection_id = %connection_id, "ws: closing a displaced connection");
+                break;
             }
             _ = tokio::time::sleep_until(hello_deadline), if !hello_received => {
                 send_error(
@@ -423,11 +432,12 @@ async fn recv_control(
 async fn handle_control(state: &WsState, msg: &ConnectionControl) {
     match msg {
         ConnectionControl::Replaced {
+            project_id,
             target_client_id,
             kind,
             name,
         } => {
-            for h in find_local_connections_for_client(state, target_client_id) {
+            for h in find_local_connections_for_client(state, project_id, target_client_id) {
                 let frame = fresh_frame(
                     "replaced",
                     &ReplacedPayload {
@@ -436,17 +446,21 @@ async fn handle_control(state: &WsState, msg: &ConnectionControl) {
                     },
                 );
                 let _ = h.outbound.send(frame).await;
-                // The connection task closes its socket once it observes the
-                // channel drop or recv-loop end.
+                // And then it is closed. Queuing the notice alone left the guarantee to the client's good
+                // manners: the official SDKs disconnect, and one that ignored the frame went on registering
+                // and publishing events under a name it no longer owned. The writer task drains what is
+                // already queued - including this frame - before the socket goes.
+                h.close.notify_waiters();
             }
         }
         ConnectionControl::Invoke {
+            project_id,
             target_client_id,
             request_id,
             agent_name,
             run_input,
         } => {
-            for h in find_local_connections_for_client(state, target_client_id) {
+            for h in find_local_connections_for_client(state, project_id, target_client_id) {
                 let frame = fresh_frame(
                     "agent.invoke",
                     &AgentInvokePayload {
@@ -459,10 +473,11 @@ async fn handle_control(state: &WsState, msg: &ConnectionControl) {
             }
         }
         ConnectionControl::Cancel {
+            project_id,
             target_client_id,
             request_id,
         } => {
-            for h in find_local_connections_for_client(state, target_client_id) {
+            for h in find_local_connections_for_client(state, project_id, target_client_id) {
                 let frame = fresh_frame(
                     "agent.cancel",
                     &AgentCancelPayload {
@@ -475,8 +490,14 @@ async fn handle_control(state: &WsState, msg: &ConnectionControl) {
     }
 }
 
+/// The local sockets bound to this `client_id` **in this project**.
+///
+/// A `client_id` is chosen by the SDK, so two projects can present the same one. Matching on it alone
+/// delivered a control message - including an `agent.invoke` carrying another project's run input - to
+/// whichever socket claimed the id, in any project on this instance.
 fn find_local_connections_for_client(
     state: &WsState,
+    project_id: &str,
     target_client_id: &str,
 ) -> Vec<Arc<ConnectionHandle>> {
     state
@@ -484,6 +505,9 @@ fn find_local_connections_for_client(
         .iter()
         .filter_map(|entry| {
             let h = entry.value().clone();
+            if h.project_id != project_id {
+                return None;
+            }
             let same = h
                 .client_id
                 .lock()
@@ -536,6 +560,7 @@ async fn handle_register(
         name: manifest.name.clone(),
         manifest,
         owner_client_id: client_id.clone(),
+        owner_connection_id: handle.connection_id.clone(),
         owning_instance_id: state.instance_id.as_str().to_string(),
         last_heartbeat_secs: now_secs,
     };
@@ -555,6 +580,7 @@ async fn handle_register(
                 .broadcast_topic::<ConnectionControl>(&connection_control_topic(&prev.instance_id));
             if let Err(e) = control_topic
                 .publish(&ConnectionControl::Replaced {
+                    project_id: entry.project_id.clone(),
                     target_client_id: prev.client_id.clone(),
                     kind,
                     name: entry.name.clone(),
@@ -641,14 +667,15 @@ async fn handle_unregister(
 async fn cleanup(state: &WsState, handle: &Arc<ConnectionHandle>) {
     state.connections.remove(&handle.connection_id);
 
-    // Bind first so the guard drops at the end of this statement rather than living for
-    // the whole match: an arm that later grows an .await or a second lock would deadlock.
-    let client_id = handle.client_id.lock().clone();
-    let Some(client_id) = client_id else {
-        return;
-    };
-
-    let removed = match state.registrations.remove_all_for_client(&client_id).await {
+    // By connection, not by client id. The SDK reuses its `client_id` across reconnects on purpose - that is
+    // how it re-registers - so removing everything for the id meant a socket that had already been superseded
+    // deleted the *live* socket's registrations when it finally timed out: the listing went empty and AG-UI
+    // answered `registration_not_found` while the new connection sat there healthy.
+    let removed = match state
+        .registrations
+        .remove_all_for_connection(&handle.connection_id)
+        .await
+    {
         Ok(v) => v,
         Err(e) => {
             tracing::warn!(error = %e, "ws: cleanup remove_all failed");
@@ -697,4 +724,74 @@ async fn send_error(
         },
     );
     let _ = out.send(frame).await;
+}
+
+#[cfg(test)]
+mod control_routing_tests {
+    use super::*;
+    use crate::data::registrations::MemoryRegistrationStore;
+
+    fn state() -> WsState {
+        let (_tx, rx) = tokio::sync::watch::channel(false);
+        WsState::new(
+            Arc::new(crate::core::TopicService::default()),
+            Arc::new(MemoryRegistrationStore::new()),
+            rx,
+        )
+    }
+
+    fn connect(state: &WsState, project: &str, client: &str) -> Arc<ConnectionHandle> {
+        let (tx, _rx) = mpsc::channel::<String>(4);
+        let handle = Arc::new(ConnectionHandle {
+            connection_id: state.make_connection_id(),
+            project_id: project.to_string(),
+            client_id: Mutex::new(Some(client.to_string())),
+            outbound: tx,
+            close: Arc::new(tokio::sync::Notify::new()),
+        });
+        state
+            .connections
+            .insert(handle.connection_id.clone(), handle.clone());
+        handle
+    }
+
+    /// A control message reaches the socket in *its own* project only.
+    ///
+    /// A `client_id` is chosen by the SDK, so two projects can present the same one, and matching on it alone
+    /// handed an `agent.invoke` - carrying another project's run input and its request id - to whichever
+    /// socket claimed the id on this instance. The reply would then be attributed to the invoking project's
+    /// run, which is telemetry from one tenant answering another's request.
+    #[test]
+    fn a_control_message_reaches_only_the_named_project_s_socket() {
+        let state = state();
+        let mine = connect(&state, "project-a", "shared-id");
+        let theirs = connect(&state, "project-b", "shared-id");
+        // A different id in the same project must not match either.
+        let _other = connect(&state, "project-a", "another-id");
+
+        let found = find_local_connections_for_client(&state, "project-a", "shared-id");
+        assert_eq!(
+            found
+                .iter()
+                .map(|h| h.connection_id.clone())
+                .collect::<Vec<_>>(),
+            vec![mine.connection_id.clone()],
+            "only project-a's socket may receive project-a's control messages"
+        );
+
+        let found = find_local_connections_for_client(&state, "project-b", "shared-id");
+        assert_eq!(
+            found
+                .iter()
+                .map(|h| h.connection_id.clone())
+                .collect::<Vec<_>>(),
+            vec![theirs.connection_id.clone()],
+            "and project-b's its own"
+        );
+
+        assert!(
+            find_local_connections_for_client(&state, "project-c", "shared-id").is_empty(),
+            "a project with no such socket matches nothing"
+        );
+    }
 }
