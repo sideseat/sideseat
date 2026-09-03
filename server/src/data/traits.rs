@@ -222,14 +222,20 @@ pub trait AnalyticsRepository: Send + Sync {
         to_timestamp: Option<DateTime<Utc>>,
     ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError>;
 
-    /// Delete sessions by IDs.
+    /// Delete sessions by IDs, returning **the trace ids it removed**.
     ///
-    /// The returned count is backend-specific and unread; see [`AnalyticsRepository::delete_traces`].
+    /// Not a row count: a session is deleted by resolving it to traces and deleting those, and the caller
+    /// has to tombstone and reclaim files for exactly what went. It cannot resolve that set itself - the
+    /// resolution it made before the call is one instant's view, and a trace that joined the session since
+    /// is deleted here too. Tombstoning only the earlier snapshot left such a trace with its rows gone, its
+    /// file associations held forever (the orphan sweeper selects on zero references), and no tombstone -
+    /// so the trace sweep could not find it and the session sweep could not either, because it resolves
+    /// sessions through analytics rows that no longer exist.
     async fn delete_sessions(
         &self,
         project_id: &str,
         session_ids: &[String],
-    ) -> Result<u64, DataError>;
+    ) -> Result<Vec<String>, DataError>;
 
     // ==================== Message Operations ====================
 
@@ -525,10 +531,25 @@ pub trait TransactionalRepository: Send + Sync {
 
     /// Projects claimed for deletion longer ago than `older_than_secs`, so a cleanup that died part
     /// way through can be resumed.
+    /// Abandoned project cleanups, with the tombstone value each was observed at - see
+    /// [`TransactionalRepository::reclaim_stale_project`]. Capped, so a backlog cannot starve the leased
+    /// trace and session sweeps that run after it in the same pass.
     async fn get_stale_claimed_projects(
         &self,
         older_than_secs: i64,
-    ) -> Result<Vec<String>, DataError>;
+    ) -> Result<Vec<(String, i64)>, DataError>;
+
+    /// Re-lease an abandoned project cleanup, if the tombstone is still the one observed.
+    ///
+    /// The lease *is* the tombstone's timestamp, pushed forward: `deleting_at` is both the fence and the age
+    /// that makes a claim look abandoned, so refreshing it hands this project to one resumer without lifting
+    /// the fence - which has to stay set until the cleanup finishes. Unleased, every replica resumed every
+    /// stale project and duplicated all of its four-store cleanup.
+    async fn reclaim_stale_project(
+        &self,
+        project_id: &str,
+        observed_deleting_at: i64,
+    ) -> Result<bool, DataError>;
 
     /// Record what a cleanup sweep observed for a project, and answer whether its tombstone may go.
     ///
@@ -641,7 +662,14 @@ pub trait TransactionalRepository: Send + Sync {
     async fn get_stale_claimed_organizations(
         &self,
         older_than_secs: i64,
-    ) -> Result<Vec<String>, DataError>;
+    ) -> Result<Vec<(String, i64)>, DataError>;
+
+    /// Re-lease an abandoned organization cleanup - see [`TransactionalRepository::reclaim_stale_project`].
+    async fn reclaim_stale_organization(
+        &self,
+        org_id: &str,
+        observed_deleting_at: i64,
+    ) -> Result<bool, DataError>;
 
     /// How many project rows an organization still has, tombstoned or not.
     async fn count_projects_of_organization(&self, org_id: &str) -> Result<i64, DataError>;
@@ -828,7 +856,19 @@ pub trait TransactionalRepository: Send + Sync {
     async fn get_stale_claimed_files(
         &self,
         older_than_secs: i64,
-    ) -> Result<Vec<(String, String)>, DataError>;
+    ) -> Result<Vec<(String, String, i64)>, DataError>;
+
+    /// Re-take an abandoned claim, but only if it is still exactly the one observed.
+    ///
+    /// The recovery path reads a snapshot and then deletes bytes; in between, the row can be released or
+    /// deleted and recreated by an ingestion that associates the same content hash. Gating the byte deletion
+    /// on this compare-and-set is what stops it removing content a committed span references.
+    async fn reclaim_stale_file(
+        &self,
+        project_id: &str,
+        file_hash: &str,
+        observed_deleting_at: i64,
+    ) -> Result<bool, DataError>;
 
     /// Claim a file for deletion, if nothing references it and nobody else has claimed it.
     ///

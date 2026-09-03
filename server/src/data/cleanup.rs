@@ -340,7 +340,18 @@ pub async fn advance_pending_deletions(
         .get_stale_claimed_projects(stale_after_secs)
         .await
         .context("Failed to look for tombstoned projects")?;
-    for project_id in &projects {
+    for (project_id, observed) in &projects {
+        // Leased before the work, so N replicas share the backlog instead of each doing all of it. The lease
+        // is the tombstone's own timestamp pushed forward, so the fence never lifts; a resumer that dies
+        // leaves the project looking abandoned again once the window passes.
+        match repo.reclaim_stale_project(project_id, *observed).await {
+            Ok(true) => {}
+            Ok(false) => continue, // another replica has it
+            Err(e) => {
+                tracing::warn!(project_id, error = %e, "Could not lease a project deletion");
+                continue;
+            }
+        }
         match finish_project_deletion(database, analytics, file_service, None, project_id).await {
             Ok(()) => advanced += 1,
             // Still tombstoned, so still fenced and still found next time.
@@ -542,7 +553,16 @@ pub async fn advance_pending_deletions(
         .get_stale_claimed_organizations(stale_after_secs)
         .await
         .context("Failed to look for tombstoned organizations")?;
-    for org_id in &orgs {
+    for (org_id, observed) in &orgs {
+        // Leased, as the project loop above is and for the same reasons.
+        match repo.reclaim_stale_organization(org_id, *observed).await {
+            Ok(true) => {}
+            Ok(false) => continue,
+            Err(e) => {
+                tracing::warn!(org_id, error = %e, "Could not lease an organization deletion");
+                continue;
+            }
+        }
         match finish_organization_deletion(database, analytics, file_service, None, org_id).await {
             Ok(()) => advanced += 1,
             Err(e) => {

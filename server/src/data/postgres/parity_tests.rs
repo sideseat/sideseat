@@ -561,6 +561,34 @@ async fn files_and_references_behave_identically() {
             "stale_at_a_day={}",
             repo.get_stale_claimed_files(86_400).await.unwrap().len()
         ));
+        // The compare-and-set the recovery path gates its byte deletion on. Both backends must answer the
+        // same way: the observed claim is re-takeable exactly once, and a different value never is.
+        let observed = repo
+            .get_stale_claimed_files(0)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|(_, hash, _)| hash == &a)
+            .map(|(_, _, deleting_at)| deleting_at)
+            .expect("the claimed file is reported");
+        t.note(&format!(
+            "reclaim_with_a_different_value={}",
+            repo.reclaim_stale_file("default", &a, observed + 1)
+                .await
+                .unwrap()
+        ));
+        t.note(&format!(
+            "reclaim_as_observed={}",
+            repo.reclaim_stale_file("default", &a, observed)
+                .await
+                .unwrap()
+        ));
+        t.note(&format!(
+            "reclaim_twice_on_one_reading={}",
+            repo.reclaim_stale_file("default", &a, observed)
+                .await
+                .unwrap()
+        ));
         t.note(&format!(
             "delete_if_unreferenced={}",
             repo.delete_file_if_unreferenced("default", &a)

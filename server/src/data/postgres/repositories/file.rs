@@ -233,14 +233,51 @@ pub async fn associate_existing_file(
 pub async fn get_stale_claimed_files(
     pool: &PgPool,
     older_than_secs: i64,
-) -> Result<Vec<(String, String)>, PostgresError> {
+) -> Result<Vec<(String, String, i64)>, PostgresError> {
     let cutoff = chrono::Utc::now().timestamp() - older_than_secs;
     Ok(sqlx::query_as(
-        "SELECT project_id, file_hash FROM files WHERE deleting_at IS NOT NULL AND deleting_at <= $1",
+        "SELECT project_id, file_hash, deleting_at FROM files \
+         WHERE deleting_at IS NOT NULL AND deleting_at <= $1",
     )
     .bind(cutoff)
     .fetch_all(pool)
     .await?)
+}
+
+/// Re-take an abandoned claim, atomically against the value that was observed.
+///
+/// The recovery path acts on a *snapshot*: between the scan and the byte deletion the row can be released
+/// (a worker whose object delete failed), or deleted and recreated by an ingestion that then associates the
+/// same content hash. Deleting the bytes on the strength of the stale reading removed content a committed
+/// span references - the code even logged that case, which is not the same as preventing it.
+///
+/// So the byte deletion is gated on this compare-and-set: the claim must still be exactly the one observed,
+/// and nothing may reference the file. Success also refreshes the claim, which re-leases it so a second
+/// worker does not act on the same stale reading.
+pub async fn reclaim_stale_file(
+    pool: &PgPool,
+    project_id: &str,
+    file_hash: &str,
+    observed_deleting_at: i64,
+) -> Result<bool, PostgresError> {
+    let now = chrono::Utc::now().timestamp();
+    let result = sqlx::query(
+        r#"
+        UPDATE files SET deleting_at = $1
+        WHERE project_id = $2 AND file_hash = $3 AND deleting_at = $4
+          AND NOT EXISTS (
+              SELECT 1 FROM trace_files
+              WHERE project_id = files.project_id AND file_hash = files.file_hash
+          )
+        "#,
+    )
+    .bind(now)
+    .bind(project_id)
+    .bind(file_hash)
+    .bind(observed_deleting_at)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
 }
 
 /// Claim a file for deletion - see the SQLite twin for why a count cannot replace this.

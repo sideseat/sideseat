@@ -284,7 +284,7 @@ impl AnalyticsRepository for Arc<ClickhouseService> {
         &self,
         project_id: &str,
         session_ids: &[String],
-    ) -> Result<u64, DataError> {
+    ) -> Result<Vec<String>, DataError> {
         let table = self.delete_table("otel_spans");
         let on_cluster = self.on_cluster_clause();
         query::delete_sessions(self.client(), &table, &on_cluster, project_id, session_ids)

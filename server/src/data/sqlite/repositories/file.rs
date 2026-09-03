@@ -238,17 +238,56 @@ pub async fn associate_existing_file(
 /// and finishing leaves it set. Without this the file is stuck: the sweep sees a zero-reference row,
 /// tries to claim it, gets refused by the claim already there, and skips it forever, while ingestion
 /// keeps failing its batch on the same fence.
+/// The claim's own value comes back with each row: the recovery path must be able to prove, at the moment it
+/// deletes the bytes, that the claim is still the one it saw. See [`reclaim_stale_file`].
 pub async fn get_stale_claimed_files(
     pool: &SqlitePool,
     older_than_secs: i64,
-) -> Result<Vec<(String, String)>, SqliteError> {
+) -> Result<Vec<(String, String, i64)>, SqliteError> {
     let cutoff = chrono::Utc::now().timestamp() - older_than_secs;
     Ok(sqlx::query_as(
-        "SELECT project_id, file_hash FROM files WHERE deleting_at IS NOT NULL AND deleting_at <= ?",
+        "SELECT project_id, file_hash, deleting_at FROM files \
+         WHERE deleting_at IS NOT NULL AND deleting_at <= ?",
     )
     .bind(cutoff)
     .fetch_all(pool)
     .await?)
+}
+
+/// Re-take an abandoned claim, atomically against the value that was observed.
+///
+/// The recovery path acts on a *snapshot*: between the scan and the byte deletion the row can be released
+/// (a worker whose object delete failed), or deleted and recreated by an ingestion that then associates the
+/// same content hash. Deleting the bytes on the strength of the stale reading removed content a committed
+/// span references - the code even logged that case, which is not the same as preventing it.
+///
+/// So the byte deletion is gated on this compare-and-set: the claim must still be exactly the one observed,
+/// and nothing may reference the file. Success also refreshes the claim, which re-leases it so a second
+/// worker does not act on the same stale reading.
+pub async fn reclaim_stale_file(
+    pool: &SqlitePool,
+    project_id: &str,
+    file_hash: &str,
+    observed_deleting_at: i64,
+) -> Result<bool, SqliteError> {
+    let now = chrono::Utc::now().timestamp();
+    let result = sqlx::query(
+        r#"
+        UPDATE files SET deleting_at = ?
+        WHERE project_id = ? AND file_hash = ? AND deleting_at = ?
+          AND NOT EXISTS (
+              SELECT 1 FROM trace_files
+              WHERE project_id = files.project_id AND file_hash = files.file_hash
+          )
+        "#,
+    )
+    .bind(now)
+    .bind(project_id)
+    .bind(file_hash)
+    .bind(observed_deleting_at)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
 }
 
 /// Claim a file for deletion, if nothing references it and nobody else has claimed it.
@@ -1259,11 +1298,79 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
+        let stale = get_stale_claimed_files(&pool, 900).await.unwrap();
         assert_eq!(
-            get_stale_claimed_files(&pool, 900).await.unwrap(),
+            stale
+                .iter()
+                .map(|(p, h, _)| (p.clone(), h.clone()))
+                .collect::<Vec<_>>(),
             vec![("default".to_string(), test_hash().to_string())],
             "an old claim is reported so the sweep can finish what the crash left"
         );
+        let observed = stale[0].2;
+
+        // Re-taking it needs the value that was read. A claim that moved on - because another worker took
+        // it over, or because the row was released and re-associated - refuses, which is what stops a stale
+        // reading from deleting bytes a committed span references.
+        assert!(
+            !reclaim_stale_file(&pool, "default", test_hash(), observed + 1)
+                .await
+                .unwrap(),
+            "a claim that is not the one observed must not be re-taken"
+        );
+        assert!(
+            reclaim_stale_file(&pool, "default", test_hash(), observed)
+                .await
+                .unwrap(),
+            "the claim as observed is re-taken"
+        );
+        assert!(
+            !reclaim_stale_file(&pool, "default", test_hash(), observed)
+                .await
+                .unwrap(),
+            "and the reclaim refreshed it, so the same reading cannot be acted on twice"
+        );
+
+        // The interleaving the compare-and-set exists for, in full: a worker reads the stale claim, another
+        // releases it (its own object delete failed), an ingestion then associates the same content hash -
+        // and the first worker must not delete those bytes on the strength of its old reading.
+        {
+            let stale = get_stale_claimed_files(&pool, 0).await.unwrap();
+            let observed = stale[0].2;
+
+            release_deletion_claim(&pool, "default", test_hash())
+                .await
+                .expect("release the claim");
+            associate_file(
+                &pool,
+                "trace-again",
+                "default",
+                test_hash(),
+                Some("image/png"),
+                1,
+                "sha256",
+            )
+            .await
+            .expect("ingestion re-associates the same content");
+
+            assert!(
+                !reclaim_stale_file(&pool, "default", test_hash(), observed)
+                    .await
+                    .unwrap(),
+                "the claim is gone and the file is referenced again, so its bytes must not be deleted"
+            );
+
+            // Cleaned up so the rest of the test sees the state it expects, and re-claimed the ordinary way.
+            delete_trace_files(&pool, "default", &["trace-again".to_string()])
+                .await
+                .expect("release the association");
+            assert!(
+                claim_file_for_deletion(&pool, "default", test_hash())
+                    .await
+                    .unwrap(),
+                "with nothing referencing it the file is claimable again"
+            );
+        }
 
         // And finishing it is exactly the normal path: the row goes, nothing is left claimed.
         assert!(

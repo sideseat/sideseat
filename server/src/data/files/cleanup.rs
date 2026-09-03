@@ -262,12 +262,38 @@ pub async fn cleanup_zero_ref_files(
     // sees a zero-reference row, tries to claim it, is refused by the claim already there, and skips it,
     // while every ingestion naming that file keeps failing its batch on the same fence.
     //
-    // Safe to resume because the state is unambiguous: a claim means nothing referenced the file when it
-    // was taken, and `delete_file_if_unreferenced` re-checks that before the row goes. Deleting bytes
-    // that are already gone is not an error.
+    // Resumed only after **re-taking the claim against the value that was read**, which is what makes the
+    // byte deletion safe. The scan is a snapshot: between it and the delete the row can be released (by a
+    // worker whose own object delete failed) or deleted and recreated by an ingestion that then associates
+    // the same content hash - and deleting the bytes on the strength of the stale reading removes content a
+    // committed span references. `delete_file_if_unreferenced` re-checks afterwards, which is too late: the
+    // old code logged exactly that case at error level, and logging it is not preventing it.
+    //
+    // A successful reclaim also refreshes the claim, so a second worker holding the same stale reading is
+    // refused rather than duplicating the work.
     match repo.get_stale_claimed_files(stale_claim_secs).await {
         Ok(stale) => {
-            for (project_id, hash) in stale {
+            for (project_id, hash, observed) in stale {
+                match repo.reclaim_stale_file(&project_id, &hash, observed).await {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        tracing::debug!(
+                            project_id,
+                            hash,
+                            "An abandoned claim changed under us; leaving it to whoever holds it now"
+                        );
+                        continue;
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            project_id,
+                            hash,
+                            "Could not re-take an abandoned claim; will retry"
+                        );
+                        continue;
+                    }
+                }
                 if let Err(e) = storage.delete(&project_id, &hash).await {
                     tracing::warn!(
                         error = %e,

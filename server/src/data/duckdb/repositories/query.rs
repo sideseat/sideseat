@@ -2247,18 +2247,23 @@ pub fn get_trace_ids_for_sessions(
 }
 
 /// Delete multiple sessions by deleting all traces with those session_ids
+/// Delete every trace of these sessions, returning the trace ids removed.
+///
+/// The ids, not a row count: the caller tombstones and reclaims files for exactly this set, and it is a
+/// superset of whatever the caller resolved before calling - see the trait.
 pub fn delete_sessions(
     conn: &Connection,
     project_id: &str,
     session_ids: &[String],
-) -> Result<u64, DuckdbError> {
+) -> Result<Vec<String>, DuckdbError> {
     // `None`: a deletion acts on what exists *now*. Bounding it to some past instant would leave a trace
     // that joined the session since, which the caller was told 204 for.
     let trace_ids = get_trace_ids_for_sessions(conn, project_id, session_ids, None)?;
     if trace_ids.is_empty() {
-        return Ok(0);
+        return Ok(vec![]);
     }
-    delete_traces(conn, project_id, &trace_ids)
+    delete_traces(conn, project_id, &trace_ids)?;
+    Ok(trace_ids)
 }
 
 /// Delete specific spans by (trace_id, span_id) pairs
@@ -5750,6 +5755,71 @@ mod tests {
         );
     }
 
+    /// Deleting a session reports every trace it removed, not the caller's earlier snapshot.
+    ///
+    /// The delete re-resolves the session, so it also removes a trace that joined after the caller resolved
+    /// it - correctly, since the caller is answered 204. But the caller tombstones and reclaims files for
+    /// what it resolved, so such a trace used to lose its rows while keeping its file associations forever,
+    /// with no tombstone: the trace sweep walks tombstones and had none, and the session sweep resolves
+    /// sessions through analytics rows that were gone. Returning the ids is what lets the caller cover it.
+    #[tokio::test]
+    async fn deleting_a_session_reports_every_trace_it_removed() {
+        let (_tmp, service) = create_test_service().await;
+        let project = "p";
+        let t0 = Utc::now() - chrono::Duration::seconds(60);
+
+        let span = |trace: &str, offset: i64| NormalizedSpan {
+            project_id: Some(project.to_string()),
+            trace_id: trace.to_string(),
+            span_id: format!("{trace}-s1"),
+            span_name: "generation".to_string(),
+            observation_type: Some(ObservationType::Generation),
+            timestamp_start: t0 + chrono::Duration::seconds(offset),
+            timestamp_end: Some(t0 + chrono::Duration::seconds(offset + 1)),
+            session_id: Some("session-1".to_string()),
+            ..Default::default()
+        };
+
+        {
+            let conn = service.conn();
+            insert_batch(&conn, &[span("trace-early", 0)]).expect("insert");
+        }
+
+        // What a caller resolves before deleting. Scoped: the connection is exclusive, so holding it while
+        // opening another deadlocks.
+        {
+            let conn = service.conn();
+            let snapshot =
+                get_trace_ids_for_sessions(&conn, project, &["session-1".to_string()], None)
+                    .expect("resolve");
+            assert_eq!(snapshot, vec!["trace-early".to_string()], "premise");
+        }
+
+        // A trace joins the session after that resolution - a writer that passed the fence earlier.
+        {
+            let conn = service.conn();
+            insert_batch(&conn, &[span("trace-late", 5)]).expect("insert late");
+        }
+
+        let conn = service.conn();
+        let mut deleted =
+            delete_sessions(&conn, project, &["session-1".to_string()]).expect("delete");
+        deleted.sort();
+        assert_eq!(
+            deleted,
+            vec!["trace-early".to_string(), "trace-late".to_string()],
+            "the deletion removed both traces, so it must report both"
+        );
+
+        // And both really are gone, so the report is not a claim about rows that survived.
+        for trace in ["trace-early", "trace-late"] {
+            assert!(
+                get_trace(&conn, project, trace).expect("query").is_none(),
+                "{trace} is still readable after its session was deleted"
+            );
+        }
+    }
+
     /// A filter with an empty value list changes nothing, on every list.
     ///
     /// An empty option list means "no value chosen", which the renderers answer with `1=1` - neutral in the
@@ -6307,7 +6377,10 @@ mod tests {
             let conn = service.conn();
             let deleted =
                 delete_sessions(&conn, project, &["session-stray".to_string()]).expect("delete");
-            assert_eq!(deleted, 0, "no trace belongs to the stray session");
+            assert!(
+                deleted.is_empty(),
+                "no trace belongs to the stray session: {deleted:?}"
+            );
         }
         assert_eq!(
             rows_for("session-canonical").len(),

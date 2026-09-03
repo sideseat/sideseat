@@ -329,24 +329,51 @@ pub async fn delete_sessions(
         .await
         .map_err(ApiError::from_data)?;
 
-    // Delete from analytics backend
-    analytics_repo
+    // Delete from analytics, and take the set it *actually* removed.
+    //
+    // It re-resolves the sessions, so it deletes any trace that joined since the resolution above - which is
+    // right (the caller is told 204) and is why the returned set, not `trace_ids`, is what the rest of this
+    // route works from. Tombstoning and cleaning only the earlier snapshot left such a trace with its rows
+    // gone, its file associations held forever, and no tombstone: the trace sweep walks tombstones and had
+    // none for it, while the session sweep resolves sessions through analytics rows that no longer existed.
+    // A later child-only redelivery then carried no session id, passed both fences, and resurrected it.
+    let deleted_trace_ids = analytics_repo
         .delete_sessions(&auth.project_id, &body.session_ids)
         .await
         .map_err(ApiError::from_data)?;
 
-    // Cleanup files associated with deleted traces
+    // The traces the delete found beyond this route's own snapshot. Best effort: the spans are gone either
+    // way, and failing here would only reproduce the state it found - but without it those traces are
+    // invisible to both sweeps, so it is reported at error level rather than debug.
+    let extra: Vec<String> = deleted_trace_ids
+        .iter()
+        .filter(|t| !trace_ids.contains(t))
+        .cloned()
+        .collect();
+    if !extra.is_empty()
+        && let Err(e) = repo.record_deleted_traces(&auth.project_id, &extra).await
+    {
+        tracing::error!(
+            error = %e,
+            project_id = %auth.project_id,
+            traces = extra.len(),
+            "Could not tombstone traces that joined the session after it was resolved; they are deleted \
+             but no sweep can reclaim their files"
+        );
+    }
+
+    // Cleanup files associated with deleted traces - the set that was deleted, not the set resolved earlier.
     if state.file_service.is_enabled()
-        && !trace_ids.is_empty()
+        && !deleted_trace_ids.is_empty()
         && let Err(e) = state
             .file_service
-            .cleanup_traces(&auth.project_id, &trace_ids)
+            .cleanup_traces(&auth.project_id, &deleted_trace_ids)
             .await
     {
         tracing::warn!(
             error = %e,
             project_id = %auth.project_id,
-            traces = trace_ids.len(),
+            traces = deleted_trace_ids.len(),
             "Failed to cleanup files after session deletion"
         );
     }

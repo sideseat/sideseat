@@ -238,7 +238,7 @@ impl AnalyticsRepository for DedupAnalyticsRepository {
         &self,
         project_id: &str,
         session_ids: &[String],
-    ) -> Result<u64, DataError> {
+    ) -> Result<Vec<String>, DataError> {
         self.inner.delete_sessions(project_id, session_ids).await
     }
 

@@ -422,15 +422,17 @@ pub async fn project_accepts_writes(pool: &SqlitePool, id: &str) -> Result<bool,
 pub async fn get_stale_claimed_projects(
     pool: &SqlitePool,
     older_than_secs: i64,
-) -> Result<Vec<String>, SqliteError> {
+) -> Result<Vec<(String, i64)>, SqliteError> {
     let cutoff = chrono::Utc::now().timestamp() - older_than_secs;
-    let rows: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM projects WHERE deleting_at IS NOT NULL AND deleting_at <= ?",
+    let rows: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT id, deleting_at FROM projects WHERE deleting_at IS NOT NULL AND deleting_at <= ? \
+         ORDER BY deleting_at LIMIT ?",
     )
     .bind(cutoff)
+    .bind(crate::core::constants::STALE_CLEANUP_RESUME_BATCH)
     .fetch_all(pool)
     .await?;
-    Ok(rows.into_iter().map(|(id,)| id).collect())
+    Ok(rows)
 }
 
 /// The organization a project belongs to, whether or not it is claimed for deletion.
@@ -655,15 +657,17 @@ pub async fn claim_organization_for_deletion(
 pub async fn get_stale_claimed_organizations(
     pool: &SqlitePool,
     older_than_secs: i64,
-) -> Result<Vec<String>, SqliteError> {
+) -> Result<Vec<(String, i64)>, SqliteError> {
     let cutoff = chrono::Utc::now().timestamp() - older_than_secs;
-    let rows: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM organizations WHERE deleting_at IS NOT NULL AND deleting_at <= ?",
+    let rows: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT id, deleting_at FROM organizations WHERE deleting_at IS NOT NULL AND deleting_at <= ? \
+         ORDER BY deleting_at LIMIT ?",
     )
     .bind(cutoff)
+    .bind(crate::core::constants::STALE_CLEANUP_RESUME_BATCH)
     .fetch_all(pool)
     .await?;
-    Ok(rows.into_iter().map(|(id,)| id).collect())
+    Ok(rows)
 }
 
 /// How many of an organization's projects still have rows, tombstoned or not.
@@ -937,6 +941,48 @@ pub async fn deleted_sessions_among(
         query = query.bind(session_id);
     }
     Ok(query.fetch_all(pool).await?.into_iter().collect())
+}
+
+/// Re-lease an abandoned project cleanup, if its tombstone is still the value observed.
+///
+/// Refreshing `deleting_at` leases the work without lifting the fence: the column is non-NULL either way, so
+/// every write path stays refused, while a resumer that crashes leaves it looking abandoned again once the
+/// window passes. A second replica holding the same reading is refused by the compare.
+pub async fn reclaim_stale_project(
+    pool: &SqlitePool,
+    id: &str,
+    observed_deleting_at: i64,
+) -> Result<bool, SqliteError> {
+    let now = chrono::Utc::now().timestamp();
+    let result =
+        sqlx::query("UPDATE projects SET deleting_at = ? WHERE id = ? AND deleting_at = ?")
+            .bind(now)
+            .bind(id)
+            .bind(observed_deleting_at)
+            .execute(pool)
+            .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// Re-lease an abandoned organization cleanup, if its tombstone is still the value observed.
+///
+/// Refreshing `deleting_at` leases the work without lifting the fence: the column is non-NULL either way, so
+/// every write path stays refused, while a resumer that crashes leaves it looking abandoned again once the
+/// window passes. A second replica holding the same reading is refused by the compare.
+pub async fn reclaim_stale_organization(
+    pool: &SqlitePool,
+    id: &str,
+    observed_deleting_at: i64,
+) -> Result<bool, SqliteError> {
+    let now = chrono::Utc::now().timestamp();
+    let result =
+        sqlx::query("UPDATE organizations SET deleting_at = ? WHERE id = ? AND deleting_at = ?")
+            .bind(now)
+            .bind(id)
+            .bind(observed_deleting_at)
+            .execute(pool)
+            .await?;
+    Ok(result.rows_affected() > 0)
 }
 
 #[cfg(test)]
@@ -1226,9 +1272,36 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
+        let stale = get_stale_claimed_projects(&pool, 60).await.unwrap();
         assert_eq!(
-            get_stale_claimed_projects(&pool, 60).await.unwrap(),
+            stale.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>(),
             vec![project.id.clone()]
+        );
+
+        // Leasing it needs the tombstone value that was read, and refreshes it - so a second replica
+        // holding the same reading is refused and the fence stays set throughout.
+        let observed = stale[0].1;
+        assert!(
+            !reclaim_stale_project(&pool, &project.id, observed + 1)
+                .await
+                .unwrap(),
+            "a tombstone that is not the one observed is not leasable"
+        );
+        assert!(
+            reclaim_stale_project(&pool, &project.id, observed)
+                .await
+                .unwrap(),
+            "the tombstone as observed is leased"
+        );
+        assert!(
+            !reclaim_stale_project(&pool, &project.id, observed)
+                .await
+                .unwrap(),
+            "and the lease moved it on, so the same reading cannot be taken twice"
+        );
+        assert!(
+            !project_accepts_writes(&pool, &project.id).await.unwrap(),
+            "leasing must not lift the fence"
         );
 
         delete_project(&pool, None, &project.id).await.unwrap();
@@ -1642,7 +1715,8 @@ mod tests {
             get_stale_claimed_organizations(&pool, 0)
                 .await
                 .unwrap()
-                .contains(&"default".to_string())
+                .iter()
+                .any(|(id, _)| id == "default")
         );
         assert!(
             count_projects_of_organization(&pool, "default")

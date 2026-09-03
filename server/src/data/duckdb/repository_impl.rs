@@ -470,7 +470,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         &self,
         project_id: &str,
         session_ids: &[String],
-    ) -> Result<u64, DataError> {
+    ) -> Result<Vec<String>, DataError> {
         let db = Arc::clone(self);
         let pid = project_id.to_string();
         let sids = session_ids.to_vec();

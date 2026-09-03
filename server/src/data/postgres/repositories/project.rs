@@ -433,15 +433,17 @@ pub async fn project_accepts_writes(pool: &PgPool, id: &str) -> Result<bool, Pos
 pub async fn get_stale_claimed_projects(
     pool: &PgPool,
     older_than_secs: i64,
-) -> Result<Vec<String>, PostgresError> {
+) -> Result<Vec<(String, i64)>, PostgresError> {
     let cutoff = chrono::Utc::now().timestamp() - older_than_secs;
-    let rows: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM projects WHERE deleting_at IS NOT NULL AND deleting_at <= $1",
+    let rows: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT id, deleting_at FROM projects WHERE deleting_at IS NOT NULL AND deleting_at <= $1 \
+         ORDER BY deleting_at LIMIT $2",
     )
     .bind(cutoff)
+    .bind(crate::core::constants::STALE_CLEANUP_RESUME_BATCH)
     .fetch_all(pool)
     .await?;
-    Ok(rows.into_iter().map(|(id,)| id).collect())
+    Ok(rows)
 }
 
 /// The organization a project belongs to, whether or not it is claimed for deletion.
@@ -685,15 +687,17 @@ pub async fn claim_organization_for_deletion(
 pub async fn get_stale_claimed_organizations(
     pool: &PgPool,
     older_than_secs: i64,
-) -> Result<Vec<String>, PostgresError> {
+) -> Result<Vec<(String, i64)>, PostgresError> {
     let cutoff = chrono::Utc::now().timestamp() - older_than_secs;
-    let rows: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM organizations WHERE deleting_at IS NOT NULL AND deleting_at <= $1",
+    let rows: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT id, deleting_at FROM organizations WHERE deleting_at IS NOT NULL AND deleting_at <= $1 \
+         ORDER BY deleting_at LIMIT $2",
     )
     .bind(cutoff)
+    .bind(crate::core::constants::STALE_CLEANUP_RESUME_BATCH)
     .fetch_all(pool)
     .await?;
-    Ok(rows.into_iter().map(|(id,)| id).collect())
+    Ok(rows)
 }
 
 /// How many of an organization's projects still have rows, tombstoned or not.
@@ -969,4 +973,46 @@ pub async fn deleted_sessions_among(
     .fetch_all(pool)
     .await?;
     Ok(rows.into_iter().collect())
+}
+
+/// Re-lease an abandoned project cleanup, if its tombstone is still the value observed.
+///
+/// Refreshing `deleting_at` leases the work without lifting the fence: the column is non-NULL either way, so
+/// every write path stays refused, while a resumer that crashes leaves it looking abandoned again once the
+/// window passes. A second replica holding the same reading is refused by the compare.
+pub async fn reclaim_stale_project(
+    pool: &PgPool,
+    id: &str,
+    observed_deleting_at: i64,
+) -> Result<bool, PostgresError> {
+    let now = chrono::Utc::now().timestamp();
+    let result =
+        sqlx::query("UPDATE projects SET deleting_at = $1 WHERE id = $2 AND deleting_at = $3")
+            .bind(now)
+            .bind(id)
+            .bind(observed_deleting_at)
+            .execute(pool)
+            .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// Re-lease an abandoned organization cleanup, if its tombstone is still the value observed.
+///
+/// Refreshing `deleting_at` leases the work without lifting the fence: the column is non-NULL either way, so
+/// every write path stays refused, while a resumer that crashes leaves it looking abandoned again once the
+/// window passes. A second replica holding the same reading is refused by the compare.
+pub async fn reclaim_stale_organization(
+    pool: &PgPool,
+    id: &str,
+    observed_deleting_at: i64,
+) -> Result<bool, PostgresError> {
+    let now = chrono::Utc::now().timestamp();
+    let result =
+        sqlx::query("UPDATE organizations SET deleting_at = $1 WHERE id = $2 AND deleting_at = $3")
+            .bind(now)
+            .bind(id)
+            .bind(observed_deleting_at)
+            .execute(pool)
+            .await?;
+    Ok(result.rows_affected() > 0)
 }

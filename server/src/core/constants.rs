@@ -634,6 +634,20 @@ pub const DELETED_PROJECT_CHECK_BASE_SECS: i64 = 60;
 pub const DELETED_PROJECT_CHECK_MAX_SECS: i64 = 24 * 60 * 60;
 pub const DELETED_PROJECT_CHECK_BATCH: i64 = 50;
 
+/// How many abandoned project or organization cleanups one sweep resumes, and how long taking one leases it.
+///
+/// Both are needed and for different reasons. **Uncapped**, a backlog of stale projects ran ahead of the
+/// leased trace and session sweeps in the same pass - each project's cleanup touches four stores - so a stuck
+/// association from a crashed writer could go unreclaimed indefinitely while the sweep worked through
+/// projects. **Unleased**, every replica resumed every one of them, duplicating all of that storage work
+/// rather than sharing it.
+///
+/// The lease is the tombstone's own timestamp, pushed forward: `deleting_at` is both the fence and the age
+/// that makes a claim look abandoned, so refreshing it re-leases the work *without* lifting the fence, which
+/// must stay set until the cleanup finishes. A crashed resumer's project simply looks abandoned again once
+/// the window passes.
+pub const STALE_CLEANUP_RESUME_BATCH: i64 = 20;
+
 /// How long a claimed deleted-project check is leased for before another sweep may take it.
 ///
 /// A batch of fifty storage listings has no guaranteed duration, and without a lease a sweep that outran

@@ -2485,9 +2485,9 @@ pub async fn delete_sessions(
     on_cluster: &str,
     project_id: &str,
     session_ids: &[String],
-) -> Result<u64, ClickhouseError> {
+) -> Result<Vec<String>, ClickhouseError> {
     if session_ids.is_empty() {
-        return Ok(0);
+        return Ok(vec![]);
     }
 
     // Resolve the sessions to their traces and delete those, exactly as the DuckDB backend does.
@@ -2500,9 +2500,10 @@ pub async fn delete_sessions(
     // No watermark: a deletion acts on what is stored *now*, not as of some past instant.
     let trace_ids = get_trace_ids_for_sessions(client, project_id, session_ids, None).await?;
     if trace_ids.is_empty() {
-        return Ok(0);
+        return Ok(vec![]);
     }
-    delete_traces(client, table, on_cluster, project_id, &trace_ids).await
+    delete_traces(client, table, on_cluster, project_id, &trace_ids).await?;
+    Ok(trace_ids)
 }
 
 /// Delete all data for a project

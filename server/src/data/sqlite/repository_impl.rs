@@ -297,8 +297,18 @@ impl TransactionalRepository for Arc<SqliteService> {
     async fn get_stale_claimed_projects(
         &self,
         older_than_secs: i64,
-    ) -> Result<Vec<String>, DataError> {
+    ) -> Result<Vec<(String, i64)>, DataError> {
         project::get_stale_claimed_projects(self.pool(), older_than_secs)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn reclaim_stale_project(
+        &self,
+        id: &str,
+        observed_deleting_at: i64,
+    ) -> Result<bool, DataError> {
+        project::reclaim_stale_project(self.pool(), id, observed_deleting_at)
             .await
             .map_err(Into::into)
     }
@@ -444,8 +454,18 @@ impl TransactionalRepository for Arc<SqliteService> {
     async fn get_stale_claimed_organizations(
         &self,
         older_than_secs: i64,
-    ) -> Result<Vec<String>, DataError> {
+    ) -> Result<Vec<(String, i64)>, DataError> {
         project::get_stale_claimed_organizations(self.pool(), older_than_secs)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn reclaim_stale_organization(
+        &self,
+        id: &str,
+        observed_deleting_at: i64,
+    ) -> Result<bool, DataError> {
+        project::reclaim_stale_organization(self.pool(), id, observed_deleting_at)
             .await
             .map_err(Into::into)
     }
@@ -748,8 +768,19 @@ impl TransactionalRepository for Arc<SqliteService> {
     async fn get_stale_claimed_files(
         &self,
         older_than_secs: i64,
-    ) -> Result<Vec<(String, String)>, DataError> {
+    ) -> Result<Vec<(String, String, i64)>, DataError> {
         file::get_stale_claimed_files(self.pool(), older_than_secs)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn reclaim_stale_file(
+        &self,
+        project_id: &str,
+        file_hash: &str,
+        observed_deleting_at: i64,
+    ) -> Result<bool, DataError> {
+        file::reclaim_stale_file(self.pool(), project_id, file_hash, observed_deleting_at)
             .await
             .map_err(Into::into)
     }
