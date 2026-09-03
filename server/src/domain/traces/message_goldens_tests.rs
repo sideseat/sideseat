@@ -82,13 +82,10 @@ fn collect(root: &Path, dir: &Path, out: &mut BTreeMap<String, Vec<PathBuf>>) {
         let path = entry.path();
         if path.is_dir() {
             collect(root, &path, out);
-        } else if matches!(
-            path.extension().and_then(|e| e.to_str()),
-            Some("pb") | Some("json")
-        ) && path
+        } else if path
             .file_name()
             .and_then(|n| n.to_str())
-            .is_some_and(|n| n.starts_with("req-"))
+            .is_some_and(is_captured_request)
         {
             let label = path
                 .parent()
@@ -117,6 +114,16 @@ fn decode_request(path: &Path) -> ExportTraceServiceRequest {
 /// Run the real ingestion path over every captured request, in capture order.
 /// Returns `(span_name, row)`: `MessageSpanRow` carries no span name, but the golden keys
 /// span views by name so a diff points at a recognisable span rather than a raw id.
+/// Whether a file in a sample directory is a captured request the golden runner will replay.
+///
+/// One predicate, shared with `the_corpus_matches_the_support_matrix`. They had two: discovery required a
+/// `req-` prefix while the matrix counted every `.pb`/`.json` that was not `expected.json`. So renaming
+/// `req-001.pb` to `capture.pb` left the documented count unchanged while silently removing that request
+/// from every golden check - the corpus would still claim to cover it.
+fn is_captured_request(name: &str) -> bool {
+    name.starts_with("req-") && (name.ends_with(".pb") || name.ends_with(".json"))
+}
+
 fn rows_for(paths: &[PathBuf]) -> Vec<(String, MessageSpanRow)> {
     let pricing = PricingService::init_for_test().expect("offline pricing service");
     let mut rows = Vec::new();
@@ -2504,10 +2511,8 @@ fn the_corpus_matches_the_support_matrix() {
             requests += std::fs::read_dir(&sample)
                 .expect("sample dir")
                 .filter_map(Result::ok)
-                .filter(|f| {
-                    let name = f.file_name().to_string_lossy().to_string();
-                    name != "expected.json" && (name.ends_with(".pb") || name.ends_with(".json"))
-                })
+                // The same predicate discovery uses, so the documented count is exactly what runs.
+                .filter(|f| is_captured_request(&f.file_name().to_string_lossy()))
                 .count();
         }
         found.push((suite, samples, requests));
