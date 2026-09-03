@@ -1097,16 +1097,20 @@ fn assert_session_partitions_into_traces(
         // Production builds that trace's view from whichever session it resolves to, so the
         // partition only holds for that session; skip the others rather than assert something
         // the API would not produce.
-        if traces
+        // Asserted, not excused. This used to `continue` for a session that shared a trace with another -
+        // ADK emits its own session id alongside the sample's, so a trace appeared under two - and the
+        // partition simply went unchecked for those fixtures. A trace now belongs to exactly one session
+        // (see `CANONICAL_TRACE_SESSIONS`), so the condition cannot arise, and saying so as an assertion
+        // means the invariant is checked everywhere rather than quietly skipped where it mattered most.
+        let foreign: Vec<&String> = traces
             .iter()
-            .any(|t| session_of_trace.get(t) != Some(session_id))
-        {
-            eprintln!(
-                "message_goldens: {label}: session {session_id} shares a trace with another \
-                 session; partition not asserted"
-            );
-            continue;
-        }
+            .filter(|t| session_of_trace.get(*t) != Some(session_id))
+            .collect();
+        assert!(
+            foreign.is_empty(),
+            "{label}: session {session_id} claims trace(s) {foreign:?} whose canonical session is \
+             different - a trace belongs to exactly one session"
+        );
         let expected: usize = traces
             .iter()
             .filter_map(|trace_id| trace_labels.get(trace_id))

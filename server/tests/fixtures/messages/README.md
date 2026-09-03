@@ -11,6 +11,12 @@ covered](#what-is-and-is-not-covered), which is the honest version of this sente
 | span    | `WHERE span_id = ?`, no content filter                 | `/spans/{trace}/{span}/messages` |
 | trace   | whole session when the trace has one, then scoped back | `/traces/{id}/messages`          |
 | session | every row of every trace in the session                | `/sessions/{id}/messages`        |
+
+A trace belongs to **exactly one** session: the one on its earliest span, ordered by
+`(timestamp_start, span_id)`. Frameworks do put two session ids on one trace — ADK emits its own
+beside the caller's — and 24 of these fixtures once recorded a session view under *both*, holding the
+identical messages. The goldens had blessed that duplication as correct, which is the failure mode
+they are most prone to.
 | feed    | every row, newest response first                       | `/feed/messages`                 |
 
 The first three call `process_spans` and differ only in their row set, so each is built with its
@@ -106,10 +112,12 @@ snapshot still fail on a real defect:
 
 - every returned block belongs to the scope requested, by exact id (a span view never leaks a
   sibling span; a trace view never survives `scope_feed_to_trace` with another trace's block)
-- a session's trace views partition its session view exactly — summing them must equal it. Not
-  asserted for a session that shares a trace with another session (ADK emits its own session id
-  alongside the sample's, so one trace belongs to two); the test says so per fixture rather than
-  passing quietly
+- a session's trace views partition its session view exactly — summing them must equal it. This is
+  now asserted for **every** session, and the reason it once could not be is worth keeping: ADK emits
+  its own session id alongside the sample's, so a trace named two sessions and appeared under both,
+  which made the partition meaningless for exactly the fixtures where it mattered. A trace belongs to
+  the session on its earliest span, so that cannot happen — and the check that a session claims no
+  foreign trace is an assertion rather than a skip
 - no duplicate (role, kind, full-content digest) within one trace. This is also a deliberate
   product limit: a genuine repeat of the same tool call or message inside one trace is collapsed,
   because it is indistinguishable from a history re-send — see the pipeline notes in
