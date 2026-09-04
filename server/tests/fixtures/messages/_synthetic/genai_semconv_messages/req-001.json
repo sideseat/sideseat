@@ -1,0 +1,216 @@
+{
+ "resourceSpans": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "service.name",
+      "value": {
+       "stringValue": "vercel-app"
+      }
+     },
+     {
+      "key": "telemetry.sdk.name",
+      "value": {
+       "stringValue": "sideseat"
+      }
+     },
+     {
+      "key": "telemetry.sdk.language",
+      "value": {
+       "stringValue": "node"
+      }
+     },
+     {
+      "key": "sideseat.framework",
+      "value": {
+       "stringValue": "vercel-ai"
+      }
+     }
+    ]
+   },
+   "scopeSpans": [
+    {
+     "scope": {
+      "name": "gen_ai"
+     },
+     "spans": [
+      {
+       "traceId": "bb00000000000000000000000000000001",
+       "spanId": "b100000000000001",
+       "name": "chat claude-haiku",
+       "kind": 1,
+       "startTimeUnixNano": "1735689600000000000",
+       "endTimeUnixNano": "1735689603000000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "chat"
+         }
+        },
+        {
+         "key": "gen_ai.provider.name",
+         "value": {
+          "stringValue": "amazon.bedrock"
+         }
+        },
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "claude-haiku"
+         }
+        },
+        {
+         "key": "gen_ai.system_instructions",
+         "value": {
+          "stringValue": "[{\"type\": \"text\", \"content\": \"You are a calculator.\"}]"
+         }
+        },
+        {
+         "key": "gen_ai.input.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"what is 2+2?\"}]}]"
+         }
+        }
+       ],
+       "events": []
+      },
+      {
+       "traceId": "bb00000000000000000000000000000001",
+       "spanId": "b100000000000002",
+       "parentSpanId": "b100000000000001",
+       "name": "step 1",
+       "kind": 1,
+       "startTimeUnixNano": "1735689600100000000",
+       "endTimeUnixNano": "1735689602000000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "chat"
+         }
+        }
+       ],
+       "events": []
+      },
+      {
+       "traceId": "bb00000000000000000000000000000001",
+       "spanId": "b100000000000003",
+       "parentSpanId": "b100000000000002",
+       "name": "chat claude-haiku",
+       "kind": 3,
+       "startTimeUnixNano": "1735689600200000000",
+       "endTimeUnixNano": "1735689601500000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "chat"
+         }
+        },
+        {
+         "key": "gen_ai.provider.name",
+         "value": {
+          "stringValue": "amazon.bedrock"
+         }
+        },
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "claude-haiku"
+         }
+        },
+        {
+         "key": "gen_ai.response.model",
+         "value": {
+          "stringValue": "claude-haiku-20241022"
+         }
+        },
+        {
+         "key": "gen_ai.response.finish_reasons",
+         "value": {
+          "stringValue": "[\"stop\"]"
+         }
+        },
+        {
+         "key": "gen_ai.input.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"what is 2+2?\"}]}]"
+         }
+        },
+        {
+         "key": "gen_ai.output.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"text\", \"content\": \"4\"}], \"finish_reason\": \"stop\"}]"
+         }
+        },
+        {
+         "key": "gen_ai.usage.input_tokens",
+         "value": {
+          "intValue": "12"
+         }
+        },
+        {
+         "key": "gen_ai.usage.output_tokens",
+         "value": {
+          "intValue": "3"
+         }
+        }
+       ],
+       "events": []
+      },
+      {
+       "traceId": "bb00000000000000000000000000000001",
+       "spanId": "b100000000000004",
+       "parentSpanId": "b100000000000002",
+       "name": "execute_tool calculator",
+       "kind": 1,
+       "startTimeUnixNano": "1735689601600000000",
+       "endTimeUnixNano": "1735689601900000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "calculator"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.id",
+         "value": {
+          "stringValue": "call_1"
+         }
+        },
+        {
+         "key": "gen_ai.tool.type",
+         "value": {
+          "stringValue": "function"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"expression\": \"2+2\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"value\": 4}"
+         }
+        }
+       ],
+       "events": []
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

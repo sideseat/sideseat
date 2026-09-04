@@ -32,7 +32,7 @@ export interface TelemetryOptions {
  *
  * Also instruments AWS SDK (botocore equivalent) for Bedrock call tracing.
  */
-export function setupTelemetry(options: TelemetryOptions = {}): SideSeat | null {
+export async function setupTelemetry(options: TelemetryOptions = {}): Promise<SideSeat | null> {
   const { useSideseat = false, framework = Frameworks.Strands, serviceName } = options;
 
   if (client !== null || provider !== null) return client;
@@ -48,7 +48,7 @@ export function setupTelemetry(options: TelemetryOptions = {}): SideSeat | null 
 
   if (useSideseat) {
     // Initialize SideSeat (sets up OTLP trace exporter to SideSeat endpoint)
-    client = init({
+    client = await init({
       endpoint: config.sideseatEndpoint,
       projectId: config.sideseatProjectId,
       framework,

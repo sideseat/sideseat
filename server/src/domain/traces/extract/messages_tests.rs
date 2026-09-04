@@ -2737,11 +2737,12 @@ fn test_otel_tool_call_arguments_extraction() {
 
     assert!(found);
     assert_eq!(messages.len(), 1);
-    let msg = &messages[0].content;
-    assert_eq!(msg.get("role").and_then(|r| r.as_str()), Some("tool_call"));
-    let content = msg.get("content").unwrap();
-    assert_eq!(content["city"].as_str(), Some("New York"));
-    assert_eq!(content["units"].as_str(), Some("fahrenheit"));
+    // A `tool_use` content block, not a bare object under a `tool_call` role: the block is what carries the
+    // tool's name and id through normalisation, and without them the call was discarded downstream.
+    let block = &messages[0].content["content"][0];
+    assert_eq!(block["type"], "tool_use");
+    assert_eq!(block["input"]["city"].as_str(), Some("New York"));
+    assert_eq!(block["input"]["units"].as_str(), Some("fahrenheit"));
 }
 
 #[test]
@@ -2753,11 +2754,10 @@ fn test_otel_tool_call_result_extraction() {
 
     assert!(found);
     assert_eq!(messages.len(), 1);
-    let msg = &messages[0].content;
-    assert_eq!(msg.get("role").and_then(|r| r.as_str()), Some("tool"));
-    let content = msg.get("content").unwrap();
-    assert_eq!(content["temperature"].as_i64(), Some(72));
-    assert_eq!(content["conditions"].as_str(), Some("sunny"));
+    let block = &messages[0].content["content"][0];
+    assert_eq!(block["type"], "tool_result");
+    assert_eq!(block["content"]["temperature"].as_i64(), Some(72));
+    assert_eq!(block["content"]["conditions"].as_str(), Some("sunny"));
 }
 
 #[test]
@@ -3075,8 +3075,9 @@ fn test_pydantic_ai_tool_call_with_complex_arguments() {
     let found = try_otel_genai_messages(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
 
     assert!(found, "Should extract complex tool arguments");
-    let content = messages[0].content.as_object().unwrap();
-    let args = content.get("content").unwrap();
+    let block = &messages[0].content["content"][0];
+    assert_eq!(block["type"], "tool_use");
+    let args = &block["input"];
     assert!(args.is_object(), "Arguments should be preserved as object");
     assert!(
         args.get("query").is_some(),
@@ -3144,12 +3145,12 @@ fn test_pydantic_ai_v3_tool_call_arguments() {
     assert!(found, "Should extract from gen_ai.tool.call.arguments");
     assert!(!messages.is_empty());
 
+    // An assistant message carrying a `tool_use` block, which is what a call is - see
+    // `semconv_tool_attributes_become_a_named_correlated_pair`.
     let msg = &messages[0];
-    let content = msg.content.as_object().unwrap();
-    assert_eq!(
-        content.get("role").and_then(|v| v.as_str()),
-        Some("tool_call")
-    );
+    assert_eq!(msg.content["role"], "assistant");
+    assert_eq!(msg.content["content"][0]["type"], "tool_use");
+    assert_eq!(msg.content["content"][0]["input"]["city"], "NYC");
 }
 
 #[test]
@@ -6135,6 +6136,7 @@ fn test_autogen_tool_execution_event_full_pipeline() {
         "autogen process RoundRobinGroupChatManager_xyz",
         Utc::now(),
         ExtractionMode::FirstMatch,
+        false,
     );
 
     assert_eq!(
@@ -6566,4 +6568,49 @@ fn test_claude_code_unknown_tool_id_prefix_degrades_instead_of_dropping() {
         messages[0].content["content"][0]["content"],
         json!("config.py\ninventory.py")
     );
+}
+
+/// The current conventions' tool attributes become a call and a result, with the name and the id.
+///
+/// `gen_ai.tool.call.arguments` / `.result` are how the present OTel GenAI conventions report a tool call -
+/// the Vercel AI SDK's current integration and Microsoft Agent Framework both use them - and they appear on
+/// a *tool* span, where attribute extraction used to be skipped wholesale. Read but stripped of the name and
+/// id they sit beside, they became a nameless call the pipeline discarded, which is worse than not reading
+/// them: every layer looked healthy and the tool call was gone.
+#[test]
+fn semconv_tool_attributes_become_a_named_correlated_pair() {
+    let attrs = make_attrs(&[
+        ("gen_ai.operation.name", "execute_tool"),
+        ("gen_ai.tool.name", "calculator"),
+        ("gen_ai.tool.call.id", "call_1"),
+        ("gen_ai.tool.call.arguments", r#"{"expression":"2+2"}"#),
+        ("gen_ai.tool.call.result", r#"{"value":4}"#),
+    ]);
+
+    let mut messages = Vec::new();
+    assert!(try_otel_genai_messages(
+        &mut messages,
+        &mut Vec::new(),
+        &attrs,
+        "execute_tool calculator",
+        Utc::now()
+    ));
+    assert_eq!(messages.len(), 2, "a call and its result");
+
+    let call = &messages[0].content["content"][0];
+    assert_eq!(call["type"], "tool_use");
+    assert_eq!(
+        call["name"], "calculator",
+        "the tool's name is beside the arguments; use it"
+    );
+    assert_eq!(call["id"], "call_1");
+    assert_eq!(call["input"]["expression"], "2+2");
+
+    let result = &messages[1].content["content"][0];
+    assert_eq!(result["type"], "tool_result");
+    assert_eq!(
+        result["tool_use_id"], "call_1",
+        "the result names the call, so the pair survives dedup as a pair"
+    );
+    assert_eq!(result["content"]["value"], 4);
 }

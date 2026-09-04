@@ -132,7 +132,11 @@ class TelemetryClient:
             logger.debug("TracerProvider already set; adding to existing")
             self.tracer_provider = existing
         else:
-            resource = get_otel_resource(self._config.service_name, self._config.service_version)
+            resource = get_otel_resource(
+                self._config.service_name,
+                self._config.service_version,
+                self._config.framework,
+            )
             self.tracer_provider = SDKTracerProvider(resource=resource)
             trace.set_tracer_provider(self.tracer_provider)
             setup_propagators()

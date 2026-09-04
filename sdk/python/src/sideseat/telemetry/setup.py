@@ -103,7 +103,7 @@ def setup_metrics(config: Config) -> Any:
 
     exporter = OTLPMetricExporter(endpoint=endpoint, headers=headers, timeout=build_timeout())
     reader = PeriodicExportingMetricReader(exporter, export_interval_millis=60000)
-    resource = get_otel_resource(config.service_name, config.service_version)
+    resource = get_otel_resource(config.service_name, config.service_version, config.framework)
     meter_provider = MeterProvider(resource=resource, metric_readers=[reader])
     metrics.set_meter_provider(meter_provider)
     return meter_provider
@@ -132,7 +132,7 @@ def setup_logs(config: Config) -> tuple[Any, Any]:
     endpoint = build_endpoint(config, "logs")
     headers = build_headers(config)
 
-    resource = get_otel_resource(config.service_name, config.service_version)
+    resource = get_otel_resource(config.service_name, config.service_version, config.framework)
     logger_provider = LoggerProvider(resource=resource)
     set_logger_provider(logger_provider)
 

@@ -112,7 +112,7 @@ async function main() {
 
   // Host-process provider. The Agent SDK injects TRACEPARENT from the active span
   // into the CLI subprocess, so the agent run nests under this trace.
-  setupTelemetry({
+  await setupTelemetry({
     useSideseat,
     framework: Frameworks.ClaudeAgentSDK,
     serviceName: CLAUDE_AGENT_SERVICE_NAME,

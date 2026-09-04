@@ -175,11 +175,17 @@ pub fn declared_semantics(
         // A tool span's own pair: it was handed the arguments and it produced the result. One emission
         // each - a tool is called once - differing only in direction, which is the clearest case for
         // direction being its own fact rather than something inferred from the shape.
-        Some("ai.toolCall.result") => CarrierSemantics::EMISSION,
-        Some("ai.toolCall.args") | Some("tool_name") => CarrierSemantics {
-            carrier_holds_span_output: false,
-            ..CarrierSemantics::EMISSION
-        },
+        //
+        // `gen_ai.tool.call.*` is the same pair under the *current* conventions, which is how the Vercel AI
+        // SDK's present integration reports a tool call: pure `gen_ai.*`, no `ai.*` at all. Same reading,
+        // because it is the same fact written to a newer name.
+        Some("ai.toolCall.result") | Some("gen_ai.tool.call.result") => CarrierSemantics::EMISSION,
+        Some("ai.toolCall.args") | Some("gen_ai.tool.call.arguments") | Some("tool_name") => {
+            CarrierSemantics {
+                carrier_holds_span_output: false,
+                ..CarrierSemantics::EMISSION
+            }
+        }
         // The model's reply, under the Claude Code CLI's name for it.
         Some("response.model_output") => CarrierSemantics::EMISSION,
         // The error built from a span's exception fields. The span produced it, it is not a re-send,

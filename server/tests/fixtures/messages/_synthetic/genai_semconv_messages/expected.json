@@ -1,0 +1,217 @@
+{
+  "label": "_synthetic/genai_semconv_messages",
+  "request_count": 1,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 0,
+  "span_views": {
+    "trace-1/chat claude-haiku/span-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a calculator.",
+          "content_digest": "2de8d2286889feaa",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "what is 2+2?",
+          "content_digest": "b1117f89fd8abfce",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat claude-haiku/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "what is 2+2?",
+          "content_digest": "b1117f89fd8abfce",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "4",
+          "content_digest": "a2a43d6fea6e037c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_tool calculator/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_1\",\"name\":\"calculator\",\"input\":{\"expression\":\"2+2\"}}",
+          "content_digest": "cf5ee4641e7036ad",
+          "tool_name": "calculator",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_1\",\"name\":\"calculator\",\"content\":{\"value\":4}}",
+          "content_digest": "8b073f48a4dbaa72",
+          "tool_name": "calculator",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/step 1/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a calculator.",
+          "content_digest": "2de8d2286889feaa",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "what is 2+2?",
+          "content_digest": "b1117f89fd8abfce",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "4",
+          "content_digest": "a2a43d6fea6e037c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_1\",\"name\":\"calculator\",\"input\":{\"expression\":\"2+2\"}}",
+          "content_digest": "cf5ee4641e7036ad",
+          "tool_name": "calculator",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_1\",\"name\":\"calculator\",\"content\":{\"value\":4}}",
+          "content_digest": "8b073f48a4dbaa72",
+          "tool_name": "calculator",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {},
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_1\",\"name\":\"calculator\",\"content\":{\"value\":4}}",
+        "content_digest": "8b073f48a4dbaa72",
+        "tool_name": "calculator",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_1\",\"name\":\"calculator\",\"input\":{\"expression\":\"2+2\"}}",
+        "content_digest": "cf5ee4641e7036ad",
+        "tool_name": "calculator",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "4",
+        "content_digest": "a2a43d6fea6e037c",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a calculator.",
+        "content_digest": "2de8d2286889feaa",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "what is 2+2?",
+        "content_digest": "b1117f89fd8abfce",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

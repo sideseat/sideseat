@@ -432,6 +432,17 @@ pub(crate) enum ExtractionMode {
 /// by a generic copy of the same content.
 const FALLBACK_RULE: &str = "raw_io";
 
+/// The only extractor whose attributes mean "a message" on a **tool** span.
+///
+/// `gen_ai.tool.call.arguments` and `.result` are what the current conventions define for reporting a tool
+/// call, and they appear on exactly this kind of span. Every other carrier on a tool span is that framework's
+/// own echo of the parameters and the result - ADK's `gcp.vertex.agent.tool_call_args` is the case that
+/// proves it: ADK reports the call in its conversation stream as events, so reading the attribute too
+/// duplicated the call and made the order depend on which copy survived dedup, which
+/// `which_copy_survives_does_not_change_the_order` caught on `adk/tool_use`. So a tool span reads the
+/// conventions and nothing else.
+const SEMCONV_RULE: &str = "otel_genai_messages";
+
 pub(crate) fn extract_messages_from_attrs(
     messages: &mut Vec<RawMessage>,
     tool_definitions: &mut Vec<RawToolDefinition>,
@@ -439,14 +450,25 @@ pub(crate) fn extract_messages_from_attrs(
     span_name: &str,
     timestamp: DateTime<Utc>,
     mode: ExtractionMode,
+    is_tool_span: bool,
 ) {
     if mode == ExtractionMode::PerCarrier {
-        extract_per_carrier(messages, tool_definitions, attrs, span_name, timestamp);
+        extract_per_carrier(
+            messages,
+            tool_definitions,
+            attrs,
+            span_name,
+            timestamp,
+            is_tool_span,
+        );
         return;
     }
 
     // Try extractors in priority order - stop at first match
     for named in EXTRACTORS {
+        if is_tool_span && named.name != SEMCONV_RULE {
+            continue;
+        }
         if (named.extractor)(messages, tool_definitions, attrs, span_name, timestamp) {
             tracing::trace!(
                 extractor = named.name,
@@ -474,12 +496,17 @@ fn extract_per_carrier(
     attrs: &HashMap<String, String>,
     span_name: &str,
     timestamp: DateTime<Utc>,
+    is_tool_span: bool,
 ) {
     let mut claimed: HashSet<String> = messages.iter().map(|m| carrier_of(&m.source)).collect();
     let mut any_specific = false;
 
     for named in EXTRACTORS {
         if named.name == FALLBACK_RULE {
+            continue;
+        }
+        // A tool span reads the conventions and nothing else - see `SEMCONV_RULE`.
+        if is_tool_span && named.name != SEMCONV_RULE {
             continue;
         }
         let mut produced = Vec::new();
@@ -508,7 +535,7 @@ fn extract_per_carrier(
         );
     }
 
-    if !any_specific {
+    if !any_specific && !is_tool_span {
         for named in EXTRACTORS.iter().filter(|e| e.name == FALLBACK_RULE) {
             (named.extractor)(messages, tool_definitions, attrs, span_name, timestamp);
         }
@@ -809,7 +836,7 @@ pub(crate) fn try_otel_genai_messages(
     messages: &mut Vec<RawMessage>,
     _tool_definitions: &mut Vec<RawToolDefinition>,
     attrs: &HashMap<String, String>,
-    _: &str,
+    span_name: &str,
     timestamp: DateTime<Utc>,
 ) -> bool {
     let mut found = false;
@@ -866,32 +893,61 @@ pub(crate) fn try_otel_genai_messages(
         found = true;
     }
 
-    // gen_ai.tool.call.arguments - tool call input
+    // The tool's name and call id, which the two attributes below need and which live beside them on the
+    // same span. Emitting the arguments without them produced a nameless, id-less tool call that the
+    // pipeline then discarded - so a producer following the current conventions had its tool calls extracted
+    // and *then* dropped, which is worse than not reading them, because every layer looked fine.
+    // The span name is the fallback for the tool's name, because the conventions put it there too:
+    // `execute_tool {name}` is the prescribed span name, and a producer that omits the attribute still
+    // names the tool in the span. An empty name is what makes a call unusable downstream.
+    let tool_name = attrs.get(keys::GEN_AI_TOOL_NAME).cloned().or_else(|| {
+        span_name
+            .strip_prefix("execute_tool ")
+            .map(|n| n.trim().to_string())
+            .filter(|n| !n.is_empty())
+    });
+    let tool_call_id = attrs.get(keys::GEN_AI_TOOL_CALL_ID);
+
+    // gen_ai.tool.call.arguments - the call
     if let Some(args_json) = attrs.get(keys::GEN_AI_TOOL_CALL_ARGUMENTS) {
         let args = serde_json::from_str::<JsonValue>(args_json).unwrap_or(json!(args_json));
-        let msg = json!({
-            "role": "tool_call",
-            "content": args
-        });
+        // A `tool_use` content block, which is what a call *is* - not a bare object under a role. The
+        // block shape is what carries the name and the id through normalisation, and the id is what lets
+        // the result be paired with this call rather than guessed at by content.
+        let mut block = serde_json::Map::new();
+        block.insert("type".to_string(), json!("tool_use"));
+        block.insert(
+            "name".to_string(),
+            json!(tool_name.clone().unwrap_or_default()),
+        );
+        if let Some(id) = tool_call_id {
+            block.insert("id".to_string(), json!(id));
+        }
+        block.insert("input".to_string(), args);
         messages.push(RawMessage::from_attr(
             keys::GEN_AI_TOOL_CALL_ARGUMENTS,
             timestamp,
-            msg,
+            json!({"role": "assistant", "content": [JsonValue::Object(block)]}),
         ));
         found = true;
     }
 
-    // gen_ai.tool.call.result - tool call output
+    // gen_ai.tool.call.result - the answer to it
     if let Some(result_json) = attrs.get(keys::GEN_AI_TOOL_CALL_RESULT) {
         let result = serde_json::from_str::<JsonValue>(result_json).unwrap_or(json!(result_json));
-        let msg = json!({
-            "role": "tool",
-            "content": result
-        });
+        let mut block = serde_json::Map::new();
+        block.insert("type".to_string(), json!("tool_result"));
+        if let Some(name) = &tool_name {
+            block.insert("name".to_string(), json!(name));
+        }
+        if let Some(id) = tool_call_id {
+            block.insert("tool_use_id".to_string(), json!(id));
+        }
+        block.insert("content".to_string(), result);
         messages.push(RawMessage::from_attr(
             keys::GEN_AI_TOOL_CALL_RESULT,
             timestamp,
-            msg,
+            json!({"role": "tool", "content": [JsonValue::Object(block)]}),
         ));
         found = true;
     }
@@ -4230,8 +4286,14 @@ pub(super) fn extract_messages_for_span(
     tool_definitions.extend(defs);
     tool_names.extend(names);
 
-    // Attributes are read whatever the events said, except on tool spans - whose `input.value` and
-    // `output.value` hold tool params and results rather than conversation.
+    // Attributes are read whatever the events said, **and on tool spans too** - but on a tool span only the
+    // conventions' own tool attributes are read; see `SEMCONV_RULE`.
+    //
+    // Attribute extraction used to be skipped wholesale for a tool span, because its `input.value` and
+    // `output.value` hold tool parameters and results rather than conversation. That is true of those
+    // carriers and false of `gen_ai.tool.call.arguments` / `.result`, which are how the current conventions
+    // report a tool call and appear on exactly this kind of span - so a producer following them had its tool
+    // calls silently dropped.
     //
     // One recognised event used to suppress *every* attribute carrier on the span, on the grounds that
     // "events contain the authoritative conversation data". That is true of the carrier an event covers and
@@ -4244,7 +4306,6 @@ pub(super) fn extract_messages_for_span(
     // Reading both is safe *because* claiming is per carrier: an event's blocks are already claimed, so the
     // attribute pass contributes only what no event covered, and content-based dedup collapses a genuine
     // overlap. Measured across all 111 fixtures and four views: removing the gate changed nothing.
-    let should_extract_attrs = !is_tool_span;
 
     // Debug: Log extraction decision
     if span_attrs.contains_key(keys::AI_PROMPT_MESSAGES) || span_attrs.contains_key(keys::AI_PROMPT)
@@ -4253,21 +4314,19 @@ pub(super) fn extract_messages_for_span(
             span_name = %otlp_span.name,
             is_tool_span,
             messages_before_attrs = raw_messages.len(),
-            should_extract_attrs,
             "VercelAISDK extraction decision"
         );
     }
 
-    if should_extract_attrs {
-        extract_messages_from_attrs(
-            &mut raw_messages,
-            &mut tool_definitions,
-            span_attrs,
-            &otlp_span.name,
-            timestamp,
-            mode,
-        );
-    }
+    extract_messages_from_attrs(
+        &mut raw_messages,
+        &mut tool_definitions,
+        span_attrs,
+        &otlp_span.name,
+        timestamp,
+        mode,
+        is_tool_span,
+    );
 
     // Debug: Log final message count
     if span_attrs.contains_key(keys::AI_PROMPT_MESSAGES) || span_attrs.contains_key(keys::AI_PROMPT)
@@ -4284,7 +4343,6 @@ pub(super) fn extract_messages_for_span(
         tracing::trace!(
             span_name = %otlp_span.name,
             is_tool_span,
-            should_extract_attrs,
             event_count = otlp_span.events.len(),
             raw_messages_count = raw_messages.len(),
             has_message_attr = true,

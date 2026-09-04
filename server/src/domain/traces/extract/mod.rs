@@ -83,6 +83,14 @@ pub(super) mod keys {
     pub const DEPLOYMENT_ENV_NAME: &str = "deployment.environment.name";
     pub const SERVICE_NAME: &str = "service.name";
     pub const TELEMETRY_SDK_NAME: &str = "telemetry.sdk.name";
+    /// The framework a SideSeat SDK declares it was configured for, as a resource attribute.
+    ///
+    /// Read as a **fallback** for detection: the current OTel GenAI conventions are deliberately
+    /// framework-neutral, so a producer that follows them emits nothing to sniff. The Vercel AI SDK's
+    /// current OpenTelemetry integration is exactly that - pure `gen_ai.*`, no `ai.*` at all - and its spans
+    /// therefore arrived as `Unknown` however carefully the rules were written. A declaration by our own SDK
+    /// is the only honest source for that, and it cannot override per-span evidence.
+    pub const SIDESEAT_FRAMEWORK: &str = "sideseat.framework";
 
     // Session/User
     pub const SESSION_ID: &str = "session.id";

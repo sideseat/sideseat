@@ -235,25 +235,91 @@
       ]
     },
     "trace-1/execute_tool search_knowledge/span-12": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What embedding models are available for vector search? List supported embedding models and providers, including Microsoft Agent Fram…[307 chars]",
+          "content_digest": "96c2ded7ca470354",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity or L2 distance. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. Cosine similarity m…[1397 chars]",
+          "content_digest": "152cb7321f65e2d8",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/execute_tool search_knowledge/span-4": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What is SideSeat and how does it help with AI observability? Microsoft Agent Framework SideSeat observability features architecture\"…[258 chars]",
+          "content_digest": "69b274e8ecb60b96",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1360 chars]",
+          "content_digest": "feadc72b6ee07b6a",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/execute_tool search_knowledge/span-8": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"How does Retrieval-Augmented Generation (RAG) work, and what are its key components? Include ingestion, chunking, embeddings, vector…[327 chars]",
+          "content_digest": "3cf8cae9b351c013",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.81) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1380 chars]",
+          "content_digest": "079b5265e07b2c9f",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/invoke_agent 7f70c882-60b7-4353-af36-bcfca965a20b/span-10": {
       "message_count": 5,
@@ -471,9 +537,10 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normaliz…[1486 chars]",
-          "content_digest": "3571df20e0fcbae0",
-          "observation_type": "agent"
+          "content": "[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1360 chars]",
+          "content_digest": "feadc72b6ee07b6a",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
         },
         {
           "index": 4,
@@ -505,9 +572,10 @@
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.81) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents…[1506 chars]",
-          "content_digest": "f93bfad974f02a83",
-          "observation_type": "agent"
+          "content": "[1] (relevance: 0.81) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1380 chars]",
+          "content_digest": "079b5265e07b2c9f",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
         },
         {
           "index": 8,
@@ -539,9 +607,10 @@
           "index": 11,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similari…[1523 chars]",
-          "content_digest": "5aeba49c5aeba7a6",
-          "observation_type": "agent"
+          "content": "[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity or L2 distance. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. Cosine similarity m…[1397 chars]",
+          "content_digest": "152cb7321f65e2d8",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
         },
         {
           "index": 12,
@@ -605,9 +674,10 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normaliz…[1486 chars]",
-          "content_digest": "3571df20e0fcbae0",
-          "observation_type": "agent"
+          "content": "[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1360 chars]",
+          "content_digest": "feadc72b6ee07b6a",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
         },
         {
           "index": 4,
@@ -639,9 +709,10 @@
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.81) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents…[1506 chars]",
-          "content_digest": "f93bfad974f02a83",
-          "observation_type": "agent"
+          "content": "[1] (relevance: 0.81) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1380 chars]",
+          "content_digest": "079b5265e07b2c9f",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
         },
         {
           "index": 8,
@@ -673,9 +744,10 @@
           "index": 11,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similari…[1523 chars]",
-          "content_digest": "5aeba49c5aeba7a6",
-          "observation_type": "agent"
+          "content": "[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity or L2 distance. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. Cosine similarity m…[1397 chars]",
+          "content_digest": "152cb7321f65e2d8",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
         },
         {
           "index": 12,
@@ -693,18 +765,18 @@
     "message_count": 13,
     "role_sequence": [
       "assistant",
+      "tool",
       "user",
       "assistant",
-      "tool",
       "assistant",
+      "tool",
       "user",
       "assistant",
-      "tool",
       "assistant",
+      "tool",
       "system",
       "user",
-      "assistant",
-      "tool"
+      "assistant"
     ],
     "tool_names": [],
     "tool_definition_count": 1,
@@ -720,6 +792,15 @@
       },
       {
         "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity or L2 distance. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. Cosine similarity m…[1397 chars]",
+        "content_digest": "152cb7321f65e2d8",
+        "tool_name": "search_knowledge",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
         "role": "user",
         "entry_type": "text",
         "content": "What embedding models are available for vector search?",
@@ -727,20 +808,12 @@
         "observation_type": "agent"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What embedding models are available for vector search? List supported embedding models and providers, including Microsoft Agent Fram…[307 chars]",
         "content_digest": "96c2ded7ca470354",
         "tool_name": "search_knowledge",
-        "observation_type": "agent"
-      },
-      {
-        "index": 3,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_76c14e452da658f0ae841c5d04f24be3\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similari…[1523 chars]",
-        "content_digest": "5aeba49c5aeba7a6",
         "observation_type": "agent"
       },
       {
@@ -754,6 +827,15 @@
       },
       {
         "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.81) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1380 chars]",
+        "content_digest": "079b5265e07b2c9f",
+        "tool_name": "search_knowledge",
+        "observation_type": "tool"
+      },
+      {
+        "index": 6,
         "role": "user",
         "entry_type": "text",
         "content": "How does RAG work and what are its key components?",
@@ -761,20 +843,12 @@
         "observation_type": "agent"
       },
       {
-        "index": 6,
+        "index": 7,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"How does Retrieval-Augmented Generation (RAG) work, and what are its key components? Include ingestion, chunking, embeddings, vector…[327 chars]",
         "content_digest": "3cf8cae9b351c013",
         "tool_name": "search_knowledge",
-        "observation_type": "agent"
-      },
-      {
-        "index": 7,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7a8a7aa7faf5294b7596c0b7689b7cb\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.81) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents…[1506 chars]",
-        "content_digest": "f93bfad974f02a83",
         "observation_type": "agent"
       },
       {
@@ -788,6 +862,15 @@
       },
       {
         "index": 9,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1360 chars]",
+        "content_digest": "feadc72b6ee07b6a",
+        "tool_name": "search_knowledge",
+        "observation_type": "tool"
+      },
+      {
+        "index": 10,
         "role": "system",
         "entry_type": "text",
         "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
@@ -795,7 +878,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 10,
+        "index": 11,
         "role": "user",
         "entry_type": "text",
         "content": "What is SideSeat and how does it help with AI observability?",
@@ -803,20 +886,12 @@
         "observation_type": "agent"
       },
       {
-        "index": 11,
+        "index": 12,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"What is SideSeat and how does it help with AI observability? Microsoft Agent Framework SideSeat observability features architecture\"…[258 chars]",
         "content_digest": "69b274e8ecb60b96",
         "tool_name": "search_knowledge",
-        "observation_type": "agent"
-      },
-      {
-        "index": 12,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_e80ff84345035499a9fc8fd890707b97\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normaliz…[1486 chars]",
-        "content_digest": "3571df20e0fcbae0",
         "observation_type": "agent"
       }
     ]

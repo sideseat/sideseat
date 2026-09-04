@@ -109,7 +109,7 @@ async function main() {
 
   // Setup telemetry BEFORE loading samples (which import AWS SDK)
   // This ensures AWS SDK instrumentation captures all Bedrock calls
-  setupTelemetry({ useSideseat, framework: Frameworks.Strands });
+  await setupTelemetry({ useSideseat, framework: Frameworks.Strands });
 
   // Now load samples (which will import Strands SDK -> AWS SDK)
   await loadSamples();

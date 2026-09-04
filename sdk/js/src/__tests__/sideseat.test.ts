@@ -1,7 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import {
   init,
-  createClient,
   getClient,
   shutdown,
   isInitialized,
@@ -19,15 +18,18 @@ describe("SideSeat", () => {
     await shutdown(); // Clean up global instance
   });
 
-  it("init returns instance", () => {
-    const client = init({ framework: Frameworks.VercelAI, disabled: true });
+  it("init returns instance", async () => {
+    const client = await init({
+      framework: Frameworks.VercelAI,
+      disabled: true,
+    });
     expect(client).toBeInstanceOf(SideSeat);
     expect(isInitialized()).toBe(true);
   });
 
-  it("double init returns same instance", () => {
-    const c1 = init({ framework: Frameworks.VercelAI, disabled: true });
-    const c2 = init({ framework: Frameworks.VercelAI, disabled: true });
+  it("double init returns same instance", async () => {
+    const c1 = await init({ framework: Frameworks.VercelAI, disabled: true });
+    const c2 = await init({ framework: Frameworks.VercelAI, disabled: true });
     expect(c1).toBe(c2);
   });
 
@@ -35,27 +37,33 @@ describe("SideSeat", () => {
     expect(() => getClient()).toThrow(SideSeatError);
   });
 
-  it("getClient returns instance after init", () => {
-    const c1 = init({ framework: Frameworks.VercelAI, disabled: true });
+  it("getClient returns instance after init", async () => {
+    const c1 = await init({ framework: Frameworks.VercelAI, disabled: true });
     const c2 = getClient();
     expect(c1).toBe(c2);
   });
 
   it("shutdown clears global instance", async () => {
-    init({ framework: Frameworks.VercelAI, disabled: true });
+    await init({ framework: Frameworks.VercelAI, disabled: true });
     expect(isInitialized()).toBe(true);
     await shutdown();
     expect(isInitialized()).toBe(false);
   });
 
   it("span executes callback and returns result", async () => {
-    const client = init({ framework: Frameworks.VercelAI, disabled: true });
+    const client = await init({
+      framework: Frameworks.VercelAI,
+      disabled: true,
+    });
     const result = await client.span("test", async () => 42);
     expect(result).toBe(42);
   });
 
   it("span sets error status on exception", async () => {
-    const client = init({ framework: Frameworks.VercelAI, disabled: true });
+    const client = await init({
+      framework: Frameworks.VercelAI,
+      disabled: true,
+    });
     await expect(
       client.span("test", async () => {
         throw new Error("test error");
@@ -63,14 +71,20 @@ describe("SideSeat", () => {
     ).rejects.toThrow("test error");
   });
 
-  it("spanSync works for sync callbacks", () => {
-    const client = init({ framework: Frameworks.VercelAI, disabled: true });
+  it("spanSync works for sync callbacks", async () => {
+    const client = await init({
+      framework: Frameworks.VercelAI,
+      disabled: true,
+    });
     const result = client.spanSync("test", () => 42);
     expect(result).toBe(42);
   });
 
-  it("spanSync propagates errors", () => {
-    const client = init({ framework: Frameworks.VercelAI, disabled: true });
+  it("spanSync propagates errors", async () => {
+    const client = await init({
+      framework: Frameworks.VercelAI,
+      disabled: true,
+    });
     expect(() =>
       client.spanSync("test", () => {
         throw new Error("sync error");
@@ -78,44 +92,53 @@ describe("SideSeat", () => {
     ).toThrow("sync error");
   });
 
-  it("concurrent createClient returns same promise", async () => {
-    const p1 = createClient({ framework: Frameworks.VercelAI, disabled: true });
-    const p2 = createClient({ framework: Frameworks.VercelAI, disabled: true });
+  it("concurrent init shares one initialisation", async () => {
+    const p1 = init({ framework: Frameworks.VercelAI, disabled: true });
+    const p2 = init({ framework: Frameworks.VercelAI, disabled: true });
     const [c1, c2] = await Promise.all([p1, p2]);
     expect(c1).toBe(c2);
   });
 
   it("shutdown handles concurrent calls", async () => {
-    init({ framework: Frameworks.VercelAI, disabled: true });
+    await init({ framework: Frameworks.VercelAI, disabled: true });
     await Promise.all([shutdown(), shutdown(), shutdown()]);
     expect(isInitialized()).toBe(false);
   });
 
   it("shutdown is idempotent", async () => {
-    init({ framework: Frameworks.VercelAI, disabled: true });
+    await init({ framework: Frameworks.VercelAI, disabled: true });
     await shutdown();
     await shutdown(); // Should not throw
     expect(isInitialized()).toBe(false);
   });
 
-  it("toString returns debug representation", () => {
-    const client = init({ framework: Frameworks.VercelAI, disabled: true });
+  it("toString returns debug representation", async () => {
+    const client = await init({
+      framework: Frameworks.VercelAI,
+      disabled: true,
+    });
     expect(client.toString()).toContain("SideSeat(");
     expect(client.toString()).toContain("endpoint=");
   });
 
-  it("isDisabled getter returns correct value", () => {
-    const client = init({ framework: Frameworks.VercelAI, disabled: true });
+  it("isDisabled getter returns correct value", async () => {
+    const client = await init({
+      framework: Frameworks.VercelAI,
+      disabled: true,
+    });
     expect(client.isDisabled).toBe(true);
   });
 
-  it("isReady getter returns correct value", () => {
-    const client = init({ framework: Frameworks.VercelAI, disabled: true });
+  it("isReady getter returns correct value", async () => {
+    const client = await init({
+      framework: Frameworks.VercelAI,
+      disabled: true,
+    });
     expect(client.isReady).toBe(false); // disabled mode has no provider
   });
 
-  it("config getter returns Config instance", () => {
-    const client = init({
+  it("config getter returns Config instance", async () => {
+    const client = await init({
       framework: Frameworks.VercelAI,
       disabled: true,
       projectId: "test",
@@ -124,39 +147,57 @@ describe("SideSeat", () => {
     expect(client.config.disabled).toBe(true);
   });
 
-  it("getTracer returns a tracer", () => {
-    const client = init({ framework: Frameworks.VercelAI, disabled: true });
+  it("getTracer returns a tracer", async () => {
+    const client = await init({
+      framework: Frameworks.VercelAI,
+      disabled: true,
+    });
     const tracer = client.getTracer();
     expect(tracer).toBeDefined();
     expect(typeof tracer.startSpan).toBe("function");
   });
 
   it("validateConnection returns false when disabled", async () => {
-    const client = init({ framework: Frameworks.VercelAI, disabled: true });
+    const client = await init({
+      framework: Frameworks.VercelAI,
+      disabled: true,
+    });
     const result = await client.validateConnection();
     expect(result).toBe(false);
   });
 
   it("forceFlush returns true when disabled", async () => {
-    const client = init({ framework: Frameworks.VercelAI, disabled: true });
+    const client = await init({
+      framework: Frameworks.VercelAI,
+      disabled: true,
+    });
     const result = await client.forceFlush();
     expect(result).toBe(true);
   });
 
-  it("setupConsoleExporter returns this for chaining", () => {
-    const client = init({ framework: Frameworks.VercelAI, disabled: true });
+  it("setupConsoleExporter returns this for chaining", async () => {
+    const client = await init({
+      framework: Frameworks.VercelAI,
+      disabled: true,
+    });
     const result = client.setupConsoleExporter();
     expect(result).toBe(client);
   });
 
-  it("setupFileExporter returns this for chaining", () => {
-    const client = init({ framework: Frameworks.VercelAI, disabled: true });
+  it("setupFileExporter returns this for chaining", async () => {
+    const client = await init({
+      framework: Frameworks.VercelAI,
+      disabled: true,
+    });
     const result = client.setupFileExporter("/tmp/test-traces.jsonl");
     expect(result).toBe(client);
   });
 
-  it("addSpanProcessor returns this for chaining", () => {
-    const client = init({ framework: Frameworks.VercelAI, disabled: true });
+  it("addSpanProcessor returns this for chaining", async () => {
+    const client = await init({
+      framework: Frameworks.VercelAI,
+      disabled: true,
+    });
     const mockProcessor = {
       onStart: vi.fn(),
       onEnd: vi.fn(),
@@ -167,8 +208,8 @@ describe("SideSeat", () => {
     expect(result).toBe(client);
   });
 
-  it("new SideSeat creates independent instance", () => {
-    const client1 = init({
+  it("new SideSeat creates independent instance", async () => {
+    const client1 = await init({
       framework: Frameworks.VercelAI,
       disabled: true,
       projectId: "project1",
@@ -217,8 +258,11 @@ describe("setupFileExporter validation", () => {
     ).toThrow(SideSeatError);
   });
 
-  it("skips validation when disabled", () => {
-    const client = init({ framework: Frameworks.VercelAI, disabled: true });
+  it("skips validation when disabled", async () => {
+    const client = await init({
+      framework: Frameworks.VercelAI,
+      disabled: true,
+    });
     // Should not throw even for invalid path because validation is skipped
     expect(() =>
       client.setupFileExporter("/nonexistent/path/traces.jsonl"),
@@ -396,7 +440,7 @@ describe("SideSeat.forceFlush reports a failed flush", () => {
   });
 
   it("returns false when a processor cannot flush", async () => {
-    const client = init({
+    const client = await init({
       framework: Frameworks.VercelAI,
       endpoint: "http://127.0.0.1:1",
     });
@@ -415,7 +459,7 @@ describe("SideSeat.forceFlush reports a failed flush", () => {
   });
 
   it("shutdown reports the loss too", async () => {
-    const client = init({
+    const client = await init({
       framework: Frameworks.VercelAI,
       endpoint: "http://127.0.0.1:1",
     });

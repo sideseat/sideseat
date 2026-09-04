@@ -8,40 +8,27 @@ let _instance: SideSeat | null = null;
 let _initPromise: Promise<SideSeat> | null = null;
 
 /**
- * Initialize SideSeat with the given options.
- * Returns the SideSeat instance synchronously.
- * Use createClient() for async initialization with connection validation.
+ * Initialise SideSeat and return the client.
+ *
+ * One entry point, and it is async. There used to be two - a synchronous `init()` and an asynchronous
+ * `createClient()` - which forced every caller to choose between them with no way to tell which they needed,
+ * and made the framework wiring impossible to do correctly: registering the Vercel AI SDK's telemetry
+ * integration means importing the user's `ai` package, which cannot be done from a synchronous function, so
+ * `experimental_telemetry: { isEnabled: true }` silently produced nothing. Awaiting one call fixes that and
+ * removes the choice.
+ *
+ * Idempotent: a second call returns the same client and warns, and concurrent calls share one initialisation
+ * rather than racing.
  */
-export function init(options: SideSeatOptions): SideSeat {
+export async function init(options: SideSeatOptions): Promise<SideSeat> {
   if (_instance !== null) {
     diag.warn("[sideseat] Already initialized; returning existing instance");
     return _instance;
   }
-  if (_initPromise !== null) {
-    throw new SideSeatError(
-      "Initialization in progress. Use createClient() for async init.",
-    );
-  }
-  _instance = new SideSeat(options);
-  return _instance;
-}
-
-/**
- * Initialize SideSeat asynchronously with connection validation.
- * Preferred for production use to ensure endpoint is reachable.
- */
-export async function createClient(
-  options: SideSeatOptions,
-): Promise<SideSeat> {
-  if (_instance !== null) {
-    diag.warn("[sideseat] Already initialized; returning existing instance");
-    return _instance;
-  }
-  // Return existing promise if init in progress (prevents race)
+  // Share the in-flight initialisation instead of starting a second one.
   if (_initPromise !== null) {
     return _initPromise;
   }
-  // Start async init and cache the promise
   _initPromise = SideSeat.create(options)
     .then((client) => {
       _instance = client;

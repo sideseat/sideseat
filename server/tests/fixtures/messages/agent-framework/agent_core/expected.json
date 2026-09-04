@@ -124,18 +124,62 @@
       ]
     },
     "trace-1/execute_tool execute_python_code/span-6": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_fcec744ed99a57018c31780e378cd09d\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"print(7 ** 2)\"}}",
+          "content_digest": "c28e5c1b999f809f",
+          "tool_name": "execute_python_code",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_fcec744ed99a57018c31780e378cd09d\",\"name\":\"execute_python_code\",\"content\":49}",
+          "content_digest": "f79fdc5669aeabc1",
+          "tool_name": "execute_python_code",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/execute_tool retrieve_memory/span-4": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_9a0e0ec784d4582081f25a54172d3761\",\"name\":\"retrieve_memory\",\"input\":{\"key\":\"favorite_number\"}}",
+          "content_digest": "79c6d4e635e2a889",
+          "tool_name": "retrieve_memory",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_9a0e0ec784d4582081f25a54172d3761\",\"name\":\"retrieve_memory\",\"content\":7}",
+          "content_digest": "0b87686fbd90b5ce",
+          "tool_name": "retrieve_memory",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/invoke_agent efb08402-ccb9-4925-934e-3ecc4c0dfbb4/span-2": {
       "message_count": 7,
@@ -256,9 +300,10 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_9a0e0ec784d4582081f25a54172d3761\",\"content\":[{\"type\":\"text\",\"text\":\"7\"}]}",
-          "content_digest": "4076aa209cbcca0c",
-          "observation_type": "agent"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_9a0e0ec784d4582081f25a54172d3761\",\"name\":\"retrieve_memory\",\"content\":7}",
+          "content_digest": "0b87686fbd90b5ce",
+          "tool_name": "retrieve_memory",
+          "observation_type": "tool"
         },
         {
           "index": 4,
@@ -273,9 +318,10 @@
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_fcec744ed99a57018c31780e378cd09d\",\"content\":[{\"type\":\"text\",\"text\":\"49\\n\"}]}",
-          "content_digest": "3e56be159a9c582b",
-          "observation_type": "agent"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_fcec744ed99a57018c31780e378cd09d\",\"name\":\"execute_python_code\",\"content\":49}",
+          "content_digest": "f79fdc5669aeabc1",
+          "tool_name": "execute_python_code",
+          "observation_type": "tool"
         },
         {
           "index": 6,
@@ -333,9 +379,10 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_9a0e0ec784d4582081f25a54172d3761\",\"content\":[{\"type\":\"text\",\"text\":\"7\"}]}",
-          "content_digest": "4076aa209cbcca0c",
-          "observation_type": "agent"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_9a0e0ec784d4582081f25a54172d3761\",\"name\":\"retrieve_memory\",\"content\":7}",
+          "content_digest": "0b87686fbd90b5ce",
+          "tool_name": "retrieve_memory",
+          "observation_type": "tool"
         },
         {
           "index": 4,
@@ -350,9 +397,10 @@
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_fcec744ed99a57018c31780e378cd09d\",\"content\":[{\"type\":\"text\",\"text\":\"49\\n\"}]}",
-          "content_digest": "3e56be159a9c582b",
-          "observation_type": "agent"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_fcec744ed99a57018c31780e378cd09d\",\"name\":\"execute_python_code\",\"content\":49}",
+          "content_digest": "f79fdc5669aeabc1",
+          "tool_name": "execute_python_code",
+          "observation_type": "tool"
         },
         {
           "index": 6,
@@ -370,12 +418,12 @@
     "message_count": 7,
     "role_sequence": [
       "assistant",
+      "tool",
+      "tool",
       "system",
       "user",
       "assistant",
-      "tool",
-      "assistant",
-      "tool"
+      "assistant"
     ],
     "tool_names": [],
     "tool_definition_count": 3,
@@ -391,6 +439,24 @@
       },
       {
         "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_fcec744ed99a57018c31780e378cd09d\",\"name\":\"execute_python_code\",\"content\":49}",
+        "content_digest": "f79fdc5669aeabc1",
+        "tool_name": "execute_python_code",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_9a0e0ec784d4582081f25a54172d3761\",\"name\":\"retrieve_memory\",\"content\":7}",
+        "content_digest": "0b87686fbd90b5ce",
+        "tool_name": "retrieve_memory",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
         "role": "system",
         "entry_type": "text",
         "content": "You are an AI assistant that validates answers through code execution. When asked about code, algorithms, or calculations, write Python code to verify your answers. When asked about user preferences or personal information (like favorite nu…[327 chars]",
@@ -398,7 +464,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 2,
+        "index": 4,
         "role": "user",
         "entry_type": "text",
         "content": "Calculate my favorite number squared. First retrieve my favorite number using the retrieve_memory tool with 'favorite_number' as the key. Then use the execute_python_code tool to compute and verify the square with code like: print(7 ** 2)",
@@ -406,7 +472,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 3,
+        "index": 5,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_9a0e0ec784d4582081f25a54172d3761\",\"name\":\"retrieve_memory\",\"input\":{\"key\":\"favorite_number\"}}",
@@ -415,28 +481,12 @@
         "observation_type": "agent"
       },
       {
-        "index": 4,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_9a0e0ec784d4582081f25a54172d3761\",\"content\":[{\"type\":\"text\",\"text\":\"7\"}]}",
-        "content_digest": "4076aa209cbcca0c",
-        "observation_type": "agent"
-      },
-      {
-        "index": 5,
+        "index": 6,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_fcec744ed99a57018c31780e378cd09d\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"print(7 ** 2)\"}}",
         "content_digest": "c28e5c1b999f809f",
         "tool_name": "execute_python_code",
-        "observation_type": "agent"
-      },
-      {
-        "index": 6,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_fcec744ed99a57018c31780e378cd09d\",\"content\":[{\"type\":\"text\",\"text\":\"49\\n\"}]}",
-        "content_digest": "3e56be159a9c582b",
         "observation_type": "agent"
       }
     ]

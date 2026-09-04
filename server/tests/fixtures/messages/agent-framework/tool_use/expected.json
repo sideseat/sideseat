@@ -309,32 +309,120 @@
       ]
     },
     "trace-1/execute_tool temperature_forecast/span-12": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_b6403ec7af305704b074a24d5fa134fd\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
+          "content_digest": "5521a1c6e4cd062d",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_b6403ec7af305704b074a24d5fa134fd\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"hi…[504 chars]",
+          "content_digest": "3c467f2ac90bcb70",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/execute_tool temperature_forecast/span-16": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_aed73893beaf553f9cf876071bab2aec\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
+          "content_digest": "70524b56ebd13a61",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_aed73893beaf553f9cf876071bab2aec\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"London\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":2…[499 chars]",
+          "content_digest": "986d190449814ded",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/execute_tool temperature_forecast/span-4": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_16a23702d9e550158ab7b96d4a19a823\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "ba78bcd7a5e9948f",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_16a23702d9e550158ab7b96d4a19a823\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"…[310 chars]",
+          "content_digest": "6a31f19f36290a42",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/execute_tool temperature_forecast/span-8": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_2b1e2d5fbbb5563f94cff4ea29a1a7bd\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "3471fcaf69fd23f6",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_2b1e2d5fbbb5563f94cff4ea29a1a7bd\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"…[310 chars]",
+          "content_digest": "45b211b0f6a806bf",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/invoke_agent 9f94000e-70f6-48f9-95fd-77badac65291/span-10": {
       "message_count": 5,
@@ -608,9 +696,10 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_16a23702d9e550158ab7b96d4a19a823\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":2…[305 chars]",
-          "content_digest": "2276d728e7ad2304",
-          "observation_type": "agent"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_16a23702d9e550158ab7b96d4a19a823\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"…[310 chars]",
+          "content_digest": "6a31f19f36290a42",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
         },
         {
           "index": 4,
@@ -651,9 +740,10 @@
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_b6403ec7af305704b074a24d5fa134fd\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,…[499 chars]",
-          "content_digest": "311d184119ff2bb4",
-          "observation_type": "agent"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_b6403ec7af305704b074a24d5fa134fd\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"hi…[504 chars]",
+          "content_digest": "3c467f2ac90bcb70",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
         },
         {
           "index": 9,
@@ -685,9 +775,10 @@
           "index": 12,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_aed73893beaf553f9cf876071bab2aec\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"London\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\"…[494 chars]",
-          "content_digest": "38646525995ee281",
-          "observation_type": "agent"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_aed73893beaf553f9cf876071bab2aec\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"London\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":2…[499 chars]",
+          "content_digest": "986d190449814ded",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
         },
         {
           "index": 13,
@@ -752,9 +843,10 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_16a23702d9e550158ab7b96d4a19a823\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":2…[305 chars]",
-          "content_digest": "2276d728e7ad2304",
-          "observation_type": "agent"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_16a23702d9e550158ab7b96d4a19a823\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"…[310 chars]",
+          "content_digest": "6a31f19f36290a42",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
         },
         {
           "index": 4,
@@ -795,9 +887,10 @@
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_b6403ec7af305704b074a24d5fa134fd\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,…[499 chars]",
-          "content_digest": "311d184119ff2bb4",
-          "observation_type": "agent"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_b6403ec7af305704b074a24d5fa134fd\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"hi…[504 chars]",
+          "content_digest": "3c467f2ac90bcb70",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
         },
         {
           "index": 9,
@@ -829,9 +922,10 @@
           "index": 12,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_aed73893beaf553f9cf876071bab2aec\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"London\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\"…[494 chars]",
-          "content_digest": "38646525995ee281",
-          "observation_type": "agent"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_aed73893beaf553f9cf876071bab2aec\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"London\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":2…[499 chars]",
+          "content_digest": "986d190449814ded",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
         },
         {
           "index": 13,
@@ -849,19 +943,19 @@
     "message_count": 14,
     "role_sequence": [
       "assistant",
+      "tool",
       "user",
       "assistant",
-      "tool",
       "assistant",
+      "tool",
       "user",
       "assistant",
+      "assistant",
+      "assistant",
       "tool",
-      "assistant",
-      "assistant",
       "system",
       "user",
-      "assistant",
-      "tool"
+      "assistant"
     ],
     "tool_names": [],
     "tool_definition_count": 2,
@@ -877,6 +971,15 @@
       },
       {
         "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_aed73893beaf553f9cf876071bab2aec\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"London\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":2…[499 chars]",
+        "content_digest": "986d190449814ded",
+        "tool_name": "temperature_forecast",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
         "role": "user",
         "entry_type": "text",
         "content": "Provide a 14-day weather forecast for London.",
@@ -884,20 +987,12 @@
         "observation_type": "agent"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_aed73893beaf553f9cf876071bab2aec\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
         "content_digest": "70524b56ebd13a61",
         "tool_name": "temperature_forecast",
-        "observation_type": "agent"
-      },
-      {
-        "index": 3,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_aed73893beaf553f9cf876071bab2aec\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"London\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\"…[494 chars]",
-        "content_digest": "38646525995ee281",
         "observation_type": "agent"
       },
       {
@@ -911,6 +1006,15 @@
       },
       {
         "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_b6403ec7af305704b074a24d5fa134fd\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"hi…[504 chars]",
+        "content_digest": "3c467f2ac90bcb70",
+        "tool_name": "temperature_forecast",
+        "observation_type": "tool"
+      },
+      {
+        "index": 6,
         "role": "user",
         "entry_type": "text",
         "content": "Provide a 7-day weather forecast for Los Angeles.",
@@ -918,20 +1022,12 @@
         "observation_type": "agent"
       },
       {
-        "index": 6,
+        "index": 7,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_b6403ec7af305704b074a24d5fa134fd\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
         "content_digest": "5521a1c6e4cd062d",
         "tool_name": "temperature_forecast",
-        "observation_type": "agent"
-      },
-      {
-        "index": 7,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_b6403ec7af305704b074a24d5fa134fd\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,…[499 chars]",
-        "content_digest": "311d184119ff2bb4",
         "observation_type": "agent"
       },
       {
@@ -954,6 +1050,15 @@
       },
       {
         "index": 10,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_16a23702d9e550158ab7b96d4a19a823\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"…[310 chars]",
+        "content_digest": "6a31f19f36290a42",
+        "tool_name": "temperature_forecast",
+        "observation_type": "tool"
+      },
+      {
+        "index": 11,
         "role": "system",
         "entry_type": "text",
         "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
@@ -961,7 +1066,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 11,
+        "index": 12,
         "role": "user",
         "entry_type": "text",
         "content": "Provide a 3-day weather forecast for New York City.",
@@ -969,20 +1074,12 @@
         "observation_type": "agent"
       },
       {
-        "index": 12,
+        "index": 13,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_16a23702d9e550158ab7b96d4a19a823\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
         "content_digest": "ba78bcd7a5e9948f",
         "tool_name": "temperature_forecast",
-        "observation_type": "agent"
-      },
-      {
-        "index": 13,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_16a23702d9e550158ab7b96d4a19a823\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":2…[305 chars]",
-        "content_digest": "2276d728e7ad2304",
         "observation_type": "agent"
       }
     ]

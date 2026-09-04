@@ -91,7 +91,7 @@ async function main() {
 
   // Setup telemetry BEFORE loading samples (which import AWS SDK)
   // This ensures AWS SDK instrumentation captures all Bedrock calls
-  setupTelemetry({ useSideseat, framework: Frameworks.VercelAI });
+  await setupTelemetry({ useSideseat, framework: Frameworks.VercelAI });
 
   // AI SDK 7 no longer emits OpenTelemetry spans from `telemetry: { isEnabled: true }`
   // on its own: telemetry is delivered to registered integrations. Without this call the

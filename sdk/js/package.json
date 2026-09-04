@@ -34,8 +34,10 @@
     "@opentelemetry/semantic-conventions": "^1.43.0"
   },
   "devDependencies": {
+    "@ai-sdk/otel": "^1.0.79",
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.3.0",
+    "ai": "^7.0.79",
     "eslint": "^10.9.1",
     "prettier": "^3.9.6",
     "tsup": "^8.0.0",
@@ -63,5 +65,17 @@
   "engines": {
     "node": ">=18"
   },
-  "//typescript": "Pinned to 5.x: TypeScript 7 breaks `npm run build` because tsup's bundled rollup-plugin-dts resolves typescript 5.7.3 internally and throws 'Cannot read properties of undefined (reading useCaseSensitiveFileNames)', so no .d.ts is emitted. Revisit once tsup supports TS 7."
+  "//typescript": "Pinned to 5.x: TypeScript 7 breaks `npm run build` because tsup's bundled rollup-plugin-dts resolves typescript 5.7.3 internally and throws 'Cannot read properties of undefined (reading useCaseSensitiveFileNames)', so no .d.ts is emitted. Revisit once tsup supports TS 7.",
+  "peerDependencies": {
+    "ai": ">=7",
+    "@ai-sdk/otel": ">=1"
+  },
+  "peerDependenciesMeta": {
+    "ai": {
+      "optional": true
+    },
+    "@ai-sdk/otel": {
+      "optional": true
+    }
+  }
 }

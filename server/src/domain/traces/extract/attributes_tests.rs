@@ -1953,3 +1953,60 @@ fn an_embedded_total_does_not_override_an_explicit_flat_total() {
         "the provider stated the total; the framework's does not raise it"
     );
 }
+
+/// A declared framework fills the gap the conventions leave, and never overrides span evidence.
+///
+/// The current OTel GenAI conventions are framework-neutral on purpose, so a producer that follows them -
+/// the Vercel AI SDK's current integration is pure `gen_ai.*`, with no `ai.*` at all - offers nothing to
+/// sniff and arrived as `Unknown`. The SDKs declare what they were configured for, and that is consulted
+/// **after** every rule: a process configured for one framework can still emit another's spans from a nested
+/// library, and those carry their own attributes for a rule to find.
+#[test]
+fn a_declared_framework_is_a_fallback_and_not_an_override() {
+    let declared = |slug: &str| {
+        let mut resource = HashMap::new();
+        resource.insert("sideseat.framework".to_string(), slug.to_string());
+        resource
+    };
+
+    // Pure semantic conventions: no rule matches, so the declaration answers.
+    let mut semconv = HashMap::new();
+    semconv.insert("gen_ai.operation.name".to_string(), "chat".to_string());
+    semconv.insert("gen_ai.provider.name".to_string(), "anthropic".to_string());
+    semconv.insert("gen_ai.request.model".to_string(), "claude".to_string());
+    assert_eq!(
+        detect_framework("chat claude", &semconv, &declared("vercel-ai")),
+        Framework::VercelAISdk,
+        "a framework-neutral span is attributed by what the SDK declared"
+    );
+    assert_eq!(
+        detect_framework("chat claude", &semconv, &HashMap::new()),
+        Framework::Unknown,
+        "and with no declaration it stays unknown rather than guessing"
+    );
+
+    // Span evidence wins: a nested library's spans keep their own framework.
+    let mut langchain = semconv.clone();
+    langchain.insert("langchain.version".to_string(), "0.3".to_string());
+    assert_eq!(
+        detect_framework("RunnableSequence", &langchain, &declared("strands")),
+        Framework::LangChain,
+        "the span says LangChain, so the process-level declaration must not relabel it"
+    );
+
+    // A provider slug is not a framework, so `[strands, bedrock]` still resolves to Strands...
+    assert_eq!(
+        detect_framework("chat claude", &semconv, &declared("strands,bedrock")),
+        Framework::StrandsAgents
+    );
+    // ...while two genuine frameworks resolve to nothing: two answers is not an answer.
+    assert_eq!(
+        detect_framework("chat claude", &semconv, &declared("strands,langgraph")),
+        Framework::Unknown
+    );
+    // An unknown slug claims nothing.
+    assert_eq!(
+        detect_framework("chat claude", &semconv, &declared("something-else")),
+        Framework::Unknown
+    );
+}

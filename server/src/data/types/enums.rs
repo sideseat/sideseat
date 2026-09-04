@@ -146,6 +146,51 @@ impl Framework {
             Self::Unknown => "Unknown",
         }
     }
+
+    /// The framework an SDK *declared* it was configured for, from the slug it writes into
+    /// `sideseat.framework`.
+    ///
+    /// The slugs are the SDKs' own `Frameworks` values, which is why they are lower-case and hyphenated
+    /// rather than [`Self::as_str`]'s display form: this parses what a client sends, and the two vocabularies
+    /// are allowed to differ because one is a wire value and the other is a label.
+    ///
+    /// A declaration is only ever a **fallback** - see `detect_framework`. Provider slugs (`bedrock`,
+    /// `openai`, …) return `None` on purpose: they say which client library was instrumented, not which
+    /// agent framework produced the span, and the provider is already recorded separately.
+    pub fn from_sdk_slug(slug: &str) -> Option<Self> {
+        Some(match slug.trim() {
+            "strands" => Self::StrandsAgents,
+            "vercel-ai" => Self::VercelAISdk,
+            "langchain" => Self::LangChain,
+            "langgraph" => Self::LangGraph,
+            "llama-index" => Self::LlamaIndex,
+            "crewai" => Self::CrewAI,
+            "autogen" => Self::AutoGen,
+            "ag2" => Self::Ag2,
+            "openai-agents" => Self::OpenAIAgents,
+            "google-adk" => Self::GoogleAdk,
+            "agent-framework" => Self::AgentFramework,
+            "claude-agent-sdk" => Self::ClaudeAgentSdk,
+            "agno" => Self::Agno,
+            "smolagents" => Self::Smolagents,
+            "agentscope" => Self::AgentScope,
+            "langflow" => Self::Langflow,
+            "haystack" => Self::Haystack,
+            "browser-use" => Self::BrowserUse,
+            "semantic-kernel" => Self::SemanticKernel,
+            "azure-openai" => Self::AzureOpenAI,
+            "azure-ai-foundry" => Self::AzureAIFoundry,
+            "vertex-ai" => Self::VertexAI,
+            "logfire" => Self::Logfire,
+            "mlflow" => Self::MLFlow,
+            "traceloop" => Self::TraceLoop,
+            "livekit" => Self::LiveKit,
+            // `pydantic-ai` has no Framework of its own: its spans are OpenInference-shaped and the
+            // extractor reads them as such, so claiming a distinct framework would contradict what the
+            // detection rules say about the very same span.
+            _ => return None,
+        })
+    }
 }
 
 // ============================================================================

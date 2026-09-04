@@ -30,6 +30,7 @@ import * as fs from "node:fs";
 
 import {
   Config,
+  Frameworks,
   SideSeatError,
   type SideSeatOptions,
   type LogLevel,
@@ -189,7 +190,50 @@ function createResource(config: Config): Resource {
     "telemetry.sdk.name": "sideseat",
     "telemetry.sdk.version": VERSION,
     "telemetry.sdk.language": "node",
+    // What this process was configured for, so the server does not have to guess.
+    //
+    // The current OTel GenAI conventions are framework-neutral by design: a producer that follows them
+    // emits `gen_ai.*` and nothing that says who produced it. The Vercel AI SDK's current integration is
+    // exactly that, so its spans arrived unattributed however carefully the server sniffed. The server reads
+    // this as a *fallback* - per-span evidence still wins, so a nested library's spans keep their own
+    // framework and this only fills the gap.
+    "sideseat.framework": config.framework,
   });
+}
+
+/**
+ * Wire up whatever the configured framework needs beyond a tracer provider.
+ *
+ * Most frameworks emit OpenTelemetry themselves once a provider is registered, so there is nothing to do.
+ * The Vercel AI SDK is the exception: since AI SDK 7 it delivers telemetry to *registered integrations*
+ * rather than emitting spans directly, so `experimental_telemetry: { isEnabled: true }` produces nothing at
+ * all unless an integration is registered. That step is easy to miss and fails silently, which is the whole
+ * reason this is the SDK's job rather than the reader's.
+ *
+ * Imported dynamically: `ai` and `@ai-sdk/otel` are the user's dependencies, not this package's, and a
+ * project that does not use them must not have to install them. A missing package is reported rather than
+ * swallowed - a warning here is the difference between "no telemetry, and here is why" and silence.
+ */
+async function wireFramework(config: Config): Promise<void> {
+  if (config.framework !== Frameworks.VercelAI) {
+    return;
+  }
+  try {
+    const [{ registerTelemetry }, { OpenTelemetry }] = await Promise.all([
+      import("ai"),
+      import("@ai-sdk/otel"),
+    ]);
+    // The current integration, which emits the present GenAI semantic conventions. Registered *after* the
+    // provider, because the integration captures a tracer in its constructor and would otherwise capture a
+    // no-op one.
+    registerTelemetry(new OpenTelemetry());
+    diag.debug("[sideseat] Registered the Vercel AI SDK telemetry integration");
+  } catch (e) {
+    diag.warn(
+      `[sideseat] framework: Frameworks.VercelAI needs 'ai' and '@ai-sdk/otel' installed; ` +
+        `without them the AI SDK emits no telemetry. ${describeError(e)}`,
+    );
+  }
 }
 
 export class SideSeat {
@@ -215,14 +259,21 @@ export class SideSeat {
   // Async factory pattern (industry best practice)
   static async create(options: SideSeatOptions): Promise<SideSeat> {
     const instance = new SideSeat(options);
-    // Validate connection if not disabled
     if (!instance.isDisabled) {
+      // Reported whatever the log level. It used to warn only under `debug`, while the documentation said
+      // this call "ensures the endpoint is reachable" - so the one thing it was for was invisible by default
+      // and the promise was not kept either way. It still resolves: a collector that starts a moment later is
+      // ordinary, and refusing to initialise would break more than it fixed. What it must not do is say
+      // nothing.
       const connected = await instance.validateConnection(2000);
-      if (!connected && instance._config.debug) {
+      if (!connected) {
         diag.warn(
-          "[sideseat] Could not connect to endpoint - traces may not be exported",
+          `[sideseat] ${instance._config.endpoint} did not answer a health check; ` +
+            `spans will be buffered and retried, but check the endpoint if none arrive.`,
         );
       }
+      // After the provider exists, because an integration that captures a tracer must not capture a no-op.
+      await wireFramework(instance._config);
     }
     return instance;
   }

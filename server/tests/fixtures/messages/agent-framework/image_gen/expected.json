@@ -97,25 +97,91 @@
       ]
     },
     "trace-1/execute_tool generate_image/span-4": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_450be31a7c105bb5b3f62e31a3d71b41\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful golden retriever running through a sunlit wildflower meadow at golden hour, ears flying, warm cinematic photography, soft le…[316 chars]",
+          "content_digest": "88a42a181ba1442c",
+          "tool_name": "generate_image",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+          "content_digest": "949a4359f966a40d",
+          "tool_name": "generate_image",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/execute_tool generate_image/span-5": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_5af7e1767dbb5adf838950c8433223c5\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A small black-and-white terrier astronaut floating inside a whimsical retro-futuristic spaceship, colorful planets visible through th…[331 chars]",
+          "content_digest": "e7a9ee8c2680454c",
+          "tool_name": "generate_image",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+          "content_digest": "aaaecd44ec196d81",
+          "tool_name": "generate_image",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/execute_tool generate_image/span-6": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_a14dfb80da1c59bdb2509df0e6215be8\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"An elegant white samoyed sitting beneath a red paper lantern in a quiet rainy Kyoto alley at night, Japanese ink-and-watercolor aesth…[335 chars]",
+          "content_digest": "15580deb3f952f61",
+          "tool_name": "generate_image",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+          "content_digest": "ee04d8c2cf229353",
+          "tool_name": "generate_image",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/invoke_agent d17b85b2-0ac5-4574-b272-e883ac75cf85/span-2": {
       "message_count": 8,
@@ -265,25 +331,28 @@
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_450be31a7c105bb5b3f62e31a3d71b41\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
-          "content_digest": "15519039ac4531f6",
-          "observation_type": "agent"
+          "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+          "content_digest": "949a4359f966a40d",
+          "tool_name": "generate_image",
+          "observation_type": "tool"
         },
         {
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_5af7e1767dbb5adf838950c8433223c5\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
-          "content_digest": "f8363cf4d87a2d64",
-          "observation_type": "agent"
+          "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+          "content_digest": "aaaecd44ec196d81",
+          "tool_name": "generate_image",
+          "observation_type": "tool"
         },
         {
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_a14dfb80da1c59bdb2509df0e6215be8\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
-          "content_digest": "137edcbf9ffe2e4b",
-          "observation_type": "agent"
+          "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+          "content_digest": "ee04d8c2cf229353",
+          "tool_name": "generate_image",
+          "observation_type": "tool"
         }
       ]
     }
@@ -351,25 +420,28 @@
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_450be31a7c105bb5b3f62e31a3d71b41\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
-          "content_digest": "15519039ac4531f6",
-          "observation_type": "agent"
+          "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+          "content_digest": "949a4359f966a40d",
+          "tool_name": "generate_image",
+          "observation_type": "tool"
         },
         {
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_5af7e1767dbb5adf838950c8433223c5\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
-          "content_digest": "f8363cf4d87a2d64",
-          "observation_type": "agent"
+          "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+          "content_digest": "aaaecd44ec196d81",
+          "tool_name": "generate_image",
+          "observation_type": "tool"
         },
         {
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_a14dfb80da1c59bdb2509df0e6215be8\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
-          "content_digest": "137edcbf9ffe2e4b",
-          "observation_type": "agent"
+          "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+          "content_digest": "ee04d8c2cf229353",
+          "tool_name": "generate_image",
+          "observation_type": "tool"
         }
       ]
     }
@@ -377,20 +449,47 @@
   "feed_view": {
     "message_count": 8,
     "role_sequence": [
+      "tool",
+      "tool",
+      "tool",
       "system",
       "user",
       "assistant",
       "assistant",
-      "assistant",
-      "tool",
-      "tool",
-      "tool"
+      "assistant"
     ],
     "tool_names": [],
     "tool_definition_count": 1,
     "messages": [
       {
         "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+        "content_digest": "ee04d8c2cf229353",
+        "tool_name": "generate_image",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+        "content_digest": "aaaecd44ec196d81",
+        "tool_name": "generate_image",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
+        "content_digest": "949a4359f966a40d",
+        "tool_name": "generate_image",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
         "role": "system",
         "entry_type": "text",
         "content": "You are an AI artist. When asked to generate images, use the generate_image tool with varied prompts for each image to create a diverse collection. Your final output must contain ONLY a comma-separated list of the filesystem paths of genera…[251 chars]",
@@ -398,7 +497,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 1,
+        "index": 4,
         "role": "user",
         "entry_type": "text",
         "content": "Generate 3 different creative images of a dog. Vary the style, setting, and mood for each.",
@@ -406,7 +505,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 2,
+        "index": 5,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_450be31a7c105bb5b3f62e31a3d71b41\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful golden retriever running through a sunlit wildflower meadow at golden hour, ears flying, warm cinematic photography, soft le…[316 chars]",
@@ -415,7 +514,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 3,
+        "index": 6,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_5af7e1767dbb5adf838950c8433223c5\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A small black-and-white terrier astronaut floating inside a whimsical retro-futuristic spaceship, colorful planets visible through th…[331 chars]",
@@ -424,36 +523,12 @@
         "observation_type": "agent"
       },
       {
-        "index": 4,
+        "index": 7,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_a14dfb80da1c59bdb2509df0e6215be8\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"An elegant white samoyed sitting beneath a red paper lantern in a quiet rainy Kyoto alley at night, Japanese ink-and-watercolor aesth…[335 chars]",
         "content_digest": "15580deb3f952f61",
         "tool_name": "generate_image",
-        "observation_type": "agent"
-      },
-      {
-        "index": 5,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_450be31a7c105bb5b3f62e31a3d71b41\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
-        "content_digest": "15519039ac4531f6",
-        "observation_type": "agent"
-      },
-      {
-        "index": 6,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_5af7e1767dbb5adf838950c8433223c5\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
-        "content_digest": "f8363cf4d87a2d64",
-        "observation_type": "agent"
-      },
-      {
-        "index": 7,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_a14dfb80da1c59bdb2509df0e6215be8\",\"content\":[{\"type\":\"text\",\"text\":\"Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version h…[331 chars]",
-        "content_digest": "137edcbf9ffe2e4b",
         "observation_type": "agent"
       }
     ]

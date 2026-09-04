@@ -728,6 +728,16 @@ const FRAMEWORK_RULES: &[FrameworkRule] = &[
 ];
 
 /// Detect framework from span and resource attributes.
+///
+/// Evidence from the span wins; a declaration only fills the gap. The SDKs write
+/// `sideseat.framework` into the resource, and it is consulted **last** - after every rule has failed -
+/// because it is a statement about the *process*, not about this span: a process configured for Strands can
+/// still emit LangChain spans from a nested library, and those carry `langchain.*` for a rule to find.
+/// Overriding on the declaration would relabel them.
+///
+/// It is consulted at all because the current OTel GenAI conventions are framework-neutral by design: the
+/// Vercel AI SDK's current integration emits pure `gen_ai.*` with no `ai.*` attributes, so no rule can
+/// attribute it and no rule should have to. A declaration is the only evidence that exists.
 pub(crate) fn detect_framework(
     span_name: &str,
     span_attrs: &HashMap<String, String>,
@@ -738,7 +748,26 @@ pub(crate) fn detect_framework(
             return rule.framework;
         }
     }
-    Framework::Unknown
+    declared_framework(resource_attrs).unwrap_or(Framework::Unknown)
+}
+
+/// The framework an SDK declared, when it declared exactly one this server recognises.
+///
+/// A list is accepted because the SDKs accept one (`framework=[Strands, Bedrock]`), and resolved only when
+/// it names a single *framework*: provider slugs return `None` from `from_sdk_slug`, so declaring
+/// `[Strands, Bedrock]` still resolves to Strands, while two genuine frameworks resolve to nothing. Two
+/// answers is not an answer, and guessing between them would put a label on a span with no evidence for it.
+fn declared_framework(resource_attrs: &HashMap<String, String>) -> Option<Framework> {
+    let declared = resource_attrs.get(keys::SIDESEAT_FRAMEWORK)?;
+    let mut frameworks = declared
+        .split(',')
+        .filter_map(Framework::from_sdk_slug)
+        .collect::<Vec<_>>();
+    frameworks.dedup();
+    match frameworks.as_slice() {
+        [one] => Some(*one),
+        _ => None,
+    }
 }
 
 // ============================================================================
