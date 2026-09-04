@@ -206,6 +206,11 @@ occurrence (injectivity is what keeps a genuinely repeated question from collaps
 without it `adk/tool_use` loses one of its two identical questions), and a candidate is refused only when
 the evidence says it must precede something already matched.
 
+The **span view** does no cross-trace stripping at all: it loads one span, which is what that view means —
+"what this span carried", including the history it re-sent. A span view can therefore hold more messages than
+its trace view, and `replay_matching_complete` reports `true` there because nothing was left unmatched, not
+because the span holds no repeated history.
+
 The search reports when it is **not exhaustive** (`FeedMetadata::replay_matching_complete`, omitted from
 the response when true). The budget is a resource guard, and a guard that silently changes the answer is
 what a caller cannot reason about - so either the stripping is complete, or the response says it may repeat
@@ -265,6 +270,22 @@ over-reports one that several do, which a user sees as duplicates. This is a rea
 distinguishing a genuine identical repeat from a replay needs durable per-occurrence evidence the telemetry
 does not carry.
 
+**Two spans that start at the same instant are ordered by their span ids, and correlation is a forward pass
+over that order** — so an id-less tool result whose call lands on the far side of the tie stays uncorrelated,
+sorts before the call it answers, and (with two identical results) can collapse into one. Reachable whenever a
+tool span and the generation span that called it share a millisecond, which is ordinary.
+
+The obvious repair — a result may also claim a *following* call in a span that starts at the same instant —
+was implemented and reverted. Both variants (an equal alternative to the preceding rule, and a fallback used
+only when no preceding call exists) changed `adk/tool_use` for the worse: ADK's tool and generation spans do
+tie, so the relaxation lets one result claim a call a later result needed, and three results that *had* ids
+lost them, with their order moving in front of their calls. Rules 3 and 4 have nothing but document order to
+go on, and relaxing them where that order is arbitrary trades a rare mis-order for a common mis-pairing. A
+real fix needs causal evidence that is not the span id — the ordering redesign's partial order
+(`order_graph`), where call→result is a constraint rather than a position.
+`an_idless_result_is_correlated_only_when_span_ids_order_its_call_first` asserts both spellings, so the limit
+is measured rather than described.
+
 **Correlation runs before classification.** Phase 7 keys a tool result by
 `(trace, identity-of-the-answered-call, content)`, and the orphan-result phase reads the id — both
 need the call reference. Correlating afterwards let two identical-looking results answering two
@@ -294,6 +315,95 @@ A correlated id is flagged (`tool_use_id_correlated`) because "names no current 
 - `after_call`: set by `feed_positions` (`feed/dedup.rs`) **before** sorting, and read by both the trace-view sort and the project feed's, so the four views cannot disagree about where a result sits. A message index restarts at zero in every span, so between spans it orders nothing and a tool result could precede its call. Such a result takes its call's position instead — a property of the block and its own call, never of the pair being compared, so the order stays total. Only cross-span ties are adjusted: ADK's `user, call, result, call` and Vercel's parallel `call, call, result, result` share a span and are left alone.
 
 Do **not** re-introduce role ranking here. Per pair it is cyclic, per response it merges ADK's turns, per span it interleaves Vercel's parallel calls; all three are recorded in `dedup.rs`.
+
+**A token total and the charge beside it must describe the same call.** Providers disagree about whether
+cache and reasoning counters sit *inside* `input`/`output` or *beside* them - OpenAI counts cached tokens in
+its prompt total, Anthropic bills cache creation on top of an `input_tokens` that excludes it, Gemini is the
+mirror image again (cached content inside, thoughts beside). Two independent flags, because one boolean
+mis-bills every provider that is not OpenAI-shaped.
+
+The convention is keyed on the **`litellm_provider` of the catalogue entry that priced the call**
+(`cache_counters_are_separate_for_provider`), not on a re-parse of `gen_ai.system`. The lookup resolves a
+provider from the *model name* as well as the attribute, so `anthropic.claude-3-haiku-...` is priced from a
+Bedrock entry even when the system attribute says `AWS` or says nothing - and reading `system` separately
+meant such a call was charged at Bedrock's rates and counted under OpenAI's: `input=10, cache_read=1200,
+output=5` reported 15 tokens where 1,215 were billed, with the ten ordinary input tokens subtracted away and
+billed at nothing. `SpanCostOutput.resolved_provider` carries the answer to `enrich::corrected_total_tokens`,
+so the total is derived from the same fact as the charge; the extractor's `system`-based synthesis remains for
+spans nothing priced, where there is no better information.
+
+The web adds **nothing** to a side (`lib/token-breakdown.ts`): a trace row aggregates spans that may come
+from different providers, so the browser cannot know the convention. It takes the server's total as the
+anchor and reports the residual as its own line, naming the counters only when enumerating their subsets
+identifies them uniquely - an unlabelled residual is a gap in the explanation, a wrongly labelled one is a
+false statement about the bill.
+
+**A "supplied" flag describes the span, not the source that read it.** `cache_read_supplied` recorded only
+whether a *flat attribute* existed, so a counter the Logfire `response_data` path filled in was unprotected and
+CrewAI's `cached_prompt_tokens` overwrote it — 17 became 100, and the cache charge followed the wrong number.
+Every source that supplies a counter now marks it supplied, and the "no counters at all" diagnostic reads all
+four flags, which is what keeps the next source maintaining them. The total has a presence flag too
+(`total_supplied`): the embedded total is taken through `max`, which against an explicit flat total can only
+replace the provider's own statement with the framework's — flat `500/600` with a flat total of 1,100 became
+2,000.
+
+**A gate asks about the thing it gates — the same defect, three more times, in message extraction.** Each
+was a carrier's read guarded by a question about a *different* carrier, and each cost the answer:
+
+| Gate | What it dropped |
+| --- | --- |
+| "does this span have any recognised event?" suppressed **every** attribute carrier | A span whose question arrives as `gen_ai.user.message` and whose answer sits only in `output.value` returned the question alone. Removing the gate changed nothing across all 111 captured fixtures — carrier claiming already prevents the duplication it was defending against — so it was protecting nothing and losing answers in shapes nobody had captured |
+| Logfire's `if !found` covered `response_data` as well as `request_data` | `events` holding only the question set `found`, so the answer in `response_data` was never read. `request_data` **keeps** its precedence: it duplicates the input side that `events` also carries, and with no captured Logfire fixture nothing can show the two spellings hash alike, so reading both risks a duplicated question. Narrow on purpose |
+| `wrap_plain_data` wrapped only objects | `output.value = "the answer"` and `output.value = [{"type":"text",…}]` normalised to a message with no blocks. Scalars and content-block lists are wrapped now; a list of *messages* still is not, since that is expanded upstream |
+
+Each shape is a `_synthetic` fixture, so the answer invariant fires on it with the fix reverted — which is how
+each was confirmed. That invariant is what makes this class detectable at all: `assert_has_an_answer` says
+"the reply to the final turn is missing rather than merely out of order", and it fired the moment a fixture
+carried the shape.
+
+**A state object can hold the conversation *and* the answer** (`extract_langgraph_messages`). Two more of the
+same class, both found by probing shapes no fixture had:
+
+- CrewAI running through LangGraph writes the history under `messages` and the final answer under `raw`.
+  Reading only the list still **claimed the carrier**, so the extractor that knows `raw` never ran and the
+  trace showed the question with no reply. A plain-string `raw` beside the list is now read as the assistant's
+  reply — `raw` is this file's own vocabulary for that member, and only a string is taken, since anything
+  structured is a state member rather than a reply.
+- LangGraph state is a dict its nodes write into, so `{"state": {"messages": […]}}` is ordinary and yielded
+  nothing: the search looked at the top level and at direct values only. Bounded recursion now
+  (`LANGGRAPH_STATE_DEPTH`), bounded rather than unbounded because the point is to find a state member, not to
+  trawl a tool's arguments for anything message-shaped.
+
+Corpus-neutral: none of the nine LangGraph or nine CrewAI fixtures changed. The AutoGen mirror
+(`body` and `log.body` carrying one `LLMCall`) was probed in the same pass and is **not** a defect — the
+duplicate collapses, which is what content-based identity is for.
+
+**One datum written twice is not two occurrences** (`deduplicate_content_blocks`). A tool result's parts are
+collapsed when identical *after* normalisation, which is right for a carrier that writes one result in two
+encodings (Vercel sends raw and `{type:"json",value:…}` in one array) and wrong for a tool that genuinely
+returned the same part twice. The two are told apart by the **source**: two encodings arrive as different JSON
+that normalises to one, a genuine repeat as two identical values. Reachable only from the unit level - no OTLP
+path in the corpus reaches that branch - so it is pinned there, with the end-to-end repeat pinned by
+`_synthetic/repeated_tool_result_parts`.
+
+**A gate asks about the thing it gates.** CrewAI reports usage twice - flat `gen_ai.usage.*` attributes and an
+embedded `token_usage` object in `output.value` - and the block reading the embedded one was gated on a *side*
+being missing. That is the wrong question for everything else the block reads: with both flat sides present,
+`{prompt: 500, completion: 600, total: 2000, cached: 100}` stored a total of 1,100 and no cache at all, because
+the embedded total and the cache counter were unreachable. The outer gate is now just "is this CrewAI"; each
+value inside already decides for itself whether it was supplied, which is what the `*_supplied` flags are for.
+
+**Metric exemplars are kept in full** (schema v3, `exemplars`). A histogram carries one per bucket - that is
+what they are for, getting from a slow bucket to the slow trace - and keeping only the first discarded every
+link but one. Both the array and the six indexed flat `exemplar_*` columns derive from **one** storability
+filter, so they cannot disagree about the same data point; a bad exemplar clock drops the exemplar, never the
+measurement. Attributes are stored through `attrs_to_typed_json`, since an exemplar exists to lead back to
+the exact call and the stringifying path made `status_code=200` and `"200"` the same value.
+
+**An SDK reports what it actually did.** `AWSInstrumentor.instrument()` returns whether it patched anything,
+because recording success for telemetry that will never be produced also blocked every later retry; the
+JS SDK's `forceFlush()` and `shutdown()` both return whether every span was exported, because `diag` is a
+no-op until the host installs a logger, so a `void` return reported the loss nowhere at all.
 
 ### OTel GenAI Conventions
 
@@ -365,8 +475,8 @@ When updating framework integration docs (e.g., changing a package name, install
 | Location | Path | Notes |
 |----------|------|-------|
 | Framework page | `docs/src/content/docs/docs/integrations/frameworks/<framework>.mdx` | Full guide with Quick Start + Without SDK sections |
-| Docs homepage tabs | `docs/src/content/docs/docs/index.mdx` | SDK tab (`install:`) + Direct OTLP tab |
-| Telemetry config UI | `web/src/pages/configuration/telemetry.tsx` | `install`, `altInstall`, `altCode()` per framework entry |
+| Docs homepage tabs | `docs/src/content/docs/docs/index.mdx` | SDK tab (`install:`) + Direct OTLP tab. A **curated subset** — the homepage shows the common integrations and an even shorter direct-OTLP list, so a new framework belongs here only if it is one of those; the other three are the complete set |
+| Telemetry config UI | `web/src/pages/configuration/telemetry-frameworks.ts` | `install`, `altInstall`, `altCode()` per framework entry; `telemetry.tsx` only renders it |
 | MCP setup prompt | `server/src/api/mcp/tools.rs` | `FrameworkSetup`: `no_sdk_extra_pkgs`, `no_sdk_extra_setup` |
 
 The telemetry config UI is served at `/organizations/default/configuration/telemetry`. The MCP `setup_guide` prompt is used by AI coding assistants to generate integration code.
@@ -459,9 +569,33 @@ mechanism and getting it wrong is invisible until there are two instances.
 | --- | --- | --- |
 | Project rows and the project→org mapping | **Not cached at all** | The project row *is* the deletion fence, and a process-local cache cannot be invalidated by another instance: A caches a live project, B tombstones it and clears only B's memory, and A keeps answering from its hit. Re-reading the fence after a fill closes the fill race but not this one, because a hit never reaches the database. The cost is a primary-key lookup. |
 | Reconstruction cache (`feed/cache.rs`) | No, process-local | A memo over a *pure function* of the rows. Any instance computes the same answer from the same digest, a cold instance recomputes it, a dying one loses only the saving. N instances change the hit rate, not the answer — `a_cached_reconstruction_equals_a_fresh_one` checks byte equality over the corpus. Sharing it would need a version key to avoid serving the previous build's answers, and a hand-maintained constant is a hole. Filling is **coalesced** (`get_with`), because a cold cache is the normal state here — every new replica starts empty and a deploy replaces them all, so eight readers arriving together at a fresh replica is not an edge case, and as a check-then-compute pair it was eight simultaneous reconstructions of one answer. |
+| The pricing catalogue (`domain/pricing`) | Per-instance file, but the **verdict is a function of the catalogue alone** | Cost is computed at ingestion and *persisted*, so if two replicas hold different prices the stored cost depends on which one the balancer picked. Two rules keep them agreeing. Which catalogue loads is decided by **provenance** - a sidecar recording the `embedded_digest` of the build that wrote the file - so a file predating this build is replaced by this build's snapshot, whether it came from a sync or from an older release's embedded copy. A model *count* was the previous rule and is not a statement about freshness: a catalogue bloated with retired models is bigger and more wrong, and it won on size and could not be dislodged by upgrading. Whether a sync is *accepted* is likewise decided only by the payload (a fixed structural floor), never by what this instance happens to have priced - that was tried, and it made replica A refuse a catalogue replica B accepted, plus the observation set was caller-fillable with junk model names. |
 | Root secrets: the API-key HMAC pepper and the JWT signing key | **Only with a shared backend** (`env`, `aws`, `vault`) | Auto-detection picks a *per-instance* store (keychain, credential manager, secret service, file), and an API key row holds `HMAC(key, pepper)` and nothing else. So with a per-instance backend, a key created on A is not merely unknown on B — it is unverifiable there, and the lookup is by hash, so B answers a plain 401 indistinguishable from a bogus key. Authenticated ingestion then fails on whichever replica the balancer picked. Both getters also used to answer a read *error* by generating a replacement, which destroyed the only copy: they now refuse to start (`an_unreadable_backend_never_replaces_a_root_secret`). |
 | File extraction cache | No, per pipeline | Same shape: a memo keyed by content hash. |
 | Trace ingestion topic | Yes, when Redis is configured (`stream_topic` + consumer groups + `claim_stuck_messages`) | At-least-once across instances; ingestion is idempotent by span id, so a redelivery rewrites rather than duplicates. With the **default in-memory backend the queue is skipped entirely** and the request writes before answering - see below. |
+**A registration belongs to the socket that made it, not to the client id.** The SDK reuses its `client_id`
+across reconnects on purpose — that is how it re-registers — so teardown keyed on the id deleted the *live*
+socket's entries when the superseded one finally timed out: the listing went empty and AG-UI answered
+`registration_not_found` while the new connection sat there healthy. Reachable on any asymmetric network
+failure, where the client notices the break before the server does. The entry now carries
+`owner_connection_id`, teardown is `remove_all_for_connection`, and the removal is conditional on still being
+the owner, since a reconnect may take an entry over between the index read and the delete.
+
+**A `client_id` identifies a socket only together with its project.** It is the SDK's own value, so two
+projects can present the same one, and the control path matched on it alone — so an `agent.invoke` carrying
+one project's run input and request id was delivered to whichever socket claimed that id on the instance, and
+the reply came back attributed to the invoking project's run. Every `ConnectionControl` variant carries the
+project now and `find_local_connections_for_client` requires both. Within *one* project a `Write` key can
+still take over any registration by name, which is not a hole but the scope's meaning: the endpoint's own
+comment says registering replaces whatever held the name.
+
+**A displaced connection is closed, not asked to leave.** The protocol says a `replaced` socket does not
+survive (close 4000) and the server only queued the notice — nothing closed the socket or ended its receive
+loop, so the guarantee rested on the client's good manners. The official SDKs disconnect; one that ignored the
+frame kept registering and publishing events under a name it no longer owned. `ConnectionHandle::close` fires
+after the notice is queued, and the select loop observes it ahead of the inbound arm so a chatty socket cannot
+starve its own closure.
+
 | SDK registrations (`data/registrations`) | **No — and the routing around it assumes yes**, warned about at startup on the same signal the sharing rule uses | The store is process-local (`MemoryRegistrationStore` is the only implementation), while everything built on it is cross-instance: an entry carries `owning_instance_id` and the AG-UI invoke publishes to `connection_control:{instance_id}` over the Redis broadcast. So the control plane spans instances and the *directory* does not: an SDK whose WebSocket landed on A is `registration_not_found` on B, and `GET /registrations` shows each replica its own subset. Presence and AG-UI invoke are therefore single-instance features today; the TTL sweeper's own comment records that a shared store would additionally need leader election to avoid N duplicate `Expired` events. Warned rather than refused, because the channel is optional and many shared-database deployments never touch it — and the invoke route's 404 names the boundary, since "not found" and "registered on another instance" are otherwise indistinguishable. |
 | Metrics | Not queued at all — written inside the request | An in-process queue made a 200 mean "buffered", so a crash lost records the exporter had counted as delivered. A failure is a 503 the exporter retries. |
 | Metric datapoint identity (`domain/metrics/identity.rs`) | Yes — the id is a digest of the datapoint's own fields | Written little-endian and length-prefixed by hand rather than through `std::hash`, because `Hash for usize` writes native-endian bytes and two replicas on different architectures would then disagree about whether a datapoint is the same one. Disagreeing means a duplicate on one side or a deletion on the other. |
@@ -490,13 +624,42 @@ that tombstones the traces of any session deleted mid-write (handing them to the
 one place that knows how a trace is taken away), and its own leased sweep that re-resolves the session's
 traces *now* rather than from the deletion's snapshot — which is precisely what a late trace escapes.
 
-**An association is created `provisional` and confirmed when its rows commit.** Releasing on a failure path
-by first reading whether the trace has rows is not a decision: a second batch can commit between the read
-and the delete, and its file loses its protection. The marker makes it a stored fact instead — the failure
-path deletes only rows still marked, in one statement, and a batch that committed has already cleared the
-marker. **SSE is published after every drop and compensation**, and only for spans that survived them; built
-beforehand, it announced spans the batch went on to discard, so a reader saw a span appear and then never
-find it.
+**A byte deletion is gated on the claim it read, not on having read one.** The recovery path for an abandoned
+claim scans stale rows and then deletes their objects - and between those two steps the row can be released
+(by a worker whose own object delete failed) or deleted and recreated by an ingestion that associates the same
+content hash. `delete_file_if_unreferenced` re-checks *afterwards*, which is too late: the old code logged
+"referenced again after its bytes were removed" at error level, and logging a loss is not preventing it. The
+scan now returns the claim's own value and `reclaim_stale_file` is a compare-and-set on it, which also
+refreshes the claim so a second worker holding the same reading is refused. The same shape - refresh the
+tombstone to lease the work, without lifting the fence - now leases abandoned **project** and
+**organization** cleanups (`reclaim_stale_project`, `reclaim_stale_organization`), which were neither claimed
+nor capped: every replica resumed every one of them, and a backlog ran ahead of the leased trace and session
+sweeps in the same pass, so a stuck association could go unreclaimed indefinitely.
+
+**A session deletion tombstones what it deleted, not what it resolved.** The route resolved the session to
+traces, tombstoned those, then called `delete_sessions` - which *re-resolves*, so it also removed any trace
+that had joined since. That extra trace lost its rows while keeping its file associations forever (the orphan
+sweeper selects on zero references) and had no tombstone, so the trace sweep could not find it and the session
+sweep could not either, because it resolves sessions through analytics rows that no longer existed; a later
+child-only redelivery then carried no session id, passed both fences, and resurrected it.
+`AnalyticsRepository::delete_sessions` returns the trace ids it removed, and the route tombstones and cleans
+exactly that set.
+
+**An association carries two facts, not a `provisional` boolean: `pending_writers` and `durable`.** Releasing
+on a failure path by first reading whether the trace has rows is not a decision: a second batch can commit
+between the read and the delete, and its file loses its protection. A single boolean flag was the first fix
+and was not enough either — it could not express *several* batches referencing the same `(project, trace,
+hash)` at once, which is the case that matters under concurrency. With a flag, whichever failed first deleted
+the row a still-in-flight or just-committed peer depended on, orphaning its file. So each reference (create or
+share) increments `pending_writers`; a commit sets `durable` (monotonic, permanently blocking deletion, since
+one committed row backs the file); a failure decrements, and the release deletes only a **non-durable row
+with no writer left**. A failing batch therefore can never orphan a file another batch committed or is about
+to. Every referencing batch — not only the one that created the row — confirms or releases, because sharing
+one makes a batch one of its owners. Verified by a parity scenario that commits one batch and releases its
+peer and requires the row to survive on both backends. **SSE is published after every drop and compensation**,
+and only for spans that survived them (keyed by `(project, trace, span)` — a span id is unique only within a
+trace and a trace id only within a project); built beforehand, it announced spans the batch went on to
+discard, so a reader saw a span appear and then never find it.
 
 Keyed by `(project, trace)`, because a trace id comes from the client and two projects can present the
 same one.
@@ -507,13 +670,41 @@ arrives after that resolution was never in the snapshot, so nothing tombstones i
 session the caller was told was gone. The session id is the durable fact; the trace list is one instant's
 view of it. Checked on both write paths, before the trace check.
 
-**An association created by a batch that does not commit is released** (`created_associations`,
+**An association referenced by a batch that does not commit is released** (`created_associations`,
 `release_created_associations`). An association holds `ref_count` above zero and the orphan sweeper selects
 on *zero*, so a file whose batch failed - or whose trace was tombstoned mid-flight - would occupy the
-project's quota with nothing able to reclaim it. Only the associations that batch **created** are released:
-one that already existed belongs to an earlier committed batch, and releasing it would orphan that batch's
-content. `sync_ref_count` follows, recomputing from the associations that remain rather than subtracting,
-so a concurrent batch holding its own keeps the file.
+project's quota with nothing able to reclaim it. Every association the batch **referenced** is released, not
+only ones it created: the release decrements `pending_writers` and deletes only a non-durable row at zero, so
+releasing a shared one merely undoes this batch's own reference and cannot touch a peer's. `sync_ref_count`
+follows, recomputing from the associations that remain rather than subtracting, so a concurrent batch holding
+its own keeps the file. The four early-return paths between writing the files and writing the rows each
+release, checked structurally (`every_early_return_between_files_and_the_write_releases_its_associations`)
+because a new one compiles and passes every behavioural test.
+
+**A crashed writer's increment is reclaimed by the deletion sweep, not by the ingest path.** The counter
+cannot be decremented by a writer that is gone, so a stuck `pending_writers` outlives the batch. Deleting the
+non-durable row from a *drop* path was tried and reverted: `durable = false` does not prove no analytics row
+committed (confirmation runs after the write and can fail), and a concurrent batch that passed the fence
+before the tombstone may be committing spans for that trace right now — so deleting the shared row leaves
+readable spans pointing at a file nothing holds, which is the dangling reference the write-files-before-rows
+ordering exists to prevent. Reclamation belongs where the information is: `advance_pending_deletions` deletes
+the trace's rows, confirms by direct read that nothing is readable, and *only then* calls `cleanup_traces`,
+which removes every association for the trace regardless of `pending_writers`.
+
+**So every drop path has to leave a tombstone, or the sweep cannot find what it must reclaim.** The
+deleted-session fence resolves its sessions to traces and now **records a trace tombstone for each** before
+dropping them. Without it those traces were invisible to both sweeps: a writer associates a file for trace T
+and crashes before writing any analytics row; the session is deleted, but T was not in the deletion's
+snapshot so nothing tombstoned it; the redelivery increments again and is dropped at the fence, decrementing
+once — leaving `pending_writers` and `ref_count` at 1 permanently. The session sweep cannot discover T, because
+it resolves sessions to traces *through the analytics store* and T has no rows there; the trace sweep cannot
+either, because it walks tombstones and T has none. The tombstone hands T to the trace sweep, which is the
+one path that can reclaim it. Best effort by design: a failure there is logged, not fatal — the spans must not
+be written either way, and failing the batch would only reproduce the state it found.
+
+The detection is not left to inference either: `confirm_associations` compares rows confirmed against
+associations owned and reports a shortfall at error level, because that shortfall is precisely "a committed
+span references a file nothing holds", and it used to be a silent `Ok(0)`.
 
 **The schema is at version 2, and there is one migration.** Nothing above v1 was ever released, so the
 fourteen historical steps that used to live in each backend described upgrades no database could need -
@@ -581,6 +772,56 @@ An organization is tombstoned too, because deleting its row cascades its *projec
 rows are what the projects' cleanups depend on; its row goes once no project rows remain. Creating a
 project under a tombstoned organization is refused with a **409** naming the reason.
 
+**Every surface that reads or writes project data is authenticated when auth is on.** `auth.enabled` defaults
+to **true** and `mcp.enabled` does too, yet three surfaces were mounted with no auth at all — so the shipped
+configuration served one organisation's data to anyone who could reach the port:
+
+| Surface | What was reachable | Fix |
+| --- | --- | --- |
+| MCP (`/api/v1/projects/{id}/mcp`) | spans, prompts, raw attributes, sessions, statistics for any project in the URL | `require_auth` + `verify_project_access` |
+| SDK channel (`/ws`, `/registrations`, `/presence`, AG-UI `/runs`) | agent manifests **including system prompts**; registering an agent name its owner holds; invoking one | same two layers, per handler |
+| gRPC OTLP | writes into any project named by an untrusted `x-sideseat-project-id` header, because `otel.auth.required` gated HTTP only | `GrpcIngestAuth` on all three services |
+
+Two layers everywhere, because either alone is insufficient: `require_auth` establishes *who* is asking (and
+passes through untouched when auth is disabled, so `--no-auth` development and the SDK samples are
+unaffected), while `verify_project_access` turns a valid credential into one valid **for this project** — a
+key from another organisation is otherwise perfectly valid. A request arriving with no auth context is
+*refused*, so a future mounting that forgets the layer fails closed rather than open. On gRPC each service
+owns its own `auth` field, so deleting a gate fails the build.
+
+**An answer must not misdescribe what happened to the data.** Six shapes of this, all fixed:
+
+- A **200 preceded a silent drop**: the durable queue acknowledges on publish, then the consumer discarded a
+  span whose timestamp no backend can store — and nothing downstream can report back to a request that has
+  already returned. Storability depends on the payload alone, so it is settled at the edge
+  (`strip_unstorable_spans`) and reported; only what can be stored is queued.
+- Every drop claimed **"unknown project"**. For a live project with an unstorable payload that is a lie, and
+  404 tells an exporter to retry *elsewhere* — so it retried the same doomed span forever while its operator
+  hunted a healthy project. `DropReason` is named by the answer it implies: `Gone` → 404, `Unstorable` → a
+  success reporting `rejected_spans`.
+- A **missing entity answered an empty 200** on all three message routes, while the detail routes beside them
+  already 404. So a stale URL after a deletion, and any well-formed id that names nothing, rendered as "this
+  trace exists and said nothing" - and for the span route there was no existence check at all, which that
+  query makes free: it applies no content filter, so no rows *is* no span.
+- A **correlated tool-call id was presented as the provider's** (`tool_use_id_correlated`). The pipeline
+  computes it, `history.rs` depends on it, and serialization skipped it - so the UI printed an inferred
+  reference under the same `tool_call_id` label as an observed one. It is now sent (absent when false) and
+  shown as `inferred`, because a flag nobody can read is not a disclosure. Same shape as
+  `replay_matching_complete`, which had already been fixed once for exactly this reason.
+- The **realtime page turned a failed refresh into "no new data"**: every per-trace request was
+  `.catch(() => ({ messages: [] }))` and an all-empty result returned early, so a 404 for a deleted project
+  looked like a quiet one, and after a first success the page kept showing stale content indefinitely. It now
+  counts what could not be served and says so, and it surfaces `replay_matching_complete` from the responses
+  it was already fetching and discarding.
+- **A stale detail response overrode fresh message totals.** The header prefers the token/cost breakdown (from
+  the entity query) over the message response's own totals, so a detail request that failed after new spans
+  arrived left fresh messages beside stale numbers with nothing saying so. The breakdown is withheld while
+  that query is in error, which falls the header back to the totals that came *with* these messages.
+- The UI **dropped the server's own completeness metadata**: `replay_matching_complete` was absent from the
+  web contract, so a thread that may repeat history rendered as canonical — duplicated turns being
+  indistinguishable from a model that repeated itself. A session over one page was truncated silently, which
+  for a debugging tool is worse than an explicit gap.
+
 **Acknowledge only what is durable.** A 200 on an OTLP endpoint has to mean the data is stored, and which
 mechanism delivers that depends on the topic backend (`TopicBackend::is_durable`):
 
@@ -614,8 +855,60 @@ the exporter that still has it; the length comes back in the same pipeline as th
 costs no extra round trip and overshoots by at most the publishes in flight. A stream with no consumer
 group is never trimmed: nobody has read it, so everything is still needed.
 
+**A retry counter is evidence about the system, not about the payload.** Recovery used to acknowledge an
+entry once its delivery count reached ten, to stop it starving the entries behind it. That is the same loss
+by another route: ten failures is what a minute of analytics downtime looks like, the payload was already
+answered 200, and the counter says nothing about the payload itself. The starvation is real, though —
+claiming resets idle time, so a chronically-failing entry stays eligible and refills a window that starts at
+the oldest pending entry, and an abandoned entry past the window was never recovered at all. Two mechanisms
+replace the deletion, each doing a job the other cannot:
+
+| Mechanism | What it fixes | Why the other cannot |
+| --- | --- | --- |
+| **Fewest deliveries first**, within one scan | A chronic failure stops consuming the window while ordinary entries wait | Rotation alone hands the window straight back to it every time its turn comes round |
+| **A rotating scan start** (`pending_scan_cursor`), resuming past what was examined and wrapping at the end | Every pending entry is reached in a bounded number of passes | Sorting only orders what was *scanned*; a full window of equally-failing entries makes the one behind them invisible, not merely late |
+
+So a chronic entry is retried more slowly and reported loudly, and kept. The one case that *is* evidence
+about the entry is a payload that cannot be read at all: nothing can ever process it and leaving it pending
+holds the trim boundary forever, so it moves to `<stream>:dead` and is acknowledged only **after** the bytes
+are safely there — an interruption between the two leaves a copy on both streams rather than none, and
+ingestion is idempotent by span id. The dead-letter stream is deliberately uncapped: a length bound there
+would delete the very evidence it exists to keep. Failing to preserve it means *not* acknowledging it.
+
 `make test-redis` runs this against a pinned Redis, because none of it had ever run against one — the unit
 tests covered key prefixes and URL redaction. Restoring `MAXLEN` fails the suite.
+
+**A limit enforced on one of two transports is not a limit — twice now.** `otel.auth.required` applied to
+HTTP only until the gRPC interceptor was written; `rate_limit.ingestion_rpm` then did the same, because the
+gRPC server carried only the auth-failure limiter. Both gates now travel together in `GrpcIngestGuards`, so a
+third is a field rather than another parameter nobody threads through, and
+`every_grpc_export_authorizes_before_reading_its_payload` requires *both* between a handler's
+`extract_project_id` and its `into_inner()`. The ingestion bucket is **shared** with HTTP, unlike the
+auth-failure buckets: those are keyed by a spoofable address, where one transport must not exhaust the other's
+counters, while this is keyed by the project being written to — separate buckets would hand a client twice the
+quota for splitting its traffic.
+
+**A rejection names the cause that applied** (`Stored::rejection`). Metrics reported every dropped datapoint as
+"the project is unknown or is being deleted", including one dropped for an unstorable timestamp — the same
+defect the trace path fixed with `DropReason`, still live on the metrics path. The two imply different actions:
+stop sending there, versus your clock is wrong and a retry cannot help. A request that hits both says so.
+
+**A non-finite exemplar value is unstorable**, for the same reason an unstorable instant is: the flat
+`exemplar_value_double` column keeps the NaN or infinity while the JSON array goes through `serde_json`, which
+has no non-finite numbers and writes `null` — so the indexed column and the full array described different
+values for one exemplar. Dropped in the one filter both derive from, leaving the measurement untouched.
+
+**The project id is *set*, not appended** (`set_project_id`). A client may already carry
+`sideseat.project_id`, and appending left the key twice — harmless for storage, which collapses duplicate keys,
+and not harmless for metric identity, which digests the raw resource attribute list: the same datapoint at the
+same instant hashed differently depending on whether the client had sent the attribute, so one series became
+two rows.
+
+**Distributed ClickHouse with no quorum is warned about**, as Redis with unacknowledged replicas is. In
+distributed mode the tables are `Replicated*` by construction, so an insert that `insert_distributed_sync`
+carried to a shard still lives on one replica until replication catches up — after the exporter was answered
+200. Warned rather than refused, unlike `insert_quorum = 1`: a cluster with one replica per shard is a
+legitimate deployment where a quorum of two would block every insert forever.
 
 **A durable Redis is one that is checked, to a stated bound.** `is_durable()` returned true for anything
 that answered `PING`, so a cache-tier instance with AOF off and a keyspace-wide LRU licensed acknowledging
@@ -624,28 +917,27 @@ startup and refuses AOF-off, `appendfsync no`, and any policy that could evict a
 server that refuses `CONFIG GET` is refused too, rather than assumed. The shipped compose file's
 `allkeys-lru` failed this and is now `noeviction`.
 
-**Replication is acknowledged, not assumed.** `appendfsync always` covers the loss of *that host*; a failover
-promoting a replica that never received an entry is a separate window. `database.redis.min_replica_acks`
-makes each publish issue `WAIT`, and a shortfall is a 503 the exporter retries — with a startup warning when
-the server *has* replicas and nothing requires their acknowledgement, which is the configuration where the
-gap exists and is invisible. ClickHouse has `insert_quorum` (with `insert_quorum_parallel = 0`) for the same
-reason at shard level, since `insert_distributed_sync` reaches a shard rather than its replicas. A quorum of
-**1** is refused at startup: it is satisfied by the initiating replica alone, which is what happens with no
-quorum, plus latency and a false sense of safety.
-
-**Recovery cannot be starved, and no entry is silently immortal.** Claiming resets an entry's idle time, so
-one that fails every delivery re-enters the window ahead of everything older; past `MAX_DELIVERY_ATTEMPTS` it
-is acknowledged with an error, which unblocks everything behind it. An entry with no readable payload is
-acknowledged too, rather than skipped — a pending entry is what bounds trimming, so one malformed entry
-stopped the stream from ever being trimmed and was re-examined by every sweep.
+**Replication is acknowledged, not assumed — and the acknowledgement is `WAITAOF`, not `WAIT`.**
+`appendfsync always` covers the loss of *that host*; a failover promoting a replica that never *durably had*
+the entry is a separate window. `database.redis.min_replica_acks` makes each publish wait for it, and a
+shortfall is a 503 the exporter retries — with a startup warning when the server *has* replicas and nothing
+requires their acknowledgement, which is the configuration where the gap exists and is invisible. The command
+is `WAITAOF 1 <n>`, not `WAIT <n>`: `WAIT` blocks until N replicas hold the entry *in memory*, so a replica
+that received but had not yet fsynced it, then promoted after a crash, still loses it — the exact failover
+this guards. `WAITAOF` blocks on the append-only file being fsynced locally (the `1`, confirmed rather than
+assumed from `appendfsync always`, so a misconfiguration is a refusal) and on `<n>` replicas. It needs
+`appendonly yes`, which the startup probe already enforces. ClickHouse has `insert_quorum` (with
+`insert_quorum_parallel = 0`) for the same reason at shard level, since `insert_distributed_sync` reaches a
+shard rather than its replicas. A quorum of **1** is refused at startup: it is satisfied by the initiating
+replica alone, which is what happens with no quorum, plus latency and a false sense of safety.
 
 `appendfsync always` is **required**, not merely preferred. `everysec` was accepted for a while on the
 grounds that it is what production Redis runs — but it lets a 200 precede the fsync, so a host failure loses
 up to a second of exports this server has already reported as stored, and documenting that window makes the
 loss honest without making the data durable. An operator who wants that throughput has the default
-in-memory backend, which writes inside the request instead of acknowledging early. One window remains and is
-not closed: a failover can promote a replica that had not received the entry, which needs a per-publish
-`WAIT`/`WAITAOF` and the latency that implies.
+in-memory backend, which writes inside the request instead of acknowledging early. The failover window —
+a replica promoted without the entry — is closed by `min_replica_acks` above, at the cost of a `WAITAOF`
+round trip per publish.
 
 **Recovery cannot be starved, and a poison payload cannot stop ingestion.** `stream_claim` asked for the
 first N pending entries and discarded the ones that were not idle enough, so a backlog of freshly delivered
@@ -720,16 +1012,29 @@ evidence and is not:
   it is DuckDB's own write amortisation rather than file extraction — inherent to an embedded store taking
   750 KB writes with no gap, and not a shape an exporter produces.
 
+**Open, and measured rather than guessed**: on the development host these figures currently sit ~35% above
+the table below - concurrent session-read p50 ~165 ms and p95 ~188 ms against a documented 121/138 - across
+four consecutive runs, so it is not run-to-run noise. Two things are established about it. It is **not** the
+session-membership work: reverting that subquery to its previous form leaves the numbers unchanged (p50 27.6
+vs 27.4 ms, p95 191 vs 188 ms), measured directly at the benchmark's own scale. And it is not the narrowing
+optimisation either, which is justified on its own interleaved measurement (`bench_session_membership`: 1.77x
+the loose predicate deduplicating the whole project, 1.29x deduplicating candidates only, at 4,000 traces).
+
+What is unresolved is whether the remaining gap is this host or a cumulative regression elsewhere. Every
+measurement today was taken with 15-20 other processes competing (load 8-35 all day), and the table below was
+taken on an idle machine. Settling it needs an idle host, or a bisect - and note that `c00fe46d` does not
+build in a `git worktree`, which is worth understanding before attempting one.
+
 **DuckDB + SQLite**, release build, loopback, 200 samples (100 for the large export):
 
 | Operation | p50 | p95 | p99 (ungated) | p95 ceiling |
 | --- | --- | --- | --- | --- |
-| trace export, 2 KB | 3.5 ms | 4.1 ms | 4.6 ms | 10 ms |
-| trace export, 754 KB | 20.5 ms | 54.5 ms | 143 ms | 100 ms |
-| session messages (136 spans), sequential | 17.8 ms | 20.1 ms | 38.3 ms | 40 ms |
-| session messages, 8 concurrent | 96.8 ms | 136.8 ms | 312 ms | 150 ms |
-| trace list, 50 | 21.6 ms | 25.5 ms | 39.5 ms | 40 ms |
-| **cold read** — first reader, empty reconstruction cache | 22.4 ms | | | |
+| trace export, 2 KB | 3.9 ms | 4.6 ms | 5.7 ms | 10 ms |
+| trace export, 754 KB | 19.2 ms | 40.4 ms | 96.7 ms | 100 ms |
+| session messages (136 spans), sequential | 23.5 ms | 26.9 ms | 32.8 ms | 40 ms |
+| session messages, 8 concurrent | 121.3 ms | 137.6 ms | 155.7 ms | 150 ms |
+| trace list, 50 | 26.8 ms | 30.1 ms | 40.1 ms | 40 ms |
+| **cold read** — first reader, empty reconstruction cache | 22.5 ms | | | |
 
 **PostgreSQL 17 + ClickHouse 25.8 + MinIO**, same harness (`make bench-http-distributed`), all in local
 containers so there is no network hop; the ClickHouse image is amd64 under emulation on this arm64 host,
@@ -764,6 +1069,12 @@ them rather than eight times.
 Two more things the tables say out loud. DuckDB **serialises** reads, so eight at once cost about five
 times one — read concurrency there buys throughput, not latency — while ClickHouse's cost 1.3×.
 
+The read figures rose ~5 ms when DuckDB's deduplication became a `QUALIFY ROW_NUMBER()` window rather than a
+join on `MAX(ingested_at)`. That was not a trade for speed: the join returned **every** row tied at the
+maximum, so two deliveries of one span in the same stored microsecond both survived and the span appeared
+twice. A duplicate is the one thing the feed must never produce, so the window function is the correct shape
+and its cost is the price of correctness — still inside every ceiling.
+
 **S3 file storage, against a real S3 API** (MinIO in a container): a file-carrying export takes 18-55 ms
 including the object writes; deleting a project removes exactly its own objects and leaves other projects'
 untouched (verified by object count before and after); and the `ListObjectsV2` that an *empty* project's
@@ -784,23 +1095,13 @@ container), and a multi-replica deletion backlog at scale.
 **What "all frameworks" means, exactly.** The claim is bounded by this corpus, and it is checked rather than
 described: `the_corpus_matches_the_support_matrix` fails if a suite is added or removed without updating it.
 
-| Suite | Version captured against | Samples | Captured requests |
-| --- | --- | --- | --- |
-| `_synthetic` | hand-written shapes, no SDK | 5 | 5 |
-| `adk` | google-adk >=1.27.0 | 8 | 18 |
-| `agent-framework` | agent-framework-core >=1.0.0b0 | 10 | 17 |
-| `anthropic` | anthropic >=0.84.0 | 7 | 18 |
-| `bedrock` | boto3 (bedrock runtime) | 6 | 14 |
-| `claude-agent-sdk` | claude-agent-sdk >=0.2.0 | 8 | 17 |
-| `claude-agent-sdk-js` | @anthropic-ai/claude-agent-sdk ^0.3.246 | 8 | 17 |
-| `crewai` | crewai >=1.10.1 | 9 | 33 |
-| `langgraph` | langgraph >=1.1.2 | 9 | 23 |
-| `openai` | openai >=1.80.0 | 6 | 8 |
-| `openai-agents` | openai-agents >=0.12.1 | 10 | 37 |
-| `strands` | strands-agents >=1.30.0 | 10 | 40 |
-| `strands-js` | @strands-agents/sdk ^1.14.0 | 8 | 16 |
-| `vercel-ai-js` | ai ^7.0.79 | 7 | 17 |
-| **14 suites** | | **111** | **280** |
+See **`server/tests/fixtures/messages/README.md`** for the table: which suites, at which SDK versions, and
+how many samples and captured requests each contributes. It lives there rather than here because
+`the_corpus_matches_the_support_matrix` parses it. This file is *tracked*, but project convention keeps it out
+of routine commits, so its committed content lags the working copy by however much has been written since -
+and a test reading it would assert against whatever state a given checkout happens to carry. The README is
+maintained beside the fixtures it describes, which is what makes it a document a test can hold to account.
+
 
 Each captured request is real OTLP from a real run of that SDK, replayed through the real ingestion path.
 What the corpus verifies per fixture: message count, content, ordering and absence of duplicates across all
@@ -823,7 +1124,14 @@ insert returns once the rows are spooled on the initiating node's disk, which is
 `wait_for_async_insert = 0` by another route. Reads (distributed table) and deletes (`_local` with `ON
 CLUSTER`, where the parts are) were already right; only the insert was wrong.
 
-**Message-parsing goldens**: `cargo test -p sideseat-server message_goldens` verifies message count, content, ordering and absence of duplicates per framework across all three views (span / trace / session). Fixtures are captured OTLP payloads under `server/tests/fixtures/messages/<suite>/<sample>/`; capture with `misc/capture-message-fixtures.sh [suite] [sample]` (needs model credentials), then record with `UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens` and review the diff. Invariants (scope containment, per-trace dedup, tool-id correspondence, no empty thinking, determinism) hold independently of the goldens, so a blindly regenerated snapshot still fails on real defects. `UPDATE_GOLDENS=1` writes the files but still exits non-zero when an invariant was violated, so known-bad output cannot be committed as reviewed. See `server/tests/fixtures/messages/README.md`.
+**Message-parsing goldens**: `cargo test -p sideseat-server message_goldens` verifies message count, content,
+ordering and absence of duplicates per framework across all **four** views (span / trace / session / feed).
+Every one of the 111 samples has an `expected.json` beside its captured requests - checked structurally, none
+missing - and each records, per view, the message count, the role sequence, and for every message its index,
+role, entry type, content, content digest, tool name, finish reason and observation type. So the four
+dimensions the goldens exist to protect are each pinned by a distinct field rather than inferred from a
+summary. Mutation-verified: dropping one message, swapping two, or duplicating one each fail four of the
+suite's tests. Fixtures are captured OTLP payloads under `server/tests/fixtures/messages/<suite>/<sample>/`; capture with `misc/capture-message-fixtures.sh [suite] [sample]` (needs model credentials), then record with `UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens` and review the diff. Invariants (scope containment, per-trace dedup, tool-id correspondence, no empty thinking, determinism) hold independently of the goldens, so a blindly regenerated snapshot still fails on real defects. `UPDATE_GOLDENS=1` writes the files but still exits non-zero when an invariant was violated, so known-bad output cannot be committed as reviewed. See `server/tests/fixtures/messages/README.md`.
 
 **ClickHouse parity**: `make test-clickhouse` starts a pinned container and runs
 `server/src/data/clickhouse/parity_tests.rs`, which inserts one span set into both analytics
@@ -833,6 +1141,103 @@ Docker; CI runs it against a service container. Two things it found: `get_trace_
 outright on ClickHouse (non-Nullable `arrayJoin` into `Option<String>`), and the ClickHouse schema
 TTLs spans older than 90 days, so a fixture with fixed past timestamps disappears there and
 persists in DuckDB.
+
+**A trace belongs to exactly one session: the one on its earliest span.** `arg_min` / `argMin` over
+`(timestamp_start, span_id)` - a *total* order, because a timestamp tie left to the engine gives three
+surfaces three answers about one trace. Frameworks really do put two session ids on one trace: ADK emits its
+own alongside the caller's, and 24 of the 111 fixtures had a trace with a session view under **both**,
+holding the identical messages. The goldens had recorded that duplication as correct.
+
+Asking "any span named it" instead was wrong in eight places, and the consequences differed enough that
+fixing them one at a time missed several rounds running:
+
+| Surface | What "any span" did |
+| --- | --- |
+| Message reads (`traces_of_session`, both backends) | Both sessions returned the whole trace, so one session's view showed content the UI displays under another |
+| `delete_sessions` (both backends) | Deleting session B deleted **every span** of a trace canonically in A. Data loss, and ClickHouse kept doing it after DuckDB was fixed because the regression test covered one backend |
+| The ingestion fence (`canonical_session_of_traces`) | A redelivery of that trace was tombstoned and dropped in full, and the tombstone then had the sweep delete the rows already stored under A |
+| Trace / span / session list *filters* | A row matched a filter for a session it is not in |
+| The session **list** and project **statistics** | Two sessions, each claiming the trace's full spans, tokens and cost; opening the second showed nothing |
+| Session-filtered **SSE** | Child spans carry no session at all, so their events were discarded by the page they belonged to; a stray-session span went to a page the trace does not appear on |
+
+The *advanced filter* path is included: a `session_id` filter on the span or session list becomes a
+trace-level predicate against the canonical relation rather than a comparison on the raw column, so the two
+ways of asking the same question - that filter and the dedicated `session_id` parameter, in the same query -
+cannot disagree. A negated operator wraps the *positive* form in `NOT IN`, for the same reason the trace list
+does: "not this session" means "its session is not this one", and the negation as written also drops traces
+with no session (`NULL NOT IN (…)` is NULL).
+
+And in the UI, "View in session" navigates by the **trace's** session, *only* — no fallback. A session id sits
+on the span that knew it, so gating that button on `span.session_id` hid it on every child span of a trace that
+does have a session, and showed it on a span naming one the trace is not in, where it led to a page showing
+nothing. Falling back to the span's own value *while the trace request is in flight* is the same defect on a
+timer: whether the user got the wrong session depended on how fast the request returned. Until the trace
+answers the destination is unknown, which the button says by staying disabled, with a tooltip that separates
+"resolving" from "no session".
+
+**And the live stream is stamped from the store, not from the batch, whole** (`stamp_stored_sessions`). A subscriber
+filtered by session compares `event.session_id`, so the value has to be the one a subsequent read returns —
+and the canonical session is the one on the trace's *earliest* span, which may have arrived in a previous
+batch. A streaming exporter's later flush therefore announced a span under session B while every read placed
+its trace under A: the live stream and the page disagreeing about one trace, which for a debugging tool reads
+as a message that appears and then cannot be found. Asked after the write, on both ingest paths, so the store's
+answer includes this batch — and taken *whole*: a trace the store reports no session for **has** no session,
+which is a fact and not a gap. Overwriting only the traces it named left the batch's value standing, so a batch
+that corrected a span by removing its session still announced the old one.
+
+A **failed** read clears the session rather than falling back to the batch's view. Both lose something and
+they are not symmetric: an event with no session reaches every unfiltered and trace-filtered subscriber and no
+session page, while a wrongly stamped one is delivered to a page the trace does not appear on *and* withheld
+from the page it does — a false positive and a false negative from one guess.
+
+The read is **unconditional**, and costs ~2.7 ms per batch (22.4 → 25.1 ms on the `langgraph/swarm` ingestion
+benchmark). Skipping it for a trace whose parentless span the batch carries was tried and reverted: it recovers
+about half of that and privileges the root span, which is precisely what the canonical rule refuses to do — in
+a distributed trace a child produced on another host can carry an earlier start time than its parent, so a
+batch holding the root still does not know the answer, and the case it gets wrong is the misrouting this
+exists to fix.
+
+One definition per backend, enforced on the source text
+(`the_session_membership_subquery_is_defined_once_per_backend`), because a second copy compiles and passes
+every behavioural test - and both message reads had already grown one within a day. Its four placeholders come
+from `traces_of_session_binds`, since a wrong order there is a silently wrong answer rather than an error.
+
+**The deduplication is narrowed to candidate traces, not applied to the project.** A window function cannot
+use an index, so what matters is how many rows reach it: 1.85x the (incorrect) loose predicate deduplicating
+everything, 1.28x deduplicating only traces that ever named the session, measured by
+`bench_session_membership` - which runs the formulations **interleaved in one process**, so the ratio is
+meaningful on a host this benchmark cannot have to itself, and asserts they select the same **trace ids**
+before timing them. A count would have let a faster wrong answer pass. Parameterising the subquery by
+relation once put the candidate filter *outside* the window and silently gave the optimisation back; that
+benchmark is what noticed.
+
+**A session's membership is a fact from the store, resolved on the deduplicated rows, at the traversal's
+own instant.** Three separate defects in one small area, each producing duplicates:
+
+- **Deduplicated, not raw.** `otel_spans` is append-only, so a span re-delivered with a different
+  `session_id` leaves its old row behind. DuckDB resolved membership from the raw table while reading the
+  messages from the deduplicated view, so the *old* session still found the trace and returned its *current*
+  content - a session reporting messages that no longer belong to it, and one trace under two sessions.
+  ClickHouse read the subquery with `FINAL` and was already right, so this was a silent backend disagreement.
+- **From the store, not from the rows.** The feed groups traces into conversations so a cross-trace replay can
+  be collapsed. Those rows have been through `MESSAGE_CONTENT_FILTER`, and a framework records the session on
+  the span that knows it - usually a root carrying no content, which the filter removes. With every such row
+  gone, each trace became its own conversation and the second trace's re-sent history came back as duplicated
+  turns while the response still said `session_scoped`. The route passes `FeedOptions::session_of_trace`
+  (`get_trace_session_pairs`), and it is **in the reconstruction cache key**: it knows about spans the filter
+  removed, so a contentless root whose session changed alters the answer while leaving every row identical.
+  `process_feed_cached` also had to stop reconstructing with a bare `FeedOptions::new()`, which discarded the
+  caller's options on every production read.
+- **As of the watermark.** Membership reads take `as_of_us`; the feed passes its traversal watermark. Against
+  current data a trace re-delivered into another session mid-traversal is read with its old content but
+  expanded under its new session, so the session it actually replays is never loaded. DuckDB honours the bound;
+  ClickHouse cannot express it, the same limit already stated for the page and context queries.
+
+The session is the one on the trace's **earliest** span (`argMin` over `(timestamp_start, span_id)`), matching
+what the trace and session views display. `MIN(session_id)` was deterministic but picked the lexicographically
+smallest, so a trace could be shown under one session and grouped under another. And the grouping key is a
+typed enum, not `format!("trace:{id}")`: session ids come from the client, so a session literally named
+`trace:B` grouped with the sessionless trace B - two unrelated conversations reconstructed as one.
 
 **Message views all use `process_spans`**: the span, trace and session endpoints differ only in their row set, not their pipeline. `process_feed` (DESC, newest-first) belongs to the **project feed** endpoint (`routes/otel/feed.rs`) — using it for a session view produces ordering no session request can return.
 
@@ -886,10 +1291,29 @@ Trace and session queries apply `MESSAGE_CONTENT_FILTER`, so rows with no messag
 | Column kind | Predicate | Why |
 | --- | --- | --- |
 | Aggregate (`trace_name`, `duration_ms`, `start_time`, `end_time`, all tokens and costs) | condition on the displayed aggregate, in one `GROUP BY … HAVING` subquery | tokens and cost are sums over a trace's spans; a row-level comparison hid a trace displaying 3000 tokens from `> 2500` and returned it for `< 1500` |
-| Displayed-but-per-span (`session_id`, `user_id`, `environment`) | condition on `trace_display_first(col)` — the earliest span that has a value, which is what the row shows | these live on the spans that know them, usually the root alone, so `session IS NULL` was true of every such trace and returned traces displayed *under* a session |
+| Displayed-but-per-span (`user_id`, `environment`) | condition on `trace_display_first(col)` — the earliest span that has a value, which is what the row shows | these live on the spans that know them, usually the root alone, so `session IS NULL` was true of every such trace and returned traces displayed *under* a session |
+| `session_id` | the canonical relation (`canonical_session_filter` / `push_canonical_session_filter`), the same subquery the span and session lists use | one question must not have two answers: the trace list matched the displayed aggregate while the span list negated the subquery, so a sessionless trace was absent from "session is not A" on one page and present on the other |
 | Span attribute the row does not show (model, provider, framework, tags, trace id) | `trace_id IN (SELECT … WHERE <cond>)`, one subquery each; a **negated** operator becomes `trace_id NOT IN (<positive form>)` | ANDed on one row, two filters demanded a single span carrying both values — a session id on the root plus tokens on its child matched nothing. And "none of X" asked as written returned a trace that used X once and something else next, and dropped rows with no value at all (`NULL NOT IN (…)` is NULL) |
 
 Negation uses `Filter::positive_twin()` (`NoneOf`→`AnyOf`, `IsNull`→`IsNotNull`, `Ne`→`Eq`) and negates the *subquery*: for an entity made of many spans, "not this" means **no** span, not "some span was something else".
+
+**That applies to an aggregate too, and it is not a stylistic choice — it is what NULL costs.** A negation
+rendered against the aggregate is `FIRST(user_id ORDER BY …) NOT IN ('x')`, which is NULL for a trace with no
+user id anywhere, and NULL is not true — so "none of x" dropped exactly the traces that are not x. Each
+negated aggregate filter therefore becomes its own `trace_id NOT IN (SELECT … HAVING <positive>)`, in both
+backends, since the positive ones share one `HAVING`. The parity case meant to pin this named a user the
+fixture does not have, so every trace matched and it could not tell a correct answer from a filter that had
+been dropped entirely; it now names one the fixture has.
+
+**One expression per displayed value, or the list, the detail view and the filter give three answers.**
+`trace_display_name` was used only by the *filter* while four projections (three DuckDB, one ClickHouse)
+hand-wrote their own — three of them with no `ORDER BY` at all. A trace with two roots at the same start
+instant was listed under one name, shown under another when opened, and matched by a filter for a third,
+and which one you got depended on the plan. Every site takes the helper now, it carries the
+`(timestamp_start, span_id)` tie-break that makes the order total, and
+`the_displayed_trace_name_is_defined_once_per_backend` reads the source — a fifth copy compiles and passes
+every behavioural test. The preview and metadata aggregates got the same tie-break, for the same reason at
+a smaller stake.
 
 Token and cost expressions come from the same `gen_totals` SQL the list projects, so the filter cannot drift from the number on screen. Being trace-level, the conditions live in the shared WHERE and so apply identically to the count, the totals CTE and the page. The `from`/`to` time window is *not* part of this: it still selects span rows, which is what a time-bounded list means — so the filter's own totals carry the same window.
 
