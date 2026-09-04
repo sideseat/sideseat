@@ -153,7 +153,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
           cache-dependency-glob: sdk/python/uv.lock
@@ -198,7 +198,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: misc/samples/js/package-lock.json
 
-      - uses: astral-sh/setup-uv@f94ec6bedd8674c4426838e6b50417d36b6ab231 # v5.4.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v5.4.1
 
       # The sample trees were checked by `make fmt-check`/`make lint` locally but by nothing in
       # CI, so unformatted or type-broken sample code could merge. Runs the same commands the
