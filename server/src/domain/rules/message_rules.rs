@@ -27,7 +27,10 @@ use std::collections::HashMap;
 
 use serde_json::{Value as JsonValue, json};
 
-use super::schema::{EmitTarget, MessageRule, ParseMode, ReadSpec, RuleFile};
+use super::schema::{
+    Alternative, DetectMatch, EmitTarget, MessageRule, ParseMode, ReadSpec, RuleFile,
+    ShapeRequirement,
+};
 
 /// What an ingestion knows when it asks which carriers to read.
 #[derive(Debug, Clone, Copy)]
@@ -63,6 +66,8 @@ pub struct CompiledMessageRule {
     pub parse: ParseMode,
     pub wrap_role: Option<String>,
     pub target: EmitTarget,
+    pub when: Option<DetectMatch>,
+    pub alternatives: Vec<Alternative>,
     pub legacy_rank: i32,
 }
 
@@ -153,6 +158,8 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 parse,
                 wrap,
                 emit,
+                when,
+                alternatives,
                 legacy_rank,
             } = rule;
             if seen_ids.insert(id.clone(), ()).is_some() {
@@ -172,6 +179,8 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 parse: *parse,
                 wrap_role: wrap.as_ref().map(|w| w.role.clone()),
                 target: *emit,
+                when: when.clone(),
+                alternatives: alternatives.clone(),
                 legacy_rank: *legacy_rank,
             });
         }
@@ -222,19 +231,26 @@ impl MessagePlan {
             let Some(raw) = ctx.span_attrs.get(attribute) else {
                 continue;
             };
+            if let Some(gate) = &rule.when
+                && !super::detect_rules::signals_hold(gate, ctx.span_name, ctx.span_attrs)
+            {
+                continue;
+            }
             let Some(parsed) = parse_value(raw, rule.parse) else {
                 continue;
             };
-            let value = match &rule.wrap_role {
-                Some(role) => json!({ "role": role, "content": parsed }),
-                None => parsed,
-            };
-            out.push(Emission {
-                rule_id: &rule.rule_id,
-                carrier: EmittedCarrier::Attribute(attribute),
-                target: rule.target,
-                value,
-            });
+            for value in readings(&parsed, &rule.alternatives) {
+                let value = match &rule.wrap_role {
+                    Some(role) => json!({ "role": role, "content": value }),
+                    None => value,
+                };
+                out.push(Emission {
+                    rule_id: &rule.rule_id,
+                    carrier: EmittedCarrier::Attribute(attribute),
+                    target: rule.target,
+                    value,
+                });
+            }
         }
         out
     }
@@ -259,4 +275,73 @@ fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonValue> {
         ParseMode::Json => serde_json::from_str(raw).ok(),
         ParseMode::JsonOrString => Some(serde_json::from_str(raw).unwrap_or_else(|_| json!(raw))),
     }
+}
+
+/// Whether a value has the shape a rule requires.
+fn shape_holds(value: &JsonValue, requirement: Option<&ShapeRequirement>) -> bool {
+    let Some(req) = requirement else {
+        return true;
+    };
+    let present = |member: &String| value.get(member.as_str()).is_some();
+    (req.all_of.is_empty() || req.all_of.iter().all(present))
+        && (req.any_of.is_empty() || req.any_of.iter().any(present))
+}
+
+/// The observations one payload yields, under the first alternative that produces any.
+///
+/// An ordered coalesce over documented shapes. With no alternatives the payload is emitted as it stands,
+/// which is what a carrier holding exactly one message needs. "The first that produces any" is the whole
+/// control flow, and it is deliberately all there is: a shape that yields nothing is not an error, it is
+/// evidence the payload is in a different one of its documented forms.
+fn readings(parsed: &JsonValue, alternatives: &[Alternative]) -> Vec<JsonValue> {
+    if alternatives.is_empty() {
+        return vec![parsed.clone()];
+    }
+    for alternative in alternatives {
+        let selected = match &alternative.select {
+            Some(member) => match parsed.get(member.as_str()) {
+                Some(value) => value,
+                None => continue,
+            },
+            None => parsed,
+        };
+        let elements: Vec<&JsonValue> = if alternative.each {
+            match selected.as_array() {
+                Some(items) => items.iter().collect(),
+                // Declared as a list and is not one: this is not the shape, so try the next.
+                None => continue,
+            }
+        } else {
+            vec![selected]
+        };
+
+        let mut produced = Vec::new();
+        for element in elements {
+            // Descend, carrying down the members the rule says belong with the message.
+            let candidate = match &alternative.descend {
+                Some(member) => {
+                    let Some(inner) = element.get(member.as_str()) else {
+                        continue;
+                    };
+                    let mut carried = inner.clone();
+                    if let Some(object) = carried.as_object_mut() {
+                        for lifted in &alternative.lift {
+                            if let Some(value) = element.get(lifted.as_str()) {
+                                object.insert(lifted.clone(), value.clone());
+                            }
+                        }
+                    }
+                    carried
+                }
+                None => element.clone(),
+            };
+            if shape_holds(&candidate, alternative.require.as_ref()) {
+                produced.push(candidate);
+            }
+        }
+        if !produced.is_empty() {
+            return produced;
+        }
+    }
+    Vec::new()
 }

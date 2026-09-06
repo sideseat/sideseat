@@ -421,6 +421,21 @@ pub struct MessageRule {
     pub wrap: Option<WrapSpec>,
     /// Whether the observation is a message or a tool definition.
     pub emit: EmitTarget,
+    /// A gate on the span, in the detection vocabulary: the rule is consulted only where this holds.
+    ///
+    /// Several extractors refuse to read a carrier whose name they share with other dialects unless the
+    /// span also carries their own marker - `gen_ai.prompt` is the generic conventions' key and also
+    /// where one exporter writes a whole request, so reading it unconditionally would claim another
+    /// dialect's payload.
+    #[serde(default)]
+    pub when: Option<DetectMatch>,
+    /// Ordered readings of the parsed value, tried until one yields an observation.
+    ///
+    /// An ordered coalesce, not a program: a payload has more than one documented shape and the rule
+    /// says which to try first. Empty means "emit the parsed value as it stands", which is what the
+    /// three dialects migrated first needed.
+    #[serde(default)]
+    pub alternatives: Vec<Alternative>,
     /// Position in the consulted order. See `MessagePlan` for why it is `legacy_`.
     #[serde(rename = "legacy_rank")]
     pub legacy_rank: i32,
@@ -471,4 +486,44 @@ pub struct WrapSpec {
 pub enum EmitTarget {
     Message,
     ToolDefinitions,
+}
+
+/// One documented shape of a payload: where to look, what to require, and what to carry down.
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
+pub struct Alternative {
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// A member of the parsed object to read. Absent means the parsed value itself.
+    #[serde(default)]
+    pub select: Option<String>,
+    /// Treat the selected value as a list and read each element.
+    #[serde(default)]
+    pub each: bool,
+    /// After selecting an element, descend to this member - `choices[].message`.
+    #[serde(default)]
+    pub descend: Option<String>,
+    /// Copy these members from the element into the descended value before emitting.
+    ///
+    /// A provider puts the reason a turn stopped beside the message rather than inside it, and dropping
+    /// it loses the only record that a response was truncated.
+    #[serde(default)]
+    pub lift: Vec<String>,
+    /// The shape an observation must have to be emitted.
+    #[serde(default)]
+    pub require: Option<ShapeRequirement>,
+}
+
+/// What an emitted value must look like. Both forms exist because the extractors use both, and the
+/// difference is real: a message needs a role *and* content to be a message, while a *response* may
+/// legitimately carry content with no role.
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
+pub struct ShapeRequirement {
+    /// Every one of these members must be present.
+    #[serde(default)]
+    pub all_of: Vec<String>,
+    /// At least one of these members must be present.
+    #[serde(default)]
+    pub any_of: Vec<String>,
 }

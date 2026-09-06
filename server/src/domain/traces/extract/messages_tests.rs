@@ -6669,6 +6669,74 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         ]),
         // Nothing at all: both must report `false` and emit nothing.
         rule_attrs(&[("unrelated.key", "x")]),
+        // LangSmith: gated, so the same keys without a marker must yield nothing at all.
+        rule_attrs(&[(
+            "gen_ai.prompt",
+            r#"{"messages":[{"role":"user","content":"hi"}]}"#,
+        )]),
+        rule_attrs(&[
+            ("langsmith.span.kind", "llm"),
+            (
+                "gen_ai.prompt",
+                r#"{"messages":[{"role":"user","content":"hi"}]}"#,
+            ),
+        ]),
+        // Two turns, and a member of the request that is not a turn: it must not become one.
+        rule_attrs(&[
+            ("langsmith.trace.name", "t"),
+            (
+                "gen_ai.prompt",
+                r#"{"messages":[{"role":"system","content":"s"},{"role":"user","content":"u"},
+                    {"role":"noContent"}],"temperature":0.5}"#,
+            ),
+        ]),
+        // A single message written directly, rather than in an array.
+        rule_attrs(&[
+            ("langsmith.span.kind", "llm"),
+            ("gen_ai.prompt", r#"{"role":"user","content":"direct"}"#),
+        ]),
+        // The completion's choices array, with the finish reason beside each message.
+        rule_attrs(&[
+            ("langsmith.span.kind", "llm"),
+            (
+                "gen_ai.completion",
+                r#"{"choices":[{"message":{"role":"assistant","content":"a"},
+                    "finish_reason":"stop"}]}"#,
+            ),
+        ]),
+        // Two choices, one without a finish reason: the lift must be per element.
+        rule_attrs(&[
+            ("langsmith.span.kind", "llm"),
+            (
+                "gen_ai.completion",
+                r#"{"choices":[{"message":{"role":"assistant","content":"a"},"finish_reason":"stop"},
+                    {"message":{"role":"assistant","content":"b"}}]}"#,
+            ),
+        ]),
+        // A response carrying content and no role - which `any_of` admits and `all_of` would drop.
+        rule_attrs(&[
+            ("langsmith.span.kind", "llm"),
+            ("gen_ai.completion", r#"{"content":"no role here"}"#),
+        ]),
+        // Both sides at once, plus a prefix-only marker.
+        rule_attrs(&[
+            ("langsmith.anything", "x"),
+            (
+                "gen_ai.prompt",
+                r#"{"messages":[{"role":"user","content":"q"}]}"#,
+            ),
+            (
+                "gen_ai.completion",
+                r#"{"choices":[{"message":{"role":"assistant","content":"a"},
+                    "finish_reason":"length"}]}"#,
+            ),
+        ]),
+        // Unparseable on both sides: skipped, not stored as prose.
+        rule_attrs(&[
+            ("langsmith.span.kind", "llm"),
+            ("gen_ai.prompt", "not json"),
+            ("gen_ai.completion", "also not json"),
+        ]),
     ];
 
     let mut disagreements = Vec::new();
@@ -6677,7 +6745,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         let mut legacy_tools: Vec<RawToolDefinition> = Vec::new();
         let mut legacy_found = false;
         // In the order the `EXTRACTORS` list had them.
-        for f in [try_mlflow, try_traceloop, try_pydantic_ai] {
+        for f in [try_mlflow, try_traceloop, try_pydantic_ai, try_langsmith] {
             legacy_found |= f(&mut legacy_msgs, &mut legacy_tools, case, "span", time);
         }
 
@@ -6724,8 +6792,8 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        7,
-        "the assets declare {} message rules; three extractors were replaced, reading seven carriers \
+        9,
+        "the assets declare {} message rules; four extractors were replaced, reading nine carriers \
          between them",
         plan.rule_count()
     );

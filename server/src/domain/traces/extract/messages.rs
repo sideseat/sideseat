@@ -421,10 +421,6 @@ const EXTRACTORS: &[NamedExtractor] = &[
         extractor: try_declared_rules,
     },
     NamedExtractor {
-        name: "langsmith",
-        extractor: try_langsmith,
-    },
-    NamedExtractor {
         name: "langgraph",
         extractor: try_langgraph,
     },
@@ -2179,6 +2175,7 @@ pub(crate) fn try_pydantic_ai(
     found
 }
 
+#[cfg(test)]
 pub(crate) fn try_langsmith(
     messages: &mut Vec<RawMessage>,
     _tool_definitions: &mut Vec<RawToolDefinition>,

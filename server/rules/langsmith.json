@@ -1,0 +1,95 @@
+{
+  "id": "langsmith",
+  "doc": "The LangSmith exporter's dialect.",
+  "carriers": [],
+  "messages": [
+    {
+      "id": "langsmith.prompt",
+      "doc": "The whole request, under the conventions' own prompt key. Gated on a langsmith marker because that key is not this dialect's alone - read unconditionally it would claim another dialect's request. Two documented shapes: a messages array, or a single message.",
+      "when": {
+        "attr_prefix": [
+          "langsmith."
+        ],
+        "attr_exists": [
+          "langsmith.span.kind",
+          "langsmith.trace.session_id",
+          "langsmith.trace.name"
+        ]
+      },
+      "read": {
+        "attribute": "gen_ai.prompt"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 1200,
+      "alternatives": [
+        {
+          "doc": "A messages array. Each element must be a message - role and content both - so a request's other members are not mistaken for turns.",
+          "select": "messages",
+          "each": true,
+          "require": {
+            "all_of": [
+              "role",
+              "content"
+            ]
+          }
+        },
+        {
+          "doc": "One message, written directly.",
+          "require": {
+            "all_of": [
+              "role",
+              "content"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "langsmith.completion",
+      "doc": "The whole response. The provider's choices array carries the reason a turn stopped *beside* each message rather than inside it, so it is lifted onto the message - dropping it loses the only record that a response was truncated.",
+      "when": {
+        "attr_prefix": [
+          "langsmith."
+        ],
+        "attr_exists": [
+          "langsmith.span.kind",
+          "langsmith.trace.session_id",
+          "langsmith.trace.name"
+        ]
+      },
+      "read": {
+        "attribute": "gen_ai.completion"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 1210,
+      "alternatives": [
+        {
+          "doc": "The choices array, descending to each choice's message and carrying its finish reason down.",
+          "select": "choices",
+          "each": true,
+          "descend": "message",
+          "lift": [
+            "finish_reason"
+          ],
+          "require": {
+            "any_of": [
+              "role",
+              "content"
+            ]
+          }
+        },
+        {
+          "doc": "One message, written directly. `any_of` here rather than `all_of`: a response may carry content with no role, which a request may not.",
+          "require": {
+            "any_of": [
+              "role",
+              "content"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

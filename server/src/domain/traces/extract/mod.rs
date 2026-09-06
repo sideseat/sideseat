@@ -141,6 +141,7 @@ pub(super) mod keys {
     pub const GCP_VERTEX_SESSION_ID: &str = "gcp.vertex.agent.session_id";
 
     // LangSmith
+    #[cfg(test)]
     pub const LANGSMITH_TRACE_NAME: &str = "langsmith.trace.name";
 
     // LangGraph
@@ -251,6 +252,7 @@ pub(super) mod keys {
     pub const GEN_AI_TOOL_CALL_RESULT: &str = "gen_ai.tool.call.result";
 
     // LangSmith OTEL Exporter
+    #[cfg(test)]
     pub const GEN_AI_PROMPT: &str = "gen_ai.prompt";
     pub const GEN_AI_COMPLETION: &str = "gen_ai.completion";
 

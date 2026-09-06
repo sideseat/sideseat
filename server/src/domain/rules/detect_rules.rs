@@ -259,6 +259,52 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
     Ok(plan)
 }
 
+/// Whether a set of signals holds for a span - the shared definition.
+///
+/// Exposed so a message rule's `when` gate asks the same question detection asks, in the same way. Two
+/// implementations of "does this span carry this framework's marker" would drift, and the drift would be
+/// invisible: a rule would claim a carrier on a span detection did not attribute to that dialect.
+pub(super) fn signals_hold(
+    spec: &DetectMatch,
+    span_name: &str,
+    span_attrs: &HashMap<String, String>,
+) -> bool {
+    let resource_attrs = HashMap::new();
+    let probe = CompiledDetect {
+        rule_file: String::new(),
+        rule_id: String::new(),
+        doc: None,
+        label: String::new(),
+        legacy_rank: 0,
+        supersedes: Vec::new(),
+        match_spec: spec.clone(),
+        span_name_is_a_text_source: spec
+            .text_contains
+            .as_ref()
+            .is_some_and(|t| t.sources.iter().any(|s| s == "span_name")),
+        text_attribute_keys: spec
+            .text_contains
+            .as_ref()
+            .map(|t| {
+                t.sources
+                    .iter()
+                    .filter_map(|s| s.strip_prefix("attr:").map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        text_needles_lowered: spec
+            .text_contains
+            .as_ref()
+            .map(|t| t.needles.iter().map(|n| n.to_lowercase()).collect())
+            .unwrap_or_default(),
+    };
+    probe.matches(&DetectContext {
+        span_name,
+        span_attrs,
+        resource_attrs: &resource_attrs,
+    })
+}
+
 impl CompiledDetect {
     /// Any satisfied signal matches. Ordered cheapest-first: an equality probe is a hash lookup, while
     /// the prefix dimensions scan the span's keys.
