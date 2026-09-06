@@ -447,6 +447,20 @@ pub struct MessageRule {
     /// three dialects migrated first needed.
     #[serde(default)]
     pub alternatives: Vec<Alternative>,
+    /// Readings that all contribute, rather than the first that yields.
+    ///
+    /// A different relation from `alternatives`, and mixing them up loses messages: one dialect writes a
+    /// turn's history under one member and *the answer itself* under another, so reading them as
+    /// alternatives dropped the assistant output of every run that carried history. Refused together with
+    /// `alternatives`, because "first wins" and "all contribute" cannot both be true of one list.
+    #[serde(default)]
+    pub also: Vec<Alternative>,
+    /// A reading used only when nothing else in this rule emitted anything.
+    ///
+    /// Keeps a span from being silently empty: where a payload matches no documented shape, it is better
+    /// to keep it whole than to return nothing and leave no trace that it arrived.
+    #[serde(default)]
+    pub fallback: Vec<Alternative>,
     /// Tag the observation with this carrier, whatever alternative was read.
     ///
     /// Normally the key found is the tag, so two spellings of a payload stay distinguishable. One dialect
@@ -682,7 +696,12 @@ pub enum EmitTarget {
 pub struct Alternative {
     #[serde(default)]
     pub doc: Option<String>,
-    /// A member of the parsed object to read. Absent means the parsed value itself.
+    /// A path into the parsed value. Absent means the value itself.
+    ///
+    /// Steps are separated by `.`, and a step ending in `[]` iterates an array - so
+    /// `tasks_output[].messages[]` reads every message of every task. Two array steps are what one dialect
+    /// needs and one step is what the rest do; a path is the honest way to say which, rather than a flag
+    /// per level.
     #[serde(default)]
     pub select: Option<String>,
     /// Treat the selected value as a list and read each element.
@@ -703,6 +722,18 @@ pub struct Alternative {
     /// vocabulary rather than three fields that grew one at a time.
     #[serde(default)]
     pub require: PredicateSet,
+    /// An envelope for *this* reading only.
+    ///
+    /// One reading of a payload may be a bare value needing a role while its siblings are already
+    /// messages - a dialect's answer sits in a string member beside a list of turns. Overrides the rule's
+    /// own `wrap` where present.
+    #[serde(default)]
+    pub wrap: Option<WrapSpec>,
+    /// Trim a string before testing and emitting it.
+    ///
+    /// Declared rather than always-on: trimming a payload that is meant to be verbatim would change it.
+    #[serde(default)]
+    pub trim: bool,
 }
 
 /// What an emitted value must look like. Both forms exist because the extractors use both, and the

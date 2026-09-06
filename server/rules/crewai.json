@@ -27,5 +27,110 @@
       "slug": "crewai",
       "label": "CrewAI"
     }
+  ],
+  "messages": [
+    {
+      "id": "crewai.crew_tasks",
+      "doc": "The crew's task definitions, kept whole.",
+      "when": {
+        "attr_exists": [
+          "crew_key",
+          "crew_id",
+          "crew_tasks",
+          "task_key"
+        ]
+      },
+      "read": {
+        "attribute": "crew_tasks"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 1500
+    },
+    {
+      "id": "crewai.output",
+      "doc": "One payload holding the history *and* the answer. The readings are cumulative, not alternatives: the turns live under `messages` (and under each task's own `messages`) while the answer itself is the top-level `raw`, so reading them as alternatives dropped the assistant output of every run that carried history - `crewai/reasoning` recorded three user turns and no answer, and the goldens recorded that as correct because no invariant requires an answer to exist. A turn must look like one (a role, and content or tool calls) so a task's other members are not mistaken for turns. The fallback keeps an unrecognised payload whole rather than leaving the span silently empty.",
+      "when": {
+        "attr_exists": [
+          "crew_key",
+          "crew_id",
+          "crew_tasks",
+          "task_key"
+        ]
+      },
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 1510,
+      "also": [
+        {
+          "doc": "The conversation's turns.",
+          "select": "messages[]",
+          "require": {
+            "all": [
+              {
+                "path": "role"
+              }
+            ],
+            "any": [
+              {
+                "path": "content"
+              },
+              {
+                "path": "tool_calls"
+              },
+              {
+                "path": "toolCalls"
+              }
+            ]
+          }
+        },
+        {
+          "doc": "And each task's own turns.",
+          "select": "tasks_output[].messages[]",
+          "require": {
+            "all": [
+              {
+                "path": "role"
+              }
+            ],
+            "any": [
+              {
+                "path": "content"
+              },
+              {
+                "path": "tool_calls"
+              },
+              {
+                "path": "toolCalls"
+              }
+            ]
+          }
+        },
+        {
+          "doc": "The answer, which is a bare string beside them and so needs its own envelope.",
+          "select": "raw",
+          "trim": true,
+          "require": {
+            "all": [
+              {
+                "kind": "string",
+                "non_empty": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "assistant"
+          }
+        }
+      ],
+      "fallback": [
+        {
+          "doc": "No documented shape matched: keep the payload rather than nothing."
+        }
+      ]
+    }
   ]
 }

@@ -413,10 +413,6 @@ const EXTRACTORS: &[NamedExtractor] = &[
         name: "autogen",
         extractor: try_autogen,
     },
-    NamedExtractor {
-        name: "crewai",
-        extractor: try_crewai,
-    },
     // Before raw_io: guarded on span.type, so it only claims Claude Code CLI spans.
     NamedExtractor {
         name: "raw_io",
@@ -3686,6 +3682,7 @@ fn finalize_crewai_tools(
 }
 
 /// Check if a JSON object looks like a chat message (has role + content or tool_calls).
+#[cfg(test)]
 fn is_chat_message(msg: &JsonValue) -> bool {
     msg.get("role").is_some()
         && (msg.get("content").is_some()
@@ -3693,6 +3690,7 @@ fn is_chat_message(msg: &JsonValue) -> bool {
             || msg.get("toolCalls").is_some())
 }
 
+#[cfg(test)]
 pub(crate) fn try_crewai(
     messages: &mut Vec<RawMessage>,
     _tool_definitions: &mut Vec<RawToolDefinition>,

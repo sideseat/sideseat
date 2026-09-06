@@ -92,6 +92,8 @@ pub struct CompiledMessageRule {
     pub reads_tool_spans: bool,
     pub tag_as: Option<String>,
     pub alternatives: Vec<Alternative>,
+    pub also: Vec<Alternative>,
+    pub fallback: Vec<Alternative>,
     pub legacy_rank: i32,
 }
 
@@ -196,6 +198,8 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 wrap,
                 emit,
                 alternatives,
+                also,
+                fallback,
                 require_members,
                 require_non_empty,
                 require_non_blank,
@@ -245,6 +249,8 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 && (wrap.is_some()
                     || sections.is_some()
                     || !alternatives.is_empty()
+                    || !also.is_empty()
+                    || !fallback.is_empty()
                     || parse.is_some())
             {
                 return Err(inexpressible(
@@ -252,13 +258,17 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                      `parse` would be ignored",
                 ));
             }
-            if read.indexed_family.is_some() && (wrap.is_some() || !alternatives.is_empty()) {
+            if read.indexed_family.is_some()
+                && (wrap.is_some() || !alternatives.is_empty() || !also.is_empty())
+            {
                 return Err(inexpressible(
                     "an indexed family assembles each entry itself, so `wrap` and `alternatives` would \
                      be ignored",
                 ));
             }
-            if sections.is_some() && (wrap.is_some() || !alternatives.is_empty()) {
+            if sections.is_some()
+                && (wrap.is_some() || !alternatives.is_empty() || !also.is_empty())
+            {
                 return Err(inexpressible(
                     "`sections` builds each section's message, so `wrap` and `alternatives` would be \
                      ignored",
@@ -307,10 +317,16 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 }
                 None
             };
-            for alternative in alternatives {
+            for alternative in alternatives.iter().chain(also).chain(fallback) {
                 if let Some(detail) = check_predicates(&alternative.require) {
                     return Err(inexpressible(detail));
                 }
+            }
+            if !alternatives.is_empty() && !also.is_empty() {
+                return Err(inexpressible(
+                    "`alternatives` means the first reading that yields wins and `also` means every one \
+                     contributes; one list cannot be both",
+                ));
             }
             if let Some(sections) = sections {
                 for route in &sections.routes {
@@ -396,6 +412,8 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 reads_tool_spans: *reads_tool_spans,
                 tag_as: tag_as.clone(),
                 alternatives: alternatives.clone(),
+                also: also.clone(),
+                fallback: fallback.clone(),
                 legacy_rank: *legacy_rank,
             });
         }
@@ -436,6 +454,11 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                     .find_map(|l| right.iter().find(|r| l.overlaps(r)).map(|_| l.describe()))
                     .map(|carrier| (carrier, how))
             });
+            // A conditional claim is not a dead rule: it yields on spans its condition excludes, and the
+            // ranks decide which is tried first. Only two unconditional rules on one carrier are a defect.
+            if claim_is_conditional(a) || claim_is_conditional(b) {
+                continue;
+            }
             if let Some((carrier, how)) = conflict {
                 return Err(MessageCompileError::ContestedCarrier {
                     first: a.rule_id.clone(),
@@ -516,6 +539,29 @@ impl CarrierPattern {
             Self::Prefix(prefix) => format!("{prefix}*"),
         }
     }
+}
+
+/// Whether a rule's claim on a carrier is *conditional* - on the span, or on nothing else having
+/// supplied the value.
+///
+/// This is what separates a genuine conflict from a shared carrier. The check exists to catch a rule that
+/// can never emit, and a rule whose claim is conditional is not that: it fires on the spans its condition
+/// admits and yields to the other elsewhere, with `legacy_rank` deciding which is tried first. Two
+/// *unconditional* rules on one carrier really are a defect - the second could never run.
+///
+/// Reachable in practice: the generic `output.value` is read by one dialect as a gated last resort and by
+/// another as its own output, and they are told apart by the span they are on.
+fn claim_is_conditional(rule: &CompiledMessageRule) -> bool {
+    if rule.when.is_some() || rule.unless.is_some() {
+        return true;
+    }
+    // A compose member's fallback is read only where its own gate holds.
+    rule.compose.as_ref().is_some_and(|compose| {
+        compose
+            .members
+            .iter()
+            .any(|member| member.fallback_gate.is_some())
+    })
 }
 
 /// What a rule reads.
@@ -648,8 +694,9 @@ impl MessagePlan {
             let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
                 continue;
             };
-            for value in readings(&parsed, &rule.alternatives) {
-                let value = match &rule.wrap {
+            for (value, per_reading_wrap) in all_readings(&parsed, rule) {
+                let wrap = per_reading_wrap.or(rule.wrap.clone());
+                let value = match &wrap {
                     Some(wrap) => wrapped(value, wrap, ctx),
                     None => value,
                 };
@@ -689,32 +736,109 @@ fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonValue> {
     }
 }
 
+/// Everything one payload yields: the first-winning alternatives, every cumulative reading, and a
+/// fallback used only when neither produced anything.
+///
+/// The distinction between "first wins" and "all contribute" is not stylistic. One dialect writes a turn's
+/// history under one member and the answer itself under another, so reading them as alternatives dropped
+/// the assistant output of every run that carried history.
+fn all_readings(
+    parsed: &JsonValue,
+    rule: &CompiledMessageRule,
+) -> Vec<(JsonValue, Option<WrapSpec>)> {
+    let mut out = Vec::new();
+    if !rule.alternatives.is_empty() {
+        out.extend(readings(parsed, &rule.alternatives));
+    }
+    for alternative in &rule.also {
+        out.extend(readings(parsed, std::slice::from_ref(alternative)));
+    }
+    if out.is_empty() {
+        if rule.alternatives.is_empty() && rule.also.is_empty() && rule.fallback.is_empty() {
+            // No readings declared at all: the payload is the observation.
+            return vec![(parsed.clone(), None)];
+        }
+        for alternative in &rule.fallback {
+            out.extend(readings(parsed, std::slice::from_ref(alternative)));
+        }
+    }
+    out
+}
+
+/// Follow a path into a value, iterating at each `[]` step.
+///
+/// Bounded by the path's own length: there is no wildcard and no recursion, so the number of steps is
+/// whatever the rule wrote.
+fn select_path<'v>(value: &'v JsonValue, path: &str) -> Vec<&'v JsonValue> {
+    let mut current = vec![value];
+    for step in path.split('.') {
+        let (member, iterate) = match step.strip_suffix("[]") {
+            Some(name) => (name, true),
+            None => (step, false),
+        };
+        let mut next = Vec::new();
+        for value in current {
+            let selected = if member.is_empty() {
+                Some(value)
+            } else {
+                value.get(member)
+            };
+            let Some(selected) = selected else { continue };
+            if iterate {
+                match selected.as_array() {
+                    Some(items) => next.extend(items.iter()),
+                    // Declared as a list and is not one: this path does not apply here.
+                    None => continue,
+                }
+            } else {
+                next.push(selected);
+            }
+        }
+        current = next;
+        if current.is_empty() {
+            return current;
+        }
+    }
+    current
+}
+
 /// The observations one payload yields, under the first alternative that produces any.
 ///
 /// An ordered coalesce over documented shapes. With no alternatives the payload is emitted as it stands,
 /// which is what a carrier holding exactly one message needs. "The first that produces any" is the whole
 /// control flow, and it is deliberately all there is: a shape that yields nothing is not an error, it is
 /// evidence the payload is in a different one of its documented forms.
-fn readings(parsed: &JsonValue, alternatives: &[Alternative]) -> Vec<JsonValue> {
+fn readings(
+    parsed: &JsonValue,
+    alternatives: &[Alternative],
+) -> Vec<(JsonValue, Option<WrapSpec>)> {
     if alternatives.is_empty() {
-        return vec![parsed.clone()];
+        return vec![(parsed.clone(), None)];
     }
     for alternative in alternatives {
-        let selected = match &alternative.select {
-            Some(member) => match parsed.get(member.as_str()) {
-                Some(value) => value,
-                None => continue,
-            },
-            None => parsed,
+        let selected: Vec<&JsonValue> = match &alternative.select {
+            Some(path) => select_path(parsed, path),
+            None => vec![parsed],
         };
+        if selected.is_empty() {
+            continue;
+        }
         let elements: Vec<&JsonValue> = if alternative.each {
-            match selected.as_array() {
-                Some(items) => items.iter().collect(),
-                // Declared as a list and is not one: this is not the shape, so try the next.
-                None => continue,
+            let mut items = Vec::new();
+            let mut all_arrays = true;
+            for value in &selected {
+                match value.as_array() {
+                    Some(inner) => items.extend(inner.iter()),
+                    // Declared as a list and is not one: this is not the shape, so try the next.
+                    None => all_arrays = false,
+                }
             }
+            if !all_arrays {
+                continue;
+            }
+            items
         } else {
-            vec![selected]
+            selected
         };
 
         let mut produced = Vec::new();
@@ -737,8 +861,13 @@ fn readings(parsed: &JsonValue, alternatives: &[Alternative]) -> Vec<JsonValue> 
                 }
                 None => element.clone(),
             };
+            // Trim declared per reading, because trimming a payload meant to be verbatim would change it.
+            let candidate = match (alternative.trim, candidate.as_str()) {
+                (true, Some(text)) => json!(text.trim()),
+                _ => candidate,
+            };
             if predicates_hold(&candidate, &alternative.require) {
-                produced.push(candidate);
+                produced.push((candidate, alternative.wrap.clone()));
             }
         }
         if !produced.is_empty() {

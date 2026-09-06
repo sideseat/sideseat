@@ -7156,6 +7156,82 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             "claude_code.tool",
             rule_attrs(&[("tool_name", "  "), ("tool_use_id", "toolu_1")]),
         ),
+        // CrewAI: gated, so the same payload without a marker yields nothing.
+        (
+            "span",
+            rule_attrs(&[("output.value", r#"{"raw":"the answer"}"#)]),
+        ),
+        // The answer alone.
+        (
+            "span",
+            rule_attrs(&[
+                ("crew_key", "k"),
+                ("output.value", r#"{"raw":"the answer"}"#),
+            ]),
+        ),
+        // History *and* the answer - the case that reading them as alternatives lost.
+        (
+            "span",
+            rule_attrs(&[
+                ("crew_key", "k"),
+                (
+                    "output.value",
+                    r#"{"messages":[{"role":"user","content":"q"},
+                        {"role":"assistant","content":"partial"}],"raw":"the answer"}"#,
+                ),
+            ]),
+        ),
+        // A task's own turns, two levels down.
+        (
+            "span",
+            rule_attrs(&[
+                ("task_key", "t"),
+                (
+                    "output.value",
+                    r#"{"tasks_output":[{"messages":[{"role":"user","content":"a"}]},
+                        {"messages":[{"role":"assistant","content":"b"}]}]}"#,
+                ),
+            ]),
+        ),
+        // A member of a task that is not a turn must not become one.
+        (
+            "span",
+            rule_attrs(&[
+                ("crew_id", "c"),
+                (
+                    "output.value",
+                    r#"{"messages":[{"role":"user","content":"q"},{"role":"noContent"},
+                        {"content":"noRole"},{"role":"a","tool_calls":[]}]}"#,
+                ),
+            ]),
+        ),
+        // A blank answer is not an answer, and with no turns either the payload is kept whole.
+        (
+            "span",
+            rule_attrs(&[("crew_key", "k"), ("output.value", r#"{"raw":"   "}"#)]),
+        ),
+        // No documented shape at all: kept whole rather than leaving the span empty.
+        (
+            "span",
+            rule_attrs(&[("crew_key", "k"), ("output.value", r#"{"other":1}"#)]),
+        ),
+        // The task definitions.
+        (
+            "span",
+            rule_attrs(&[
+                ("crew_key", "k"),
+                ("crew_tasks", r#"[{"name":"research"}]"#),
+            ]),
+        ),
+        // Unparseable output: skipped, and the task list still read.
+        (
+            "span",
+            rule_attrs(&[
+                ("crew_key", "k"),
+                ("crew_tasks", r#"[{"name":"n"}]"#),
+                ("output.value", "not json"),
+            ]),
+        ),
     ];
 
     let mut disagreements = Vec::new();
@@ -7179,6 +7255,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             try_otel_genai_messages,
             try_vercel_ai,
             try_claude_code,
+            try_crewai,
         ] {
             if is_tool_span {
                 continue;
@@ -7275,7 +7352,7 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        33,
+        35,
         "the assets declare {} message rules, replacing nine extractors wholesale - a dialect moves \
          whole or not at all, so there are no part-migrated carriers to count",
         plan.rule_count()
