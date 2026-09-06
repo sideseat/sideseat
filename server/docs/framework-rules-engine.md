@@ -148,6 +148,58 @@ Qualifications that matter:
 rule clause, a primitive and a focused test, and dual-run comparison happens **before** downstream
 dedup, because final goldens can hide extractor differences.
 
+## The selection language: RFC 9535 JSONPath, and why not a projection language
+
+The rule vocabulary grew a path resolver, a predicate evaluator, a selector and an object constructor by
+hand — the four things an expression language already standardises, and the hand-built resolver is where a
+real bug lived (a literal dotted key read as a nested path). So selection and filtering move to an
+existing standard with an existing parser: **RFC 9535 JSONPath**, via `serde_json_path`.
+
+**JMESPath was implemented first and reverted.** It is the more capable language — a multiselect hash
+*constructs* objects, so `contents[].{role: role, content: parts}` expresses a dialect's whole reading in
+one expression, which JSONPath cannot do. It was rejected on a measurement:
+
+> Every JMESPath result is re-materialised through the crate's own **sorted-map** value tree. A payload
+> merely *selected* comes back with its object members alphabetised — even `contents` with no transform at
+> all.
+
+On the corpus that reordered the provider's own tool-result payload in `adk/image_gen` and `adk/tool_use`:
+`{"status":"success","content":[…]}` became `{"content":[…],"status":"success"}`. Identity was provably
+unaffected — **every content digest was identical**, because the feed sorts keys before hashing — so
+deduplication and ordering could not have noticed. But this repository declares serialised member order
+observable, and a debugger that silently re-orders what a provider sent reports something it was not
+given. Identity and fidelity are separate contracts.
+
+JSONPath avoids it structurally rather than by luck: its queries return **borrowed references** into the
+original `serde_json::Value`, so cloning a selected subtree keeps the `preserve_order` map. It also has
+the right existence semantics — a filter on `@.parts` holds when `parts` is `[]`, which is what the
+structural vocabulary means by "present", and exactly where JMESPath differed (an empty array is
+false-like there, so a real turn was dropped).
+
+The general point, not a fault of one crate: **JSON objects are semantically unordered, so no portable
+construction language can promise member order.** Adopting one forfeits it.
+
+So the seam is:
+
+```
+declared carrier → parse → JSONPath select/filter (borrowed) → structural first/all/fallback/walk/join/
+group → typed SideML constructor → provider subtrees cloned unchanged
+```
+
+with these rules:
+
+- an expression may select nodes or decide a branch, and its result is **never** emitted directly;
+- provider objects and arrays are always cloned from the original value;
+- Rust owns constructors only for the canonical SideML targets — message envelopes, content blocks, tool
+  definitions — while their fields and aliases stay rule data;
+- no general object-construction DSL, and no "scalars-only" exception, which would be hard to review and
+  easy to violate silently;
+- custom functions are not registered, in either language: they accept arbitrary Rust closures and would
+  put loops and I/O back inside something that looks declarative.
+
+`the_selection_language_behaves_as_the_engine_assumes` pins all of it, including a byte-identical
+member-order assertion, because the choice rests on that one property.
+
 ## Ordered chains: named anchors and relations, never numbers
 
 Several of these tables are ordered `or_else` chains whose **order is policy** — most sharply

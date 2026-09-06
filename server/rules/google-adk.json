@@ -82,7 +82,7 @@
                 }
               },
               {
-                "doc": "The conversation itself. Gemini writes `{parts, role}`, so the role comes from the payload rather than a literal - one rule per role would be the alternative.",
+                "doc": "The conversation. Gemini writes `{parts, role}`, so the role comes from the payload rather than a literal - one rule per role would be the alternative. Read structurally so the provider's payload is cloned unchanged; see the projection-language section of `server/docs/framework-rules-engine.md` for why.",
                 "select": "contents[]",
                 "require": {
                   "all": [

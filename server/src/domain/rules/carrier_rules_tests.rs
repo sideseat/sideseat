@@ -537,3 +537,72 @@ fn the_assets_carry_the_framework_facts() {
         );
     }
 }
+
+/// The facts about the selection language this engine depends on, pinned rather than assumed.
+///
+/// RFC 9535 JSONPath, and the decisive property is the one asserted last: it returns *borrowed* references
+/// into the original value, so a selected subtree cloned out of it keeps the provider's member order.
+///
+/// That is why it is this language and not JMESPath. JMESPath was implemented first and reverted: it can
+/// *construct* objects, which JSONPath cannot, but every result passes through its own sorted-map value
+/// tree - so a payload merely selected came back alphabetised, even with no transform at all. On the corpus
+/// that reordered the provider's own tool-result payload in two ADK fixtures. Identity was provably
+/// unaffected (every content digest identical), but this repository declares serialised member order
+/// observable, and a debugger that silently re-orders what a provider sent reports something it was not
+/// given. Construction therefore stays structural, cloning provider subtrees unchanged.
+///
+/// JSON objects are semantically unordered, so *no* portable construction language can promise member
+/// order - that is the general answer, not a fault of one crate.
+#[test]
+fn the_selection_language_behaves_as_the_engine_assumes() {
+    use serde_json_path::JsonPath;
+
+    // 1. Compiled paths are `Send`/`Sync`, which the `OnceLock` plan requires.
+    fn assert_sync<T: Send + Sync>() {}
+    assert_sync::<JsonPath>();
+
+    // 2. A quoted member name reads a *literal* dotted key. This is the bug the hand-built path resolver
+    //    had: one dialect's events carry a member called `event.name`, indistinguishable from a nested
+    //    `event` -> `name`, and reading it as nested silently found nothing.
+    let quoted = JsonPath::parse("$['event.name']").expect("quoted member compiles");
+    let event = serde_json::json!({"event.name": "gen_ai.choice"});
+    assert_eq!(
+        quoted
+            .query(&event)
+            .exactly_one()
+            .ok()
+            .and_then(|v| v.as_str()),
+        Some("gen_ai.choice"),
+        "a quoted member must read the literal key, not descend"
+    );
+
+    // 3. Existence, not truthiness. A filter on a member's existence holds even when the value is empty -
+    //    which is what the structural vocabulary means by "present", and where JMESPath differed: to it an
+    //    empty array is false-like, so a turn whose `parts` is `[]` - a real turn one dialect emits - was
+    //    dropped.
+    let present = JsonPath::parse("$.contents[?@.role && @.parts]").expect("filter compiles");
+    let empty_parts = serde_json::json!({"contents": [{"role": "user", "parts": []}]});
+    assert_eq!(
+        present.query(&empty_parts).len(),
+        1,
+        "a filter on existence keeps a member whose value is empty"
+    );
+
+    // 4. **Selection preserves the provider's member order, byte for byte.** The property the whole choice
+    //    rests on: the query borrows from the original value, so cloning a selected node yields the same
+    //    bytes as cloning it directly.
+    let payload = serde_json::json!({
+        "contents": [{"role": "user", "parts": [{"status": "loaded", "path": "/x", "day": 1}]}]
+    });
+    let direct = serde_json::to_string(&payload["contents"][0]).expect("json");
+    for expression in ["$.contents[*]", "$.contents[?@.role]", "$.contents[0]"] {
+        let path = JsonPath::parse(expression).expect("compiles");
+        let selected = path.query(&payload);
+        let node = selected.first().expect("one node");
+        assert_eq!(
+            serde_json::to_string(node).expect("json"),
+            direct,
+            "`{expression}` must return the provider's payload unchanged, member order included"
+        );
+    }
+}

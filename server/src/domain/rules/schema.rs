@@ -400,10 +400,15 @@ pub fn digest_of(sources: &BTreeMap<String, Vec<u8>>) -> String {
 
 /// One message-extraction rule: a carrier to read, how to parse it, and what to emit.
 ///
-/// Deliberately small. Extraction stores the payload raw and normalisation happens at query time, so a
-/// rule that needs more than this is a rule whose *transform* is not yet expressible - and the honest
-/// response is to leave that extractor in Rust and count it, not to grow this type until it is a
-/// programming language.
+/// **No longer small, and that is the finding.** It began as "read a carrier, parse it, emit it" and each
+/// dialect added a generic field that prevented a measured defect. Every one is still declarative and
+/// non-Turing-complete, but selection, projection, predicates and object construction have been built by
+/// hand here - which is what an expression language already standardises, and a hand-built path resolver
+/// is where a real bug lived (a literal dotted key read as a nested path).
+///
+/// So the shaping half of this type is **frozen** and moves to JMESPath, which is a published spec with a
+/// parser and quoted identifiers. What stays is the structural half - which carrier, who claims it, in what
+/// order, what it emits - because that is ownership and policy rather than a transform.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct MessageRule {

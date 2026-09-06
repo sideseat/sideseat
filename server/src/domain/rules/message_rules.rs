@@ -13,11 +13,17 @@
 //!
 //! Which is a declaration with a function around it. This module is the declaration without one.
 //!
-//! What it deliberately does **not** yet cover: the extractors that genuinely transform - an indexed
-//! attribute family, a state tree walked to a bounded depth, a serialisation grammar that is not JSON, a
-//! tagged text section. Those need primitives the vocabulary does not have, and inventing them from one
-//! example is how a "generic" operation ends up being one producer's policy under another name. They
-//! stay in Rust, counted, until the primitive that covers each is designed on its own evidence.
+//! What it does **not** cover, as of now: a state tree walked to a bounded depth (LangGraph), a decision
+//! table over ~13 message types (AutoGen), a positional join between an indexed family and a serialised
+//! state member (OpenInference's multimodal enrichment), and a serialisation grammar that is not JSON
+//! (CrewAI's tool definitions, still read in Rust even though its *messages* are declared). Indexed
+//! families and tagged text sections **are** covered - they were on this list and are not any more.
+//!
+//! The vocabulary here has also grown past what one module should own, which is the acknowledged reason
+//! for the next step: selection, projection, predicates and object construction move to **JMESPath**, a
+//! published spec with an existing parser, leaving this module the structural algebra that JMESPath
+//! cannot express - claiming, precedence, bounded traversal, positional joins, grouping and non-JSON
+//! parsing. See `server/docs/framework-rules-engine.md`.
 //!
 //! The engine emits *values*, not `RawMessage`s: the ingestion types live in `domain::traces`, and the
 //! engine having to know them would point the dependency the wrong way for no benefit.

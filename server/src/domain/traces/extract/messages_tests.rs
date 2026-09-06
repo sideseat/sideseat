@@ -6629,7 +6629,13 @@ fn rule_attrs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
         .collect()
 }
 
-/// The rules produce exactly what the functions they replaced produced.
+/// The rules produce **semantically** what the functions they replaced produced.
+///
+/// Semantic, not byte: the comparison canonicalises object keys (see `canonical` below), because for an
+/// indexed family the baseline had no member order to reproduce - it walked a randomised `HashMap`. So this
+/// oracle does not police serialised member order, and the goldens are what catch a change to that: they
+/// record the content string, and they are what failed when a projection language re-ordered a provider's
+/// payload.
 ///
 /// Compared as *serialised observations*, not counts: a rule that emitted the right number of messages
 /// with the wrong carrier tag, the wrong role envelope or an unparsed payload would pass a count check
@@ -7576,8 +7582,9 @@ fn declared_message_rules_cover_what_they_claim() {
     assert_eq!(
         plan.rule_count(),
         37,
-        "the assets declare {} message rules, replacing nine extractors wholesale - a dialect moves \
-         whole or not at all, so there are no part-migrated carriers to count",
+        "the assets declare {} message rules. Twelve framework extractors were consolidated into the \
+         one generic entry, leaving three specific extractors, the generic `raw_io` fallback and that \
+         entry - and a dialect moves whole or not at all, so there are no part-migrated carriers to count",
         plan.rule_count()
     );
     for rule in plan.rules() {
