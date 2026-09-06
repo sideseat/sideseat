@@ -28,6 +28,9 @@ pub struct CarrierContext<'a> {
     pub observation_type: Option<&'a str>,
     pub span_name: Option<&'a str>,
     pub scope_name: Option<&'a str>,
+    /// The instrumentation scope's version, for a clause that narrows on it - a producer can change a
+    /// carrier's meaning between releases, and no other dimension can express that.
+    pub scope_version: Option<&'a str>,
 }
 
 impl<'a> CarrierContext<'a> {
@@ -52,7 +55,8 @@ pub struct CompiledClause {
     pub match_spec: MatchSpec,
     pub semantics: CarrierSemantics,
     pub ordering_family: Option<String>,
-    pub specificity: u32,
+    /// Clause ids this one beats where their languages overlap and neither contains the other.
+    pub supersedes: Vec<String>,
 }
 
 /// The resolved answer, with the clause that produced it.
@@ -103,6 +107,10 @@ pub enum CompileError {
     DuplicateClauseId {
         clause: String,
     },
+    /// An empty name or prefix, which would match every observation of a span.
+    EmptyLiteral {
+        clause: String,
+    },
 }
 
 impl std::fmt::Display for CompileError {
@@ -127,6 +135,10 @@ impl std::fmt::Display for CompileError {
             Self::DuplicateClauseId { clause } => {
                 write!(f, "clause id `{clause}` is declared more than once")
             }
+            Self::EmptyLiteral { clause } => write!(
+                f,
+                "clause `{clause}` has an empty name or prefix, which would match every observation"
+            ),
         }
     }
 }
@@ -182,12 +194,32 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<CarrierPlan, Compi
                 match_spec,
                 facts,
                 ordering_family,
+                supersedes,
             } = rule;
             if seen_ids.insert(id.clone(), ()).is_some() {
                 return Err(CompileError::DuplicateClauseId { clause: id.clone() });
             }
-            if match_spec.primary_key().is_none() {
+            // Exactly one, not at least one: a clause naming several was silently reduced to whichever
+            // the indexer happened to read first, so the others were accepted and ignored.
+            if match_spec.primary_key_count() != 1 {
                 return Err(CompileError::NoPrimaryKey { clause: id.clone() });
+            }
+            // An empty carrier name or prefix matches every observation of a span.
+            if id.is_empty()
+                || match_spec.primary_key().is_some_and(|k| {
+                    matches!(
+                        k,
+                        PrimaryKey::Event("")
+                            | PrimaryKey::Attribute("")
+                            | PrimaryKey::AttributePrefix("")
+                    )
+                })
+                || match_spec.observation_type.iter().any(String::is_empty)
+                || match_spec.span_name_prefix.as_deref() == Some("")
+                || match_spec.scope_name_contains.as_deref() == Some("")
+                || match_spec.scope_version_prefix.as_deref() == Some("")
+            {
+                return Err(CompileError::EmptyLiteral { clause: id.clone() });
             }
             clauses.push(CompiledClause {
                 rule_file: file.id.clone(),
@@ -196,7 +228,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<CarrierPlan, Compi
                 match_spec: match_spec.clone(),
                 semantics: resolve_facts(id, facts)?,
                 ordering_family: ordering_family.clone(),
-                specificity: match_spec.specificity(),
+                supersedes: supersedes.clone(),
             });
         }
     }
@@ -221,71 +253,82 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<CarrierPlan, Compi
         }
     }
 
-    // Most specific first, so a lookup takes the first match and stops.
+    // Most specific first, so a lookup can stop at its first hit within a bucket. The order is
+    // subsumption: a clause whose language is contained in another's comes first. `sort_by` needs a total
+    // order and subsumption is only a partial one, so this sorts by *how many* clauses contain a given
+    // one - a linear extension of the partial order, which is enough because the compiler has already
+    // refused every overlapping pair that subsumption cannot separate.
+    let containment_rank = |clause: &CompiledClause, bucket: &[CompiledClause]| -> usize {
+        bucket
+            .iter()
+            .filter(|other| {
+                other.clause_id != clause.clause_id
+                    && other.match_spec.contains_language_of(&clause.match_spec)
+            })
+            .count()
+    };
     for bucket in plan
         .by_event
         .values_mut()
         .chain(plan.by_attribute.values_mut())
     {
-        // Stable, so two clauses of equal specificity keep their asset order - and they can only be
-        // equal here when their qualifiers are disjoint, since `reject_ambiguity` refused the rest.
-        bucket.sort_by_key(|c| std::cmp::Reverse(c.specificity));
+        let ranks: Vec<usize> = bucket
+            .iter()
+            .map(|clause| containment_rank(clause, bucket))
+            .collect();
+        let mut paired: Vec<(usize, CompiledClause)> =
+            ranks.into_iter().zip(bucket.drain(..)).collect();
+        paired.sort_by_key(|(rank, _)| std::cmp::Reverse(*rank));
+        *bucket = paired.into_iter().map(|(_, clause)| clause).collect();
     }
-    // Longest prefix first: a longer prefix is the more specific statement about a key, and the
-    // specificity score cannot express that because both clauses constrain the same one dimension.
-    plan.by_attribute_prefix.sort_by(|a, b| {
-        let len = |c: &CompiledClause| {
-            c.match_spec
-                .attribute_prefix
-                .as_deref()
-                .map(str::len)
-                .unwrap_or(0)
-        };
-        len(b)
-            .cmp(&len(a))
-            .then_with(|| b.specificity.cmp(&a.specificity))
-    });
+    let ranks: Vec<usize> = plan
+        .by_attribute_prefix
+        .iter()
+        .map(|clause| containment_rank(clause, &plan.by_attribute_prefix))
+        .collect();
+    let mut paired: Vec<(usize, CompiledClause)> = ranks
+        .into_iter()
+        .zip(plan.by_attribute_prefix.drain(..))
+        .collect();
+    paired.sort_by_key(|(rank, _)| std::cmp::Reverse(*rank));
+    plan.by_attribute_prefix = paired.into_iter().map(|(_, clause)| clause).collect();
 
     Ok(plan)
 }
 
 /// Refuse a ruleset in which two clauses could match one observation with nothing to separate them.
 ///
-/// Bounded and honest about it: this compares clauses that share a *primary key* - the same event, the
-/// same attribute, or one prefix that is a prefix of the other - at equal specificity, and asks whether
-/// their qualifiers can both hold. It does not attempt to decide overlap between arbitrary predicates,
-/// which is why the match dimensions are a fixed finite set of scalars rather than a predicate language.
+/// The test is **subsumption**, not a score: two clauses may both match, provided one's match language is
+/// contained in the other's, because then "the more specific" is a fact rather than an arithmetic
+/// accident. Where the languages overlap and neither contains the other, the ruleset is genuinely
+/// ambiguous and one clause must say in data that it supersedes the other.
+///
+/// Bounded, and worth stating precisely: `can_both_match` is conservative, so a pair it cannot prove
+/// disjoint is reported. That errs toward asking for an explicit decision rather than assuming
+/// independence - which is what the previous version got wrong about two `scope_name_contains` needles,
+/// since one scope name can hold both.
 fn reject_ambiguity(clauses: &[CompiledClause]) -> Result<(), CompileError> {
     for (i, a) in clauses.iter().enumerate() {
         for b in &clauses[i + 1..] {
-            if a.specificity != b.specificity {
+            if !a.match_spec.can_both_match(&b.match_spec) {
                 continue;
             }
-            let (Some(ka), Some(kb)) = (a.match_spec.primary_key(), b.match_spec.primary_key())
-            else {
-                continue;
-            };
-            let same_key = match (ka, kb) {
-                (PrimaryKey::Event(x), PrimaryKey::Event(y)) => x == y,
-                (PrimaryKey::Attribute(x), PrimaryKey::Attribute(y)) => x == y,
-                // Only an *equal* prefix is a collision. One prefix containing another is itself an
-                // ordering - the longer is the more specific statement about a key, and the sort below
-                // applies it - so refusing nested prefixes would reject a perfectly determinate
-                // ruleset. The specificity score cannot see this, because both clauses constrain the
-                // same single dimension.
-                (PrimaryKey::AttributePrefix(x), PrimaryKey::AttributePrefix(y)) => x == y,
-                _ => false,
-            };
-            if !same_key {
-                continue;
+            // Containment must be *strict* in one direction. Two identical specs each contain the
+            // other, so a non-strict test read them as ordered when in fact nothing separates them -
+            // which is the exact collision this check exists to catch.
+            let a_in_b = a.match_spec.contains_language_of(&b.match_spec);
+            let b_in_a = b.match_spec.contains_language_of(&a.match_spec);
+            if a_in_b != b_in_a {
+                continue; // one is strictly more specific; that is an order, not a collision
             }
-            if a.match_spec.qualifiers_can_overlap(&b.match_spec) {
-                return Err(CompileError::Ambiguous {
-                    first: a.clause_id.clone(),
-                    second: b.clause_id.clone(),
-                    key: format!("{ka:?}"),
-                });
+            if a.supersedes.contains(&b.clause_id) || b.supersedes.contains(&a.clause_id) {
+                continue; // declared, by name, in data
             }
+            return Err(CompileError::Ambiguous {
+                first: a.clause_id.clone(),
+                second: b.clause_id.clone(),
+                key: format!("{:?}", a.match_spec.primary_key()),
+            });
         }
     }
     Ok(())
@@ -321,34 +364,65 @@ impl CarrierPlan {
                 _ => return false,
             }
         }
+        if let Some(prefix) = &spec.scope_version_prefix {
+            match ctx.scope_version {
+                Some(version) if version.starts_with(prefix.as_str()) => {}
+                _ => return false,
+            }
+        }
         true
     }
 
-    /// The clause that governs this observation, most specific first.
+    /// The clause that governs this observation: the most specific one that matches it.
+    ///
+    /// Every candidate is gathered *before* one is chosen. Returning the first exact-attribute hit meant
+    /// a qualified prefix clause - one naming the observation type, say - lost to an unqualified exact
+    /// clause it should have beaten, because the two were never compared. Specificity is a property of a
+    /// pair of clauses, so it cannot be applied by looking in one bucket at a time.
     pub fn resolve(&self, ctx: &CarrierContext<'_>) -> Option<&CompiledClause> {
+        // The more specific of the two wins. The compiler has already refused every overlapping pair that
+        // subsumption cannot separate, so this comparison always decides.
+        fn better<'c>(
+            candidate: &'c CompiledClause,
+            best: Option<&'c CompiledClause>,
+        ) -> Option<&'c CompiledClause> {
+            match best {
+                Some(current)
+                    if !current
+                        .match_spec
+                        .contains_language_of(&candidate.match_spec) =>
+                {
+                    Some(current)
+                }
+                _ => Some(candidate),
+            }
+        }
+
+        let mut best: Option<&CompiledClause> = None;
         if let Some(event) = ctx.event
             && let Some(bucket) = self.by_event.get(event)
-            && let Some(hit) = bucket.iter().find(|c| Self::qualifiers_hold(c, ctx))
         {
-            return Some(hit);
+            for clause in bucket.iter().filter(|c| Self::qualifiers_hold(c, ctx)) {
+                best = better(clause, best);
+            }
         }
         if let Some(attribute) = ctx.attribute {
-            if let Some(bucket) = self.by_attribute.get(attribute)
-                && let Some(hit) = bucket.iter().find(|c| Self::qualifiers_hold(c, ctx))
-            {
-                return Some(hit);
+            if let Some(bucket) = self.by_attribute.get(attribute) {
+                for clause in bucket.iter().filter(|c| Self::qualifiers_hold(c, ctx)) {
+                    best = better(clause, best);
+                }
             }
-            if let Some(hit) = self.by_attribute_prefix.iter().find(|c| {
+            for clause in self.by_attribute_prefix.iter().filter(|c| {
                 c.match_spec
                     .attribute_prefix
                     .as_deref()
                     .is_some_and(|p| attribute.starts_with(p))
                     && Self::qualifiers_hold(c, ctx)
             }) {
-                return Some(hit);
+                best = better(clause, best);
             }
         }
-        None
+        best
     }
 
     /// How many clauses the plan holds, for the coverage test.

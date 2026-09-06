@@ -16,9 +16,15 @@
         "attr_prefix": [
           "langgraph."
         ],
-        "metadata_contains": [
-          "langgraph_",
-          "\"langgraph_"
+        "span_attr_contains": [
+          {
+            "key": "metadata",
+            "value": "langgraph_"
+          },
+          {
+            "key": "metadata",
+            "value": "\"langgraph_"
+          }
         ]
       }
     }

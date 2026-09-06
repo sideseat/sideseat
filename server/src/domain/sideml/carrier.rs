@@ -146,15 +146,18 @@ pub fn declared_semantics(
         .map(|clause| clause.semantics)
 }
 
-/// The ordering family a carrier belongs to, when it is a fragmented ordered input: several attribute
-/// keys that are one array.
+/// The declared entry for a carrier read with span context, or `None` where no rule names it.
 ///
-/// Read by the order resolver, which used to compare the key itself against one framework's spelling.
-pub fn ordering_family_for(ctx: &crate::domain::rules::CarrierContext<'_>) -> Option<&'static str> {
+/// The distinction matters wherever a *declared* answer must end a question that an undeclared carrier
+/// leaves open - direction, above all: a residual list that still ran after a clause answered `false`
+/// made the negative half of every declaration unstatable.
+pub fn declared_semantics_for_context(
+    ctx: &crate::domain::rules::CarrierContext<'_>,
+) -> Option<CarrierSemantics> {
     crate::domain::rules::ruleset()
         .carriers
         .resolve(ctx)
-        .and_then(|clause| clause.ordering_family.as_deref())
+        .map(|clause| clause.semantics)
 }
 
 /// The table this engine replaced, kept as the equivalence oracle.

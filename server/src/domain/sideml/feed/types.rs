@@ -141,6 +141,8 @@ pub struct BlockEntry {
     pub span_name: Option<String>,
     #[serde(skip)]
     pub scope_name: Option<String>,
+    #[serde(skip)]
+    pub scope_version: Option<String>,
 
     // Generation context
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -276,6 +278,7 @@ impl BlockEntry {
             observation_type: self.observation_type.as_deref(),
             span_name: self.span_name.as_deref(),
             scope_name: self.scope_name.as_deref(),
+            scope_version: self.scope_version.as_deref(),
         }
     }
 
@@ -419,15 +422,21 @@ impl BlockEntry {
     /// - Output events (gen_ai.choice, etc.)
     #[inline]
     pub fn is_output_source(&self) -> bool {
-        // The carrier declaration is asked first, because it is the single statement of what a span
-        // produced (`sideml::carrier`). The list below is the residue: carriers the declaration does
-        // not name yet, kept here rather than silently reading as input. Vercel is why the order
-        // matters - the SDK moved from `ai.result.*` to `ai.response.*` and the extractor followed
-        // while this list did not, so every Vercel response read as something the span received.
-        if crate::domain::sideml::carrier::semantics_for_context(&self.carrier_context())
-            .carrier_holds_span_output
+        // A *declared* carrier is authoritative, in both directions.
+        //
+        // This used to consult the declaration, and then fall through to the list below when it said
+        // `false` - which made a declaration that a carrier is *received* worth nothing: the residual
+        // list could still call it output, and no asset could ever state the negative. A rule that only
+        // one of its two answers is believed is not a rule. So a matched clause ends the question, and
+        // the list is consulted only where **nothing** declared the carrier.
+        //
+        // The list is the residue: carriers no asset names yet, kept here rather than silently reading as
+        // input. Vercel is why it exists - the SDK moved from `ai.result.*` to `ai.response.*` and the
+        // extractor followed while this list did not, so every Vercel response read as received.
+        if let Some(declared) =
+            crate::domain::sideml::carrier::declared_semantics_for_context(&self.carrier_context())
         {
-            return true;
+            return declared.carrier_holds_span_output || self.promoted_to_span_output;
         }
         // Direction is a property of the carrier *and* of what the pipeline has since decided about
         // this block - so the promotion is read from its own field rather than inferred from the
@@ -551,6 +560,7 @@ mod tests {
 
     fn make_test_block() -> BlockEntry {
         BlockEntry {
+            scope_version: None,
             span_name: None,
             scope_name: None,
             position: PositionPath::default(),

@@ -1670,6 +1670,7 @@ mod tests {
         timestamp: DateTime<Utc>,
     ) -> BlockEntry {
         BlockEntry {
+            scope_version: None,
             span_name: None,
             scope_name: None,
             position: PositionPath::default(),
@@ -1719,6 +1720,7 @@ mod tests {
         timestamp: DateTime<Utc>,
     ) -> BlockEntry {
         BlockEntry {
+            scope_version: None,
             span_name: None,
             scope_name: None,
             position: PositionPath::default(),
@@ -1772,6 +1774,7 @@ mod tests {
         timestamp: DateTime<Utc>,
     ) -> BlockEntry {
         BlockEntry {
+            scope_version: None,
             span_name: None,
             scope_name: None,
             position: PositionPath::default(),

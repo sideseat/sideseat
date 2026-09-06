@@ -1723,6 +1723,14 @@ impl AppConfig {
             self.auth.enabled || self.otel.auth_required,
         )?;
 
+        // Compile the framework rule assets now, so a malformed one fails at startup.
+        //
+        // The compile is a `OnceLock` that was previously filled by whichever request reached it first -
+        // which for a build defect means an operator sees a panic mid-traffic, on an arbitrary endpoint,
+        // rather than a refusal to start. Touching it here moves that to boot, where every other
+        // structural check already lives. Cheap: it is the same work the first request would have done.
+        let _ = crate::domain::rules::ruleset();
+
         // ClickHouse URL required when using ClickHouse backend
         if self.database.analytics == AnalyticsBackend::Clickhouse {
             if let Some(ref ch) = self.database.clickhouse {

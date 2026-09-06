@@ -32,15 +32,16 @@ pub use detect_rules::DetectContext;
 
 use std::sync::OnceLock;
 
-/// The two resource/span attribute keys the engine reads *structurally* rather than as producer
-/// vocabulary.
+/// The one resource attribute the engine reads *structurally* rather than as producer vocabulary.
 ///
-/// `service.name` and `metadata` are OpenTelemetry's own names, not any framework's: a rule says which
-/// *value* identifies a producer, and the key it looks in is part of the dimension's definition. Held
-/// here so a rule file cannot redefine where "the service name" lives, which would make two assets
-/// disagree about what the dimension means.
+/// `service.name` is OpenTelemetry's own name, not any framework's: a rule says which *value* identifies
+/// a producer through it, and the key is part of the dimension's definition. Held here so no asset can
+/// redefine where "the service name" lives and have two assets disagree about what the dimension means.
+///
+/// `metadata` used to sit beside it and did not belong: it is one framework's attribute, so pretending
+/// the engine owned the key made a producer's vocabulary look like part of OpenTelemetry. It is a value
+/// of the generic `span_attr_contains` dimension now, with its key in the asset.
 pub(crate) const SERVICE_NAME_KEY: &str = "service.name";
-pub(crate) const METADATA_KEY: &str = "metadata";
 
 /// The label for a span no detection rule claimed and no declaration resolved.
 ///

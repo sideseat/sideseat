@@ -49,8 +49,8 @@ pub use traits::{
 
 // Re-export shared types for convenient access
 pub use types::{
-    AggregationTemporality, Framework, MessageCategory, MessageSourceType, MetricType,
-    NormalizedMetric, NormalizedSpan, ObservationType, SpanCategory,
+    AggregationTemporality, MessageCategory, MessageSourceType, MetricType, NormalizedMetric,
+    NormalizedSpan, ObservationType, SpanCategory,
 };
 
 // Re-export filters for API usage (analytics backend SQL building)

@@ -188,26 +188,27 @@ fn a_caller_with_no_span_context_gets_the_generic_clause() {
 
 #[test]
 fn the_ordering_family_comes_from_the_rules() {
-    // The seventh carrier fact, previously a hardcoded key comparison in the order resolver.
-    let family = carrier::ordering_family_for(&CarrierContext::carrier_only(
-        None,
-        Some("llm.input_messages.0.message"),
-    ));
+    // The seventh carrier fact, previously a hardcoded key comparison in the order resolver. Read off
+    // the resolved clause, which is also how the resolver reads it - so the test cannot pass through an
+    // accessor the production path does not use.
+    let family_of = |attribute: &str| -> Option<String> {
+        ruleset()
+            .carriers
+            .resolve(&CarrierContext::carrier_only(None, Some(attribute)))
+            .and_then(|c| c.ordering_family.clone())
+    };
+    let first = family_of("llm.input_messages.0.message");
     assert!(
-        family.is_some(),
+        first.is_some(),
         "an indexed input array declares the family that groups its members"
     );
     assert_eq!(
-        family,
-        carrier::ordering_family_for(&CarrierContext::carrier_only(
-            None,
-            Some("llm.input_messages.1.message")
-        )),
+        first,
+        family_of("llm.input_messages.1.message"),
         "two members of one array share a family, which is what makes them one sequence"
     );
     assert!(
-        carrier::ordering_family_for(&CarrierContext::carrier_only(None, Some("ai.prompt")))
-            .is_none(),
+        family_of("ai.prompt").is_none(),
         "a carrier that is already whole declares no fragmented family - broadening this to Vercel's \
          `ai.prompt` was measured and regressed a sequential two-step trace"
     );
@@ -387,11 +388,30 @@ fn a_longer_prefix_wins_over_a_shorter_one() {
 /// the rule files rest on.
 #[test]
 fn the_engine_names_no_framework() {
+    // Every engine source. `detect_rules.rs` was missing from this list, which is precisely how a gate
+    // stops being one: it passed while the file it did not read was free to name any producer it liked.
     const ENGINE_SOURCES: &[(&str, &str)] = &[
         ("mod.rs", include_str!("mod.rs")),
         ("schema.rs", include_str!("schema.rs")),
         ("carrier_rules.rs", include_str!("carrier_rules.rs")),
+        ("detect_rules.rs", include_str!("detect_rules.rs")),
     ];
+
+    // The engine directory holds nothing else. A new module would otherwise be exempt by omission -
+    // the same way `detect_rules.rs` was.
+    let declared: Vec<&str> = ENGINE_SOURCES.iter().map(|(name, _)| *name).collect();
+    let module_decls = include_str!("mod.rs");
+    for line in module_decls.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix("pub mod ")
+            && let Some(name) = rest.strip_suffix(';')
+        {
+            assert!(
+                declared.contains(&format!("{name}.rs").as_str()),
+                "engine module `{name}` is not covered by this gate: add it to ENGINE_SOURCES"
+            );
+        }
+    }
 
     // Producer identities. Any of these in the engine means the engine knows a framework.
     const PRODUCER_NAMES: &[&str] = &[

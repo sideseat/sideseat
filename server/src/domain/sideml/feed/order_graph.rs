@@ -136,8 +136,17 @@ pub(super) fn collect_order_evidence(
             let credible = is_credible_emission(block);
             let next_span = spans.len();
             let span = *spans.entry(block.span_id.as_str()).or_insert(next_span);
-            let semantics =
-                crate::domain::sideml::carrier::semantics_for_context(&block.carrier_context());
+            // One resolution per observation, and every fact this loop needs comes off it. The clause
+            // carries the facts *and* the ordering family, so asking twice - once for each - looked up
+            // the same declaration twice and, worse, allowed the two answers to come from different
+            // clauses if the context ever differed between the calls.
+            let clause = crate::domain::rules::ruleset()
+                .carriers
+                .resolve(&block.carrier_context());
+            let semantics = clause.map_or(
+                crate::domain::sideml::carrier::CarrierSemantics::SNAPSHOT,
+                |c| c.semantics,
+            );
             let payload_root = block
                 .position
                 .to_string()
@@ -181,24 +190,23 @@ pub(super) fn collect_order_evidence(
             // `source_attribute.starts_with("llm.input_messages")` - one framework's spelling, written
             // into the resolver, where no rule file could state it and nothing but this comment
             // recorded that the family was deliberately narrow.
-            let declared_family =
-                crate::domain::sideml::carrier::ordering_family_for(&block.carrier_context());
+            let declared_family = clause.and_then(|c| c.ordering_family.as_deref());
             let ordered_input = block.is_generation_span()
                 && semantics.position_provides_sequence_order
                 && !semantics.carrier_holds_span_output
                 && !semantics.carrier_is_detached_request_frame
                 && declared_family.is_some();
-            let input_family = ordered_input.then(|| {
-                // Grouped by the *array*, not by the declaration: `llm.input_messages.0.message` and
-                // `.1.message` are one sequence, so the key strips the index while the declared family
-                // decides whether the carrier has one at all.
-                let family = canonical_input_family(
-                    block.event_name.as_deref(),
-                    block.source_attribute.as_deref(),
-                );
+            let input_family = declared_family.filter(|_| ordered_input).map(|family| {
+                // Grouped by the **declared family name**, not by a name derived from the key.
+                //
+                // Deriving it stripped the first dotted digit off the carrier, so
+                // `llm.input_messages.0.message` and `.1.message` grouped together - correct here, and a
+                // heuristic that mis-groups any carrier whose name happens to contain an earlier
+                // version-like segment. The declaration already says which array a member belongs to, so
+                // reading its `is_some()` and then re-deriving the answer was using half a fact.
                 let next = input_families.len();
                 *input_families
-                    .entry((block.span_id.clone(), family))
+                    .entry((block.span_id.clone(), family.to_string()))
                     .or_insert(next)
             });
             OrderEvidence {
@@ -217,17 +225,6 @@ pub(super) fn collect_order_evidence(
             }
         })
         .collect()
-}
-
-/// The family of an ordered-input carrier: the name with any trailing array index stripped, so the
-/// members of one array share it. `llm.input_messages.0.message` and `.1.message` are one array;
-/// `new_context` or `ai.prompt` are already whole.
-fn canonical_input_family(event: Option<&str>, attribute: Option<&str>) -> String {
-    let name = attribute.or(event).unwrap_or_default();
-    match name.find(|c: char| c.is_ascii_digit()) {
-        Some(i) if i > 0 && name.as_bytes().get(i - 1) == Some(&b'.') => name[..i - 1].to_string(),
-        _ => name.to_string(),
-    }
 }
 
 /// Which emission of its span an observation belongs to.
@@ -1426,6 +1423,7 @@ mod cycle_tests {
 
     fn block(span: &str, text: &str) -> BlockEntry {
         BlockEntry {
+            scope_version: None,
             span_name: None,
             scope_name: None,
             position: PositionPath::default(),

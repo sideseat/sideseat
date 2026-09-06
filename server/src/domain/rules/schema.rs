@@ -118,9 +118,14 @@ pub struct DetectMatch {
     /// would also match a service called `diagnostics`.
     #[serde(default)]
     pub service_name: Vec<String>,
-    /// The span's `metadata` attribute contains any of these substrings.
+    /// A *span* attribute contains this substring.
+    ///
+    /// Generic on purpose. This replaced a `metadata_contains` dimension whose key the engine supplied,
+    /// which made one framework's attribute name look like part of OpenTelemetry: only one rule ever used
+    /// it. `service.name` stays a structural dimension because it really is OTel's own resource
+    /// attribute; `metadata` is a framework's, so the key belongs in the asset beside the value.
     #[serde(default)]
-    pub metadata_contains: Vec<String>,
+    pub span_attr_contains: Vec<KeyValue>,
     /// A resource attribute contains this substring - how an instrumentation library identifies itself
     /// through `telemetry.sdk.name`.
     #[serde(default)]
@@ -150,6 +155,13 @@ pub struct CarrierRule {
     /// Rust, that no rule file could state.
     #[serde(default)]
     pub ordering_family: Option<String>,
+    /// Clause ids this clause beats where their languages overlap and neither contains the other.
+    ///
+    /// The escape hatch for a genuine overlap between predicates that cannot be ordered by subsumption -
+    /// stated in data, by name, rather than resolved by load order or by a number. Without it such a pair
+    /// fails compilation, which is the point: somebody has to own the decision.
+    #[serde(default)]
+    pub supersedes: Vec<String>,
 }
 
 /// What an observation must look like for a clause to apply. Every field is optional and all present
@@ -183,40 +195,27 @@ pub struct MatchSpec {
     /// frameworks share instrumentation packages, and versions are not reliably semantic.
     #[serde(default)]
     pub scope_name_contains: Option<String>,
+    /// Instrumentation scope *version* prefix.
+    ///
+    /// A prefix rather than a comparison, deliberately: versions here are not reliably semantic, so
+    /// `>=` would have to invent an ordering for strings that have none. A prefix states exactly what it
+    /// checks. Present because a producer can change a carrier's meaning between releases, which is the
+    /// one thing no other dimension can express.
+    #[serde(default)]
+    pub scope_version_prefix: Option<String>,
 }
 
 impl MatchSpec {
-    /// How specific this clause is: how many dimensions it constrains, with an exact attribute
-    /// counting for more than a prefix.
-    ///
-    /// Used only to let a qualified clause beat a generic one. Two clauses that could match the same
-    /// observation at *equal* specificity are a compile error, not a coin toss.
-    pub fn specificity(&self) -> u32 {
-        let mut score = 0;
-        if self.event.is_some() {
-            score += 2;
-        }
-        if self.attribute.is_some() {
-            score += 2;
-        }
-        if self.attribute_prefix.is_some() {
-            score += 1;
-        }
-        if !self.observation_type.is_empty() {
-            score += 2;
-        }
-        if self.span_name_prefix.is_some() {
-            score += 1;
-        }
-        if self.scope_name_contains.is_some() {
-            score += 1;
-        }
-        score
+    /// How many of the three carrier fields this clause names. Exactly one is required: a clause naming
+    /// none would match every observation of a span, and one naming several was silently reduced to
+    /// whichever the indexer looked at first, quietly ignoring the rest.
+    pub fn primary_key_count(&self) -> usize {
+        usize::from(self.event.is_some())
+            + usize::from(self.attribute.is_some())
+            + usize::from(self.attribute_prefix.is_some())
     }
 
-    /// The carrier name this clause keys on, for indexing: the exact event, the exact attribute, or the
-    /// attribute prefix. A clause naming none of the three is malformed - it would match every
-    /// observation of a span.
+    /// The carrier this clause keys on, for indexing.
     pub fn primary_key(&self) -> Option<PrimaryKey<'_>> {
         if let Some(event) = &self.event {
             return Some(PrimaryKey::Event(event));
@@ -229,24 +228,99 @@ impl MatchSpec {
             .map(PrimaryKey::AttributePrefix)
     }
 
-    /// Whether two clauses' qualifier sets can both hold for one observation. Only meaningful for
-    /// clauses that share a primary key; used to decide whether equal specificity is a real collision.
-    pub fn qualifiers_can_overlap(&self, other: &Self) -> bool {
-        let types_overlap = self.observation_type.is_empty()
+    /// Does this clause's match language *contain* the other's - is the other at least as specific?
+    ///
+    /// Subsumption, not a score. A numeric score imposes an order on predicates that have none:
+    /// `observation_type = agent` and `span_name_prefix = invoke_` constrain different things and
+    /// neither implies the other, so any number assigned to them is arbitrary and decides real cases by
+    /// arithmetic. Specificity is only meaningful where one clause's language is a strict subset of the
+    /// other's, and where it is not, the ruleset is ambiguous and must say which wins.
+    ///
+    /// Returns true when every observation matching `other` also matches `self`.
+    pub fn contains_language_of(&self, other: &Self) -> bool {
+        // Carrier: an exact name is inside a prefix that covers it; a longer prefix is inside a shorter.
+        let carrier_contains = match (self.primary_key(), other.primary_key()) {
+            (Some(PrimaryKey::Event(a)), Some(PrimaryKey::Event(b))) => a == b,
+            (Some(PrimaryKey::Attribute(a)), Some(PrimaryKey::Attribute(b))) => a == b,
+            (Some(PrimaryKey::AttributePrefix(p)), Some(PrimaryKey::Attribute(a))) => {
+                a.starts_with(p)
+            }
+            (Some(PrimaryKey::AttributePrefix(a)), Some(PrimaryKey::AttributePrefix(b))) => {
+                b.starts_with(a)
+            }
+            _ => false,
+        };
+        if !carrier_contains {
+            return false;
+        }
+        // Qualifiers: an unconstrained dimension contains any constraint on it.
+        let types = self.observation_type.is_empty()
+            || (!other.observation_type.is_empty()
+                && other
+                    .observation_type
+                    .iter()
+                    .all(|t| self.observation_type.contains(t)));
+        let span_names = match (&self.span_name_prefix, &other.span_name_prefix) {
+            (None, _) => true,
+            (Some(_), None) => false,
+            (Some(a), Some(b)) => b.starts_with(a.as_str()),
+        };
+        // A longer needle is the more specific claim only when it *contains* the shorter one: a scope
+        // holding `foo` is not necessarily one holding `bar`, but one holding `foobar` does hold `oob`.
+        let scopes = match (&self.scope_name_contains, &other.scope_name_contains) {
+            (None, _) => true,
+            (Some(_), None) => false,
+            (Some(a), Some(b)) => b.contains(a.as_str()),
+        };
+        let versions = match (&self.scope_version_prefix, &other.scope_version_prefix) {
+            (None, _) => true,
+            (Some(_), None) => false,
+            (Some(a), Some(b)) => b.starts_with(a.as_str()),
+        };
+        types && span_names && scopes && versions
+    }
+
+    /// Could one observation satisfy both clauses?
+    ///
+    /// Deliberately conservative: where it cannot be shown that no observation satisfies both, this says
+    /// they overlap, so the compiler asks for an explicit ordering rather than assuming independence.
+    /// Two `scope_name_contains` needles are the case that matters - a scope name can hold both `foo`
+    /// and `bar`, so treating unequal needles as disjoint let two clauses both match with nothing
+    /// choosing between them.
+    pub fn can_both_match(&self, other: &Self) -> bool {
+        let carriers_overlap = match (self.primary_key(), other.primary_key()) {
+            (Some(PrimaryKey::Event(a)), Some(PrimaryKey::Event(b))) => a == b,
+            (Some(PrimaryKey::Attribute(a)), Some(PrimaryKey::Attribute(b))) => a == b,
+            (Some(PrimaryKey::Attribute(a)), Some(PrimaryKey::AttributePrefix(p)))
+            | (Some(PrimaryKey::AttributePrefix(p)), Some(PrimaryKey::Attribute(a))) => {
+                a.starts_with(p)
+            }
+            (Some(PrimaryKey::AttributePrefix(a)), Some(PrimaryKey::AttributePrefix(b))) => {
+                // Either can extend the other, and some key beginning with the longer satisfies both.
+                a.starts_with(b) || b.starts_with(a)
+            }
+            _ => false,
+        };
+        if !carriers_overlap {
+            return false;
+        }
+        let types = self.observation_type.is_empty()
             || other.observation_type.is_empty()
             || self
                 .observation_type
                 .iter()
                 .any(|t| other.observation_type.contains(t));
-        let prefixes_overlap = match (&self.span_name_prefix, &other.span_name_prefix) {
+        // One span name cannot start with two prefixes unless one extends the other.
+        let span_names = match (&self.span_name_prefix, &other.span_name_prefix) {
             (Some(a), Some(b)) => a.starts_with(b.as_str()) || b.starts_with(a.as_str()),
             _ => true,
         };
-        let scopes_overlap = match (&self.scope_name_contains, &other.scope_name_contains) {
-            (Some(a), Some(b)) => a == b,
+        // Two substrings are always jointly satisfiable: concatenate them.
+        let versions = match (&self.scope_version_prefix, &other.scope_version_prefix) {
+            (Some(a), Some(b)) => a.starts_with(b.as_str()) || b.starts_with(a.as_str()),
             _ => true,
         };
-        types_overlap && prefixes_overlap && scopes_overlap
+        types && span_names && versions
     }
 }
 

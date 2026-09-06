@@ -53,16 +53,41 @@ pub struct DetectContext<'a> {
 /// Why a detection ruleset would not compile.
 #[derive(Debug)]
 pub enum DetectCompileError {
-    DuplicateRuleId { rule: String },
-    DuplicateRank { first: String, second: String },
-    NoSignal { rule: String },
-    DuplicateSlug { slug: String },
-    BadTextSource { rule: String, source: String },
+    Parse {
+        path: String,
+        message: String,
+    },
+    EmptyLiteral {
+        rule: String,
+        dimension: &'static str,
+    },
+    DuplicateRuleId {
+        rule: String,
+    },
+    DuplicateRank {
+        first: String,
+        second: String,
+    },
+    NoSignal {
+        rule: String,
+    },
+    DuplicateSlug {
+        slug: String,
+    },
+    BadTextSource {
+        rule: String,
+        source: String,
+    },
 }
 
 impl std::fmt::Display for DetectCompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Parse { path, message } => write!(f, "{path}: {message}"),
+            Self::EmptyLiteral { rule, dimension } => write!(
+                f,
+                "detection rule `{rule}` has an empty value in `{dimension}`, which matches everything"
+            ),
             Self::DuplicateRuleId { rule } => {
                 write!(f, "detection rule id `{rule}` is declared more than once")
             }
@@ -96,7 +121,7 @@ fn has_signal(spec: &DetectMatch) -> bool {
         || !spec.attr_equals.is_empty()
         || !spec.attr_exists.is_empty()
         || !spec.service_name.is_empty()
-        || !spec.metadata_contains.is_empty()
+        || !spec.span_attr_contains.is_empty()
         || !spec.resource_attr_contains.is_empty()
         || spec.text_contains.is_some()
 }
@@ -107,12 +132,15 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
     let mut seen_ids: HashMap<String, ()> = HashMap::new();
     let mut plan = DetectPlan::default();
 
-    for bytes in sources.values() {
-        // Parse failures are reported by the carrier compile, which reads the same assets; a second
-        // error type for the same byte string would say the same thing twice.
-        let Ok(file) = serde_json::from_slice::<RuleFile>(bytes) else {
-            continue;
-        };
+    for (path, bytes) in sources {
+        // Parsed, not skipped. Relying on the carrier compile to have rejected the same bytes made this
+        // pass silently depend on another function's error path - and a caller compiling detection alone
+        // would have quietly ignored a malformed asset.
+        let file: RuleFile =
+            serde_json::from_slice(bytes).map_err(|e| DetectCompileError::Parse {
+                path: path.clone(),
+                message: e.to_string(),
+            })?;
         for slug in &file.sdk_slugs {
             if plan
                 .sdk_slugs
@@ -130,9 +158,53 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                     rule: rule.id.clone(),
                 });
             }
+            if rule.id.is_empty() || rule.label.is_empty() {
+                return Err(DetectCompileError::EmptyLiteral {
+                    rule: rule.id.clone(),
+                    dimension: "id/label",
+                });
+            }
             if !has_signal(&rule.match_spec) {
                 return Err(DetectCompileError::NoSignal {
                     rule: rule.id.clone(),
+                });
+            }
+            // An empty prefix or needle matches every span, which turns a narrow rule into a catch-all
+            // wherever its rank sits. Refused rather than trusted to be a typo nobody makes.
+            let spec = &rule.match_spec;
+            for (dimension, values) in [
+                ("span_name", &spec.span_name),
+                ("attr_prefix", &spec.attr_prefix),
+                ("attr_exists", &spec.attr_exists),
+                ("service_name", &spec.service_name),
+            ] {
+                if values.iter().any(String::is_empty) {
+                    return Err(DetectCompileError::EmptyLiteral {
+                        rule: rule.id.clone(),
+                        dimension,
+                    });
+                }
+            }
+            for (dimension, pairs) in [
+                ("attr_equals", &spec.attr_equals),
+                ("span_attr_contains", &spec.span_attr_contains),
+                ("resource_attr_contains", &spec.resource_attr_contains),
+            ] {
+                if pairs.iter().any(|kv| kv.key.is_empty()) {
+                    return Err(DetectCompileError::EmptyLiteral {
+                        rule: rule.id.clone(),
+                        dimension,
+                    });
+                }
+            }
+            if let Some(text) = &spec.text_contains
+                && (text.needles.iter().any(String::is_empty)
+                    || text.sources.is_empty()
+                    || text.needles.is_empty())
+            {
+                return Err(DetectCompileError::EmptyLiteral {
+                    rule: rule.id.clone(),
+                    dimension: "text_contains",
                 });
             }
             let (mut span_source, mut attr_keys, mut needles) = (false, Vec::new(), Vec::new());
@@ -232,12 +304,14 @@ impl CompiledDetect {
         {
             return true;
         }
-        if !spec.metadata_contains.is_empty()
-            && let Some(metadata) = ctx.span_attrs.get(super::METADATA_KEY)
-            && spec
-                .metadata_contains
-                .iter()
-                .any(|s| metadata.contains(s.as_str()))
+        if spec
+            .span_attr_contains
+            .iter()
+            .any(|KeyValue { key, value }| {
+                ctx.span_attrs
+                    .get(key)
+                    .is_some_and(|v| v.contains(value.as_str()))
+            })
         {
             return true;
         }

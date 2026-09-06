@@ -250,6 +250,7 @@ struct ParsedMessage {
     /// several frameworks share one instrumentation package, so a clause may never key on it alone.
     span_name: Option<String>,
     scope_name: Option<String>,
+    scope_version: Option<String>,
 }
 
 /// What earlier traces of this session already showed, as a relation rather than a sequence.
@@ -1533,6 +1534,7 @@ fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<ParsedMessage> {
                         observation_type: row.observation_type.clone(),
                         span_name: row.span_name.clone(),
                         scope_name: row.scope_name.clone(),
+                        scope_version: row.scope_version.clone(),
                     });
                 }
             }
@@ -1703,6 +1705,7 @@ fn append_error_messages(messages: &mut Vec<ParsedMessage>, rows: &[MessageSpanR
             observation_type: row.observation_type.clone(),
             span_name: row.span_name.clone(),
             scope_name: row.scope_name.clone(),
+            scope_version: row.scope_version.clone(),
         });
     }
 }
@@ -1899,6 +1902,7 @@ fn flatten_to_blocks(
                 observation_type: msg.observation_type.clone(),
                 span_name: msg.span_name.clone(),
                 scope_name: msg.scope_name.clone(),
+                scope_version: msg.scope_version.clone(),
 
                 model: msg.model.clone(),
                 provider: msg.provider.clone(),

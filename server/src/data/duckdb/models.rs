@@ -5,6 +5,6 @@
 
 // Re-export all types from the shared types module
 pub use crate::data::types::{
-    AggregationTemporality, Framework, MessageCategory, MessageSourceType, MetricType,
-    NormalizedMetric, NormalizedSpan, ObservationType, SpanCategory,
+    AggregationTemporality, MessageCategory, MessageSourceType, MetricType, NormalizedMetric,
+    NormalizedSpan, ObservationType, SpanCategory,
 };

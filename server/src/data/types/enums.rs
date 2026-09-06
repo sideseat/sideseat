@@ -77,7 +77,14 @@ impl SpanCategory {
     }
 }
 
-/// AI/ML framework identifiers
+/// AI/ML framework identifiers - the *oracle's* vocabulary, not production's.
+///
+/// Detection produces a label from the assets under `server/rules/`, so nothing in the running server
+/// consults this list. It survives only because the equivalence oracle that proves the assets reproduce
+/// the table needs the names the table used, and it is `#[cfg(test)]` for the reason the mandate exists:
+/// an enum *is* the list of frameworks, so a variant in production code would mean adding a framework is
+/// a build rather than an asset.
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Framework {
     StrandsAgents,
@@ -112,6 +119,7 @@ pub enum Framework {
     Unknown,
 }
 
+#[cfg(test)]
 impl Framework {
     pub fn as_str(&self) -> &'static str {
         match self {

@@ -20,8 +20,8 @@ pub use repositories::span as span_repository;
 pub use repositories::stats as stats_repository;
 
 pub use models::{
-    AggregationTemporality, Framework, MessageCategory, MessageSourceType, MetricType,
-    NormalizedMetric, NormalizedSpan, ObservationType, SpanCategory,
+    AggregationTemporality, MessageCategory, MessageSourceType, MetricType, NormalizedMetric,
+    NormalizedSpan, ObservationType, SpanCategory,
 };
 
 pub use error::DuckdbError;

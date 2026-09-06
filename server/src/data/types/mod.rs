@@ -12,9 +12,13 @@ mod transactional;
 
 // Re-export enum types
 pub use enums::{
-    AggregationTemporality, Framework, MessageCategory, MessageSourceType, MetricType,
-    ObservationType, SpanCategory,
+    AggregationTemporality, MessageCategory, MessageSourceType, MetricType, ObservationType,
+    SpanCategory,
 };
+// The framework enum is the detection oracle's vocabulary and is not part of the running server's -
+// see its declaration. Re-exported publicly, it would be a list of frameworks in the library's API.
+#[cfg(test)]
+pub use enums::Framework;
 
 // Re-export normalized types (for ingestion)
 pub use normalized::{NormalizedMetric, NormalizedSpan, json_to_pre_serialized};

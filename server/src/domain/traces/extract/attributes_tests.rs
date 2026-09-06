@@ -2236,6 +2236,36 @@ fn the_rules_reproduce_the_legacy_detection() {
             empty.clone(),
             detect_attrs(&[("sideseat.framework", "not-a-framework")]),
         ),
+        // `dedup` runs on an *unsorted* list, so it removes only consecutive repeats - preserved from
+        // the table this replaced. It cannot change an answer, and these cases are why: a repeat becomes
+        // non-consecutive only when a different label sits between it, and two distinct labels already
+        // resolve to nothing; a slug that resolves to nothing (a provider) is filtered out before the
+        // dedup, so it cannot separate them either.
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("sideseat.framework", "strands,bedrock,strands")]),
+        ),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("sideseat.framework", "strands,crewai,strands")]),
+        ),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("sideseat.framework", "strands,crewai,crewai")]),
+        ),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("sideseat.framework", " strands , bedrock ")]),
+        ),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("sideseat.framework", "")]),
+        ),
         // The ordering that matters most: the SDK's default service name must not claim a span whose own
         // attributes name a different framework.
         (
