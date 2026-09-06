@@ -53,7 +53,7 @@ import { generateText, registerTelemetry } from 'ai';
 import { LegacyOpenTelemetry } from '@ai-sdk/otel';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 
-init({ framework: Frameworks.VercelAI });
+await init({ framework: Frameworks.VercelAI });
 
 // AI SDK 7 hands telemetry to registered integrations rather than emitting spans itself, so
 // this is required as well as the per-call flag. Register after init(): the integration
@@ -78,7 +78,7 @@ Runs flow to SideSeat at `http://localhost:5388`.
 ```typescript
 import { init, Frameworks } from '@sideseat/sdk';
 
-init({ framework: Frameworks.VercelAI });
+await init({ framework: Frameworks.VercelAI });
 ```
 
 Available frameworks: `Strands`, `VercelAI`, `LangChain`, `CrewAI`, `AutoGen`, `OpenAIAgents`, `GoogleADK`, `PydanticAI`.
@@ -88,8 +88,8 @@ Available frameworks: `Strands`, `VercelAI`, `LangChain`, `CrewAI`, `AutoGen`, `
 Safe to call multiple times:
 
 ```typescript
-init({ framework: Frameworks.VercelAI });  // Initializes
-init({ framework: Frameworks.VercelAI });  // No-op (already initialized)
+await init({ framework: Frameworks.VercelAI });  // Initializes
+await init({ framework: Frameworks.VercelAI });  // No-op (already initialized)
 ```
 
 ### Environment Variable Support
@@ -108,7 +108,7 @@ node app.js
 Enable verbose logging:
 
 ```typescript
-init({ framework: Frameworks.VercelAI, debug: true });
+await init({ framework: Frameworks.VercelAI, debug: true });
 ```
 
 Logging goes through the OpenTelemetry diagnostic logger. Output:
@@ -162,7 +162,7 @@ supplied. See [Configuration → endpoint](/docs/sdks/typescript/configuration/#
 import { init, Frameworks } from '@sideseat/sdk';
 
 // Initialize with all options
-const client = init({
+const client = await init({
   framework: Frameworks.VercelAI,
   endpoint: 'http://localhost:5388',
   projectId: 'my-project',
@@ -198,10 +198,10 @@ const config: SideSeatOptions = {
   debug: true
 };
 
-init(config);
+await init(config);
 ```
 
 ## Next Steps
 
 - [Configuration](/docs/sdks/typescript/configuration/) — detailed configuration options
-- [init() / createClient()](/docs/sdks/typescript/init/) — API reference
+- [init()](/docs/sdks/typescript/init/) — API reference

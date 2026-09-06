@@ -69,7 +69,7 @@ the corpus matches it.
 | `strands` | strands-agents >=1.30.0 | 10 | 40 |
 | `strands-js` | @strands-agents/sdk ^1.14.0 | 7 | 12 |
 | `vercel-ai-js` | ai ^7.0.79 | 6 | 13 |
-| **14 suites** | | **109** | **272** |
+| **14 suites** | | **119** | **282** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
@@ -160,7 +160,7 @@ not hide the rest.
 
 ## What is and is not covered
 
-**111 expectation files: 106 captured in 13 suites, plus 5 synthetic.** A suite is not a framework:
+**119 expectation files: 104 captured in 13 suites, plus 15 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
 languages, so the 13 captured suites cover **11 of the 32** frameworks SideSeat recognises. (32 is
 the union of the server's `Framework` classifier and the SDK's framework list, excluding `Unknown`:
@@ -177,7 +177,7 @@ The second group shares extractors with covered frameworks, so the *parsing logi
 — but nothing here proves their emitted payloads match what those extractors expect. Adding a
 sample suite is what closes that, not adding an expectation file.
 
-Also uneven: 30 fixtures have no session view, because their sample never sets a session id.
+Also uneven: 28 captured fixtures have no session view, because their sample never sets a session id.
 Session views are built only for real session ids, since the endpoint cannot be asked for a
 session that does not exist. Sessionised captures are what would cover those, not a synthetic
 fallback.

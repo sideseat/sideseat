@@ -1,19 +1,23 @@
 ---
-title: init() / createClient()
-description: API reference for the SideSeat TypeScript SDK initialization functions.
+title: init()
+description: API reference for the SideSeat TypeScript SDK initialization function.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-The TypeScript SDK provides two initialization functions: `init()` for synchronous setup and `createClient()` for async setup with connection validation.
+The TypeScript SDK has **one** initialization function, `init()`, and it is **async**. There used to be a
+synchronous `init()` and an asynchronous `createClient()`; they were merged, because framework wiring (for
+example registering the Vercel AI SDK's telemetry integration) has to import the user's framework package,
+which cannot be done synchronously — so a synchronous `init()` silently produced no spans for those
+frameworks. Await the one call and the choice disappears.
 
 ## init()
 
 ```typescript
-function init(options: SideSeatOptions): SideSeat;
+function init(options: SideSeatOptions): Promise<SideSeat>;
 ```
 
-Synchronous initialization. Returns a `SideSeat` instance.
+Asynchronous initialization. Resolves to a `SideSeat` instance.
 
 ### Parameters
 
@@ -40,21 +44,21 @@ See [Configuration](/docs/sdks/typescript/configuration/) for details on each op
 
 ### Returns
 
-`SideSeat` — the initialized client instance.
+`Promise<SideSeat>` — resolves to the initialized client instance.
 
 ### Behavior
 
-When called, `init()`:
+When awaited, `init()`:
 
-1. Creates a `NodeTracerProvider` with resource attributes
-2. Configures a `BatchSpanProcessor` with OTLP HTTP exporter
-3. Registers the provider globally via `provider.register()`
+1. Creates a tracer provider with resource attributes and registers it globally
+2. Configures a `BatchSpanProcessor` with an OTLP HTTP exporter
+3. Registers the framework's telemetry integration where one is needed (this is the step that must be async)
 
-The function is idempotent. Multiple calls return the existing instance:
+The function is idempotent, and concurrent calls share one initialization rather than racing:
 
 ```typescript
-const a = init({ framework: Frameworks.VercelAI });   // Initializes OpenTelemetry
-const b = init({ framework: Frameworks.VercelAI });   // Returns same instance, logs warning
+const a = await init({ framework: Frameworks.VercelAI });   // Initializes OpenTelemetry
+const b = await init({ framework: Frameworks.VercelAI });   // Returns same instance, logs warning
 console.log(a === b); // true
 ```
 
@@ -68,10 +72,10 @@ Once initialized, the configuration cannot be changed. If you need different set
 import { init, Frameworks } from '@sideseat/sdk';
 
 // Minimal
-init({ framework: Frameworks.VercelAI });
+await init({ framework: Frameworks.VercelAI });
 
 // With options
-const client = init({
+const client = await init({
   framework: Frameworks.Strands,
   endpoint: 'http://sideseat.example.com:5388',
   projectId: 'my-project',
@@ -80,36 +84,13 @@ const client = init({
 });
 
 // Environment-based
-init({ framework: Frameworks.VercelAI, debug: process.env.NODE_ENV !== 'production' });
+await init({ framework: Frameworks.VercelAI, debug: process.env.NODE_ENV !== 'production' });
 ```
 
-## createClient()
-
-```typescript
-function createClient(options: SideSeatOptions): Promise<SideSeat>;
-```
-
-Async initialization with connection validation. Preferred for production use.
-
-### Returns
-
-`Promise<SideSeat>` — resolves to the initialized client instance.
-
-### Behavior
-
-Same as `init()` but additionally validates the endpoint is reachable before returning. Safe against concurrent calls — returns the same promise if called while initialization is in progress.
-
-### Examples
-
-```typescript
-import { createClient, Frameworks } from '@sideseat/sdk';
-
-const client = await createClient({
-  framework: Frameworks.VercelAI,
-  endpoint: 'http://sideseat.internal:5388',
-  projectId: 'production'
-});
-```
+<Aside type="tip">
+`init()` returns a promise, so **await it before the first model call**. In an ESM module you can use
+top-level `await`; otherwise initialize inside an `async` entry point before anything that produces spans.
+</Aside>
 
 ## getClient()
 
@@ -122,7 +103,7 @@ Get the global SideSeat instance. Throws `SideSeatError` if not initialized.
 ```typescript
 import { init, getClient, Frameworks } from '@sideseat/sdk';
 
-init({ framework: Frameworks.VercelAI });
+await init({ framework: Frameworks.VercelAI });
 
 // Later, in another module
 const client = getClient();
@@ -173,7 +154,7 @@ you need those spans.
 import { init, Frameworks } from '@sideseat/sdk';
 import { trace } from '@opentelemetry/api';
 
-init({ framework: Frameworks.VercelAI });
+await init({ framework: Frameworks.VercelAI });
 
 // This tracer uses the SideSeat-configured provider
 const tracer = trace.getTracer('my-module');
@@ -183,12 +164,15 @@ const tracer = trace.getTracer('my-module');
 
 ### Vercel AI SDK
 
+`init()` registers the Vercel AI SDK's current OpenTelemetry integration automatically — that is the
+async step above, so awaiting `init()` before the first `generateText` is what makes telemetry appear.
+
 ```typescript
 import { init, Frameworks } from '@sideseat/sdk';
 import { generateText } from 'ai';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 
-init({ framework: Frameworks.VercelAI });
+await init({ framework: Frameworks.VercelAI });
 
 const { text } = await generateText({
   model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
@@ -203,7 +187,7 @@ const { text } = await generateText({
 import { init, Frameworks } from '@sideseat/sdk';
 import { Agent } from '@strands-agents/sdk';
 
-init({ framework: Frameworks.Strands });
+await init({ framework: Frameworks.Strands });
 
 const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
 const result = await agent.invoke('Hello!');
@@ -217,7 +201,7 @@ import { init, Frameworks } from '@sideseat/sdk';
 import express from 'express';
 
 // Initialize before creating the app
-init({ framework: Frameworks.VercelAI });
+await init({ framework: Frameworks.VercelAI });
 
 const app = express();
 

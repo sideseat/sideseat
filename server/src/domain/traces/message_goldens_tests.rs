@@ -275,6 +275,9 @@ fn normalise_content(value: &serde_json::Value) -> String {
 struct InvariantRow {
     trace_id: String,
     span_id: String,
+    /// The span's ancestor chain (self last), so a check can tell an exception propagating up a
+    /// hierarchy from the same failure reported by independent sibling spans.
+    span_path: Vec<String>,
     index: usize,
     role: String,
     entry_type: String,
@@ -366,6 +369,7 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
         .map(|(block, m)| InvariantRow {
             trace_id: block.trace_id.clone(),
             span_id: block.span_id.clone(),
+            span_path: block.span_path.clone(),
             index: m.index,
             role: m.role.clone(),
             entry_type: m.entry_type.clone(),
@@ -1480,6 +1484,7 @@ fn describe_diff(label: &str, expected: &Golden, actual: &Golden) -> String {
 fn invariant_checks_are_not_vacuous() {
     fn row(trace: &str, index: usize, role: &str, kind: &str, content: &str) -> InvariantRow {
         InvariantRow {
+            span_path: vec![format!("span-{index}")],
             carrier: "attr:test".to_string(),
             position: index.to_string(),
             trace_id: trace.to_string(),
@@ -1496,6 +1501,7 @@ fn invariant_checks_are_not_vacuous() {
 
     fn tool_row(trace: &str, index: usize, kind: &str, id: &str) -> InvariantRow {
         InvariantRow {
+            span_path: vec![format!("span-{index}")],
             carrier: "attr:test".to_string(),
             position: index.to_string(),
             trace_id: trace.to_string(),
@@ -1588,6 +1594,7 @@ fn invariant_checks_are_not_vacuous() {
         position: "0".to_string(),
         trace_id: "aaaaaaaa1111".to_string(),
         span_id: "bbbb2222".to_string(),
+        span_path: vec!["bbbb2222".to_string()],
         index: 0,
         role: "user".to_string(),
         entry_type: "text".to_string(),
@@ -3492,9 +3499,11 @@ fn exception_conservation_violations(built: &Built) -> Vec<String> {
         let Scope::Trace { trace_id } = scope else {
             continue;
         };
-        // Which spans of this trace reported which exception text.
-        let mut reported: HashMap<&str, BTreeSet<&str>> = HashMap::new();
-        for (other_name, other_scope, rows) in &built.invariants {
+        // Which spans of this trace reported which exception text, and the ancestor chain of each -
+        // so an exception propagating up a hierarchy is told from the same failure reported by
+        // independent siblings.
+        let mut reported: HashMap<&str, Vec<(&str, &[String])>> = HashMap::new();
+        for (_, other_scope, rows) in &built.invariants {
             let Scope::Span {
                 trace_id: span_trace,
                 span_id,
@@ -3505,17 +3514,33 @@ fn exception_conservation_violations(built: &Built) -> Vec<String> {
             if span_trace != trace_id {
                 continue;
             }
-            let _ = other_name;
             for r in rows.iter().filter(|r| r.carrier == "attr:exception") {
                 reported
                     .entry(r.content_digest.as_str())
                     .or_default()
-                    .insert(span_id.as_str());
+                    .push((span_id.as_str(), r.span_path.as_slice()));
             }
         }
         if reported.is_empty() {
             continue;
         }
+
+        // The distinct failures for one digest are the **leaf** reporting spans: a span whose id
+        // appears in another reporter's ancestor path is re-reporting a descendant's failure (the
+        // production leaf-error rule), so it is not a separate occurrence. Three independent
+        // sibling failures (`openai-agents/image_gen`) each stay a leaf; one error propagating up
+        // `invoke_agent -> step -> chat` (`vercel-ai-js/error`) has only `chat` as a leaf.
+        let leaf_reporters = |reporters: &[(&str, &[String])]| -> BTreeSet<String> {
+            reporters
+                .iter()
+                .filter(|(id, _)| {
+                    !reporters.iter().any(|(other, other_path)| {
+                        other != id && other_path.iter().any(|a| a == id)
+                    })
+                })
+                .map(|(id, _)| id.to_string())
+                .collect()
+        };
 
         let survivors: HashMap<&str, BTreeSet<&str>> = trace_rows.iter().fold(
             HashMap::new(),
@@ -3533,16 +3558,17 @@ fn exception_conservation_violations(built: &Built) -> Vec<String> {
                 reported.len()
             ));
         }
-        for (digest, spans) in &reported {
-            if spans.len() < 2 {
+        for (digest, reporters) in &reported {
+            let leaves = leaf_reporters(reporters);
+            if leaves.len() < 2 {
                 continue;
             }
             let kept = survivors.get(digest).cloned().unwrap_or_default();
-            if kept.len() < spans.len() {
+            if kept.len() < leaves.len() {
                 out.push(format!(
-                    "{name}: an exception reported independently by {} spans survives on {} - \
-                     distinct failures must keep their multiplicity",
-                    spans.len(),
+                    "{name}: an exception reported by {} independent (non-ancestral) spans survives \
+                     on {} - distinct failures must keep their multiplicity",
+                    leaves.len(),
                     kept.len()
                 ));
             }

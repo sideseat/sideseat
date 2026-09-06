@@ -53,7 +53,7 @@ Disable all telemetry.
 | Default | `false` |
 
 ```typescript
-init({ framework: Frameworks.Strands, disabled: true });
+await init({ framework: Frameworks.Strands, disabled: true });
 ```
 
 ### `endpoint`
@@ -68,7 +68,7 @@ The SideSeat server URL.
 
 ```typescript
 // Via config
-init({ framework: Frameworks.Strands, endpoint: 'http://custom:5388' });
+await init({ framework: Frameworks.Strands, endpoint: 'http://custom:5388' });
 
 // Via environment
 // SIDESEAT_ENDPOINT=http://custom:5388 node app.js
@@ -99,7 +99,7 @@ The project ID for organizing traces.
 | Default | `"default"` |
 
 ```typescript
-init({ framework: Frameworks.Strands, projectId: 'my-project' });
+await init({ framework: Frameworks.Strands, projectId: 'my-project' });
 ```
 
 ### `apiKey`
@@ -113,7 +113,7 @@ Optional API key for authenticated endpoints.
 | Default | (none) |
 
 ```typescript
-init({ framework: Frameworks.Strands, apiKey: 'sk-xxx' });
+await init({ framework: Frameworks.Strands, apiKey: 'sk-xxx' });
 ```
 
 When set, adds an `Authorization: Bearer {apiKey}` header to OTLP requests.
@@ -133,7 +133,7 @@ Resolved in this order, first match winning:
 5. `"unknown-service"`
 
 ```typescript
-init({ framework: Frameworks.Strands, serviceName: 'my-ai-agent' });
+await init({ framework: Frameworks.Strands, serviceName: 'my-ai-agent' });
 ```
 
 <Aside type="tip">
@@ -152,7 +152,7 @@ The service version for resource attributes.
 | Default | `"0.0.0"` |
 
 ```typescript
-init({ framework: Frameworks.Strands, serviceVersion: '1.2.3' });
+await init({ framework: Frameworks.Strands, serviceVersion: '1.2.3' });
 ```
 
 ### `framework`
@@ -168,7 +168,7 @@ Select the framework to instrument. This one is **required**.
 ```typescript
 import { init, Frameworks } from '@sideseat/sdk';
 
-init({ framework: Frameworks.VercelAI });
+await init({ framework: Frameworks.VercelAI });
 ```
 
 Available constants: `Frameworks.Strands`, `Frameworks.VercelAI`, `Frameworks.LangChain`, `Frameworks.CrewAI`, `Frameworks.AutoGen`, `Frameworks.OpenAIAgents`, `Frameworks.GoogleADK`, `Frameworks.PydanticAI`, `Frameworks.ClaudeAgentSDK`.
@@ -185,7 +185,7 @@ Enable trace span export.
 | Default | `true` |
 
 ```typescript
-init({ framework: Frameworks.Strands, enableTraces: false }); // Disable tracing
+await init({ framework: Frameworks.Strands, enableTraces: false }); // Disable tracing
 ```
 
 ### `logLevel`
@@ -201,7 +201,7 @@ Control SDK log verbosity.
 Valid levels: `"none"`, `"error"`, `"warn"`, `"info"`, `"debug"`, `"verbose"`.
 
 ```typescript
-init({ framework: Frameworks.Strands, logLevel: 'info' });
+await init({ framework: Frameworks.Strands, logLevel: 'info' });
 ```
 
 ### `debug`
@@ -215,7 +215,7 @@ Enable verbose logging (shortcut for `logLevel: "debug"`).
 | Default | `false` |
 
 ```typescript
-init({ framework: Frameworks.VercelAI, debug: true });
+await init({ framework: Frameworks.VercelAI, debug: true });
 ```
 
 ## Environment Variables
@@ -252,7 +252,7 @@ The SDK sends these headers with OTLP requests:
 ```typescript
 import { init, Frameworks } from '@sideseat/sdk';
 
-init({
+await init({
   framework: Frameworks.VercelAI,
   debug: true  // See what's happening
 });
@@ -263,7 +263,7 @@ init({
 ```typescript
 import { init, Frameworks } from '@sideseat/sdk';
 
-init({
+await init({
   framework: Frameworks.VercelAI,
   endpoint: process.env.SIDESEAT_ENDPOINT,
   projectId: process.env.SIDESEAT_PROJECT_ID,
@@ -279,7 +279,7 @@ import { init, Frameworks } from '@sideseat/sdk';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-init({
+await init({
   framework: Frameworks.VercelAI,
   endpoint: isProduction
     ? 'http://sideseat.internal:5388'
@@ -291,5 +291,5 @@ init({
 
 ## Next Steps
 
-- [init() / createClient()](/docs/sdks/typescript/init/) — API reference
+- [init()](/docs/sdks/typescript/init/) — API reference
 - [Integrations](/docs/integrations/) — framework-specific guides
