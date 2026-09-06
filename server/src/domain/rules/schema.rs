@@ -463,6 +463,19 @@ pub struct MessageRule {
     /// exemption for one extractor by name; it is a property of a rule now.
     #[serde(default)]
     pub reads_tool_spans: bool,
+    /// Split a text carrier into tagged sections and route each by its tag.
+    ///
+    /// A general text-carrier capability, and one dialect needs it: a single attribute holds either side
+    /// of a conversation, distinguished by a bracketed tag, and several sections joined by a separator -
+    /// one per parallel tool call. Each is read on its own so every result keeps its own id.
+    #[serde(default)]
+    pub sections: Option<SectionsSpec>,
+    /// Reject a carrier whose value is blank once trimmed.
+    ///
+    /// Distinct from `require_non_empty`, which rejects only the empty string: one dialect treats
+    /// whitespace as absence and another does not, and collapsing the two would change both.
+    #[serde(default)]
+    pub require_non_blank: bool,
     /// Skip a carrier whose value is empty.
     ///
     /// An attribute present and empty is not evidence of a message, and wrapping it produces a turn with
@@ -623,6 +636,15 @@ pub struct AttachSpec {
     /// The literal to attach instead of the attribute's value, for a flag.
     #[serde(default)]
     pub value: Option<JsonValue>,
+    /// Treat a blank value as absent, so the fallbacks below apply.
+    #[serde(default)]
+    pub blank_is_absent: bool,
+    /// Remove a leading `[TAG]\n` marker before parsing.
+    ///
+    /// One dialect tags a structured payload with the tool it belongs to and then writes the JSON beneath
+    /// it; parsing without stripping fails, and the member would silently fall back to its default.
+    #[serde(default)]
+    pub strip_bracket_tag: bool,
     /// Fall back to the span name with this prefix removed, trimmed, when the attribute is absent.
     ///
     /// The conventions prescribe `execute_tool {name}` as a tool span's name, so a producer that omits
@@ -787,4 +809,66 @@ pub struct ComposeFallback {
     pub when: DetectMatch,
     #[serde(default)]
     pub parse: Option<ParseMode>,
+}
+
+/// A text carrier read as tagged sections.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct SectionsSpec {
+    /// The separator between sections.
+    pub split_on: String,
+    /// Routes, tried in order; the first whose tag matches wins, and a route with no `tag_prefix` is the
+    /// default.
+    pub routes: Vec<SectionRoute>,
+}
+
+/// What to do with a section whose tag matches.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct SectionRoute {
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The tag prefix this route claims. Absent means "any section not claimed above".
+    #[serde(default)]
+    pub tag_prefix: Option<String>,
+    /// The role the emitted message carries.
+    pub role: String,
+    /// Build a content block instead of putting the body under `content`.
+    #[serde(default)]
+    pub block: Option<SectionBlock>,
+    /// Drop the section entirely when this holds.
+    #[serde(default)]
+    pub skip_when: Option<SectionSkip>,
+}
+
+/// A block built from a section, carrying what the tag captured.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct SectionBlock {
+    #[serde(rename = "type")]
+    pub block_type: String,
+    /// The member the tag's remainder becomes - an id that pairs this section with a call.
+    #[serde(default)]
+    pub capture_as: Option<String>,
+    /// The member the body becomes. Defaults to `content`.
+    #[serde(default)]
+    pub content_as: Option<String>,
+}
+
+/// When a matched section is dropped rather than emitted.
+///
+/// Both conditions must hold. One dialect writes each tool result twice - once as the text the model saw,
+/// tagged with the call id, and once as raw structured telemetry tagged with the tool's name - and
+/// emitting both shows every result twice. The test is deliberately *narrow*: only a section whose capture
+/// lacks the id prefix **and** whose body opens as JSON is dropped, so if that prefix ever changes an
+/// unrecognised section still reaches the feed unlinked rather than vanishing from it.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct SectionSkip {
+    /// The capture does *not* start with this.
+    #[serde(default)]
+    pub capture_lacks_prefix: Option<String>,
+    /// The body starts with this.
+    #[serde(default)]
+    pub body_starts_with: Option<String>,
 }

@@ -219,11 +219,17 @@ pub(super) mod keys {
 
     // Claude Code CLI (Claude Agent SDK). Content attributes require detailed beta
     // tracing: ENABLE_BETA_TRACING_DETAILED=1 plus BETA_TRACING_ENDPOINT.
+    #[cfg(test)]
     pub const CLAUDE_CODE_NEW_CONTEXT: &str = "new_context";
+    #[cfg(test)]
     pub const CLAUDE_CODE_MODEL_OUTPUT: &str = "response.model_output";
+    #[cfg(test)]
     pub const CLAUDE_CODE_USER_SYSTEM_PROMPT: &str = "user_system_prompt";
+    #[cfg(test)]
     pub const CLAUDE_CODE_TOOL_NAME: &str = "tool_name";
+    #[cfg(test)]
     pub const CLAUDE_CODE_TOOL_INPUT: &str = "tool_input";
+    #[cfg(test)]
     pub const CLAUDE_CODE_TOOL_USE_ID: &str = "tool_use_id";
     pub const EVENT_TOOL_OUTPUT: &str = "tool.output";
 

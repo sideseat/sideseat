@@ -419,10 +419,6 @@ const EXTRACTORS: &[NamedExtractor] = &[
     },
     // Before raw_io: guarded on span.type, so it only claims Claude Code CLI spans.
     NamedExtractor {
-        name: "claude_code",
-        extractor: try_claude_code,
-    },
-    NamedExtractor {
         name: "raw_io",
         extractor: try_raw_io,
     },
@@ -3767,13 +3763,16 @@ pub(crate) fn try_crewai(
 
 /// Prefix of a Claude tool-use id, used to tell an id-tagged `TOOL RESULT` apart from
 /// a tool-name-tagged one.
+#[cfg(test)]
 const CLAUDE_CODE_TOOL_USE_ID_PREFIX: &str = "toolu";
 
 /// Span-name prefix the Claude Code CLI uses for every span it emits.
+#[cfg(test)]
 const CLAUDE_CODE_SPAN_PREFIX: &str = "claude_code.";
 
 /// Separator between tagged sections inside one `new_context` value. Parallel tool
 /// calls put several results in a single attribute.
+#[cfg(test)]
 const CLAUDE_CODE_SECTION_SEPARATOR: &str = "\n\n---\n\n";
 
 /// Split a Claude Code content attribute into its bracketed tag and body.
@@ -3781,6 +3780,7 @@ const CLAUDE_CODE_SECTION_SEPARATOR: &str = "\n\n---\n\n";
 /// The CLI prefixes these values with a label, e.g. `"[USER PROMPT]\n..."`,
 /// `"[TOOL INPUT: Glob]\n{...}"` or `"[TOOL RESULT: toolu_abc]\n..."`. Values with no
 /// marker yield `(None, trimmed_value)`.
+#[cfg(test)]
 fn split_bracket_tag(value: &str) -> (Option<&str>, &str) {
     match value
         .strip_prefix('[')
@@ -3792,6 +3792,7 @@ fn split_bracket_tag(value: &str) -> (Option<&str>, &str) {
 }
 
 /// Strip a leading `[TAG]\n` marker, keeping only the body.
+#[cfg(test)]
 fn strip_bracket_tag(value: &str) -> &str {
     split_bracket_tag(value).1
 }
@@ -3812,6 +3813,7 @@ fn strip_bracket_tag(value: &str) -> &str {
 /// Gated on the `claude_code.` span-name prefix. `span.type` alone is too generic a
 /// name to key on, and without a gate a bare `tool_name` would let this hijack spans
 /// from other frameworks.
+#[cfg(test)]
 pub(crate) fn try_claude_code(
     messages: &mut Vec<RawMessage>,
     _tool_definitions: &mut Vec<RawToolDefinition>,

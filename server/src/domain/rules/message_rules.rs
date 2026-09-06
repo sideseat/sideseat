@@ -29,7 +29,8 @@ use serde_json::{Value as JsonValue, json};
 
 use super::schema::{
     Alternative, AttachSpec, BlockSpec, ComposeSpec, DetectMatch, EmitTarget, MemberPresence,
-    MemberRequirements, MessageRule, ParseMode, ReadSpec, RuleFile, ShapeRequirement, WrapSpec,
+    MemberRequirements, MessageRule, ParseMode, ReadSpec, RuleFile, SectionsSpec, ShapeRequirement,
+    WrapSpec,
 };
 
 /// What an ingestion knows when it asks which carriers to read.
@@ -85,6 +86,8 @@ pub struct CompiledMessageRule {
     pub when: Option<DetectMatch>,
     pub unless: Option<DetectMatch>,
     pub require_non_empty: bool,
+    pub require_non_blank: bool,
+    pub sections: Option<SectionsSpec>,
     pub reads_tool_spans: bool,
     pub tag_as: Option<String>,
     pub alternatives: Vec<Alternative>,
@@ -181,6 +184,8 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 emit,
                 require_members,
                 require_non_empty,
+                require_non_blank,
+                sections,
                 reads_tool_spans,
                 tag_as,
                 unless,
@@ -220,6 +225,8 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 when: when.clone(),
                 unless: unless.clone(),
                 require_non_empty: *require_non_empty,
+                require_non_blank: *require_non_blank,
+                sections: sections.clone(),
                 reads_tool_spans: *reads_tool_spans,
                 tag_as: tag_as.clone(),
                 alternatives: alternatives.clone(),
@@ -342,6 +349,23 @@ impl MessagePlan {
                 continue;
             };
             if rule.require_non_empty && raw.is_empty() {
+                continue;
+            }
+            if rule.require_non_blank && raw.trim().is_empty() {
+                continue;
+            }
+            // A text carrier read as tagged sections, each emitted on its own.
+            if let Some(sections) = &rule.sections {
+                for value in sectioned(raw, sections) {
+                    out.push(Emission {
+                        rule_id: &rule.rule_id,
+                        carrier: EmittedCarrier::Attribute(
+                            rule.tag_as.as_deref().unwrap_or(attribute),
+                        ),
+                        target: rule.target,
+                        value,
+                    });
+                }
                 continue;
             }
             let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
@@ -627,7 +651,16 @@ fn built_block(value: JsonValue, block: &BlockSpec, ctx: &MessageContext<'_>) ->
 
 /// One attachment's value, or `None` where nothing supplied one.
 fn attached_value(attach: &AttachSpec, ctx: &MessageContext<'_>) -> Option<JsonValue> {
-    if let Some(raw) = ctx.span_attrs.get(&attach.from) {
+    if let Some(raw) = ctx
+        .span_attrs
+        .get(&attach.from)
+        .filter(|raw| !(attach.blank_is_absent && raw.trim().is_empty()))
+    {
+        let raw = if attach.strip_bracket_tag {
+            split_bracket_tag(raw).1
+        } else {
+            raw.as_str()
+        };
         if let Some(expected) = &attach.when_equals {
             if raw != expected {
                 return None;
@@ -635,7 +668,11 @@ fn attached_value(attach: &AttachSpec, ctx: &MessageContext<'_>) -> Option<JsonV
             // A flag: the literal is the point, not the string that proved it.
             return Some(attach.value.clone().unwrap_or(json!(true)));
         }
-        return parse_value(raw, attach.parse.unwrap_or(ParseMode::Text));
+        // A value that will not parse falls through to the default below, which is what an unparseable
+        // structured member should do: the member exists in the shape, so it carries its empty form.
+        if let Some(parsed) = parse_value(raw, attach.parse.unwrap_or(ParseMode::Text)) {
+            return Some(parsed);
+        }
     }
     // The span name, where the conventions put the same fact.
     if let Some(prefix) = &attach.or_span_name_after
@@ -720,4 +757,81 @@ fn composed(compose: &ComposeSpec, ctx: &MessageContext<'_>) -> Option<JsonValue
         object.insert(member.clone(), literal.clone());
     }
     Some(JsonValue::Object(object))
+}
+
+/// A leading `[TAG]\n` marker split from its body, both trimmed.
+///
+/// The tag is recognised only with the newline: a body that merely opens with a bracket is not a tagged
+/// section, and treating it as one would swallow its first line.
+fn split_bracket_tag(value: &str) -> (Option<&str>, &str) {
+    match value
+        .strip_prefix('[')
+        .and_then(|rest| rest.split_once("]\n"))
+    {
+        Some((tag, body)) => (Some(tag.trim()), body.trim()),
+        None => (None, value.trim()),
+    }
+}
+
+/// The messages a tagged text carrier yields, one per section.
+fn sectioned(raw: &str, spec: &SectionsSpec) -> Vec<JsonValue> {
+    let mut out = Vec::new();
+    for section in raw.split(spec.split_on.as_str()) {
+        let (tag, body) = split_bracket_tag(section);
+        if body.is_empty() {
+            continue;
+        }
+        // The first route whose prefix the tag carries, else the default.
+        let matched = spec
+            .routes
+            .iter()
+            .find_map(|route| match &route.tag_prefix {
+                Some(prefix) => tag
+                    .and_then(|t| t.strip_prefix(prefix.as_str()))
+                    .map(|rest| (route, Some(rest.trim()))),
+                None => Some((route, None)),
+            });
+        let Some((route, capture)) = matched else {
+            continue;
+        };
+        if let Some(skip) = &route.skip_when {
+            let capture_matches = skip
+                .capture_lacks_prefix
+                .as_deref()
+                .is_some_and(|prefix| capture.is_some_and(|c| !c.starts_with(prefix)));
+            let body_matches = skip
+                .body_starts_with
+                .as_deref()
+                .is_some_and(|opening| body.starts_with(opening));
+            if capture_matches && body_matches {
+                continue;
+            }
+        }
+        let mut message = serde_json::Map::new();
+        message.insert("role".to_string(), json!(route.role));
+        match &route.block {
+            Some(block) => {
+                let mut object = serde_json::Map::new();
+                object.insert("type".to_string(), json!(block.block_type));
+                if let Some(member) = &block.capture_as
+                    && let Some(captured) = capture
+                {
+                    object.insert(member.clone(), json!(captured));
+                }
+                object.insert(
+                    block.content_as.as_deref().unwrap_or("content").to_string(),
+                    json!(body),
+                );
+                message.insert(
+                    "content".to_string(),
+                    JsonValue::Array(vec![JsonValue::Object(object)]),
+                );
+            }
+            None => {
+                message.insert("content".to_string(), json!(body));
+            }
+        }
+        out.push(JsonValue::Object(message));
+    }
+    out
 }

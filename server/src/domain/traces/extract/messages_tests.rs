@@ -6647,271 +6647,526 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
     let time = chrono::Utc::now();
     // Every carrier the migrated rules read, in the shapes that distinguish the parse modes: valid JSON,
     // an object, a bare string that is not JSON, and a numeric scalar.
-    let cases: Vec<HashMap<String, String>> = vec![
-        rule_attrs(&[("traceloop.entity.input", r#"{"a":1}"#)]),
-        rule_attrs(&[("traceloop.entity.output", r#"[1,2]"#)]),
-        rule_attrs(&[
-            ("traceloop.entity.input", r#"{"a":1}"#),
-            ("traceloop.entity.output", r#""done""#),
-        ]),
+    // A span *name* per case, because a rule may be gated on it - and a gated rule compared under a
+    // name it cannot match proves nothing at all.
+    let cases: Vec<(&str, HashMap<String, String>)> = vec![
+        (
+            "span",
+            rule_attrs(&[("traceloop.entity.input", r#"{"a":1}"#)]),
+        ),
+        (
+            "span",
+            rule_attrs(&[("traceloop.entity.output", r#"[1,2]"#)]),
+        ),
+        (
+            "span",
+            rule_attrs(&[
+                ("traceloop.entity.input", r#"{"a":1}"#),
+                ("traceloop.entity.output", r#""done""#),
+            ]),
+        ),
         // Not JSON: `Json` mode must skip it, which is what the legacy `extract_json` did.
-        rule_attrs(&[("traceloop.entity.input", "not json at all")]),
-        rule_attrs(&[("mlflow.spanInputs", r#"{"messages":[]}"#)]),
-        rule_attrs(&[("mlflow.spanOutputs", r#"{"choices":[]}"#)]),
-        rule_attrs(&[("mlflow.chat.tools", r#"[{"name":"t"}]"#)]),
-        rule_attrs(&[("mlflow.spanInputs", "unparseable")]),
+        (
+            "span",
+            rule_attrs(&[("traceloop.entity.input", "not json at all")]),
+        ),
+        (
+            "span",
+            rule_attrs(&[("mlflow.spanInputs", r#"{"messages":[]}"#)]),
+        ),
+        (
+            "span",
+            rule_attrs(&[("mlflow.spanOutputs", r#"{"choices":[]}"#)]),
+        ),
+        (
+            "span",
+            rule_attrs(&[("mlflow.chat.tools", r#"[{"name":"t"}]"#)]),
+        ),
+        ("span", rule_attrs(&[("mlflow.spanInputs", "unparseable")])),
         // `JsonOrString` mode: the string must survive rather than be dropped.
-        rule_attrs(&[("tool_arguments", r#"{"city":"NYC"}"#)]),
-        rule_attrs(&[("tool_arguments", "plain text arguments")]),
-        rule_attrs(&[("tool_response", r#"{"v":"sunny"}"#)]),
-        rule_attrs(&[("tool_response", "just a string")]),
-        rule_attrs(&[("tool_response", "42")]),
+        (
+            "span",
+            rule_attrs(&[("tool_arguments", r#"{"city":"NYC"}"#)]),
+        ),
+        (
+            "span",
+            rule_attrs(&[("tool_arguments", "plain text arguments")]),
+        ),
+        ("span", rule_attrs(&[("tool_response", r#"{"v":"sunny"}"#)])),
+        ("span", rule_attrs(&[("tool_response", "just a string")])),
+        ("span", rule_attrs(&[("tool_response", "42")])),
         // All of them at once, which is also the ordering check.
-        rule_attrs(&[
-            ("traceloop.entity.input", r#"{"a":1}"#),
-            ("mlflow.spanInputs", r#"{"b":2}"#),
-            ("mlflow.chat.tools", r#"[{"name":"t"}]"#),
-            ("tool_arguments", r#"{"c":3}"#),
-            ("tool_response", "text"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("traceloop.entity.input", r#"{"a":1}"#),
+                ("mlflow.spanInputs", r#"{"b":2}"#),
+                ("mlflow.chat.tools", r#"[{"name":"t"}]"#),
+                ("tool_arguments", r#"{"c":3}"#),
+                ("tool_response", "text"),
+            ]),
+        ),
         // Nothing at all: both must report `false` and emit nothing.
-        rule_attrs(&[("unrelated.key", "x")]),
+        ("span", rule_attrs(&[("unrelated.key", "x")])),
         // LangSmith: gated, so the same keys without a marker must yield nothing at all.
-        rule_attrs(&[(
-            "gen_ai.prompt",
-            r#"{"messages":[{"role":"user","content":"hi"}]}"#,
-        )]),
-        rule_attrs(&[
-            ("langsmith.span.kind", "llm"),
-            (
+        (
+            "span",
+            rule_attrs(&[(
                 "gen_ai.prompt",
                 r#"{"messages":[{"role":"user","content":"hi"}]}"#,
-            ),
-        ]),
+            )]),
+        ),
+        (
+            "span",
+            rule_attrs(&[
+                ("langsmith.span.kind", "llm"),
+                (
+                    "gen_ai.prompt",
+                    r#"{"messages":[{"role":"user","content":"hi"}]}"#,
+                ),
+            ]),
+        ),
         // Two turns, and a member of the request that is not a turn: it must not become one.
-        rule_attrs(&[
-            ("langsmith.trace.name", "t"),
-            (
-                "gen_ai.prompt",
-                r#"{"messages":[{"role":"system","content":"s"},{"role":"user","content":"u"},
+        (
+            "span",
+            rule_attrs(&[
+                ("langsmith.trace.name", "t"),
+                (
+                    "gen_ai.prompt",
+                    r#"{"messages":[{"role":"system","content":"s"},{"role":"user","content":"u"},
                     {"role":"noContent"}],"temperature":0.5}"#,
-            ),
-        ]),
+                ),
+            ]),
+        ),
         // A single message written directly, rather than in an array.
-        rule_attrs(&[
-            ("langsmith.span.kind", "llm"),
-            ("gen_ai.prompt", r#"{"role":"user","content":"direct"}"#),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("langsmith.span.kind", "llm"),
+                ("gen_ai.prompt", r#"{"role":"user","content":"direct"}"#),
+            ]),
+        ),
         // The completion's choices array, with the finish reason beside each message.
-        rule_attrs(&[
-            ("langsmith.span.kind", "llm"),
-            (
-                "gen_ai.completion",
-                r#"{"choices":[{"message":{"role":"assistant","content":"a"},
+        (
+            "span",
+            rule_attrs(&[
+                ("langsmith.span.kind", "llm"),
+                (
+                    "gen_ai.completion",
+                    r#"{"choices":[{"message":{"role":"assistant","content":"a"},
                     "finish_reason":"stop"}]}"#,
-            ),
-        ]),
+                ),
+            ]),
+        ),
         // Two choices, one without a finish reason: the lift must be per element.
-        rule_attrs(&[
-            ("langsmith.span.kind", "llm"),
-            (
-                "gen_ai.completion",
-                r#"{"choices":[{"message":{"role":"assistant","content":"a"},"finish_reason":"stop"},
+        (
+            "span",
+            rule_attrs(&[
+                ("langsmith.span.kind", "llm"),
+                (
+                    "gen_ai.completion",
+                    r#"{"choices":[{"message":{"role":"assistant","content":"a"},"finish_reason":"stop"},
                     {"message":{"role":"assistant","content":"b"}}]}"#,
-            ),
-        ]),
+                ),
+            ]),
+        ),
         // A response carrying content and no role - which `any_of` admits and `all_of` would drop.
-        rule_attrs(&[
-            ("langsmith.span.kind", "llm"),
-            ("gen_ai.completion", r#"{"content":"no role here"}"#),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("langsmith.span.kind", "llm"),
+                ("gen_ai.completion", r#"{"content":"no role here"}"#),
+            ]),
+        ),
         // Both sides at once, plus a prefix-only marker.
-        rule_attrs(&[
-            ("langsmith.anything", "x"),
-            (
-                "gen_ai.prompt",
-                r#"{"messages":[{"role":"user","content":"q"}]}"#,
-            ),
-            (
-                "gen_ai.completion",
-                r#"{"choices":[{"message":{"role":"assistant","content":"a"},
+        (
+            "span",
+            rule_attrs(&[
+                ("langsmith.anything", "x"),
+                (
+                    "gen_ai.prompt",
+                    r#"{"messages":[{"role":"user","content":"q"}]}"#,
+                ),
+                (
+                    "gen_ai.completion",
+                    r#"{"choices":[{"message":{"role":"assistant","content":"a"},
                     "finish_reason":"length"}]}"#,
-            ),
-        ]),
+                ),
+            ]),
+        ),
         // Unparseable on both sides: skipped, not stored as prose.
-        rule_attrs(&[
-            ("langsmith.span.kind", "llm"),
-            ("gen_ai.prompt", "not json"),
-            ("gen_ai.completion", "also not json"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("langsmith.span.kind", "llm"),
+                ("gen_ai.prompt", "not json"),
+                ("gen_ai.completion", "also not json"),
+            ]),
+        ),
         // Indexed families. Two turns, in the flattened encoding.
-        rule_attrs(&[
-            ("gen_ai.prompt.0.role", "system"),
-            ("gen_ai.prompt.0.content", "be brief"),
-            ("gen_ai.prompt.1.role", "user"),
-            ("gen_ai.prompt.1.content", "hello"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("gen_ai.prompt.0.role", "system"),
+                ("gen_ai.prompt.0.content", "be brief"),
+                ("gen_ai.prompt.1.role", "user"),
+                ("gen_ai.prompt.1.content", "hello"),
+            ]),
+        ),
         // An index mentioned by a key that is not content: it must not become a turn.
-        rule_attrs(&[
-            ("gen_ai.prompt.0.role", "user"),
-            ("gen_ai.prompt.0.content", "q"),
-            ("gen_ai.prompt.1.role", "assistant"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("gen_ai.prompt.0.role", "user"),
+                ("gen_ai.prompt.0.content", "q"),
+                ("gen_ai.prompt.1.role", "assistant"),
+            ]),
+        ),
         // Nested content, which the convention also writes: presence must be satisfied by it.
-        rule_attrs(&[
-            ("gen_ai.prompt.0.role", "user"),
-            ("gen_ai.prompt.0.content.0.text", "nested"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("gen_ai.prompt.0.role", "user"),
+                ("gen_ai.prompt.0.content.0.text", "nested"),
+            ]),
+        ),
         // Both families at once, and out of key order - entries must come back by index.
-        rule_attrs(&[
-            ("gen_ai.completion.1.content", "second"),
-            ("gen_ai.completion.0.content", "first"),
-            ("gen_ai.prompt.0.role", "user"),
-            ("gen_ai.prompt.0.content", "q"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("gen_ai.completion.1.content", "second"),
+                ("gen_ai.completion.0.content", "first"),
+                ("gen_ai.prompt.0.role", "user"),
+                ("gen_ai.prompt.0.content", "q"),
+            ]),
+        ),
         // A member whose value opens as JSON, and one that merely contains a brace.
-        rule_attrs(&[
-            (
-                "gen_ai.completion.0.content",
-                r#"[{"type":"text","text":"a"}]"#,
-            ),
-            ("gen_ai.completion.0.finish_reason", "stop"),
-            ("gen_ai.completion.0.note", "not {json} really"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                (
+                    "gen_ai.completion.0.content",
+                    r#"[{"type":"text","text":"a"}]"#,
+                ),
+                ("gen_ai.completion.0.finish_reason", "stop"),
+                ("gen_ai.completion.0.note", "not {json} really"),
+            ]),
+        ),
         // Opens as JSON and does not parse: the raw text must survive.
-        rule_attrs(&[("gen_ai.completion.0.content", "{ truncated")]),
+        (
+            "span",
+            rule_attrs(&[("gen_ai.completion.0.content", "{ truncated")]),
+        ),
         // A double-digit index, so the parse is not one character wide.
-        rule_attrs(&[
-            ("gen_ai.prompt.10.role", "user"),
-            ("gen_ai.prompt.10.content", "tenth"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("gen_ai.prompt.10.role", "user"),
+                ("gen_ai.prompt.10.content", "tenth"),
+            ]),
+        ),
         // A family with no index at all.
-        rule_attrs(&[("gen_ai.prompt.content", "no index")]),
+        ("span", rule_attrs(&[("gen_ai.prompt.content", "no index")])),
         // LiveKit: prose, and the empty-value skip.
-        rule_attrs(&[("lk.instructions", "be brief")]),
-        rule_attrs(&[("lk.instructions", "")]),
+        ("span", rule_attrs(&[("lk.instructions", "be brief")])),
+        ("span", rule_attrs(&[("lk.instructions", "")])),
         // Either key for the user's turn, and the tag must be the one found.
-        rule_attrs(&[("lk.user_input", "hello")]),
-        rule_attrs(&[("lk.input_text", "hello")]),
-        rule_attrs(&[("lk.user_input", "first"), ("lk.input_text", "second")]),
-        rule_attrs(&[("lk.input_text", "")]),
+        ("span", rule_attrs(&[("lk.user_input", "hello")])),
+        ("span", rule_attrs(&[("lk.input_text", "hello")])),
+        (
+            "span",
+            rule_attrs(&[("lk.user_input", "first"), ("lk.input_text", "second")]),
+        ),
+        ("span", rule_attrs(&[("lk.input_text", "")])),
         // A literal member naming what kind of context a payload is.
-        rule_attrs(&[("lk.chat_ctx", r#"[{"role":"user","content":"x"}]"#)]),
+        (
+            "span",
+            rule_attrs(&[("lk.chat_ctx", r#"[{"role":"user","content":"x"}]"#)]),
+        ),
         // Definitions rather than a message.
-        rule_attrs(&[("lk.function_tools", r#"[{"name":"weather"}]"#)]),
+        (
+            "span",
+            rule_attrs(&[("lk.function_tools", r#"[{"name":"weather"}]"#)]),
+        ),
         // A call written across three attributes.
-        rule_attrs(&[
-            ("lk.function_tool.arguments", r#"{"city":"NYC"}"#),
-            ("lk.function_tool.name", "weather"),
-            ("lk.function_tool.id", "call_1"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("lk.function_tool.arguments", r#"{"city":"NYC"}"#),
+                ("lk.function_tool.name", "weather"),
+                ("lk.function_tool.id", "call_1"),
+            ]),
+        ),
         // The same, with no name or id: the attachments must simply be absent.
-        rule_attrs(&[("lk.function_tool.arguments", "raw args")]),
+        (
+            "span",
+            rule_attrs(&[("lk.function_tool.arguments", "raw args")]),
+        ),
         // The error flag, present and true.
-        rule_attrs(&[
-            ("lk.function_tool.output", r#"{"v":1}"#),
-            ("lk.function_tool.name", "weather"),
-            ("lk.function_tool.is_error", "true"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("lk.function_tool.output", r#"{"v":1}"#),
+                ("lk.function_tool.name", "weather"),
+                ("lk.function_tool.is_error", "true"),
+            ]),
+        ),
         // Present and false: the literal must not attach.
-        rule_attrs(&[
-            ("lk.function_tool.output", "failed"),
-            ("lk.function_tool.is_error", "false"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("lk.function_tool.output", "failed"),
+                ("lk.function_tool.is_error", "false"),
+            ]),
+        ),
         // A reply with tool calls of the same response attached.
-        rule_attrs(&[
-            ("lk.response.text", "here you go"),
-            ("lk.response.function_calls", r#"[{"name":"t"}]"#),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("lk.response.text", "here you go"),
+                ("lk.response.function_calls", r#"[{"name":"t"}]"#),
+            ]),
+        ),
         // A reply with no calls.
-        rule_attrs(&[("lk.response.text", "just text")]),
+        ("span", rule_attrs(&[("lk.response.text", "just text")])),
         // Calls with no text: one message, under `tool_calls` rather than `content`.
-        rule_attrs(&[("lk.response.function_calls", r#"[{"name":"t"}]"#)]),
+        (
+            "span",
+            rule_attrs(&[("lk.response.function_calls", r#"[{"name":"t"}]"#)]),
+        ),
         // Empty text beside calls - the either/or is on *presence*, matching the legacy reading.
-        rule_attrs(&[
-            ("lk.response.text", ""),
-            ("lk.response.function_calls", r#"[{"name":"t"}]"#),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("lk.response.text", ""),
+                ("lk.response.function_calls", r#"[{"name":"t"}]"#),
+            ]),
+        ),
         // The conventions themselves: request and response kept whole.
-        rule_attrs(&[("gen_ai.input.messages", r#"[{"role":"user","parts":[]}]"#)]),
-        rule_attrs(&[(
-            "gen_ai.output.messages",
-            r#"[{"role":"assistant","parts":[]}]"#,
-        )]),
+        (
+            "span",
+            rule_attrs(&[("gen_ai.input.messages", r#"[{"role":"user","parts":[]}]"#)]),
+        ),
+        (
+            "span",
+            rule_attrs(&[(
+                "gen_ai.output.messages",
+                r#"[{"role":"assistant","parts":[]}]"#,
+            )]),
+        ),
         // A structured instruction, which goes under `parts` rather than `content`.
-        rule_attrs(&[(
-            "gen_ai.system_instructions",
-            r#"[{"type":"text","content":"be brief"}]"#,
-        )]),
-        rule_attrs(&[("gen_ai.system_instructions", "not json")]),
+        (
+            "span",
+            rule_attrs(&[(
+                "gen_ai.system_instructions",
+                r#"[{"type":"text","content":"be brief"}]"#,
+            )]),
+        ),
+        (
+            "span",
+            rule_attrs(&[("gen_ai.system_instructions", "not json")]),
+        ),
         // A whole conversation on an agent-run span.
-        rule_attrs(&[("pydantic_ai.all_messages", r#"[{"role":"user"}]"#)]),
+        (
+            "span",
+            rule_attrs(&[("pydantic_ai.all_messages", r#"[{"role":"user"}]"#)]),
+        ),
         // A tool call as a block, with the name and id beside it.
-        rule_attrs(&[
-            ("gen_ai.tool.call.arguments", r#"{"city":"NYC"}"#),
-            ("gen_ai.tool.name", "weather"),
-            ("gen_ai.tool.call.id", "call_1"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("gen_ai.tool.call.arguments", r#"{"city":"NYC"}"#),
+                ("gen_ai.tool.name", "weather"),
+                ("gen_ai.tool.call.id", "call_1"),
+            ]),
+        ),
         // No name attribute: the empty default must be present, not the member omitted.
-        rule_attrs(&[("gen_ai.tool.call.arguments", r#"{"city":"NYC"}"#)]),
+        (
+            "span",
+            rule_attrs(&[("gen_ai.tool.call.arguments", r#"{"city":"NYC"}"#)]),
+        ),
         // The result, where an absent name is *omitted* rather than defaulted.
-        rule_attrs(&[
-            ("gen_ai.tool.call.result", r#"{"v":"sunny"}"#),
-            ("gen_ai.tool.call.id", "call_1"),
-        ]),
-        rule_attrs(&[
-            ("gen_ai.tool.call.result", "plain result"),
-            ("gen_ai.tool.name", "weather"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("gen_ai.tool.call.result", r#"{"v":"sunny"}"#),
+                ("gen_ai.tool.call.id", "call_1"),
+            ]),
+        ),
+        (
+            "span",
+            rule_attrs(&[
+                ("gen_ai.tool.call.result", "plain result"),
+                ("gen_ai.tool.name", "weather"),
+            ]),
+        ),
         // Both halves of the pair on one span.
-        rule_attrs(&[
-            ("gen_ai.tool.call.arguments", r#"{"a":1}"#),
-            ("gen_ai.tool.call.result", r#"{"b":2}"#),
-            ("gen_ai.tool.name", "t"),
-            ("gen_ai.tool.call.id", "id1"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("gen_ai.tool.call.arguments", r#"{"a":1}"#),
+                ("gen_ai.tool.call.result", r#"{"b":2}"#),
+                ("gen_ai.tool.name", "t"),
+                ("gen_ai.tool.call.id", "id1"),
+            ]),
+        ),
         // Vercel: the prompt under each spelling, both tagged canonically.
-        rule_attrs(&[("ai.prompt.messages", r#"[{"role":"user","content":"q"}]"#)]),
-        rule_attrs(&[("ai.prompt", r#"[{"role":"user","content":"q"}]"#)]),
+        (
+            "span",
+            rule_attrs(&[("ai.prompt.messages", r#"[{"role":"user","content":"q"}]"#)]),
+        ),
+        (
+            "span",
+            rule_attrs(&[("ai.prompt", r#"[{"role":"user","content":"q"}]"#)]),
+        ),
         // Non-object elements in the array must be skipped, not emitted as turns.
-        rule_attrs(&[("ai.prompt.messages", r#"[{"role":"user"},"stray",42]"#)]),
+        (
+            "span",
+            rule_attrs(&[("ai.prompt.messages", r#"[{"role":"user"},"stray",42]"#)]),
+        ),
         // Not an array at all.
-        rule_attrs(&[("ai.prompt.messages", r#"{"role":"user"}"#)]),
+        (
+            "span",
+            rule_attrs(&[("ai.prompt.messages", r#"{"role":"user"}"#)]),
+        ),
         // A tool call across three attributes.
-        rule_attrs(&[
-            ("ai.toolCall.args", r#"{"city":"NYC"}"#),
-            ("ai.toolCall.name", "weather"),
-            ("ai.toolCall.id", "c1"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("ai.toolCall.args", r#"{"city":"NYC"}"#),
+                ("ai.toolCall.name", "weather"),
+                ("ai.toolCall.id", "c1"),
+            ]),
+        ),
         // The composed response: current spellings.
-        rule_attrs(&[
-            ("ai.response.text", "the answer"),
-            ("ai.response.toolCalls", r#"[{"name":"t"}]"#),
-            ("ai.response.finishReason", "stop"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("ai.response.text", "the answer"),
+                ("ai.response.toolCalls", r#"[{"name":"t"}]"#),
+                ("ai.response.finishReason", "stop"),
+            ]),
+        ),
         // Legacy spellings, which must read identically.
-        rule_attrs(&[
-            ("ai.result.text", "legacy answer"),
-            ("ai.result.toolCalls", r#"[{"name":"t"}]"#),
-            ("ai.result.object", r#"{"k":1}"#),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("ai.result.text", "legacy answer"),
+                ("ai.result.toolCalls", r#"[{"name":"t"}]"#),
+                ("ai.result.object", r#"{"k":1}"#),
+            ]),
+        ),
         // A structured object under the current name, plus a swept member.
-        rule_attrs(&[
-            ("ai.response.object", r#"{"k":1}"#),
-            ("ai.response.id", "resp-1"),
-            ("ai.response.model", "m"),
-        ]),
+        (
+            "span",
+            rule_attrs(&[
+                ("ai.response.object", r#"{"k":1}"#),
+                ("ai.response.id", "resp-1"),
+                ("ai.response.model", "m"),
+            ]),
+        ),
         // The gated fallback: `output.value` is read only on evidence this is such a span.
-        rule_attrs(&[("output.value", "generic"), ("ai.prompt.messages", "[]")]),
-        rule_attrs(&[("output.value", "generic"), ("ai.toolCall.name", "t")]),
+        (
+            "span",
+            rule_attrs(&[("output.value", "generic"), ("ai.prompt.messages", "[]")]),
+        ),
+        (
+            "span",
+            rule_attrs(&[("output.value", "generic"), ("ai.toolCall.name", "t")]),
+        ),
         // No evidence at all: the fallback must not claim the generic carrier.
-        rule_attrs(&[("output.value", "generic")]),
+        ("span", rule_attrs(&[("output.value", "generic")])),
         // Nothing of the family: no response message at all, not one holding only a role.
-        rule_attrs(&[("unrelated", "x"), ("ai.somethingElse", "y")]),
+        (
+            "span",
+            rule_attrs(&[("unrelated", "x"), ("ai.somethingElse", "y")]),
+        ),
+        // Claude Code, under a span name its rules can match - the gate is the point of the name column.
+        (
+            "claude_code.interaction",
+            rule_attrs(&[("user_system_prompt", "   ")]),
+        ),
+        (
+            "claude_code.interaction",
+            rule_attrs(&[("user_system_prompt", "be terse")]),
+        ),
+        (
+            "claude_code.llm_request",
+            rule_attrs(&[("response.model_output", "the reply")]),
+        ),
+        // The same attributes under an unrelated span name: the gate must withhold them.
+        ("span", rule_attrs(&[("user_system_prompt", "be terse")])),
+        // One tagged section: the user turn.
+        (
+            "claude_code.interaction",
+            rule_attrs(&[("new_context", "[USER PROMPT]\nwhat is 2+2")]),
+        ),
+        // An untagged body is still the user's turn, not discarded.
+        (
+            "claude_code.interaction",
+            rule_attrs(&[("new_context", "bare text with no tag")]),
+        ),
+        // A bracket with no newline is not a tag - it must not swallow the first line.
+        (
+            "claude_code.interaction",
+            rule_attrs(&[("new_context", "[not a tag] still text")]),
+        ),
+        // A tool result, id-tagged: the id is what pairs it with its call.
+        (
+            "claude_code.interaction",
+            rule_attrs(&[("new_context", "[TOOL RESULT: toolu_abc]\nthe file contents")]),
+        ),
+        // The name-tagged structured duplicate: dropped, narrowly.
+        (
+            "claude_code.interaction",
+            rule_attrs(&[("new_context", "[TOOL RESULT: Read]\n{\"path\":\"a\"}")]),
+        ),
+        // Name-tagged but *not* JSON: an unrecognised section must still reach the feed.
+        (
+            "claude_code.interaction",
+            rule_attrs(&[("new_context", "[TOOL RESULT: Read]\nplain text result")]),
+        ),
+        // Several sections in one attribute, one per parallel call, each keeping its own id.
+        (
+            "claude_code.interaction",
+            rule_attrs(&[(
+                "new_context",
+                "[TOOL RESULT: toolu_1]\nfirst\n\n---\n\n[TOOL RESULT: toolu_2]\nsecond",
+            )]),
+        ),
+        // A section whose body is empty is skipped.
+        (
+            "claude_code.interaction",
+            rule_attrs(&[(
+                "new_context",
+                "[USER PROMPT]\n\n\n---\n\n[USER PROMPT]\nreal",
+            )]),
+        ),
+        // A tool call: the name is the read carrier, the input stripped of its tag then parsed.
+        (
+            "claude_code.tool",
+            rule_attrs(&[
+                ("tool_name", "Read"),
+                ("tool_input", "[TOOL INPUT: Read]\n{\"path\":\"/tmp/a\"}"),
+                ("tool_use_id", "toolu_9"),
+            ]),
+        ),
+        // Unparseable input falls back to the empty form, because the block's shape requires it.
+        (
+            "claude_code.tool",
+            rule_attrs(&[("tool_name", "Read"), ("tool_input", "not json")]),
+        ),
+        // No input attribute at all.
+        ("claude_code.tool", rule_attrs(&[("tool_name", "Bash")])),
+        // A blank name is absence: no call.
+        (
+            "claude_code.tool",
+            rule_attrs(&[("tool_name", "  "), ("tool_use_id", "toolu_1")]),
+        ),
     ];
 
     let mut disagreements = Vec::new();
-    for case in &cases {
+    for (span_name, case) in &cases {
         let mut legacy_msgs: Vec<RawMessage> = Vec::new();
         let mut legacy_tools: Vec<RawToolDefinition> = Vec::new();
         let mut legacy_found = false;
@@ -6930,11 +7185,12 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             try_livekit,
             try_otel_genai_messages,
             try_vercel_ai,
+            try_claude_code,
         ] {
             if is_tool_span {
                 continue;
             }
-            legacy_found |= f(&mut legacy_msgs, &mut legacy_tools, case, "span", time);
+            legacy_found |= f(&mut legacy_msgs, &mut legacy_tools, case, span_name, time);
         }
         if is_tool_span {
             // Only the conventions read a tool span, and they still do - as declared rules.
@@ -6944,7 +7200,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
 
         let mut rule_msgs: Vec<RawMessage> = Vec::new();
         let mut rule_tools: Vec<RawToolDefinition> = Vec::new();
-        let rule_found = try_declared_rules(&mut rule_msgs, &mut rule_tools, case, "span", time);
+        let rule_found = try_declared_rules(&mut rule_msgs, &mut rule_tools, case, span_name, time);
 
         // Compared as sets of serialised observations: the `EXTRACTORS` order decided which *extractor*
         // claimed a carrier, never the order observations sit in the vector - `extract_per_carrier`
@@ -6966,8 +7222,8 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         let rules = render(&rule_msgs, &rule_tools);
         if legacy != rules || legacy_found != rule_found {
             disagreements.push(format!(
-                "  {case:?}\n    table: found={legacy_found} {legacy:?}\n    rules: \
-                 found={rule_found} {rules:?}"
+                "  span `{span_name}` {case:?}\n    table: found={legacy_found} {legacy:?}\n    \
+                 rules: found={rule_found} {rules:?}"
             ));
         }
     }
@@ -6985,7 +7241,7 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        30,
+        34,
         "the assets declare {} message rules; seven extractors were replaced by them, plus two \
          carriers taken out of an eighth",
         plan.rule_count()

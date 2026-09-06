@@ -67,5 +67,123 @@
       "slug": "claude-agent-sdk",
       "label": "ClaudeAgentSDK"
     }
+  ],
+  "messages": [
+    {
+      "id": "claude-agent-sdk.system_prompt",
+      "doc": "The caller-supplied system prompt, emitted once per session rather than per request. Blank counts as absent here: this dialect writes the attribute whether or not there is a prompt.",
+      "when": {
+        "span_name": [
+          "claude_code."
+        ]
+      },
+      "read": {
+        "attribute": "user_system_prompt"
+      },
+      "parse": "text",
+      "require_non_blank": true,
+      "wrap": {
+        "role": "system"
+      },
+      "emit": "message",
+      "legacy_rank": 1400
+    },
+    {
+      "id": "claude-agent-sdk.new_context",
+      "doc": "Either side of the conversation, in one attribute, distinguished by a bracketed tag - and several sections joined by a separator, one per parallel tool call, each read on its own so every result keeps its own id.",
+      "when": {
+        "span_name": [
+          "claude_code."
+        ]
+      },
+      "read": {
+        "attribute": "new_context"
+      },
+      "parse": "text",
+      "require_non_blank": true,
+      "sections": {
+        "split_on": "\n\n---\n\n",
+        "routes": [
+          {
+            "doc": "A tool result. The tag's remainder is the call id, which is what pairs the result with its tool_use block rather than leaving it to be guessed from content. The name-tagged form is the same result as raw structured telemetry, so it is dropped - narrowly: only when the capture lacks the id prefix *and* the body opens as JSON, so if that prefix changes an unrecognised section still reaches the feed unlinked instead of vanishing.",
+            "tag_prefix": "TOOL RESULT:",
+            "role": "tool",
+            "block": {
+              "type": "tool_result",
+              "capture_as": "tool_use_id"
+            },
+            "skip_when": {
+              "capture_lacks_prefix": "toolu",
+              "body_starts_with": "{"
+            }
+          },
+          {
+            "doc": "Anything else is the user's turn - including an unrecognised tag, which is read rather than discarded.",
+            "role": "user"
+          }
+        ]
+      },
+      "emit": "message",
+      "legacy_rank": 1410
+    },
+    {
+      "id": "claude-agent-sdk.model_output",
+      "doc": "The assistant's reply.",
+      "when": {
+        "span_name": [
+          "claude_code."
+        ]
+      },
+      "read": {
+        "attribute": "response.model_output"
+      },
+      "parse": "text",
+      "require_non_blank": true,
+      "wrap": {
+        "role": "assistant"
+      },
+      "emit": "message",
+      "legacy_rank": 1420
+    },
+    {
+      "id": "claude-agent-sdk.tool_call",
+      "doc": "A tool call rebuilt from the tool span. The read carrier is the tool's *name*, which becomes the block's name member; the input is attached from another attribute where the payload sits under a bracketed tag naming the tool, so it is stripped before parsing - parsing without stripping fails and the member would silently fall back to its empty form. An unparseable input does fall back to `{}`, because the block's shape requires the member.",
+      "when": {
+        "span_name": [
+          "claude_code."
+        ]
+      },
+      "read": {
+        "attribute": "tool_name"
+      },
+      "parse": "text",
+      "require_non_blank": true,
+      "wrap": {
+        "role": "assistant",
+        "block": {
+          "type": "tool_use",
+          "content_as": "name",
+          "attach": [
+            {
+              "from": "tool_input",
+              "as": "input",
+              "parse": "json",
+              "strip_bracket_tag": true,
+              "blank_is_absent": true,
+              "default": {},
+              "after_content": true
+            },
+            {
+              "from": "tool_use_id",
+              "as": "id",
+              "blank_is_absent": true,
+              "after_content": true
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 1430
+    }
   ]
 }
