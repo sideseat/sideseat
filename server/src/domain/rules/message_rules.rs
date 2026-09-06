@@ -92,6 +92,7 @@ pub struct CompiledMessageRule {
     pub require_members: Option<MemberRequirements>,
     pub wrap: Option<WrapSpec>,
     pub target: EmitTarget,
+    pub aggregate_into_array: bool,
     pub when: Option<CompiledDetect>,
     pub unless: Option<CompiledDetect>,
     pub require_non_empty: bool,
@@ -199,6 +200,7 @@ fn compile_rule(
         parse,
         wrap,
         emit,
+        aggregate_into_array,
         alternatives,
         also,
         fallback,
@@ -432,6 +434,7 @@ fn compile_rule(
         require_members: require_members.clone(),
         wrap: wrap.clone(),
         target: *emit,
+        aggregate_into_array: *aggregate_into_array,
         when: when.as_ref().map(super::detect_rules::compile_signals),
         unless: unless.as_ref().map(super::detect_rules::compile_signals),
         require_non_empty: *require_non_empty,
@@ -890,31 +893,50 @@ fn readings(
 
         let mut produced = Vec::new();
         for element in elements {
-            // Descend, carrying down the members the rule says belong with the message.
-            let candidate = match &alternative.descend {
-                Some(member) => {
-                    let Some(inner) = element.get(member.as_str()) else {
-                        continue;
-                    };
-                    let mut carried = inner.clone();
-                    if let Some(object) = carried.as_object_mut() {
-                        for lifted in &alternative.lift {
-                            if let Some(value) = element.get(lifted.as_str()) {
-                                object.insert(lifted.clone(), value.clone());
+            // For each element, the first of these sub-paths that resolves - decided per element, because
+            // one dialect's groups each either wrap their contents under one of two spellings or are the
+            // content themselves, and choosing once for the whole array would drop the odd one out.
+            let element: Vec<&JsonValue> = if alternative.then_any_of.is_empty() {
+                vec![element]
+            } else {
+                let found = alternative
+                    .then_any_of
+                    .iter()
+                    .map(|path| resolve_path(element, path))
+                    .find(|found| !found.is_empty());
+                match found {
+                    Some(found) => found,
+                    None if alternative.else_element => vec![element],
+                    None => continue,
+                }
+            };
+            for element in element {
+                // Descend, carrying down the members the rule says belong with the message.
+                let candidate = match &alternative.descend {
+                    Some(member) => {
+                        let Some(inner) = element.get(member.as_str()) else {
+                            continue;
+                        };
+                        let mut carried = inner.clone();
+                        if let Some(object) = carried.as_object_mut() {
+                            for lifted in &alternative.lift {
+                                if let Some(value) = element.get(lifted.as_str()) {
+                                    object.insert(lifted.clone(), value.clone());
+                                }
                             }
                         }
+                        carried
                     }
-                    carried
+                    None => element.clone(),
+                };
+                // Trim declared per reading, because trimming a payload meant to be verbatim would change it.
+                let candidate = match (alternative.trim, candidate.as_str()) {
+                    (true, Some(text)) => json!(text.trim()),
+                    _ => candidate,
+                };
+                if predicates_hold(&candidate, &alternative.require) {
+                    produced.push((candidate, alternative.wrap.clone()));
                 }
-                None => element.clone(),
-            };
-            // Trim declared per reading, because trimming a payload meant to be verbatim would change it.
-            let candidate = match (alternative.trim, candidate.as_str()) {
-                (true, Some(text)) => json!(text.trim()),
-                _ => candidate,
-            };
-            if predicates_hold(&candidate, &alternative.require) {
-                produced.push((candidate, alternative.wrap.clone()));
             }
         }
         if !produced.is_empty() {
@@ -1049,14 +1071,41 @@ fn resolve_attribute<'p, 's>(
 }
 
 /// Build the declared envelope around a read value.
-fn wrapped(value: JsonValue, wrap: &WrapSpec, ctx: &MessageContext<'_>) -> JsonValue {
+fn wrapped(
+    value: JsonValue,
+    wrap: &WrapSpec,
+    ctx: &MessageContext<'_>,
+    payload: Option<&JsonValue>,
+) -> JsonValue {
     // A content block, when the carrier holds one part of a block rather than a whole message.
+    // The role, and the part of the reading that is the content, may both come from the payload.
+    let role = wrap
+        .role_from
+        .as_ref()
+        .and_then(|path| resolve_path(&value, path).into_iter().next())
+        .and_then(JsonValue::as_str)
+        .map(|found| {
+            wrap.role_map
+                .get(found)
+                .cloned()
+                .unwrap_or_else(|| found.to_string())
+        })
+        .or_else(|| wrap.role.clone());
+    let value = match &wrap.content_from {
+        Some(path) => match resolve_path(&value, path).into_iter().next() {
+            Some(found) => found.clone(),
+            None => return JsonValue::Null,
+        },
+        None => value,
+    };
     let value = match &wrap.block {
-        Some(block) => JsonValue::Array(vec![built_block(value, block, ctx)]),
+        Some(block) => JsonValue::Array(vec![built_block(value, block, ctx, payload)]),
         None => value,
     };
     let mut object = serde_json::Map::new();
-    object.insert("role".to_string(), json!(wrap.role));
+    if let Some(role) = role {
+        object.insert("role".to_string(), json!(role));
+    }
     for (member, literal) in &wrap.members {
         object.insert(member.clone(), literal.clone());
     }
@@ -1064,13 +1113,13 @@ fn wrapped(value: JsonValue, wrap: &WrapSpec, ctx: &MessageContext<'_>) -> JsonV
     // Before the content member, then the content, then after - because the order is observable: see
     // `AttachSpec::after_content`.
     for attach in wrap.attach.iter().filter(|a| !a.after_content) {
-        if let Some(attached) = attached_value(attach, ctx) {
+        if let Some(attached) = attached_value(attach, ctx, payload) {
             object.insert(attach.as_member.clone(), attached);
         }
     }
     object.insert(content_member.to_string(), value);
     for attach in wrap.attach.iter().filter(|a| a.after_content) {
-        if let Some(attached) = attached_value(attach, ctx) {
+        if let Some(attached) = attached_value(attach, ctx, payload) {
             object.insert(attach.as_member.clone(), attached);
         }
     }
@@ -1078,11 +1127,16 @@ fn wrapped(value: JsonValue, wrap: &WrapSpec, ctx: &MessageContext<'_>) -> JsonV
 }
 
 /// The block a rule builds around its read value.
-fn built_block(value: JsonValue, block: &BlockSpec, ctx: &MessageContext<'_>) -> JsonValue {
+fn built_block(
+    value: JsonValue,
+    block: &BlockSpec,
+    ctx: &MessageContext<'_>,
+    payload: Option<&JsonValue>,
+) -> JsonValue {
     let mut object = serde_json::Map::new();
     object.insert("type".to_string(), json!(block.block_type));
     for attach in block.attach.iter().filter(|a| !a.after_content) {
-        if let Some(attached) = attached_value(attach, ctx) {
+        if let Some(attached) = attached_value(attach, ctx, payload) {
             object.insert(attach.as_member.clone(), attached);
         }
     }
@@ -1091,7 +1145,7 @@ fn built_block(value: JsonValue, block: &BlockSpec, ctx: &MessageContext<'_>) ->
         value,
     );
     for attach in block.attach.iter().filter(|a| a.after_content) {
-        if let Some(attached) = attached_value(attach, ctx) {
+        if let Some(attached) = attached_value(attach, ctx, payload) {
             object.insert(attach.as_member.clone(), attached);
         }
     }
@@ -1099,10 +1153,25 @@ fn built_block(value: JsonValue, block: &BlockSpec, ctx: &MessageContext<'_>) ->
 }
 
 /// One attachment's value, or `None` where nothing supplied one.
-fn attached_value(attach: &AttachSpec, ctx: &MessageContext<'_>) -> Option<JsonValue> {
-    if let Some(raw) = ctx
-        .span_attrs
-        .get(&attach.from)
+fn attached_value(
+    attach: &AttachSpec,
+    ctx: &MessageContext<'_>,
+    payload: Option<&JsonValue>,
+) -> Option<JsonValue> {
+    // A member of the rule's own payload, where the dialect reports it beside the content rather than
+    // inside it.
+    if let Some(path) = &attach.from_path {
+        let found = payload.and_then(|payload| resolve_path(payload, path).into_iter().next())?;
+        let value = match (attach.lowercase, found.as_str()) {
+            (true, Some(text)) => json!(text.to_lowercase()),
+            _ => found.clone(),
+        };
+        return Some(value);
+    }
+    if let Some(raw) = attach
+        .from
+        .as_ref()
+        .and_then(|key| ctx.span_attrs.get(key))
         .filter(|raw| !(attach.blank_is_absent && raw.trim().is_empty()))
     {
         let raw = if attach.strip_bracket_tag {
@@ -1120,6 +1189,10 @@ fn attached_value(attach: &AttachSpec, ctx: &MessageContext<'_>) -> Option<JsonV
         // A value that will not parse falls through to the default below, which is what an unparseable
         // structured member should do: the member exists in the shape, so it carries its empty form.
         if let Some(parsed) = parse_value(raw, attach.parse.unwrap_or(ParseMode::Text)) {
+            let parsed = match (attach.lowercase, parsed.as_str()) {
+                (true, Some(text)) => json!(text.to_lowercase()),
+                _ => parsed,
+            };
             return Some(parsed);
         }
     }
@@ -1375,10 +1448,25 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
     let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
         return out;
     };
-    for (value, per_reading_wrap) in all_readings(&parsed, rule) {
+    let readings = all_readings(&parsed, rule);
+    // A tool list is a set, not a sequence of messages: the whole list is one observation, and emitting one
+    // per tool would make each look like a separate declaration.
+    if rule.aggregate_into_array {
+        if readings.is_empty() {
+            return out;
+        }
+        out.push(Emission {
+            rule_id: &rule.rule_id,
+            carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
+            target: rule.target,
+            value: JsonValue::Array(readings.into_iter().map(|(value, _)| value).collect()),
+        });
+        return out;
+    }
+    for (value, per_reading_wrap) in readings {
         let wrap = per_reading_wrap.or(rule.wrap.clone());
         let value = match &wrap {
-            Some(wrap) => wrapped(value, wrap, ctx),
+            Some(wrap) => wrapped(value, wrap, ctx, Some(&parsed)),
             None => value,
         };
         out.push(Emission {

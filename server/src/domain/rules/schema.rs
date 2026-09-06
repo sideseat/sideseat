@@ -436,6 +436,12 @@ pub struct MessageRule {
     /// emit, so a value here would be unused.
     #[serde(default)]
     pub emit: EmitTarget,
+    /// Emit one observation whose value is the array of everything read, rather than one per reading.
+    ///
+    /// Tool definitions arrive as a set rather than a sequence of messages, so a dialect's whole tool list
+    /// is one observation - emitting one per tool would make each look like a separate declaration.
+    #[serde(default)]
+    pub aggregate_into_array: bool,
     /// A gate on the span, in the detection vocabulary: the rule is consulted only where this holds.
     ///
     /// Several extractors refuse to read a carrier whose name they share with other dialects unless the
@@ -610,7 +616,24 @@ pub enum ParseMode {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct WrapSpec {
-    pub role: String,
+    /// A literal role. One of this and `role_from` is required.
+    #[serde(default)]
+    pub role: Option<String>,
+    /// A path whose value is the role, relative to the reading being wrapped.
+    ///
+    /// Several dialects put the role *in* the payload - Gemini's `{parts, role}` is the clearest case - so
+    /// a literal here would either be wrong or need one rule per role.
+    #[serde(default)]
+    pub role_from: Option<String>,
+    /// Rename a role the payload supplied.
+    ///
+    /// A provider's own vocabulary: one calls the assistant `model`, and normalising that here keeps the
+    /// alias beside the dialect that uses it rather than in a shared table nothing points at.
+    #[serde(default)]
+    pub role_map: BTreeMap<String, String>,
+    /// A path whose value becomes the content, relative to the reading being wrapped.
+    #[serde(default)]
+    pub content_from: Option<String>,
     /// The member the read value becomes. Defaults to `content`.
     ///
     /// Not always content: a response carrying only tool calls has no content, and putting the calls
@@ -656,8 +679,21 @@ pub struct BlockSpec {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct AttachSpec {
-    /// The attribute to read.
-    pub from: String,
+    /// The attribute to read. One of this and `from_path` is required.
+    #[serde(default)]
+    pub from: Option<String>,
+    /// A path into the rule's *own parsed payload*, rather than a sibling attribute.
+    ///
+    /// Relative to the whole payload, deliberately: a dialect reports why a turn stopped beside the
+    /// content rather than inside it, so the member being attached sits outside the part being wrapped.
+    #[serde(default)]
+    pub from_path: Option<String>,
+    /// Lower-case the attached string.
+    ///
+    /// A provider writes finish reasons in upper case and the canonical form is lower; declared because
+    /// lower-casing a payload that is meant to be verbatim would change it.
+    #[serde(default)]
+    pub lowercase: bool,
     /// The member it becomes.
     #[serde(rename = "as")]
     pub as_member: String,
@@ -758,6 +794,16 @@ pub struct Alternative {
     /// Declared rather than always-on: trimming a payload that is meant to be verbatim would change it.
     #[serde(default)]
     pub trim: bool,
+    /// For each selected element, the first of these paths that resolves.
+    ///
+    /// Per *element*, which is the point: one dialect's tool groups each either wrap their declarations
+    /// under one of two spellings or are a declaration themselves, and deciding once for the whole array
+    /// would drop the odd group out.
+    #[serde(default)]
+    pub then_any_of: Vec<String>,
+    /// Fall back to the element itself when none of `then_any_of` resolved.
+    #[serde(default)]
+    pub else_element: bool,
 }
 
 /// What an emitted value must look like. Both forms exist because the extractors use both, and the

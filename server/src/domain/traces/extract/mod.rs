@@ -338,7 +338,9 @@ pub(super) mod keys {
     pub const GCP_VERTEX_LLM_REQUEST: &str = "gcp.vertex.agent.llm_request";
     pub const GCP_VERTEX_LLM_RESPONSE: &str = "gcp.vertex.agent.llm_response";
     pub const GCP_VERTEX_TOOL_RESPONSE: &str = "gcp.vertex.agent.tool_response";
+    #[cfg(test)]
     pub const GCP_VERTEX_TOOL_CALL_ARGS: &str = "gcp.vertex.agent.tool_call_args";
+    #[cfg(test)]
     pub const GCP_VERTEX_DATA: &str = "gcp.vertex.agent.data";
 
     // AWS Bedrock

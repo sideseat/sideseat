@@ -394,10 +394,6 @@ const EXTRACTORS: &[NamedExtractor] = &[
         name: "openinference",
         extractor: try_openinference,
     },
-    NamedExtractor {
-        name: "google_adk",
-        extractor: try_google_adk,
-    },
     // Every dialect whose extraction is purely "claim this carrier and keep what it held" - declared in
     // `server/rules/*.json` rather than written here. Their carriers are read by no other extractor
     // (`ContestedCarrier` refuses a ruleset where two rules read one carrier), so collapsing three
@@ -1650,6 +1646,7 @@ pub(crate) fn try_vercel_ai(
     found
 }
 
+#[cfg(test)]
 pub(crate) fn try_google_adk(
     messages: &mut Vec<RawMessage>,
     tool_definitions: &mut Vec<RawToolDefinition>,
@@ -1741,6 +1738,7 @@ pub(crate) fn try_google_adk(
 /// Extract messages from ADK LLM request.
 /// Format: {model, config: {system_instruction, tools}, contents: [{parts, role}, ...]}
 /// Also handles Vertex AI native format: {systemInstruction: {parts: [...]}, contents: [...]}
+#[cfg(test)]
 fn extract_adk_request_messages(
     messages: &mut Vec<RawMessage>,
     tool_definitions: &mut Vec<RawToolDefinition>,
@@ -1859,6 +1857,7 @@ fn extract_adk_request_messages(
 
 /// Extract message from ADK LLM response.
 /// Format: {model_version, content: {parts, role}, finish_reason, usage_metadata}
+#[cfg(test)]
 fn extract_adk_response_message(
     messages: &mut Vec<RawMessage>,
     response: &JsonValue,

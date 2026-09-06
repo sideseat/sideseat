@@ -7334,6 +7334,110 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             "span",
             rule_attrs(&[("request_data", r#"{"messages":[]}"#)]),
         ),
+        // ADK: the request, with both spellings of its members.
+        (
+            "span",
+            rule_attrs(&[(
+                "gcp.vertex.agent.llm_request",
+                r#"{"systemInstruction":{"parts":[{"text":"be brief"}]},
+                    "contents":[{"role":"user","parts":[{"text":"q"}]},
+                                {"role":"model","parts":[{"text":"a"}]}]}"#,
+            )]),
+        ),
+        (
+            "span",
+            rule_attrs(&[(
+                "gcp.vertex.agent.llm_request",
+                r#"{"systemInstruction":"a bare string"}"#,
+            )]),
+        ),
+        (
+            "span",
+            rule_attrs(&[(
+                "gcp.vertex.agent.llm_request",
+                r#"{"config":{"system_instruction":"the framework's own spelling"}}"#,
+            )]),
+        ),
+        // An empty request is not a request.
+        (
+            "span",
+            rule_attrs(&[("gcp.vertex.agent.llm_request", "{}")]),
+        ),
+        // Tools: wrapped declarations under each spelling, and a bare group.
+        (
+            "span",
+            rule_attrs(&[(
+                "gcp.vertex.agent.llm_request",
+                r#"{"tools":[{"function_declarations":[{"name":"a"},{"name":"b"}]}]}"#,
+            )]),
+        ),
+        (
+            "span",
+            rule_attrs(&[(
+                "gcp.vertex.agent.llm_request",
+                r#"{"tools":[{"functionDeclarations":[{"name":"c"}]}]}"#,
+            )]),
+        ),
+        (
+            "span",
+            rule_attrs(&[(
+                "gcp.vertex.agent.llm_request",
+                r#"{"config":{"tools":[{"name":"bare"}]}}"#,
+            )]),
+        ),
+        // A wrapped group beside a bare one: the per-element decision.
+        (
+            "span",
+            rule_attrs(&[(
+                "gcp.vertex.agent.llm_request",
+                r#"{"tools":[{"function_declarations":[{"name":"a"}]},{"name":"bare"}]}"#,
+            )]),
+        ),
+        // The response: the provider's role alias and the finish reason beside the content.
+        (
+            "span",
+            rule_attrs(&[(
+                "gcp.vertex.agent.llm_response",
+                r#"{"content":{"role":"model","parts":[{"text":"a"}]},"finish_reason":"STOP"}"#,
+            )]),
+        ),
+        (
+            "span",
+            rule_attrs(&[(
+                "gcp.vertex.agent.llm_response",
+                r#"{"content":{"role":"user","parts":[]}}"#,
+            )]),
+        ),
+        (
+            "span",
+            rule_attrs(&[("gcp.vertex.agent.llm_response", "{}")]),
+        ),
+        // The arguments fallback: read only when the request supplied nothing.
+        (
+            "span",
+            rule_attrs(&[("gcp.vertex.agent.tool_call_args", r#"{"city":"NYC"}"#)]),
+        ),
+        (
+            "span",
+            rule_attrs(&[
+                (
+                    "gcp.vertex.agent.llm_request",
+                    r#"{"contents":[{"role":"user","parts":[]}]}"#,
+                ),
+                ("gcp.vertex.agent.tool_call_args", r#"{"city":"NYC"}"#),
+            ]),
+        ),
+        // A tool's result, and the conversation handed to an agent.
+        (
+            "span",
+            rule_attrs(&[("gcp.vertex.agent.tool_response", r#"{"v":"sunny"}"#)]),
+        ),
+        (
+            "span",
+            rule_attrs(&[("gcp.vertex.agent.data", r#"[{"role":"user"}]"#)]),
+        ),
+        ("span", rule_attrs(&[("gcp.vertex.agent.data", "{}")])),
+        ("span", rule_attrs(&[("gcp.vertex.agent.data", "[]")])),
         // The answer must be read even when the request side was found - the asymmetry that
         // closed a real loss.
         (
@@ -7374,6 +7478,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             try_claude_code,
             try_crewai,
             try_logfire_events,
+            try_google_adk,
         ] {
             if is_tool_span {
                 continue;
@@ -7470,7 +7575,7 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        36,
+        37,
         "the assets declare {} message rules, replacing nine extractors wholesale - a dialect moves \
          whole or not at all, so there are no part-migrated carriers to count",
         plan.rule_count()

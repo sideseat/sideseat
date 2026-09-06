@@ -27,5 +27,203 @@
       "slug": "google-adk",
       "label": "GoogleADK"
     }
+  ],
+  "messages": [
+    {
+      "id": "google-adk.conversation",
+      "legacy_rank": 500,
+      "doc": "Every carrier this dialect writes a conversation to, with the local order between them: the tool-call arguments are read only when the request payload supplied nothing, which is what the code being replaced expressed as a `!found` check.",
+      "branch_set": {
+        "primary": [
+          {
+            "id": "google-adk.llm_request",
+            "doc": "The request. Its members arrive under two spellings - the native Vertex form in camelCase and this framework's own in snake_case under `config` - so each reading lists both. An empty object is not a request.",
+            "read": {
+              "attribute": "gcp.vertex.agent.llm_request"
+            },
+            "parse": "json",
+            "emit": "message",
+            "also": [
+              {
+                "doc": "The system instruction: structured parts, a bare string, or the framework's own snake_case member.",
+                "select": "systemInstruction.parts",
+                "wrap": {
+                  "role": "system"
+                }
+              },
+              {
+                "doc": "The same instruction written as a string.",
+                "select": "systemInstruction",
+                "require": {
+                  "all": [
+                    {
+                      "kind": "string",
+                      "non_empty": true
+                    }
+                  ]
+                },
+                "wrap": {
+                  "role": "system"
+                }
+              },
+              {
+                "doc": "And the framework's own spelling.",
+                "select": "config.system_instruction",
+                "require": {
+                  "all": [
+                    {
+                      "kind": "string",
+                      "non_empty": true
+                    }
+                  ]
+                },
+                "wrap": {
+                  "role": "system"
+                }
+              },
+              {
+                "doc": "The conversation itself. Gemini writes `{parts, role}`, so the role comes from the payload rather than a literal - one rule per role would be the alternative.",
+                "select": "contents[]",
+                "require": {
+                  "all": [
+                    {
+                      "path": "role"
+                    },
+                    {
+                      "path": "parts"
+                    }
+                  ]
+                },
+                "wrap": {
+                  "role_from": "role",
+                  "content_from": "parts"
+                }
+              }
+            ]
+          },
+          {
+            "id": "google-adk.llm_request_tools",
+            "doc": "The tools the call was given, as one observation: a tool list is a set, not a sequence of messages. Each group either wraps its declarations under one of two spellings or is a declaration itself, decided per group - choosing once for the whole array would drop the odd group out.",
+            "read": {
+              "attribute": "gcp.vertex.agent.llm_request"
+            },
+            "parse": "json",
+            "emit": "tool_definitions",
+            "aggregate_into_array": true,
+            "alternatives": [
+              {
+                "select": "tools[]",
+                "then_any_of": [
+                  "function_declarations[]",
+                  "functionDeclarations[]"
+                ],
+                "else_element": true
+              },
+              {
+                "select": "config.tools[]",
+                "then_any_of": [
+                  "function_declarations[]",
+                  "functionDeclarations[]"
+                ],
+                "else_element": true
+              }
+            ]
+          }
+        ],
+        "fallback_if_primary_empty": [
+          {
+            "id": "google-adk.tool_call_args",
+            "doc": "A tool call's arguments, read only when the request payload supplied nothing.",
+            "read": {
+              "attribute": "gcp.vertex.agent.tool_call_args"
+            },
+            "parse": "json",
+            "emit": "message",
+            "wrap": {
+              "role": "tool_call"
+            }
+          }
+        ],
+        "always": [
+          {
+            "id": "google-adk.llm_response",
+            "doc": "The response. `model` is this provider's name for the assistant, normalised here so the alias sits beside the dialect that uses it; the reason a turn stopped is reported beside the content rather than inside it, and lower-cased to the canonical form.",
+            "read": {
+              "attribute": "gcp.vertex.agent.llm_response"
+            },
+            "parse": "json",
+            "emit": "message",
+            "alternatives": [
+              {
+                "select": "content",
+                "require": {
+                  "all": [
+                    {
+                      "path": "role"
+                    },
+                    {
+                      "path": "parts"
+                    }
+                  ]
+                },
+                "wrap": {
+                  "role_from": "role",
+                  "role_map": {
+                    "model": "assistant"
+                  },
+                  "content_from": "parts",
+                  "attach": [
+                    {
+                      "from_path": "finish_reason",
+                      "as": "finish_reason",
+                      "lowercase": true,
+                      "after_content": true
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "google-adk.tool_response",
+            "doc": "What a tool returned.",
+            "read": {
+              "attribute": "gcp.vertex.agent.tool_response"
+            },
+            "parse": "json",
+            "emit": "message",
+            "wrap": {
+              "role": "tool"
+            }
+          },
+          {
+            "id": "google-adk.data",
+            "doc": "The conversation handed to an agent. Neither an empty object nor an empty list is a conversation.",
+            "read": {
+              "attribute": "gcp.vertex.agent.data"
+            },
+            "parse": "json",
+            "emit": "message",
+            "alternatives": [
+              {
+                "require": {
+                  "all": [
+                    {
+                      "non_empty": true
+                    }
+                  ]
+                }
+              }
+            ],
+            "wrap": {
+              "role": "data",
+              "members": {
+                "type": "conversation_history"
+              }
+            }
+          }
+        ]
+      }
+    }
   ]
 }
