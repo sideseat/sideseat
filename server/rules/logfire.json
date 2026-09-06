@@ -1,6 +1,6 @@
 {
   "id": "logfire",
-  "doc": "Logfire's request payload.",
+  "doc": "Logfire's dialect. `request_data` is deliberately **not** declared: it duplicates the input side that `events` also carries, and the code being replaced read it only when nothing else had - a cross-rule condition the engine does not express, and should not, since rule ids must stay provenance rather than control-flow targets. No captured Logfire fixture exists to show the two spellings hash alike, so declaring it unconditionally would risk putting the same question on screen twice. It moves when a local branch-set combinator lands; the loss it once caused - the answer being dropped because one gate covered both sides - is closed either way, because `response_data` above is read unconditionally.",
   "carriers": [
     {
       "id": "logfire.request_data",
@@ -36,6 +36,211 @@
     {
       "slug": "logfire",
       "label": "Logfire"
+    }
+  ],
+  "messages": [
+    {
+      "id": "logfire.conversation",
+      "doc": "Every carrier this dialect writes a conversation to, with the local order between them. The order is the point and it is asymmetric: the request side has three spellings and reading a fourth (`request_data`) on top of them would put the same question on screen twice - no captured fixture shows those spellings hash alike, so downstream dedup could not be relied on to collapse them. The *answer* side is unconditional, because one gate covering both sides is exactly what dropped the answer: a span whose events held only the question and whose `response_data` held the reply returned the question alone.",
+      "legacy_rank": 400,
+      "branch_set": {
+        "doc": "Primary: the three request spellings. Fallback: the request payload, only if none of them supplied anything. Always: the response.",
+        "primary": [
+          {
+            "id": "logfire.events",
+            "doc": "An events array carried as one attribute. Read in two passes, and the passes are the point: every recognised event is emitted before any grouped block, which is the order the code being replaced produced. A single interleaved scan would return the same messages in a different conversation.",
+            "read": {
+              "attribute": "events"
+            },
+            "parse": "json",
+            "emit": "message",
+            "elements": {
+              "passes": [
+                {
+                  "doc": "Recognised message events, each tagged with its own name - downstream keys role derivation and ordering on that name, so tagging them alike would erase what the payload carries.",
+                  "when": {
+                    "all": [
+                      {
+                        "path": "event\\.name",
+                        "one_of": [
+                          "gen_ai.system.message",
+                          "gen_ai.user.message",
+                          "gen_ai.content.prompt",
+                          "gen_ai.assistant.message",
+                          "gen_ai.choice",
+                          "gen_ai.content.completion",
+                          "gen_ai.tool.message",
+                          "gen_ai.client.inference.operation.details",
+                          "tool.output"
+                        ]
+                      }
+                    ]
+                  },
+                  "tag_from": "event\\.name"
+                },
+                {
+                  "doc": "Everything else that carries structured data: this dialect emits multimodal content blocks as unnamed events, with the real content in `data` and a human-readable summary beside it. Runs of consecutive blocks of the same side become one message, because that is what they are - one turn's content, not one message per block. An event with no name reaches this pass, which is why the first condition is stated as 'not one of' rather than 'named something else'.",
+                  "when": {
+                    "all": [
+                      {
+                        "path": "event\\.name",
+                        "none_of": [
+                          "gen_ai.system.message",
+                          "gen_ai.user.message",
+                          "gen_ai.content.prompt",
+                          "gen_ai.assistant.message",
+                          "gen_ai.choice",
+                          "gen_ai.content.completion",
+                          "gen_ai.tool.message",
+                          "gen_ai.client.inference.operation.details",
+                          "tool.output"
+                        ]
+                      },
+                      {
+                        "path": "data",
+                        "kind": "object"
+                      }
+                    ]
+                  },
+                  "group": {
+                    "collect": "data",
+                    "key_as": "role",
+                    "by": [
+                      {
+                        "doc": "Input blocks are the user's side.",
+                        "when": {
+                          "all": [
+                            {
+                              "path": "data.type",
+                              "starts_with": "input_"
+                            }
+                          ]
+                        },
+                        "value": "user"
+                      },
+                      {
+                        "doc": "Output blocks are the assistant's.",
+                        "when": {
+                          "all": [
+                            {
+                              "path": "data.type",
+                              "starts_with": "output_"
+                            }
+                          ]
+                        },
+                        "value": "assistant"
+                      }
+                    ],
+                    "tag_by_key": {
+                      "user": "gen_ai.user.message",
+                      "assistant": "gen_ai.assistant.message"
+                    }
+                  }
+                }
+              ],
+              "tags_are_events": true
+            }
+          },
+          {
+            "id": "logfire.prompt",
+            "doc": "The request as an array of messages.",
+            "read": {
+              "attribute": "prompt"
+            },
+            "parse": "json",
+            "emit": "message",
+            "alternatives": [
+              {
+                "doc": "The payload is an array of messages; non-objects are not turns.",
+                "each": true,
+                "require": {
+                  "all": [
+                    {
+                      "kind": "object"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "logfire.all_messages_events",
+            "doc": "The whole conversation, same encoding.",
+            "read": {
+              "attribute": "all_messages_events"
+            },
+            "parse": "json",
+            "emit": "message",
+            "alternatives": [
+              {
+                "doc": "The payload is an array of messages; non-objects are not turns.",
+                "each": true,
+                "require": {
+                  "all": [
+                    {
+                      "kind": "object"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "fallback_if_primary_empty": [
+          {
+            "id": "logfire.request_data",
+            "doc": "The request payload, read only when nothing else carried the conversation. It duplicates the input side that `events` also carries, which is why it is a fallback rather than another primary. Requires a non-empty `messages` array, so an empty request is not mistaken for one.",
+            "read": {
+              "attribute": "request_data"
+            },
+            "parse": "json",
+            "emit": "message",
+            "alternatives": [
+              {
+                "doc": "Kept whole; the structural reading happens at query time.",
+                "require": {
+                  "all": [
+                    {
+                      "path": "messages",
+                      "kind": "array",
+                      "non_empty": true
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "always": [
+          {
+            "id": "logfire.response_data",
+            "doc": "The response. Read whatever the events said, and that asymmetry with the request below is deliberate: the answer is what was being dropped when one gate covered both. Two documented shapes - a structured message, or streamed text combined into one string.",
+            "read": {
+              "attribute": "response_data"
+            },
+            "parse": "json",
+            "emit": "message",
+            "alternatives": [
+              {
+                "doc": "Kept whole; the structural reading happens at query time.",
+                "require": {
+                  "any": [
+                    {
+                      "path": "message",
+                      "kind": "object"
+                    },
+                    {
+                      "path": "combined_chunk_content",
+                      "kind": "string",
+                      "non_empty": true
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

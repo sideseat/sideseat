@@ -7232,6 +7232,123 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
                 ("output.value", "not json"),
             ]),
         ),
+        // Logfire: recognised events, each tagged with its own name.
+        (
+            "span",
+            rule_attrs(&[(
+                "events",
+                r#"[{"event.name":"gen_ai.user.message","content":"q"},
+                    {"event.name":"gen_ai.choice","content":"a"}]"#,
+            )]),
+        ),
+        // Unnamed events carrying multimodal blocks, grouped into runs by side.
+        (
+            "span",
+            rule_attrs(&[(
+                "events",
+                r#"[{"data":{"type":"input_text","text":"a"}},
+                    {"data":{"type":"input_image","url":"u"}},
+                    {"data":{"type":"output_text","text":"b"}}]"#,
+            )]),
+        ),
+        // Mixed: recognised events must all precede the grouped blocks.
+        (
+            "span",
+            rule_attrs(&[(
+                "events",
+                r#"[{"data":{"type":"input_text","text":"a"}},
+                    {"event.name":"gen_ai.choice","content":"answer"},
+                    {"data":{"type":"output_text","text":"b"}}]"#,
+            )]),
+        ),
+        // A run returning to a previous side is a new run, not a merge.
+        (
+            "span",
+            rule_attrs(&[(
+                "events",
+                r#"[{"data":{"type":"input_text","text":"a"}},
+                    {"data":{"type":"output_text","text":"b"}},
+                    {"data":{"type":"input_text","text":"c"}}]"#,
+            )]),
+        ),
+        // A block whose type matches neither side is skipped.
+        (
+            "span",
+            rule_attrs(&[(
+                "events",
+                r#"[{"data":{"type":"other"}},{"data":{"type":"input_text","text":"a"}}]"#,
+            )]),
+        ),
+        // The prompt and the whole-conversation carriers.
+        (
+            "span",
+            rule_attrs(&[("prompt", r#"[{"role":"user","content":"q"}]"#)]),
+        ),
+        (
+            "span",
+            rule_attrs(&[(
+                "all_messages_events",
+                r#"[{"role":"assistant","content":"a"}]"#,
+            )]),
+        ),
+        // The response, in both documented shapes.
+        (
+            "span",
+            rule_attrs(&[(
+                "response_data",
+                r#"{"message":{"role":"assistant","content":"a"}}"#,
+            )]),
+        ),
+        (
+            "span",
+            rule_attrs(&[("response_data", r#"{"combined_chunk_content":"streamed"}"#)]),
+        ),
+        (
+            "span",
+            rule_attrs(&[("response_data", r#"{"combined_chunk_content":""}"#)]),
+        ),
+        // The request payload: a fallback, read only when nothing else carried the conversation.
+        (
+            "span",
+            rule_attrs(&[(
+                "request_data",
+                r#"{"messages":[{"role":"user","content":"q"}]}"#,
+            )]),
+        ),
+        // With the events present, the request payload must not be read as well.
+        (
+            "span",
+            rule_attrs(&[
+                (
+                    "events",
+                    r#"[{"event.name":"gen_ai.user.message","content":"q"}]"#,
+                ),
+                (
+                    "request_data",
+                    r#"{"messages":[{"role":"user","content":"q"}]}"#,
+                ),
+            ]),
+        ),
+        // An empty request payload is not a conversation.
+        (
+            "span",
+            rule_attrs(&[("request_data", r#"{"messages":[]}"#)]),
+        ),
+        // The answer must be read even when the request side was found - the asymmetry that
+        // closed a real loss.
+        (
+            "span",
+            rule_attrs(&[
+                (
+                    "events",
+                    r#"[{"event.name":"gen_ai.user.message","content":"q"}]"#,
+                ),
+                (
+                    "response_data",
+                    r#"{"message":{"role":"assistant","content":"a"}}"#,
+                ),
+            ]),
+        ),
     ];
 
     let mut disagreements = Vec::new();
@@ -7256,6 +7373,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             try_vercel_ai,
             try_claude_code,
             try_crewai,
+            try_logfire_events,
         ] {
             if is_tool_span {
                 continue;
@@ -7352,7 +7470,7 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        35,
+        36,
         "the assets declare {} message rules, replacing nine extractors wholesale - a dialect moves \
          whole or not at all, so there are no part-migrated carriers to count",
         plan.rule_count()

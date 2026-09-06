@@ -29,9 +29,9 @@ use serde_json::{Value as JsonValue, json};
 
 use super::detect_rules::CompiledDetect;
 use super::schema::{
-    Alternative, AttachSpec, BlockSpec, ComposeMember, ComposeSpec, EmitTarget, MemberPresence,
-    MemberRequirements, MessageRule, ParseMode, PredicateSet, ReadSpec, RuleFile, SectionsSpec,
-    ValueKind, ValuePredicate, WrapSpec,
+    Alternative, AttachSpec, BlockSpec, ComposeMember, ComposeSpec, ElementsSpec, EmitTarget,
+    MemberPresence, MemberRequirements, MessageRule, ParseMode, PredicateSet, ReadSpec, RuleFile,
+    SectionsSpec, ValueKind, ValuePredicate, WrapSpec,
 };
 
 /// What an ingestion knows when it asks which carriers to read.
@@ -50,14 +50,22 @@ pub enum EmittedCarrier<'a> {
     Event(&'a str),
     /// A carrier name assembled at read time - one entry of an indexed family, `<prefix>.<index>`.
     Owned(String),
+    /// An assembled name that is an *event* rather than an attribute. Kept apart because carrier semantics
+    /// are looked up by kind, so reporting an event as an attribute changes what it is read as evidence of.
+    OwnedEvent(String),
 }
 
 impl EmittedCarrier<'_> {
+    /// Whether this carrier is an event rather than an attribute.
+    pub fn is_event(&self) -> bool {
+        matches!(self, Self::Event(_) | Self::OwnedEvent(_))
+    }
+
     /// The carrier's name, whichever form it took.
     pub fn name(&self) -> &str {
         match self {
             Self::Attribute(name) | Self::Event(name) => name,
-            Self::Owned(name) => name.as_str(),
+            Self::Owned(name) | Self::OwnedEvent(name) => name.as_str(),
         }
     }
 }
@@ -88,6 +96,8 @@ pub struct CompiledMessageRule {
     pub unless: Option<CompiledDetect>,
     pub require_non_empty: bool,
     pub require_non_blank: bool,
+    pub branch_set: Option<CompiledBranchSet>,
+    pub elements: Option<ElementsSpec>,
     pub sections: Option<SectionsSpec>,
     pub reads_tool_spans: bool,
     pub tag_as: Option<String>,
@@ -173,6 +183,271 @@ impl std::fmt::Display for MessageCompileError {
     }
 }
 
+/// Compile one rule, with every validation the engine performs.
+///
+/// Extracted so a branch set's sub-readings get exactly the same checks as a top-level rule - a sub-reading
+/// that skipped them would be the one place a no-op could still hide.
+fn compile_rule(
+    file_id: &str,
+    rule: &MessageRule,
+) -> Result<CompiledMessageRule, MessageCompileError> {
+    let MessageRule {
+        id,
+        doc,
+        read,
+        compose,
+        parse,
+        wrap,
+        emit,
+        alternatives,
+        also,
+        fallback,
+        require_members,
+        require_non_empty,
+        require_non_blank,
+        branch_set,
+        elements,
+        sections,
+        reads_tool_spans,
+        tag_as,
+        unless,
+        when,
+        legacy_rank,
+    } = rule;
+    if compose.is_none() && branch_set.is_none() && read.named_count() != 1 {
+        return Err(MessageCompileError::NotExactlyOneCarrier { rule: id.clone() });
+    }
+    // Every combination the runner would silently ignore is refused here instead. Each of these
+    // was accepted and did nothing, which reads as a rule that works.
+    let inexpressible = |detail: &'static str| MessageCompileError::Inexpressible {
+        rule: id.clone(),
+        detail,
+    };
+    for (label, gate) in [("when", when.as_ref()), ("unless", unless.as_ref())] {
+        if let Some(gate) = gate
+            && super::detect_rules::unavailable_gate_dimension(gate).is_some()
+        {
+            return Err(MessageCompileError::Inexpressible {
+                rule: id.clone(),
+                detail: if label == "when" {
+                    "`when` uses a resource dimension, and a message gate is given no resource \
+                         attributes - it could never hold"
+                } else {
+                    "`unless` uses a resource dimension, and a message gate is given no resource \
+                         attributes - it could never hold"
+                },
+            });
+        }
+    }
+    if read.event.is_some() {
+        // Accepted by the schema and never executed: events are read from a span's events, and the
+        // runner only ever probes the attribute map. Refused until it is implemented.
+        return Err(inexpressible(
+            "`read.event` is not implemented - events are not routed through the plan",
+        ));
+    }
+    if compose.is_some()
+        && (wrap.is_some()
+            || sections.is_some()
+            || !alternatives.is_empty()
+            || !also.is_empty()
+            || !fallback.is_empty()
+            || parse.is_some())
+    {
+        return Err(inexpressible(
+            "`compose` builds the whole message, so `wrap`, `sections`, `alternatives` and \
+                 `parse` would be ignored",
+        ));
+    }
+    if read.indexed_family.is_some()
+        && (wrap.is_some() || !alternatives.is_empty() || !also.is_empty())
+    {
+        return Err(inexpressible(
+            "an indexed family assembles each entry itself, so `wrap` and `alternatives` would \
+                 be ignored",
+        ));
+    }
+    if sections.is_some() && (wrap.is_some() || !alternatives.is_empty() || !also.is_empty()) {
+        return Err(inexpressible(
+            "`sections` builds each section's message, so `wrap` and `alternatives` would be \
+                 ignored",
+        ));
+    }
+    if read.entry_member.is_some() && read.indexed_family.is_none() {
+        return Err(inexpressible(
+            "`entry_member` is a sub-level of an indexed entry and means nothing without \
+                 `indexed_family`",
+        ));
+    }
+    if require_members.is_some() && read.indexed_family.is_none() {
+        return Err(inexpressible(
+            "`require_members` is checked per indexed entry and means nothing without \
+                 `indexed_family`",
+        ));
+    }
+    // A predicate that cannot hold, or asserts nothing, is refused like any other no-op.
+    let check_predicates = |set: &PredicateSet| -> Option<&'static str> {
+        for predicate in set.all.iter().chain(set.any.iter()) {
+            if predicate.non_empty.is_some()
+                && matches!(
+                    predicate.kind,
+                    Some(ValueKind::Number | ValueKind::Bool | ValueKind::Null)
+                )
+            {
+                return Some(
+                    "`non_empty` is meaningless for a number, boolean or null - only strings, \
+                         arrays and objects can be empty",
+                );
+            }
+            if predicate.exists == Some(false)
+                && (predicate.kind.is_some()
+                    || predicate.non_empty.is_some()
+                    || predicate.starts_with.is_some()
+                    || predicate.lacks_prefix.is_some())
+            {
+                return Some(
+                    "`exists: false` asserts the member is absent, so no other condition on it \
+                         can hold",
+                );
+            }
+            if predicate.starts_with.is_some() && predicate.lacks_prefix.is_some() {
+                return Some("`starts_with` and `lacks_prefix` on one predicate");
+            }
+        }
+        None
+    };
+    for alternative in alternatives.iter().chain(also).chain(fallback) {
+        if let Some(detail) = check_predicates(&alternative.require) {
+            return Err(inexpressible(detail));
+        }
+    }
+    if !alternatives.is_empty() && !also.is_empty() {
+        return Err(inexpressible(
+            "`alternatives` means the first reading that yields wins and `also` means every one \
+                 contributes; one list cannot be both",
+        ));
+    }
+    if let Some(sections) = sections {
+        for route in &sections.routes {
+            if let Some(detail) = check_predicates(&route.skip_when) {
+                return Err(inexpressible(detail));
+            }
+        }
+        if sections.split_on.is_empty() {
+            return Err(inexpressible("`sections.split_on` is empty"));
+        }
+        // A default route consumes every section, so anything after it is dead.
+        if let Some(position) = sections
+            .routes
+            .iter()
+            .position(|route| route.tag_prefix.is_none())
+            && position + 1 < sections.routes.len()
+        {
+            return Err(inexpressible(
+                "a route with no `tag_prefix` claims every section, so the routes after it can \
+                     never match",
+            ));
+        }
+    }
+    if let Some(compose) = compose {
+        for member in &compose.members {
+            if member.sweep_prefix.is_some()
+                && (member.as_member.is_some() || !member.from_any_of.is_empty())
+            {
+                return Err(inexpressible(
+                    "a compose member is either a sweep or a named source, not both - the sweep \
+                         would silently win",
+                ));
+            }
+            if member.sweep_prefix.as_deref() == Some("") {
+                return Err(inexpressible(
+                    "a compose member has an empty `sweep_prefix`",
+                ));
+            }
+            if member.sweep_prefix.is_none() && member.as_member.is_none() {
+                return Err(inexpressible(
+                    "a compose member names neither a member nor a sweep",
+                ));
+            }
+        }
+    }
+    if let Some(compose) = compose {
+        if read.named_count() != 0 {
+            return Err(MessageCompileError::NotExactlyOneCarrier { rule: id.clone() });
+        }
+        if compose.tag.is_empty() || compose.members.is_empty() {
+            return Err(MessageCompileError::EmptyCarrier { rule: id.clone() });
+        }
+    } else {
+        // Every name the rule could read or tag with must be non-empty: an empty prefix
+        // matches every attribute of every span.
+        let named = [
+            read.attribute.as_deref(),
+            read.event.as_deref(),
+            read.indexed_family.as_deref(),
+            tag_as.as_deref(),
+        ];
+        if named.iter().flatten().any(|name| name.is_empty())
+            || read.attribute_any_of.iter().any(String::is_empty)
+        {
+            return Err(MessageCompileError::EmptyCarrier { rule: id.clone() });
+        }
+    }
+    let compiled_branch_set = match branch_set {
+        Some(set) => {
+            let compile_group =
+                    |group: &Vec<MessageRule>| -> Result<Vec<CompiledMessageRule>, MessageCompileError> {
+                        group.iter().map(|sub| compile_rule(file_id, sub)).collect()
+                    };
+            if set
+                .primary
+                .iter()
+                .chain(&set.fallback_if_primary_empty)
+                .chain(&set.always)
+                .any(|sub| sub.branch_set.is_some())
+            {
+                return Err(inexpressible(
+                    "a branch set inside a branch set would be a control structure rather than a \
+                         declaration",
+                ));
+            }
+            if set.primary.is_empty() {
+                return Err(inexpressible("a branch set declares no `primary` reading"));
+            }
+            Some(CompiledBranchSet {
+                primary: compile_group(&set.primary)?,
+                fallback: compile_group(&set.fallback_if_primary_empty)?,
+                always: compile_group(&set.always)?,
+            })
+        }
+        None => None,
+    };
+    Ok(CompiledMessageRule {
+        rule_file: file_id.to_string(),
+        rule_id: id.clone(),
+        doc: doc.clone(),
+        read: read.clone(),
+        compose: compose.as_ref().map(compile_compose),
+        parse: *parse,
+        require_members: require_members.clone(),
+        wrap: wrap.clone(),
+        target: *emit,
+        when: when.as_ref().map(super::detect_rules::compile_signals),
+        unless: unless.as_ref().map(super::detect_rules::compile_signals),
+        require_non_empty: *require_non_empty,
+        require_non_blank: *require_non_blank,
+        branch_set: compiled_branch_set,
+        elements: elements.clone(),
+        sections: sections.clone(),
+        reads_tool_spans: *reads_tool_spans,
+        tag_as: tag_as.clone(),
+        alternatives: alternatives.clone(),
+        also: also.clone(),
+        fallback: fallback.clone(),
+        legacy_rank: legacy_rank.unwrap_or(0),
+    })
+}
+
 /// Compile every asset's message rules into one plan.
 pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, MessageCompileError> {
     let mut rules: Vec<CompiledMessageRule> = Vec::new();
@@ -189,233 +464,20 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 message: e.to_string(),
             })?;
         for rule in &file.messages {
-            let MessageRule {
-                id,
-                doc,
-                read,
-                compose,
-                parse,
-                wrap,
-                emit,
-                alternatives,
-                also,
-                fallback,
-                require_members,
-                require_non_empty,
-                require_non_blank,
-                sections,
-                reads_tool_spans,
-                tag_as,
-                unless,
-                when,
-                legacy_rank,
-            } = rule;
-            if seen_ids.insert(id.clone(), ()).is_some() {
-                return Err(MessageCompileError::DuplicateRuleId { rule: id.clone() });
+            if seen_ids.insert(rule.id.clone(), ()).is_some() {
+                return Err(MessageCompileError::DuplicateRuleId {
+                    rule: rule.id.clone(),
+                });
             }
-            if compose.is_none() && read.named_count() != 1 {
-                return Err(MessageCompileError::NotExactlyOneCarrier { rule: id.clone() });
+            // A top-level rule's position among the others is policy somebody owns, so it is stated.
+            if rule.legacy_rank.is_none() {
+                return Err(MessageCompileError::Inexpressible {
+                    rule: rule.id.clone(),
+                    detail: "a top-level rule must declare `legacy_rank`, which is its position among \
+                             the others",
+                });
             }
-            // Every combination the runner would silently ignore is refused here instead. Each of these
-            // was accepted and did nothing, which reads as a rule that works.
-            let inexpressible = |detail: &'static str| MessageCompileError::Inexpressible {
-                rule: id.clone(),
-                detail,
-            };
-            for (label, gate) in [("when", when.as_ref()), ("unless", unless.as_ref())] {
-                if let Some(gate) = gate
-                    && super::detect_rules::unavailable_gate_dimension(gate).is_some()
-                {
-                    return Err(MessageCompileError::Inexpressible {
-                        rule: id.clone(),
-                        detail: if label == "when" {
-                            "`when` uses a resource dimension, and a message gate is given no resource \
-                             attributes - it could never hold"
-                        } else {
-                            "`unless` uses a resource dimension, and a message gate is given no resource \
-                             attributes - it could never hold"
-                        },
-                    });
-                }
-            }
-            if read.event.is_some() {
-                // Accepted by the schema and never executed: events are read from a span's events, and the
-                // runner only ever probes the attribute map. Refused until it is implemented.
-                return Err(inexpressible(
-                    "`read.event` is not implemented - events are not routed through the plan",
-                ));
-            }
-            if compose.is_some()
-                && (wrap.is_some()
-                    || sections.is_some()
-                    || !alternatives.is_empty()
-                    || !also.is_empty()
-                    || !fallback.is_empty()
-                    || parse.is_some())
-            {
-                return Err(inexpressible(
-                    "`compose` builds the whole message, so `wrap`, `sections`, `alternatives` and \
-                     `parse` would be ignored",
-                ));
-            }
-            if read.indexed_family.is_some()
-                && (wrap.is_some() || !alternatives.is_empty() || !also.is_empty())
-            {
-                return Err(inexpressible(
-                    "an indexed family assembles each entry itself, so `wrap` and `alternatives` would \
-                     be ignored",
-                ));
-            }
-            if sections.is_some()
-                && (wrap.is_some() || !alternatives.is_empty() || !also.is_empty())
-            {
-                return Err(inexpressible(
-                    "`sections` builds each section's message, so `wrap` and `alternatives` would be \
-                     ignored",
-                ));
-            }
-            if read.entry_member.is_some() && read.indexed_family.is_none() {
-                return Err(inexpressible(
-                    "`entry_member` is a sub-level of an indexed entry and means nothing without \
-                     `indexed_family`",
-                ));
-            }
-            if require_members.is_some() && read.indexed_family.is_none() {
-                return Err(inexpressible(
-                    "`require_members` is checked per indexed entry and means nothing without \
-                     `indexed_family`",
-                ));
-            }
-            // A predicate that cannot hold, or asserts nothing, is refused like any other no-op.
-            let check_predicates = |set: &PredicateSet| -> Option<&'static str> {
-                for predicate in set.all.iter().chain(set.any.iter()) {
-                    if predicate.non_empty.is_some()
-                        && matches!(
-                            predicate.kind,
-                            Some(ValueKind::Number | ValueKind::Bool | ValueKind::Null)
-                        )
-                    {
-                        return Some(
-                            "`non_empty` is meaningless for a number, boolean or null - only strings, \
-                             arrays and objects can be empty",
-                        );
-                    }
-                    if predicate.exists == Some(false)
-                        && (predicate.kind.is_some()
-                            || predicate.non_empty.is_some()
-                            || predicate.starts_with.is_some()
-                            || predicate.lacks_prefix.is_some())
-                    {
-                        return Some(
-                            "`exists: false` asserts the member is absent, so no other condition on it \
-                             can hold",
-                        );
-                    }
-                    if predicate.starts_with.is_some() && predicate.lacks_prefix.is_some() {
-                        return Some("`starts_with` and `lacks_prefix` on one predicate");
-                    }
-                }
-                None
-            };
-            for alternative in alternatives.iter().chain(also).chain(fallback) {
-                if let Some(detail) = check_predicates(&alternative.require) {
-                    return Err(inexpressible(detail));
-                }
-            }
-            if !alternatives.is_empty() && !also.is_empty() {
-                return Err(inexpressible(
-                    "`alternatives` means the first reading that yields wins and `also` means every one \
-                     contributes; one list cannot be both",
-                ));
-            }
-            if let Some(sections) = sections {
-                for route in &sections.routes {
-                    if let Some(detail) = check_predicates(&route.skip_when) {
-                        return Err(inexpressible(detail));
-                    }
-                }
-                if sections.split_on.is_empty() {
-                    return Err(inexpressible("`sections.split_on` is empty"));
-                }
-                // A default route consumes every section, so anything after it is dead.
-                if let Some(position) = sections
-                    .routes
-                    .iter()
-                    .position(|route| route.tag_prefix.is_none())
-                    && position + 1 < sections.routes.len()
-                {
-                    return Err(inexpressible(
-                        "a route with no `tag_prefix` claims every section, so the routes after it can \
-                         never match",
-                    ));
-                }
-            }
-            if let Some(compose) = compose {
-                for member in &compose.members {
-                    if member.sweep_prefix.is_some()
-                        && (member.as_member.is_some() || !member.from_any_of.is_empty())
-                    {
-                        return Err(inexpressible(
-                            "a compose member is either a sweep or a named source, not both - the sweep \
-                             would silently win",
-                        ));
-                    }
-                    if member.sweep_prefix.as_deref() == Some("") {
-                        return Err(inexpressible(
-                            "a compose member has an empty `sweep_prefix`",
-                        ));
-                    }
-                    if member.sweep_prefix.is_none() && member.as_member.is_none() {
-                        return Err(inexpressible(
-                            "a compose member names neither a member nor a sweep",
-                        ));
-                    }
-                }
-            }
-            if let Some(compose) = compose {
-                if read.named_count() != 0 {
-                    return Err(MessageCompileError::NotExactlyOneCarrier { rule: id.clone() });
-                }
-                if compose.tag.is_empty() || compose.members.is_empty() {
-                    return Err(MessageCompileError::EmptyCarrier { rule: id.clone() });
-                }
-            } else {
-                // Every name the rule could read or tag with must be non-empty: an empty prefix
-                // matches every attribute of every span.
-                let named = [
-                    read.attribute.as_deref(),
-                    read.event.as_deref(),
-                    read.indexed_family.as_deref(),
-                    tag_as.as_deref(),
-                ];
-                if named.iter().flatten().any(|name| name.is_empty())
-                    || read.attribute_any_of.iter().any(String::is_empty)
-                {
-                    return Err(MessageCompileError::EmptyCarrier { rule: id.clone() });
-                }
-            }
-            rules.push(CompiledMessageRule {
-                rule_file: file.id.clone(),
-                rule_id: id.clone(),
-                doc: doc.clone(),
-                read: read.clone(),
-                compose: compose.as_ref().map(compile_compose),
-                parse: *parse,
-                require_members: require_members.clone(),
-                wrap: wrap.clone(),
-                target: *emit,
-                when: when.as_ref().map(super::detect_rules::compile_signals),
-                unless: unless.as_ref().map(super::detect_rules::compile_signals),
-                require_non_empty: *require_non_empty,
-                require_non_blank: *require_non_blank,
-                sections: sections.clone(),
-                reads_tool_spans: *reads_tool_spans,
-                tag_as: tag_as.clone(),
-                alternatives: alternatives.clone(),
-                also: also.clone(),
-                fallback: fallback.clone(),
-                legacy_rank: *legacy_rank,
-            });
+            rules.push(compile_rule(&file.id, rule)?);
         }
     }
 
@@ -470,6 +532,14 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     }
 
     Ok(MessagePlan { rules })
+}
+
+/// A branch set with every sub-reading compiled.
+#[derive(Debug, Clone)]
+pub struct CompiledBranchSet {
+    pub primary: Vec<CompiledMessageRule>,
+    pub fallback: Vec<CompiledMessageRule>,
+    pub always: Vec<CompiledMessageRule>,
 }
 
 /// A composed message with its gates compiled.
@@ -636,77 +706,29 @@ impl MessagePlan {
     pub fn run<'p>(&'p self, ctx: &MessageContext<'_>) -> Vec<Emission<'p>> {
         let mut out = Vec::new();
         for rule in &self.rules {
-            if !gates_allow(rule, ctx) {
-                continue;
-            }
-            if let Some(compose) = &rule.compose {
-                if let Some(value) = composed(compose, ctx) {
-                    out.push(Emission {
-                        rule_id: &rule.rule_id,
-                        carrier: EmittedCarrier::Attribute(compose.tag.as_str()),
-                        target: rule.target,
-                        value,
-                    });
+            // A branch set is several readings with a local order between them: the primaries, then the
+            // fallbacks only if those found nothing, then the unconditional ones. No rule ids, no shared
+            // state - the order lives inside this rule.
+            if let Some(set) = &rule.branch_set {
+                if !gates_allow(rule, ctx) {
+                    continue;
                 }
-                continue;
-            }
-            if let Some(family) = rule.read.indexed_family.as_deref() {
-                for (carrier, value) in indexed_entries(
-                    ctx.span_attrs,
-                    family,
-                    rule.read.entry_member.as_deref(),
-                    rule.require_members.as_ref(),
-                ) {
-                    out.push(Emission {
-                        rule_id: &rule.rule_id,
-                        carrier: EmittedCarrier::Owned(carrier),
-                        target: rule.target,
-                        value,
-                    });
+                let mut produced = Vec::new();
+                for sub in &set.primary {
+                    produced.extend(emit_rule(sub, ctx));
                 }
-                continue;
-            }
-            // Event carriers are read from a span's events, not its attributes; no declared rule needs
-            // one yet, and probing the attribute map for an event name would silently match nothing.
-            let Some((attribute, raw)) = resolve_attribute(&rule.read, ctx.span_attrs) else {
-                continue;
-            };
-            if rule.require_non_empty && raw.is_empty() {
-                continue;
-            }
-            if rule.require_non_blank && raw.trim().is_empty() {
-                continue;
-            }
-            // A text carrier read as tagged sections, each emitted on its own.
-            if let Some(sections) = &rule.sections {
-                for value in sectioned(raw, sections) {
-                    out.push(Emission {
-                        rule_id: &rule.rule_id,
-                        carrier: EmittedCarrier::Attribute(
-                            rule.tag_as.as_deref().unwrap_or(attribute),
-                        ),
-                        target: rule.target,
-                        value,
-                    });
+                if produced.is_empty() {
+                    for sub in &set.fallback {
+                        produced.extend(emit_rule(sub, ctx));
+                    }
                 }
+                for sub in &set.always {
+                    produced.extend(emit_rule(sub, ctx));
+                }
+                out.extend(produced);
                 continue;
             }
-            let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
-                continue;
-            };
-            for (value, per_reading_wrap) in all_readings(&parsed, rule) {
-                let wrap = per_reading_wrap.or(rule.wrap.clone());
-                let value = match &wrap {
-                    Some(wrap) => wrapped(value, wrap, ctx),
-                    None => value,
-                };
-                out.push(Emission {
-                    rule_id: &rule.rule_id,
-                    carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
-                    target: rule.target,
-                    value,
-                });
-            }
+            out.extend(emit_rule(rule, ctx));
         }
         out
     }
@@ -767,14 +789,20 @@ fn all_readings(
 
 /// Follow a path into a value, iterating at each `[]` step.
 ///
-/// Bounded by the path's own length: there is no wildcard and no recursion, so the number of steps is
-/// whatever the rule wrote.
-fn select_path<'v>(value: &'v JsonValue, path: &str) -> Vec<&'v JsonValue> {
+/// Steps are separated by `.`; a step ending in `[]` iterates an array; and a literal dot inside a member
+/// name is written `\.`. The escape is not decoration - one dialect's events carry a member *called*
+/// `event.name`, which is indistinguishable from a nested `event` → `name` without it, and reading it as
+/// nested silently found nothing. Bounded by the path's own length: no wildcard, no recursion.
+///
+/// One resolver for every path in the vocabulary - predicates, tags, collected parts, selections - because
+/// two spellings of "where in this value" would differ exactly where a key contains a dot, which is the
+/// case that already went wrong.
+fn resolve_path<'v>(value: &'v JsonValue, path: &str) -> Vec<&'v JsonValue> {
     let mut current = vec![value];
-    for step in path.split('.') {
+    for step in split_path(path) {
         let (member, iterate) = match step.strip_suffix("[]") {
             Some(name) => (name, true),
-            None => (step, false),
+            None => (step.as_str(), false),
         };
         let mut next = Vec::new();
         for value in current {
@@ -802,6 +830,25 @@ fn select_path<'v>(value: &'v JsonValue, path: &str) -> Vec<&'v JsonValue> {
     current
 }
 
+/// Split a path on unescaped dots, unescaping `\.` into a literal dot.
+fn split_path(path: &str) -> Vec<String> {
+    let mut steps = Vec::new();
+    let mut current = String::new();
+    let mut chars = path.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' if chars.peek() == Some(&'.') => {
+                chars.next();
+                current.push('.');
+            }
+            '.' => steps.push(std::mem::take(&mut current)),
+            other => current.push(other),
+        }
+    }
+    steps.push(current);
+    steps
+}
+
 /// The observations one payload yields, under the first alternative that produces any.
 ///
 /// An ordered coalesce over documented shapes. With no alternatives the payload is emitted as it stands,
@@ -817,7 +864,7 @@ fn readings(
     }
     for alternative in alternatives {
         let selected: Vec<&JsonValue> = match &alternative.select {
-            Some(path) => select_path(parsed, path),
+            Some(path) => resolve_path(parsed, path),
             None => vec![parsed],
         };
         if selected.is_empty() {
@@ -1245,14 +1292,123 @@ fn sectioned(raw: &str, spec: &SectionsSpec) -> Vec<JsonValue> {
     out
 }
 
+/// The observations one rule finds on a span.
+///
+/// Separate from the plan's loop so a branch set's sub-readings run through exactly the same path as a
+/// top-level rule - a second evaluator would be a second place for the two to drift.
+fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec<Emission<'p>> {
+    let mut out = Vec::new();
+    if !gates_allow(rule, ctx) {
+        return out;
+    }
+    if let Some(compose) = &rule.compose {
+        if let Some(value) = composed(compose, ctx) {
+            out.push(Emission {
+                rule_id: &rule.rule_id,
+                carrier: EmittedCarrier::Attribute(compose.tag.as_str()),
+                target: rule.target,
+                value,
+            });
+        }
+        return out;
+    }
+    if let Some(family) = rule.read.indexed_family.as_deref() {
+        for (carrier, value) in indexed_entries(
+            ctx.span_attrs,
+            family,
+            rule.read.entry_member.as_deref(),
+            rule.require_members.as_ref(),
+        ) {
+            out.push(Emission {
+                rule_id: &rule.rule_id,
+                carrier: EmittedCarrier::Owned(carrier),
+                target: rule.target,
+                value,
+            });
+        }
+        return out;
+    }
+    // Event carriers are read from a span's events, not its attributes; no declared rule needs
+    // one yet, and probing the attribute map for an event name would silently match nothing.
+    let Some((attribute, raw)) = resolve_attribute(&rule.read, ctx.span_attrs) else {
+        return out;
+    };
+    if rule.require_non_empty && raw.is_empty() {
+        return out;
+    }
+    if rule.require_non_blank && raw.trim().is_empty() {
+        return out;
+    }
+    // An array-valued carrier read element by element, in declared passes.
+    if let Some(elements) = &rule.elements {
+        let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
+            return out;
+        };
+        for (carrier, value) in element_passes(&parsed, elements) {
+            out.push(Emission {
+                rule_id: &rule.rule_id,
+                // An event carrier is kept as one: carrier semantics are looked up by kind, so reporting
+                // an event as an attribute changes what the pipeline reads it as evidence of.
+                carrier: if elements.tags_are_events {
+                    EmittedCarrier::OwnedEvent(carrier)
+                } else {
+                    EmittedCarrier::Owned(carrier)
+                },
+                target: rule.target,
+                value,
+            });
+        }
+        return out;
+    }
+    // A text carrier read as tagged sections, each emitted on its own.
+    if let Some(sections) = &rule.sections {
+        for value in sectioned(raw, sections) {
+            out.push(Emission {
+                rule_id: &rule.rule_id,
+                carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
+                target: rule.target,
+                value,
+            });
+        }
+        return out;
+    }
+    let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
+        return out;
+    };
+    for (value, per_reading_wrap) in all_readings(&parsed, rule) {
+        let wrap = per_reading_wrap.or(rule.wrap.clone());
+        let value = match &wrap {
+            Some(wrap) => wrapped(value, wrap, ctx),
+            None => value,
+        };
+        out.push(Emission {
+            rule_id: &rule.rule_id,
+            carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
+            target: rule.target,
+            value,
+        });
+    }
+
+    out
+}
+
 /// Whether one predicate holds of a value.
 fn predicate_holds(value: &JsonValue, predicate: &ValuePredicate) -> bool {
     let Some(subject) = (match &predicate.path {
-        Some(member) => value.get(member.as_str()),
+        Some(path) => resolve_path(value, path).into_iter().next(),
         None => Some(value),
     }) else {
-        // Absent: only a predicate asserting absence is satisfied.
-        return predicate.exists == Some(false);
+        // Absent. Only a predicate asserting absence is satisfied - or one asserting the value is not in a
+        // set, which is true when there is no value, and is how a dialect's unnamed events fall through to
+        // the reading that handles them.
+        return predicate.exists == Some(false)
+            || (!predicate.none_of.is_empty()
+                && predicate.exists.is_none()
+                && predicate.kind.is_none()
+                && predicate.non_empty.is_none()
+                && predicate.starts_with.is_none()
+                && predicate.lacks_prefix.is_none()
+                && predicate.one_of.is_empty());
     };
     if predicate.exists == Some(false) {
         return false;
@@ -1289,6 +1445,20 @@ fn predicate_holds(value: &JsonValue, predicate: &ValuePredicate) -> bool {
     {
         return false;
     }
+    if !predicate.one_of.is_empty()
+        && !subject
+            .as_str()
+            .is_some_and(|text| predicate.one_of.iter().any(|want| want == text))
+    {
+        return false;
+    }
+    if !predicate.none_of.is_empty()
+        && subject
+            .as_str()
+            .is_some_and(|text| predicate.none_of.iter().any(|reject| reject == text))
+    {
+        return false;
+    }
     true
 }
 
@@ -1307,4 +1477,88 @@ fn matches_kind(value: &JsonValue, kind: ValueKind) -> bool {
 fn predicates_hold(value: &JsonValue, set: &PredicateSet) -> bool {
     (set.all.is_empty() || set.all.iter().all(|p| predicate_holds(value, p)))
         && (set.any.is_empty() || set.any.iter().any(|p| predicate_holds(value, p)))
+}
+
+/// The observations an array-valued carrier yields, pass by pass.
+///
+/// Each pass scans every element. That is the shape of the code being replaced and the order is
+/// observable - one dialect emits every recognised event before any grouped block - so it is declared
+/// rather than left to how a loop happens to be written.
+fn element_passes(parsed: &JsonValue, spec: &ElementsSpec) -> Vec<(String, JsonValue)> {
+    let array = match &spec.select {
+        Some(path) => resolve_path(parsed, path).into_iter().next(),
+        None => Some(parsed),
+    };
+    let Some(items) = array.and_then(JsonValue::as_array) else {
+        return Vec::new();
+    };
+
+    let mut out = Vec::new();
+    for pass in &spec.passes {
+        let matching = items
+            .iter()
+            .filter(|element| predicates_hold(element, &pass.when));
+
+        match &pass.group {
+            // Runs of consecutive elements sharing a derived key.
+            Some(group) => {
+                let mut run_key: Option<String> = None;
+                let mut collected: Vec<JsonValue> = Vec::new();
+                let flush = |key: Option<String>, blocks: Vec<JsonValue>, out: &mut Vec<_>| {
+                    let Some(key) = key else { return };
+                    if blocks.is_empty() {
+                        return;
+                    }
+                    let Some(tag) = group.tag_by_key.get(&key) else {
+                        return;
+                    };
+                    out.push((
+                        tag.clone(),
+                        json!({
+                            group.key_as.clone(): key,
+                            "content": JsonValue::Array(blocks),
+                        }),
+                    ));
+                };
+                for element in matching {
+                    // The first matching case wins; an element matching none is not part of any run.
+                    let Some(key) = group
+                        .by
+                        .iter()
+                        .find(|case| predicates_hold(element, &case.when))
+                        .map(|case| case.value.clone())
+                    else {
+                        continue;
+                    };
+                    let Some(part) = resolve_path(element, &group.collect).into_iter().next()
+                    else {
+                        continue;
+                    };
+                    if run_key.as_ref() != Some(&key) {
+                        flush(run_key.take(), std::mem::take(&mut collected), &mut out);
+                        run_key = Some(key);
+                    }
+                    collected.push(part.clone());
+                }
+                flush(run_key, collected, &mut out);
+            }
+            // Each element emitted as it stands, tagged by what it carries.
+            None => {
+                let Some(tag_path) = &pass.tag_from else {
+                    continue;
+                };
+                for element in matching {
+                    let Some(tag) = resolve_path(element, tag_path)
+                        .into_iter()
+                        .next()
+                        .and_then(JsonValue::as_str)
+                    else {
+                        continue;
+                    };
+                    out.push((tag.to_string(), element.clone()));
+                }
+            }
+        }
+    }
+    out
 }

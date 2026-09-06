@@ -217,6 +217,7 @@ pub(super) mod keys {
     pub const RESPONSE: &str = "response";
     pub const SYSTEM_PROMPT: &str = "system_prompt";
     pub const MESSAGE: &str = "message";
+    #[cfg(test)]
     pub const EVENTS: &str = "events";
 
     // Claude Code CLI (Claude Agent SDK). Content attributes require detailed beta
@@ -236,7 +237,9 @@ pub(super) mod keys {
     pub const EVENT_TOOL_OUTPUT: &str = "tool.output";
 
     // Logfire
+    #[cfg(test)]
     pub const PROMPT: &str = "prompt";
+    #[cfg(test)]
     pub const ALL_MESSAGES_EVENTS: &str = "all_messages_events";
     pub const REQUEST_DATA: &str = "request_data";
     pub const RESPONSE_DATA: &str = "response_data";

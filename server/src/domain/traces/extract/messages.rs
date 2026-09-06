@@ -348,6 +348,11 @@ pub(crate) fn try_declared_rules(
     for emission in emissions {
         let key = emission.carrier.name();
         match emission.target {
+            // An event carrier is recorded as one: carrier semantics are looked up by kind, so reporting
+            // an event as an attribute would change what the pipeline reads it as evidence of.
+            crate::domain::rules::schema::EmitTarget::Message if emission.carrier.is_event() => {
+                messages.push(RawMessage::from_event(key, timestamp, emission.value));
+            }
             crate::domain::rules::schema::EmitTarget::Message => {
                 messages.push(RawMessage::from_attr(key, timestamp, emission.value));
             }
@@ -388,10 +393,6 @@ const EXTRACTORS: &[NamedExtractor] = &[
     NamedExtractor {
         name: "openinference",
         extractor: try_openinference,
-    },
-    NamedExtractor {
-        name: "logfire_events",
-        extractor: try_logfire_events,
     },
     NamedExtractor {
         name: "google_adk",
@@ -1285,6 +1286,7 @@ fn extract_oi_message_index(msg: &RawMessage) -> Option<usize> {
     idx_str.parse().ok()
 }
 
+#[cfg(test)]
 pub(crate) fn try_logfire_events(
     messages: &mut Vec<RawMessage>,
     _tool_definitions: &mut Vec<RawToolDefinition>,
@@ -1388,6 +1390,7 @@ pub(crate) fn try_logfire_events(
 /// Logfire embeds OTEL-style events in an attribute as a JSON array.
 /// Each event has "event.name" that can be used for query-time role derivation.
 /// We preserve the raw content including event.name for query-time processing.
+#[cfg(test)]
 fn extract_logfire_event_array(
     messages: &mut Vec<RawMessage>,
     events: Vec<JsonValue>,

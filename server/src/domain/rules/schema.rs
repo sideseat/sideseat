@@ -431,6 +431,10 @@ pub struct MessageRule {
     #[serde(default)]
     pub wrap: Option<WrapSpec>,
     /// Whether the observation is a message or a tool definition.
+    ///
+    /// Defaults to a message, and a branch set's parent declares none: its sub-readings each say what they
+    /// emit, so a value here would be unused.
+    #[serde(default)]
     pub emit: EmitTarget,
     /// A gate on the span, in the detection vocabulary: the rule is consulted only where this holds.
     ///
@@ -477,6 +481,22 @@ pub struct MessageRule {
     /// exemption for one extractor by name; it is a property of a rule now.
     #[serde(default)]
     pub reads_tool_spans: bool,
+    /// Several carrier readings with a *local* order between them.
+    ///
+    /// One dialect reads a carrier only when nothing else supplied the conversation - a condition about
+    /// what *else* was found. Expressing that with rule ids would make ids into control-flow targets and
+    /// the interpreter's execution history into something a rule can observe; keeping the readings inside
+    /// one rule keeps it a pure function of the span, with no global state and no cycles to worry about.
+    #[serde(default)]
+    pub branch_set: Option<BranchSet>,
+    /// Read an array-valued carrier element by element, in declared passes.
+    ///
+    /// Passes rather than per-element routing, because the order is observable: one dialect emits every
+    /// recognised event *before* any grouped block, so a single interleaved scan would return a different
+    /// conversation. Declaring passes makes that ordering a statement rather than an artefact of how the
+    /// code happened to loop.
+    #[serde(default)]
+    pub elements: Option<ElementsSpec>,
     /// Split a text carrier into tagged sections and route each by its tag.
     ///
     /// A general text-carrier capability, and one dialect needs it: a single attribute holds either side
@@ -514,8 +534,11 @@ pub struct MessageRule {
     #[serde(default)]
     pub require_members: Option<MemberRequirements>,
     /// Position in the consulted order. See `MessagePlan` for why it is `legacy_`.
-    #[serde(rename = "legacy_rank")]
-    pub legacy_rank: i32,
+    ///
+    /// Required at the top level and **forbidden** inside a branch set: there the local order decides, so a
+    /// rank would be a number that looks like it means something and does not.
+    #[serde(rename = "legacy_rank", default)]
+    pub legacy_rank: Option<i32>,
 }
 
 /// The carrier a message rule reads: exactly one of the two, checked at compile time.
@@ -683,9 +706,10 @@ pub struct AttachSpec {
 }
 
 /// What an emitted observation is.
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum EmitTarget {
+    #[default]
     Message,
     ToolDefinitions,
 }
@@ -937,6 +961,15 @@ pub struct ValuePredicate {
     /// A string must *not* start with this.
     #[serde(default)]
     pub lacks_prefix: Option<String>,
+    /// The value must be one of these strings. An absent member satisfies nothing.
+    #[serde(default)]
+    pub one_of: Vec<String>,
+    /// The value must not be any of these strings.
+    ///
+    /// An **absent** member satisfies this: "its value is not one of these" is true when there is no value,
+    /// which is how a dialect's unnamed events fall through to the reading that handles them.
+    #[serde(default)]
+    pub none_of: Vec<String>,
 }
 
 /// A JSON kind, for `ValuePredicate::kind`.
@@ -969,4 +1002,97 @@ impl PredicateSet {
     pub fn is_empty(&self) -> bool {
         self.all.is_empty() && self.any.is_empty()
     }
+}
+
+/// An array-valued carrier read element by element.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ElementsSpec {
+    /// The emitted carriers are *events*, not attributes.
+    ///
+    /// A real distinction, not bookkeeping: carrier semantics are declared per carrier and looked up by
+    /// which kind it is, so an event reported as an attribute gets a different reading of what it is
+    /// evidence of. These elements *are* events - the dialect packs them into one attribute because
+    /// attributes are all it has.
+    #[serde(default)]
+    pub tags_are_events: bool,
+    /// A path to the array. Absent means the parsed value itself.
+    #[serde(default)]
+    pub select: Option<String>,
+    /// Passes over the elements, in order. Each scans every element.
+    pub passes: Vec<ElementPass>,
+}
+
+/// One pass over the elements.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ElementPass {
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// Which elements this pass reads.
+    #[serde(default)]
+    pub when: PredicateSet,
+    /// Emit the element itself, tagged with the value at this path.
+    ///
+    /// A carrier named by the *data* rather than by the rule: these elements are events, and an event's
+    /// name is what downstream keys role derivation and ordering on, so tagging them all alike would erase
+    /// the distinction the payload carries.
+    #[serde(default)]
+    pub tag_from: Option<String>,
+    /// Instead of emitting each element, group runs of them and emit one message per run.
+    #[serde(default)]
+    pub group: Option<GroupSpec>,
+}
+
+/// Runs of consecutive elements collapsed into one message.
+///
+/// Bounded: one pass, no recursion, and a run ends as soon as the derived key changes.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct GroupSpec {
+    /// A decision table deriving the run key from an element - the first matching case wins, and an element
+    /// matching none is skipped.
+    pub by: Vec<DerivedCase>,
+    /// The part of each element collected into the message's content.
+    ///
+    /// One dialect's blocks carry the real content in a member and a human-readable summary beside it, so
+    /// which part is collected is a fact about the payload rather than a default.
+    pub collect: String,
+    /// The member the derived key becomes on the emitted message.
+    pub key_as: String,
+    /// The carrier each derived key is tagged with.
+    pub tag_by_key: BTreeMap<String, String>,
+}
+
+/// One case of a decision table: a condition, and the value it yields.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct DerivedCase {
+    #[serde(default)]
+    pub doc: Option<String>,
+    pub when: PredicateSet,
+    pub value: String,
+}
+
+/// Several readings of one span with a local order between them.
+///
+/// Evaluated as: every `primary`; then, only if those produced nothing, every
+/// `fallback_if_primary_empty`; then every `always`, whatever happened. Nesting is refused - a branch set
+/// inside a branch set would be a control structure rather than a declaration.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct BranchSet {
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The readings that normally supply the conversation.
+    pub primary: Vec<MessageRule>,
+    /// Read only when every `primary` reading came up empty.
+    #[serde(default)]
+    pub fallback_if_primary_empty: Vec<MessageRule>,
+    /// Read whatever the others did.
+    ///
+    /// The asymmetry is deliberate for at least one dialect: its *answer* must be read even when the
+    /// request side was already found, because one gate covering both is what dropped the answer.
+    #[serde(default)]
+    pub always: Vec<MessageRule>,
 }
