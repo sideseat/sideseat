@@ -220,10 +220,7 @@ fn call_key<'a>(block: &'a BlockEntry, id: Option<&'a str>) -> CallKey<'a> {
     if let Some(id) = id.filter(|s| !s.is_empty()) {
         return CallKey::Id(id);
     }
-    let semantics = crate::domain::sideml::carrier::semantics_for(
-        block.event_name.as_deref(),
-        block.source_attribute.as_deref(),
-    );
+    let semantics = crate::domain::sideml::carrier::semantics_for_context(&block.carrier_context());
     if semantics.position_proves_distinct_occurrence {
         CallKey::Position(&block.position)
     } else {
@@ -289,10 +286,8 @@ pub(super) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Vec<u32> {
                 &shape_count,
             );
         } else if let Some(shape) = plain_message_shape(block) {
-            let semantics = crate::domain::sideml::carrier::semantics_for(
-                block.event_name.as_deref(),
-                block.source_attribute.as_deref(),
-            );
+            let semantics =
+                crate::domain::sideml::carrier::semantics_for_context(&block.carrier_context());
             if semantics.position_proves_distinct_occurrence {
                 record_position(
                     block,
@@ -323,10 +318,8 @@ pub(super) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Vec<u32> {
                 let Some(shape) = plain_message_shape(block) else {
                     return 0;
                 };
-                let semantics = crate::domain::sideml::carrier::semantics_for(
-                    block.event_name.as_deref(),
-                    block.source_attribute.as_deref(),
-                );
+                let semantics =
+                    crate::domain::sideml::carrier::semantics_for_context(&block.carrier_context());
                 if !semantics.position_proves_distinct_occurrence {
                     return 0;
                 }
@@ -427,11 +420,9 @@ fn rank_scope<'a>(
     // whether it fires - the two executions this rank exists to keep (`agent-framework/tool_use` and
     // the five suites beside it) all report their calls through *emission* carriers, and a re-send by
     // definition arrives through one that `carrier_may_contain_history_or_state`.
-    let id_is_execution_evidence = !crate::domain::sideml::carrier::semantics_for(
-        block.event_name.as_deref(),
-        block.source_attribute.as_deref(),
-    )
-    .carrier_may_contain_history_or_state;
+    let id_is_execution_evidence =
+        !crate::domain::sideml::carrier::semantics_for_context(&block.carrier_context())
+            .carrier_may_contain_history_or_state;
     let response = response_scope(block, shape);
     let lists_shape_once = shape_count.get(&response).copied().unwrap_or(1) <= 1;
     if id_is_execution_evidence && id.is_some_and(|s| !s.is_empty()) && lists_shape_once {
@@ -1679,6 +1670,8 @@ mod tests {
         timestamp: DateTime<Utc>,
     ) -> BlockEntry {
         BlockEntry {
+            span_name: None,
+            scope_name: None,
             position: PositionPath::default(),
             entry_type: "text".to_string(),
             content: ContentBlock::Text {
@@ -1726,6 +1719,8 @@ mod tests {
         timestamp: DateTime<Utc>,
     ) -> BlockEntry {
         BlockEntry {
+            span_name: None,
+            scope_name: None,
             position: PositionPath::default(),
             entry_type: "tool_use".to_string(),
             content: ContentBlock::ToolUse {
@@ -1777,6 +1772,8 @@ mod tests {
         timestamp: DateTime<Utc>,
     ) -> BlockEntry {
         BlockEntry {
+            span_name: None,
+            scope_name: None,
             position: PositionPath::default(),
             entry_type: "tool_result".to_string(),
             content: ContentBlock::ToolResult {

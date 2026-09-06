@@ -1,0 +1,30 @@
+{
+  "id": "claude-agent-sdk",
+  "doc": "The Claude Code CLI's own names. The SDK emits no in-process telemetry; the CLI it spawns self-instruments, so these are the CLI's vocabulary.",
+  "carriers": [
+    {
+      "id": "claude-agent-sdk.new_context",
+      "doc": "The turns and tool results handed to the model, tagged in-band.",
+      "match": { "attribute": "new_context" },
+      "facts": { "preset": "snapshot" }
+    },
+    {
+      "id": "claude-agent-sdk.model_output",
+      "doc": "The model's reply.",
+      "match": { "attribute": "response.model_output" },
+      "facts": { "preset": "emission" }
+    },
+    {
+      "id": "claude-agent-sdk.user_system_prompt",
+      "doc": "The system prompt, reported beside the conversation: a detached request frame.",
+      "match": { "attribute": "user_system_prompt" },
+      "facts": { "preset": "snapshot", "carrier_is_detached_request_frame": true }
+    },
+    {
+      "id": "claude-agent-sdk.tool_name",
+      "doc": "The tool a span was asked to run, alongside its input.",
+      "match": { "attribute": "tool_name" },
+      "facts": { "preset": "emission", "carrier_holds_span_output": false }
+    }
+  ]
+}

@@ -63,7 +63,7 @@ pub struct CarrierSemantics {
 
 impl CarrierSemantics {
     /// One emission: everything in it happened now, and two of anything are two.
-    const EMISSION: Self = Self {
+    pub(crate) const EMISSION: Self = Self {
         position_proves_distinct_occurrence: true,
         position_provides_sequence_order: true,
         carrier_is_atomic_emission: true,
@@ -74,7 +74,7 @@ impl CarrierSemantics {
 
     /// A conversation as one span saw it: ordered, may repeat earlier turns, and a repeat inside it
     /// is a re-statement rather than a second occurrence.
-    const SNAPSHOT: Self = Self {
+    pub(crate) const SNAPSHOT: Self = Self {
         position_proves_distinct_occurrence: false,
         position_provides_sequence_order: true,
         carrier_is_atomic_emission: false,
@@ -88,7 +88,7 @@ impl CarrierSemantics {
     /// Accumulated state is the span's *output* - `output.value` is what the chain produced - while
     /// still being a re-listing rather than one emission. That combination is why direction cannot be
     /// derived from `carrier_is_atomic_emission`.
-    const ACCUMULATED_STATE: Self = Self {
+    pub(crate) const ACCUMULATED_STATE: Self = Self {
         position_proves_distinct_occurrence: false,
         position_provides_sequence_order: true,
         carrier_is_atomic_emission: false,
@@ -98,9 +98,14 @@ impl CarrierSemantics {
     };
 }
 
-/// The semantics of the carrier an observation came from.
+/// The semantics of the carrier an observation came from, with no knowledge of the span that wrote it.
 ///
 /// `event` and `attribute` are the carrier's name as recorded on the block; exactly one is set.
+///
+/// This is the *unqualified* reading, and it is what a caller that cannot describe the span gets. A
+/// rule clause constraining the observation type or the span name makes a claim about the span, and a
+/// caller with no span context has not established it - so such a caller can only ever match a generic
+/// clause. Prefer [`semantics_for_context`] wherever the span is known.
 ///
 /// The default for an unrecognised carrier is [`CarrierSemantics::SNAPSHOT`], the cautious reading:
 /// it declines to treat position as proof of a second occurrence, so a carrier nobody has classified
@@ -109,13 +114,58 @@ pub fn semantics_for(event: Option<&str>, attribute: Option<&str>) -> CarrierSem
     declared_semantics(event, attribute).unwrap_or(CarrierSemantics::SNAPSHOT)
 }
 
-/// The table's entry for a carrier, or `None` where nothing names it.
+/// The semantics of a carrier, read together with what is known about the span that wrote it.
+///
+/// The same carrier name means different things on different spans: `gen_ai.output.messages` on a
+/// generation span is the model's own emission, and on an orchestration span it is that span
+/// re-listing the turn its children produced. Only the second form can be told apart by asking about
+/// the span, which is why this exists beside [`semantics_for`].
+pub fn semantics_for_context(ctx: &crate::domain::rules::CarrierContext<'_>) -> CarrierSemantics {
+    crate::domain::rules::ruleset()
+        .carriers
+        .resolve(ctx)
+        .map(|clause| clause.semantics)
+        .unwrap_or(CarrierSemantics::SNAPSHOT)
+}
+
+/// The declared entry for a carrier, or `None` where no rule names it.
 ///
 /// Separate from [`semantics_for`] so that "nobody has classified this" is distinguishable from
 /// "classified, and it reads as a snapshot". The two are the same *value* and completely different
 /// facts, and `carrier_semantics_are_declared` needs to tell them apart - a test that compared the
 /// value could not, and reported every declared snapshot carrier as unclassified.
 pub fn declared_semantics(
+    event: Option<&str>,
+    attribute: Option<&str>,
+) -> Option<CarrierSemantics> {
+    crate::domain::rules::ruleset()
+        .carriers
+        .resolve(&crate::domain::rules::CarrierContext::carrier_only(
+            event, attribute,
+        ))
+        .map(|clause| clause.semantics)
+}
+
+/// The ordering family a carrier belongs to, when it is a fragmented ordered input: several attribute
+/// keys that are one array.
+///
+/// Read by the order resolver, which used to compare the key itself against one framework's spelling.
+pub fn ordering_family_for(ctx: &crate::domain::rules::CarrierContext<'_>) -> Option<&'static str> {
+    crate::domain::rules::ruleset()
+        .carriers
+        .resolve(ctx)
+        .and_then(|clause| clause.ordering_family.as_deref())
+}
+
+/// The table this engine replaced, kept as the equivalence oracle.
+///
+/// Not dead code and not history: the rules must reproduce it exactly for every carrier read *without*
+/// span context, and `the_rules_reproduce_the_legacy_carrier_table` asserts that over every carrier
+/// name either source names. That is what makes the migration a provable no-op plus a reviewed delta,
+/// rather than a rewrite whose correctness rests on the goldens alone - and goldens can bless a
+/// regression.
+#[cfg(test)]
+pub(crate) fn legacy_declared_semantics(
     event: Option<&str>,
     attribute: Option<&str>,
 ) -> Option<CarrierSemantics> {

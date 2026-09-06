@@ -136,10 +136,8 @@ pub(super) fn collect_order_evidence(
             let credible = is_credible_emission(block);
             let next_span = spans.len();
             let span = *spans.entry(block.span_id.as_str()).or_insert(next_span);
-            let semantics = crate::domain::sideml::carrier::semantics_for(
-                block.event_name.as_deref(),
-                block.source_attribute.as_deref(),
-            );
+            let semantics =
+                crate::domain::sideml::carrier::semantics_for_context(&block.carrier_context());
             let payload_root = block
                 .position
                 .to_string()
@@ -178,15 +176,22 @@ pub(super) fn collect_order_evidence(
             // (`Context: User Request: ...`), so no identity links the surviving question to any
             // request, and the wrapped copy is correctly filtered as a context echo. A constraint
             // class with no measured repair is surface without benefit.
+            // Which fragmented ordered-input family this observation belongs to is a *declared* carrier
+            // fact now, not a key comparison here. It used to read
+            // `source_attribute.starts_with("llm.input_messages")` - one framework's spelling, written
+            // into the resolver, where no rule file could state it and nothing but this comment
+            // recorded that the family was deliberately narrow.
+            let declared_family =
+                crate::domain::sideml::carrier::ordering_family_for(&block.carrier_context());
             let ordered_input = block.is_generation_span()
                 && semantics.position_provides_sequence_order
                 && !semantics.carrier_holds_span_output
                 && !semantics.carrier_is_detached_request_frame
-                && block
-                    .source_attribute
-                    .as_deref()
-                    .is_some_and(|k| k.starts_with("llm.input_messages"));
+                && declared_family.is_some();
             let input_family = ordered_input.then(|| {
+                // Grouped by the *array*, not by the declaration: `llm.input_messages.0.message` and
+                // `.1.message` are one sequence, so the key strips the index while the declared family
+                // decides whether the carrier has one at all.
                 let family = canonical_input_family(
                     block.event_name.as_deref(),
                     block.source_attribute.as_deref(),
@@ -268,11 +273,8 @@ fn emission_scope(block: &BlockEntry) -> String {
 /// not the occurrence — reading it as evidence moved a result ahead of its call.
 fn is_credible_emission(block: &BlockEntry) -> bool {
     block.is_output_source()
-        && crate::domain::sideml::carrier::semantics_for(
-            block.event_name.as_deref(),
-            block.source_attribute.as_deref(),
-        )
-        .carrier_is_atomic_emission
+        && crate::domain::sideml::carrier::semantics_for_context(&block.carrier_context())
+            .carrier_is_atomic_emission
 }
 
 /// A disjoint-set over survivor indices, used to contract co-emitted identities into one unit.
@@ -1424,6 +1426,8 @@ mod cycle_tests {
 
     fn block(span: &str, text: &str) -> BlockEntry {
         BlockEntry {
+            span_name: None,
+            scope_name: None,
             position: PositionPath::default(),
             entry_type: "text".to_string(),
             content: ContentBlock::Text {

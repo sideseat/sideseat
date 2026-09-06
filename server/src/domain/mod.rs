@@ -2,12 +2,14 @@
 //!
 //! - `metrics` - OpenTelemetry metrics processing pipeline
 //! - `pricing` - LLM cost calculation and model pricing
+//! - `rules` - framework knowledge as data, interpreted generically
 //! - `sideml` - Universal AI message format normalization
 //! - `traces` - OpenTelemetry trace processing pipeline
 
 pub mod metrics;
 pub mod pricing;
 pub mod providers;
+pub mod rules;
 pub mod sideml;
 pub mod traces;
 

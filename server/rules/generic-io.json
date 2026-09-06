@@ -1,0 +1,36 @@
+{
+  "id": "generic-io",
+  "doc": "The framework-neutral IO pair, and the composed error block. These carriers name no framework: `input.value` / `output.value` is what a great many instrumentations write when they write anything, which is why they are a dialect of their own rather than any one framework's file.",
+  "carriers": [
+    {
+      "id": "generic-io.output_value",
+      "doc": "Accumulated framework state that happens to contain messages - an agent's scratchpad, a chain's running result. Ordered, re-lists itself, and says nothing about multiplicity: the same tool call appears at two positions while describing one call. Still the span's output, which is why direction cannot be derived from being an emission.",
+      "match": { "attribute": "output.value" },
+      "facts": { "preset": "accumulated_state" }
+    },
+    {
+      "id": "generic-io.input_value",
+      "doc": "The same shape on the receiving side: state handed to the span.",
+      "match": { "attribute": "input.value" },
+      "facts": { "preset": "accumulated_state", "carrier_holds_span_output": false }
+    },
+    {
+      "id": "generic-io.message",
+      "doc": "A single message handed to the span.",
+      "match": { "attribute": "message" },
+      "facts": { "preset": "accumulated_state", "carrier_holds_span_output": false }
+    },
+    {
+      "id": "generic-io.messages",
+      "doc": "A message list handed to the span.",
+      "match": { "attribute": "messages" },
+      "facts": { "preset": "accumulated_state", "carrier_holds_span_output": false }
+    },
+    {
+      "id": "generic-io.exception",
+      "doc": "The error built from a span's exception fields. The span produced it, it is not a re-send, and it has no position in any payload - it is composed rather than read, which is why it states no sequence order.",
+      "match": { "attribute": "exception" },
+      "facts": { "preset": "emission", "position_provides_sequence_order": false }
+    }
+  ]
+}

@@ -14,6 +14,8 @@ use crate::domain::sideml::types::ChatRole;
 
 fn base(trace_id: &str, entry_type: &str, content: ContentBlock, role: ChatRole) -> BlockEntry {
     BlockEntry {
+        span_name: None,
+        scope_name: None,
         position: PositionPath::default(),
         entry_type: entry_type.to_string(),
         content,

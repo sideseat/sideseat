@@ -113,6 +113,8 @@ mod tests {
         };
 
         BlockEntry {
+            span_name: None,
+            scope_name: None,
             position: PositionPath::default(),
             entry_type: entry_type.to_string(),
             content,

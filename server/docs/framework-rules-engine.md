@@ -1,0 +1,310 @@
+# The framework rules engine
+
+Design accepted with Codex (thread `01a0764b`), after one revision round; the amendments it required
+are folded in below rather than appended, so this file is the agreed design and not a transcript.
+
+## The mandate
+
+Every piece of knowledge about a *specific* framework or provider moves out of Rust and into
+declarative per-framework assets, interpreted by a generic engine. The success criterion, stated
+literally: **the Rust code knows nothing about any specific framework, and every framework still
+parses correctly.**
+
+Mechanised, so it is a gate rather than an aspiration:
+
+> Adding a currently-expressible framework consists only of adding data files and fixtures. The engine
+> binary contains no producer ids, carrier keys, tags, type mappings, or producer-specific branches,
+> and no behavioural API even *accepts* a framework label. Legacy and rules output are identical
+> before *and* after reconstruction, across the documented support matrix.
+
+### Scope, stated narrowly on purpose
+
+The mandate covers **observability interpretation** — detection, extraction, carrier semantics,
+normalisation, ordering, token and cost conventions — plus **declarative product metadata** (the MCP
+setup guide, the provider catalogue, credential labels, environment variables, ambient-detection
+metadata).
+
+It does **not** cover concrete provider *connectors*. `providers/test_connection.rs` constructs real
+clients with real auth flows; that is executable adapter code, and calling it "plain data" would be
+dishonest. Connector implementations stay in Rust, outside this engine. If they ever need to be
+pluggable, that is a separate driver interface, designed separately.
+
+## Verdict: a versioned, non-Turing-complete tree-transformation DSL, compiled to a typed plan
+
+| | Model | Ruling |
+| --- | --- | --- |
+| **A** | Pure-data rules over a fixed vocabulary of generic primitives | **Chosen** |
+| B | Embedded sandboxed script (Rhai / WASM / JSONLogic) | Rejected — buys arbitrary expressiveness by *weakening* the mandate: rule files would hold logic, and the engine would become a language runtime without the tooling one needs |
+| C | Rules selecting named Rust `Transform` impls | **Prohibited.** A transform that exists only for one framework is that framework's policy wearing a generic name |
+
+B is warranted only under a requirement nobody has stated — "an arbitrary future framework must be
+addable without releasing a new server, whatever its shape". A cannot promise that, and the mandate
+does not ask for it.
+
+## What the survey changed: framework identity is not behavioural
+
+`Framework::<Variant>` appears outside `data/types/enums.rs` **only** in `attributes.rs` — the
+detection rules that *produce* the label. Nothing downstream (extraction, normalisation, dedup, cost,
+feed, query, API) branches on it. The stored string is a DB column, a list/stats filter, a display
+field, and one opaque input to the feed cache digest.
+
+So there are essentially **no `if framework == X` conditionals to untangle**. All framework behaviour
+is already keyed on *data*: attribute keys and prefixes, event names, role strings, content-shape keys,
+provider aliases, span-name prefixes, carrier names. The work is externalising tables and
+vocabularies, which is why model A is achievable here rather than aspirational.
+
+The target is therefore stronger than a renamed enum:
+
+- `framework_label: Option<String>` — provenance, display, filtering, statistics. Produced by
+  detection rules; consumed by nothing that decides behaviour.
+- `RuleId` — diagnostics, explain traces, metrics.
+- **No framework identifier reaches carrier, extraction, normalisation, ordering, dedup, token or cost
+  behaviour.** Rust cannot know about frameworks if nothing consults framework identity.
+
+Rules compile into **global indexes** by carrier, event, key, scope, span shape and content shape.
+Rule files are organisational units; their clauses are indexed globally. Detection never selects a
+parser.
+
+`scope_name` / `scope_version` (instrumentation-library identity, already extracted, persisted, and
+part of the feed cache digest) is **high-confidence matching evidence, not an exclusive dispatch key**:
+historical rows may lack it, several frameworks share instrumentation packages, and versions are not
+reliably semantic. Scope constraints *narrow* candidates; carrier and shape remain the fallback.
+
+### Three corrections to the original premise, verified in the code
+
+1. **Extraction runs at ingestion, not query time.** `pipeline.rs:2082` extracts; the message queries
+   select `messages_json` and never `raw_span`. So "a fix applies to history without re-ingestion"
+   covers *normalisation, carrier semantics and ordering* — query time — and **not** extraction.
+   Moving extraction to rules does not make extraction retroactive, and promising otherwise would
+   mislead operators. Making it retroactive is a separate storage project (a versioned raw envelope
+   plus a parse cache keyed by ruleset hash); note `MESSAGE_CONTENT_FILTER` excludes rows whose
+   ingestion-time extraction produced nothing, so re-interpreting archived spans at query time would
+   still miss exactly the spans a new rule would newly recognise.
+2. `EXTRACTORS` holds **16** entries — 15 framework extractors plus `raw_io`.
+3. The six carrier facts are **not** the whole policy surface. `order_graph.rs:188` hardcodes
+   `llm.input_messages` as the fragmented-input family — a seventh semantic fact hiding in Rust — and
+   source-direction, event→role and expandable-array tables live in `normalize.rs` and
+   `feed/types.rs`. A migration that touches only `try_*` fails the criterion.
+
+## Is a generic primitive honest? The six tests
+
+The hard question is whether a `parse_python_literal` primitive — reachable today only from
+`try_crewai` — is a generic capability or CrewAI policy under an assumed name. A primitive is generic
+only if it passes **all six**:
+
+1. **Name erasure** — its implementation and tests read sensibly with every framework name and carrier
+   key removed.
+2. **Policy separation** — it does not decide *when* it runs, which carrier wins, the role, the
+   framework, precedence, or output direction.
+3. **Parameterised literals** — keys, tags, type names, labels and mappings are rule arguments, never
+   constants in the implementation.
+4. **General contract** — it implements a grammar or a general data operation (parse, walk, join,
+   group, project), not "normalise framework X".
+5. **Change locality** — a framework changing a key, tag or type mapping is a rule-file edit alone.
+6. **Synthetic testability** — it can be tested against examples from no framework at all.
+
+`parse_python_literal` **passes**: it implements an external serialisation grammar, and the codebase
+already carries effectively the same parser generically in `content.rs`. Its accepted language must be
+*specified* rather than described as "Python repr" — today it handles dict/list-shaped strings, quotes
+and `True`/`False`/`None`, not arbitrary Python literals.
+
+`crewai_args_to_json_schema`, `map_crewai_type` and string literals such as `"Tool Arguments:"`
+**fail**: those are mappings, and mappings are data.
+
+### Escape-hatch policy
+
+No inline scripts. No rule-selected Rust callbacks. A new primitive needs a short RFC showing it
+passes the six tests, has synthetic tests, bounded complexity and a benchmark. Adding one is
+*acceptable engine evolution* and does not breach the mandate — unless its implementation embeds
+producer policy. A shape no primitive expresses stays unsupported until a generic primitive exists; it
+never gets a private hook.
+
+## The primitive vocabulary
+
+Derived from what the 16 extractors measurably do, not invented up front.
+
+| Capability | Required by |
+| --- | --- |
+| Exact / path / wildcard selection, indexed-prefix capture, dotted-key unflattening | semconv and OpenInference indexed attributes |
+| `exists`, type and shape predicates, `all` / `any` / `not`, ordered coalesce, decision tables | detection, AutoGen inference, role and content classification |
+| JSON decode, recursive stringified-JSON decode, Python-literal subset, scalar coercion | Vercel tools, AutoGen arguments, CrewAI repr |
+| `map`, `filter`, `flat_map`, stable `dedupe`, `best_by`, consecutive grouping | AutoGen multi-result, Logfire role grouping, CrewAI tool quality |
+| Bounded tree `walk` with match / prune / emit clauses | LangGraph state |
+| Split, captured header/tag, quoted-field and balanced-delimiter extraction | Claude Code, CrewAI |
+| Bind / join / lookup by captured index or key | OpenInference multimodal enrichment |
+| Object and list construction, conditional fields, canonical message/block/tool emitters, emit-many | every extractor |
+| Carrier claiming, fallback conditions, provenance, semantics assignment | the existing per-carrier dispatch |
+
+Qualifications that matter:
+
+- `recursive_find(key, depth)` is **too weak** for LangGraph, which recognises message-shaped values,
+  message arrays, a sibling `raw` answer and nested state, and prunes what it already processed. It
+  needs a general bounded `walk`.
+- AutoGen is a **decision table** plus `flat_map`/emit-many, despite the procedural size it has today.
+- Claude Code is parameterised section splitting with tag capture; its constants belong in its file.
+- OpenInference needs a **cross-carrier indexed join**, not path mapping.
+
+"Minimal" cannot be proved from goldens. A **branch ledger** maps every legacy branch and helper to a
+rule clause, a primitive and a focused test, and dual-run comparison happens **before** downstream
+dedup, because final goldens can hide extractor differences.
+
+## Ordered chains: named anchors and relations, never numbers
+
+Several of these tables are ordered `or_else` chains whose **order is policy** — most sharply
+`content.rs:321`, where the sequence canonical → wrappers → OpenAI → Anthropic → Bedrock → Gemini →
+Vercel → media-fallback → unknown is load-bearing. The same applies to the five-way `tool_use_id`
+chain in `tools.rs` and to detection.
+
+Rejected: **global integer priorities** (collisions, renumbering, cross-file ownership) and
+**inferred specificity** (there is no reliable specificity ordering over overlapping tree-shape
+predicates).
+
+Adopted: an **authoritative named chain**. Rule files define handlers; a shared *composition manifest*
+owns their ordering by name. Extensions may declare explicit `before` / `after` / `supersedes` edges.
+The compiler topologically sorts and **rejects at compile time**: cycles, unknown anchors, duplicate
+handler ids, and ambiguous overlapping handlers with no ordering relation between them. The runtime
+explain output shows every matching handler and why one won.
+
+Detection uses the same machinery, plus sufficiency:
+
+```
+any_of: [ all_of: [...], all_of: [...] ]
+not: [...]
+supersedes: [...]
+```
+
+Candidates are collected independent of load order; a unique sufficient candidate wins; an explicit
+data-only `supersedes` resolves a known overlap; otherwise an ambiguity metric is reported with all
+evidence. During migration only, `legacy_rank` reproduces today's answer while conflicts are
+collected, and it is removed as predicates become genuinely sufficient. No opaque weighted scoring —
+that replaces visible ordering with ordering nobody can debug.
+
+## Assets
+
+Two kinds, deliberately not one mechanism:
+
+**Transformation rules** (the DSL, compiled to a typed plan) — one entry file per framework, JSON
+(zero new dependencies, the house format, and every clause carries a `doc` string the explain trace
+can surface, which is strictly better than a comment). Declarative `imports` of shared dialect
+fragments (semconv, OpenInference, a provider family) keep one-file-per-framework from duplicating a
+dialect across ten files. Sections:
+
+- `detect` — label-only signals
+- `carriers` — carrier + qualifiers → the six facts **and** the ordering family
+- `messages` — ordered per-carrier extraction pipelines
+- `attributes` — canonical field → ordered fallback chain, including session id and finish reason
+- `content` / `tools` — content-block and tool-shape handlers, placed in named chains
+- `feed` — input/output source declarations, event classes, replay quirks
+- `tokens` / `cost` — provider → convention flags
+- `media`
+
+**Plain typed manifests** (no DSL, generic rendering) — the MCP setup guide entries, the provider
+catalogue, provider aliases, credential labels, environment variables, ambient-detection metadata. No
+tree transformation is involved and pulling them into the DSL buys nothing.
+
+The generic `gen_ai.*` semconv is itself just a rule file, and the one every framework file may
+import.
+
+**Provider vocabulary reconciliation is a prerequisite** for the token/cost migration: three
+namespaces currently coexist (litellm provider names, `gen_ai.system` aliases, UI credential keys such
+as `vertex-ai` / `azure-ai-foundry`). They must be reconciled into one declared mapping before any
+cost convention moves, or the rules will encode the confusion.
+
+## Verification
+
+- The **119 goldens** are the equivalence gate per framework — and are *not* proof of coverage: the
+  fixtures README records 11 of 32 recognised frameworks. A strong regression gate, nothing more.
+- The **independent invariants** must keep holding (scope containment, per-trace dedup, tool-id
+  correspondence, answer-present, determinism, carrier subsequence).
+- A **structural gate** that is more than a name grep: no producer ids, carrier keys, tags or type
+  mappings in the engine; **no behavioural API accepting a framework label** (a generic-looking
+  `String` parameter can smuggle it, so this is a dataflow check, not a literal search); no callback or
+  custom-transform registration; one-way module dependency; and every enabled rule has fixtures or an
+  explicitly tested shared-dialect inheritance.
+- **Explainability**: every emitted *and* rejected message reports rule, clause, selected path,
+  transformation, carrier claim and rejection reason.
+- Dual-run comparison covers canonical attributes, raw messages *including provenance and position*,
+  tool definitions, assigned carrier semantics, and all four views. Goldens are never regenerated to
+  make a migration pass.
+
+## Performance
+
+Rules compile **once per ruleset** to a typed plan — never parsed, path-resolved, regex-compiled or
+string-dispatched per span. The runtime precompiles paths and decision tables, indexes candidate
+pipelines by event/exact-key/prefix, parses each carrier at most once and shares decoded values,
+imposes depth/iteration/emitted/decoded-byte budgets, and keeps iteration order stable.
+
+The **ruleset hash joins the reconstruction cache key**. That cache is a memo over a pure function of
+the rows (`feed/cache.rs`); once rules can change, they are part of that function, and a dev hot-load
+would otherwise serve answers built by another ruleset. Production rules are embedded and immutable;
+dev hot-load replaces a validated plan atomically and changes the cache generation.
+
+A bounded LRU may cache plan selection by span-shape fingerprint, but indexed attributes make shape
+cardinality unbounded, so it is a cache and never a correctness assumption.
+
+## Migration: ten steps, no big bang
+
+The inert enum removes detection as a prerequisite, so it is no longer first.
+
+1. Tighten scope and freeze the inventory.
+2. Rule schema, validator, compiler, immutable typed plan, ruleset hash, explain facility. No
+   behaviour switch.
+3. **Carrier semantics**, and with it the aggregator defect below.
+4. Label-only detection; `Framework` becomes an opaque optional string.
+5. Feed source / event / replay / ordering-family tables.
+6. Content and tool normalisation, with explicit named-chain precedence.
+7. Reconcile the three provider namespaces, then token / cost / model conventions.
+8. Easy and medium message extraction, plus attribute / session / finish-reason fallbacks.
+9. The hard cases, in order: Claude Code, LangGraph, AutoGen, CrewAI.
+10. Externalise the plain provider and MCP manifests; delete the legacy tables.
+
+Detection may move later than step 4, but it must never regain parser-selection authority.
+
+## Step 3 in full, because it is the first behavioural slice
+
+`semantics_for` is span-blind: `gen_ai.output.messages` is classified `EMISSION` unconditionally. On a
+generation span that is right. On an **aggregator** span — Vercel's `invoke_agent` re-listing the whole
+turn — it is a re-listing of state, and reading it as an emission makes the final answer sort *before*
+the tool calls that produced it. `_synthetic/agent_snapshot_reorders_answer` is that shape.
+
+The correct resolution is **`ACCUMULATED_STATE`**, not `SNAPSHOT`: the carrier both re-lists history
+*and* holds the span's output, and those are separate facts in the model already.
+
+Context propagation is **part of this slice and not already solved**. `MessageSpanRow` carries
+`span_name`, `scope_name`, `scope_version` and `observation_type`, and both backends select them — but
+`BlockEntry` carries only `observation_type`, and `parse_span_rows` forwards a subset.
+
+The slice is landed only when all of these are true:
+
+1. Every current carrier declaration *and* ordering-family fact is in rule data.
+2. No engine carrier literal, and no framework label, controls behaviour.
+3. Match context includes the available query-time facts: carrier, observation type, span name, scope
+   name and version.
+4. Semantics are resolved once per observation and carried through to the order and dedup consumers.
+5. Resolved semantics are **not persisted**, so historical rows benefit immediately.
+6. The ingestion-side `carrier_holds_span_output` read uses the same compiled rules.
+7. Qualified clauses beat generic clauses; equal-precedence collisions **fail compilation**.
+8. An unknown carrier retains a conservative default.
+9. The Vercel fixture orders question → tool calls → tool results → final answer.
+10. Existing goldens are unchanged, except explicitly reviewed defect corrections.
+11. A persisted-row test proves the fix applies without re-ingestion.
+12. The feed cache key includes the ruleset digest.
+13. Explain output identifies the matched clause and the fallback path.
+14. Read and feed benchmarks stay within the existing ceilings.
+
+## Stop conditions
+
+Redesign or halt if any of these appears:
+
+- the migration targets only `try_*` (framework policy also lives in attributes, keys, tool
+  extraction, content normalisation, query expansion, source direction and ordering exceptions);
+- detection chooses one parser;
+- a framework label reaches a behavioural API, under any parameter name;
+- a "generic transform" is a renaming trick;
+- the DSL grows into an unbounded language — B, built by accident, without B's sandbox or tooling;
+- the 119 goldens are treated as complete coverage;
+- historical rule fixes are promised without changing filtering and materialisation;
+- rules are not explainable;
+- one-file-per-framework duplicates a dialect;
+- executable provider connectors are described as data;
+- the structural gate is just a framework-name grep.

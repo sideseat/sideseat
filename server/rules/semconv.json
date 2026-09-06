@@ -1,0 +1,159 @@
+{
+  "id": "semconv",
+  "doc": "OpenTelemetry GenAI semantic conventions. The dialect every other rule file may import: it is what a framework emits when it emits nothing of its own.",
+  "carriers": [
+    {
+      "id": "semconv.event.choice",
+      "doc": "The model's own output. One emission, so two tool calls in it are two calls whether or not the provider sent ids - a model asking twice looks exactly like this.",
+      "match": {
+        "event": "gen_ai.choice"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    },
+    {
+      "id": "semconv.event.content_completion",
+      "doc": "The completion, under the older convention name. Same fact, older spelling.",
+      "match": {
+        "event": "gen_ai.content.completion"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    },
+    {
+      "id": "semconv.event.output_messages",
+      "doc": "What this span produced, as an event. On a generation span this is the model's own emission.",
+      "match": {
+        "event": "gen_ai.output.messages"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    },
+    {
+      "id": "semconv.event.tool_result",
+      "doc": "A span's own record of a tool it ran: one emission it produced.",
+      "match": {
+        "event": "gen_ai.tool.result"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    },
+    {
+      "id": "semconv.event.tool_message",
+      "doc": "One emission too, but received: the framework handing a past result back to a model. Its time is the hand-back, and it is input to whatever the span then produces. Reading it as output made a re-sent result look like a generation's own answer.",
+      "match": {
+        "event": "gen_ai.tool.message"
+      },
+      "facts": {
+        "preset": "emission",
+        "carrier_holds_span_output": false
+      }
+    },
+    {
+      "id": "semconv.event.user_message",
+      "doc": "A re-sent turn: history by definition.",
+      "match": {
+        "event": "gen_ai.user.message"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
+    },
+    {
+      "id": "semconv.event.system_message",
+      "doc": "A system turn inside the conversation stream. Deliberately not a detached request frame: an event in a stream is in-band and may be a turn, framed by its position.",
+      "match": {
+        "event": "gen_ai.system.message"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
+    },
+    {
+      "id": "semconv.event.assistant_message",
+      "doc": "The awkward one: a replay for most frameworks, and the actual output for a choiceless generation span. Read as a snapshot here; direction is decided downstream.",
+      "match": {
+        "event": "gen_ai.assistant.message"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
+    },
+    {
+      "id": "semconv.event.content_prompt",
+      "doc": "The prompt, under the older convention name.",
+      "match": {
+        "event": "gen_ai.content.prompt"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
+    },
+    {
+      "id": "semconv.event.input_messages",
+      "doc": "The conversation as this span received it, as an event.",
+      "match": {
+        "event": "gen_ai.input.messages"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
+    },
+    {
+      "id": "semconv.attr.output_messages",
+      "doc": "What this span produced, in one payload. Ordered, its own, and two of anything in it are two - the attribute form of gen_ai.choice. Being an emission is what keeps a response's parts together.",
+      "match": {
+        "attribute_prefix": "gen_ai.output.messages"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    },
+    {
+      "id": "semconv.attr.input_messages",
+      "doc": "What this span received: a conversation as it saw it, which may re-state earlier turns.",
+      "match": {
+        "attribute_prefix": "gen_ai.input.messages"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
+    },
+    {
+      "id": "semconv.attr.system_instructions",
+      "doc": "The system prompt a model was given, reported beside the conversation rather than inside it. A detached request frame: it asserts 'this precedes every other input of the request that carried me', which is a constraint rather than a position.",
+      "match": {
+        "attribute": "gen_ai.system_instructions"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_is_detached_request_frame": true
+      }
+    },
+    {
+      "id": "semconv.attr.tool_call_result",
+      "doc": "A tool span's own result under the current conventions. One emission - a tool is called once.",
+      "match": {
+        "attribute": "gen_ai.tool.call.result"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    },
+    {
+      "id": "semconv.attr.tool_call_arguments",
+      "doc": "The arguments that tool span was handed: the same pair, differing only in direction. The clearest case for direction being its own fact rather than something inferred from shape.",
+      "match": {
+        "attribute": "gen_ai.tool.call.arguments"
+      },
+      "facts": {
+        "preset": "emission",
+        "carrier_holds_span_output": false
+      }
+    }
+  ]
+}

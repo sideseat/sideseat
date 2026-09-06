@@ -1,0 +1,19 @@
+{
+  "id": "openinference",
+  "doc": "The OpenInference dialect: `llm.*` indexed message arrays, as emitted by OpenInference instrumentations and the frameworks that ship them.",
+  "carriers": [
+    {
+      "id": "openinference.output_messages",
+      "doc": "What this span produced, as an indexed array.",
+      "match": { "attribute_prefix": "llm.output_messages" },
+      "facts": { "preset": "emission" }
+    },
+    {
+      "id": "openinference.input_messages",
+      "doc": "The conversation this span received, as an indexed array. Its members are separate attribute keys that are one array, so they carry an ordering family: `llm.input_messages.0.message` and `.1.message` are one sequence, and the order resolver needs to know that to sequence a request's own new turns. That fact used to be a hardcoded key comparison in the resolver, which is precisely the shape of framework knowledge this engine exists to hold instead.",
+      "match": { "attribute_prefix": "llm.input_messages" },
+      "facts": { "preset": "snapshot" },
+      "ordering_family": "openinference.input_messages"
+    }
+  ]
+}

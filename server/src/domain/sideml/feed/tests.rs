@@ -8943,6 +8943,8 @@ fn test_no_promotion_when_choice_exists() {
 
     // Build blocks manually: gen_ai.assistant.message + gen_ai.choice in same gen span
     let assistant_block = BlockEntry {
+        span_name: None,
+        scope_name: None,
         position: PositionPath::default(),
         entry_type: "text".to_string(),
         content: ContentBlock::Text {
@@ -8982,6 +8984,8 @@ fn test_no_promotion_when_choice_exists() {
     };
 
     let choice_block = BlockEntry {
+        span_name: None,
+        scope_name: None,
         position: PositionPath::default(),
         entry_type: "text".to_string(),
         content: ContentBlock::Text {
@@ -10008,6 +10012,8 @@ fn prior_state(
         .iter()
         .enumerate()
         .map(|(i, &(role, hash))| BlockEntry {
+            span_name: None,
+            scope_name: None,
             position: PositionPath::default(),
             entry_type: "text".to_string(),
             content: ContentBlock::Text {

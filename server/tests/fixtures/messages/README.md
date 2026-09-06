@@ -55,7 +55,7 @@ the corpus matches it.
 
 | Suite | Version captured against | Samples | Captured requests |
 | --- | --- | --- | --- |
-| `_synthetic` | hand-written shapes, no SDK | 15 | 15 |
+| `_synthetic` | hand-written shapes, no SDK | 16 | 16 |
 | `adk` | google-adk >=1.27.0 | 8 | 18 |
 | `agent-framework` | agent-framework-core >=1.0.0b0 | 10 | 17 |
 | `anthropic` | anthropic >=0.84.0 | 7 | 18 |
@@ -69,7 +69,7 @@ the corpus matches it.
 | `strands` | strands-agents >=1.30.0 | 10 | 40 |
 | `strands-js` | @strands-agents/sdk ^1.14.0 | 7 | 12 |
 | `vercel-ai-js` | ai ^7.0.79 | 6 | 13 |
-| **14 suites** | | **119** | **282** |
+| **14 suites** | | **120** | **283** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
@@ -160,7 +160,7 @@ not hide the rest.
 
 ## What is and is not covered
 
-**119 expectation files: 104 captured in 13 suites, plus 15 synthetic.** A suite is not a framework:
+**120 expectation files: 104 captured in 13 suites, plus 16 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
 languages, so the 13 captured suites cover **11 of the 32** frameworks SideSeat recognises. (32 is
 the union of the server's `Framework` classifier and the SDK's framework list, excluding `Unknown`:
@@ -195,6 +195,7 @@ breaks that rule is named.
 | `parallel_tool_calls` | two distinct calls in one response, then both results | causality *without* adjacency: `call, call, result, result` must be allowed |
 | `resent_history` | a later span re-sending the earlier turn | the re-send collapses onto the original rather than duplicating it |
 | `cross_span_tie` | a generation span and its tool span reporting the **identical** instant, with the tool span's id sorting *first* | `adopt_call_positions`. Disable it and this fixture reports the answer at index 1 before its question at index 3; every captured fixture stays green, because none of them ties |
+| `agent_snapshot_reorders_answer` | a root agent span re-listing a whole turn **answer-first** while its child generation spans emit the calls and the answer separately — the shape the Vercel AI SDK's current integration produces | **Its golden records a known defect, not correct output.** The answer sits at index 1, ahead of the tool calls that produced it, because `gen_ai.output.messages` reads as one atomic emission wherever it appears and an emission's stated order is trusted. `vercel-ai-js/image-gen` shows the same thing on real captured telemetry. Declaring the aggregator case `accumulated_state` fixes both and **loses a message** in `agent-framework/tool_use` (a genuine duplicate tool result collapses, because that preset stops position proving distinct occurrence) while re-batching `agent-framework/swarm`'s prompts ahead of its replies. A lost message is worse than a mis-order, so the generic reading ships; see `a_span_qualified_clause_is_expressible_and_the_aggregator_repair_needs_the_resolver`. The real discriminator is not the carrier but whether a child span's own emission already covers the listed messages, which is resolution confidence in the order resolver |
 
 The carrier-overlap defect is documented by `reading_more_carriers_only_adds_messages` instead of by a
 fixture: it runs every fixture through both extraction modes and reports what each one gains and what

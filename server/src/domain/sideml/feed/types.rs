@@ -133,6 +133,14 @@ pub struct BlockEntry {
     // Span context
     #[serde(skip_serializing_if = "Option::is_none")]
     pub observation_type: Option<String>,
+    /// The span's name and its instrumentation scope, for carrier rules that narrow on either.
+    ///
+    /// Not serialised: they are match *input*, never part of the answer, and putting them in the
+    /// projection would make every golden carry them.
+    #[serde(skip)]
+    pub span_name: Option<String>,
+    #[serde(skip)]
+    pub scope_name: Option<String>,
 
     // Generation context
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -252,6 +260,23 @@ impl BlockEntry {
             self.observation_type.as_deref(),
             Some(obs_type::SPAN) | Some(obs_type::AGENT) | Some(obs_type::CHAIN)
         )
+    }
+
+    /// Everything the carrier rules may ask about this observation.
+    ///
+    /// One constructor for every consumer, so the ordering resolver, dedup and the direction test
+    /// cannot ask the same question with different amounts of context and get different answers - which
+    /// is precisely the failure the span-blind table had, spread across call sites instead of one
+    /// function.
+    #[inline]
+    pub fn carrier_context(&self) -> crate::domain::rules::CarrierContext<'_> {
+        crate::domain::rules::CarrierContext {
+            event: self.event_name.as_deref(),
+            attribute: self.source_attribute.as_deref(),
+            observation_type: self.observation_type.as_deref(),
+            span_name: self.span_name.as_deref(),
+            scope_name: self.scope_name.as_deref(),
+        }
     }
 
     // ========================================================================
@@ -399,11 +424,8 @@ impl BlockEntry {
         // not name yet, kept here rather than silently reading as input. Vercel is why the order
         // matters - the SDK moved from `ai.result.*` to `ai.response.*` and the extractor followed
         // while this list did not, so every Vercel response read as something the span received.
-        if crate::domain::sideml::carrier::semantics_for(
-            self.event_name.as_deref(),
-            self.source_attribute.as_deref(),
-        )
-        .carrier_holds_span_output
+        if crate::domain::sideml::carrier::semantics_for_context(&self.carrier_context())
+            .carrier_holds_span_output
         {
             return true;
         }
@@ -529,6 +551,8 @@ mod tests {
 
     fn make_test_block() -> BlockEntry {
         BlockEntry {
+            span_name: None,
+            scope_name: None,
             position: PositionPath::default(),
             entry_type: "text".to_string(),
             content: ContentBlock::Text {

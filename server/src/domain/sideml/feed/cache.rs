@@ -132,6 +132,17 @@ impl ReconstructionCache {
 fn digest_with(rows: &[MessageSpanRow], session_of_trace: &HashMap<String, String>) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new();
 
+    // The ruleset the answer was built with.
+    //
+    // This cache is a memo over a pure function of the rows, and the carrier rules are part of that
+    // function now: reconstruction asks them what each observation is evidence of. Without this, a
+    // changed rule would be served answers built by the previous ruleset from rows that had not
+    // changed - which is the "no invalidation to get wrong" property the digest key exists to give.
+    // Embedded assets make it constant per build, so this costs one hash update per request.
+    let ruleset = crate::domain::rules::ruleset_digest();
+    hasher.update(&(ruleset.len() as u64).to_le_bytes());
+    hasher.update(ruleset.as_bytes());
+
     // Sorted, so the same grouping hashes the same however the map iterated. Length-prefixed, so
     // `("ab","c")` and `("a","bc")` cannot produce the same bytes.
     let mut grouping: Vec<(&str, &str)> = session_of_trace

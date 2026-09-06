@@ -243,6 +243,13 @@ struct ParsedMessage {
     total_tokens: i64,
     cost_total: f64,
     observation_type: Option<String>,
+    /// The span's name, and the instrumentation scope that produced it.
+    ///
+    /// Carried because a carrier's meaning can depend on the span that wrote it, and a rule clause may
+    /// narrow on either. Scope is *narrowing evidence only*: historical rows may carry none, and
+    /// several frameworks share one instrumentation package, so a clause may never key on it alone.
+    span_name: Option<String>,
+    scope_name: Option<String>,
 }
 
 /// What earlier traces of this session already showed, as a relation rather than a sequence.
@@ -1524,6 +1531,8 @@ fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<ParsedMessage> {
                         total_tokens: row.total_tokens,
                         cost_total: row.cost_total,
                         observation_type: row.observation_type.clone(),
+                        span_name: row.span_name.clone(),
+                        scope_name: row.scope_name.clone(),
                     });
                 }
             }
@@ -1692,6 +1701,8 @@ fn append_error_messages(messages: &mut Vec<ParsedMessage>, rows: &[MessageSpanR
             total_tokens: 0,
             cost_total: 0.0,
             observation_type: row.observation_type.clone(),
+            span_name: row.span_name.clone(),
+            scope_name: row.scope_name.clone(),
         });
     }
 }
@@ -1886,6 +1897,8 @@ fn flatten_to_blocks(
                 order_time: msg.timestamp,
 
                 observation_type: msg.observation_type.clone(),
+                span_name: msg.span_name.clone(),
+                scope_name: msg.scope_name.clone(),
 
                 model: msg.model.clone(),
                 provider: msg.provider.clone(),

@@ -1,0 +1,240 @@
+{
+ "resourceSpans": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "service.name",
+      "value": {
+       "stringValue": "vercel-shape"
+      }
+     },
+     {
+      "key": "sideseat.framework",
+      "value": {
+       "stringValue": "vercel-ai"
+      }
+     }
+    ]
+   },
+   "scopeSpans": [
+    {
+     "scope": {
+      "name": "synthetic.vercel"
+     },
+     "spans": [
+      {
+       "traceId": "cc00000000000000000000000000da01",
+       "spanId": "da00000000000001",
+       "name": "invoke_agent weather",
+       "kind": 1,
+       "startTimeUnixNano": "1787000000000000000",
+       "endTimeUnixNano": "1787000000000000900",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "invoke_agent"
+         }
+        },
+        {
+         "key": "gen_ai.agent.name",
+         "value": {
+          "stringValue": "weather"
+         }
+        },
+        {
+         "key": "gen_ai.provider.name",
+         "value": {
+          "stringValue": "synthetic"
+         }
+        },
+        {
+         "key": "gen_ai.input.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"forecast?\"}]}]"
+         }
+        },
+        {
+         "key": "gen_ai.output.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"text\", \"content\": \"Here is the forecast: sunny then light rain.\"}]}, {\"role\": \"assistant\", \"parts\": [{\"type\": \"tool_call\", \"id\": \"c1\", \"name\": \"temp\", \"arguments\": {\"city\": \"NYC\"}}]}, {\"role\": \"assistant\", \"parts\": [{\"type\": \"tool_call\", \"id\": \"c2\", \"name\": \"precip\", \"arguments\": {\"city\": \"NYC\"}}]}, {\"role\": \"tool\", \"parts\": [{\"type\": \"tool_call_response\", \"id\": \"c1\", \"response\": {\"v\": \"sunny\"}}]}, {\"role\": \"tool\", \"parts\": [{\"type\": \"tool_call_response\", \"id\": \"c2\", \"response\": {\"v\": \"light rain\"}}]}]"
+         }
+        }
+       ],
+       "events": []
+      },
+      {
+       "traceId": "cc00000000000000000000000000da01",
+       "spanId": "da00000000000011",
+       "name": "chat model-x",
+       "kind": 1,
+       "startTimeUnixNano": "1787000000000000001",
+       "endTimeUnixNano": "1787000000000000501",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "chat"
+         }
+        },
+        {
+         "key": "gen_ai.provider.name",
+         "value": {
+          "stringValue": "synthetic"
+         }
+        },
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "model-x"
+         }
+        },
+        {
+         "key": "gen_ai.input.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"forecast?\"}]}]"
+         }
+        },
+        {
+         "key": "gen_ai.output.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"tool_call\", \"id\": \"c1\", \"name\": \"temp\", \"arguments\": {\"city\": \"NYC\"}}, {\"type\": \"tool_call\", \"id\": \"c2\", \"name\": \"precip\", \"arguments\": {\"city\": \"NYC\"}}]}]"
+         }
+        }
+       ],
+       "events": [],
+       "parentSpanId": "da00000000000001"
+      },
+      {
+       "traceId": "cc00000000000000000000000000da01",
+       "spanId": "da00000000000012",
+       "name": "execute_tool temp",
+       "kind": 1,
+       "startTimeUnixNano": "1787000000000000002",
+       "endTimeUnixNano": "1787000000000000102",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "temp"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.id",
+         "value": {
+          "stringValue": "c1"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"city\": \"NYC\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"v\": \"sunny\"}"
+         }
+        }
+       ],
+       "events": [],
+       "parentSpanId": "da00000000000001"
+      },
+      {
+       "traceId": "cc00000000000000000000000000da01",
+       "spanId": "da00000000000013",
+       "name": "execute_tool precip",
+       "kind": 1,
+       "startTimeUnixNano": "1787000000000000003",
+       "endTimeUnixNano": "1787000000000000103",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "precip"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.id",
+         "value": {
+          "stringValue": "c2"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.arguments",
+         "value": {
+          "stringValue": "{\"city\": \"NYC\"}"
+         }
+        },
+        {
+         "key": "gen_ai.tool.call.result",
+         "value": {
+          "stringValue": "{\"v\": \"light rain\"}"
+         }
+        }
+       ],
+       "events": [],
+       "parentSpanId": "da00000000000001"
+      },
+      {
+       "traceId": "cc00000000000000000000000000da01",
+       "spanId": "da00000000000014",
+       "name": "chat model-x",
+       "kind": 1,
+       "startTimeUnixNano": "1787000000000000004",
+       "endTimeUnixNano": "1787000000000000504",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "chat"
+         }
+        },
+        {
+         "key": "gen_ai.provider.name",
+         "value": {
+          "stringValue": "synthetic"
+         }
+        },
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "model-x"
+         }
+        },
+        {
+         "key": "gen_ai.input.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"forecast?\"}]}, {\"role\": \"assistant\", \"parts\": [{\"type\": \"tool_call\", \"id\": \"c1\", \"name\": \"temp\", \"arguments\": {\"city\": \"NYC\"}}]}, {\"role\": \"assistant\", \"parts\": [{\"type\": \"tool_call\", \"id\": \"c2\", \"name\": \"precip\", \"arguments\": {\"city\": \"NYC\"}}]}, {\"role\": \"tool\", \"parts\": [{\"type\": \"tool_call_response\", \"id\": \"c1\", \"response\": {\"v\": \"sunny\"}}]}, {\"role\": \"tool\", \"parts\": [{\"type\": \"tool_call_response\", \"id\": \"c2\", \"response\": {\"v\": \"light rain\"}}]}]"
+         }
+        },
+        {
+         "key": "gen_ai.output.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"text\", \"content\": \"Here is the forecast: sunny then light rain.\"}], \"finish_reason\": \"stop\"}]"
+         }
+        }
+       ],
+       "events": [],
+       "parentSpanId": "da00000000000001"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

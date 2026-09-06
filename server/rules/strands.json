@@ -1,0 +1,12 @@
+{
+  "id": "strands",
+  "doc": "Strands Agents' own name for the system prompt.",
+  "carriers": [
+    {
+      "id": "strands.system_prompt",
+      "doc": "The system prompt a model was given, reported beside the conversation: a detached request frame.",
+      "match": { "attribute": "system_prompt" },
+      "facts": { "preset": "snapshot", "carrier_is_detached_request_frame": true }
+    }
+  ]
+}

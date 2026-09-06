@@ -294,6 +294,13 @@ struct InvariantRow {
     tool_use_id: Option<String>,
     /// The event or attribute this block was read from - what an extractor claims.
     carrier: String,
+    /// Whether that carrier's positions state the order its observations belong in.
+    ///
+    /// Read from the same declared carrier fact the pipeline read, with the same span context, rather
+    /// than re-derived here. The subsequence invariant applies only where a carrier *claims* an order:
+    /// an orchestration span re-listing a turn is a bag, and holding it to its listing order asserted
+    /// that a final answer preceded the tool calls that produced it.
+    carrier_orders_positions: bool,
     /// Where the block sat in that carrier's payload, as a sortable string.
     position: String,
 }
@@ -383,6 +390,10 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
                 (None, None) => "synthesised".to_string(),
             },
             position: block.position.to_string(),
+            carrier_orders_positions: crate::domain::sideml::carrier::semantics_for_context(
+                &block.carrier_context(),
+            )
+            .position_provides_sequence_order,
         })
         .collect();
 
@@ -946,6 +957,12 @@ fn assert_carrier_subsequence(label: &str, view_name: &str, rows: &[InvariantRow
         if row.carrier == "synthesised" || row.position.is_empty() {
             continue;
         }
+        // Nor does a carrier that states no order. This is the other half of "a carrier states order
+        // only where it has one": the array-divergence test below covers object members, and this
+        // covers carriers whose positions are not sequence evidence at all.
+        if !row.carrier_orders_positions {
+            continue;
+        }
         seen.entry((
             row.trace_id.as_str(),
             row.span_id.as_str(),
@@ -1486,6 +1503,7 @@ fn invariant_checks_are_not_vacuous() {
         InvariantRow {
             span_path: vec![format!("span-{index}")],
             carrier: "attr:test".to_string(),
+            carrier_orders_positions: true,
             position: index.to_string(),
             trace_id: trace.to_string(),
             span_id: "span-1".to_string(),
@@ -1503,6 +1521,7 @@ fn invariant_checks_are_not_vacuous() {
         InvariantRow {
             span_path: vec![format!("span-{index}")],
             carrier: "attr:test".to_string(),
+            carrier_orders_positions: true,
             position: index.to_string(),
             trace_id: trace.to_string(),
             span_id: "span-1".to_string(),
@@ -1590,6 +1609,7 @@ fn invariant_checks_are_not_vacuous() {
 
     // Scope: a span view must not contain another span's or another trace's block.
     let leaked = vec![InvariantRow {
+        carrier_orders_positions: true,
         carrier: "attr:test".to_string(),
         position: "0".to_string(),
         trace_id: "aaaaaaaa1111".to_string(),

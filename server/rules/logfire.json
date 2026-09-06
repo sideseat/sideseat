@@ -1,0 +1,12 @@
+{
+  "id": "logfire",
+  "doc": "Logfire's request payload.",
+  "carriers": [
+    {
+      "id": "logfire.request_data",
+      "doc": "The request as Logfire recorded it: a conversation the span received, which may re-state earlier turns.",
+      "match": { "attribute": "request_data" },
+      "facts": { "preset": "snapshot" }
+    }
+  ]
+}

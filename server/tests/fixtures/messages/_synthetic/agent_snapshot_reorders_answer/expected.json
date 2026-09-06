@@ -1,0 +1,355 @@
+{
+  "label": "_synthetic/agent_snapshot_reorders_answer",
+  "request_count": 1,
+  "span_count": 5,
+  "trace_count": 1,
+  "session_count": 0,
+  "span_views": {
+    "trace-1/chat model-x/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "forecast?",
+          "content_digest": "a481181f594a7b26",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"c1\",\"name\":\"temp\",\"input\":{\"city\":\"NYC\"}}",
+          "content_digest": "3f4a0f557d58e33e",
+          "tool_name": "temp",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"c2\",\"name\":\"precip\",\"input\":{\"city\":\"NYC\"}}",
+          "content_digest": "74005877e610cad6",
+          "tool_name": "precip",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat model-x/span-5": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "forecast?",
+          "content_digest": "a481181f594a7b26",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c1\",\"content\":[{\"type\":\"json\",\"data\":{\"v\":\"sunny\"}}]}",
+          "content_digest": "beecf9135fcdf643",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c2\",\"content\":[{\"type\":\"json\",\"data\":{\"v\":\"light rain\"}}]}",
+          "content_digest": "e05cb1e61dcd82ea",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Here is the forecast: sunny then light rain.",
+          "content_digest": "fcf0cd3bb92d715a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_tool precip/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"c2\",\"name\":\"precip\",\"input\":{\"city\":\"NYC\"}}",
+          "content_digest": "74005877e610cad6",
+          "tool_name": "precip",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c2\",\"name\":\"precip\",\"content\":{\"v\":\"light rain\"}}",
+          "content_digest": "b3f34f9c8d712962",
+          "tool_name": "precip",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/execute_tool temp/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"c1\",\"name\":\"temp\",\"input\":{\"city\":\"NYC\"}}",
+          "content_digest": "3f4a0f557d58e33e",
+          "tool_name": "temp",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c1\",\"name\":\"temp\",\"content\":{\"v\":\"sunny\"}}",
+          "content_digest": "a7a4b8e858e10bc8",
+          "tool_name": "temp",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/invoke_agent weather/span-1": {
+      "message_count": 6,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "forecast?",
+          "content_digest": "a481181f594a7b26",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Here is the forecast: sunny then light rain.",
+          "content_digest": "fcf0cd3bb92d715a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"c1\",\"name\":\"temp\",\"input\":{\"city\":\"NYC\"}}",
+          "content_digest": "3f4a0f557d58e33e",
+          "tool_name": "temp",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"c2\",\"name\":\"precip\",\"input\":{\"city\":\"NYC\"}}",
+          "content_digest": "74005877e610cad6",
+          "tool_name": "precip",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c1\",\"content\":[{\"type\":\"json\",\"data\":{\"v\":\"sunny\"}}]}",
+          "content_digest": "beecf9135fcdf643",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c2\",\"content\":[{\"type\":\"json\",\"data\":{\"v\":\"light rain\"}}]}",
+          "content_digest": "e05cb1e61dcd82ea",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 6,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "forecast?",
+          "content_digest": "a481181f594a7b26",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Here is the forecast: sunny then light rain.",
+          "content_digest": "fcf0cd3bb92d715a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"c1\",\"name\":\"temp\",\"input\":{\"city\":\"NYC\"}}",
+          "content_digest": "3f4a0f557d58e33e",
+          "tool_name": "temp",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"c2\",\"name\":\"precip\",\"input\":{\"city\":\"NYC\"}}",
+          "content_digest": "74005877e610cad6",
+          "tool_name": "precip",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c1\",\"name\":\"temp\",\"content\":{\"v\":\"sunny\"}}",
+          "content_digest": "a7a4b8e858e10bc8",
+          "tool_name": "temp",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c2\",\"name\":\"precip\",\"content\":{\"v\":\"light rain\"}}",
+          "content_digest": "b3f34f9c8d712962",
+          "tool_name": "precip",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {},
+  "feed_view": {
+    "message_count": 6,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "tool",
+      "user",
+      "assistant",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Here is the forecast: sunny then light rain.",
+        "content_digest": "fcf0cd3bb92d715a",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c2\",\"name\":\"precip\",\"content\":{\"v\":\"light rain\"}}",
+        "content_digest": "b3f34f9c8d712962",
+        "tool_name": "precip",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c1\",\"name\":\"temp\",\"content\":{\"v\":\"sunny\"}}",
+        "content_digest": "a7a4b8e858e10bc8",
+        "tool_name": "temp",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "forecast?",
+        "content_digest": "a481181f594a7b26",
+        "observation_type": "agent"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"c1\",\"name\":\"temp\",\"input\":{\"city\":\"NYC\"}}",
+        "content_digest": "3f4a0f557d58e33e",
+        "tool_name": "temp",
+        "observation_type": "agent"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"c2\",\"name\":\"precip\",\"input\":{\"city\":\"NYC\"}}",
+        "content_digest": "74005877e610cad6",
+        "tool_name": "precip",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}
