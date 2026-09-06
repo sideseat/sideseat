@@ -113,8 +113,16 @@
               "capture_as": "tool_use_id"
             },
             "skip_when": {
-              "capture_lacks_prefix": "toolu",
-              "body_starts_with": "{"
+              "all": [
+                {
+                  "path": "capture",
+                  "lacks_prefix": "toolu"
+                },
+                {
+                  "path": "body",
+                  "starts_with": "{"
+                }
+              ]
             }
           },
           {

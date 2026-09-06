@@ -28,18 +28,26 @@
           "select": "messages",
           "each": true,
           "require": {
-            "all_of": [
-              "role",
-              "content"
+            "all": [
+              {
+                "path": "role"
+              },
+              {
+                "path": "content"
+              }
             ]
           }
         },
         {
           "doc": "One message, written directly.",
           "require": {
-            "all_of": [
-              "role",
-              "content"
+            "all": [
+              {
+                "path": "role"
+              },
+              {
+                "path": "content"
+              }
             ]
           }
         }
@@ -74,18 +82,26 @@
             "finish_reason"
           ],
           "require": {
-            "any_of": [
-              "role",
-              "content"
+            "any": [
+              {
+                "path": "role"
+              },
+              {
+                "path": "content"
+              }
             ]
           }
         },
         {
           "doc": "One message, written directly. `any_of` here rather than `all_of`: a response may carry content with no role, which a request may not.",
           "require": {
-            "any_of": [
-              "role",
-              "content"
+            "any": [
+              {
+                "path": "role"
+              },
+              {
+                "path": "content"
+              }
             ]
           }
         }

@@ -30,8 +30,8 @@ use serde_json::{Value as JsonValue, json};
 use super::detect_rules::CompiledDetect;
 use super::schema::{
     Alternative, AttachSpec, BlockSpec, ComposeMember, ComposeSpec, EmitTarget, MemberPresence,
-    MemberRequirements, MessageRule, ParseMode, ReadSpec, RuleFile, SectionsSpec, ShapeRequirement,
-    WrapSpec,
+    MemberRequirements, MessageRule, ParseMode, PredicateSet, ReadSpec, RuleFile, SectionsSpec,
+    ValueKind, ValuePredicate, WrapSpec,
 };
 
 /// What an ingestion knows when it asks which carriers to read.
@@ -276,7 +276,48 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                      `indexed_family`",
                 ));
             }
+            // A predicate that cannot hold, or asserts nothing, is refused like any other no-op.
+            let check_predicates = |set: &PredicateSet| -> Option<&'static str> {
+                for predicate in set.all.iter().chain(set.any.iter()) {
+                    if predicate.non_empty.is_some()
+                        && matches!(
+                            predicate.kind,
+                            Some(ValueKind::Number | ValueKind::Bool | ValueKind::Null)
+                        )
+                    {
+                        return Some(
+                            "`non_empty` is meaningless for a number, boolean or null - only strings, \
+                             arrays and objects can be empty",
+                        );
+                    }
+                    if predicate.exists == Some(false)
+                        && (predicate.kind.is_some()
+                            || predicate.non_empty.is_some()
+                            || predicate.starts_with.is_some()
+                            || predicate.lacks_prefix.is_some())
+                    {
+                        return Some(
+                            "`exists: false` asserts the member is absent, so no other condition on it \
+                             can hold",
+                        );
+                    }
+                    if predicate.starts_with.is_some() && predicate.lacks_prefix.is_some() {
+                        return Some("`starts_with` and `lacks_prefix` on one predicate");
+                    }
+                }
+                None
+            };
+            for alternative in alternatives {
+                if let Some(detail) = check_predicates(&alternative.require) {
+                    return Err(inexpressible(detail));
+                }
+            }
             if let Some(sections) = sections {
+                for route in &sections.routes {
+                    if let Some(detail) = check_predicates(&route.skip_when) {
+                        return Err(inexpressible(detail));
+                    }
+                }
                 if sections.split_on.is_empty() {
                     return Err(inexpressible("`sections.split_on` is empty"));
                 }
@@ -648,19 +689,6 @@ fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonValue> {
     }
 }
 
-/// Whether a value has the shape a rule requires.
-fn shape_holds(value: &JsonValue, requirement: Option<&ShapeRequirement>) -> bool {
-    let Some(req) = requirement else {
-        return true;
-    };
-    if req.is_object && !value.is_object() {
-        return false;
-    }
-    let present = |member: &String| value.get(member.as_str()).is_some();
-    (req.all_of.is_empty() || req.all_of.iter().all(present))
-        && (req.any_of.is_empty() || req.any_of.iter().any(present))
-}
-
 /// The observations one payload yields, under the first alternative that produces any.
 ///
 /// An ordered coalesce over documented shapes. With no alternatives the payload is emitted as it stands,
@@ -709,7 +737,7 @@ fn readings(parsed: &JsonValue, alternatives: &[Alternative]) -> Vec<JsonValue> 
                 }
                 None => element.clone(),
             };
-            if shape_holds(&candidate, alternative.require.as_ref()) {
+            if predicates_hold(&candidate, &alternative.require) {
                 produced.push(candidate);
             }
         }
@@ -1049,16 +1077,13 @@ fn sectioned(raw: &str, spec: &SectionsSpec) -> Vec<JsonValue> {
         let Some((route, capture)) = matched else {
             continue;
         };
-        if let Some(skip) = &route.skip_when {
-            let capture_matches = skip
-                .capture_lacks_prefix
-                .as_deref()
-                .is_some_and(|prefix| capture.is_some_and(|c| !c.starts_with(prefix)));
-            let body_matches = skip
-                .body_starts_with
-                .as_deref()
-                .is_some_and(|opening| body.starts_with(opening));
-            if capture_matches && body_matches {
+        if !route.skip_when.is_empty() {
+            // The section as a value, so one predicate vocabulary answers this too.
+            let subject = json!({
+                "capture": capture.map(JsonValue::from).unwrap_or(JsonValue::Null),
+                "body": body,
+            });
+            if predicates_hold(&subject, &route.skip_when) {
                 continue;
             }
         }
@@ -1089,4 +1114,68 @@ fn sectioned(raw: &str, spec: &SectionsSpec) -> Vec<JsonValue> {
         out.push(JsonValue::Object(message));
     }
     out
+}
+
+/// Whether one predicate holds of a value.
+fn predicate_holds(value: &JsonValue, predicate: &ValuePredicate) -> bool {
+    let Some(subject) = (match &predicate.path {
+        Some(member) => value.get(member.as_str()),
+        None => Some(value),
+    }) else {
+        // Absent: only a predicate asserting absence is satisfied.
+        return predicate.exists == Some(false);
+    };
+    if predicate.exists == Some(false) {
+        return false;
+    }
+    if let Some(kind) = predicate.kind
+        && !matches_kind(subject, kind)
+    {
+        return false;
+    }
+    if let Some(want_non_empty) = predicate.non_empty {
+        let filled = match subject {
+            JsonValue::String(text) => !text.is_empty(),
+            JsonValue::Array(items) => !items.is_empty(),
+            JsonValue::Object(map) => !map.is_empty(),
+            // A scalar is neither empty nor non-empty; the compiler refuses the combination, so this arm
+            // only guards a ruleset built in-process by a test.
+            _ => true,
+        };
+        if filled != want_non_empty {
+            return false;
+        }
+    }
+    if let Some(prefix) = &predicate.starts_with
+        && !subject
+            .as_str()
+            .is_some_and(|text| text.starts_with(prefix.as_str()))
+    {
+        return false;
+    }
+    if let Some(prefix) = &predicate.lacks_prefix
+        && subject
+            .as_str()
+            .is_some_and(|text| text.starts_with(prefix.as_str()))
+    {
+        return false;
+    }
+    true
+}
+
+fn matches_kind(value: &JsonValue, kind: ValueKind) -> bool {
+    match kind {
+        ValueKind::Object => value.is_object(),
+        ValueKind::Array => value.is_array(),
+        ValueKind::String => value.is_string(),
+        ValueKind::Number => value.is_number(),
+        ValueKind::Bool => value.is_boolean(),
+        ValueKind::Null => value.is_null(),
+    }
+}
+
+/// Whether a predicate set holds of a value. An empty set holds.
+fn predicates_hold(value: &JsonValue, set: &PredicateSet) -> bool {
+    (set.all.is_empty() || set.all.iter().all(|p| predicate_holds(value, p)))
+        && (set.any.is_empty() || set.any.iter().any(|p| predicate_holds(value, p)))
 }

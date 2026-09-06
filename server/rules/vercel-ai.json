@@ -93,7 +93,11 @@
           "doc": "The payload is the array itself.",
           "each": true,
           "require": {
-            "is_object": true
+            "all": [
+              {
+                "kind": "object"
+              }
+            ]
           }
         }
       ]

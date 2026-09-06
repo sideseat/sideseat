@@ -698,8 +698,11 @@ pub struct Alternative {
     #[serde(default)]
     pub lift: Vec<String>,
     /// The shape an observation must have to be emitted.
+    ///
+    /// A predicate set, so "has a role and content", "is an object" and "is a non-empty string" are one
+    /// vocabulary rather than three fields that grew one at a time.
     #[serde(default)]
-    pub require: Option<ShapeRequirement>,
+    pub require: PredicateSet,
 }
 
 /// What an emitted value must look like. Both forms exist because the extractors use both, and the
@@ -838,9 +841,18 @@ pub struct SectionRoute {
     /// Build a content block instead of putting the body under `content`.
     #[serde(default)]
     pub block: Option<SectionBlock>,
-    /// Drop the section entirely when this holds.
+    /// Drop the section entirely when every one of these holds, tested against
+    /// `{"capture": <tag remainder>, "body": <section body>}`.
+    ///
+    /// Predicates rather than a fused pair. It was `capture_lacks_prefix` **and** `body_starts_with`,
+    /// which is one producer's policy in the shape of a field - the weakest feature in the vocabulary by
+    /// its own test. What it expresses is unchanged and still narrow on purpose: a dialect writes each
+    /// tool result twice, once as the text the model saw tagged with the call id and once as raw
+    /// structured telemetry tagged with the tool's name, and emitting both shows every result twice. The
+    /// conditions stay conjunctive so that if the id prefix ever changes, an unrecognised section reaches
+    /// the feed unlinked rather than vanishing from it.
     #[serde(default)]
-    pub skip_when: Option<SectionSkip>,
+    pub skip_when: PredicateSet,
 }
 
 /// A block built from a section, carrying what the tag captured.
@@ -857,20 +869,73 @@ pub struct SectionBlock {
     pub content_as: Option<String>,
 }
 
-/// When a matched section is dropped rather than emitted.
+// ============================================================================
+// VALUE PREDICATES
+// ============================================================================
+
+/// A condition on a JSON value, or on a member of it.
 ///
-/// Both conditions must hold. One dialect writes each tool result twice - once as the text the model saw,
-/// tagged with the call id, and once as raw structured telemetry tagged with the tool's name - and
-/// emitting both shows every result twice. The test is deliberately *narrow*: only a section whose capture
-/// lacks the id prefix **and** whose body opens as JSON is dropped, so if that prefix ever changes an
-/// unrecognised section still reaches the feed unlinked rather than vanishing from it.
-#[derive(Debug, Deserialize, Clone)]
+/// One vocabulary for every question the rules ask *about a value*: whether an alternative's shape holds,
+/// whether a source is eligible, whether a section is dropped. Before this there were three bespoke
+/// spellings - a member-name list, an `is_object` flag, and a fused "capture lacks prefix and body starts
+/// with" pair - and a fourth was about to be added for a dialect that needs "this member is an object, or
+/// that one is a non-empty string". Three narrow predicates are harder to reason about than one, and the
+/// fused pair was producer policy wearing a generic name.
+///
+/// Deliberately *not* used for attribute-key presence (`MemberRequirements`): that asks about a flat map of
+/// dotted keys, where "nested" means "some other key starts with this one". Same word, different domain -
+/// and one type spanning both would have to mean different things depending on where it was used.
+#[derive(Debug, Deserialize, Clone, Default)]
 #[serde(deny_unknown_fields)]
-pub struct SectionSkip {
-    /// The capture does *not* start with this.
+pub struct ValuePredicate {
+    /// The member to test. Absent means the value itself.
     #[serde(default)]
-    pub capture_lacks_prefix: Option<String>,
-    /// The body starts with this.
+    pub path: Option<String>,
+    /// The member must be present. Implied when the predicate names nothing else.
     #[serde(default)]
-    pub body_starts_with: Option<String>,
+    pub exists: Option<bool>,
+    /// The value's JSON kind.
+    #[serde(default)]
+    pub kind: Option<ValueKind>,
+    /// A string, array or object must not be empty. Meaningless for other kinds, and refused there.
+    #[serde(default)]
+    pub non_empty: Option<bool>,
+    /// A string must start with this.
+    #[serde(default)]
+    pub starts_with: Option<String>,
+    /// A string must *not* start with this.
+    #[serde(default)]
+    pub lacks_prefix: Option<String>,
+}
+
+/// A JSON kind, for `ValuePredicate::kind`.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ValueKind {
+    Object,
+    Array,
+    String,
+    Number,
+    Bool,
+    Null,
+}
+
+/// A set of value predicates, combined.
+///
+/// `all` and `any` both, because the dialects need both and the difference is real: a request's message
+/// needs a role *and* content, while a response may carry either a structured message *or* streamed text.
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
+pub struct PredicateSet {
+    #[serde(default)]
+    pub all: Vec<ValuePredicate>,
+    #[serde(default)]
+    pub any: Vec<ValuePredicate>,
+}
+
+impl PredicateSet {
+    /// Nothing to check.
+    pub fn is_empty(&self) -> bool {
+        self.all.is_empty() && self.any.is_empty()
+    }
 }
