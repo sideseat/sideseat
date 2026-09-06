@@ -242,13 +242,17 @@ pub(super) mod keys {
     pub const TOOL_ARGUMENTS: &str = "tool_arguments";
     #[cfg(test)]
     pub const TOOL_RESPONSE: &str = "tool_response";
+    #[cfg(test)]
     pub const PYDANTIC_AI_ALL_MESSAGES: &str = "pydantic_ai.all_messages";
+    #[cfg(test)]
     pub const GEN_AI_SYSTEM_INSTRUCTIONS: &str = "gen_ai.system_instructions";
 
     // OTEL Standard GenAI Messages
     pub const GEN_AI_INPUT_MESSAGES: &str = "gen_ai.input.messages";
     pub const GEN_AI_OUTPUT_MESSAGES: &str = "gen_ai.output.messages";
+    #[cfg(test)]
     pub const GEN_AI_TOOL_CALL_ARGUMENTS: &str = "gen_ai.tool.call.arguments";
+    #[cfg(test)]
     pub const GEN_AI_TOOL_CALL_RESULT: &str = "gen_ai.tool.call.result";
 
     // LangSmith OTEL Exporter

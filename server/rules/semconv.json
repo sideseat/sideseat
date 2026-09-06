@@ -165,7 +165,8 @@
       },
       "require_member": "content",
       "emit": "message",
-      "legacy_rank": 100
+      "legacy_rank": 100,
+      "reads_tool_spans": true
     },
     {
       "id": "semconv.indexed_completion",
@@ -175,7 +176,120 @@
       },
       "require_member": "content",
       "emit": "message",
-      "legacy_rank": 110
+      "legacy_rank": 110,
+      "reads_tool_spans": true
+    },
+    {
+      "id": "semconv.system_instructions",
+      "doc": "The system prompt as a parts array. Wrapped with the parts under `parts` rather than `content`, which is how the conventions write a structured instruction.",
+      "read": {
+        "attribute": "gen_ai.system_instructions"
+      },
+      "parse": "json",
+      "wrap": {
+        "role": "system",
+        "content_as": "parts"
+      },
+      "emit": "message",
+      "legacy_rank": 120,
+      "reads_tool_spans": true
+    },
+    {
+      "id": "semconv.input_messages",
+      "doc": "The request, stored as it arrived: normalisation happens at query time, so the payload is kept whole.",
+      "read": {
+        "attribute": "gen_ai.input.messages"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 130,
+      "reads_tool_spans": true
+    },
+    {
+      "id": "semconv.output_messages",
+      "doc": "The response, stored as it arrived.",
+      "read": {
+        "attribute": "gen_ai.output.messages"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 140,
+      "reads_tool_spans": true
+    },
+    {
+      "id": "semconv.all_messages",
+      "doc": "A whole conversation reported on an agent-run span. Wrapped as context with a literal naming what it is, so the array normalises as history rather than as one turn's content.",
+      "read": {
+        "attribute": "pydantic_ai.all_messages"
+      },
+      "parse": "json",
+      "wrap": {
+        "role": "context",
+        "members": {
+          "type": "conversation_history"
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 150,
+      "reads_tool_spans": true
+    },
+    {
+      "id": "semconv.tool_call_arguments",
+      "doc": "A tool call. Built as a `tool_use` block, not a bare object under a role: the block shape is what carries the name and the id through normalisation, and the id is what lets the result be paired with this call rather than guessed at by content. The name falls back to the span name because the conventions prescribe `execute_tool {name}` there, and it defaults to empty rather than being omitted - a block whose shape requires a name carries an empty one, and the two are different values to anything hashing the payload.",
+      "read": {
+        "attribute": "gen_ai.tool.call.arguments"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "assistant",
+        "block": {
+          "type": "tool_use",
+          "content_as": "input",
+          "attach": [
+            {
+              "from": "gen_ai.tool.name",
+              "as": "name",
+              "or_span_name_after": "execute_tool ",
+              "default": ""
+            },
+            {
+              "from": "gen_ai.tool.call.id",
+              "as": "id"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 160,
+      "reads_tool_spans": true
+    },
+    {
+      "id": "semconv.tool_call_result",
+      "doc": "The answer to it, as a `tool_result` block carrying the same id. Here the name is *omitted* when absent rather than defaulted, which is what the extractor did - the block is identified by its id.",
+      "read": {
+        "attribute": "gen_ai.tool.call.result"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "tool",
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "gen_ai.tool.name",
+              "as": "name",
+              "or_span_name_after": "execute_tool "
+            },
+            {
+              "from": "gen_ai.tool.call.id",
+              "as": "tool_use_id"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 170,
+      "reads_tool_spans": true
     }
   ]
 }

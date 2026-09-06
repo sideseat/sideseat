@@ -6825,6 +6825,44 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             ("lk.response.text", ""),
             ("lk.response.function_calls", r#"[{"name":"t"}]"#),
         ]),
+        // The conventions themselves: request and response kept whole.
+        rule_attrs(&[("gen_ai.input.messages", r#"[{"role":"user","parts":[]}]"#)]),
+        rule_attrs(&[(
+            "gen_ai.output.messages",
+            r#"[{"role":"assistant","parts":[]}]"#,
+        )]),
+        // A structured instruction, which goes under `parts` rather than `content`.
+        rule_attrs(&[(
+            "gen_ai.system_instructions",
+            r#"[{"type":"text","content":"be brief"}]"#,
+        )]),
+        rule_attrs(&[("gen_ai.system_instructions", "not json")]),
+        // A whole conversation on an agent-run span.
+        rule_attrs(&[("pydantic_ai.all_messages", r#"[{"role":"user"}]"#)]),
+        // A tool call as a block, with the name and id beside it.
+        rule_attrs(&[
+            ("gen_ai.tool.call.arguments", r#"{"city":"NYC"}"#),
+            ("gen_ai.tool.name", "weather"),
+            ("gen_ai.tool.call.id", "call_1"),
+        ]),
+        // No name attribute: the empty default must be present, not the member omitted.
+        rule_attrs(&[("gen_ai.tool.call.arguments", r#"{"city":"NYC"}"#)]),
+        // The result, where an absent name is *omitted* rather than defaulted.
+        rule_attrs(&[
+            ("gen_ai.tool.call.result", r#"{"v":"sunny"}"#),
+            ("gen_ai.tool.call.id", "call_1"),
+        ]),
+        rule_attrs(&[
+            ("gen_ai.tool.call.result", "plain result"),
+            ("gen_ai.tool.name", "weather"),
+        ]),
+        // Both halves of the pair on one span.
+        rule_attrs(&[
+            ("gen_ai.tool.call.arguments", r#"{"a":1}"#),
+            ("gen_ai.tool.call.result", r#"{"b":2}"#),
+            ("gen_ai.tool.name", "t"),
+            ("gen_ai.tool.call.id", "id1"),
+        ]),
     ];
 
     let mut disagreements = Vec::new();
@@ -6840,6 +6878,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             try_pydantic_ai,
             try_langsmith,
             try_livekit,
+            try_otel_genai_messages,
         ] {
             legacy_found |= f(&mut legacy_msgs, &mut legacy_tools, case, "span", time);
         }
@@ -6887,8 +6926,8 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        19,
-        "the assets declare {} message rules; six extractors were replaced by them",
+        25,
+        "the assets declare {} message rules; seven extractors were replaced by them",
         plan.rule_count()
     );
     for rule in plan.rules() {
@@ -6957,6 +6996,7 @@ fn the_two_parse_modes_differ_where_it_matters() {
     let emissions = plan.run(&MessageContext {
         span_name: "s",
         span_attrs: &span_attrs,
+        is_tool_span: false,
     });
     let ids: Vec<&str> = emissions.iter().map(|e| e.rule_id).collect();
     assert_eq!(

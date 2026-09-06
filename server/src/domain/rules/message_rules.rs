@@ -28,8 +28,8 @@ use std::collections::HashMap;
 use serde_json::{Value as JsonValue, json};
 
 use super::schema::{
-    Alternative, AttachSpec, DetectMatch, EmitTarget, MessageRule, ParseMode, ReadSpec, RuleFile,
-    ShapeRequirement, WrapSpec,
+    Alternative, AttachSpec, BlockSpec, DetectMatch, EmitTarget, MessageRule, ParseMode, ReadSpec,
+    RuleFile, ShapeRequirement, WrapSpec,
 };
 
 /// What an ingestion knows when it asks which carriers to read.
@@ -37,6 +37,8 @@ use super::schema::{
 pub struct MessageContext<'a> {
     pub span_name: &'a str,
     pub span_attrs: &'a HashMap<String, String>,
+    /// Whether this is a tool execution span, which only some rules may read.
+    pub is_tool_span: bool,
 }
 
 /// Where an emitted observation came from, in the vocabulary the ingestion types use.
@@ -82,6 +84,7 @@ pub struct CompiledMessageRule {
     pub when: Option<DetectMatch>,
     pub unless: Option<DetectMatch>,
     pub require_non_empty: bool,
+    pub reads_tool_spans: bool,
     pub alternatives: Vec<Alternative>,
     pub legacy_rank: i32,
 }
@@ -175,6 +178,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 emit,
                 require_member,
                 require_non_empty,
+                reads_tool_spans,
                 unless,
                 when,
                 alternatives,
@@ -202,6 +206,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 when: when.clone(),
                 unless: unless.clone(),
                 require_non_empty: *require_non_empty,
+                reads_tool_spans: *reads_tool_spans,
                 alternatives: alternatives.clone(),
                 legacy_rank: *legacy_rank,
             });
@@ -300,7 +305,7 @@ impl MessagePlan {
             };
             for value in readings(&parsed, &rule.alternatives) {
                 let value = match &rule.wrap {
-                    Some(wrap) => wrapped(value, wrap, ctx.span_attrs),
+                    Some(wrap) => wrapped(value, wrap, ctx),
                     None => value,
                 };
                 out.push(Emission {
@@ -472,6 +477,9 @@ fn sniffed_value(raw: &str) -> JsonValue {
 
 /// Both gates, in one place so every read form is subject to them.
 fn gates_allow(rule: &CompiledMessageRule, ctx: &MessageContext<'_>) -> bool {
+    if ctx.is_tool_span && !rule.reads_tool_spans {
+        return false;
+    }
     if let Some(gate) = &rule.when
         && !super::detect_rules::signals_hold(gate, ctx.span_name, ctx.span_attrs)
     {
@@ -503,7 +511,12 @@ fn resolve_attribute<'p, 's>(
 }
 
 /// Build the declared envelope around a read value.
-fn wrapped(value: JsonValue, wrap: &WrapSpec, attrs: &HashMap<String, String>) -> JsonValue {
+fn wrapped(value: JsonValue, wrap: &WrapSpec, ctx: &MessageContext<'_>) -> JsonValue {
+    // A content block, when the carrier holds one part of a block rather than a whole message.
+    let value = match &wrap.block {
+        Some(block) => JsonValue::Array(vec![built_block(value, block, ctx)]),
+        None => value,
+    };
     let mut object = serde_json::Map::new();
     object.insert("role".to_string(), json!(wrap.role));
     for (member, literal) in &wrap.members {
@@ -513,28 +526,60 @@ fn wrapped(value: JsonValue, wrap: &WrapSpec, attrs: &HashMap<String, String>) -
     // Before the content member, then the content, then after - because the order is observable: see
     // `AttachSpec::after_content`.
     for attach in wrap.attach.iter().filter(|a| !a.after_content) {
-        if let Some(attached) = attached_value(attach, attrs) {
+        if let Some(attached) = attached_value(attach, ctx) {
             object.insert(attach.as_member.clone(), attached);
         }
     }
     object.insert(content_member.to_string(), value);
     for attach in wrap.attach.iter().filter(|a| a.after_content) {
-        if let Some(attached) = attached_value(attach, attrs) {
+        if let Some(attached) = attached_value(attach, ctx) {
             object.insert(attach.as_member.clone(), attached);
         }
     }
     JsonValue::Object(object)
 }
 
-/// One attachment's value, or `None` where the span does not carry it.
-fn attached_value(attach: &AttachSpec, attrs: &HashMap<String, String>) -> Option<JsonValue> {
-    let raw = attrs.get(&attach.from)?;
-    if let Some(expected) = &attach.when_equals {
-        if raw != expected {
-            return None;
+/// The block a rule builds around its read value.
+fn built_block(value: JsonValue, block: &BlockSpec, ctx: &MessageContext<'_>) -> JsonValue {
+    let mut object = serde_json::Map::new();
+    object.insert("type".to_string(), json!(block.block_type));
+    for attach in block.attach.iter().filter(|a| !a.after_content) {
+        if let Some(attached) = attached_value(attach, ctx) {
+            object.insert(attach.as_member.clone(), attached);
         }
-        // A flag: the literal is the point, not the string that proved it.
-        return Some(attach.value.clone().unwrap_or(json!(true)));
     }
-    parse_value(raw, attach.parse.unwrap_or(ParseMode::Text))
+    object.insert(
+        block.content_as.as_deref().unwrap_or("content").to_string(),
+        value,
+    );
+    for attach in block.attach.iter().filter(|a| a.after_content) {
+        if let Some(attached) = attached_value(attach, ctx) {
+            object.insert(attach.as_member.clone(), attached);
+        }
+    }
+    JsonValue::Object(object)
+}
+
+/// One attachment's value, or `None` where nothing supplied one.
+fn attached_value(attach: &AttachSpec, ctx: &MessageContext<'_>) -> Option<JsonValue> {
+    if let Some(raw) = ctx.span_attrs.get(&attach.from) {
+        if let Some(expected) = &attach.when_equals {
+            if raw != expected {
+                return None;
+            }
+            // A flag: the literal is the point, not the string that proved it.
+            return Some(attach.value.clone().unwrap_or(json!(true)));
+        }
+        return parse_value(raw, attach.parse.unwrap_or(ParseMode::Text));
+    }
+    // The span name, where the conventions put the same fact.
+    if let Some(prefix) = &attach.or_span_name_after
+        && let Some(rest) = ctx.span_name.strip_prefix(prefix.as_str())
+    {
+        let trimmed = rest.trim();
+        if !trimmed.is_empty() {
+            return Some(json!(trimmed));
+        }
+    }
+    attach.default.clone()
 }

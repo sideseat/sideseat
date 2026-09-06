@@ -340,6 +340,9 @@ pub(crate) fn try_declared_rules(
             .run(&crate::domain::rules::MessageContext {
                 span_name,
                 span_attrs: attrs,
+                // Asked here rather than threaded through the extractor signature: it is a pure function
+                // of the span, and a rule declares whether it may read such a span.
+                is_tool_span: is_tool_execution_span(attrs),
             });
     let found = !emissions.is_empty();
     for emission in emissions {
@@ -382,10 +385,6 @@ struct NamedExtractor {
 /// If you need to debug framework detection, enable SIDESEAT_LOG=trace to see
 /// which extractor is used for each span.
 const EXTRACTORS: &[NamedExtractor] = &[
-    NamedExtractor {
-        name: "otel_genai_messages",
-        extractor: try_otel_genai_messages,
-    },
     NamedExtractor {
         name: "openinference",
         extractor: try_openinference,
@@ -466,7 +465,7 @@ const FALLBACK_RULE: &str = "raw_io";
 /// duplicated the call and made the order depend on which copy survived dedup, which
 /// `which_copy_survives_does_not_change_the_order` caught on `adk/tool_use`. So a tool span reads the
 /// conventions and nothing else.
-const SEMCONV_RULE: &str = "otel_genai_messages";
+const SEMCONV_RULE: &str = "declared_rules";
 
 pub(crate) fn extract_messages_from_attrs(
     messages: &mut Vec<RawMessage>,
@@ -925,6 +924,7 @@ pub(crate) fn try_gen_ai_indexed(
 }
 
 /// OTEL standard GenAI messages (gen_ai.input/output.messages).
+#[cfg(test)]
 pub(crate) fn try_otel_genai_messages(
     messages: &mut Vec<RawMessage>,
     _tool_definitions: &mut Vec<RawToolDefinition>,

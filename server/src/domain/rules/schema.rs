@@ -439,6 +439,14 @@ pub struct MessageRule {
     /// three dialects migrated first needed.
     #[serde(default)]
     pub alternatives: Vec<Alternative>,
+    /// May this rule read a *tool execution* span?
+    ///
+    /// A tool span reads the conventions and nothing else. The reason is that a tool span carries the
+    /// call and its result under the conventions' own keys, while a dialect's broader carriers on the same
+    /// span hold the enclosing agent's state - read there they duplicate the turn. That was a hardcoded
+    /// exemption for one extractor by name; it is a property of a rule now.
+    #[serde(default)]
+    pub reads_tool_spans: bool,
     /// Skip a carrier whose value is empty.
     ///
     /// An attribute present and empty is not evidence of a message, and wrapping it produces a turn with
@@ -542,6 +550,29 @@ pub struct WrapSpec {
     /// belongs in an asset.
     #[serde(default)]
     pub attach: Vec<AttachSpec>,
+    /// Wrap the value in a *content block* first, and make that block the message's only content.
+    ///
+    /// A tool call is not a bare object under a role: it is a `tool_use` block, and the block shape is
+    /// what carries the name and the id through normalisation. Emitting the arguments without them
+    /// produced a nameless call the pipeline then discarded - extracted and *then* dropped, which is
+    /// worse than not reading it, because every layer looked fine.
+    #[serde(default)]
+    pub block: Option<BlockSpec>,
+}
+
+/// A content block built around the read value.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct BlockSpec {
+    /// The block's `type` member - `tool_use`, `tool_result`.
+    #[serde(rename = "type")]
+    pub block_type: String,
+    /// The member the read value becomes inside the block. Defaults to `content`.
+    #[serde(default)]
+    pub content_as: Option<String>,
+    /// Members taken from sibling attributes, as on the envelope.
+    #[serde(default)]
+    pub attach: Vec<AttachSpec>,
 }
 
 /// One member taken from a sibling attribute.
@@ -565,6 +596,18 @@ pub struct AttachSpec {
     /// The literal to attach instead of the attribute's value, for a flag.
     #[serde(default)]
     pub value: Option<JsonValue>,
+    /// Fall back to the span name with this prefix removed, trimmed, when the attribute is absent.
+    ///
+    /// The conventions prescribe `execute_tool {name}` as a tool span's name, so a producer that omits
+    /// the attribute still names the tool - and an unnamed call is unusable downstream.
+    #[serde(default)]
+    pub or_span_name_after: Option<String>,
+    /// Attach this literal when nothing else supplied a value.
+    ///
+    /// Distinct from omitting the member: a block whose shape *requires* a name carries an empty one
+    /// rather than none, and the two are different values to anything hashing the payload.
+    #[serde(default)]
+    pub default: Option<JsonValue>,
     /// Place this member *after* the content member rather than before it.
     ///
     /// Member order is declared because it is observable: this map preserves insertion order, the message
