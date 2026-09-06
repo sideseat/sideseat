@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 use rust_embed::RustEmbed;
 use serde::Deserialize;
+use serde_json::Value as JsonValue;
 
 /// The embedded rule assets.
 #[derive(RustEmbed)]
@@ -438,6 +439,18 @@ pub struct MessageRule {
     /// three dialects migrated first needed.
     #[serde(default)]
     pub alternatives: Vec<Alternative>,
+    /// Skip a carrier whose value is empty.
+    ///
+    /// An attribute present and empty is not evidence of a message, and wrapping it produces a turn with
+    /// nothing in it - which the no-empty-content invariant then rejects downstream.
+    #[serde(default)]
+    pub require_non_empty: bool,
+    /// A negative gate: the rule is skipped where this holds.
+    ///
+    /// Symmetric to `when`, and needed for a genuine either/or - a response is read from its text when it
+    /// has text, and from its tool calls only when it does not, or one response would be emitted twice.
+    #[serde(default)]
+    pub unless: Option<DetectMatch>,
     /// A member an indexed entry must carry to count as one.
     ///
     /// An index exists as soon as *any* key mentions it, and a family legitimately holds keys that are
@@ -464,6 +477,13 @@ pub struct ReadSpec {
     pub attribute: Option<String>,
     #[serde(default)]
     pub event: Option<String>,
+    /// Ordered carrier alternatives: the first of these the span carries is read, and the observation is
+    /// tagged with **that** key.
+    ///
+    /// A dialect that renamed a key keeps accepting the old one, and the tag has to be the key actually
+    /// found or two spans carrying different spellings would be indistinguishable downstream.
+    #[serde(default)]
+    pub attribute_any_of: Vec<String>,
     /// An *indexed attribute family*: `<prefix>.0.role`, `<prefix>.0.content`, `<prefix>.1.role`, ...
     ///
     /// One entry per index, each assembled from every key under it with the prefix stripped. This is an
@@ -481,6 +501,7 @@ impl ReadSpec {
         usize::from(self.attribute.is_some())
             + usize::from(self.event.is_some())
             + usize::from(self.indexed_family.is_some())
+            + usize::from(!self.attribute_any_of.is_empty())
     }
 }
 
@@ -492,13 +513,66 @@ pub enum ParseMode {
     Json,
     /// Parse as JSON, keeping the raw text as a string if it does not parse.
     JsonOrString,
+    /// Keep the raw text. Some carriers hold prose, and parsing it would turn a bare word into a
+    /// non-string or an accidental number into a number.
+    Text,
 }
 
 /// The envelope a bare payload is wrapped in.
+///
+/// Some carriers hold a payload rather than a message - a tool's arguments, an instruction, a response's
+/// text - and what that payload *is* is a fact about the carrier, so the envelope is declared beside it.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct WrapSpec {
     pub role: String,
+    /// The member the read value becomes. Defaults to `content`.
+    ///
+    /// Not always content: a response carrying only tool calls has no content, and putting the calls
+    /// under `content` would render them as the assistant's prose.
+    #[serde(default)]
+    pub content_as: Option<String>,
+    /// Literal members added to the envelope.
+    #[serde(default)]
+    pub members: BTreeMap<String, JsonValue>,
+    /// Members taken from *other* attributes of the same span.
+    ///
+    /// A dialect writes one logical message across several attributes - the arguments here, the tool's
+    /// name and call id there - and which attribute holds which part is exactly the knowledge that
+    /// belongs in an asset.
+    #[serde(default)]
+    pub attach: Vec<AttachSpec>,
+}
+
+/// One member taken from a sibling attribute.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct AttachSpec {
+    /// The attribute to read.
+    pub from: String,
+    /// The member it becomes.
+    #[serde(rename = "as")]
+    pub as_member: String,
+    /// How to read it. Defaults to text.
+    #[serde(default)]
+    pub parse: Option<ParseMode>,
+    /// Attach only when the source attribute equals this exactly.
+    ///
+    /// How a boolean flag arrives: an attribute whose string is `"true"`. Without the comparison the
+    /// literal `"false"` would attach as a truthy value.
+    #[serde(default)]
+    pub when_equals: Option<String>,
+    /// The literal to attach instead of the attribute's value, for a flag.
+    #[serde(default)]
+    pub value: Option<JsonValue>,
+    /// Place this member *after* the content member rather than before it.
+    ///
+    /// Member order is declared because it is observable: this map preserves insertion order, the message
+    /// is stored as serialised JSON, and content identity is computed from that payload - so moving a
+    /// member changes a message's hash and with it what deduplication considers the same message. The
+    /// orders here reproduce what the extractors emitted, which is why they are stated rather than chosen.
+    #[serde(default)]
+    pub after_content: bool,
 }
 
 /// What an emitted observation is.

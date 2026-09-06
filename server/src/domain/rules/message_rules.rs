@@ -28,8 +28,8 @@ use std::collections::HashMap;
 use serde_json::{Value as JsonValue, json};
 
 use super::schema::{
-    Alternative, DetectMatch, EmitTarget, MessageRule, ParseMode, ReadSpec, RuleFile,
-    ShapeRequirement,
+    Alternative, AttachSpec, DetectMatch, EmitTarget, MessageRule, ParseMode, ReadSpec, RuleFile,
+    ShapeRequirement, WrapSpec,
 };
 
 /// What an ingestion knows when it asks which carriers to read.
@@ -77,9 +77,11 @@ pub struct CompiledMessageRule {
     pub read: ReadSpec,
     pub parse: Option<ParseMode>,
     pub require_member: Option<String>,
-    pub wrap_role: Option<String>,
+    pub wrap: Option<WrapSpec>,
     pub target: EmitTarget,
     pub when: Option<DetectMatch>,
+    pub unless: Option<DetectMatch>,
+    pub require_non_empty: bool,
     pub alternatives: Vec<Alternative>,
     pub legacy_rank: i32,
 }
@@ -172,6 +174,8 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 wrap,
                 emit,
                 require_member,
+                require_non_empty,
+                unless,
                 when,
                 alternatives,
                 legacy_rank,
@@ -182,7 +186,8 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             if read.named_count() != 1 {
                 return Err(MessageCompileError::NotExactlyOneCarrier { rule: id.clone() });
             }
-            if carrier_name(read).is_empty() {
+            let carriers = declared_carriers(read);
+            if carriers.is_empty() || carriers.iter().any(|name| name.is_empty()) {
                 return Err(MessageCompileError::EmptyCarrier { rule: id.clone() });
             }
             rules.push(CompiledMessageRule {
@@ -192,9 +197,11 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 read: read.clone(),
                 parse: *parse,
                 require_member: require_member.clone(),
-                wrap_role: wrap.as_ref().map(|w| w.role.clone()),
+                wrap: wrap.clone(),
                 target: *emit,
                 when: when.clone(),
+                unless: unless.clone(),
+                require_non_empty: *require_non_empty,
                 alternatives: alternatives.clone(),
                 legacy_rank: *legacy_rank,
             });
@@ -211,14 +218,16 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     // ingestion claims a carrier once, so a second rule reading it is dead weight that looks live.
     for (i, a) in rules.iter().enumerate() {
         for b in &rules[i + 1..] {
-            let same_kind = (a.read.attribute.is_some() && b.read.attribute.is_some())
-                || (a.read.event.is_some() && b.read.event.is_some())
-                || (a.read.indexed_family.is_some() && b.read.indexed_family.is_some());
-            if same_kind && carrier_name(&a.read) == carrier_name(&b.read) {
+            let shared = declared_carriers(&a.read)
+                .into_iter()
+                .find(|name| declared_carriers(&b.read).contains(name));
+            if same_kind(&a.read, &b.read)
+                && let Some(carrier) = shared
+            {
                 return Err(MessageCompileError::ContestedCarrier {
                     first: a.rule_id.clone(),
                     second: b.rule_id.clone(),
-                    carrier: carrier_name(&a.read).to_string(),
+                    carrier: carrier.to_string(),
                 });
             }
         }
@@ -227,12 +236,34 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     Ok(MessagePlan { rules })
 }
 
-fn carrier_name(read: &ReadSpec) -> &str {
-    read.attribute
-        .as_deref()
-        .or(read.event.as_deref())
-        .or(read.indexed_family.as_deref())
-        .unwrap_or_default()
+/// Every carrier name a rule may tag an observation with.
+///
+/// Total over the read forms on purpose. A function returning "the" carrier name had to pick one, and
+/// each time a read form was added it silently returned nothing for it - reported as an empty carrier
+/// twice, once for indexed families and once for ordered alternatives. A list forces every form to be
+/// answered, and it is also the right input to the contested-carrier check, since a rule offering two
+/// spellings can contest either of them.
+fn declared_carriers(read: &ReadSpec) -> Vec<&str> {
+    let mut names = Vec::new();
+    if let Some(attribute) = read.attribute.as_deref() {
+        names.push(attribute);
+    }
+    if let Some(event) = read.event.as_deref() {
+        names.push(event);
+    }
+    if let Some(family) = read.indexed_family.as_deref() {
+        names.push(family);
+    }
+    names.extend(read.attribute_any_of.iter().map(String::as_str));
+    names
+}
+
+/// Whether two rules read the same carrier in the same way.
+fn same_kind(a: &ReadSpec, b: &ReadSpec) -> bool {
+    let attribute_like = |r: &ReadSpec| r.attribute.is_some() || !r.attribute_any_of.is_empty();
+    (attribute_like(a) && attribute_like(b))
+        || (a.event.is_some() && b.event.is_some())
+        || (a.indexed_family.is_some() && b.indexed_family.is_some())
 }
 
 impl MessagePlan {
@@ -240,12 +271,10 @@ impl MessagePlan {
     pub fn run<'p>(&'p self, ctx: &MessageContext<'_>) -> Vec<Emission<'p>> {
         let mut out = Vec::new();
         for rule in &self.rules {
+            if !gates_allow(rule, ctx) {
+                continue;
+            }
             if let Some(family) = rule.read.indexed_family.as_deref() {
-                if let Some(gate) = &rule.when
-                    && !super::detect_rules::signals_hold(gate, ctx.span_name, ctx.span_attrs)
-                {
-                    continue;
-                }
                 for (carrier, value) in
                     indexed_entries(ctx.span_attrs, family, rule.require_member.as_deref())
                 {
@@ -260,23 +289,18 @@ impl MessagePlan {
             }
             // Event carriers are read from a span's events, not its attributes; no declared rule needs
             // one yet, and probing the attribute map for an event name would silently match nothing.
-            let Some(attribute) = rule.read.attribute.as_deref() else {
+            let Some((attribute, raw)) = resolve_attribute(&rule.read, ctx.span_attrs) else {
                 continue;
             };
-            let Some(raw) = ctx.span_attrs.get(attribute) else {
-                continue;
-            };
-            if let Some(gate) = &rule.when
-                && !super::detect_rules::signals_hold(gate, ctx.span_name, ctx.span_attrs)
-            {
+            if rule.require_non_empty && raw.is_empty() {
                 continue;
             }
             let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
                 continue;
             };
             for value in readings(&parsed, &rule.alternatives) {
-                let value = match &rule.wrap_role {
-                    Some(role) => json!({ "role": role, "content": value }),
+                let value = match &rule.wrap {
+                    Some(wrap) => wrapped(value, wrap, ctx.span_attrs),
                     None => value,
                 };
                 out.push(Emission {
@@ -309,6 +333,9 @@ fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonValue> {
     match mode {
         ParseMode::Json => serde_json::from_str(raw).ok(),
         ParseMode::JsonOrString => Some(serde_json::from_str(raw).unwrap_or_else(|_| json!(raw))),
+        // Prose. Parsing it would turn a bare word into a non-string and an accidental digit string
+        // into a number.
+        ParseMode::Text => Some(json!(raw)),
     }
 }
 
@@ -441,4 +468,73 @@ fn sniffed_value(raw: &str) -> JsonValue {
     } else {
         json!(raw)
     }
+}
+
+/// Both gates, in one place so every read form is subject to them.
+fn gates_allow(rule: &CompiledMessageRule, ctx: &MessageContext<'_>) -> bool {
+    if let Some(gate) = &rule.when
+        && !super::detect_rules::signals_hold(gate, ctx.span_name, ctx.span_attrs)
+    {
+        return false;
+    }
+    if let Some(gate) = &rule.unless
+        && super::detect_rules::signals_hold(gate, ctx.span_name, ctx.span_attrs)
+    {
+        return false;
+    }
+    true
+}
+
+/// The attribute a rule reads and its raw value: the named one, or the first of its alternatives the
+/// span carries.
+///
+/// Returns the key *found*, not the key asked for, because that key becomes the carrier tag and two
+/// spellings of one payload must stay distinguishable.
+fn resolve_attribute<'p, 's>(
+    read: &'p ReadSpec,
+    attrs: &'s HashMap<String, String>,
+) -> Option<(&'p str, &'s str)> {
+    if let Some(attribute) = read.attribute.as_deref() {
+        return attrs.get(attribute).map(|raw| (attribute, raw.as_str()));
+    }
+    read.attribute_any_of
+        .iter()
+        .find_map(|key| attrs.get(key).map(|raw| (key.as_str(), raw.as_str())))
+}
+
+/// Build the declared envelope around a read value.
+fn wrapped(value: JsonValue, wrap: &WrapSpec, attrs: &HashMap<String, String>) -> JsonValue {
+    let mut object = serde_json::Map::new();
+    object.insert("role".to_string(), json!(wrap.role));
+    for (member, literal) in &wrap.members {
+        object.insert(member.clone(), literal.clone());
+    }
+    let content_member = wrap.content_as.as_deref().unwrap_or("content");
+    // Before the content member, then the content, then after - because the order is observable: see
+    // `AttachSpec::after_content`.
+    for attach in wrap.attach.iter().filter(|a| !a.after_content) {
+        if let Some(attached) = attached_value(attach, attrs) {
+            object.insert(attach.as_member.clone(), attached);
+        }
+    }
+    object.insert(content_member.to_string(), value);
+    for attach in wrap.attach.iter().filter(|a| a.after_content) {
+        if let Some(attached) = attached_value(attach, attrs) {
+            object.insert(attach.as_member.clone(), attached);
+        }
+    }
+    JsonValue::Object(object)
+}
+
+/// One attachment's value, or `None` where the span does not carry it.
+fn attached_value(attach: &AttachSpec, attrs: &HashMap<String, String>) -> Option<JsonValue> {
+    let raw = attrs.get(&attach.from)?;
+    if let Some(expected) = &attach.when_equals {
+        if raw != expected {
+            return None;
+        }
+        // A flag: the literal is the point, not the string that proved it.
+        return Some(attach.value.clone().unwrap_or(json!(true)));
+    }
+    parse_value(raw, attach.parse.unwrap_or(ParseMode::Text))
 }

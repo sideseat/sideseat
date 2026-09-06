@@ -21,5 +21,157 @@
       "slug": "livekit",
       "label": "LiveKit"
     }
+  ],
+  "messages": [
+    {
+      "id": "livekit.instructions",
+      "doc": "The system instruction, as prose. Skipped when empty: an attribute present and blank is not evidence of a turn, and wrapping it yields a message with nothing in it.",
+      "read": {
+        "attribute": "lk.instructions"
+      },
+      "parse": "text",
+      "require_non_empty": true,
+      "wrap": {
+        "role": "system"
+      },
+      "emit": "message",
+      "legacy_rank": 1300
+    },
+    {
+      "id": "livekit.function_tools",
+      "doc": "The tools the agent was given - definitions, not a message.",
+      "read": {
+        "attribute": "lk.function_tools"
+      },
+      "parse": "json",
+      "emit": "tool_definitions",
+      "legacy_rank": 1310
+    },
+    {
+      "id": "livekit.chat_ctx",
+      "doc": "The conversation so far, handed to the model as one payload. Carries a literal member naming what kind of context it is, which is a fact about the carrier rather than about any turn inside it.",
+      "read": {
+        "attribute": "lk.chat_ctx"
+      },
+      "parse": "json",
+      "wrap": {
+        "role": "context",
+        "members": {
+          "type": "chat_history"
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 1320
+    },
+    {
+      "id": "livekit.user_input",
+      "doc": "The user's turn, under either of the two keys this dialect has used. Tagged with the key actually found, so two spans spelling it differently stay distinguishable.",
+      "read": {
+        "attribute_any_of": [
+          "lk.user_input",
+          "lk.input_text"
+        ]
+      },
+      "parse": "text",
+      "require_non_empty": true,
+      "wrap": {
+        "role": "user"
+      },
+      "emit": "message",
+      "legacy_rank": 1330
+    },
+    {
+      "id": "livekit.tool_arguments",
+      "doc": "A tool call, written across three attributes: the arguments here, the tool's name and the call id beside it. Which attribute holds which part is exactly the knowledge that belongs in an asset.",
+      "read": {
+        "attribute": "lk.function_tool.arguments"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "tool_call",
+        "attach": [
+          {
+            "from": "lk.function_tool.name",
+            "as": "name"
+          },
+          {
+            "from": "lk.function_tool.id",
+            "as": "tool_call_id"
+          }
+        ]
+      },
+      "emit": "message",
+      "legacy_rank": 1340
+    },
+    {
+      "id": "livekit.tool_output",
+      "doc": "What the tool returned. The error flag arrives as an attribute whose string is `true`, so it is attached only on that exact comparison - without it the literal `false` would attach as a truthy value.",
+      "read": {
+        "attribute": "lk.function_tool.output"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "tool",
+        "attach": [
+          {
+            "from": "lk.function_tool.name",
+            "as": "name"
+          },
+          {
+            "from": "lk.function_tool.id",
+            "as": "tool_call_id"
+          },
+          {
+            "from": "lk.function_tool.is_error",
+            "as": "is_error",
+            "when_equals": "true",
+            "value": true,
+            "after_content": true
+          }
+        ]
+      },
+      "emit": "message",
+      "legacy_rank": 1350
+    },
+    {
+      "id": "livekit.response_text",
+      "doc": "The assistant's reply, with any tool calls of the same response attached - one response, one message.",
+      "read": {
+        "attribute": "lk.response.text"
+      },
+      "parse": "text",
+      "wrap": {
+        "role": "assistant",
+        "attach": [
+          {
+            "from": "lk.response.function_calls",
+            "as": "tool_calls",
+            "parse": "json",
+            "after_content": true
+          }
+        ]
+      },
+      "emit": "message",
+      "legacy_rank": 1360
+    },
+    {
+      "id": "livekit.response_calls_only",
+      "doc": "A response that is only tool calls. Gated on the text being absent, because otherwise the same response would be emitted twice - and the calls go under `tool_calls` rather than `content`, since rendering them as the assistant's prose would misreport what it said.",
+      "read": {
+        "attribute": "lk.response.function_calls"
+      },
+      "parse": "json",
+      "unless": {
+        "attr_exists": [
+          "lk.response.text"
+        ]
+      },
+      "wrap": {
+        "role": "assistant",
+        "content_as": "tool_calls"
+      },
+      "emit": "message",
+      "legacy_rank": 1370
+    }
   ]
 }

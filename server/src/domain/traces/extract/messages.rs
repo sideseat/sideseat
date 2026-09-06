@@ -402,10 +402,6 @@ const EXTRACTORS: &[NamedExtractor] = &[
         name: "google_adk",
         extractor: try_google_adk,
     },
-    NamedExtractor {
-        name: "livekit",
-        extractor: try_livekit,
-    },
     // Every dialect whose extraction is purely "claim this carrier and keep what it held" - declared in
     // `server/rules/*.json` rather than written here. Their carriers are read by no other extractor
     // (`ContestedCarrier` refuses a ruleset where two rules read one carrier), so collapsing three
@@ -1908,6 +1904,7 @@ fn extract_adk_response_message(
 }
 
 /// LiveKit message extraction
+#[cfg(test)]
 pub(crate) fn try_livekit(
     messages: &mut Vec<RawMessage>,
     tool_definitions: &mut Vec<RawToolDefinition>,

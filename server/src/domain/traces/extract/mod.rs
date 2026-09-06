@@ -257,17 +257,29 @@ pub(super) mod keys {
     pub const GEN_AI_COMPLETION: &str = "gen_ai.completion";
 
     // LiveKit
+    #[cfg(test)]
     pub const LK_INPUT_TEXT: &str = "lk.input_text";
+    #[cfg(test)]
     pub const LK_USER_INPUT: &str = "lk.user_input";
+    #[cfg(test)]
     pub const LK_INSTRUCTIONS: &str = "lk.instructions";
+    #[cfg(test)]
     pub const LK_CHAT_CTX: &str = "lk.chat_ctx";
+    #[cfg(test)]
     pub const LK_FUNCTION_TOOLS: &str = "lk.function_tools";
+    #[cfg(test)]
     pub const LK_RESPONSE_TEXT: &str = "lk.response.text";
+    #[cfg(test)]
     pub const LK_RESPONSE_FUNCTION_CALLS: &str = "lk.response.function_calls";
+    #[cfg(test)]
     pub const LK_FUNCTION_TOOL_ID: &str = "lk.function_tool.id";
+    #[cfg(test)]
     pub const LK_FUNCTION_TOOL_NAME: &str = "lk.function_tool.name";
+    #[cfg(test)]
     pub const LK_FUNCTION_TOOL_ARGS: &str = "lk.function_tool.arguments";
+    #[cfg(test)]
     pub const LK_FUNCTION_TOOL_OUTPUT: &str = "lk.function_tool.output";
+    #[cfg(test)]
     pub const LK_FUNCTION_TOOL_IS_ERROR: &str = "lk.function_tool.is_error";
 
     // MLflow

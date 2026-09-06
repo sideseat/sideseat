@@ -6780,6 +6780,51 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         ]),
         // A family with no index at all.
         rule_attrs(&[("gen_ai.prompt.content", "no index")]),
+        // LiveKit: prose, and the empty-value skip.
+        rule_attrs(&[("lk.instructions", "be brief")]),
+        rule_attrs(&[("lk.instructions", "")]),
+        // Either key for the user's turn, and the tag must be the one found.
+        rule_attrs(&[("lk.user_input", "hello")]),
+        rule_attrs(&[("lk.input_text", "hello")]),
+        rule_attrs(&[("lk.user_input", "first"), ("lk.input_text", "second")]),
+        rule_attrs(&[("lk.input_text", "")]),
+        // A literal member naming what kind of context a payload is.
+        rule_attrs(&[("lk.chat_ctx", r#"[{"role":"user","content":"x"}]"#)]),
+        // Definitions rather than a message.
+        rule_attrs(&[("lk.function_tools", r#"[{"name":"weather"}]"#)]),
+        // A call written across three attributes.
+        rule_attrs(&[
+            ("lk.function_tool.arguments", r#"{"city":"NYC"}"#),
+            ("lk.function_tool.name", "weather"),
+            ("lk.function_tool.id", "call_1"),
+        ]),
+        // The same, with no name or id: the attachments must simply be absent.
+        rule_attrs(&[("lk.function_tool.arguments", "raw args")]),
+        // The error flag, present and true.
+        rule_attrs(&[
+            ("lk.function_tool.output", r#"{"v":1}"#),
+            ("lk.function_tool.name", "weather"),
+            ("lk.function_tool.is_error", "true"),
+        ]),
+        // Present and false: the literal must not attach.
+        rule_attrs(&[
+            ("lk.function_tool.output", "failed"),
+            ("lk.function_tool.is_error", "false"),
+        ]),
+        // A reply with tool calls of the same response attached.
+        rule_attrs(&[
+            ("lk.response.text", "here you go"),
+            ("lk.response.function_calls", r#"[{"name":"t"}]"#),
+        ]),
+        // A reply with no calls.
+        rule_attrs(&[("lk.response.text", "just text")]),
+        // Calls with no text: one message, under `tool_calls` rather than `content`.
+        rule_attrs(&[("lk.response.function_calls", r#"[{"name":"t"}]"#)]),
+        // Empty text beside calls - the either/or is on *presence*, matching the legacy reading.
+        rule_attrs(&[
+            ("lk.response.text", ""),
+            ("lk.response.function_calls", r#"[{"name":"t"}]"#),
+        ]),
     ];
 
     let mut disagreements = Vec::new();
@@ -6794,6 +6839,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             try_traceloop,
             try_pydantic_ai,
             try_langsmith,
+            try_livekit,
         ] {
             legacy_found |= f(&mut legacy_msgs, &mut legacy_tools, case, "span", time);
         }
@@ -6841,9 +6887,8 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        11,
-        "the assets declare {} message rules; five extractors were replaced, reading eleven carriers \
-         between them",
+        19,
+        "the assets declare {} message rules; six extractors were replaced by them",
         plan.rule_count()
     );
     for rule in plan.rules() {
