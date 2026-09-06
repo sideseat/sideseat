@@ -1,0 +1,30 @@
+{
+  "id": "agent-framework",
+  "doc": "The AgentFramework dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "agent-framework.detect",
+      "doc": "Identifies AgentFramework by the signals below.",
+      "label": "AgentFramework",
+      "rank": 250,
+      "match": {
+        "attr_equals": [
+          {
+            "key": "gen_ai.provider.name",
+            "value": "microsoft.agent_framework"
+          }
+        ],
+        "service_name": [
+          "agent-framework-core"
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "agent-framework",
+      "label": "AgentFramework"
+    }
+  ]
+}

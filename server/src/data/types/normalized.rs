@@ -6,7 +6,7 @@
 use chrono::{DateTime, Utc};
 use serde_json::Value as JsonValue;
 
-use super::{AggregationTemporality, Framework, MetricType, ObservationType, SpanCategory};
+use super::{AggregationTemporality, MetricType, ObservationType, SpanCategory};
 
 /// Helper to serialize a JsonValue to an Option<String>, returning None for null.
 pub fn json_to_pre_serialized(value: &JsonValue) -> Option<String> {
@@ -141,7 +141,9 @@ pub struct NormalizedSpan {
     pub span_kind: Option<String>,
     pub span_category: Option<SpanCategory>,
     pub observation_type: Option<ObservationType>,
-    pub framework: Option<Framework>,
+    /// The producer label detection resolved. A label, not an identity: see
+    /// `domain::rules` - nothing consults it to decide behaviour.
+    pub framework: Option<String>,
     /// Instrumentation scope, the same pair `NormalizedMetric` has always carried: the library that
     /// produced the span, versioned. Declared *last* in both analytics schemas (a migration can only
     /// append), which is why they sit apart from the classification block they belong to logically.

@@ -5,8 +5,37 @@
     {
       "id": "logfire.request_data",
       "doc": "The request as Logfire recorded it: a conversation the span received, which may re-state earlier turns.",
-      "match": { "attribute": "request_data" },
-      "facts": { "preset": "snapshot" }
+      "match": {
+        "attribute": "request_data"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
+    }
+  ],
+  "detect": [
+    {
+      "id": "logfire.detect",
+      "doc": "An instrumentation library identifying itself through telemetry.sdk.name - previously a Rust matcher, now one declared dimension.",
+      "label": "Logfire",
+      "rank": 200,
+      "match": {
+        "attr_prefix": [
+          "logfire."
+        ],
+        "resource_attr_contains": [
+          {
+            "key": "telemetry.sdk.name",
+            "value": "logfire"
+          }
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "logfire",
+      "label": "Logfire"
     }
   ]
 }

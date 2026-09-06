@@ -11,7 +11,10 @@ use opentelemetry_proto::tonic::trace::v1::Span;
 use serde_json::{Value as JsonValue, json};
 
 use crate::core::constants;
-use crate::data::types::{Framework, ObservationType, SpanCategory};
+use crate::data::types::{ObservationType, SpanCategory};
+// Only the equivalence oracle names the enum now: detection produces a label from the assets.
+#[cfg(test)]
+use crate::data::types::Framework;
 use crate::domain::pricing;
 use crate::utils::string::parse_string_array;
 use crate::utils::time::nanos_to_datetime;
@@ -197,7 +200,11 @@ pub struct SpanData {
     pub span_kind: Option<String>,
     pub span_category: Option<SpanCategory>,
     pub observation_type: Option<ObservationType>,
-    pub framework: Option<Framework>,
+    /// The producer label detection resolved, for provenance, display and filtering.
+    ///
+    /// A `String` rather than an enum on purpose: an enum is a list of frameworks in Rust, and adding
+    /// one would then be a code change rather than an asset. Nothing reads this to decide behaviour.
+    pub framework: Option<String>,
     /// The instrumentation scope that produced this span - `ScopeSpans.scope.name`/`.version`.
     ///
     /// The one fact about a span nothing else derives: the resource names the *process*, the span
@@ -441,9 +448,11 @@ const KNOWN_USAGE_FIELDS: &[&str] = &[
 // ============================================================================
 
 /// Custom matcher function type for complex framework detection logic
+#[cfg(test)]
 type CustomMatcher = fn(&str, &HashMap<String, String>, &HashMap<String, String>) -> bool;
 
 /// Framework detection rule for declarative matching
+#[cfg(test)]
 struct FrameworkRule {
     framework: Framework,
     /// Match if span name equals or starts with any of these
@@ -463,6 +472,7 @@ struct FrameworkRule {
 }
 
 /// Default rule for struct update syntax in const context
+#[cfg(test)]
 const DEFAULT_RULE: FrameworkRule = FrameworkRule {
     framework: Framework::Unknown,
     span_name_match: &[],
@@ -475,6 +485,7 @@ const DEFAULT_RULE: FrameworkRule = FrameworkRule {
 };
 
 /// Macro to create FrameworkRule with defaults for unspecified fields
+#[cfg(test)]
 macro_rules! rule {
     ($framework:expr $(, $field:ident : $value:expr)* $(,)?) => {
         FrameworkRule {
@@ -485,6 +496,7 @@ macro_rules! rule {
     };
 }
 
+#[cfg(test)]
 impl FrameworkRule {
     fn matches(
         &self,
@@ -563,6 +575,7 @@ impl FrameworkRule {
 }
 
 /// Vercel AI SDK custom matcher - has complex prefix matching
+#[cfg(test)]
 fn vercel_ai_matcher(
     _: &str,
     span_attrs: &HashMap<String, String>,
@@ -580,6 +593,7 @@ fn vercel_ai_matcher(
 }
 
 /// Logfire SDK name matcher
+#[cfg(test)]
 fn logfire_sdk_matcher(
     _: &str,
     _: &HashMap<String, String>,
@@ -593,6 +607,7 @@ fn logfire_sdk_matcher(
 /// Strands Agents custom matcher — case-insensitive search for "strands" + separator + "agent"
 /// in the span name or gen_ai.agent.name attribute.
 /// Separators: space, hyphen, underscore (e.g. "Strands Agent", "strands-agent", "strands_agent").
+#[cfg(test)]
 fn strands_agents_matcher(
     span_name: &str,
     span_attrs: &HashMap<String, String>,
@@ -611,6 +626,7 @@ fn strands_agents_matcher(
 }
 
 /// Traceloop SDK name matcher
+#[cfg(test)]
 fn traceloop_sdk_matcher(
     _: &str,
     _: &HashMap<String, String>,
@@ -626,6 +642,7 @@ fn traceloop_sdk_matcher(
 /// IMPORTANT: All specific attribute-based rules come BEFORE generic service-name fallbacks.
 /// The sideseat SDK defaults service.name to "strands-agents", so service_name-based detection
 /// must be the LAST check to avoid misidentifying other frameworks.
+#[cfg(test)]
 const FRAMEWORK_RULES: &[FrameworkRule] = &[
     // AutoGen - check gen_ai.system and span name prefix
     // (OpenInference AutoGen sets gen_ai.system="autogen" but service.name may be default)
@@ -751,13 +768,42 @@ pub(crate) fn detect_framework(
     span_name: &str,
     span_attrs: &HashMap<String, String>,
     resource_attrs: &HashMap<String, String>,
-) -> Framework {
+) -> String {
+    let ctx = crate::domain::rules::DetectContext {
+        span_name,
+        span_attrs,
+        resource_attrs,
+    };
+    let plan = &crate::domain::rules::ruleset().detect;
+    if let Some(rule) = plan.resolve(&ctx) {
+        return rule.label.clone();
+    }
+    resource_attrs
+        .get(keys::SIDESEAT_FRAMEWORK)
+        .and_then(|declared| plan.label_from_declaration(declared))
+        .unwrap_or(crate::domain::rules::UNCLAIMED_LABEL)
+        .to_string()
+}
+
+/// The detection table this engine replaced, kept as the equivalence oracle.
+///
+/// Compared against the rules over every span of the whole corpus by
+/// `the_rules_reproduce_the_legacy_detection`, which is what makes the migration a provable no-op
+/// rather than a rewrite trusted because the goldens happened to stay green.
+#[cfg(test)]
+pub(crate) fn legacy_detect_framework(
+    span_name: &str,
+    span_attrs: &HashMap<String, String>,
+    resource_attrs: &HashMap<String, String>,
+) -> &'static str {
     for rule in FRAMEWORK_RULES {
         if rule.matches(span_name, span_attrs, resource_attrs) {
-            return rule.framework;
+            return rule.framework.as_str();
         }
     }
-    declared_framework(resource_attrs).unwrap_or(Framework::Unknown)
+    declared_framework(resource_attrs)
+        .unwrap_or(Framework::Unknown)
+        .as_str()
 }
 
 /// The framework an SDK declared, when it declared exactly one this server recognises.
@@ -766,6 +812,7 @@ pub(crate) fn detect_framework(
 /// it names a single *framework*: provider slugs return `None` from `from_sdk_slug`, so declaring
 /// `[Strands, Bedrock]` still resolves to Strands, while two genuine frameworks resolve to nothing. Two
 /// answers is not an answer, and guessing between them would put a label on a span with no evidence for it.
+#[cfg(test)]
 fn declared_framework(resource_attrs: &HashMap<String, String>) -> Option<Framework> {
     let declared = resource_attrs.get(keys::SIDESEAT_FRAMEWORK)?;
     let mut frameworks = declared

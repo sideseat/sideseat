@@ -1,0 +1,28 @@
+{
+  "id": "bedrock",
+  "doc": "The AWSBedrock dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "bedrock.detect",
+      "doc": "Identifies AWSBedrock by the signals below.",
+      "label": "AWSBedrock",
+      "rank": 260,
+      "match": {
+        "attr_prefix": [
+          "aws.bedrock."
+        ],
+        "attr_equals": [
+          {
+            "key": "gen_ai.system",
+            "value": "aws_bedrock"
+          },
+          {
+            "key": "gen_ai.system",
+            "value": "aws.bedrock"
+          }
+        ]
+      }
+    }
+  ]
+}

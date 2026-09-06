@@ -128,7 +128,7 @@ impl From<&NormalizedSpan> for SpanRow {
             exception_stacktrace: span.exception_stacktrace.clone(),
             span_category: span.span_category.map(|c| c.as_str().to_string()),
             observation_type: span.observation_type.map(|o| o.as_str().to_string()),
-            framework: span.framework.map(|f| f.as_str().to_string()),
+            framework: span.framework.clone(),
             timestamp_start,
             timestamp_end,
             duration_ms: Some(span.duration_ms),

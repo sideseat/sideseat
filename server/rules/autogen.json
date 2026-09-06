@@ -1,0 +1,34 @@
+{
+  "id": "autogen",
+  "doc": "The AutoGen dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "autogen.detect",
+      "doc": "OpenInference's AutoGen instrumentation sets gen_ai.system while service.name may still be the default, so the system value is a signal in its own right.",
+      "label": "AutoGen",
+      "rank": 10,
+      "match": {
+        "span_name": [
+          "autogen ",
+          "autogen."
+        ],
+        "attr_prefix": [
+          "autogen."
+        ],
+        "attr_equals": [
+          {
+            "key": "gen_ai.system",
+            "value": "autogen"
+          }
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "autogen",
+      "label": "AutoGen"
+    }
+  ]
+}

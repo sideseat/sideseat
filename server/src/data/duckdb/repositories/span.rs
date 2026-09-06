@@ -58,7 +58,7 @@ fn insert_spans(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), Duckd
             // CLASSIFICATION
             span.span_category.map(|c| c.as_str()),
             span.observation_type.map(|o| o.as_str()),
-            span.framework.map(|f| f.as_str()),
+            span.framework.as_deref(),
             // TIMING
             timestamp_start,
             timestamp_end,

@@ -1,0 +1,24 @@
+{
+  "id": "agentscope",
+  "doc": "The AgentScope dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "agentscope.detect",
+      "doc": "Identifies AgentScope by the signals below.",
+      "label": "AgentScope",
+      "rank": 90,
+      "match": {
+        "attr_prefix": [
+          "agentscope."
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "agentscope",
+      "label": "AgentScope"
+    }
+  ]
+}

@@ -81,7 +81,12 @@ pub(super) mod keys {
     pub const PROJECT_ID: &str = "sideseat.project_id";
     pub const DEPLOYMENT_ENV: &str = "deployment.environment";
     pub const DEPLOYMENT_ENV_NAME: &str = "deployment.environment.name";
+    // Reachable only from the detection oracle now. The runtime home of "which resource attribute is
+    // the service name" is `domain::rules`, because that is where the dimension is defined; the values
+    // that identify a producer through it are asset data.
+    #[cfg(test)]
     pub const SERVICE_NAME: &str = "service.name";
+    #[cfg(test)]
     pub const TELEMETRY_SDK_NAME: &str = "telemetry.sdk.name";
     /// The framework a SideSeat SDK declares it was configured for, as a resource attribute.
     ///

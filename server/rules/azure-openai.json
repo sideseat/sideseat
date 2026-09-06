@@ -1,0 +1,38 @@
+{
+  "id": "azure-openai",
+  "doc": "The AzureOpenAI dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "azure-openai.detect",
+      "doc": "Before Azure AI Foundry, whose `az.ai.` prefix is broader. Two spellings of the system value because both are in the wild.",
+      "label": "AzureOpenAI",
+      "rank": 160,
+      "match": {
+        "attr_prefix": [
+          "azure.openai."
+        ],
+        "attr_equals": [
+          {
+            "key": "gen_ai.system",
+            "value": "azure_openai"
+          },
+          {
+            "key": "gen_ai.system",
+            "value": "azure.openai"
+          },
+          {
+            "key": "gen_ai.provider.name",
+            "value": "azure_openai"
+          }
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "azure-openai",
+      "label": "AzureOpenAI"
+    }
+  ]
+}

@@ -19,14 +19,34 @@
 //! be dishonest.
 
 pub mod carrier_rules;
+pub mod detect_rules;
 pub mod schema;
 
 #[cfg(test)]
 mod carrier_rules_tests;
+#[cfg(test)]
+mod detect_rules_tests;
 
 pub use carrier_rules::CarrierContext;
+pub use detect_rules::DetectContext;
 
 use std::sync::OnceLock;
+
+/// The two resource/span attribute keys the engine reads *structurally* rather than as producer
+/// vocabulary.
+///
+/// `service.name` and `metadata` are OpenTelemetry's own names, not any framework's: a rule says which
+/// *value* identifies a producer, and the key it looks in is part of the dimension's definition. Held
+/// here so a rule file cannot redefine where "the service name" lives, which would make two assets
+/// disagree about what the dimension means.
+pub(crate) const SERVICE_NAME_KEY: &str = "service.name";
+pub(crate) const METADATA_KEY: &str = "metadata";
+
+/// The label for a span no detection rule claimed and no declaration resolved.
+///
+/// The engine's own vocabulary for the *absence* of an answer, not a framework - which is why it lives
+/// here while every real label lives in an asset.
+pub const UNCLAIMED_LABEL: &str = "Unknown";
 
 /// The compiled ruleset, built once from the embedded assets.
 ///
@@ -36,6 +56,8 @@ use std::sync::OnceLock;
 pub struct Ruleset {
     /// Carrier semantics, indexed for lookup by exact name and by prefix.
     pub carriers: carrier_rules::CarrierPlan,
+    /// Detection signals in rank order, and the SDK-declaration fallback.
+    pub detect: detect_rules::DetectPlan,
     /// BLAKE3 of the asset bytes that produced this plan, hex-encoded.
     ///
     /// Joins the reconstruction cache key. That cache is a memo over a pure function of the rows, and
@@ -53,8 +75,14 @@ pub fn ruleset() -> &'static Ruleset {
         let sources = schema::embedded_sources();
         let digest = schema::digest_of(&sources);
         let carriers = carrier_rules::compile(&sources)
-            .unwrap_or_else(|e| panic!("embedded rule assets are malformed: {e}"));
-        Ruleset { carriers, digest }
+            .unwrap_or_else(|e| panic!("embedded carrier rules are malformed: {e}"));
+        let detect = detect_rules::compile(&sources)
+            .unwrap_or_else(|e| panic!("embedded detection rules are malformed: {e}"));
+        Ruleset {
+            carriers,
+            detect,
+            digest,
+        }
     })
 }
 

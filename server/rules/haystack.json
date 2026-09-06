@@ -1,0 +1,24 @@
+{
+  "id": "haystack",
+  "doc": "The Haystack dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "haystack.detect",
+      "doc": "Identifies Haystack by the signals below.",
+      "label": "Haystack",
+      "rank": 120,
+      "match": {
+        "attr_prefix": [
+          "haystack."
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "haystack",
+      "label": "Haystack"
+    }
+  ]
+}

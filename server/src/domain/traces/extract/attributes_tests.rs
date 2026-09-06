@@ -48,14 +48,14 @@ fn test_autogen_framework_detection() {
     let resource_attrs = HashMap::new();
     assert_eq!(
         detect_framework("test", &span_attrs, &resource_attrs),
-        Framework::AutoGen
+        Framework::AutoGen.as_str()
     );
 
     let span_attrs2 = HashMap::new();
     let resource_attrs2 = HashMap::new();
     assert_eq!(
         detect_framework("autogen process Agent", &span_attrs2, &resource_attrs2),
-        Framework::AutoGen
+        Framework::AutoGen.as_str()
     );
 }
 
@@ -78,7 +78,7 @@ fn test_aws_bedrock_framework_detection_from_attrs() {
 
     assert_eq!(
         detect_framework("test", &span_attrs, &resource_attrs),
-        Framework::AWSBedrock,
+        Framework::AWSBedrock.as_str(),
         "Should detect AWS Bedrock from aws.bedrock.* attributes"
     );
 }
@@ -91,7 +91,7 @@ fn test_aws_bedrock_framework_detection_from_gen_ai_system() {
 
     assert_eq!(
         detect_framework("test", &span_attrs, &resource_attrs),
-        Framework::AWSBedrock,
+        Framework::AWSBedrock.as_str(),
         "Should detect AWS Bedrock from gen_ai.system"
     );
 }
@@ -104,7 +104,7 @@ fn test_aws_bedrock_framework_detection_from_gen_ai_system_dotted() {
 
     assert_eq!(
         detect_framework("test", &span_attrs, &resource_attrs),
-        Framework::AWSBedrock,
+        Framework::AWSBedrock.as_str(),
         "Should detect AWS Bedrock from gen_ai.system with dotted format"
     );
 }
@@ -185,7 +185,7 @@ fn test_crewai_framework_detection() {
     let resource_attrs = make_attrs(&[("service.name", "crewAI-telemetry")]);
     assert_eq!(
         detect_framework("Crew.kickoff", &span_attrs, &resource_attrs),
-        Framework::CrewAI
+        Framework::CrewAI.as_str()
     );
 }
 
@@ -482,7 +482,7 @@ fn test_langchain_framework_detection() {
     let resource_attrs = HashMap::new();
     assert_eq!(
         detect_framework("ChatBedrock", &span_attrs, &resource_attrs),
-        Framework::LangChain
+        Framework::LangChain.as_str()
     );
 }
 
@@ -492,13 +492,13 @@ fn test_langgraph_framework_detection() {
     let resource_attrs = HashMap::new();
     assert_eq!(
         detect_framework("LangGraph", &span_attrs, &resource_attrs),
-        Framework::LangGraph
+        Framework::LangGraph.as_str()
     );
 
     let span_attrs2 = make_attrs(&[("metadata", r#"{"langgraph_step": 1}"#)]);
     assert_eq!(
         detect_framework("agent", &span_attrs2, &resource_attrs),
-        Framework::LangGraph
+        Framework::LangGraph.as_str()
     );
 }
 
@@ -508,14 +508,14 @@ fn test_langgraph_framework_detection_by_attrs() {
     let resource_attrs = HashMap::new();
     assert_eq!(
         detect_framework("test", &span_attrs, &resource_attrs),
-        Framework::LangGraph
+        Framework::LangGraph.as_str()
     );
 
     let span_attrs2 = HashMap::new();
     let resource_attrs2 = HashMap::new();
     assert_eq!(
         detect_framework("LangGraph.agent", &span_attrs2, &resource_attrs2),
-        Framework::LangGraph
+        Framework::LangGraph.as_str()
     );
 }
 
@@ -525,7 +525,7 @@ fn test_langsmith_framework_detection() {
     let resource_attrs = HashMap::new();
     assert_eq!(
         detect_framework("ChatOpenAI", &span_attrs, &resource_attrs),
-        Framework::LangChain
+        Framework::LangChain.as_str()
     );
 }
 
@@ -548,7 +548,7 @@ fn test_livekit_framework_detection() {
 
     assert_eq!(
         detect_framework("speech_to_text", &span_attrs, &resource_attrs),
-        Framework::LiveKit,
+        Framework::LiveKit.as_str(),
         "Should detect LiveKit from lk.* attributes"
     );
 }
@@ -561,7 +561,7 @@ fn test_logfire_framework_detection() {
 
     assert_eq!(
         detect_framework("test", &span_attrs, &resource_attrs),
-        Framework::Logfire,
+        Framework::Logfire.as_str(),
         "Should detect Logfire from logfire.msg attribute"
     );
 }
@@ -574,7 +574,7 @@ fn test_logfire_framework_detection_from_sdk() {
 
     assert_eq!(
         detect_framework("test", &span_attrs, &resource_attrs),
-        Framework::Logfire,
+        Framework::Logfire.as_str(),
         "Should detect Logfire from telemetry.sdk.name"
     );
 }
@@ -586,7 +586,7 @@ fn test_mlflow_framework_detection() {
 
     assert_eq!(
         detect_framework("test", &span_attrs, &resource_attrs),
-        Framework::MLFlow,
+        Framework::MLFlow.as_str(),
         "Should detect MLflow from mlflow.* attributes"
     );
 }
@@ -599,7 +599,7 @@ fn test_openai_agents_framework_detection_from_attrs() {
 
     assert_eq!(
         detect_framework("test", &span_attrs, &resource_attrs),
-        Framework::OpenAIAgents,
+        Framework::OpenAIAgents.as_str(),
         "Should detect OpenAI Agents SDK from openai.agents.* attributes"
     );
 }
@@ -612,7 +612,7 @@ fn test_openai_agents_framework_detection_from_service_name() {
 
     assert_eq!(
         detect_framework("test", &span_attrs, &resource_attrs),
-        Framework::OpenAIAgents,
+        Framework::OpenAIAgents.as_str(),
         "Should detect OpenAI Agents SDK from service.name"
     );
 }
@@ -625,7 +625,7 @@ fn test_openai_agents_framework_detection_from_service_name_contains() {
 
     assert_eq!(
         detect_framework("test", &span_attrs, &resource_attrs),
-        Framework::OpenAIAgents,
+        Framework::OpenAIAgents.as_str(),
         "Should detect OpenAI Agents SDK from service.name containing openai-agents"
     );
 }
@@ -801,7 +801,7 @@ fn test_claude_agent_sdk_framework_detection_via_span_names() {
     ] {
         assert_eq!(
             detect_framework(span_name, &empty_attrs, &resource_attrs),
-            Framework::ClaudeAgentSdk,
+            Framework::ClaudeAgentSdk.as_str(),
             "span name '{span_name}' should detect Claude Agent SDK"
         );
     }
@@ -816,7 +816,7 @@ fn test_claude_agent_sdk_framework_detection_via_service_name() {
         let resource_attrs = make_attrs(&[("service.name", service_name)]);
         assert_eq!(
             detect_framework("chat", &empty_attrs, &resource_attrs),
-            Framework::ClaudeAgentSdk,
+            Framework::ClaudeAgentSdk.as_str(),
             "service.name='{service_name}' should detect Claude Agent SDK"
         );
     }
@@ -830,7 +830,7 @@ fn test_claude_agent_sdk_does_not_shadow_other_frameworks() {
     // A bare "claude_code" without the dot separator is not a CLI span name
     assert_ne!(
         detect_framework("claude_code", &empty_attrs, &resource_attrs),
-        Framework::ClaudeAgentSdk,
+        Framework::ClaudeAgentSdk.as_str(),
         "bare 'claude_code' should not match"
     );
 
@@ -838,7 +838,7 @@ fn test_claude_agent_sdk_does_not_shadow_other_frameworks() {
     let strands_attrs = make_attrs(&[("gen_ai.system", "strands-agents")]);
     assert_eq!(
         detect_framework("chat", &strands_attrs, &resource_attrs),
-        Framework::StrandsAgents,
+        Framework::StrandsAgents.as_str(),
         "Strands spans should still detect as Strands"
     );
 }
@@ -849,14 +849,14 @@ fn test_strands_agents_framework_detection() {
     let resource_attrs = HashMap::new();
     assert_eq!(
         detect_framework("chat", &span_attrs, &resource_attrs),
-        Framework::StrandsAgents
+        Framework::StrandsAgents.as_str()
     );
 
     let span_attrs2 = HashMap::new();
     let resource_attrs2 = make_attrs(&[("service.name", "strands-agents")]);
     assert_eq!(
         detect_framework("chat", &span_attrs2, &resource_attrs2),
-        Framework::StrandsAgents
+        Framework::StrandsAgents.as_str()
     );
 }
 
@@ -867,7 +867,7 @@ fn test_strands_agents_framework_detection_new_convention() {
     let resource_attrs = HashMap::new();
     assert_eq!(
         detect_framework("chat", &span_attrs, &resource_attrs),
-        Framework::StrandsAgents,
+        Framework::StrandsAgents.as_str(),
         "Should detect Strands from gen_ai.provider.name"
     );
 }
@@ -887,7 +887,7 @@ fn test_strands_agents_framework_detection_via_span_name_and_agent_attr() {
     ] {
         assert_eq!(
             detect_framework(span_name, &empty_attrs, &resource_attrs),
-            Framework::StrandsAgents,
+            Framework::StrandsAgents.as_str(),
             "span name '{span_name}' should detect Strands"
         );
     }
@@ -902,7 +902,7 @@ fn test_strands_agents_framework_detection_via_span_name_and_agent_attr() {
         let attrs = make_attrs(&[("gen_ai.agent.name", agent_name)]);
         assert_eq!(
             detect_framework("chat", &attrs, &resource_attrs),
-            Framework::StrandsAgents,
+            Framework::StrandsAgents.as_str(),
             "gen_ai.agent.name='{agent_name}' should detect Strands"
         );
     }
@@ -910,7 +910,7 @@ fn test_strands_agents_framework_detection_via_span_name_and_agent_attr() {
     // bare invoke_agent without Strands in name should NOT match
     assert_ne!(
         detect_framework("invoke_agent", &empty_attrs, &resource_attrs),
-        Framework::StrandsAgents,
+        Framework::StrandsAgents.as_str(),
         "bare 'invoke_agent' should not match"
     );
 }
@@ -964,7 +964,7 @@ fn test_traceloop_framework_detection_from_attrs() {
 
     assert_eq!(
         detect_framework("test", &span_attrs, &resource_attrs),
-        Framework::TraceLoop,
+        Framework::TraceLoop.as_str(),
         "Should detect TraceLoop from traceloop.* attributes"
     );
 }
@@ -976,7 +976,7 @@ fn test_traceloop_framework_detection_from_sdk_name() {
 
     assert_eq!(
         detect_framework("test", &span_attrs, &resource_attrs),
-        Framework::TraceLoop,
+        Framework::TraceLoop.as_str(),
         "Should detect TraceLoop from telemetry.sdk.name"
     );
 }
@@ -988,7 +988,7 @@ fn test_vercel_ai_sdk_detection_from_prompt_messages() {
 
     assert_eq!(
         detect_framework("test", &span_attrs, &resource_attrs),
-        Framework::VercelAISdk,
+        Framework::VercelAISdk.as_str(),
         "Should detect Vercel AI SDK from ai.prompt.messages"
     );
 }
@@ -1000,7 +1000,7 @@ fn test_vercel_ai_sdk_detection_from_telemetry() {
 
     assert_eq!(
         detect_framework("test", &span_attrs, &resource_attrs),
-        Framework::VercelAISdk,
+        Framework::VercelAISdk.as_str(),
         "Should detect Vercel AI SDK from ai.telemetry.functionId"
     );
 }
@@ -1012,7 +1012,7 @@ fn test_azure_openai_framework_detection() {
     let resource_attrs = HashMap::new();
     assert_eq!(
         detect_framework("chat", &span_attrs, &resource_attrs),
-        Framework::AzureOpenAI,
+        Framework::AzureOpenAI.as_str(),
         "Should detect Azure OpenAI from gen_ai.system=azure_openai"
     );
 
@@ -1020,7 +1020,7 @@ fn test_azure_openai_framework_detection() {
     let span_attrs2 = make_attrs(&[("gen_ai.system", "azure.openai")]);
     assert_eq!(
         detect_framework("chat", &span_attrs2, &resource_attrs),
-        Framework::AzureOpenAI,
+        Framework::AzureOpenAI.as_str(),
         "Should detect Azure OpenAI from gen_ai.system=azure.openai"
     );
 
@@ -1028,7 +1028,7 @@ fn test_azure_openai_framework_detection() {
     let span_attrs3 = make_attrs(&[("azure.openai.deployment", "my-gpt4")]);
     assert_eq!(
         detect_framework("chat", &span_attrs3, &resource_attrs),
-        Framework::AzureOpenAI,
+        Framework::AzureOpenAI.as_str(),
         "Should detect Azure OpenAI from azure.openai. attribute prefix"
     );
 
@@ -1036,7 +1036,7 @@ fn test_azure_openai_framework_detection() {
     let span_attrs4 = make_attrs(&[("gen_ai.provider.name", "azure_openai")]);
     assert_eq!(
         detect_framework("chat", &span_attrs4, &resource_attrs),
-        Framework::AzureOpenAI,
+        Framework::AzureOpenAI.as_str(),
         "Should detect Azure OpenAI from gen_ai.provider.name=azure_openai"
     );
 }
@@ -1393,7 +1393,7 @@ fn test_openinference_instrumented_frameworks_are_detected_specifically() {
         let attrs = make_attrs(&[(attr, "x"), ("openinference.span.kind", "AGENT")]);
         assert_eq!(
             detect_framework("some.span", &attrs, &HashMap::new()),
-            expected,
+            expected.as_str(),
             "{attr} should detect as {expected:?}, not OpenInference"
         );
     }
@@ -1405,7 +1405,7 @@ fn test_plain_openinference_still_detected() {
     let attrs = make_attrs(&[("openinference.span.kind", "LLM")]);
     assert_eq!(
         detect_framework("some.span", &attrs, &HashMap::new()),
-        Framework::OpenInference
+        Framework::OpenInference.as_str()
     );
 }
 
@@ -1416,7 +1416,7 @@ fn test_new_framework_rules_do_not_match_unrelated_services() {
     let resource = make_attrs(&[("service.name", "diagnostics-api")]);
     assert_ne!(
         detect_framework("some.span", &HashMap::new(), &resource),
-        Framework::Agno
+        Framework::Agno.as_str()
     );
 }
 
@@ -1428,13 +1428,13 @@ fn test_haystack_and_browser_use_detection() {
     ]);
     assert_eq!(
         detect_framework("haystack.component.run", &haystack, &HashMap::new()),
-        Framework::Haystack
+        Framework::Haystack.as_str()
     );
 
     let browser = make_attrs(&[("gen_ai.provider.name", "browser_use")]);
     assert_eq!(
         detect_framework("agent.step", &browser, &HashMap::new()),
-        Framework::BrowserUse
+        Framework::BrowserUse.as_str()
     );
 }
 
@@ -1445,7 +1445,7 @@ fn test_browser_use_rule_does_not_capture_other_providers() {
         let attrs = make_attrs(&[("gen_ai.provider.name", provider)]);
         assert_ne!(
             detect_framework("chat", &attrs, &HashMap::new()),
-            Framework::BrowserUse,
+            Framework::BrowserUse.as_str(),
             "provider {provider} must not detect as BrowserUse"
         );
     }
@@ -1976,12 +1976,12 @@ fn a_declared_framework_is_a_fallback_and_not_an_override() {
     semconv.insert("gen_ai.request.model".to_string(), "claude".to_string());
     assert_eq!(
         detect_framework("chat claude", &semconv, &declared("vercel-ai")),
-        Framework::VercelAISdk,
+        Framework::VercelAISdk.as_str(),
         "a framework-neutral span is attributed by what the SDK declared"
     );
     assert_eq!(
         detect_framework("chat claude", &semconv, &HashMap::new()),
-        Framework::Unknown,
+        Framework::Unknown.as_str(),
         "and with no declaration it stays unknown rather than guessing"
     );
 
@@ -1990,23 +1990,305 @@ fn a_declared_framework_is_a_fallback_and_not_an_override() {
     langchain.insert("langchain.version".to_string(), "0.3".to_string());
     assert_eq!(
         detect_framework("RunnableSequence", &langchain, &declared("strands")),
-        Framework::LangChain,
+        Framework::LangChain.as_str(),
         "the span says LangChain, so the process-level declaration must not relabel it"
     );
 
     // A provider slug is not a framework, so `[strands, bedrock]` still resolves to Strands...
     assert_eq!(
         detect_framework("chat claude", &semconv, &declared("strands,bedrock")),
-        Framework::StrandsAgents
+        Framework::StrandsAgents.as_str()
     );
     // ...while two genuine frameworks resolve to nothing: two answers is not an answer.
     assert_eq!(
         detect_framework("chat claude", &semconv, &declared("strands,langgraph")),
-        Framework::Unknown
+        Framework::Unknown.as_str()
     );
     // An unknown slug claims nothing.
     assert_eq!(
         detect_framework("chat claude", &semconv, &declared("something-else")),
-        Framework::Unknown
+        Framework::Unknown.as_str()
     );
+}
+
+/// Attributes for the detection cases below.
+fn detect_attrs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+    pairs
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect()
+}
+
+/// Detection over one span, both ways: the table first, then the rules.
+fn both(
+    span_name: &str,
+    span_attrs: &HashMap<String, String>,
+    resource_attrs: &HashMap<String, String>,
+) -> (String, String) {
+    (
+        legacy_detect_framework(span_name, span_attrs, resource_attrs).to_string(),
+        detect_framework(span_name, span_attrs, resource_attrs),
+    )
+}
+
+// ============================================================================
+// DETECTION EQUIVALENCE: the rules against the table they replaced
+// ============================================================================
+
+/// Spans covering every rule, every dimension, and the orderings that matter.
+///
+/// Hand-written rather than derived from the assets: a case list generated from the thing under test
+/// would stop covering a rule the moment that rule was deleted, and the equivalence claim would still
+/// pass. The corpus-wide comparison in `message_goldens_tests` covers the real payloads; this covers the
+/// shapes the corpus does not contain, which is most of the 28 rules.
+#[test]
+fn the_rules_reproduce_the_legacy_detection() {
+    let sdk_default = detect_attrs(&[("service.name", "strands-agents")]);
+    let empty = detect_attrs(&[]);
+
+    /// One detection case: the span name, its attributes, and the resource's.
+    type DetectCase = (
+        &'static str,
+        HashMap<String, String>,
+        HashMap<String, String>,
+    );
+
+    let cases: Vec<DetectCase> = vec![
+        // Every rule, by its own signal.
+        ("autogen run", empty.clone(), empty.clone()),
+        ("s", detect_attrs(&[("autogen.foo", "1")]), empty.clone()),
+        (
+            "s",
+            detect_attrs(&[("gen_ai.system", "autogen")]),
+            empty.clone(),
+        ),
+        (
+            "s",
+            detect_attrs(&[("gcp.vertex.agent.x", "1")]),
+            empty.clone(),
+        ),
+        ("s", detect_attrs(&[("google.adk.x", "1")]), empty.clone()),
+        ("s", detect_attrs(&[("crew_key", "k")]), empty.clone()),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("service.name", "crewAI-telemetry")]),
+        ),
+        ("LangGraph", empty.clone(), empty.clone()),
+        ("s", detect_attrs(&[("langgraph.step", "1")]), empty.clone()),
+        (
+            "s",
+            detect_attrs(&[("metadata", "{\"langgraph_step\":1}")]),
+            empty.clone(),
+        ),
+        ("s", detect_attrs(&[("langchain.x", "1")]), empty.clone()),
+        ("s", detect_attrs(&[("langsmith.x", "1")]), empty.clone()),
+        ("s", detect_attrs(&[("llama_index.x", "1")]), empty.clone()),
+        ("s", detect_attrs(&[("agno.x", "1")]), empty.clone()),
+        ("s", detect_attrs(&[("smolagents.x", "1")]), empty.clone()),
+        ("s", detect_attrs(&[("agentscope.x", "1")]), empty.clone()),
+        ("s", detect_attrs(&[("langflow.x", "1")]), empty.clone()),
+        ("s", detect_attrs(&[("ag2.x", "1")]), empty.clone()),
+        ("s", detect_attrs(&[("haystack.x", "1")]), empty.clone()),
+        (
+            "s",
+            detect_attrs(&[("gen_ai.provider.name", "browser_use")]),
+            empty.clone(),
+        ),
+        (
+            "s",
+            detect_attrs(&[("openinference.span.kind", "LLM")]),
+            empty.clone(),
+        ),
+        (
+            "s",
+            detect_attrs(&[("semantic_kernel.x", "1")]),
+            empty.clone(),
+        ),
+        (
+            "s",
+            detect_attrs(&[("gen_ai.system", "azure_openai")]),
+            empty.clone(),
+        ),
+        (
+            "s",
+            detect_attrs(&[("gen_ai.system", "azure.openai")]),
+            empty.clone(),
+        ),
+        ("s", detect_attrs(&[("azure.openai.x", "1")]), empty.clone()),
+        ("s", detect_attrs(&[("az.ai.x", "1")]), empty.clone()),
+        ("vertexai.generate", empty.clone(), empty.clone()),
+        ("s", detect_attrs(&[("ai.operationId", "x")]), empty.clone()),
+        (
+            "s",
+            detect_attrs(&[("ai.prompt.messages", "[]")]),
+            empty.clone(),
+        ),
+        (
+            "s",
+            detect_attrs(&[("ai.usage.promptTokens", "1")]),
+            empty.clone(),
+        ),
+        (
+            "s",
+            detect_attrs(&[("ai.finishReason", "stop")]),
+            empty.clone(),
+        ),
+        ("s", detect_attrs(&[("logfire.msg", "x")]), empty.clone()),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("telemetry.sdk.name", "logfire-python")]),
+        ),
+        ("s", detect_attrs(&[("mlflow.x", "1")]), empty.clone()),
+        (
+            "s",
+            detect_attrs(&[("traceloop.entity.input", "x")]),
+            empty.clone(),
+        ),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("telemetry.sdk.name", "traceloop-sdk")]),
+        ),
+        ("s", detect_attrs(&[("livekit.x", "1")]), empty.clone()),
+        ("s", detect_attrs(&[("lk.x", "1")]), empty.clone()),
+        (
+            "s",
+            detect_attrs(&[("openai.agents.x", "1")]),
+            empty.clone(),
+        ),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("service.name", "openai-agents")]),
+        ),
+        (
+            "s",
+            detect_attrs(&[("gen_ai.provider.name", "microsoft.agent_framework")]),
+            empty.clone(),
+        ),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("service.name", "agent-framework-core")]),
+        ),
+        ("s", detect_attrs(&[("aws.bedrock.x", "1")]), empty.clone()),
+        (
+            "s",
+            detect_attrs(&[("gen_ai.system", "aws_bedrock")]),
+            empty.clone(),
+        ),
+        ("claude_code.interaction", empty.clone(), empty.clone()),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("service.name", "claude-code")]),
+        ),
+        (
+            "s",
+            detect_attrs(&[("gen_ai.system", "strands-agents")]),
+            empty.clone(),
+        ),
+        ("Strands Agent loop", empty.clone(), empty.clone()),
+        ("strands-agent", empty.clone(), empty.clone()),
+        (
+            "s",
+            detect_attrs(&[("gen_ai.agent.name", "My STRANDS_AGENT")]),
+            empty.clone(),
+        ),
+        // Nothing at all.
+        ("plain span", empty.clone(), empty.clone()),
+        // The declaration fallback, including a provider slug that must contribute nothing and two
+        // genuine frameworks that must resolve to nothing.
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("sideseat.framework", "strands")]),
+        ),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("sideseat.framework", "strands,bedrock")]),
+        ),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("sideseat.framework", "strands,crewai")]),
+        ),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("sideseat.framework", "vercel-ai")]),
+        ),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("sideseat.framework", "openai")]),
+        ),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("sideseat.framework", "pydantic-ai")]),
+        ),
+        (
+            "s",
+            empty.clone(),
+            detect_attrs(&[("sideseat.framework", "not-a-framework")]),
+        ),
+        // The ordering that matters most: the SDK's default service name must not claim a span whose own
+        // attributes name a different framework.
+        (
+            "s",
+            detect_attrs(&[("langgraph.step", "1")]),
+            sdk_default.clone(),
+        ),
+        ("s", detect_attrs(&[("crew_key", "k")]), sdk_default.clone()),
+        (
+            "s",
+            detect_attrs(&[("openinference.span.kind", "LLM")]),
+            sdk_default.clone(),
+        ),
+        ("s", empty.clone(), sdk_default.clone()),
+        // Overlaps the ranks exist to resolve.
+        (
+            "s",
+            detect_attrs(&[("langgraph.step", "1"), ("langchain.x", "1")]),
+            empty.clone(),
+        ),
+        (
+            "s",
+            detect_attrs(&[("agno.x", "1"), ("openinference.span.kind", "LLM")]),
+            empty.clone(),
+        ),
+        (
+            "s",
+            detect_attrs(&[("azure.openai.x", "1"), ("az.ai.x", "1")]),
+            empty.clone(),
+        ),
+    ];
+
+    let mut disagreements = Vec::new();
+    for (span_name, span_attrs, resource_attrs) in &cases {
+        let (legacy, rules) = both(span_name, span_attrs, resource_attrs);
+        if legacy != rules {
+            disagreements.push(format!(
+                "  span `{span_name}` attrs={span_attrs:?} resource={resource_attrs:?}: table said \
+                 `{legacy}`, rules said `{rules}`"
+            ));
+        }
+    }
+    assert!(
+        disagreements.is_empty(),
+        "detection changed for {} case(s):\n{}",
+        disagreements.len(),
+        disagreements.join("\n")
+    );
+}
+
+#[test]
+fn a_span_nothing_claims_is_labelled_unclaimed() {
+    let (legacy, rules) = both("plain", &detect_attrs(&[]), &detect_attrs(&[]));
+    assert_eq!(rules, crate::domain::rules::UNCLAIMED_LABEL);
+    assert_eq!(legacy, rules);
 }

@@ -1,0 +1,24 @@
+{
+  "id": "azure-ai-foundry",
+  "doc": "The AzureAIFoundry dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "azure-ai-foundry.detect",
+      "doc": "Identifies AzureAIFoundry by the signals below.",
+      "label": "AzureAIFoundry",
+      "rank": 170,
+      "match": {
+        "attr_prefix": [
+          "az.ai."
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "azure-ai-foundry",
+      "label": "AzureAIFoundry"
+    }
+  ]
+}

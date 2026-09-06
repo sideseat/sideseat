@@ -1,0 +1,25 @@
+{
+  "id": "livekit",
+  "doc": "The LiveKit dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "livekit.detect",
+      "doc": "Identifies LiveKit by the signals below.",
+      "label": "LiveKit",
+      "rank": 230,
+      "match": {
+        "attr_prefix": [
+          "livekit.",
+          "lk."
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "livekit",
+      "label": "LiveKit"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "langflow",
+  "doc": "The Langflow dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "langflow.detect",
+      "doc": "Identifies Langflow by the signals below.",
+      "label": "Langflow",
+      "rank": 100,
+      "match": {
+        "attr_prefix": [
+          "langflow."
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "langflow",
+      "label": "Langflow"
+    }
+  ]
+}

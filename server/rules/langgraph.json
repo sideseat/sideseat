@@ -1,0 +1,32 @@
+{
+  "id": "langgraph",
+  "doc": "The LangGraph dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "langgraph.detect",
+      "doc": "Before LangChain, which is the broader dialect: a LangGraph span carries langchain.* too.",
+      "label": "LangGraph",
+      "rank": 40,
+      "match": {
+        "span_name": [
+          "LangGraph",
+          "LangGraph."
+        ],
+        "attr_prefix": [
+          "langgraph."
+        ],
+        "metadata_contains": [
+          "langgraph_",
+          "\"langgraph_"
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "langgraph",
+      "label": "LangGraph"
+    }
+  ]
+}

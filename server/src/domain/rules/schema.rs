@@ -30,6 +30,104 @@ pub struct RuleFile {
     /// Carrier semantics declarations.
     #[serde(default)]
     pub carriers: Vec<CarrierRule>,
+    /// Detection signals. Produce a **label** and nothing else: no behaviour reads it.
+    #[serde(default)]
+    pub detect: Vec<DetectRule>,
+    /// The slugs an SDK may write into `sideseat.framework` for this framework, and the label they
+    /// resolve to.
+    ///
+    /// Separate from `detect` because a declaration is evidence about the *process*, not about a span,
+    /// and is consulted only after every signal has failed. Provider slugs (`bedrock`, `openai`) belong
+    /// to no framework file, which is how they keep resolving to nothing.
+    #[serde(default)]
+    pub sdk_slugs: Vec<SdkSlug>,
+}
+
+/// One detection rule: signals that identify a producer, and the label they yield.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DetectRule {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The label written to the span's `framework` column. A display and filtering value.
+    pub label: String,
+    /// Where this rule sits in the ordered sweep.
+    ///
+    /// Ordering is *policy* here and cannot be derived: the signals genuinely overlap, and the current
+    /// answer depends on the order. Specific attribute rules must precede service-name fallbacks
+    /// because the SideSeat SDK defaults `service.name` to one framework's name, so a service-name rule
+    /// evaluated early would claim every span of every framework using the SDK. An explicit rank keeps
+    /// that visible and reviewable instead of resting on where a line sits in a file.
+    pub rank: i32,
+    #[serde(rename = "match")]
+    pub match_spec: DetectMatch,
+}
+
+/// One SDK-declared slug and the label it resolves to.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SdkSlug {
+    pub slug: String,
+    pub label: String,
+}
+
+/// A pair of strings - an attribute key and the value or substring it must hold.
+#[derive(Debug, Deserialize, Clone)]
+pub struct KeyValue {
+    pub key: String,
+    pub value: String,
+}
+
+/// A case-insensitive text search over named sources.
+///
+/// The one signal that is neither a prefix nor an equality: a framework whose spans are identified by a
+/// phrase appearing somewhere in a name, in any of several spellings.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct TextContains {
+    /// `span_name`, or `attr:<key>`.
+    pub sources: Vec<String>,
+    /// Any of these, matched case-insensitively.
+    pub needles: Vec<String>,
+}
+
+/// The signals a detection rule may use. **Any** satisfied signal matches the rule.
+///
+/// Disjunctive, which is the existing behaviour and worth naming: each dimension is independently
+/// sufficient. That is why a rule listing a broad `service_name` beside a narrow `attr_prefix` is not
+/// "narrow" at all, and why rank matters.
+#[derive(Debug, Default, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct DetectMatch {
+    /// Span name equals, or starts with, any of these.
+    #[serde(default)]
+    pub span_name: Vec<String>,
+    /// Any span attribute key starts with any of these.
+    #[serde(default)]
+    pub attr_prefix: Vec<String>,
+    /// A span attribute equals this value exactly.
+    #[serde(default)]
+    pub attr_equals: Vec<KeyValue>,
+    /// Any of these span attribute keys exists.
+    #[serde(default)]
+    pub attr_exists: Vec<String>,
+    /// The resource's `service.name` equals or *contains* any of these.
+    ///
+    /// A substring test, which is why no rule may identify a framework by a short common word: `agno`
+    /// would also match a service called `diagnostics`.
+    #[serde(default)]
+    pub service_name: Vec<String>,
+    /// The span's `metadata` attribute contains any of these substrings.
+    #[serde(default)]
+    pub metadata_contains: Vec<String>,
+    /// A resource attribute contains this substring - how an instrumentation library identifies itself
+    /// through `telemetry.sdk.name`.
+    #[serde(default)]
+    pub resource_attr_contains: Vec<KeyValue>,
+    /// A case-insensitive phrase search over the span name or a named attribute.
+    #[serde(default)]
+    pub text_contains: Option<TextContains>,
 }
 
 /// One carrier declaration: what to match, and what the matched carrier is evidence of.

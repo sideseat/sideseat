@@ -1,0 +1,24 @@
+{
+  "id": "semantic-kernel",
+  "doc": "The SemanticKernel dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "semantic-kernel.detect",
+      "doc": "Identifies SemanticKernel by the signals below.",
+      "label": "SemanticKernel",
+      "rank": 150,
+      "match": {
+        "attr_prefix": [
+          "semantic_kernel."
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "semantic-kernel",
+      "label": "SemanticKernel"
+    }
+  ]
+}

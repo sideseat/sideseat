@@ -1,0 +1,24 @@
+{
+  "id": "agno",
+  "doc": "The Agno dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "agno.detect",
+      "doc": "By attribute prefix only, never service.name: that dimension is a substring test, so `agno` would also match a service called `diagnostics`.",
+      "label": "Agno",
+      "rank": 70,
+      "match": {
+        "attr_prefix": [
+          "agno."
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "agno",
+      "label": "Agno"
+    }
+  ]
+}

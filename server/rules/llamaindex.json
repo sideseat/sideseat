@@ -1,0 +1,24 @@
+{
+  "id": "llamaindex",
+  "doc": "The LlamaIndex dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "llamaindex.detect",
+      "doc": "Identifies LlamaIndex by the signals below.",
+      "label": "LlamaIndex",
+      "rank": 60,
+      "match": {
+        "attr_prefix": [
+          "llama_index."
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "llama-index",
+      "label": "LlamaIndex"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "id": "google-adk",
+  "doc": "The GoogleADK dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "google-adk.detect",
+      "doc": "Ranked ahead of every service-name fallback: ADK's own attributes are conclusive.",
+      "label": "GoogleADK",
+      "rank": 20,
+      "match": {
+        "attr_prefix": [
+          "google.adk.",
+          "gcp.vertex.agent."
+        ],
+        "attr_equals": [
+          {
+            "key": "gen_ai.system",
+            "value": "gcp.vertex.agent"
+          }
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "google-adk",
+      "label": "GoogleADK"
+    }
+  ]
+}

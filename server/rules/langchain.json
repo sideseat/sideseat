@@ -1,0 +1,25 @@
+{
+  "id": "langchain",
+  "doc": "The LangChain dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "langchain.detect",
+      "doc": "The LangChain dialect, including the LangSmith exporter's spelling of it.",
+      "label": "LangChain",
+      "rank": 50,
+      "match": {
+        "attr_prefix": [
+          "langchain.",
+          "langsmith."
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "langchain",
+      "label": "LangChain"
+    }
+  ]
+}

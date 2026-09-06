@@ -1,0 +1,24 @@
+{
+  "id": "smolagents",
+  "doc": "The Smolagents dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "smolagents.detect",
+      "doc": "Identifies Smolagents by the signals below.",
+      "label": "Smolagents",
+      "rank": 80,
+      "match": {
+        "attr_prefix": [
+          "smolagents."
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "smolagents",
+      "label": "Smolagents"
+    }
+  ]
+}

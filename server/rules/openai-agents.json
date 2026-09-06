@@ -1,0 +1,28 @@
+{
+  "id": "openai-agents",
+  "doc": "The OpenAIAgents dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "openai-agents.detect",
+      "doc": "Identifies OpenAIAgents by the signals below.",
+      "label": "OpenAIAgents",
+      "rank": 240,
+      "match": {
+        "attr_prefix": [
+          "openai.agents."
+        ],
+        "service_name": [
+          "openai-agents",
+          "openai_agents"
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "openai-agents",
+      "label": "OpenAIAgents"
+    }
+  ]
+}

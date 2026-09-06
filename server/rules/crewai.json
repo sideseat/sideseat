@@ -1,0 +1,31 @@
+{
+  "id": "crewai",
+  "doc": "The CrewAI dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "crewai.detect",
+      "doc": "CrewAI writes its own identifiers onto the span, and its telemetry service reports a distinctive name.",
+      "label": "CrewAI",
+      "rank": 30,
+      "match": {
+        "service_name": [
+          "crewAI-telemetry"
+        ],
+        "attr_exists": [
+          "crewai_version",
+          "crew_key",
+          "crew_id",
+          "crew_fingerprint",
+          "task_key"
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "crewai",
+      "label": "CrewAI"
+    }
+  ]
+}

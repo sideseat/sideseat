@@ -1,0 +1,27 @@
+{
+  "id": "browser-use",
+  "doc": "The BrowserUse dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "browser-use.detect",
+      "doc": "browser-use sets gen_ai.provider.name on every span it emits.",
+      "label": "BrowserUse",
+      "rank": 130,
+      "match": {
+        "attr_equals": [
+          {
+            "key": "gen_ai.provider.name",
+            "value": "browser_use"
+          }
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "browser-use",
+      "label": "BrowserUse"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "vertex-ai",
+  "doc": "The VertexAI dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "vertex-ai.detect",
+      "doc": "openllmetry's Vertex instrumentation identifies itself only through its span names.",
+      "label": "VertexAI",
+      "rank": 180,
+      "match": {
+        "span_name": [
+          "vertexai."
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "vertex-ai",
+      "label": "VertexAI"
+    }
+  ]
+}

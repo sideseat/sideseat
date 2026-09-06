@@ -5,26 +5,67 @@
     {
       "id": "claude-agent-sdk.new_context",
       "doc": "The turns and tool results handed to the model, tagged in-band.",
-      "match": { "attribute": "new_context" },
-      "facts": { "preset": "snapshot" }
+      "match": {
+        "attribute": "new_context"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
     },
     {
       "id": "claude-agent-sdk.model_output",
       "doc": "The model's reply.",
-      "match": { "attribute": "response.model_output" },
-      "facts": { "preset": "emission" }
+      "match": {
+        "attribute": "response.model_output"
+      },
+      "facts": {
+        "preset": "emission"
+      }
     },
     {
       "id": "claude-agent-sdk.user_system_prompt",
       "doc": "The system prompt, reported beside the conversation: a detached request frame.",
-      "match": { "attribute": "user_system_prompt" },
-      "facts": { "preset": "snapshot", "carrier_is_detached_request_frame": true }
+      "match": {
+        "attribute": "user_system_prompt"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_is_detached_request_frame": true
+      }
     },
     {
       "id": "claude-agent-sdk.tool_name",
       "doc": "The tool a span was asked to run, alongside its input.",
-      "match": { "attribute": "tool_name" },
-      "facts": { "preset": "emission", "carrier_holds_span_output": false }
+      "match": {
+        "attribute": "tool_name"
+      },
+      "facts": {
+        "preset": "emission",
+        "carrier_holds_span_output": false
+      }
+    }
+  ],
+  "detect": [
+    {
+      "id": "claude-agent-sdk.detect",
+      "doc": "The CLI subprocess emits every span under one prefix. Two service names because the CLI reports one and the host process wrapping it reports the other.",
+      "label": "ClaudeAgentSDK",
+      "rank": 270,
+      "match": {
+        "span_name": [
+          "claude_code."
+        ],
+        "service_name": [
+          "claude-code",
+          "claude-agent-sdk"
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "claude-agent-sdk",
+      "label": "ClaudeAgentSDK"
     }
   ]
 }

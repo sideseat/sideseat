@@ -5,8 +5,53 @@
     {
       "id": "strands.system_prompt",
       "doc": "The system prompt a model was given, reported beside the conversation: a detached request frame.",
-      "match": { "attribute": "system_prompt" },
-      "facts": { "preset": "snapshot", "carrier_is_detached_request_frame": true }
+      "match": {
+        "attribute": "system_prompt"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_is_detached_request_frame": true
+      }
+    }
+  ],
+  "detect": [
+    {
+      "id": "strands.detect",
+      "doc": "LAST, and the rank is the whole point: the SideSeat SDK defaults service.name to `strands-agents`, so this rule's service-name signal would otherwise claim every span of every framework using the SDK. The phrase search covers the three spellings a name may use and was a Rust matcher.",
+      "label": "StrandsAgents",
+      "rank": 280,
+      "match": {
+        "attr_equals": [
+          {
+            "key": "gen_ai.system",
+            "value": "strands-agents"
+          },
+          {
+            "key": "gen_ai.provider.name",
+            "value": "strands-agents"
+          }
+        ],
+        "service_name": [
+          "strands-agents"
+        ],
+        "text_contains": {
+          "sources": [
+            "span_name",
+            "attr:gen_ai.agent.name"
+          ],
+          "needles": [
+            "strands agent",
+            "strands-agent",
+            "strands_agent"
+          ]
+        }
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "strands",
+      "label": "StrandsAgents"
     }
   ]
 }

@@ -246,11 +246,31 @@ cardinality unbounded, so it is a cache and never a correctness assumption.
 
 The inert enum removes detection as a prerequisite, so it is no longer first.
 
-1. Tighten scope and freeze the inventory.
-2. Rule schema, validator, compiler, immutable typed plan, ruleset hash, explain facility. No
-   behaviour switch.
-3. **Carrier semantics**, and with it the aggregator defect below.
-4. Label-only detection; `Framework` becomes an opaque optional string.
+Each landed step is proved by an **equivalence oracle**: the table it replaced is kept under
+`#[cfg(test)]` and compared against the rules, rather than deleted and the goldens trusted. Goldens can
+bless a regression; an oracle cannot.
+
+1. ✅ Tighten scope and freeze the inventory.
+2. ✅ Rule schema, validator, compiler, immutable typed plan, ruleset hash. Explain data is on every
+   compiled clause (asset, id, doc); the *rendered* trace is still to come.
+3. ✅ **Carrier semantics** — 32 clauses over 7 dialects, proven equivalent by
+   `the_rules_reproduce_the_legacy_carrier_table`. The aggregator defect is diagnosed, measured and
+   deliberately not shipped; see below.
+4. ✅ **Label-only detection** — 28 rules and 26 SDK slugs in the assets, proven equivalent by
+   `the_rules_reproduce_the_legacy_detection` over 66 cases covering every rule, every dimension and
+   the orderings that matter (mutation-verified: moving the Strands rule to the front breaks 3 cases).
+   `SpanData.framework` and `NormalizedSpan.framework` are now `Option<String>`; the `Framework` enum
+   is reachable only from the oracle, so adding a framework is an asset edit and not a code change.
+
+   All four **Rust matcher callbacks are gone**, which was the real test of the vocabulary: one merely
+   duplicated the existing prefix dimension, two were "a resource attribute contains this", and the
+   fourth a case-insensitive phrase search over the span name or a named attribute. Two new generic
+   dimensions covered all four, so no producer needed a hole opened for it.
+
+   Detection order is **explicit rank**, not file position: the signals genuinely overlap, and a shared
+   rank fails compilation because their relative order would otherwise depend on load order. That order
+   is load-bearing — the SideSeat SDK defaults `service.name` to one framework's name, so that rule's
+   service-name signal must be last or it claims every span of every framework using the SDK.
 5. Feed source / event / replay / ordering-family tables.
 6. Content and tool normalisation, with explicit named-chain precedence.
 7. Reconcile the three provider namespaces, then token / cost / model conventions.

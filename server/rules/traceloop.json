@@ -1,0 +1,30 @@
+{
+  "id": "traceloop",
+  "doc": "The TraceLoop dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "traceloop.detect",
+      "doc": "Identifies TraceLoop by the signals below.",
+      "label": "TraceLoop",
+      "rank": 220,
+      "match": {
+        "attr_prefix": [
+          "traceloop."
+        ],
+        "resource_attr_contains": [
+          {
+            "key": "telemetry.sdk.name",
+            "value": "traceloop"
+          }
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "traceloop",
+      "label": "TraceLoop"
+    }
+  ]
+}

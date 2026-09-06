@@ -1,0 +1,24 @@
+{
+  "id": "ag2",
+  "doc": "The AG2 dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "ag2.detect",
+      "doc": "Identifies AG2 by the signals below.",
+      "label": "AG2",
+      "rank": 110,
+      "match": {
+        "attr_prefix": [
+          "ag2."
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "ag2",
+      "label": "AG2"
+    }
+  ]
+}

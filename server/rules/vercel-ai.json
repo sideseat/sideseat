@@ -5,26 +5,73 @@
     {
       "id": "vercel-ai.response",
       "doc": "One response, in one payload, spread across sibling keys (`ai.response.text` beside `ai.response.toolCalls`). An emission, which is what keeps a turn's intro text with the tool calls it introduces - reading it as a snapshot let the two be ordered independently and the text sorted after its own calls.",
-      "match": { "attribute_prefix": "ai.response" },
-      "facts": { "preset": "emission" }
+      "match": {
+        "attribute_prefix": "ai.response"
+      },
+      "facts": {
+        "preset": "emission"
+      }
     },
     {
       "id": "vercel-ai.prompt",
       "doc": "The conversation handed to the model.",
-      "match": { "attribute_prefix": "ai.prompt" },
-      "facts": { "preset": "snapshot" }
+      "match": {
+        "attribute_prefix": "ai.prompt"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
     },
     {
       "id": "vercel-ai.tool_call_result",
       "doc": "A tool span's result.",
-      "match": { "attribute": "ai.toolCall.result" },
-      "facts": { "preset": "emission" }
+      "match": {
+        "attribute": "ai.toolCall.result"
+      },
+      "facts": {
+        "preset": "emission"
+      }
     },
     {
       "id": "vercel-ai.tool_call_args",
       "doc": "The arguments that tool span was handed.",
-      "match": { "attribute": "ai.toolCall.args" },
-      "facts": { "preset": "emission", "carrier_holds_span_output": false }
+      "match": {
+        "attribute": "ai.toolCall.args"
+      },
+      "facts": {
+        "preset": "emission",
+        "carrier_holds_span_output": false
+      }
+    }
+  ],
+  "detect": [
+    {
+      "id": "vercel-ai.detect",
+      "doc": "The prefix list was a hand-written Rust matcher that duplicated the prefix dimension exactly - the clearest case that a callback was never needed. Note this identifies the SDK's *legacy* integration; its current one emits pure gen_ai.* and is attributable only by the SDK's declaration.",
+      "label": "VercelAISDK",
+      "rank": 190,
+      "match": {
+        "attr_exists": [
+          "ai.operationId",
+          "ai.telemetry.functionId",
+          "ai.telemetry.metadata"
+        ],
+        "attr_prefix": [
+          "ai.prompt.",
+          "ai.completion.",
+          "ai.settings.",
+          "ai.telemetry.",
+          "ai.stream.",
+          "ai.finishReason",
+          "ai.usage."
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "vercel-ai",
+      "label": "VercelAISDK"
     }
   ]
 }

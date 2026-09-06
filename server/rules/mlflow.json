@@ -1,0 +1,24 @@
+{
+  "id": "mlflow",
+  "doc": "The MLflow dialect.",
+  "carriers": [],
+  "detect": [
+    {
+      "id": "mlflow.detect",
+      "doc": "Identifies MLflow by the signals below.",
+      "label": "MLflow",
+      "rank": 210,
+      "match": {
+        "attr_prefix": [
+          "mlflow."
+        ]
+      }
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "mlflow",
+      "label": "MLflow"
+    }
+  ]
+}
