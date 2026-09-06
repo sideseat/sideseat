@@ -7,7 +7,6 @@
       "id": "openai-agents.detect",
       "doc": "Identifies OpenAIAgents by the signals below.",
       "label": "OpenAIAgents",
-      "rank": 240,
       "match": {
         "attr_prefix": [
           "openai.agents."
@@ -16,7 +15,8 @@
           "openai-agents",
           "openai_agents"
         ]
-      }
+      },
+      "legacy_rank": 240
     }
   ],
   "sdk_slugs": [

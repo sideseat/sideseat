@@ -7,12 +7,12 @@
       "id": "vertex-ai.detect",
       "doc": "openllmetry's Vertex instrumentation identifies itself only through its span names.",
       "label": "VertexAI",
-      "rank": 180,
       "match": {
         "span_name": [
           "vertexai."
         ]
-      }
+      },
+      "legacy_rank": 180
     }
   ],
   "sdk_slugs": [

@@ -562,7 +562,7 @@ fn extract_per_carrier(
     }
     if messages
         .iter()
-        .any(|m| carrier_holds_span_output(&m.source))
+        .any(|m| carrier_holds_span_output(&m.source, span_name, observation_type))
     {
         return;
     }
@@ -572,7 +572,7 @@ fn extract_per_carrier(
         (named.extractor)(&mut produced, tool_definitions, attrs, span_name, timestamp);
     }
     for message in produced {
-        if !carrier_holds_span_output(&message.source) {
+        if !carrier_holds_span_output(&message.source, span_name, observation_type) {
             continue;
         }
         let carrier = carrier_of(&message.source);
@@ -582,13 +582,32 @@ fn extract_per_carrier(
     }
 }
 
-/// Whether a carrier is one the span's own output is reported through, per the declared table.
-fn carrier_holds_span_output(source: &MessageSource) -> bool {
+/// Whether a carrier is one the span's own output is reported through, per the declared rules.
+///
+/// Asked *with* the span context this path already has. Reading the carrier name alone here meant a
+/// clause qualified by observation type or span name could never apply at ingestion, so the same carrier
+/// would be read one way when a span was written and another when it was read - the split answer this
+/// engine exists to remove. Scope is not available on this path, and a clause that asks about it
+/// therefore cannot match here, which is the conservative direction: it falls back to the generic clause
+/// rather than guessing.
+fn carrier_holds_span_output(
+    source: &MessageSource,
+    span_name: &str,
+    observation_type: ObservationType,
+) -> bool {
     let (event, attribute) = match source {
         MessageSource::Event { name, .. } => (Some(name.as_str()), None),
         MessageSource::Attribute { key, .. } => (None, Some(key.as_str())),
     };
-    crate::domain::sideml::carrier::semantics_for(event, attribute).carrier_holds_span_output
+    crate::domain::sideml::carrier::semantics_for_context(&crate::domain::rules::CarrierContext {
+        event,
+        attribute,
+        observation_type: Some(observation_type.as_str()),
+        span_name: Some(span_name),
+        scope_name: None,
+        scope_version: None,
+    })
+    .carrier_holds_span_output
 }
 
 /// The attribute or event an observation was read from - what an extractor claims.

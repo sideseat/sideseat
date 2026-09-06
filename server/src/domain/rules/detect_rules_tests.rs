@@ -48,8 +48,8 @@ fn two_rules_at_one_rank_are_refused() {
     let clash = br#"{
       "id": "t", "doc": "d",
       "detect": [
-        {"id": "a", "doc": "d", "label": "A", "rank": 5, "match": {"attr_prefix": ["a."]}},
-        {"id": "b", "doc": "d", "label": "B", "rank": 5, "match": {"attr_prefix": ["b."]}}
+        {"id": "a", "doc": "d", "label": "A", "legacy_rank": 5, "match": {"attr_prefix": ["a."]}},
+        {"id": "b", "doc": "d", "label": "B", "legacy_rank": 5, "match": {"attr_prefix": ["b."]}}
       ]
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), clash.to_vec())]);
@@ -63,7 +63,7 @@ fn two_rules_at_one_rank_are_refused() {
 fn a_rule_with_no_signal_is_refused() {
     let bare = br#"{
       "id": "t", "doc": "d",
-      "detect": [{"id": "a", "doc": "d", "label": "A", "rank": 1, "match": {}}]
+      "detect": [{"id": "a", "doc": "d", "label": "A", "legacy_rank": 1, "match": {}}]
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), bare.to_vec())]);
     assert!(matches!(
@@ -90,7 +90,7 @@ fn a_slug_claimed_twice_is_refused() {
 fn a_text_source_must_name_something_the_engine_can_read() {
     let bad = br#"{
       "id": "t", "doc": "d",
-      "detect": [{"id": "a", "doc": "d", "label": "A", "rank": 1,
+      "detect": [{"id": "a", "doc": "d", "label": "A", "legacy_rank": 1,
                   "match": {"text_contains": {"sources": ["whatever"], "needles": ["x"]}}}]
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), bad.to_vec())]);
@@ -105,8 +105,8 @@ fn rank_decides_which_of_two_matching_rules_wins() {
     let ordered = br#"{
       "id": "t", "doc": "d",
       "detect": [
-        {"id": "broad", "doc": "d", "label": "Broad", "rank": 90, "match": {"attr_prefix": ["x."]}},
-        {"id": "narrow", "doc": "d", "label": "Narrow", "rank": 10, "match": {"attr_prefix": ["x.y."]}}
+        {"id": "broad", "doc": "d", "label": "Broad", "legacy_rank": 90, "match": {"attr_prefix": ["x."]}},
+        {"id": "narrow", "doc": "d", "label": "Narrow", "legacy_rank": 10, "match": {"attr_prefix": ["x.y."]}}
       ]
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), ordered.to_vec())]);

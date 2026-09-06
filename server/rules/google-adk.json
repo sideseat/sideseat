@@ -7,7 +7,6 @@
       "id": "google-adk.detect",
       "doc": "Ranked ahead of every service-name fallback: ADK's own attributes are conclusive.",
       "label": "GoogleADK",
-      "rank": 20,
       "match": {
         "attr_prefix": [
           "google.adk.",
@@ -19,7 +18,8 @@
             "value": "gcp.vertex.agent"
           }
         ]
-      }
+      },
+      "legacy_rank": 20
     }
   ],
   "sdk_slugs": [

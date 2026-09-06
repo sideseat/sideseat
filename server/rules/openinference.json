@@ -29,12 +29,12 @@
       "id": "openinference.detect",
       "doc": "The generic OpenInference dialect, after every framework that rides on it.",
       "label": "OpenInference",
-      "rank": 140,
       "match": {
         "attr_prefix": [
           "openinference."
         ]
-      }
+      },
+      "legacy_rank": 140
     }
   ]
 }

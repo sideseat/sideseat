@@ -22,7 +22,8 @@ pub struct CompiledDetect {
     pub rule_id: String,
     pub doc: Option<String>,
     pub label: String,
-    pub rank: i32,
+    pub legacy_rank: i32,
+    pub supersedes: Vec<String>,
     pub match_spec: DetectMatch,
     /// `text_contains` sources split once, at compile time, into "the span name" and attribute keys.
     span_name_is_a_text_source: bool,
@@ -232,7 +233,8 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                 rule_id: rule.id.clone(),
                 doc: rule.doc.clone(),
                 label: rule.label.clone(),
-                rank: rule.rank,
+                legacy_rank: rule.legacy_rank,
+                supersedes: rule.supersedes.clone(),
                 match_spec: rule.match_spec.clone(),
                 span_name_is_a_text_source: span_source,
                 text_attribute_keys: attr_keys,
@@ -241,11 +243,11 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
         }
     }
 
-    rules.sort_by_key(|r| r.rank);
+    rules.sort_by_key(|r| r.legacy_rank);
     // A shared rank is refused: two rules that both match one span would be separated by load order,
     // and the whole reason rank is explicit is that this order is policy somebody has to own.
     for pair in rules.windows(2) {
-        if pair[0].rank == pair[1].rank {
+        if pair[0].legacy_rank == pair[1].legacy_rank {
             return Err(DetectCompileError::DuplicateRank {
                 first: pair[0].rule_id.clone(),
                 second: pair[1].rule_id.clone(),
@@ -347,9 +349,41 @@ impl CompiledDetect {
 }
 
 impl DetectPlan {
-    /// The rule that claims this span, in rank order.
+    /// The rule that claims this span.
+    ///
+    /// Takes the first by `legacy_rank`, which is what reproduces the table this replaced. Where more
+    /// than one rule matches, that choice is a *migration bridge* and the alternatives are recoverable
+    /// through [`Self::overlapping_candidates`] - the design's target is that no span has two, and the
+    /// only way to get there is to be able to see which spans do.
     pub fn resolve(&self, ctx: &DetectContext<'_>) -> Option<&CompiledDetect> {
         self.rules.iter().find(|rule| rule.matches(ctx))
+    }
+
+    /// Every rule that matches, in rank order.
+    ///
+    /// The instrument for retiring `legacy_rank`: a span with one candidate needs no ordering, and one
+    /// with several names exactly which predicates are not yet sufficient. A rule that `supersedes`
+    /// another is not reported against it, because that overlap is already owned.
+    pub fn overlapping_candidates<'p>(
+        &'p self,
+        ctx: &DetectContext<'_>,
+    ) -> Vec<&'p CompiledDetect> {
+        let matching: Vec<&CompiledDetect> =
+            self.rules.iter().filter(|rule| rule.matches(ctx)).collect();
+        if matching.len() < 2 {
+            return Vec::new();
+        }
+        let winner = matching[0];
+        let contested: Vec<&CompiledDetect> = matching
+            .iter()
+            .skip(1)
+            .filter(|other| !winner.supersedes.contains(&other.rule_id))
+            .copied()
+            .collect();
+        if contested.is_empty() {
+            return Vec::new();
+        }
+        matching
     }
 
     /// The label a declaration resolves to, when it names exactly one framework this server knows.

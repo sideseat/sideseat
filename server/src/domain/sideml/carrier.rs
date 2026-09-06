@@ -110,6 +110,12 @@ impl CarrierSemantics {
 /// The default for an unrecognised carrier is [`CarrierSemantics::SNAPSHOT`], the cautious reading:
 /// it declines to treat position as proof of a second occurrence, so a carrier nobody has classified
 /// cannot invent messages. It can only under-report, which the answer invariant would catch.
+///
+/// **No production path uses this any more**: every one supplies what it knows about the span, so a
+/// clause qualified by observation type or span name applies wherever it is true rather than only on the
+/// paths that happened to pass context. It survives for the equivalence oracle, which compares the rules
+/// against a table that had no notion of a span.
+#[cfg(test)]
 pub fn semantics_for(event: Option<&str>, attribute: Option<&str>) -> CarrierSemantics {
     declared_semantics(event, attribute).unwrap_or(CarrierSemantics::SNAPSHOT)
 }
@@ -134,6 +140,9 @@ pub fn semantics_for_context(ctx: &crate::domain::rules::CarrierContext<'_>) -> 
 /// "classified, and it reads as a snapshot". The two are the same *value* and completely different
 /// facts, and `carrier_semantics_are_declared` needs to tell them apart - a test that compared the
 /// value could not, and reported every declared snapshot carrier as unclassified.
+///
+/// Test-only for the same reason as [`semantics_for`]: production asks with context.
+#[cfg(test)]
 pub fn declared_semantics(
     event: Option<&str>,
     attribute: Option<&str>,

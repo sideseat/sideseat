@@ -7,12 +7,12 @@
       "id": "azure-ai-foundry.detect",
       "doc": "Identifies AzureAIFoundry by the signals below.",
       "label": "AzureAIFoundry",
-      "rank": 170,
       "match": {
         "attr_prefix": [
           "az.ai."
         ]
-      }
+      },
+      "legacy_rank": 170
     }
   ],
   "sdk_slugs": [

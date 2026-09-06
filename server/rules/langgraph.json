@@ -5,9 +5,8 @@
   "detect": [
     {
       "id": "langgraph.detect",
-      "doc": "Before LangChain, which is the broader dialect: a LangGraph span carries langchain.* too.",
+      "doc": "Before LangChain, which is the broader dialect: a LangGraph span carries langchain.* too. Supersedes langchain.detect: this is the more specific dialect, and both match the same span, so the relationship is declared rather than left to the legacy rank.",
       "label": "LangGraph",
-      "rank": 40,
       "match": {
         "span_name": [
           "LangGraph",
@@ -26,7 +25,11 @@
             "value": "\"langgraph_"
           }
         ]
-      }
+      },
+      "legacy_rank": 40,
+      "supersedes": [
+        "langchain.detect"
+      ]
     }
   ],
   "sdk_slugs": [

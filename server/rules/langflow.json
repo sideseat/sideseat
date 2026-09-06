@@ -5,14 +5,17 @@
   "detect": [
     {
       "id": "langflow.detect",
-      "doc": "Identifies Langflow by the signals below.",
+      "doc": "Identifies Langflow by the signals below. Supersedes openinference.detect: this is the more specific dialect, and both match the same span, so the relationship is declared rather than left to the legacy rank.",
       "label": "Langflow",
-      "rank": 100,
       "match": {
         "attr_prefix": [
           "langflow."
         ]
-      }
+      },
+      "legacy_rank": 100,
+      "supersedes": [
+        "openinference.detect"
+      ]
     }
   ],
   "sdk_slugs": [

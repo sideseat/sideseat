@@ -7,7 +7,6 @@
       "id": "autogen.detect",
       "doc": "OpenInference's AutoGen instrumentation sets gen_ai.system while service.name may still be the default, so the system value is a signal in its own right.",
       "label": "AutoGen",
-      "rank": 10,
       "match": {
         "span_name": [
           "autogen ",
@@ -22,7 +21,8 @@
             "value": "autogen"
           }
         ]
-      }
+      },
+      "legacy_rank": 10
     }
   ],
   "sdk_slugs": [

@@ -5,9 +5,8 @@
   "detect": [
     {
       "id": "azure-openai.detect",
-      "doc": "Before Azure AI Foundry, whose `az.ai.` prefix is broader. Two spellings of the system value because both are in the wild.",
+      "doc": "Before Azure AI Foundry, whose `az.ai.` prefix is broader. Two spellings of the system value because both are in the wild. Supersedes azure-ai-foundry.detect: this is the more specific dialect, and both match the same span, so the relationship is declared rather than left to the legacy rank.",
       "label": "AzureOpenAI",
-      "rank": 160,
       "match": {
         "attr_prefix": [
           "azure.openai."
@@ -26,7 +25,11 @@
             "value": "azure_openai"
           }
         ]
-      }
+      },
+      "legacy_rank": 160,
+      "supersedes": [
+        "azure-ai-foundry.detect"
+      ]
     }
   ],
   "sdk_slugs": [

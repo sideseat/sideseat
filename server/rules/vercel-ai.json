@@ -49,7 +49,6 @@
       "id": "vercel-ai.detect",
       "doc": "The prefix list was a hand-written Rust matcher that duplicated the prefix dimension exactly - the clearest case that a callback was never needed. Note this identifies the SDK's *legacy* integration; its current one emits pure gen_ai.* and is attributable only by the SDK's declaration.",
       "label": "VercelAISDK",
-      "rank": 190,
       "match": {
         "attr_exists": [
           "ai.operationId",
@@ -65,7 +64,8 @@
           "ai.finishReason",
           "ai.usage."
         ]
-      }
+      },
+      "legacy_rank": 190
     }
   ],
   "sdk_slugs": [

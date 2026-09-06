@@ -7,13 +7,13 @@
       "id": "livekit.detect",
       "doc": "Identifies LiveKit by the signals below.",
       "label": "LiveKit",
-      "rank": 230,
       "match": {
         "attr_prefix": [
           "livekit.",
           "lk."
         ]
-      }
+      },
+      "legacy_rank": 230
     }
   ],
   "sdk_slugs": [

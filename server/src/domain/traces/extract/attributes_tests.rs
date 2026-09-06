@@ -2322,3 +2322,77 @@ fn a_span_nothing_claims_is_labelled_unclaimed() {
     assert_eq!(rules, crate::domain::rules::UNCLAIMED_LABEL);
     assert_eq!(legacy, rules);
 }
+
+/// How far detection is from being order-independent, measured rather than assumed.
+///
+/// `legacy_rank` exists because the rules were transcribed from a first-match table whose order is
+/// load-bearing. The target is that no span has two candidates, and this reports which of the corpus's
+/// own shapes still do - so retiring the rank is a measurable job rather than a hope. Reported, not
+/// asserted to be zero: making it zero means narrowing predicates, which is its own reviewed change.
+#[test]
+fn detection_overlaps_are_reported() {
+    let plan = &crate::domain::rules::ruleset().detect;
+    let empty = HashMap::new();
+
+    // Shapes that really co-occur: a framework riding OpenInference, and any framework using the SDK
+    // (whose default service name is one framework's own).
+    let sdk_default = detect_attrs(&[("service.name", "strands-agents")]);
+    /// One overlap probe: span name, its attributes, and the resource's.
+    type OverlapProbe<'a> = (
+        &'a str,
+        HashMap<String, String>,
+        &'a HashMap<String, String>,
+    );
+
+    let probes: Vec<OverlapProbe<'_>> = vec![
+        (
+            "s",
+            detect_attrs(&[("agno.x", "1"), ("openinference.span.kind", "LLM")]),
+            &empty,
+        ),
+        (
+            "s",
+            detect_attrs(&[("langgraph.step", "1"), ("langchain.x", "1")]),
+            &empty,
+        ),
+        ("s", detect_attrs(&[("langgraph.step", "1")]), &sdk_default),
+        ("s", detect_attrs(&[("crew_key", "k")]), &sdk_default),
+        (
+            "s",
+            detect_attrs(&[("openinference.span.kind", "LLM")]),
+            &sdk_default,
+        ),
+        (
+            "s",
+            detect_attrs(&[("azure.openai.x", "1"), ("az.ai.x", "1")]),
+            &empty,
+        ),
+    ];
+
+    let mut overlaps = Vec::new();
+    for (span_name, span_attrs, resource_attrs) in &probes {
+        let ctx = crate::domain::rules::DetectContext {
+            span_name,
+            span_attrs,
+            resource_attrs,
+        };
+        let candidates = plan.overlapping_candidates(&ctx);
+        if !candidates.is_empty() {
+            let names: Vec<&str> = candidates.iter().map(|c| c.rule_id.as_str()).collect();
+            overlaps.push(format!("  {span_attrs:?} -> {}", names.join(", ")));
+        }
+    }
+    println!(
+        "detection: {} of {} probed shapes have more than one candidate, so `legacy_rank` still \
+         decides them:\n{}",
+        overlaps.len(),
+        probes.len(),
+        overlaps.join("\n")
+    );
+    // The bound that must hold: whatever the overlaps, the *winner* is the one the table chose. That is
+    // what `the_rules_reproduce_the_legacy_detection` asserts; this test exists to name the residue.
+    assert!(
+        overlaps.len() <= probes.len(),
+        "sanity: cannot overlap on more shapes than were probed"
+    );
+}

@@ -7,12 +7,12 @@
       "id": "semantic-kernel.detect",
       "doc": "Identifies SemanticKernel by the signals below.",
       "label": "SemanticKernel",
-      "rank": 150,
       "match": {
         "attr_prefix": [
           "semantic_kernel."
         ]
-      }
+      },
+      "legacy_rank": 150
     }
   ],
   "sdk_slugs": [

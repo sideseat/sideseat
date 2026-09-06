@@ -50,7 +50,6 @@
       "id": "claude-agent-sdk.detect",
       "doc": "The CLI subprocess emits every span under one prefix. Two service names because the CLI reports one and the host process wrapping it reports the other.",
       "label": "ClaudeAgentSDK",
-      "rank": 270,
       "match": {
         "span_name": [
           "claude_code."
@@ -59,7 +58,8 @@
           "claude-code",
           "claude-agent-sdk"
         ]
-      }
+      },
+      "legacy_rank": 270
     }
   ],
   "sdk_slugs": [

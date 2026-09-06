@@ -5,14 +5,17 @@
   "detect": [
     {
       "id": "agno.detect",
-      "doc": "By attribute prefix only, never service.name: that dimension is a substring test, so `agno` would also match a service called `diagnostics`.",
+      "doc": "By attribute prefix only, never service.name: that dimension is a substring test, so `agno` would also match a service called `diagnostics`. Supersedes openinference.detect: this is the more specific dialect, and both match the same span, so the relationship is declared rather than left to the legacy rank.",
       "label": "Agno",
-      "rank": 70,
       "match": {
         "attr_prefix": [
           "agno."
         ]
-      }
+      },
+      "legacy_rank": 70,
+      "supersedes": [
+        "openinference.detect"
+      ]
     }
   ],
   "sdk_slugs": [

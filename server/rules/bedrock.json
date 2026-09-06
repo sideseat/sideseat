@@ -7,7 +7,6 @@
       "id": "bedrock.detect",
       "doc": "Identifies AWSBedrock by the signals below.",
       "label": "AWSBedrock",
-      "rank": 260,
       "match": {
         "attr_prefix": [
           "aws.bedrock."
@@ -22,7 +21,8 @@
             "value": "aws.bedrock"
           }
         ]
-      }
+      },
+      "legacy_rank": 260
     }
   ]
 }

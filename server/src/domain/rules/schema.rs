@@ -52,14 +52,24 @@ pub struct DetectRule {
     pub doc: Option<String>,
     /// The label written to the span's `framework` column. A display and filtering value.
     pub label: String,
-    /// Where this rule sits in the ordered sweep.
+    /// Where this rule sits in the ordered sweep - a **migration bridge**, not the target design.
     ///
-    /// Ordering is *policy* here and cannot be derived: the signals genuinely overlap, and the current
-    /// answer depends on the order. Specific attribute rules must precede service-name fallbacks
-    /// because the SideSeat SDK defaults `service.name` to one framework's name, so a service-name rule
-    /// evaluated early would claim every span of every framework using the SDK. An explicit rank keeps
-    /// that visible and reviewable instead of resting on where a line sits in a file.
-    pub rank: i32,
+    /// The accepted design is order-independent: each rule states sufficient conditions, a unique
+    /// sufficient candidate wins, and a declared `supersedes` resolves a known overlap. Today's rules do
+    /// not state sufficient conditions - they were transcribed from a first-match table whose order is
+    /// load-bearing, because the SideSeat SDK defaults `service.name` to one framework's name, so a
+    /// service-name signal evaluated early claims every span of every framework using the SDK.
+    ///
+    /// So the rank reproduces that answer while the overlaps are *collected and reported* rather than
+    /// silently resolved (`overlapping_candidates`). It goes when the predicates are narrow enough that
+    /// no span has two candidates - and until then, naming it `legacy_rank` is the honest description of
+    /// what it is.
+    #[serde(rename = "legacy_rank")]
+    pub legacy_rank: i32,
+    /// Rule ids this rule beats where both match. Declared, so a genuine overlap is owned rather than
+    /// resolved by a number.
+    #[serde(default)]
+    pub supersedes: Vec<String>,
     #[serde(rename = "match")]
     pub match_spec: DetectMatch,
 }

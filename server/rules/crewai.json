@@ -7,7 +7,6 @@
       "id": "crewai.detect",
       "doc": "CrewAI writes its own identifiers onto the span, and its telemetry service reports a distinctive name.",
       "label": "CrewAI",
-      "rank": 30,
       "match": {
         "service_name": [
           "crewAI-telemetry"
@@ -19,7 +18,8 @@
           "crew_fingerprint",
           "task_key"
         ]
-      }
+      },
+      "legacy_rank": 30
     }
   ],
   "sdk_slugs": [

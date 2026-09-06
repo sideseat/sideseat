@@ -5,14 +5,17 @@
   "detect": [
     {
       "id": "agentscope.detect",
-      "doc": "Identifies AgentScope by the signals below.",
+      "doc": "Identifies AgentScope by the signals below. Supersedes openinference.detect: this is the more specific dialect, and both match the same span, so the relationship is declared rather than left to the legacy rank.",
       "label": "AgentScope",
-      "rank": 90,
       "match": {
         "attr_prefix": [
           "agentscope."
         ]
-      }
+      },
+      "legacy_rank": 90,
+      "supersedes": [
+        "openinference.detect"
+      ]
     }
   ],
   "sdk_slugs": [

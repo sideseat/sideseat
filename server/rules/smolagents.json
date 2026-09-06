@@ -5,14 +5,17 @@
   "detect": [
     {
       "id": "smolagents.detect",
-      "doc": "Identifies Smolagents by the signals below.",
+      "doc": "Identifies Smolagents by the signals below. Supersedes openinference.detect: this is the more specific dialect, and both match the same span, so the relationship is declared rather than left to the legacy rank.",
       "label": "Smolagents",
-      "rank": 80,
       "match": {
         "attr_prefix": [
           "smolagents."
         ]
-      }
+      },
+      "legacy_rank": 80,
+      "supersedes": [
+        "openinference.detect"
+      ]
     }
   ],
   "sdk_slugs": [

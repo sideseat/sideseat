@@ -7,13 +7,13 @@
       "id": "langchain.detect",
       "doc": "The LangChain dialect, including the LangSmith exporter's spelling of it.",
       "label": "LangChain",
-      "rank": 50,
       "match": {
         "attr_prefix": [
           "langchain.",
           "langsmith."
         ]
-      }
+      },
+      "legacy_rank": 50
     }
   ],
   "sdk_slugs": [

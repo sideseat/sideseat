@@ -18,7 +18,6 @@
       "id": "logfire.detect",
       "doc": "An instrumentation library identifying itself through telemetry.sdk.name - previously a Rust matcher, now one declared dimension.",
       "label": "Logfire",
-      "rank": 200,
       "match": {
         "attr_prefix": [
           "logfire."
@@ -29,7 +28,8 @@
             "value": "logfire"
           }
         ]
-      }
+      },
+      "legacy_rank": 200
     }
   ],
   "sdk_slugs": [

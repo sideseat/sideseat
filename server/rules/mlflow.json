@@ -7,12 +7,12 @@
       "id": "mlflow.detect",
       "doc": "Identifies MLflow by the signals below.",
       "label": "MLflow",
-      "rank": 210,
       "match": {
         "attr_prefix": [
           "mlflow."
         ]
-      }
+      },
+      "legacy_rank": 210
     }
   ],
   "sdk_slugs": [

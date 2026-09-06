@@ -7,12 +7,12 @@
       "id": "llamaindex.detect",
       "doc": "Identifies LlamaIndex by the signals below.",
       "label": "LlamaIndex",
-      "rank": 60,
       "match": {
         "attr_prefix": [
           "llama_index."
         ]
-      }
+      },
+      "legacy_rank": 60
     }
   ],
   "sdk_slugs": [

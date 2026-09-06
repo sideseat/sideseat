@@ -19,7 +19,6 @@
       "id": "strands.detect",
       "doc": "LAST, and the rank is the whole point: the SideSeat SDK defaults service.name to `strands-agents`, so this rule's service-name signal would otherwise claim every span of every framework using the SDK. The phrase search covers the three spellings a name may use and was a Rust matcher.",
       "label": "StrandsAgents",
-      "rank": 280,
       "match": {
         "attr_equals": [
           {
@@ -45,7 +44,8 @@
             "strands_agent"
           ]
         }
-      }
+      },
+      "legacy_rank": 280
     }
   ],
   "sdk_slugs": [

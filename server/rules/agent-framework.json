@@ -7,7 +7,6 @@
       "id": "agent-framework.detect",
       "doc": "Identifies AgentFramework by the signals below.",
       "label": "AgentFramework",
-      "rank": 250,
       "match": {
         "attr_equals": [
           {
@@ -18,7 +17,8 @@
         "service_name": [
           "agent-framework-core"
         ]
-      }
+      },
+      "legacy_rank": 250
     }
   ],
   "sdk_slugs": [
