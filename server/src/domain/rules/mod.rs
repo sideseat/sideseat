@@ -20,6 +20,7 @@
 
 pub mod carrier_rules;
 pub mod detect_rules;
+pub mod message_rules;
 pub mod schema;
 
 #[cfg(test)]
@@ -29,6 +30,7 @@ mod detect_rules_tests;
 
 pub use carrier_rules::CarrierContext;
 pub use detect_rules::DetectContext;
+pub use message_rules::{EmittedCarrier, MessageContext};
 
 use std::sync::OnceLock;
 
@@ -59,6 +61,8 @@ pub struct Ruleset {
     pub carriers: carrier_rules::CarrierPlan,
     /// Detection signals in rank order, and the SDK-declaration fallback.
     pub detect: detect_rules::DetectPlan,
+    /// Which carriers an ingestion reads, declaratively.
+    pub messages: message_rules::MessagePlan,
     /// BLAKE3 of the asset bytes that produced this plan, hex-encoded.
     ///
     /// Joins the reconstruction cache key. That cache is a memo over a pure function of the rows, and
@@ -79,9 +83,12 @@ pub fn ruleset() -> &'static Ruleset {
             .unwrap_or_else(|e| panic!("embedded carrier rules are malformed: {e}"));
         let detect = detect_rules::compile(&sources)
             .unwrap_or_else(|e| panic!("embedded detection rules are malformed: {e}"));
+        let messages = message_rules::compile(&sources)
+            .unwrap_or_else(|e| panic!("embedded message rules are malformed: {e}"));
         Ruleset {
             carriers,
             detect,
+            messages,
             digest,
         }
     })

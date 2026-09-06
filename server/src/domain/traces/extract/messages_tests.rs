@@ -6614,3 +6614,193 @@ fn semconv_tool_attributes_become_a_named_correlated_pair() {
     );
     assert_eq!(result["content"]["value"], 4);
 }
+
+// ============================================================================
+// MESSAGE-RULE EQUIVALENCE: the declared rules against the extractors they replaced
+// ============================================================================
+
+use crate::domain::rules::message_rules::compile;
+use crate::domain::rules::{MessageContext, ruleset, schema};
+
+fn rule_attrs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+    pairs
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect()
+}
+
+/// The rules produce exactly what the functions they replaced produced.
+///
+/// Compared as *serialised observations*, not counts: a rule that emitted the right number of messages
+/// with the wrong carrier tag, the wrong role envelope or an unparsed payload would pass a count check
+/// and corrupt every downstream view, since the carrier tag is what claiming, ordering and dedup all key
+/// on.
+#[test]
+fn the_rules_reproduce_the_extractors_they_replaced() {
+    let time = chrono::Utc::now();
+    // Every carrier the migrated rules read, in the shapes that distinguish the parse modes: valid JSON,
+    // an object, a bare string that is not JSON, and a numeric scalar.
+    let cases: Vec<HashMap<String, String>> = vec![
+        rule_attrs(&[("traceloop.entity.input", r#"{"a":1}"#)]),
+        rule_attrs(&[("traceloop.entity.output", r#"[1,2]"#)]),
+        rule_attrs(&[
+            ("traceloop.entity.input", r#"{"a":1}"#),
+            ("traceloop.entity.output", r#""done""#),
+        ]),
+        // Not JSON: `Json` mode must skip it, which is what the legacy `extract_json` did.
+        rule_attrs(&[("traceloop.entity.input", "not json at all")]),
+        rule_attrs(&[("mlflow.spanInputs", r#"{"messages":[]}"#)]),
+        rule_attrs(&[("mlflow.spanOutputs", r#"{"choices":[]}"#)]),
+        rule_attrs(&[("mlflow.chat.tools", r#"[{"name":"t"}]"#)]),
+        rule_attrs(&[("mlflow.spanInputs", "unparseable")]),
+        // `JsonOrString` mode: the string must survive rather than be dropped.
+        rule_attrs(&[("tool_arguments", r#"{"city":"NYC"}"#)]),
+        rule_attrs(&[("tool_arguments", "plain text arguments")]),
+        rule_attrs(&[("tool_response", r#"{"v":"sunny"}"#)]),
+        rule_attrs(&[("tool_response", "just a string")]),
+        rule_attrs(&[("tool_response", "42")]),
+        // All of them at once, which is also the ordering check.
+        rule_attrs(&[
+            ("traceloop.entity.input", r#"{"a":1}"#),
+            ("mlflow.spanInputs", r#"{"b":2}"#),
+            ("mlflow.chat.tools", r#"[{"name":"t"}]"#),
+            ("tool_arguments", r#"{"c":3}"#),
+            ("tool_response", "text"),
+        ]),
+        // Nothing at all: both must report `false` and emit nothing.
+        rule_attrs(&[("unrelated.key", "x")]),
+    ];
+
+    let mut disagreements = Vec::new();
+    for case in &cases {
+        let mut legacy_msgs: Vec<RawMessage> = Vec::new();
+        let mut legacy_tools: Vec<RawToolDefinition> = Vec::new();
+        let mut legacy_found = false;
+        // In the order the `EXTRACTORS` list had them.
+        for f in [try_mlflow, try_traceloop, try_pydantic_ai] {
+            legacy_found |= f(&mut legacy_msgs, &mut legacy_tools, case, "span", time);
+        }
+
+        let mut rule_msgs: Vec<RawMessage> = Vec::new();
+        let mut rule_tools: Vec<RawToolDefinition> = Vec::new();
+        let rule_found = try_declared_rules(&mut rule_msgs, &mut rule_tools, case, "span", time);
+
+        // Compared as sets of serialised observations: the `EXTRACTORS` order decided which *extractor*
+        // claimed a carrier, never the order observations sit in the vector - `extract_per_carrier`
+        // claims by carrier name, and the pipeline sorts by provenance afterwards.
+        let render = |msgs: &[RawMessage], tools: &[RawToolDefinition]| -> Vec<String> {
+            let mut out: Vec<String> = msgs
+                .iter()
+                .map(|m| format!("msg {:?} {}", m.source, m.content))
+                .chain(
+                    tools
+                        .iter()
+                        .map(|t| format!("tool {:?} {}", t.source, t.content)),
+                )
+                .collect();
+            out.sort();
+            out
+        };
+        let legacy = render(&legacy_msgs, &legacy_tools);
+        let rules = render(&rule_msgs, &rule_tools);
+        if legacy != rules || legacy_found != rule_found {
+            disagreements.push(format!(
+                "  {case:?}\n    table: found={legacy_found} {legacy:?}\n    rules: \
+                 found={rule_found} {rules:?}"
+            ));
+        }
+    }
+    assert!(
+        disagreements.is_empty(),
+        "message extraction changed for {} case(s):\n{}",
+        disagreements.len(),
+        disagreements.join("\n")
+    );
+}
+
+/// What has moved, and what has not - counted, so the boundary cannot quietly stop moving.
+#[test]
+fn declared_message_rules_cover_what_they_claim() {
+    let plan = &ruleset().messages;
+    assert_eq!(
+        plan.rule_count(),
+        7,
+        "the assets declare {} message rules; three extractors were replaced, reading seven carriers \
+         between them",
+        plan.rule_count()
+    );
+    for rule in plan.rules() {
+        assert!(
+            rule.doc.is_some(),
+            "message rule `{}` has no doc: the reason a carrier is read the way it is belongs beside \
+             the declaration",
+            rule.rule_id
+        );
+    }
+    // The carriers really are in the assets, so a clean engine is not a vacuous one.
+    let all: String = schema::embedded_sources()
+        .values()
+        .map(|b| String::from_utf8_lossy(b).to_string())
+        .collect();
+    for carrier in [
+        "traceloop.entity.input",
+        "mlflow.spanInputs",
+        "mlflow.chat.tools",
+        "tool_arguments",
+        "tool_response",
+    ] {
+        assert!(
+            all.contains(carrier),
+            "carrier `{carrier}` is declared in no asset, so nothing declares it at all"
+        );
+    }
+}
+
+#[test]
+fn two_rules_reading_one_carrier_are_refused() {
+    // Not a precedence question: the ingestion claims a carrier once, so the second rule could never
+    // emit anything and would look live while doing nothing.
+    let contested = br#"{
+      "id": "t", "doc": "d",
+      "messages": [
+        {"id": "a", "doc": "d", "read": {"attribute": "k"}, "parse": "json", "emit": "message",
+         "legacy_rank": 1},
+        {"id": "b", "doc": "d", "read": {"attribute": "k"}, "parse": "json", "emit": "message",
+         "legacy_rank": 2}
+      ]
+    }"#;
+    let sources = std::collections::BTreeMap::from([("t.json".to_string(), contested.to_vec())]);
+    assert!(matches!(
+        compile(&sources),
+        Err(crate::domain::rules::message_rules::MessageCompileError::ContestedCarrier { .. })
+    ));
+}
+
+#[test]
+fn the_two_parse_modes_differ_where_it_matters() {
+    // `json` skips what it cannot parse; `json_or_string` keeps it. An extractor using the wrong one
+    // either drops a plain-text payload or stores a fragment of JSON as prose.
+    let both = br#"{
+      "id": "t", "doc": "d",
+      "messages": [
+        {"id": "strict", "doc": "d", "read": {"attribute": "strict"}, "parse": "json",
+         "emit": "message", "legacy_rank": 1},
+        {"id": "lenient", "doc": "d", "read": {"attribute": "lenient"}, "parse": "json_or_string",
+         "emit": "message", "legacy_rank": 2}
+      ]
+    }"#;
+    let sources = std::collections::BTreeMap::from([("t.json".to_string(), both.to_vec())]);
+    let plan = compile(&sources).expect("compiles");
+    let span_attrs = rule_attrs(&[("strict", "not json"), ("lenient", "not json")]);
+    let emissions = plan.run(&MessageContext {
+        span_name: "s",
+        span_attrs: &span_attrs,
+    });
+    let ids: Vec<&str> = emissions.iter().map(|e| e.rule_id).collect();
+    assert_eq!(
+        ids,
+        vec!["lenient"],
+        "the strict rule must skip an unparseable value and the lenient one must keep it"
+    );
+    assert_eq!(emissions[0].value, serde_json::json!("not json"));
+}

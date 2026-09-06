@@ -26,5 +26,27 @@
       "slug": "traceloop",
       "label": "TraceLoop"
     }
+  ],
+  "messages": [
+    {
+      "id": "traceloop.entity_input",
+      "doc": "TraceLoop reports a span's whole input under one key, as a JSON string.",
+      "read": {
+        "attribute": "traceloop.entity.input"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 1000
+    },
+    {
+      "id": "traceloop.entity_output",
+      "doc": "And its whole output under another.",
+      "read": {
+        "attribute": "traceloop.entity.output"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 1010
+    }
   ]
 }

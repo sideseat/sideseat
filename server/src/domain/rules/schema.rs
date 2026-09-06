@@ -33,6 +33,9 @@ pub struct RuleFile {
     /// Detection signals. Produce a **label** and nothing else: no behaviour reads it.
     #[serde(default)]
     pub detect: Vec<DetectRule>,
+    /// Which carriers an ingestion reads on this dialect's spans, and how each is parsed.
+    #[serde(default)]
+    pub messages: Vec<MessageRule>,
     /// The slugs an SDK may write into `sideseat.framework` for this framework, and the label they
     /// resolve to.
     ///
@@ -392,4 +395,80 @@ pub fn digest_of(sources: &BTreeMap<String, Vec<u8>>) -> String {
         hasher.update(bytes);
     }
     hasher.finalize().to_hex().to_string()
+}
+
+/// One message-extraction rule: a carrier to read, how to parse it, and what to emit.
+///
+/// Deliberately small. Extraction stores the payload raw and normalisation happens at query time, so a
+/// rule that needs more than this is a rule whose *transform* is not yet expressible - and the honest
+/// response is to leave that extractor in Rust and count it, not to grow this type until it is a
+/// programming language.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct MessageRule {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The carrier to read.
+    pub read: ReadSpec,
+    /// How to turn its raw string into a value.
+    pub parse: ParseMode,
+    /// Wrap the parsed value in a message envelope with this role.
+    ///
+    /// Some carriers hold a bare payload rather than a message - a tool's arguments, say - and the role
+    /// that payload represents is a fact about the carrier, so it is declared beside it.
+    #[serde(default)]
+    pub wrap: Option<WrapSpec>,
+    /// Whether the observation is a message or a tool definition.
+    pub emit: EmitTarget,
+    /// Position in the consulted order. See `MessagePlan` for why it is `legacy_`.
+    #[serde(rename = "legacy_rank")]
+    pub legacy_rank: i32,
+}
+
+/// The carrier a message rule reads: exactly one of the two, checked at compile time.
+///
+/// Two optional fields rather than a tagged enum, for the same reason the carrier match spec uses them:
+/// an externally-tagged enum needs `{"attribute": {"attribute": "k"}}` in JSON, which is the shape
+/// nobody writes and serde rejects silently at the file level. Requiring exactly one is the check that
+/// makes this equivalent while staying readable.
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
+pub struct ReadSpec {
+    #[serde(default)]
+    pub attribute: Option<String>,
+    #[serde(default)]
+    pub event: Option<String>,
+}
+
+impl ReadSpec {
+    /// How many carriers this names. Exactly one is required.
+    pub fn named_count(&self) -> usize {
+        usize::from(self.attribute.is_some()) + usize::from(self.event.is_some())
+    }
+}
+
+/// How a raw attribute string becomes a value.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ParseMode {
+    /// Parse as JSON; skip the carrier entirely if it does not parse.
+    Json,
+    /// Parse as JSON, keeping the raw text as a string if it does not parse.
+    JsonOrString,
+}
+
+/// The envelope a bare payload is wrapped in.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct WrapSpec {
+    pub role: String,
+}
+
+/// What an emitted observation is.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum EmitTarget {
+    Message,
+    ToolDefinitions,
 }

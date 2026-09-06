@@ -20,5 +20,37 @@
       "slug": "mlflow",
       "label": "MLflow"
     }
+  ],
+  "messages": [
+    {
+      "id": "mlflow.span_inputs",
+      "doc": "MLflow's span input payload.",
+      "read": {
+        "attribute": "mlflow.spanInputs"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 900
+    },
+    {
+      "id": "mlflow.span_outputs",
+      "doc": "MLflow's span output payload.",
+      "read": {
+        "attribute": "mlflow.spanOutputs"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 910
+    },
+    {
+      "id": "mlflow.chat_tools",
+      "doc": "The tool definitions the call was given - a definition rather than a message, which is why the emit target is its own declared fact.",
+      "read": {
+        "attribute": "mlflow.chat.tools"
+      },
+      "parse": "json",
+      "emit": "tool_definitions",
+      "legacy_rank": 920
+    }
   ]
 }

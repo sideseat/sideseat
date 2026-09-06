@@ -316,6 +316,48 @@ fn extract_inference_operation_details_event(
 // MESSAGE EXTRACTION FROM ATTRIBUTES
 // ============================================================================
 
+/// Run every **declared** message rule: the carriers an asset says to read, parsed as it says.
+///
+/// One entry in `EXTRACTORS` for all of them, and it names no framework - which is the point. It
+/// replaced three functions that were each a list of "read this key, parse it as JSON, tag it with the
+/// key it came from", differing only in the keys. Those keys are now in `server/rules/*.json`, so a
+/// dialect whose extraction is nothing but claims needs no code at all.
+///
+/// The extractors that genuinely *transform* are still Rust and still in this list. That boundary is
+/// counted rather than described: `declared_message_rules_cover_what_they_claim` names which carriers
+/// have moved, and the ones that have not are the ones whose transform the rule vocabulary cannot yet
+/// express.
+pub(crate) fn try_declared_rules(
+    messages: &mut Vec<RawMessage>,
+    tool_definitions: &mut Vec<RawToolDefinition>,
+    attrs: &HashMap<String, String>,
+    span_name: &str,
+    timestamp: DateTime<Utc>,
+) -> bool {
+    let emissions =
+        crate::domain::rules::ruleset()
+            .messages
+            .run(&crate::domain::rules::MessageContext {
+                span_name,
+                span_attrs: attrs,
+            });
+    let found = !emissions.is_empty();
+    for emission in emissions {
+        let crate::domain::rules::EmittedCarrier::Attribute(key) = emission.carrier else {
+            continue;
+        };
+        match emission.target {
+            crate::domain::rules::schema::EmitTarget::Message => {
+                messages.push(RawMessage::from_attr(key, timestamp, emission.value));
+            }
+            crate::domain::rules::schema::EmitTarget::ToolDefinitions => {
+                tool_definitions.push(RawToolDefinition::from_attr(key, timestamp, emission.value));
+            }
+        }
+    }
+    found
+}
+
 /// Function signature for attribute-based message extractors.
 type AttrExtractor = fn(
     &mut Vec<RawMessage>,
@@ -370,17 +412,13 @@ const EXTRACTORS: &[NamedExtractor] = &[
         name: "livekit",
         extractor: try_livekit,
     },
+    // Every dialect whose extraction is purely "claim this carrier and keep what it held" - declared in
+    // `server/rules/*.json` rather than written here. Their carriers are read by no other extractor
+    // (`ContestedCarrier` refuses a ruleset where two rules read one carrier), so collapsing three
+    // list positions into one cannot change which extractor claims what.
     NamedExtractor {
-        name: "mlflow",
-        extractor: try_mlflow,
-    },
-    NamedExtractor {
-        name: "traceloop",
-        extractor: try_traceloop,
-    },
-    NamedExtractor {
-        name: "pydantic_ai",
-        extractor: try_pydantic_ai,
+        name: "declared_rules",
+        extractor: try_declared_rules,
     },
     NamedExtractor {
         name: "langsmith",
@@ -2028,6 +2066,7 @@ pub(crate) fn try_livekit(
 }
 
 /// MLflow message extraction
+#[cfg(test)]
 pub(crate) fn try_mlflow(
     messages: &mut Vec<RawMessage>,
     tool_definitions: &mut Vec<RawToolDefinition>,
@@ -2071,6 +2110,7 @@ pub(crate) fn try_mlflow(
 }
 
 /// TraceLoop message extraction
+#[cfg(test)]
 pub(crate) fn try_traceloop(
     messages: &mut Vec<RawMessage>,
     _tool_definitions: &mut Vec<RawToolDefinition>,
@@ -2104,6 +2144,7 @@ pub(crate) fn try_traceloop(
 }
 
 /// Pydantic AI (via Logfire) message extraction
+#[cfg(test)]
 pub(crate) fn try_pydantic_ai(
     messages: &mut Vec<RawMessage>,
     _tool_definitions: &mut Vec<RawToolDefinition>,

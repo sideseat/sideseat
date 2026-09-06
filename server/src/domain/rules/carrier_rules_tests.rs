@@ -395,6 +395,7 @@ fn the_engine_names_no_framework() {
         ("schema.rs", include_str!("schema.rs")),
         ("carrier_rules.rs", include_str!("carrier_rules.rs")),
         ("detect_rules.rs", include_str!("detect_rules.rs")),
+        ("message_rules.rs", include_str!("message_rules.rs")),
     ];
 
     // The engine directory holds nothing else. A new module would otherwise be exempt by omission -

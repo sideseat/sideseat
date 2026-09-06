@@ -1,0 +1,33 @@
+{
+  "id": "pydantic-ai",
+  "doc": "The pydantic-ai dialect.",
+  "carriers": [],
+  "messages": [
+    {
+      "id": "pydantic-ai.tool_arguments",
+      "doc": "The arguments a tool was called with. A bare payload rather than a message, so the role it represents is declared beside the carrier. Parsed with a string fallback: these values are not always JSON, and dropping an unparseable one would lose the call.",
+      "read": {
+        "attribute": "tool_arguments"
+      },
+      "parse": "json_or_string",
+      "emit": "message",
+      "legacy_rank": 1100,
+      "wrap": {
+        "role": "tool_call"
+      }
+    },
+    {
+      "id": "pydantic-ai.tool_response",
+      "doc": "What the tool returned, under the same reading.",
+      "read": {
+        "attribute": "tool_response"
+      },
+      "parse": "json_or_string",
+      "emit": "message",
+      "legacy_rank": 1110,
+      "wrap": {
+        "role": "tool"
+      }
+    }
+  ]
+}

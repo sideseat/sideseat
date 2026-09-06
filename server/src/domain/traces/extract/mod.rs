@@ -237,7 +237,9 @@ pub(super) mod keys {
     pub const LOGFIRE_MSG: &str = "logfire.msg";
 
     // Pydantic AI (via Logfire)
+    #[cfg(test)]
     pub const TOOL_ARGUMENTS: &str = "tool_arguments";
+    #[cfg(test)]
     pub const TOOL_RESPONSE: &str = "tool_response";
     pub const PYDANTIC_AI_ALL_MESSAGES: &str = "pydantic_ai.all_messages";
     pub const GEN_AI_SYSTEM_INSTRUCTIONS: &str = "gen_ai.system_instructions";
@@ -267,15 +269,20 @@ pub(super) mod keys {
     pub const LK_FUNCTION_TOOL_IS_ERROR: &str = "lk.function_tool.is_error";
 
     // MLflow
+    #[cfg(test)]
     pub const MLFLOW_SPAN_INPUTS: &str = "mlflow.spanInputs";
+    #[cfg(test)]
     pub const MLFLOW_SPAN_OUTPUTS: &str = "mlflow.spanOutputs";
+    #[cfg(test)]
     pub const MLFLOW_CHAT_TOOLS: &str = "mlflow.chat.tools";
     pub const MLFLOW_CHAT_TOKEN_USAGE: &str = "mlflow.chat.tokenUsage";
     pub const MLFLOW_TRACE_SESSION: &str = "mlflow.trace.session";
     pub const MLFLOW_TRACE_USER: &str = "mlflow.trace.user";
 
     // TraceLoop
+    #[cfg(test)]
     pub const TRACELOOP_ENTITY_INPUT: &str = "traceloop.entity.input";
+    #[cfg(test)]
     pub const TRACELOOP_ENTITY_OUTPUT: &str = "traceloop.entity.output";
 
     // Vercel AI SDK
