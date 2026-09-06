@@ -6870,6 +6870,44 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             ("gen_ai.tool.name", "t"),
             ("gen_ai.tool.call.id", "id1"),
         ]),
+        // Vercel: the prompt under each spelling, both tagged canonically.
+        rule_attrs(&[("ai.prompt.messages", r#"[{"role":"user","content":"q"}]"#)]),
+        rule_attrs(&[("ai.prompt", r#"[{"role":"user","content":"q"}]"#)]),
+        // Non-object elements in the array must be skipped, not emitted as turns.
+        rule_attrs(&[("ai.prompt.messages", r#"[{"role":"user"},"stray",42]"#)]),
+        // Not an array at all.
+        rule_attrs(&[("ai.prompt.messages", r#"{"role":"user"}"#)]),
+        // A tool call across three attributes.
+        rule_attrs(&[
+            ("ai.toolCall.args", r#"{"city":"NYC"}"#),
+            ("ai.toolCall.name", "weather"),
+            ("ai.toolCall.id", "c1"),
+        ]),
+        // The composed response: current spellings.
+        rule_attrs(&[
+            ("ai.response.text", "the answer"),
+            ("ai.response.toolCalls", r#"[{"name":"t"}]"#),
+            ("ai.response.finishReason", "stop"),
+        ]),
+        // Legacy spellings, which must read identically.
+        rule_attrs(&[
+            ("ai.result.text", "legacy answer"),
+            ("ai.result.toolCalls", r#"[{"name":"t"}]"#),
+            ("ai.result.object", r#"{"k":1}"#),
+        ]),
+        // A structured object under the current name, plus a swept member.
+        rule_attrs(&[
+            ("ai.response.object", r#"{"k":1}"#),
+            ("ai.response.id", "resp-1"),
+            ("ai.response.model", "m"),
+        ]),
+        // The gated fallback: `output.value` is read only on evidence this is such a span.
+        rule_attrs(&[("output.value", "generic"), ("ai.prompt.messages", "[]")]),
+        rule_attrs(&[("output.value", "generic"), ("ai.toolCall.name", "t")]),
+        // No evidence at all: the fallback must not claim the generic carrier.
+        rule_attrs(&[("output.value", "generic")]),
+        // Nothing of the family: no response message at all, not one holding only a role.
+        rule_attrs(&[("unrelated", "x"), ("ai.somethingElse", "y")]),
     ];
 
     let mut disagreements = Vec::new();
@@ -6877,6 +6915,11 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         let mut legacy_msgs: Vec<RawMessage> = Vec::new();
         let mut legacy_tools: Vec<RawToolDefinition> = Vec::new();
         let mut legacy_found = false;
+        // The caller's tool-span gate, replicated: `extract_per_carrier` skips every extractor but the
+        // conventions on a tool execution span, so the legacy side must be compared under that same rule.
+        // Without it the oracle compares at two different levels - the rules apply the gate internally
+        // (it is a declared rule property now) while these functions expected their caller to.
+        let is_tool_span = is_tool_execution_span(case);
         // In the order the `EXTRACTORS` list had them.
         for f in [
             try_gen_ai_indexed,
@@ -6886,8 +6929,17 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             try_langsmith,
             try_livekit,
             try_otel_genai_messages,
+            try_vercel_ai,
         ] {
+            if is_tool_span {
+                continue;
+            }
             legacy_found |= f(&mut legacy_msgs, &mut legacy_tools, case, "span", time);
+        }
+        if is_tool_span {
+            // Only the conventions read a tool span, and they still do - as declared rules.
+            legacy_found |=
+                try_otel_genai_messages(&mut legacy_msgs, &mut legacy_tools, case, "span", time);
         }
 
         let mut rule_msgs: Vec<RawMessage> = Vec::new();
@@ -6933,7 +6985,7 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        27,
+        30,
         "the assets declare {} message rules; seven extractors were replaced by them, plus two \
          carriers taken out of an eighth",
         plan.rule_count()

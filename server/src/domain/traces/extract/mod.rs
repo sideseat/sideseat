@@ -308,8 +308,11 @@ pub(super) mod keys {
     pub const AI_MODEL_ID: &str = "ai.model.id";
     pub const AI_MODEL_PROVIDER: &str = "ai.model.provider";
     pub const AI_OPERATION_ID: &str = "ai.operationId";
+    #[cfg(test)]
     pub const AI_RESULT_TEXT: &str = "ai.result.text";
+    #[cfg(test)]
     pub const AI_RESULT_OBJECT: &str = "ai.result.object";
+    #[cfg(test)]
     pub const AI_RESULT_TOOL_CALLS: &str = "ai.result.toolCalls";
     pub const AI_TOOLCALL_NAME: &str = "ai.toolCall.name";
     pub const AI_TOOLCALL_ID: &str = "ai.toolCall.id";

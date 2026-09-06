@@ -394,10 +394,6 @@ const EXTRACTORS: &[NamedExtractor] = &[
         extractor: try_logfire_events,
     },
     NamedExtractor {
-        name: "vercel_ai",
-        extractor: try_vercel_ai,
-    },
-    NamedExtractor {
         name: "google_adk",
         extractor: try_google_adk,
     },
@@ -1468,6 +1464,7 @@ fn extract_logfire_event_array(
     found
 }
 
+#[cfg(test)]
 pub(crate) fn try_vercel_ai(
     messages: &mut Vec<RawMessage>,
     _tool_definitions: &mut Vec<RawToolDefinition>,

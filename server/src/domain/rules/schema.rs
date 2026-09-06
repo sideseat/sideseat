@@ -410,8 +410,16 @@ pub struct MessageRule {
     pub id: String,
     #[serde(default)]
     pub doc: Option<String>,
-    /// The carrier to read.
+    /// The carrier to read. Absent for a `compose` rule, which has many sources rather than one.
+    #[serde(default)]
     pub read: ReadSpec,
+    /// Assemble one message from several attributes, rather than wrapping one read value.
+    ///
+    /// The dual of `wrap`, and needed because a dialect writes one response across many keys - the text
+    /// here, the tool calls there, a structured object beside them, and any other member of the same
+    /// family swept up. There is no single carrier to read, so there is no single value to wrap.
+    #[serde(default)]
+    pub compose: Option<ComposeSpec>,
     /// How to turn its raw string into a value. Absent for an indexed family, which has no single
     /// string to parse - each member is read on its own.
     #[serde(default)]
@@ -439,6 +447,14 @@ pub struct MessageRule {
     /// three dialects migrated first needed.
     #[serde(default)]
     pub alternatives: Vec<Alternative>,
+    /// Tag the observation with this carrier, whatever alternative was read.
+    ///
+    /// Normally the key found is the tag, so two spellings of a payload stay distinguishable. One dialect
+    /// deliberately does the opposite: it reads a renamed key but reports the canonical one, so every
+    /// span's prompt is tagged alike whichever spelling it used. Declared, because it is the *reverse* of
+    /// the default and a reader would otherwise assume the default.
+    #[serde(default)]
+    pub tag_as: Option<String>,
     /// May this rule read a *tool execution* span?
     ///
     /// A tool span reads the conventions and nothing else. The reason is that a tool span carries the
@@ -675,6 +691,13 @@ pub struct ShapeRequirement {
     /// At least one of these members must be present.
     #[serde(default)]
     pub any_of: Vec<String>,
+    /// The value must be an object.
+    ///
+    /// Its own fact, because a member requirement cannot express it: a scalar has no members, so an
+    /// empty requirement admits it. One dialect's prompt array legitimately holds non-objects, and
+    /// emitting one as a message produces a turn with no role and no content.
+    #[serde(default)]
+    pub is_object: bool,
 }
 
 /// Which members an indexed entry must carry.
@@ -709,4 +732,59 @@ pub enum MemberPresence {
     Nested,
     /// Either.
     Either,
+}
+
+/// A message assembled from several attributes of one span.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ComposeSpec {
+    /// The carrier the assembled message is tagged with.
+    pub tag: String,
+    /// The members, in the order they are inserted - which is observable, since content identity is
+    /// hashed from the payload.
+    pub members: Vec<ComposeMember>,
+    /// Literal members added *after* every source member.
+    ///
+    /// Position matters and this is why it is a separate field: the code being replaced inserts the role
+    /// last, after everything it collected, so a payload built role-first would hash differently.
+    #[serde(default)]
+    pub trailing: BTreeMap<String, JsonValue>,
+}
+
+/// One member of a composed message: a named source, or a sweep of a prefix.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ComposeMember {
+    /// The member's name. Absent for a sweep, which takes its names from the keys it finds.
+    #[serde(rename = "as", default)]
+    pub as_member: Option<String>,
+    /// Ordered sources; the first the span carries wins.
+    #[serde(default)]
+    pub from_any_of: Vec<String>,
+    /// How to read it. Defaults to text.
+    #[serde(default)]
+    pub parse: Option<ParseMode>,
+    /// A last-resort source, used only where the gate holds.
+    ///
+    /// Separate from `from_any_of` because it is *conditional*: this key is not the dialect's own, so
+    /// reading it unguarded would claim a generic carrier that belongs to whatever wrote it.
+    #[serde(default)]
+    pub fallback: Option<ComposeFallback>,
+    /// Collect every attribute under this prefix, keyed by the remainder.
+    #[serde(default)]
+    pub sweep_prefix: Option<String>,
+    /// Names the sweep skips, because a named member above already read them.
+    #[serde(default)]
+    pub except: Vec<String>,
+}
+
+/// A conditional last-resort source.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ComposeFallback {
+    pub from: String,
+    /// The evidence required before the fallback is read.
+    pub when: DetectMatch,
+    #[serde(default)]
+    pub parse: Option<ParseMode>,
 }

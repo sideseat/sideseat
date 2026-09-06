@@ -73,5 +73,117 @@
       "slug": "vercel-ai",
       "label": "VercelAISDK"
     }
+  ],
+  "messages": [
+    {
+      "id": "vercel-ai.prompt",
+      "doc": "The request, as an array of messages under either spelling of the key. Tagged with the canonical one whichever was read - this dialect reports the same carrier for both, so every span's prompt is comparable. Non-object elements are skipped: the array legitimately holds them, and emitting one produces a turn with no role and no content.",
+      "read": {
+        "attribute_any_of": [
+          "ai.prompt.messages",
+          "ai.prompt"
+        ]
+      },
+      "tag_as": "ai.prompt.messages",
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 300,
+      "alternatives": [
+        {
+          "doc": "The payload is the array itself.",
+          "each": true,
+          "require": {
+            "is_object": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "vercel-ai.toolcall_args",
+      "doc": "A tool call, with the tool's name and the call id from the attributes beside it.",
+      "read": {
+        "attribute": "ai.toolCall.args"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "tool_call",
+        "attach": [
+          {
+            "from": "ai.toolCall.name",
+            "as": "name"
+          },
+          {
+            "from": "ai.toolCall.id",
+            "as": "tool_call_id"
+          }
+        ]
+      },
+      "emit": "message",
+      "legacy_rank": 310
+    },
+    {
+      "id": "vercel-ai.response",
+      "doc": "One response written across many keys: the text here, the tool calls there, a structured object beside them, and any other member of the family swept up. Each named member accepts the current spelling and the legacy one - the SDK renamed `ai.result.*` to `ai.response.*` and both are in the wild. The role is trailing because the code being replaced inserted it last, and content identity is hashed from this payload, so the position is part of the answer.",
+      "compose": {
+        "tag": "ai.response",
+        "trailing": {
+          "role": "assistant"
+        },
+        "members": [
+          {
+            "as": "content",
+            "from_any_of": [
+              "ai.response.text",
+              "ai.result.text"
+            ],
+            "parse": "text",
+            "fallback": {
+              "from": "output.value",
+              "when": {
+                "attr_exists": [
+                  "ai.prompt.messages",
+                  "ai.prompt",
+                  "ai.response.text",
+                  "ai.result.text",
+                  "ai.response.toolCalls",
+                  "ai.result.toolCalls",
+                  "ai.toolCall.name"
+                ],
+                "span_name": [
+                  "ai."
+                ]
+              },
+              "parse": "text"
+            }
+          },
+          {
+            "as": "tool_calls",
+            "from_any_of": [
+              "ai.response.toolCalls",
+              "ai.result.toolCalls"
+            ],
+            "parse": "json_or_string"
+          },
+          {
+            "as": "object",
+            "from_any_of": [
+              "ai.response.object",
+              "ai.result.object"
+            ],
+            "parse": "json_or_string"
+          },
+          {
+            "sweep_prefix": "ai.response.",
+            "except": [
+              "text",
+              "toolCalls",
+              "object"
+            ]
+          }
+        ]
+      },
+      "emit": "message",
+      "legacy_rank": 320
+    }
   ]
 }

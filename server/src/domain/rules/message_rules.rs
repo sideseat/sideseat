@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use serde_json::{Value as JsonValue, json};
 
 use super::schema::{
-    Alternative, AttachSpec, BlockSpec, DetectMatch, EmitTarget, MemberPresence,
+    Alternative, AttachSpec, BlockSpec, ComposeSpec, DetectMatch, EmitTarget, MemberPresence,
     MemberRequirements, MessageRule, ParseMode, ReadSpec, RuleFile, ShapeRequirement, WrapSpec,
 };
 
@@ -77,6 +77,7 @@ pub struct CompiledMessageRule {
     pub rule_id: String,
     pub doc: Option<String>,
     pub read: ReadSpec,
+    pub compose: Option<ComposeSpec>,
     pub parse: Option<ParseMode>,
     pub require_members: Option<MemberRequirements>,
     pub wrap: Option<WrapSpec>,
@@ -85,6 +86,7 @@ pub struct CompiledMessageRule {
     pub unless: Option<DetectMatch>,
     pub require_non_empty: bool,
     pub reads_tool_spans: bool,
+    pub tag_as: Option<String>,
     pub alternatives: Vec<Alternative>,
     pub legacy_rank: i32,
 }
@@ -173,12 +175,14 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 id,
                 doc,
                 read,
+                compose,
                 parse,
                 wrap,
                 emit,
                 require_members,
                 require_non_empty,
                 reads_tool_spans,
+                tag_as,
                 unless,
                 when,
                 alternatives,
@@ -187,18 +191,28 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             if seen_ids.insert(id.clone(), ()).is_some() {
                 return Err(MessageCompileError::DuplicateRuleId { rule: id.clone() });
             }
-            if read.named_count() != 1 {
+            if compose.is_none() && read.named_count() != 1 {
                 return Err(MessageCompileError::NotExactlyOneCarrier { rule: id.clone() });
             }
-            let carriers = declared_carriers(read);
-            if carriers.is_empty() || carriers.iter().any(|name| name.is_empty()) {
-                return Err(MessageCompileError::EmptyCarrier { rule: id.clone() });
+            if let Some(compose) = compose {
+                if read.named_count() != 0 {
+                    return Err(MessageCompileError::NotExactlyOneCarrier { rule: id.clone() });
+                }
+                if compose.tag.is_empty() || compose.members.is_empty() {
+                    return Err(MessageCompileError::EmptyCarrier { rule: id.clone() });
+                }
+            } else {
+                let carriers = declared_carriers(read);
+                if carriers.is_empty() || carriers.iter().any(|name| name.is_empty()) {
+                    return Err(MessageCompileError::EmptyCarrier { rule: id.clone() });
+                }
             }
             rules.push(CompiledMessageRule {
                 rule_file: file.id.clone(),
                 rule_id: id.clone(),
                 doc: doc.clone(),
                 read: read.clone(),
+                compose: compose.clone(),
                 parse: *parse,
                 require_members: require_members.clone(),
                 wrap: wrap.clone(),
@@ -207,6 +221,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 unless: unless.clone(),
                 require_non_empty: *require_non_empty,
                 reads_tool_spans: *reads_tool_spans,
+                tag_as: tag_as.clone(),
                 alternatives: alternatives.clone(),
                 legacy_rank: *legacy_rank,
             });
@@ -223,16 +238,26 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     // ingestion claims a carrier once, so a second rule reading it is dead weight that looks live.
     for (i, a) in rules.iter().enumerate() {
         for b in &rules[i + 1..] {
-            let shared = declared_carriers(&a.read)
+            // A composed message claims its declared tag, so it contests like any other carrier.
+            let carriers_of = |rule: &CompiledMessageRule| -> Vec<String> {
+                let mut names: Vec<String> = declared_carriers(&rule.read)
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect();
+                names.extend(compose_tag(rule).map(str::to_string));
+                names
+            };
+            let b_carriers = carriers_of(b);
+            let shared = carriers_of(a)
                 .into_iter()
-                .find(|name| declared_carriers(&b.read).contains(name));
-            if same_kind(&a.read, &b.read)
-                && let Some(carrier) = shared
-            {
+                .find(|name| b_carriers.contains(name));
+            let comparable =
+                same_kind(&a.read, &b.read) || a.compose.is_some() || b.compose.is_some();
+            if comparable && let Some(carrier) = shared {
                 return Err(MessageCompileError::ContestedCarrier {
                     first: a.rule_id.clone(),
                     second: b.rule_id.clone(),
-                    carrier: carrier.to_string(),
+                    carrier,
                 });
             }
         }
@@ -263,6 +288,11 @@ fn declared_carriers(read: &ReadSpec) -> Vec<&str> {
     names
 }
 
+/// The carrier a composed message is tagged with, for the contested-carrier check.
+fn compose_tag(rule: &CompiledMessageRule) -> Option<&str> {
+    rule.compose.as_ref().map(|c| c.tag.as_str())
+}
+
 /// Whether two rules read the same carrier in the same way.
 fn same_kind(a: &ReadSpec, b: &ReadSpec) -> bool {
     let attribute_like = |r: &ReadSpec| r.attribute.is_some() || !r.attribute_any_of.is_empty();
@@ -277,6 +307,17 @@ impl MessagePlan {
         let mut out = Vec::new();
         for rule in &self.rules {
             if !gates_allow(rule, ctx) {
+                continue;
+            }
+            if let Some(compose) = &rule.compose {
+                if let Some(value) = composed(compose, ctx) {
+                    out.push(Emission {
+                        rule_id: &rule.rule_id,
+                        carrier: EmittedCarrier::Attribute(compose.tag.as_str()),
+                        target: rule.target,
+                        value,
+                    });
+                }
                 continue;
             }
             if let Some(family) = rule.read.indexed_family.as_deref() {
@@ -313,7 +354,7 @@ impl MessagePlan {
                 };
                 out.push(Emission {
                     rule_id: &rule.rule_id,
-                    carrier: EmittedCarrier::Attribute(attribute),
+                    carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
                     target: rule.target,
                     value,
                 });
@@ -352,6 +393,9 @@ fn shape_holds(value: &JsonValue, requirement: Option<&ShapeRequirement>) -> boo
     let Some(req) = requirement else {
         return true;
     };
+    if req.is_object && !value.is_object() {
+        return false;
+    }
     let present = |member: &String| value.get(member.as_str()).is_some();
     (req.all_of.is_empty() || req.all_of.iter().all(present))
         && (req.any_of.is_empty() || req.any_of.iter().any(present))
@@ -624,4 +668,56 @@ fn members_present(
     };
     (require.all_of.is_empty() || require.all_of.iter().all(present))
         && (require.any_of.is_empty() || require.any_of.iter().any(present))
+}
+
+/// Assemble a composed message, or `None` where the span supplied no member.
+///
+/// Emitted only when at least one *source* member was filled - the trailing literals are not evidence of
+/// anything, so a rule whose sources all missed would otherwise emit a message consisting of a role.
+fn composed(compose: &ComposeSpec, ctx: &MessageContext<'_>) -> Option<JsonValue> {
+    let attrs = ctx.span_attrs;
+    let mut object = serde_json::Map::new();
+
+    for member in &compose.members {
+        if let Some(prefix) = &member.sweep_prefix {
+            let dot_prefix = prefix.as_str();
+            for (key, value) in attrs {
+                if let Some(suffix) = key.strip_prefix(dot_prefix)
+                    && !member.except.iter().any(|skip| skip == suffix)
+                {
+                    object.insert(suffix.to_string(), sniffed_value(value));
+                }
+            }
+            continue;
+        }
+        let Some(name) = &member.as_member else {
+            continue;
+        };
+        let direct = member
+            .from_any_of
+            .iter()
+            .find_map(|key| attrs.get(key))
+            .and_then(|raw| parse_value(raw, member.parse.unwrap_or(ParseMode::Text)));
+        let value = direct.or_else(|| {
+            // The conditional last resort: a key that is not this dialect's own, read only on evidence
+            // that the span is one of its spans.
+            let fallback = member.fallback.as_ref()?;
+            if !super::detect_rules::signals_hold(&fallback.when, ctx.span_name, attrs) {
+                return None;
+            }
+            let raw = attrs.get(&fallback.from)?;
+            parse_value(raw, fallback.parse.unwrap_or(ParseMode::Text))
+        });
+        if let Some(value) = value {
+            object.insert(name.clone(), value);
+        }
+    }
+
+    if object.is_empty() {
+        return None;
+    }
+    for (member, literal) in &compose.trailing {
+        object.insert(member.clone(), literal.clone());
+    }
+    Some(JsonValue::Object(object))
 }
